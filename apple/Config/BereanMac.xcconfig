@@ -1,9 +1,9 @@
 #include "Base.xcconfig"
-// Native macOS app — development identity. Distinct from production (com.berean.app) and from
+// Native macOS app (OD-2: latest stable macOS, 27) — development identity. Distinct from production (com.berean.app) and from
 // the Capacitor/Electron "Berean Dev" (com.berean.app.dev): it can never open their data.
 SDKROOT = macosx
 SUPPORTED_PLATFORMS = macosx
-MACOSX_DEPLOYMENT_TARGET = 15.0
+MACOSX_DEPLOYMENT_TARGET = 27.0
 PRODUCT_BUNDLE_IDENTIFIER = com.berean.native.mac.dev
 ENABLE_APP_SANDBOX = YES
 ENABLE_HARDENED_RUNTIME = YES

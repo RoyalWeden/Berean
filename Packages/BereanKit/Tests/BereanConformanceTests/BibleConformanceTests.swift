@@ -91,25 +91,19 @@ func digest(_ rows: [JSValue]) -> JSObject {
         #expect(JSValue.object(o) == g["versesSample"]!)
     }
 
-    /// Exact order is required except among equal-rank rows: FTS `ORDER BY rank` has no tie-breaker
-    /// and SQLite versions order ties differently (DECISIONS F-05). Such cases must still return the
-    /// identical row set; they are reported, not failed.
+    /// Exact order required (ADR-0008: `ORDER BY rank, v.id` is stable across SQLite builds).
     @Test func search() async {
-        var failures: [String] = [], tieOrder: [String] = []
+        var failures: [String] = []
         for c in g.arr("search") {
             let books = c["bookIds"]?.arrayValue?.map(\.str)
             let rows = await svc.searchText(c["query"]!.str, textId: c["text"]!.str, mode: WordMode(rawValue: c["mode"]!.str)!,
                                             bookIds: books, chapter: c["chapter"]?.numberValue.map { Int($0) })
-            let json = rows.map(\.json)
-            let d = digest(json)
-            let label = "\(c["text"]!.str) \(c["query"]!.str.debugDescription) \(c["mode"]!.str) \(books ?? [])"
-            if d["count"] == c["count"] && d["hash"] == c["hash"] { continue }
-            let sorted = json.map { JSON.stringify($0) }.sorted().map { JSValue.string($0) }
-            let setHash = SyncHash.shortHash(JSON.stringify(.array(sorted)).units)
-            if d["count"] == c["count"] && setHash == c["setHash"]!.str { tieOrder.append(label); continue }
-            failures.append("\(label): got \(rows.count), want \(c["count"]!.int)")
+            let d = digest(rows.map(\.json))
+            let first = rows.prefix(3).map { "\($0.bookId).\($0.chapter).\($0.verseNum)" }
+            if d["count"] != c["count"] || d["hash"] != c["hash"] || first != c["first"]!.array.map(\.str) {
+                failures.append("\(c["text"]!.str) \(c["query"]!.str.debugDescription) \(c["mode"]!.str) \(books ?? []): got \(rows.count) \(first), want \(c["count"]!.int)")
+            }
         }
-        if !tieOrder.isEmpty { print("bible golden: \(tieOrder.count) searches differ only in equal-rank order (SQLite \(SQLiteConnection.libraryVersion)): \(tieOrder)") }
         #expect(failures.isEmpty, Comment(rawValue: "SQLite \(SQLiteConnection.libraryVersion) — \(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
     }
 

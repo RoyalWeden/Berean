@@ -62,13 +62,23 @@ jobs:
 
   native:
     name: Native Swift (BereanKit conformance, Mac + iOS Simulator builds)
-    runs-on: macos-latest
-    timeout-minutes: 30
+    runs-on: macos-26
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
-      - name: Toolchain
-        run: xcodebuild -version && swift --version
+      # The native Mac app targets macOS 27 (DECISIONS OD-2 / ADR-0007) and needs Xcode 27's SDK. GitHub's
+      # hosted images top out at Xcode 26.6 today, so the Mac build runs here only when Xcode 27 exists;
+      # otherwise it is a required local check before merge (scripts/native/build.sh mac). BereanKit and the
+      # iOS app (iOS 18 floor) build with the newest Xcode available.
+      - name: Select newest Xcode
+        id: xcode
+        shell: bash
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version && swift --version
+          if [[ "$(basename "$XC")" == Xcode_27* || "$(basename "$XC")" == Xcode_2[89]* ]]; then echo "mac=yes" >> "$GITHUB_OUTPUT"; else echo "mac=no" >> "$GITHUB_OUTPUT"; echo "::notice::No Xcode 27 on this image — BereanMac (macOS 27) build skipped in CI; verified locally before merge."; fi
 
       # The Bible-service conformance tests read the bundled text databases (read-only).
       - name: Download Bible/lexicon databases
@@ -82,6 +92,7 @@ jobs:
         run: npm run native:test
 
       - name: Build BereanMac
+        if: steps.xcode.outputs.mac == 'yes'
         run: npm run native:build:mac
 
       - name: Build BereanIOS (Simulator)
