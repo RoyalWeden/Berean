@@ -28,7 +28,7 @@ let package = Package(
         // System SQLite (ADR-0006): read-only bundled corpora now, the user store in M3.
         .target(name: "BereanSQLite", linkerSettings: [.linkedLibrary("sqlite3")]),
         // Read-only Scripture services (src/platform/services/bibleService.ts).
-        .target(name: "BereanBible", dependencies: ["BereanCore", "BereanSQLite", "BereanReference"]),
+        .target(name: "BereanBible", dependencies: ["BereanCore", "BereanSQLite", "BereanReference", "BereanText"]),
         // Verse text: tagged tokens, italic/red-letter ranges, annotation stripping, offset maps.
         .target(name: "BereanText", dependencies: ["BereanCore"]),
         .testTarget(name: "BereanCoreTests", dependencies: ["BereanCore"]),
