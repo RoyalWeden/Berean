@@ -98,3 +98,42 @@ describe('bibleService (real kjva.db, skipped when data is absent)', () => {
     expect(books[0].id).toBe('GEN')
   })
 })
+
+// OD-4 / DECISIONS ADR-0008: equal-rank FTS results must come back in one well-defined order (verse row id)
+// on every SQLite build, so desktop, iPhone and the native apps agree.
+describe('bibleService search ordering is deterministic', () => {
+  it('orders equal-relevance verses by row id (canonical insertion order)', async () => {
+    const same = 'the light shineth in darkness'
+    const text = await fixtureTextDb([
+      { book: 'JHN', ch: 1, v: 5, text: same },
+      { book: 'GEN', ch: 1, v: 3, text: same },
+      { book: 'JHN', ch: 12, v: 46, text: same },
+      { book: 'GEN', ch: 1, v: 4, text: same },
+      { book: 'GEN', ch: 1, v: 5, text: 'And God called the light Day, and the darkness he called Night' },
+    ])
+    const svc = createBibleService(makeContext({ texts: { kjva: text } }))
+    for (const mode of ['all', 'any', 'phrase'] as const) {
+      const rows = await svc.searchText('light shineth', 'kjva', mode)
+      const tied = rows.filter((r) => r.text === same).map((r) => `${r.book_id}.${r.chapter}.${r.verse_num}`)
+      expect(tied, mode).toEqual(['JHN.1.5', 'GEN.1.3', 'JHN.12.46', 'GEN.1.4'])
+    }
+  })
+
+  it('every FTS query orders by rank then verse id (the cross-SQLite tie-breaker contract)', async () => {
+    const text = await fixtureTextDb([{ book: 'GEN', ch: 1, v: 1, text: 'light' }])
+    const seen: string[] = []
+    const spy: DatabaseAdapter = new Proxy(text, {
+      get(target, prop, recv) {
+        const v = Reflect.get(target, prop, recv)
+        if (prop === 'all') return (sql: string, params?: unknown[]) => { seen.push(sql); return (v as DatabaseAdapter['all']).call(target, sql, params as never) }
+        return typeof v === 'function' ? v.bind(target) : v
+      },
+    })
+    const svc = createBibleService(makeContext({ texts: { kjva: spy } }))
+    for (const mode of ['all', 'any', 'phrase'] as const) await svc.searchText('light', 'kjva', mode)
+    await svc.searchText('light', 'kjva', 'all', ['GEN'], 1)
+    const fts = seen.filter((q) => q.includes('MATCH'))
+    expect(fts.length).toBe(4)
+    for (const q of fts) expect(q).toMatch(/ORDER BY rank, v\.id\s/)
+  })
+})

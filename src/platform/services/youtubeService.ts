@@ -320,7 +320,7 @@ export function createYoutubeService(ctx: ServiceContext) {
         FROM cand
         JOIN youtube_transcript_segments s ON s.id = cand.rowid
         JOIN youtube_videos v ON v.video_id = s.video_id
-        ORDER BY cand.rank
+        ORDER BY cand.rank, cand.rowid
       `, [match])
     } catch {
       rows = [] // malformed FTS expression — fall through to LIKE fallback

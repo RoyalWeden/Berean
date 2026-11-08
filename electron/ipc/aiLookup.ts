@@ -1689,7 +1689,7 @@ function searchNotesExplicit(question: string, limit = 8, bookId?: string | null
       SELECT n.id, n.title, n.content, n.type, n.idiom_term FROM notes_fts f
       JOIN notes n ON n.rowid = f.rowid
       WHERE notes_fts MATCH ? AND n.deleted_at IS NULL${locationClause}${vis.where}
-      ORDER BY n.updated_at DESC
+      ORDER BY n.updated_at DESC, n.id
       LIMIT ?
     `).all(ftsQ, ...locationParams, limit) as Array<{ id: string; title: string | null; content: string; type: string; idiom_term: string | null }>
     return rows.map(noteRowToResult)

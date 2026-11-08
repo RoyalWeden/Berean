@@ -62,13 +62,21 @@ jobs:
 
   native:
     name: Native Swift (BereanKit conformance, Mac + iOS Simulator builds)
-    runs-on: macos-latest
-    timeout-minutes: 30
+    # The native Mac app targets macOS 27 (DECISIONS OD-2), which needs Xcode 27's SDK.
+    runs-on: macos-26
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
-      - name: Toolchain
-        run: xcodebuild -version && swift --version
+      - name: Select Xcode 27
+        shell: bash
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          XC=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then echo "::error::No Xcode 27 on this runner image (needed for the macOS 27 SDK)"; exit 1; fi
+          sudo xcode-select -s "$XC"
+          xcodebuild -version && swift --version
+          xcrun simctl list runtimes | grep -i ios || true
 
       # The Bible-service conformance tests read the bundled text databases (read-only).
       - name: Download Bible/lexicon databases

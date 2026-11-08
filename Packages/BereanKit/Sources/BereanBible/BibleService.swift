@@ -131,7 +131,7 @@ public actor BibleService {
               FROM verses_fts f
               JOIN verses v ON v.id = f.rowid
               WHERE verses_fts MATCH ?\(bookClause)\(chapterClause)
-              ORDER BY rank
+              ORDER BY rank, v.id
               LIMIT \(limit)
 
             """

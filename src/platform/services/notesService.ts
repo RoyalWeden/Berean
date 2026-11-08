@@ -542,7 +542,7 @@ export function createNotesService(ctx: ServiceContext) {
             SELECT n.* FROM notes_fts f
             JOIN notes n ON n.rowid = f.rowid
             WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
-            ORDER BY n.updated_at DESC
+            ORDER BY n.updated_at DESC, n.id
             LIMIT ?
           `, [ftsQ, Math.max(limit * 3, 100)])
           for (const row of termRows) {
@@ -566,7 +566,7 @@ export function createNotesService(ctx: ServiceContext) {
           SELECT n.* FROM notes_fts f
           JOIN notes n ON n.rowid = f.rowid
           WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
-          ORDER BY n.updated_at DESC
+          ORDER BY n.updated_at DESC, n.id
           LIMIT ?
         `, [match, limit])
       } catch {

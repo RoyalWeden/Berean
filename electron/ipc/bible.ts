@@ -144,7 +144,7 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
       FROM verses_fts f
       JOIN verses v ON v.id = f.rowid
       WHERE verses_fts MATCH ?${bookIdsClause}${chapterClause}
-      ORDER BY rank
+      ORDER BY rank, v.id
       LIMIT ${limit}
     `
     const stmt = dynamic ? (db as any).prepare(sql) : prep(db, sql)
@@ -172,7 +172,7 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
       FROM verses_fts f
       JOIN verses v ON v.id = f.rowid
       WHERE verses_fts MATCH ?${bookIdsClause}${chapterClause}
-      ORDER BY rank
+      ORDER BY rank, v.id
       LIMIT ${limit}
     `
     const stmt = dynamic ? (db as any).prepare(sql) : prep(db, sql)

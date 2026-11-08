@@ -1284,7 +1284,7 @@ export function searchYoutubeTranscripts(query: string, limit = 8): YoutubeTrans
                 JOIN youtube_transcript_segments s ON s.id = f.rowid
                 JOIN youtube_videos v ON v.video_id = s.video_id
                 WHERE youtube_transcripts_fts MATCH ?
-                ORDER BY rank
+                ORDER BY rank, s.id
                 LIMIT ?`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .all(ftsQ, limit) as any[]

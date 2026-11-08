@@ -25,16 +25,9 @@ function shortHash(s: string): string {
   return h.toString(16).padStart(8, '0') + s.length.toString(36)
 }
 const digest = (x: unknown) => { const j = JSON.stringify(x); return { count: Array.isArray(x) ? x.length : Object.keys(x as object).length, hash: shortHash(j) } }
-/** Order-independent digest: rows' JSON strings sorted by UTF-16 code units. FTS `ORDER BY rank` has no
- *  tie-breaker, so equal-rank rows come back in an order that depends on the SQLite version (F-05). */
+/** Order-independent digest (rows' JSON sorted by UTF-16 code units) — kept as a diagnostic: since ADR-0008
+ *  (`ORDER BY rank, v.id`) the exact order must match on every SQLite build. */
 const setHash = (rows: unknown[]) => shortHash(JSON.stringify(rows.map((r) => JSON.stringify(r)).sort()))
-
-async function svcVersion(): Promise<string> {
-  const db = openNodeSqlite(':memory:', 'version')
-  const v = (await db.get<{ v: string }>('SELECT sqlite_version() AS v'))!.v
-  await db.close()
-  return v
-}
 
 export async function buildBibleGolden(): Promise<{ name: string; data: unknown } | null> {
   const paths = Object.fromEntries(BIBLE_TEXTS.map((t) => [t, resolve(ROOT, 'data', `${t}.db`)]))
@@ -106,9 +99,6 @@ export async function buildBibleGolden(): Promise<{ name: string; data: unknown 
       format: 1, generator: 'scripts/golden/bible.ts',
       sources: Object.fromEntries(['src/platform/services/bibleService.ts', 'src/lib/numberWords.ts', 'src/lib/parseRef.ts', 'scripts/golden/bible.ts']
         .map((p) => [p, createHash('sha256').update(readFileSync(resolve(ROOT, p))).digest('hex')])),
-      // FTS tie order depends on the SQLite build (F-05); the drift guard relaxes exact search order
-      // to row sets when it runs on a different version than the one that exported the file.
-      sqliteVersion: (await svcVersion()),
       texts, versesSample, search, fts, numberWords,
     },
   }

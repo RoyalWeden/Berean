@@ -80,6 +80,60 @@
 - Evidence: bible.json golden — all 20 bundled texts' books, 3 chapters per book, verses and 316 searches match the
   TypeScript service, except equal-rank ordering (F-05).
 
+### ADR-0007 — macOS 27 target and Xcode 27 in CI (implements OD-2)
+- Date/author: 2026-11-07, Claude (engineering)
+- Status: ACCEPTED (CI image availability verified by the PR's own CI run — see CHANGELOG)
+- Result: `apple/Config/BereanMac.xcconfig` MACOSX_DEPLOYMENT_TARGET = 27.0. The native CI job runs on `macos-26` and selects
+  the newest `/Applications/Xcode_27*.app`, failing loudly if none exists (the default image's Xcode 26.6 has only the 26.5 SDK).
+- BereanKit's Package.swift floor stays macOS 15 / iOS 18 (pure logic; no reason to restrict).
+
+### ADR-0008 — Deterministic search ordering contract (implements OD-4, resolves F-05)
+- Date/author: 2026-11-07, Claude (engineering)
+- Status: ACCEPTED
+- Contract: relevance stays primary; a unique row id breaks ties.
+  Scripture FTS: `ORDER BY rank, v.id` (verse row id = canonical book/chapter/verse insertion order) — bibleService.ts,
+  electron/ipc/bible.ts (both copies), BereanBible. YouTube transcripts: `ORDER BY rank, s.id` (electron/ipc/youtube.ts) and
+  `ORDER BY cand.rank, cand.rowid` (youtubeService.ts). Notes search (ordered by recency, not rank): `ORDER BY n.updated_at DESC, n.id`
+  (notesService.ts ×2, electron/ipc/aiLookup.ts). The relevance function itself is unchanged.
+- Evidence: bible.json exported on SQLite 3.51.2 (Node 24) and 3.53.4 (Node 22) is byte-identical (it differed before), and Swift on
+  macOS SQLite 3.54.0 matches every one of the 316 searches exactly; the drift guard and Swift suite no longer allow tie-order
+  differences. Regression tests: bibleService.contract.test.ts (equal-relevance order + SQL contract on all four FTS paths).
+- User-visible effect: only the order of results that were exactly tied, now fixed instead of build-dependent.
+
+## Owner decisions — 2026-11-07 (second authorization message)
+
+### OD-1 — Vault layout (resolves F-02)
+- Status: ACCEPTED (owner delegated the choice; criteria: preserve notes/metadata, vault compatibility, sync reliability, minimal migration, maintainability)
+- Result: keep the shipped layout (sidecar JSON at the vault root, `Verse Notes/`, `Daily/`, `YouTube/`, `Idioms/`, `.trash/`, `.attachments/`).
+  The Octarine branch's only differences from main were moving sidecars into a hidden `.berean/` folder (one-time filesystem move)
+  and a one-off `scripts/migrate-to-octarine.js`; its user-facing features (wikilink path normalisation, underline, emoji highlight
+  colours) are already on main. Switching would require converting every existing vault and gives no data-safety or sync benefit.
+- Branch retired: tagged `archive/octarine-vault-integration` (= `db074d1`, pushed to origin), then the local branch deleted.
+  Also preserved in `~/Berean-backups/cleanup-2026-11-07/berean-refs.bundle`.
+
+### OD-2 — Deployment targets (resolves C-2 for the native apps)
+- Status: ACCEPTED. Native Mac: latest stable macOS — **macOS 27** (dev machine macOS 27.2, Xcode 27.2, SDK 27.2). Use current
+  SwiftUI/AppKit, materials, Liquid Glass, toolbars, window management freely; no macOS 15 support needed.
+  Native iOS: iOS 18 minimum for now, latest SDK. Electron/Capacitor targets unchanged. BereanKit (pure logic) keeps a lower floor.
+- Consequence: CI must build with Xcode 27 (the default `macos-latest` image ships Xcode 26.6) — see ADR-0007.
+- Supersedes ADR-0003 for the Mac app.
+
+### OD-3 — Number-word search (F-04)
+- Status: ACCEPTED — keep current behaviour (compatibility). Logged as a possible future search improvement; no migration time spent.
+
+### OD-4 — Deterministic search ordering (F-05)
+- Status: ACCEPTED — implement in BOTH legacy and native: keep FTS `rank` as the primary key and add a stable tie-breaker so equal-rank
+  results order identically on every SQLite build. Regression tests + golden update. See ADR-0008 for the exact contract.
+
+### OD-5 — Synchronization continuity (completes ADR-0002)
+- Status: ACCEPTED. Native apps continue Berean's existing iCloud Documents journal sync — no CloudKit, no new store, no new history.
+  Development native builds use `iCloud.com.berean.app.dev`; production native builds will use the existing production identity,
+  container, App Group and entitlements at the release transition.
+- Authorized now: configure and test native Dev builds against `iCloud.com.berean.app.dev` once the compatibility gates pass
+  (hash/journal/tombstone/merge conformance), with controlled test records, separate native dev database copies, single-instance
+  database locking, distinct device ids (never shared with the Capacitor/Electron Dev installs), and backups.
+- Still prohibited: production sync writes, journal-format changes, resetting sync history.
+
 ## Findings resolved from code (audit 15 A-items and M0 investigations)
 
 ### F-01 — A-4 synced entity kinds (24 vs 22)
@@ -104,7 +158,7 @@ folder. Cause not proven — no blame assigned. Mitigation: ADR-0004.
 | ID | Decision | Authority | Status | Refer to |
 |---|---|---|---|---|
 | C-1 | Windows support and Electron retirement | Owner | OPEN | Audit 15 C-1 |
-| C-2 | Minimum iOS/macOS versions | Owner | OPEN (trial macOS 15 / iOS 18, ADR-0003) | 15 C-2 |
+| C-2 | Minimum iOS/macOS versions | Owner | RESOLVED for native apps — OD-2 (macOS 27, iOS 18) | 15 C-2 |
 | C-3 | Native Mac MAS vs Developer ID vs both | Owner | OPEN | 15 C-3 |
 | C-4 | Ask Berean iPhone parity scope | Owner | OPEN | 15 C-4 |
 | C-5 | Keyboard shortcut conflicts | Owner | OPEN | 15 C-5 |
@@ -113,7 +167,7 @@ folder. Cause not proven — no blame assigned. Mitigation: ADR-0004.
 | C-8 | YouTube API key provisioning | Owner | OPEN | 15 C-8 |
 | C-9 | Spoken-name pronunciation tuning | Owner | OPEN | 15 C-9 |
 | C-10 | Legacy lossy Markdown behavior | Owner | OPEN | 15 C-10 |
-| C-11 | Sync port strategy | Owner informed by tests | OPEN | 15 C-11 |
+| C-11 | Sync port strategy | Owner informed by tests | RESOLVED — OD-5 (continue existing journal sync; Swift port verified against TS) | 15 C-11 |
 | C-12 | Schema freeze/coexistence | Owner | OPEN | 15 C-12 |
 | C-13 | Native editor architecture/limits | Owner after spike | OPEN | 15 C-13 |
 | C-14 | Vault/custom sync folder scope | Owner | OPEN | 15 C-14 |
@@ -132,5 +186,4 @@ regular tens, so "twenty" is never expanded to "20" and "20" expands to "score".
 `searchText` orders by `rank` only. For `love` scoped to JHN+1JN, Node's SQLite 3.51.2 and macOS's 3.54.0 return the
 same 65 rows but order equal-rank ties differently (verified with the raw SQL in both). Electron's better-sqlite3 has its
 own SQLite build, so the desktop order is already version-dependent. Conformance tests therefore require exact order
-except within equal-rank ties, where the identical row set is required and reported. PROPOSED (engineering, needs no
-data change): add a deterministic tie-breaker (`ORDER BY rank, v.id`) to both implementations in one change.
+except within equal-rank ties, where the identical row set is required and reported. RESOLVED by OD-4 / ADR-0008.
