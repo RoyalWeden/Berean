@@ -83,8 +83,11 @@
 ### ADR-0007 — macOS 27 target and Xcode 27 in CI (implements OD-2)
 - Date/author: 2026-11-07, Claude (engineering)
 - Status: ACCEPTED (CI image availability verified by the PR's own CI run — see CHANGELOG)
-- Result: `apple/Config/BereanMac.xcconfig` MACOSX_DEPLOYMENT_TARGET = 27.0. The native CI job runs on `macos-26` and selects
-  the newest `/Applications/Xcode_27*.app`, failing loudly if none exists (the default image's Xcode 26.6 has only the 26.5 SDK).
+- Result: `apple/Config/BereanMac.xcconfig` MACOSX_DEPLOYMENT_TARGET = 27.0.
+- CI evidence (PR #16): GitHub's `macos-26` image offers Xcode 26.0 … 26.6 only — no Xcode 27, so no macOS 27 SDK. The native
+  job therefore selects the newest installed Xcode, always runs the BereanKit conformance tests and the iOS Simulator build, and
+  builds BereanMac only when an Xcode ≥ 27 is present. Until then the Mac build (`scripts/native/build.sh mac`, Xcode 27.2 locally)
+  is a required pre-merge check recorded in each PR. Revisit when GitHub ships Xcode 27 or if the owner adds a self-hosted runner.
 - BereanKit's Package.swift floor stays macOS 15 / iOS 18 (pure logic; no reason to restrict).
 
 ### ADR-0008 — Deterministic search ordering contract (implements OD-4, resolves F-05)
