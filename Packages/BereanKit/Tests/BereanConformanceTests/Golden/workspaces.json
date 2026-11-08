@@ -3,7 +3,8 @@
  "generator": "scripts/golden/workspaces.ts",
  "sources": {
   "src/platform/services/workspacesService.ts": "fdf611eb37ad10ecee7a62d69fb218a5a5ef14151b502da44e5e51ee400e88b4",
-  "scripts/golden/workspaces.ts": "99044e5ca67ae6f36b010dc1b81ba54a89d01a1cdf714efe873f3723b3c23736"
+  "src/lib/workspaceSnapshot.ts": "c046d13e89b906d230c37ba5d3fbe48929a8473c967527bb6c7af5356bfd20f5",
+  "scripts/golden/workspaces.ts": "cd277d237bcb552ab67517f678b5a142c2cc0536365ca58d89f5de9efa407659"
  },
  "saved": [
   {
@@ -76,5 +77,159 @@
    "id": "ws2",
    "op": "delete"
   }
- ]
+ ],
+ "snapshot": {
+  "buildInputs": [
+   {
+    "tabs": {
+     "scripture": [
+      {
+       "id": "a",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "A",
+       "state": {
+        "book": "John",
+        "chapter": 3
+       }
+      },
+      {
+       "id": "b",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "B",
+       "state": {
+        "book": "John",
+        "chapter": 3
+       },
+       "isPinned": true
+      }
+     ],
+     "notes": [
+      {
+       "id": "n",
+       "spaceId": "notes",
+       "type": "note",
+       "title": "N",
+       "state": {
+        "book": "John",
+        "chapter": 3
+       }
+      }
+     ]
+    },
+    "activeTabId": {
+     "scripture": "b"
+    },
+    "displayOrder": [
+     "n",
+     "zz",
+     "a"
+    ],
+    "icon": "book"
+   },
+   {
+    "tabs": {
+     "scripture": [
+      {
+       "id": "a",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "A",
+       "state": {
+        "book": "John",
+        "chapter": 3
+       }
+      },
+      {
+       "id": "bad",
+       "spaceId": "scripture",
+       "type": "video",
+       "title": "x",
+       "state": {}
+      },
+      {
+       "id": 1
+      },
+      null,
+      {
+       "id": "c",
+       "spaceId": "scripture",
+       "type": "bible",
+       "title": "C",
+       "state": []
+      }
+     ]
+    },
+    "activeTabId": {
+     "scripture": null,
+     "extra": "q"
+    }
+   },
+   {
+    "tabs": {},
+    "activeTabId": {},
+    "icon": ""
+   }
+  ],
+  "built": [
+   "{\"v\":2,\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"b\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"B\",\"state\":{\"book\":\"John\",\"chapter\":3},\"isPinned\":true}],\"notes\":[{\"id\":\"n\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"N\",\"state\":{\"book\":\"John\",\"chapter\":3}}],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":\"b\",\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[\"n\",\"a\",\"b\"],\"icon\":\"book\"}",
+   "{\"v\":2,\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"c\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"C\",\"state\":[]}],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null,\"extra\":\"q\"},\"displayOrder\":[\"a\",\"c\"]}",
+   "{\"v\":2,\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[]}"
+  ],
+  "parsed": [
+   {
+    "input": null,
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":0}"
+   },
+   {
+    "input": "",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":0}"
+   },
+   {
+    "input": "garbage",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":0}"
+   },
+   {
+    "input": "5",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":0}"
+   },
+   {
+    "input": "null",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":0}"
+   },
+   {
+    "input": "[]",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":1}"
+   },
+   {
+    "input": "{}",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":1}"
+   },
+   {
+    "input": "{\"tabs\":[]}",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":1}"
+   },
+   {
+    "input": "{\"v\":2,\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"b\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"B\",\"state\":{\"book\":\"John\",\"chapter\":3},\"isPinned\":true}],\"notes\":[{\"id\":\"n\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"N\",\"state\":{\"book\":\"John\",\"chapter\":3}}],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":\"b\",\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[\"n\",\"a\",\"b\"],\"icon\":\"book\"}",
+    "output": "{\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"b\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"B\",\"state\":{\"book\":\"John\",\"chapter\":3},\"isPinned\":true}],\"notes\":[{\"id\":\"n\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"N\",\"state\":{\"book\":\"John\",\"chapter\":3}}],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":\"b\",\"notes\":\"n\",\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[\"n\",\"a\",\"b\"],\"version\":2,\"icon\":\"book\"}"
+   },
+   {
+    "input": "{\"v\":2,\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"c\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"C\",\"state\":[]}],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null,\"extra\":\"q\"},\"displayOrder\":[\"a\",\"c\"]}",
+    "output": "{\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"c\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"C\",\"state\":[]}],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":\"a\",\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[\"a\",\"c\"],\"version\":2}"
+   },
+   {
+    "input": "{\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"b\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"B\",\"state\":{\"book\":\"John\",\"chapter\":3}}],\"lexicon\":\"nope\"},\"activeTabId\":{\"scripture\":\"zz\",\"notes\":\"\"},\"displayOrder\":[\"b\",3,\"b\",\"q\"],\"icon\":7}",
+    "output": "{\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"note\",\"title\":\"A\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"b\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"B\",\"state\":{\"book\":\"John\",\"chapter\":3}}],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":\"a\",\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[\"b\",\"b\",\"a\"],\"version\":1}"
+   },
+   {
+    "input": "{\"v\":2,\"tabs\":{\"notes\":[{\"id\":\"n1\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"N1\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"n2\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"N2\",\"state\":{\"book\":\"John\",\"chapter\":3}}]},\"activeTabId\":{\"notes\":\"n2\"},\"displayOrder\":\"x\",\"icon\":\"star\"}",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[{\"id\":\"n1\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"N1\",\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"n2\",\"spaceId\":\"notes\",\"type\":\"note\",\"title\":\"N2\",\"state\":{\"book\":\"John\",\"chapter\":3}}],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":\"n2\",\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[\"n1\",\"n2\"],\"version\":2,\"icon\":\"star\"}"
+   },
+   {
+    "input": "{\"v\":1,\"tabs\":{\"scripture\":[{\"id\":\"a\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":5,\"state\":{\"book\":\"John\",\"chapter\":3}},{\"id\":\"b\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"B\",\"state\":null},{\"id\":\"c\",\"spaceId\":\"scripture\",\"type\":\"bible\",\"title\":\"C\",\"state\":\"x\"}]}}",
+    "output": "{\"tabs\":{\"scripture\":[],\"notes\":[],\"lexicon\":[],\"youtube\":[],\"search\":[]},\"activeTabId\":{\"scripture\":null,\"notes\":null,\"lexicon\":null,\"youtube\":null,\"search\":null},\"displayOrder\":[],\"version\":1}"
+   }
+  ]
+ }
 }
