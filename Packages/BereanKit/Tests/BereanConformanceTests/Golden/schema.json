@@ -3,7 +3,7 @@
  "generator": "scripts/golden/schema.ts",
  "sources": {
   "src/platform/db/bereanMigrations.ts": "ebb256d53d8e408098e8d32a03ce8c72d500f3aee782ca92d693aadf8d399d04",
-  "scripts/golden/schema.ts": "2f73b1440dde90bed621608508e0d11cc0854dadceec7767c4f5403b1e17b731"
+  "scripts/golden/schema.ts": "9d295c78bae7326a6df93bf6a9a2323826cb94678e56b31bc64eb63c06e9b711"
  },
  "schemaVersion": 49,
  "steps": [
@@ -519,13 +519,13 @@
     {
      "run": "\n        INSERT OR IGNORE INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)\n        SELECT h.video_id, COALESCE(v.is_starred, 0), h.position_seconds, h.last_watched, h.title, h.channel_name, h.thumbnail_url, ?\n        FROM youtube_watch_history h LEFT JOIN youtube_videos v ON v.video_id = h.video_id\n      ",
      "params": [
-      1794118589873
+      1111111111111
      ]
     },
     {
      "run": "\n        INSERT OR IGNORE INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)\n        SELECT video_id, 1, 0, NULL, title, channel_name, thumbnail_url, ? FROM youtube_videos WHERE is_starred = 1\n      ",
      "params": [
-      1794118589873
+      1111111111111
      ]
     }
    ]

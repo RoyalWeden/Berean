@@ -1,4 +1,7 @@
 import BereanSQLite
+#if canImport(Darwin)
+import Darwin
+#endif
 
 /// berean.db schema migrations for the native apps (ADR-0009).
 ///
@@ -32,6 +35,10 @@ public enum Migrator {
         case stepFailed(version: Int, message: String)
     }
 
+    /// Recorded in place of `Date.now()` (scripts/golden/schema.ts NOW_SENTINEL); replaced by the current
+    /// epoch milliseconds when the statement is replayed.
+    public static let nowPlaceholder: Int64 = 1111111111111
+
     /// Highest version a data-dependent (JavaScript) migration has; upgrades must start above it.
     static let lastDataDependentVersion = 17
 
@@ -51,6 +58,7 @@ public enum Migrator {
     /// is upgraded; if it throws, migration stops. Returns the versions applied.
     @discardableResult
     public static func migrate(_ db: SQLiteConnection, to target: Int = recordedSchemaVersion, steps: [Step] = recordedSteps,
+                               now: () -> Int64 = { Int64((Double(clock_gettime_nsec_np(CLOCK_REALTIME)) / 1_000_000).rounded(.down)) },
                                backup: ((_ from: Int, _ to: Int) throws -> Void)? = nil) throws -> [Int] {
         let supported = steps.last?.version ?? 0
         let current = try currentVersion(db)
@@ -72,7 +80,8 @@ public enum Migrator {
                 for s in step.statements {
                     switch s {
                     case .exec(let sql): try db.exec(sql)
-                    case .run(let sql, let params): try db.run(sql, params)
+                    case .run(let sql, let params):
+                        try db.run(sql, params.map { $0 == .integer(nowPlaceholder) ? .integer(now()) : $0 })
                     }
                 }
                 try db.run("INSERT INTO schema_version (version) VALUES (?)", [.integer(Int64(step.version))])

@@ -886,13 +886,13 @@ ALTER TABLE verse_tags ADD COLUMN graph_pinned INTEGER NOT NULL DEFAULT 0
         SELECT h.video_id, COALESCE(v.is_starred, 0), h.position_seconds, h.last_watched, h.title, h.channel_name, h.thumbnail_url, ?
         FROM youtube_watch_history h LEFT JOIN youtube_videos v ON v.video_id = h.video_id
       
-"""#, [.integer(1794118589883)]),
+"""#, [.integer(Migrator.nowPlaceholder)]),
             .run(#"""
 
         INSERT OR IGNORE INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)
         SELECT video_id, 1, 0, NULL, title, channel_name, thumbnail_url, ? FROM youtube_videos WHERE is_starred = 1
       
-"""#, [.integer(1794118589883)]),
+"""#, [.integer(Migrator.nowPlaceholder)]),
         ]),
         Step(version: 46, statements: [
             .exec(#"""
