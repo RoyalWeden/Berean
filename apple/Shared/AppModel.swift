@@ -403,11 +403,13 @@ final class AppModel {
         update(t.id, recordHistory: false) { $0.title = next.0; $0.state = next.1 }
     }
 
+    /// ⌃Tab / ⌃⇧Tab: the next / previous tab in the sidebar list (all tab types, the user's order).
     func selectNextTab(_ delta: Int) {
-        let list = tabs(in: activeSpace)
+        let list = orderedTabs
         guard !list.isEmpty else { return }
-        let cur = list.firstIndex { $0.id == activeTabId(in: activeSpace) } ?? 0
-        select(list[(cur + delta + list.count) % list.count].id, in: activeSpace)
+        let cur = list.firstIndex { $0.id == activeTab?.id } ?? 0
+        let t = list[(cur + delta + list.count) % list.count]
+        select(t.id, in: t.spaceId)
     }
 
     // MARK: opening content
