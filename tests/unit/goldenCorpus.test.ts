@@ -11,6 +11,7 @@ import { buildTextGolden } from '../../scripts/golden/text'
 import { buildLexiconGolden } from '../../scripts/golden/lexicon'
 import { buildDisplayGolden } from '../../scripts/golden/display'
 import { buildCrossrefsGolden } from '../../scripts/golden/crossrefs'
+import { buildRecordedMigrationsSwift, buildSchemaGolden, SWIFT_MIGRATIONS_PATH } from '../../scripts/golden/schema'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -63,4 +64,12 @@ describe('golden corpus', () => {
     const path = join(GOLDEN_DIR, 'crossrefs.json')
     expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'crossrefs.json is stale — run npm run golden:export').toBe(true)
   }, 300_000)
+  it('schema.json matches the TypeScript migrations', async () => {
+    const g = await buildSchemaGolden()
+    const path = join(GOLDEN_DIR, 'schema.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'schema.json is stale — run npm run golden:export').toBe(true)
+  }, 120_000)
+  it('RecordedMigrations.swift matches the TypeScript migrations', async () => {
+    expect(existsSync(SWIFT_MIGRATIONS_PATH) && readFileSync(SWIFT_MIGRATIONS_PATH, 'utf8') === await buildRecordedMigrationsSwift(), 'RecordedMigrations.swift is stale — run npm run golden:export').toBe(true)
+  }, 120_000)
 })

@@ -8,6 +8,7 @@ import { buildTextGolden } from './text'
 import { buildLexiconGolden } from './lexicon'
 import { buildDisplayGolden } from './display'
 import { buildCrossrefsGolden } from './crossrefs'
+import { buildRecordedMigrationsSwift, buildSchemaGolden, SWIFT_MIGRATIONS_PATH } from './schema'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -67,3 +68,10 @@ if (crossrefs) {
 } else {
   console.log('crossrefs.json  skipped (data/*.db not present)')
 }
+
+const schema = await buildSchemaGolden()
+writeFileSync(join(GOLDEN_DIR, 'schema.json'), serializeGolden(schema))
+console.log('schema.json')
+mkdirSync(dirname(SWIFT_MIGRATIONS_PATH), { recursive: true })
+writeFileSync(SWIFT_MIGRATIONS_PATH, await buildRecordedMigrationsSwift())
+console.log('RecordedMigrations.swift')

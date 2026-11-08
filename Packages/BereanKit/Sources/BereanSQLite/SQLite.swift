@@ -44,7 +44,44 @@ public final class SQLiteConnection: @unchecked Sendable {
         handle = db
     }
 
+    /// Opens (optionally creating) a database read-write — for the user store only (M3). Bundled corpora
+    /// always use `init(readOnlyPath:)`.
+    public init(readWritePath path: String, create: Bool) throws(SQLiteError) {
+        self.path = path
+        var db: OpaquePointer?
+        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX | (create ? SQLITE_OPEN_CREATE : 0)
+        let rc = sqlite3_open_v2(path, &db, flags, nil)
+        guard rc == SQLITE_OK, let db else {
+            let msg = db.map { String(cString: sqlite3_errmsg($0)) } ?? "open failed"
+            if let db { sqlite3_close_v2(db) }
+            throw SQLiteError(code: rc, message: msg)
+        }
+        handle = db
+        sqlite3_busy_timeout(db, 5000)
+    }
+
     deinit { if let handle { sqlite3_close_v2(handle) } }
+
+    /// Runs one or more statements without results (`sqlite3_exec`).
+    public func exec(_ sql: String) throws(SQLiteError) {
+        guard let handle else { throw SQLiteError(code: SQLITE_MISUSE, message: "closed") }
+        var err: UnsafeMutablePointer<CChar>?
+        let rc = sqlite3_exec(handle, sql, nil, nil, &err)
+        if rc != SQLITE_OK {
+            let msg = err.map { String(cString: $0) } ?? String(cString: sqlite3_errmsg(handle))
+            sqlite3_free(err)
+            throw SQLiteError(code: rc, message: msg)
+        }
+        columnCache.removeAll()
+    }
+
+    /// Runs a single statement with parameters; returns the changed-row count and last insert rowid.
+    @discardableResult
+    public func run(_ sql: String, _ params: [SQLiteValue] = []) throws(SQLiteError) -> (changes: Int, lastInsertRowid: Int64) {
+        _ = try query(sql, params)
+        guard let handle else { throw SQLiteError(code: SQLITE_MISUSE, message: "closed") }
+        return (Int(sqlite3_changes(handle)), sqlite3_last_insert_rowid(handle))
+    }
 
     public static var libraryVersion: String { String(cString: sqlite3_libversion()) }
 

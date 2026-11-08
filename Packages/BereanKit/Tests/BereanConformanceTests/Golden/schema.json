@@ -1,0 +1,3563 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/schema.ts",
+ "sources": {
+  "src/platform/db/bereanMigrations.ts": "ebb256d53d8e408098e8d32a03ce8c72d500f3aee782ca92d693aadf8d399d04",
+  "scripts/golden/schema.ts": "2f73b1440dde90bed621608508e0d11cc0854dadceec7767c4f5403b1e17b731"
+ },
+ "schemaVersion": 49,
+ "steps": [
+  {
+   "version": 1,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS notes (\n          id         TEXT PRIMARY KEY,\n          type       TEXT NOT NULL DEFAULT 'general',\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          verse_ref  TEXT,\n          color      TEXT NOT NULL DEFAULT 'blue',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL,\n          tags       TEXT NOT NULL DEFAULT '[]'\n        );\n        CREATE INDEX IF NOT EXISTS idx_notes_verse ON notes(verse_ref);\n        CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at DESC);\n\n        CREATE TABLE IF NOT EXISTS highlights (\n          id         TEXT PRIMARY KEY,\n          text_id    TEXT NOT NULL,\n          book_id    TEXT NOT NULL,\n          chapter    INTEGER NOT NULL,\n          verse_num  INTEGER NOT NULL,\n          start_word INTEGER,\n          end_word   INTEGER,\n          color      TEXT NOT NULL,\n          label      TEXT,\n          created_at INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_highlights_verse ON highlights(text_id, book_id, chapter, verse_num);\n\n        CREATE TABLE IF NOT EXISTS settings (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        );\n\n        CREATE TABLE IF NOT EXISTS workspaces (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          layout_json TEXT NOT NULL,\n          created_at  INTEGER NOT NULL\n        );\n      "
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "defaultText",
+      "\"kjva\""
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "showStrongs",
+      "false"
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "showStrongsTooltips",
+      "true"
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "strongsClickOpensTab",
+      "true"
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "fontSize",
+      "16"
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "lineHeight",
+      "\"comfortable\""
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "vaultPath",
+      "\"\""
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "vaultSync",
+      "false"
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "noteOpenBehavior",
+      "\"right-panel\""
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "verseIndicatorPos",
+      "\"right\""
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "crossTextHighlights",
+      "false"
+     ]
+    }
+   ]
+  },
+  {
+   "version": 2,
+   "statements": [
+    {
+     "exec": "ALTER TABLE highlights ADD COLUMN start_char INTEGER; ALTER TABLE highlights ADD COLUMN end_char INTEGER;"
+    }
+   ]
+  },
+  {
+   "version": 3,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS youtube_videos (\n          video_id       TEXT PRIMARY KEY,\n          title          TEXT NOT NULL,\n          published      TEXT NOT NULL,\n          channel_name   TEXT NOT NULL,\n          channel_handle TEXT NOT NULL,\n          thumbnail_url  TEXT NOT NULL,\n          type           TEXT NOT NULL,\n          is_live_now    INTEGER NOT NULL DEFAULT 0,\n          fetched_at     TEXT NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_yt_handle   ON youtube_videos(channel_handle);\n        CREATE INDEX IF NOT EXISTS idx_yt_published ON youtube_videos(published DESC);\n\n        CREATE TABLE IF NOT EXISTS youtube_sync (\n          channel_handle TEXT PRIMARY KEY,\n          last_full_sync TEXT,\n          last_refresh   TEXT\n        );\n      "
+    }
+   ]
+  },
+  {
+   "version": 4,
+   "statements": [
+    {
+     "exec": "ALTER TABLE youtube_videos ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0"
+    }
+   ]
+  },
+  {
+   "version": 5,
+   "statements": [
+    {
+     "exec": "ALTER TABLE youtube_videos ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0"
+    },
+    {
+     "exec": "ALTER TABLE youtube_videos ADD COLUMN description TEXT NOT NULL DEFAULT ''"
+    },
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS youtube_watch_history (\n          video_id         TEXT PRIMARY KEY,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT NOT NULL,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT ''\n        )\n      "
+    }
+   ]
+  },
+  {
+   "version": 6,
+   "statements": []
+  },
+  {
+   "version": 7,
+   "statements": []
+  },
+  {
+   "version": 8,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN imported_at INTEGER"
+    }
+   ]
+  },
+  {
+   "version": 9,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS history (\n          id            TEXT PRIMARY KEY,\n          type          TEXT NOT NULL,\n          title         TEXT NOT NULL,\n          timestamp     INTEGER NOT NULL,\n          session_id    TEXT,\n          session_name  TEXT,\n          book_id       TEXT,\n          chapter       INTEGER,\n          verse         INTEGER,\n          note_id       TEXT,\n          strongs_num   TEXT,\n          video_id      TEXT,\n          query         TEXT,\n          parent_id     TEXT,\n          import_source TEXT,\n          import_count  INTEGER\n        );\n        CREATE INDEX IF NOT EXISTS idx_history_ts ON history(timestamp DESC);\n      "
+    },
+    {
+     "exec": "ALTER TABLE workspaces ADD COLUMN state_json TEXT"
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "onboardingCompleted",
+      "false"
+     ]
+    }
+   ]
+  },
+  {
+   "version": 10,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS note_folders (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          parent_id  TEXT,\n          created_at INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_note_folders_parent ON note_folders(parent_id);\n      "
+    },
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN folder_id TEXT"
+    }
+   ]
+  },
+  {
+   "version": 11,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS pdfs (\n          id          TEXT PRIMARY KEY,\n          title       TEXT NOT NULL,\n          filename    TEXT NOT NULL,\n          page_count  INTEGER NOT NULL DEFAULT 0,\n          file_size   INTEGER NOT NULL DEFAULT 0,\n          imported_at INTEGER NOT NULL\n        );\n        CREATE TABLE IF NOT EXISTS pdf_highlights (\n          id          TEXT PRIMARY KEY,\n          pdf_id      TEXT NOT NULL,\n          page        INTEGER NOT NULL,\n          rects_json  TEXT NOT NULL,\n          color       TEXT NOT NULL,\n          text        TEXT NOT NULL DEFAULT '',\n          note        TEXT,\n          created_at  INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_pdf_hl_pdf ON pdf_highlights(pdf_id);\n      "
+    }
+   ]
+  },
+  {
+   "version": 12,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS note_versions (\n          id         TEXT PRIMARY KEY,\n          note_id    TEXT NOT NULL,\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          kind       TEXT NOT NULL DEFAULT 'auto',\n          created_at INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_note_versions_note ON note_versions(note_id, created_at DESC);\n      "
+    },
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN text_id TEXT DEFAULT 'kjva'"
+    }
+   ]
+  },
+  {
+   "version": 13,
+   "statements": [
+    {
+     "exec": "\n        -- Transcript metadata (one row per video)\n        CREATE TABLE IF NOT EXISTS youtube_transcripts (\n          video_id      TEXT PRIMARY KEY,\n          lang          TEXT NOT NULL DEFAULT 'en',\n          source        TEXT NOT NULL DEFAULT 'timedtext',\n          fetched_at    INTEGER NOT NULL,\n          segment_count INTEGER NOT NULL DEFAULT 0,\n          duration_ms   INTEGER NOT NULL DEFAULT 0,\n          error         TEXT\n        );\n        CREATE INDEX IF NOT EXISTS idx_yt_transcripts_fetched\n          ON youtube_transcripts(fetched_at DESC);\n\n        -- Individual caption cues\n        CREATE TABLE IF NOT EXISTS youtube_transcript_segments (\n          id       INTEGER PRIMARY KEY,\n          video_id TEXT NOT NULL\n            REFERENCES youtube_transcripts(video_id) ON DELETE CASCADE,\n          start_ms INTEGER NOT NULL,\n          dur_ms   INTEGER NOT NULL DEFAULT 0,\n          text     TEXT NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_yt_seg_video\n          ON youtube_transcript_segments(video_id, start_ms);\n\n        -- FTS5 content-table (index only; triggers keep in sync with segments)\n        CREATE VIRTUAL TABLE IF NOT EXISTS youtube_transcripts_fts USING fts5(\n          text,\n          content='youtube_transcript_segments',\n          content_rowid='id',\n          tokenize='unicode61'\n        );\n\n        -- Keep FTS5 in sync with segment rows\n        CREATE TRIGGER IF NOT EXISTS yt_seg_ai\n        AFTER INSERT ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END;\n\n        CREATE TRIGGER IF NOT EXISTS yt_seg_ad\n        AFTER DELETE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n        END;\n\n        CREATE TRIGGER IF NOT EXISTS yt_seg_au\n        AFTER UPDATE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END;\n      "
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "transcriptAutoFetch",
+      "true"
+     ]
+    },
+    {
+     "run": "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+     "params": [
+      "transcriptStorageLimitMb",
+      "200"
+     ]
+    }
+   ]
+  },
+  {
+   "version": 14,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN idiom_term TEXT"
+    },
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN idiom_meaning TEXT"
+    }
+   ]
+  },
+  {
+   "version": 15,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN idiom_aliases TEXT"
+    }
+   ]
+  },
+  {
+   "version": 16,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN idiom_auto_variants INTEGER DEFAULT 0"
+    }
+   ]
+  },
+  {
+   "version": 17,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN idiom_data TEXT"
+    }
+   ]
+  },
+  {
+   "version": 19,
+   "statements": [
+    {
+     "exec": "\n        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(\n          title,\n          content,\n          content='notes',\n          content_rowid='rowid',\n          tokenize='unicode61'\n        );\n\n        CREATE TRIGGER IF NOT EXISTS notes_ai\n        AFTER INSERT ON notes BEGIN\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END;\n\n        CREATE TRIGGER IF NOT EXISTS notes_ad\n        AFTER DELETE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n        END;\n\n        CREATE TRIGGER IF NOT EXISTS notes_au\n        AFTER UPDATE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END;\n      "
+    },
+    {
+     "exec": "INSERT INTO notes_fts(notes_fts) VALUES('rebuild')"
+    }
+   ]
+  },
+  {
+   "version": 20,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN status TEXT"
+    }
+   ]
+  },
+  {
+   "version": 21,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS ai_chats (\n          id         TEXT PRIMARY KEY,\n          title      TEXT NOT NULL,\n          messages   TEXT NOT NULL,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_ai_chats_updated ON ai_chats(updated_at DESC);\n      "
+    }
+   ]
+  },
+  {
+   "version": 22,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN deleted_at INTEGER"
+    },
+    {
+     "exec": "CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at)"
+    }
+   ]
+  },
+  {
+   "version": 23,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN icon TEXT"
+    }
+   ]
+  },
+  {
+   "version": 24,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS note_heading_collapse (\n          note_id     TEXT NOT NULL,\n          heading_key TEXT NOT NULL,\n          collapsed   INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, heading_key)\n        );\n      "
+    }
+   ]
+  },
+  {
+   "version": 25,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN pinned INTEGER DEFAULT 0"
+    }
+   ]
+  },
+  {
+   "version": 26,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS playlists (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        );\n        CREATE TABLE IF NOT EXISTS playlist_items (\n          id          TEXT PRIMARY KEY,\n          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,\n          position    INTEGER NOT NULL,\n          book_id     TEXT NOT NULL,\n          chapter     INTEGER NOT NULL,\n          start_verse INTEGER NOT NULL DEFAULT 1,\n          end_verse   INTEGER,\n          text_id     TEXT NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist ON playlist_items(playlist_id, position);\n      "
+    }
+   ]
+  },
+  {
+   "version": 27,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS note_thread_collapse (\n          note_id    TEXT NOT NULL,\n          thread_key TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, thread_key)\n        );\n      "
+    }
+   ]
+  },
+  {
+   "version": 28,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS trail_sessions (\n          id                   TEXT PRIMARY KEY,\n          name                 TEXT NOT NULL,\n          status               TEXT NOT NULL,        -- 'live' | 'paused' | 'ended'\n          possibly_accidental  INTEGER DEFAULT 0,\n          recap_text           TEXT,\n          recap_user_edited    INTEGER DEFAULT 0,     -- once 1, auto-recap never overwrites it\n          created_at           INTEGER NOT NULL,\n          updated_at           INTEGER NOT NULL\n        );\n\n        CREATE TABLE IF NOT EXISTS trail_paused_intervals (\n          id                TEXT PRIMARY KEY,\n          trail_session_id  TEXT NOT NULL,\n          paused_at         INTEGER NOT NULL,\n          resumed_at        INTEGER               -- NULL while still paused\n        );\n        CREATE INDEX IF NOT EXISTS idx_trail_paused_session ON trail_paused_intervals(trail_session_id);\n\n        CREATE TABLE IF NOT EXISTS trail_nodes (\n          id                  TEXT PRIMARY KEY,\n          trail_session_id    TEXT NOT NULL,\n          book_id             TEXT NOT NULL,\n          chapter             INTEGER NOT NULL,\n          order_index         INTEGER NOT NULL,\n          anchor_started_at   INTEGER NOT NULL,\n          anchor_ended_at     INTEGER,            -- NULL while still the active anchor\n          cached_subnote      TEXT,\n          origin_label        TEXT\n        );\n        CREATE INDEX IF NOT EXISTS idx_trail_nodes_session ON trail_nodes(trail_session_id, order_index);\n\n        CREATE TABLE IF NOT EXISTS trail_connections (\n          id                    TEXT PRIMARY KEY,\n          trail_session_id      TEXT NOT NULL,\n          from_node_id          TEXT NOT NULL,\n          to_kind               TEXT NOT NULL,     -- 'chapter'|'lexicon'|'note'|'video'|'compare'\n          to_book_id            TEXT,\n          to_chapter            INTEGER,\n          to_verse              INTEGER,\n          to_strongs_num        TEXT,\n          to_note_id            TEXT,\n          to_video_id           TEXT,\n          clarity_tier          INTEGER NOT NULL,  -- 1 (clear) | 2 (soft) | 3 (ambiguous)\n          reason_text           TEXT,\n          reason_tags           TEXT,              -- JSON array\n          verse_pin_from        INTEGER,\n          verse_pin_to          INTEGER,\n          weight                TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'glance'\n          strongs_depth         TEXT,              -- 'click' | 'occurrences' | 'related'\n          cluster_id            TEXT,\n          dismissed_prompt_at   INTEGER,\n          created_at            INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_trail_conn_session ON trail_connections(trail_session_id, created_at);\n        CREATE INDEX IF NOT EXISTS idx_trail_conn_dest ON trail_connections(to_book_id, to_chapter);\n\n        CREATE TABLE IF NOT EXISTS trail_embeddings (\n          id          TEXT PRIMARY KEY,\n          ref_type    TEXT NOT NULL,   -- 'connection_reason' | 'lexicon_gloss' | 'recap'\n          ref_id      TEXT NOT NULL,\n          source_text TEXT NOT NULL,\n          vector      BLOB NOT NULL,   -- Float32Array, serialized\n          updated_at  INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_trail_embeddings_ref ON trail_embeddings(ref_type, ref_id);\n      "
+    }
+   ]
+  },
+  {
+   "version": 29,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_nodes ADD COLUMN revisit_of_node_id TEXT;"
+    }
+   ]
+  },
+  {
+   "version": 30,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN origin_verse_pin_from INTEGER;"
+    },
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN origin_verse_pin_to INTEGER;"
+    }
+   ]
+  },
+  {
+   "version": 31,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN from_connection_id TEXT;"
+    },
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0;"
+    },
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN to_verse_end INTEGER;"
+    },
+    {
+     "exec": "ALTER TABLE trail_nodes ADD COLUMN promoted_from_connection_id TEXT;"
+    },
+    {
+     "exec": "CREATE INDEX IF NOT EXISTS idx_trail_conn_parent ON trail_connections(from_connection_id);"
+    }
+   ]
+  },
+  {
+   "version": 32,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_nodes ADD COLUMN translation TEXT;"
+    }
+   ]
+  },
+  {
+   "version": 33,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_nodes ADD COLUMN cluster_id TEXT;"
+    }
+   ]
+  },
+  {
+   "version": 34,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN ties TEXT;"
+    }
+   ]
+  },
+  {
+   "version": 35,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN user_note TEXT;"
+    },
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN ties_from TEXT;"
+    },
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN ties_to TEXT;"
+    }
+   ]
+  },
+  {
+   "version": 36,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN is_branch INTEGER NOT NULL DEFAULT 0;"
+    },
+    {
+     "exec": "ALTER TABLE trail_connections ADD COLUMN is_branch_return INTEGER NOT NULL DEFAULT 0;"
+    },
+    {
+     "exec": "ALTER TABLE trail_nodes ADD COLUMN is_topic_break INTEGER NOT NULL DEFAULT 0;"
+    }
+   ]
+  },
+  {
+   "version": 37,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS verse_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        );\n        CREATE UNIQUE INDEX IF NOT EXISTS idx_verse_tags_name ON verse_tags(name COLLATE NOCASE);\n\n        CREATE TABLE IF NOT EXISTS verse_tag_members (\n          id         TEXT PRIMARY KEY,\n          tag_id     TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          kind       TEXT NOT NULL DEFAULT 'verses',\n          ranges     TEXT NOT NULL,\n          label      TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_vtm_tag ON verse_tag_members(tag_id);\n\n        CREATE TABLE IF NOT EXISTS verse_tag_verse (\n          tag_id    TEXT NOT NULL,\n          member_id TEXT NOT NULL,\n          book_id   TEXT NOT NULL,\n          chapter   INTEGER NOT NULL,\n          verse     INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, book_id, chapter, verse, member_id)\n        );\n        CREATE INDEX IF NOT EXISTS idx_vtv_loc ON verse_tag_verse(book_id, chapter);\n        CREATE INDEX IF NOT EXISTS idx_vtv_tag ON verse_tag_verse(tag_id);\n      "
+    }
+   ]
+  },
+  {
+   "version": 38,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS trail_collapse (\n          scope      TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          updated_at INTEGER NOT NULL,\n          PRIMARY KEY (scope, key)\n        );\n      "
+    }
+   ]
+  },
+  {
+   "version": 39,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS trail_notes (\n          id               TEXT PRIMARY KEY,\n          trail_session_id TEXT NOT NULL,\n          kind             TEXT NOT NULL DEFAULT 'annotation',\n          anchor_node_id   TEXT,\n          order_index      INTEGER NOT NULL DEFAULT 0,\n          title            TEXT,\n          body             TEXT NOT NULL DEFAULT '',\n          width            INTEGER,\n          height           INTEGER,\n          note_id          TEXT,\n          color            TEXT,\n          created_at       INTEGER NOT NULL,\n          updated_at       INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_trail_notes_session ON trail_notes(trail_session_id);\n        CREATE INDEX IF NOT EXISTS idx_trail_notes_anchor ON trail_notes(anchor_node_id);\n      "
+    }
+   ]
+  },
+  {
+   "version": 40,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_sessions ADD COLUMN sort_order INTEGER"
+    },
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS trail_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        );\n        CREATE UNIQUE INDEX IF NOT EXISTS idx_trail_tags_name ON trail_tags(name COLLATE NOCASE);\n\n        CREATE TABLE IF NOT EXISTS trail_tag_members (\n          tag_id           TEXT NOT NULL REFERENCES trail_tags(id) ON DELETE CASCADE,\n          trail_session_id TEXT NOT NULL,\n          created_at       INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, trail_session_id)\n        );\n        CREATE INDEX IF NOT EXISTS idx_ttm_session ON trail_tag_members(trail_session_id);\n      "
+    }
+   ]
+  },
+  {
+   "version": 41,
+   "statements": [
+    {
+     "exec": "ALTER TABLE trail_notes ADD COLUMN offset_x INTEGER"
+    },
+    {
+     "exec": "ALTER TABLE trail_notes ADD COLUMN offset_y INTEGER"
+    }
+   ]
+  },
+  {
+   "version": 42,
+   "statements": [
+    {
+     "exec": "ALTER TABLE verse_tags ADD COLUMN color_slot INTEGER"
+    },
+    {
+     "exec": "ALTER TABLE verse_tags ADD COLUMN graph_x REAL"
+    },
+    {
+     "exec": "ALTER TABLE verse_tags ADD COLUMN graph_y REAL"
+    },
+    {
+     "exec": "ALTER TABLE verse_tags ADD COLUMN graph_pinned INTEGER NOT NULL DEFAULT 0"
+    },
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS tag_edges (\n          id            TEXT PRIMARY KEY,\n          source_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          target_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          arrows        TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'forward' | 'backward' | 'both'\n          color         TEXT,                            -- slot index as string, or literal; NULL = neutral\n          dashed        INTEGER NOT NULL DEFAULT 0,\n          note          TEXT NOT NULL DEFAULT '',\n          created_at    INTEGER NOT NULL,\n          updated_at    INTEGER NOT NULL\n        );\n        CREATE UNIQUE INDEX IF NOT EXISTS idx_tag_edges_pair ON tag_edges(source_tag_id, target_tag_id);\n        CREATE INDEX IF NOT EXISTS idx_tag_edges_src ON tag_edges(source_tag_id);\n        CREATE INDEX IF NOT EXISTS idx_tag_edges_tgt ON tag_edges(target_tag_id);\n      "
+    }
+   ]
+  },
+  {
+   "version": 43,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS sessions (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          icon        TEXT,\n          tab_filter  TEXT,\n          order_key   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        );\n        CREATE TABLE IF NOT EXISTS tabs (\n          id                TEXT PRIMARY KEY,\n          session_id        TEXT NOT NULL,\n          space_id          TEXT NOT NULL,\n          type              TEXT NOT NULL,\n          title             TEXT NOT NULL DEFAULT '',\n          is_pinned         INTEGER NOT NULL DEFAULT 0,\n          order_key         TEXT NOT NULL,\n          display_order_key TEXT NOT NULL,\n          origin_tab_id     TEXT,\n          origin_space_id   TEXT,\n          sync_state_json   TEXT NOT NULL DEFAULT '{}',\n          local_state_json  TEXT NOT NULL DEFAULT '{}',\n          created_at        INTEGER NOT NULL,\n          updated_at        INTEGER NOT NULL,\n          deleted_at        INTEGER\n        );\n        CREATE INDEX IF NOT EXISTS idx_tabs_session ON tabs(session_id, deleted_at);\n        CREATE TABLE IF NOT EXISTS archived_groups (\n          id          TEXT PRIMARY KEY,\n          label       TEXT NOT NULL,\n          archived_at INTEGER NOT NULL,\n          tabs_json   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        );\n        CREATE TABLE IF NOT EXISTS session_local_state (\n          session_id      TEXT PRIMARY KEY,\n          active_tab_json TEXT NOT NULL DEFAULT '{}',\n          updated_at      INTEGER NOT NULL\n        );\n      "
+    }
+   ]
+  },
+  {
+   "version": 44,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS sync_state (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        );\n        CREATE TABLE IF NOT EXISTS sync_outbox (\n          seq        INTEGER PRIMARY KEY AUTOINCREMENT,\n          entity     TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          op_json    TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_sync_outbox_record ON sync_outbox(entity, key);\n        CREATE TABLE IF NOT EXISTS sync_record_meta (\n          entity  TEXT NOT NULL,\n          key     TEXT NOT NULL,\n          hlc     TEXT NOT NULL,\n          device  TEXT NOT NULL,\n          deleted INTEGER NOT NULL DEFAULT 0,\n          hash    TEXT,\n          PRIMARY KEY (entity, key)\n        );\n        CREATE TABLE IF NOT EXISTS sync_applied (\n          device TEXT NOT NULL,\n          seq    INTEGER NOT NULL,\n          PRIMARY KEY (device, seq)\n        );\n        CREATE TABLE IF NOT EXISTS sync_failed (\n          device   TEXT NOT NULL,\n          seq      INTEGER NOT NULL,\n          error    TEXT,\n          attempts INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (device, seq)\n        );\n      "
+    }
+   ]
+  },
+  {
+   "version": 45,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS youtube_user (\n          video_id         TEXT PRIMARY KEY,\n          is_starred       INTEGER NOT NULL DEFAULT 0,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT '',\n          updated_at       INTEGER NOT NULL\n        );\n      "
+    },
+    {
+     "run": "\n        INSERT OR IGNORE INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)\n        SELECT h.video_id, COALESCE(v.is_starred, 0), h.position_seconds, h.last_watched, h.title, h.channel_name, h.thumbnail_url, ?\n        FROM youtube_watch_history h LEFT JOIN youtube_videos v ON v.video_id = h.video_id\n      ",
+     "params": [
+      1794118589873
+     ]
+    },
+    {
+     "run": "\n        INSERT OR IGNORE INTO youtube_user (video_id, is_starred, position_seconds, last_watched, title, channel_name, thumbnail_url, updated_at)\n        SELECT video_id, 1, 0, NULL, title, channel_name, thumbnail_url, ? FROM youtube_videos WHERE is_starred = 1\n      ",
+     "params": [
+      1794118589873
+     ]
+    }
+   ]
+  },
+  {
+   "version": 46,
+   "statements": [
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS pdf_bookmarks (\n          id         TEXT PRIMARY KEY,\n          pdf_id     TEXT NOT NULL,\n          page       INTEGER NOT NULL,\n          label      TEXT NOT NULL DEFAULT '',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        );\n        CREATE INDEX IF NOT EXISTS idx_pdf_bookmarks_pdf ON pdf_bookmarks(pdf_id, page);\n      "
+    },
+    {
+     "exec": "ALTER TABLE pdfs ADD COLUMN file_hash TEXT"
+    }
+   ]
+  },
+  {
+   "version": 47,
+   "statements": [
+    {
+     "exec": "ALTER TABLE sync_record_meta ADD COLUMN field_hlc TEXT"
+    },
+    {
+     "exec": "ALTER TABLE sync_record_meta ADD COLUMN field_hash TEXT"
+    },
+    {
+     "exec": "ALTER TABLE sync_record_meta ADD COLUMN lineage TEXT"
+    },
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS sync_conflicts (\n          id          TEXT PRIMARY KEY,\n          entity      TEXT NOT NULL,\n          key         TEXT NOT NULL,\n          field       TEXT,\n          kind        TEXT NOT NULL,\n          kept_hlc    TEXT,\n          lost_hlc    TEXT NOT NULL,\n          lost_device TEXT,\n          lost_value  TEXT,\n          created_at  INTEGER NOT NULL,\n          resolved_at INTEGER\n        );\n        CREATE INDEX IF NOT EXISTS idx_sync_conflicts_record ON sync_conflicts(entity, key);\n      "
+    }
+   ]
+  },
+  {
+   "version": 48,
+   "statements": [
+    {
+     "exec": "ALTER TABLE ai_chats ADD COLUMN pinned_at TEXT"
+    },
+    {
+     "exec": "ALTER TABLE ai_chats ADD COLUMN folder TEXT"
+    }
+   ]
+  },
+  {
+   "version": 49,
+   "statements": [
+    {
+     "exec": "ALTER TABLE notes ADD COLUMN ai_excluded INTEGER NOT NULL DEFAULT 0"
+    },
+    {
+     "exec": "ALTER TABLE note_folders ADD COLUMN ai_excluded INTEGER NOT NULL DEFAULT 0"
+    },
+    {
+     "exec": "\n        CREATE TABLE IF NOT EXISTS study_profiles (\n          id TEXT PRIMARY KEY,\n          name TEXT NOT NULL,\n          config TEXT NOT NULL DEFAULT '{}',\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL,\n          deleted_at TEXT\n        );\n        CREATE TABLE IF NOT EXISTS ai_saved_contexts (\n          id TEXT PRIMARY KEY,\n          title TEXT NOT NULL,\n          content TEXT NOT NULL DEFAULT '{}',\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL,\n          deleted_at TEXT\n        );\n      "
+    }
+   ]
+  }
+ ],
+ "checkpoints": {
+  "v17": {
+   "objects": [
+    {
+     "type": "index",
+     "name": "idx_highlights_verse",
+     "tbl_name": "highlights",
+     "sql": "CREATE INDEX idx_highlights_verse ON highlights(text_id, book_id, chapter, verse_num)"
+    },
+    {
+     "type": "index",
+     "name": "idx_history_ts",
+     "tbl_name": "history",
+     "sql": "CREATE INDEX idx_history_ts ON history(timestamp DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_folders_parent",
+     "tbl_name": "note_folders",
+     "sql": "CREATE INDEX idx_note_folders_parent ON note_folders(parent_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_versions_note",
+     "tbl_name": "note_versions",
+     "sql": "CREATE INDEX idx_note_versions_note ON note_versions(note_id, created_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_updated",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_updated ON notes(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_verse",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_verse ON notes(verse_ref)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_hl_pdf",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE INDEX idx_pdf_hl_pdf ON pdf_highlights(pdf_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_handle",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_handle   ON youtube_videos(channel_handle)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_published",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_published ON youtube_videos(published DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_seg_video",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE INDEX idx_yt_seg_video\n          ON youtube_transcript_segments(video_id, start_ms)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_transcripts_fetched",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE INDEX idx_yt_transcripts_fetched\n          ON youtube_transcripts(fetched_at DESC)"
+    },
+    {
+     "type": "table",
+     "name": "highlights",
+     "tbl_name": "highlights",
+     "sql": "CREATE TABLE highlights (\n          id         TEXT PRIMARY KEY,\n          text_id    TEXT NOT NULL,\n          book_id    TEXT NOT NULL,\n          chapter    INTEGER NOT NULL,\n          verse_num  INTEGER NOT NULL,\n          start_word INTEGER,\n          end_word   INTEGER,\n          color      TEXT NOT NULL,\n          label      TEXT,\n          created_at INTEGER NOT NULL\n        , start_char INTEGER, end_char INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "history",
+     "tbl_name": "history",
+     "sql": "CREATE TABLE history (\n          id            TEXT PRIMARY KEY,\n          type          TEXT NOT NULL,\n          title         TEXT NOT NULL,\n          timestamp     INTEGER NOT NULL,\n          session_id    TEXT,\n          session_name  TEXT,\n          book_id       TEXT,\n          chapter       INTEGER,\n          verse         INTEGER,\n          note_id       TEXT,\n          strongs_num   TEXT,\n          video_id      TEXT,\n          query         TEXT,\n          parent_id     TEXT,\n          import_source TEXT,\n          import_count  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_folders",
+     "tbl_name": "note_folders",
+     "sql": "CREATE TABLE note_folders (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          parent_id  TEXT,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_versions",
+     "tbl_name": "note_versions",
+     "sql": "CREATE TABLE note_versions (\n          id         TEXT PRIMARY KEY,\n          note_id    TEXT NOT NULL,\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          kind       TEXT NOT NULL DEFAULT 'auto',\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes",
+     "tbl_name": "notes",
+     "sql": "CREATE TABLE notes (\n          id         TEXT PRIMARY KEY,\n          type       TEXT NOT NULL DEFAULT 'general',\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          verse_ref  TEXT,\n          color      TEXT NOT NULL DEFAULT 'blue',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL,\n          tags       TEXT NOT NULL DEFAULT '[]'\n        , imported_at INTEGER, folder_id TEXT, text_id TEXT DEFAULT 'kjva', idiom_term TEXT, idiom_meaning TEXT, idiom_aliases TEXT, idiom_auto_variants INTEGER DEFAULT 0, idiom_data TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "pdf_highlights",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE TABLE pdf_highlights (\n          id          TEXT PRIMARY KEY,\n          pdf_id      TEXT NOT NULL,\n          page        INTEGER NOT NULL,\n          rects_json  TEXT NOT NULL,\n          color       TEXT NOT NULL,\n          text        TEXT NOT NULL DEFAULT '',\n          note        TEXT,\n          created_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdfs",
+     "tbl_name": "pdfs",
+     "sql": "CREATE TABLE pdfs (\n          id          TEXT PRIMARY KEY,\n          title       TEXT NOT NULL,\n          filename    TEXT NOT NULL,\n          page_count  INTEGER NOT NULL DEFAULT 0,\n          file_size   INTEGER NOT NULL DEFAULT 0,\n          imported_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "schema_version",
+     "tbl_name": "schema_version",
+     "sql": "CREATE TABLE schema_version (version INTEGER NOT NULL)"
+    },
+    {
+     "type": "table",
+     "name": "settings",
+     "tbl_name": "settings",
+     "sql": "CREATE TABLE settings (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "workspaces",
+     "tbl_name": "workspaces",
+     "sql": "CREATE TABLE workspaces (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          layout_json TEXT NOT NULL,\n          created_at  INTEGER NOT NULL\n        , state_json TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_sync",
+     "tbl_name": "youtube_sync",
+     "sql": "CREATE TABLE youtube_sync (\n          channel_handle TEXT PRIMARY KEY,\n          last_full_sync TEXT,\n          last_refresh   TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcript_segments",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TABLE youtube_transcript_segments (\n          id       INTEGER PRIMARY KEY,\n          video_id TEXT NOT NULL\n            REFERENCES youtube_transcripts(video_id) ON DELETE CASCADE,\n          start_ms INTEGER NOT NULL,\n          dur_ms   INTEGER NOT NULL DEFAULT 0,\n          text     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE TABLE youtube_transcripts (\n          video_id      TEXT PRIMARY KEY,\n          lang          TEXT NOT NULL DEFAULT 'en',\n          source        TEXT NOT NULL DEFAULT 'timedtext',\n          fetched_at    INTEGER NOT NULL,\n          segment_count INTEGER NOT NULL DEFAULT 0,\n          duration_ms   INTEGER NOT NULL DEFAULT 0,\n          error         TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts",
+     "tbl_name": "youtube_transcripts_fts",
+     "sql": "CREATE VIRTUAL TABLE youtube_transcripts_fts USING fts5(\n          text,\n          content='youtube_transcript_segments',\n          content_rowid='id',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_config",
+     "tbl_name": "youtube_transcripts_fts_config",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_data",
+     "tbl_name": "youtube_transcripts_fts_data",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_docsize",
+     "tbl_name": "youtube_transcripts_fts_docsize",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_idx",
+     "tbl_name": "youtube_transcripts_fts_idx",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_videos",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE TABLE youtube_videos (\n          video_id       TEXT PRIMARY KEY,\n          title          TEXT NOT NULL,\n          published      TEXT NOT NULL,\n          channel_name   TEXT NOT NULL,\n          channel_handle TEXT NOT NULL,\n          thumbnail_url  TEXT NOT NULL,\n          type           TEXT NOT NULL,\n          is_live_now    INTEGER NOT NULL DEFAULT 0,\n          fetched_at     TEXT NOT NULL\n        , duration_seconds INTEGER NOT NULL DEFAULT 0, is_starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '')"
+    },
+    {
+     "type": "table",
+     "name": "youtube_watch_history",
+     "tbl_name": "youtube_watch_history",
+     "sql": "CREATE TABLE youtube_watch_history (\n          video_id         TEXT PRIMARY KEY,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT NOT NULL,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT ''\n        )"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ad",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ad\n        AFTER DELETE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ai",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ai\n        AFTER INSERT ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_au",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_au\n        AFTER UPDATE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    }
+   ],
+   "settings": [
+    {
+     "key": "crossTextHighlights",
+     "value": "false"
+    },
+    {
+     "key": "defaultText",
+     "value": "\"kjva\""
+    },
+    {
+     "key": "fontSize",
+     "value": "16"
+    },
+    {
+     "key": "lineHeight",
+     "value": "\"comfortable\""
+    },
+    {
+     "key": "noteOpenBehavior",
+     "value": "\"right-panel\""
+    },
+    {
+     "key": "onboardingCompleted",
+     "value": "false"
+    },
+    {
+     "key": "showStrongs",
+     "value": "false"
+    },
+    {
+     "key": "showStrongsTooltips",
+     "value": "true"
+    },
+    {
+     "key": "strongsClickOpensTab",
+     "value": "true"
+    },
+    {
+     "key": "transcriptAutoFetch",
+     "value": "true"
+    },
+    {
+     "key": "transcriptStorageLimitMb",
+     "value": "200"
+    },
+    {
+     "key": "vaultPath",
+     "value": "\"\""
+    },
+    {
+     "key": "vaultSync",
+     "value": "false"
+    },
+    {
+     "key": "verseIndicatorPos",
+     "value": "\"right\""
+    }
+   ],
+   "versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+   ]
+  },
+  "v43": {
+   "objects": [
+    {
+     "type": "index",
+     "name": "idx_ai_chats_updated",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE INDEX idx_ai_chats_updated ON ai_chats(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_highlights_verse",
+     "tbl_name": "highlights",
+     "sql": "CREATE INDEX idx_highlights_verse ON highlights(text_id, book_id, chapter, verse_num)"
+    },
+    {
+     "type": "index",
+     "name": "idx_history_ts",
+     "tbl_name": "history",
+     "sql": "CREATE INDEX idx_history_ts ON history(timestamp DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_folders_parent",
+     "tbl_name": "note_folders",
+     "sql": "CREATE INDEX idx_note_folders_parent ON note_folders(parent_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_versions_note",
+     "tbl_name": "note_versions",
+     "sql": "CREATE INDEX idx_note_versions_note ON note_versions(note_id, created_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_deleted_at",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_deleted_at ON notes(deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_updated",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_updated ON notes(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_verse",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_verse ON notes(verse_ref)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_hl_pdf",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE INDEX idx_pdf_hl_pdf ON pdf_highlights(pdf_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_playlist_items_playlist",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE INDEX idx_playlist_items_playlist ON playlist_items(playlist_id, position)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tabs_session",
+     "tbl_name": "tabs",
+     "sql": "CREATE INDEX idx_tabs_session ON tabs(session_id, deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_pair",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE UNIQUE INDEX idx_tag_edges_pair ON tag_edges(source_tag_id, target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_src",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_src ON tag_edges(source_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_tgt",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_tgt ON tag_edges(target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_dest",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_dest ON trail_connections(to_book_id, to_chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_parent",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_parent ON trail_connections(from_connection_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_session",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_session ON trail_connections(trail_session_id, created_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_embeddings_ref",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE INDEX idx_trail_embeddings_ref ON trail_embeddings(ref_type, ref_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_nodes_session",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE INDEX idx_trail_nodes_session ON trail_nodes(trail_session_id, order_index)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_anchor",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_anchor ON trail_notes(anchor_node_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_session",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_session ON trail_notes(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_paused_session",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE INDEX idx_trail_paused_session ON trail_paused_intervals(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_tags_name",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE UNIQUE INDEX idx_trail_tags_name ON trail_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_ttm_session",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE INDEX idx_ttm_session ON trail_tag_members(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_verse_tags_name",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE UNIQUE INDEX idx_verse_tags_name ON verse_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtm_tag",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE INDEX idx_vtm_tag ON verse_tag_members(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_loc",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_loc ON verse_tag_verse(book_id, chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_tag",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_tag ON verse_tag_verse(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_handle",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_handle   ON youtube_videos(channel_handle)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_published",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_published ON youtube_videos(published DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_seg_video",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE INDEX idx_yt_seg_video\n          ON youtube_transcript_segments(video_id, start_ms)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_transcripts_fetched",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE INDEX idx_yt_transcripts_fetched\n          ON youtube_transcripts(fetched_at DESC)"
+    },
+    {
+     "type": "table",
+     "name": "ai_chats",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE TABLE ai_chats (\n          id         TEXT PRIMARY KEY,\n          title      TEXT NOT NULL,\n          messages   TEXT NOT NULL,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "archived_groups",
+     "tbl_name": "archived_groups",
+     "sql": "CREATE TABLE archived_groups (\n          id          TEXT PRIMARY KEY,\n          label       TEXT NOT NULL,\n          archived_at INTEGER NOT NULL,\n          tabs_json   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "highlights",
+     "tbl_name": "highlights",
+     "sql": "CREATE TABLE highlights (\n          id         TEXT PRIMARY KEY,\n          text_id    TEXT NOT NULL,\n          book_id    TEXT NOT NULL,\n          chapter    INTEGER NOT NULL,\n          verse_num  INTEGER NOT NULL,\n          start_word INTEGER,\n          end_word   INTEGER,\n          color      TEXT NOT NULL,\n          label      TEXT,\n          created_at INTEGER NOT NULL\n        , start_char INTEGER, end_char INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "history",
+     "tbl_name": "history",
+     "sql": "CREATE TABLE history (\n          id            TEXT PRIMARY KEY,\n          type          TEXT NOT NULL,\n          title         TEXT NOT NULL,\n          timestamp     INTEGER NOT NULL,\n          session_id    TEXT,\n          session_name  TEXT,\n          book_id       TEXT,\n          chapter       INTEGER,\n          verse         INTEGER,\n          note_id       TEXT,\n          strongs_num   TEXT,\n          video_id      TEXT,\n          query         TEXT,\n          parent_id     TEXT,\n          import_source TEXT,\n          import_count  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_folders",
+     "tbl_name": "note_folders",
+     "sql": "CREATE TABLE note_folders (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          parent_id  TEXT,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_heading_collapse",
+     "tbl_name": "note_heading_collapse",
+     "sql": "CREATE TABLE note_heading_collapse (\n          note_id     TEXT NOT NULL,\n          heading_key TEXT NOT NULL,\n          collapsed   INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, heading_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_thread_collapse",
+     "tbl_name": "note_thread_collapse",
+     "sql": "CREATE TABLE note_thread_collapse (\n          note_id    TEXT NOT NULL,\n          thread_key TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, thread_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_versions",
+     "tbl_name": "note_versions",
+     "sql": "CREATE TABLE note_versions (\n          id         TEXT PRIMARY KEY,\n          note_id    TEXT NOT NULL,\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          kind       TEXT NOT NULL DEFAULT 'auto',\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes",
+     "tbl_name": "notes",
+     "sql": "CREATE TABLE notes (\n          id         TEXT PRIMARY KEY,\n          type       TEXT NOT NULL DEFAULT 'general',\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          verse_ref  TEXT,\n          color      TEXT NOT NULL DEFAULT 'blue',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL,\n          tags       TEXT NOT NULL DEFAULT '[]'\n        , imported_at INTEGER, folder_id TEXT, text_id TEXT DEFAULT 'kjva', idiom_term TEXT, idiom_meaning TEXT, idiom_aliases TEXT, idiom_auto_variants INTEGER DEFAULT 0, idiom_data TEXT, status TEXT, deleted_at INTEGER, icon TEXT, pinned INTEGER DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts",
+     "tbl_name": "notes_fts",
+     "sql": "CREATE VIRTUAL TABLE notes_fts USING fts5(\n          title,\n          content,\n          content='notes',\n          content_rowid='rowid',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_config",
+     "tbl_name": "notes_fts_config",
+     "sql": "CREATE TABLE 'notes_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_data",
+     "tbl_name": "notes_fts_data",
+     "sql": "CREATE TABLE 'notes_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_docsize",
+     "tbl_name": "notes_fts_docsize",
+     "sql": "CREATE TABLE 'notes_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_idx",
+     "tbl_name": "notes_fts_idx",
+     "sql": "CREATE TABLE 'notes_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "pdf_highlights",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE TABLE pdf_highlights (\n          id          TEXT PRIMARY KEY,\n          pdf_id      TEXT NOT NULL,\n          page        INTEGER NOT NULL,\n          rects_json  TEXT NOT NULL,\n          color       TEXT NOT NULL,\n          text        TEXT NOT NULL DEFAULT '',\n          note        TEXT,\n          created_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdfs",
+     "tbl_name": "pdfs",
+     "sql": "CREATE TABLE pdfs (\n          id          TEXT PRIMARY KEY,\n          title       TEXT NOT NULL,\n          filename    TEXT NOT NULL,\n          page_count  INTEGER NOT NULL DEFAULT 0,\n          file_size   INTEGER NOT NULL DEFAULT 0,\n          imported_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "playlist_items",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE TABLE playlist_items (\n          id          TEXT PRIMARY KEY,\n          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,\n          position    INTEGER NOT NULL,\n          book_id     TEXT NOT NULL,\n          chapter     INTEGER NOT NULL,\n          start_verse INTEGER NOT NULL DEFAULT 1,\n          end_verse   INTEGER,\n          text_id     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "playlists",
+     "tbl_name": "playlists",
+     "sql": "CREATE TABLE playlists (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "schema_version",
+     "tbl_name": "schema_version",
+     "sql": "CREATE TABLE schema_version (version INTEGER NOT NULL)"
+    },
+    {
+     "type": "table",
+     "name": "session_local_state",
+     "tbl_name": "session_local_state",
+     "sql": "CREATE TABLE session_local_state (\n          session_id      TEXT PRIMARY KEY,\n          active_tab_json TEXT NOT NULL DEFAULT '{}',\n          updated_at      INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sessions",
+     "tbl_name": "sessions",
+     "sql": "CREATE TABLE sessions (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          icon        TEXT,\n          tab_filter  TEXT,\n          order_key   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "settings",
+     "tbl_name": "settings",
+     "sql": "CREATE TABLE settings (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tabs",
+     "tbl_name": "tabs",
+     "sql": "CREATE TABLE tabs (\n          id                TEXT PRIMARY KEY,\n          session_id        TEXT NOT NULL,\n          space_id          TEXT NOT NULL,\n          type              TEXT NOT NULL,\n          title             TEXT NOT NULL DEFAULT '',\n          is_pinned         INTEGER NOT NULL DEFAULT 0,\n          order_key         TEXT NOT NULL,\n          display_order_key TEXT NOT NULL,\n          origin_tab_id     TEXT,\n          origin_space_id   TEXT,\n          sync_state_json   TEXT NOT NULL DEFAULT '{}',\n          local_state_json  TEXT NOT NULL DEFAULT '{}',\n          created_at        INTEGER NOT NULL,\n          updated_at        INTEGER NOT NULL,\n          deleted_at        INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tag_edges",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE TABLE tag_edges (\n          id            TEXT PRIMARY KEY,\n          source_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          target_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          arrows        TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'forward' | 'backward' | 'both'\n          color         TEXT,                            -- slot index as string, or literal; NULL = neutral\n          dashed        INTEGER NOT NULL DEFAULT 0,\n          note          TEXT NOT NULL DEFAULT '',\n          created_at    INTEGER NOT NULL,\n          updated_at    INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_collapse",
+     "tbl_name": "trail_collapse",
+     "sql": "CREATE TABLE trail_collapse (\n          scope      TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          updated_at INTEGER NOT NULL,\n          PRIMARY KEY (scope, key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_connections",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE TABLE trail_connections (\n          id                    TEXT PRIMARY KEY,\n          trail_session_id      TEXT NOT NULL,\n          from_node_id          TEXT NOT NULL,\n          to_kind               TEXT NOT NULL,     -- 'chapter'|'lexicon'|'note'|'video'|'compare'\n          to_book_id            TEXT,\n          to_chapter            INTEGER,\n          to_verse              INTEGER,\n          to_strongs_num        TEXT,\n          to_note_id            TEXT,\n          to_video_id           TEXT,\n          clarity_tier          INTEGER NOT NULL,  -- 1 (clear) | 2 (soft) | 3 (ambiguous)\n          reason_text           TEXT,\n          reason_tags           TEXT,              -- JSON array\n          verse_pin_from        INTEGER,\n          verse_pin_to          INTEGER,\n          weight                TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'glance'\n          strongs_depth         TEXT,              -- 'click' | 'occurrences' | 'related'\n          cluster_id            TEXT,\n          dismissed_prompt_at   INTEGER,\n          created_at            INTEGER NOT NULL\n        , origin_verse_pin_from INTEGER, origin_verse_pin_to INTEGER, from_connection_id TEXT, chain_depth INTEGER NOT NULL DEFAULT 0, to_verse_end INTEGER, ties TEXT, user_note TEXT, ties_from TEXT, ties_to TEXT, is_branch INTEGER NOT NULL DEFAULT 0, is_branch_return INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_embeddings",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE TABLE trail_embeddings (\n          id          TEXT PRIMARY KEY,\n          ref_type    TEXT NOT NULL,   -- 'connection_reason' | 'lexicon_gloss' | 'recap'\n          ref_id      TEXT NOT NULL,\n          source_text TEXT NOT NULL,\n          vector      BLOB NOT NULL,   -- Float32Array, serialized\n          updated_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_nodes",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE TABLE trail_nodes (\n          id                  TEXT PRIMARY KEY,\n          trail_session_id    TEXT NOT NULL,\n          book_id             TEXT NOT NULL,\n          chapter             INTEGER NOT NULL,\n          order_index         INTEGER NOT NULL,\n          anchor_started_at   INTEGER NOT NULL,\n          anchor_ended_at     INTEGER,            -- NULL while still the active anchor\n          cached_subnote      TEXT,\n          origin_label        TEXT\n        , revisit_of_node_id TEXT, promoted_from_connection_id TEXT, translation TEXT, cluster_id TEXT, is_topic_break INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_notes",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE TABLE trail_notes (\n          id               TEXT PRIMARY KEY,\n          trail_session_id TEXT NOT NULL,\n          kind             TEXT NOT NULL DEFAULT 'annotation',\n          anchor_node_id   TEXT,\n          order_index      INTEGER NOT NULL DEFAULT 0,\n          title            TEXT,\n          body             TEXT NOT NULL DEFAULT '',\n          width            INTEGER,\n          height           INTEGER,\n          note_id          TEXT,\n          color            TEXT,\n          created_at       INTEGER NOT NULL,\n          updated_at       INTEGER NOT NULL\n        , offset_x INTEGER, offset_y INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_paused_intervals",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE TABLE trail_paused_intervals (\n          id                TEXT PRIMARY KEY,\n          trail_session_id  TEXT NOT NULL,\n          paused_at         INTEGER NOT NULL,\n          resumed_at        INTEGER               -- NULL while still paused\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_sessions",
+     "tbl_name": "trail_sessions",
+     "sql": "CREATE TABLE trail_sessions (\n          id                   TEXT PRIMARY KEY,\n          name                 TEXT NOT NULL,\n          status               TEXT NOT NULL,        -- 'live' | 'paused' | 'ended'\n          possibly_accidental  INTEGER DEFAULT 0,\n          recap_text           TEXT,\n          recap_user_edited    INTEGER DEFAULT 0,     -- once 1, auto-recap never overwrites it\n          created_at           INTEGER NOT NULL,\n          updated_at           INTEGER NOT NULL\n        , sort_order INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_tag_members",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE TABLE trail_tag_members (\n          tag_id           TEXT NOT NULL REFERENCES trail_tags(id) ON DELETE CASCADE,\n          trail_session_id TEXT NOT NULL,\n          created_at       INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, trail_session_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_tags",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE TABLE trail_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_members",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE TABLE verse_tag_members (\n          id         TEXT PRIMARY KEY,\n          tag_id     TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          kind       TEXT NOT NULL DEFAULT 'verses',\n          ranges     TEXT NOT NULL,\n          label      TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_verse",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE TABLE verse_tag_verse (\n          tag_id    TEXT NOT NULL,\n          member_id TEXT NOT NULL,\n          book_id   TEXT NOT NULL,\n          chapter   INTEGER NOT NULL,\n          verse     INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, book_id, chapter, verse, member_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tags",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE TABLE verse_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        , color_slot INTEGER, graph_x REAL, graph_y REAL, graph_pinned INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "workspaces",
+     "tbl_name": "workspaces",
+     "sql": "CREATE TABLE workspaces (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          layout_json TEXT NOT NULL,\n          created_at  INTEGER NOT NULL\n        , state_json TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_sync",
+     "tbl_name": "youtube_sync",
+     "sql": "CREATE TABLE youtube_sync (\n          channel_handle TEXT PRIMARY KEY,\n          last_full_sync TEXT,\n          last_refresh   TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcript_segments",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TABLE youtube_transcript_segments (\n          id       INTEGER PRIMARY KEY,\n          video_id TEXT NOT NULL\n            REFERENCES youtube_transcripts(video_id) ON DELETE CASCADE,\n          start_ms INTEGER NOT NULL,\n          dur_ms   INTEGER NOT NULL DEFAULT 0,\n          text     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE TABLE youtube_transcripts (\n          video_id      TEXT PRIMARY KEY,\n          lang          TEXT NOT NULL DEFAULT 'en',\n          source        TEXT NOT NULL DEFAULT 'timedtext',\n          fetched_at    INTEGER NOT NULL,\n          segment_count INTEGER NOT NULL DEFAULT 0,\n          duration_ms   INTEGER NOT NULL DEFAULT 0,\n          error         TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts",
+     "tbl_name": "youtube_transcripts_fts",
+     "sql": "CREATE VIRTUAL TABLE youtube_transcripts_fts USING fts5(\n          text,\n          content='youtube_transcript_segments',\n          content_rowid='id',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_config",
+     "tbl_name": "youtube_transcripts_fts_config",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_data",
+     "tbl_name": "youtube_transcripts_fts_data",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_docsize",
+     "tbl_name": "youtube_transcripts_fts_docsize",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_idx",
+     "tbl_name": "youtube_transcripts_fts_idx",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_videos",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE TABLE youtube_videos (\n          video_id       TEXT PRIMARY KEY,\n          title          TEXT NOT NULL,\n          published      TEXT NOT NULL,\n          channel_name   TEXT NOT NULL,\n          channel_handle TEXT NOT NULL,\n          thumbnail_url  TEXT NOT NULL,\n          type           TEXT NOT NULL,\n          is_live_now    INTEGER NOT NULL DEFAULT 0,\n          fetched_at     TEXT NOT NULL\n        , duration_seconds INTEGER NOT NULL DEFAULT 0, is_starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '')"
+    },
+    {
+     "type": "table",
+     "name": "youtube_watch_history",
+     "tbl_name": "youtube_watch_history",
+     "sql": "CREATE TABLE youtube_watch_history (\n          video_id         TEXT PRIMARY KEY,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT NOT NULL,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT ''\n        )"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ad",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ad\n        AFTER DELETE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ai",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ai\n        AFTER INSERT ON notes BEGIN\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_au",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_au\n        AFTER UPDATE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ad",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ad\n        AFTER DELETE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ai",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ai\n        AFTER INSERT ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_au",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_au\n        AFTER UPDATE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    }
+   ],
+   "settings": [
+    {
+     "key": "crossTextHighlights",
+     "value": "false"
+    },
+    {
+     "key": "defaultText",
+     "value": "\"kjva\""
+    },
+    {
+     "key": "fontSize",
+     "value": "16"
+    },
+    {
+     "key": "lineHeight",
+     "value": "\"comfortable\""
+    },
+    {
+     "key": "noteOpenBehavior",
+     "value": "\"right-panel\""
+    },
+    {
+     "key": "onboardingCompleted",
+     "value": "false"
+    },
+    {
+     "key": "showStrongs",
+     "value": "false"
+    },
+    {
+     "key": "showStrongsTooltips",
+     "value": "true"
+    },
+    {
+     "key": "strongsClickOpensTab",
+     "value": "true"
+    },
+    {
+     "key": "transcriptAutoFetch",
+     "value": "true"
+    },
+    {
+     "key": "transcriptStorageLimitMb",
+     "value": "200"
+    },
+    {
+     "key": "vaultPath",
+     "value": "\"\""
+    },
+    {
+     "key": "vaultSync",
+     "value": "false"
+    },
+    {
+     "key": "verseIndicatorPos",
+     "value": "\"right\""
+    }
+   ],
+   "versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43
+   ]
+  },
+  "v47": {
+   "objects": [
+    {
+     "type": "index",
+     "name": "idx_ai_chats_updated",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE INDEX idx_ai_chats_updated ON ai_chats(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_highlights_verse",
+     "tbl_name": "highlights",
+     "sql": "CREATE INDEX idx_highlights_verse ON highlights(text_id, book_id, chapter, verse_num)"
+    },
+    {
+     "type": "index",
+     "name": "idx_history_ts",
+     "tbl_name": "history",
+     "sql": "CREATE INDEX idx_history_ts ON history(timestamp DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_folders_parent",
+     "tbl_name": "note_folders",
+     "sql": "CREATE INDEX idx_note_folders_parent ON note_folders(parent_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_versions_note",
+     "tbl_name": "note_versions",
+     "sql": "CREATE INDEX idx_note_versions_note ON note_versions(note_id, created_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_deleted_at",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_deleted_at ON notes(deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_updated",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_updated ON notes(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_verse",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_verse ON notes(verse_ref)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_bookmarks_pdf",
+     "tbl_name": "pdf_bookmarks",
+     "sql": "CREATE INDEX idx_pdf_bookmarks_pdf ON pdf_bookmarks(pdf_id, page)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_hl_pdf",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE INDEX idx_pdf_hl_pdf ON pdf_highlights(pdf_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_playlist_items_playlist",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE INDEX idx_playlist_items_playlist ON playlist_items(playlist_id, position)"
+    },
+    {
+     "type": "index",
+     "name": "idx_sync_conflicts_record",
+     "tbl_name": "sync_conflicts",
+     "sql": "CREATE INDEX idx_sync_conflicts_record ON sync_conflicts(entity, key)"
+    },
+    {
+     "type": "index",
+     "name": "idx_sync_outbox_record",
+     "tbl_name": "sync_outbox",
+     "sql": "CREATE INDEX idx_sync_outbox_record ON sync_outbox(entity, key)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tabs_session",
+     "tbl_name": "tabs",
+     "sql": "CREATE INDEX idx_tabs_session ON tabs(session_id, deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_pair",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE UNIQUE INDEX idx_tag_edges_pair ON tag_edges(source_tag_id, target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_src",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_src ON tag_edges(source_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_tgt",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_tgt ON tag_edges(target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_dest",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_dest ON trail_connections(to_book_id, to_chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_parent",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_parent ON trail_connections(from_connection_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_session",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_session ON trail_connections(trail_session_id, created_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_embeddings_ref",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE INDEX idx_trail_embeddings_ref ON trail_embeddings(ref_type, ref_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_nodes_session",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE INDEX idx_trail_nodes_session ON trail_nodes(trail_session_id, order_index)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_anchor",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_anchor ON trail_notes(anchor_node_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_session",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_session ON trail_notes(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_paused_session",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE INDEX idx_trail_paused_session ON trail_paused_intervals(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_tags_name",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE UNIQUE INDEX idx_trail_tags_name ON trail_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_ttm_session",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE INDEX idx_ttm_session ON trail_tag_members(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_verse_tags_name",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE UNIQUE INDEX idx_verse_tags_name ON verse_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtm_tag",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE INDEX idx_vtm_tag ON verse_tag_members(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_loc",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_loc ON verse_tag_verse(book_id, chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_tag",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_tag ON verse_tag_verse(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_handle",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_handle   ON youtube_videos(channel_handle)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_published",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_published ON youtube_videos(published DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_seg_video",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE INDEX idx_yt_seg_video\n          ON youtube_transcript_segments(video_id, start_ms)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_transcripts_fetched",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE INDEX idx_yt_transcripts_fetched\n          ON youtube_transcripts(fetched_at DESC)"
+    },
+    {
+     "type": "table",
+     "name": "ai_chats",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE TABLE ai_chats (\n          id         TEXT PRIMARY KEY,\n          title      TEXT NOT NULL,\n          messages   TEXT NOT NULL,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "archived_groups",
+     "tbl_name": "archived_groups",
+     "sql": "CREATE TABLE archived_groups (\n          id          TEXT PRIMARY KEY,\n          label       TEXT NOT NULL,\n          archived_at INTEGER NOT NULL,\n          tabs_json   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "highlights",
+     "tbl_name": "highlights",
+     "sql": "CREATE TABLE highlights (\n          id         TEXT PRIMARY KEY,\n          text_id    TEXT NOT NULL,\n          book_id    TEXT NOT NULL,\n          chapter    INTEGER NOT NULL,\n          verse_num  INTEGER NOT NULL,\n          start_word INTEGER,\n          end_word   INTEGER,\n          color      TEXT NOT NULL,\n          label      TEXT,\n          created_at INTEGER NOT NULL\n        , start_char INTEGER, end_char INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "history",
+     "tbl_name": "history",
+     "sql": "CREATE TABLE history (\n          id            TEXT PRIMARY KEY,\n          type          TEXT NOT NULL,\n          title         TEXT NOT NULL,\n          timestamp     INTEGER NOT NULL,\n          session_id    TEXT,\n          session_name  TEXT,\n          book_id       TEXT,\n          chapter       INTEGER,\n          verse         INTEGER,\n          note_id       TEXT,\n          strongs_num   TEXT,\n          video_id      TEXT,\n          query         TEXT,\n          parent_id     TEXT,\n          import_source TEXT,\n          import_count  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_folders",
+     "tbl_name": "note_folders",
+     "sql": "CREATE TABLE note_folders (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          parent_id  TEXT,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_heading_collapse",
+     "tbl_name": "note_heading_collapse",
+     "sql": "CREATE TABLE note_heading_collapse (\n          note_id     TEXT NOT NULL,\n          heading_key TEXT NOT NULL,\n          collapsed   INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, heading_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_thread_collapse",
+     "tbl_name": "note_thread_collapse",
+     "sql": "CREATE TABLE note_thread_collapse (\n          note_id    TEXT NOT NULL,\n          thread_key TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, thread_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_versions",
+     "tbl_name": "note_versions",
+     "sql": "CREATE TABLE note_versions (\n          id         TEXT PRIMARY KEY,\n          note_id    TEXT NOT NULL,\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          kind       TEXT NOT NULL DEFAULT 'auto',\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes",
+     "tbl_name": "notes",
+     "sql": "CREATE TABLE notes (\n          id         TEXT PRIMARY KEY,\n          type       TEXT NOT NULL DEFAULT 'general',\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          verse_ref  TEXT,\n          color      TEXT NOT NULL DEFAULT 'blue',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL,\n          tags       TEXT NOT NULL DEFAULT '[]'\n        , imported_at INTEGER, folder_id TEXT, text_id TEXT DEFAULT 'kjva', idiom_term TEXT, idiom_meaning TEXT, idiom_aliases TEXT, idiom_auto_variants INTEGER DEFAULT 0, idiom_data TEXT, status TEXT, deleted_at INTEGER, icon TEXT, pinned INTEGER DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts",
+     "tbl_name": "notes_fts",
+     "sql": "CREATE VIRTUAL TABLE notes_fts USING fts5(\n          title,\n          content,\n          content='notes',\n          content_rowid='rowid',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_config",
+     "tbl_name": "notes_fts_config",
+     "sql": "CREATE TABLE 'notes_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_data",
+     "tbl_name": "notes_fts_data",
+     "sql": "CREATE TABLE 'notes_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_docsize",
+     "tbl_name": "notes_fts_docsize",
+     "sql": "CREATE TABLE 'notes_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_idx",
+     "tbl_name": "notes_fts_idx",
+     "sql": "CREATE TABLE 'notes_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "pdf_bookmarks",
+     "tbl_name": "pdf_bookmarks",
+     "sql": "CREATE TABLE pdf_bookmarks (\n          id         TEXT PRIMARY KEY,\n          pdf_id     TEXT NOT NULL,\n          page       INTEGER NOT NULL,\n          label      TEXT NOT NULL DEFAULT '',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdf_highlights",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE TABLE pdf_highlights (\n          id          TEXT PRIMARY KEY,\n          pdf_id      TEXT NOT NULL,\n          page        INTEGER NOT NULL,\n          rects_json  TEXT NOT NULL,\n          color       TEXT NOT NULL,\n          text        TEXT NOT NULL DEFAULT '',\n          note        TEXT,\n          created_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdfs",
+     "tbl_name": "pdfs",
+     "sql": "CREATE TABLE pdfs (\n          id          TEXT PRIMARY KEY,\n          title       TEXT NOT NULL,\n          filename    TEXT NOT NULL,\n          page_count  INTEGER NOT NULL DEFAULT 0,\n          file_size   INTEGER NOT NULL DEFAULT 0,\n          imported_at INTEGER NOT NULL\n        , file_hash TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "playlist_items",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE TABLE playlist_items (\n          id          TEXT PRIMARY KEY,\n          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,\n          position    INTEGER NOT NULL,\n          book_id     TEXT NOT NULL,\n          chapter     INTEGER NOT NULL,\n          start_verse INTEGER NOT NULL DEFAULT 1,\n          end_verse   INTEGER,\n          text_id     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "playlists",
+     "tbl_name": "playlists",
+     "sql": "CREATE TABLE playlists (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "schema_version",
+     "tbl_name": "schema_version",
+     "sql": "CREATE TABLE schema_version (version INTEGER NOT NULL)"
+    },
+    {
+     "type": "table",
+     "name": "session_local_state",
+     "tbl_name": "session_local_state",
+     "sql": "CREATE TABLE session_local_state (\n          session_id      TEXT PRIMARY KEY,\n          active_tab_json TEXT NOT NULL DEFAULT '{}',\n          updated_at      INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sessions",
+     "tbl_name": "sessions",
+     "sql": "CREATE TABLE sessions (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          icon        TEXT,\n          tab_filter  TEXT,\n          order_key   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "settings",
+     "tbl_name": "settings",
+     "sql": "CREATE TABLE settings (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_applied",
+     "tbl_name": "sync_applied",
+     "sql": "CREATE TABLE sync_applied (\n          device TEXT NOT NULL,\n          seq    INTEGER NOT NULL,\n          PRIMARY KEY (device, seq)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_conflicts",
+     "tbl_name": "sync_conflicts",
+     "sql": "CREATE TABLE sync_conflicts (\n          id          TEXT PRIMARY KEY,\n          entity      TEXT NOT NULL,\n          key         TEXT NOT NULL,\n          field       TEXT,\n          kind        TEXT NOT NULL,\n          kept_hlc    TEXT,\n          lost_hlc    TEXT NOT NULL,\n          lost_device TEXT,\n          lost_value  TEXT,\n          created_at  INTEGER NOT NULL,\n          resolved_at INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_failed",
+     "tbl_name": "sync_failed",
+     "sql": "CREATE TABLE sync_failed (\n          device   TEXT NOT NULL,\n          seq      INTEGER NOT NULL,\n          error    TEXT,\n          attempts INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (device, seq)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_outbox",
+     "tbl_name": "sync_outbox",
+     "sql": "CREATE TABLE sync_outbox (\n          seq        INTEGER PRIMARY KEY AUTOINCREMENT,\n          entity     TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          op_json    TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_record_meta",
+     "tbl_name": "sync_record_meta",
+     "sql": "CREATE TABLE sync_record_meta (\n          entity  TEXT NOT NULL,\n          key     TEXT NOT NULL,\n          hlc     TEXT NOT NULL,\n          device  TEXT NOT NULL,\n          deleted INTEGER NOT NULL DEFAULT 0,\n          hash    TEXT, field_hlc TEXT, field_hash TEXT, lineage TEXT,\n          PRIMARY KEY (entity, key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_state",
+     "tbl_name": "sync_state",
+     "sql": "CREATE TABLE sync_state (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tabs",
+     "tbl_name": "tabs",
+     "sql": "CREATE TABLE tabs (\n          id                TEXT PRIMARY KEY,\n          session_id        TEXT NOT NULL,\n          space_id          TEXT NOT NULL,\n          type              TEXT NOT NULL,\n          title             TEXT NOT NULL DEFAULT '',\n          is_pinned         INTEGER NOT NULL DEFAULT 0,\n          order_key         TEXT NOT NULL,\n          display_order_key TEXT NOT NULL,\n          origin_tab_id     TEXT,\n          origin_space_id   TEXT,\n          sync_state_json   TEXT NOT NULL DEFAULT '{}',\n          local_state_json  TEXT NOT NULL DEFAULT '{}',\n          created_at        INTEGER NOT NULL,\n          updated_at        INTEGER NOT NULL,\n          deleted_at        INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tag_edges",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE TABLE tag_edges (\n          id            TEXT PRIMARY KEY,\n          source_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          target_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          arrows        TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'forward' | 'backward' | 'both'\n          color         TEXT,                            -- slot index as string, or literal; NULL = neutral\n          dashed        INTEGER NOT NULL DEFAULT 0,\n          note          TEXT NOT NULL DEFAULT '',\n          created_at    INTEGER NOT NULL,\n          updated_at    INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_collapse",
+     "tbl_name": "trail_collapse",
+     "sql": "CREATE TABLE trail_collapse (\n          scope      TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          updated_at INTEGER NOT NULL,\n          PRIMARY KEY (scope, key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_connections",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE TABLE trail_connections (\n          id                    TEXT PRIMARY KEY,\n          trail_session_id      TEXT NOT NULL,\n          from_node_id          TEXT NOT NULL,\n          to_kind               TEXT NOT NULL,     -- 'chapter'|'lexicon'|'note'|'video'|'compare'\n          to_book_id            TEXT,\n          to_chapter            INTEGER,\n          to_verse              INTEGER,\n          to_strongs_num        TEXT,\n          to_note_id            TEXT,\n          to_video_id           TEXT,\n          clarity_tier          INTEGER NOT NULL,  -- 1 (clear) | 2 (soft) | 3 (ambiguous)\n          reason_text           TEXT,\n          reason_tags           TEXT,              -- JSON array\n          verse_pin_from        INTEGER,\n          verse_pin_to          INTEGER,\n          weight                TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'glance'\n          strongs_depth         TEXT,              -- 'click' | 'occurrences' | 'related'\n          cluster_id            TEXT,\n          dismissed_prompt_at   INTEGER,\n          created_at            INTEGER NOT NULL\n        , origin_verse_pin_from INTEGER, origin_verse_pin_to INTEGER, from_connection_id TEXT, chain_depth INTEGER NOT NULL DEFAULT 0, to_verse_end INTEGER, ties TEXT, user_note TEXT, ties_from TEXT, ties_to TEXT, is_branch INTEGER NOT NULL DEFAULT 0, is_branch_return INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_embeddings",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE TABLE trail_embeddings (\n          id          TEXT PRIMARY KEY,\n          ref_type    TEXT NOT NULL,   -- 'connection_reason' | 'lexicon_gloss' | 'recap'\n          ref_id      TEXT NOT NULL,\n          source_text TEXT NOT NULL,\n          vector      BLOB NOT NULL,   -- Float32Array, serialized\n          updated_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_nodes",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE TABLE trail_nodes (\n          id                  TEXT PRIMARY KEY,\n          trail_session_id    TEXT NOT NULL,\n          book_id             TEXT NOT NULL,\n          chapter             INTEGER NOT NULL,\n          order_index         INTEGER NOT NULL,\n          anchor_started_at   INTEGER NOT NULL,\n          anchor_ended_at     INTEGER,            -- NULL while still the active anchor\n          cached_subnote      TEXT,\n          origin_label        TEXT\n        , revisit_of_node_id TEXT, promoted_from_connection_id TEXT, translation TEXT, cluster_id TEXT, is_topic_break INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_notes",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE TABLE trail_notes (\n          id               TEXT PRIMARY KEY,\n          trail_session_id TEXT NOT NULL,\n          kind             TEXT NOT NULL DEFAULT 'annotation',\n          anchor_node_id   TEXT,\n          order_index      INTEGER NOT NULL DEFAULT 0,\n          title            TEXT,\n          body             TEXT NOT NULL DEFAULT '',\n          width            INTEGER,\n          height           INTEGER,\n          note_id          TEXT,\n          color            TEXT,\n          created_at       INTEGER NOT NULL,\n          updated_at       INTEGER NOT NULL\n        , offset_x INTEGER, offset_y INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_paused_intervals",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE TABLE trail_paused_intervals (\n          id                TEXT PRIMARY KEY,\n          trail_session_id  TEXT NOT NULL,\n          paused_at         INTEGER NOT NULL,\n          resumed_at        INTEGER               -- NULL while still paused\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_sessions",
+     "tbl_name": "trail_sessions",
+     "sql": "CREATE TABLE trail_sessions (\n          id                   TEXT PRIMARY KEY,\n          name                 TEXT NOT NULL,\n          status               TEXT NOT NULL,        -- 'live' | 'paused' | 'ended'\n          possibly_accidental  INTEGER DEFAULT 0,\n          recap_text           TEXT,\n          recap_user_edited    INTEGER DEFAULT 0,     -- once 1, auto-recap never overwrites it\n          created_at           INTEGER NOT NULL,\n          updated_at           INTEGER NOT NULL\n        , sort_order INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_tag_members",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE TABLE trail_tag_members (\n          tag_id           TEXT NOT NULL REFERENCES trail_tags(id) ON DELETE CASCADE,\n          trail_session_id TEXT NOT NULL,\n          created_at       INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, trail_session_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_tags",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE TABLE trail_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_members",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE TABLE verse_tag_members (\n          id         TEXT PRIMARY KEY,\n          tag_id     TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          kind       TEXT NOT NULL DEFAULT 'verses',\n          ranges     TEXT NOT NULL,\n          label      TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_verse",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE TABLE verse_tag_verse (\n          tag_id    TEXT NOT NULL,\n          member_id TEXT NOT NULL,\n          book_id   TEXT NOT NULL,\n          chapter   INTEGER NOT NULL,\n          verse     INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, book_id, chapter, verse, member_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tags",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE TABLE verse_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        , color_slot INTEGER, graph_x REAL, graph_y REAL, graph_pinned INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "workspaces",
+     "tbl_name": "workspaces",
+     "sql": "CREATE TABLE workspaces (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          layout_json TEXT NOT NULL,\n          created_at  INTEGER NOT NULL\n        , state_json TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_sync",
+     "tbl_name": "youtube_sync",
+     "sql": "CREATE TABLE youtube_sync (\n          channel_handle TEXT PRIMARY KEY,\n          last_full_sync TEXT,\n          last_refresh   TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcript_segments",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TABLE youtube_transcript_segments (\n          id       INTEGER PRIMARY KEY,\n          video_id TEXT NOT NULL\n            REFERENCES youtube_transcripts(video_id) ON DELETE CASCADE,\n          start_ms INTEGER NOT NULL,\n          dur_ms   INTEGER NOT NULL DEFAULT 0,\n          text     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE TABLE youtube_transcripts (\n          video_id      TEXT PRIMARY KEY,\n          lang          TEXT NOT NULL DEFAULT 'en',\n          source        TEXT NOT NULL DEFAULT 'timedtext',\n          fetched_at    INTEGER NOT NULL,\n          segment_count INTEGER NOT NULL DEFAULT 0,\n          duration_ms   INTEGER NOT NULL DEFAULT 0,\n          error         TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts",
+     "tbl_name": "youtube_transcripts_fts",
+     "sql": "CREATE VIRTUAL TABLE youtube_transcripts_fts USING fts5(\n          text,\n          content='youtube_transcript_segments',\n          content_rowid='id',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_config",
+     "tbl_name": "youtube_transcripts_fts_config",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_data",
+     "tbl_name": "youtube_transcripts_fts_data",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_docsize",
+     "tbl_name": "youtube_transcripts_fts_docsize",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_idx",
+     "tbl_name": "youtube_transcripts_fts_idx",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_user",
+     "tbl_name": "youtube_user",
+     "sql": "CREATE TABLE youtube_user (\n          video_id         TEXT PRIMARY KEY,\n          is_starred       INTEGER NOT NULL DEFAULT 0,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT '',\n          updated_at       INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_videos",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE TABLE youtube_videos (\n          video_id       TEXT PRIMARY KEY,\n          title          TEXT NOT NULL,\n          published      TEXT NOT NULL,\n          channel_name   TEXT NOT NULL,\n          channel_handle TEXT NOT NULL,\n          thumbnail_url  TEXT NOT NULL,\n          type           TEXT NOT NULL,\n          is_live_now    INTEGER NOT NULL DEFAULT 0,\n          fetched_at     TEXT NOT NULL\n        , duration_seconds INTEGER NOT NULL DEFAULT 0, is_starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '')"
+    },
+    {
+     "type": "table",
+     "name": "youtube_watch_history",
+     "tbl_name": "youtube_watch_history",
+     "sql": "CREATE TABLE youtube_watch_history (\n          video_id         TEXT PRIMARY KEY,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT NOT NULL,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT ''\n        )"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ad",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ad\n        AFTER DELETE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ai",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ai\n        AFTER INSERT ON notes BEGIN\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_au",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_au\n        AFTER UPDATE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ad",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ad\n        AFTER DELETE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ai",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ai\n        AFTER INSERT ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_au",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_au\n        AFTER UPDATE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    }
+   ],
+   "settings": [
+    {
+     "key": "crossTextHighlights",
+     "value": "false"
+    },
+    {
+     "key": "defaultText",
+     "value": "\"kjva\""
+    },
+    {
+     "key": "fontSize",
+     "value": "16"
+    },
+    {
+     "key": "lineHeight",
+     "value": "\"comfortable\""
+    },
+    {
+     "key": "noteOpenBehavior",
+     "value": "\"right-panel\""
+    },
+    {
+     "key": "onboardingCompleted",
+     "value": "false"
+    },
+    {
+     "key": "showStrongs",
+     "value": "false"
+    },
+    {
+     "key": "showStrongsTooltips",
+     "value": "true"
+    },
+    {
+     "key": "strongsClickOpensTab",
+     "value": "true"
+    },
+    {
+     "key": "transcriptAutoFetch",
+     "value": "true"
+    },
+    {
+     "key": "transcriptStorageLimitMb",
+     "value": "200"
+    },
+    {
+     "key": "vaultPath",
+     "value": "\"\""
+    },
+    {
+     "key": "vaultSync",
+     "value": "false"
+    },
+    {
+     "key": "verseIndicatorPos",
+     "value": "\"right\""
+    }
+   ],
+   "versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47
+   ]
+  },
+  "v48": {
+   "objects": [
+    {
+     "type": "index",
+     "name": "idx_ai_chats_updated",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE INDEX idx_ai_chats_updated ON ai_chats(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_highlights_verse",
+     "tbl_name": "highlights",
+     "sql": "CREATE INDEX idx_highlights_verse ON highlights(text_id, book_id, chapter, verse_num)"
+    },
+    {
+     "type": "index",
+     "name": "idx_history_ts",
+     "tbl_name": "history",
+     "sql": "CREATE INDEX idx_history_ts ON history(timestamp DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_folders_parent",
+     "tbl_name": "note_folders",
+     "sql": "CREATE INDEX idx_note_folders_parent ON note_folders(parent_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_versions_note",
+     "tbl_name": "note_versions",
+     "sql": "CREATE INDEX idx_note_versions_note ON note_versions(note_id, created_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_deleted_at",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_deleted_at ON notes(deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_updated",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_updated ON notes(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_verse",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_verse ON notes(verse_ref)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_bookmarks_pdf",
+     "tbl_name": "pdf_bookmarks",
+     "sql": "CREATE INDEX idx_pdf_bookmarks_pdf ON pdf_bookmarks(pdf_id, page)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_hl_pdf",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE INDEX idx_pdf_hl_pdf ON pdf_highlights(pdf_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_playlist_items_playlist",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE INDEX idx_playlist_items_playlist ON playlist_items(playlist_id, position)"
+    },
+    {
+     "type": "index",
+     "name": "idx_sync_conflicts_record",
+     "tbl_name": "sync_conflicts",
+     "sql": "CREATE INDEX idx_sync_conflicts_record ON sync_conflicts(entity, key)"
+    },
+    {
+     "type": "index",
+     "name": "idx_sync_outbox_record",
+     "tbl_name": "sync_outbox",
+     "sql": "CREATE INDEX idx_sync_outbox_record ON sync_outbox(entity, key)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tabs_session",
+     "tbl_name": "tabs",
+     "sql": "CREATE INDEX idx_tabs_session ON tabs(session_id, deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_pair",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE UNIQUE INDEX idx_tag_edges_pair ON tag_edges(source_tag_id, target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_src",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_src ON tag_edges(source_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_tgt",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_tgt ON tag_edges(target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_dest",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_dest ON trail_connections(to_book_id, to_chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_parent",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_parent ON trail_connections(from_connection_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_session",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_session ON trail_connections(trail_session_id, created_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_embeddings_ref",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE INDEX idx_trail_embeddings_ref ON trail_embeddings(ref_type, ref_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_nodes_session",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE INDEX idx_trail_nodes_session ON trail_nodes(trail_session_id, order_index)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_anchor",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_anchor ON trail_notes(anchor_node_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_session",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_session ON trail_notes(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_paused_session",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE INDEX idx_trail_paused_session ON trail_paused_intervals(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_tags_name",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE UNIQUE INDEX idx_trail_tags_name ON trail_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_ttm_session",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE INDEX idx_ttm_session ON trail_tag_members(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_verse_tags_name",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE UNIQUE INDEX idx_verse_tags_name ON verse_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtm_tag",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE INDEX idx_vtm_tag ON verse_tag_members(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_loc",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_loc ON verse_tag_verse(book_id, chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_tag",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_tag ON verse_tag_verse(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_handle",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_handle   ON youtube_videos(channel_handle)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_published",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_published ON youtube_videos(published DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_seg_video",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE INDEX idx_yt_seg_video\n          ON youtube_transcript_segments(video_id, start_ms)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_transcripts_fetched",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE INDEX idx_yt_transcripts_fetched\n          ON youtube_transcripts(fetched_at DESC)"
+    },
+    {
+     "type": "table",
+     "name": "ai_chats",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE TABLE ai_chats (\n          id         TEXT PRIMARY KEY,\n          title      TEXT NOT NULL,\n          messages   TEXT NOT NULL,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        , pinned_at TEXT, folder TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "archived_groups",
+     "tbl_name": "archived_groups",
+     "sql": "CREATE TABLE archived_groups (\n          id          TEXT PRIMARY KEY,\n          label       TEXT NOT NULL,\n          archived_at INTEGER NOT NULL,\n          tabs_json   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "highlights",
+     "tbl_name": "highlights",
+     "sql": "CREATE TABLE highlights (\n          id         TEXT PRIMARY KEY,\n          text_id    TEXT NOT NULL,\n          book_id    TEXT NOT NULL,\n          chapter    INTEGER NOT NULL,\n          verse_num  INTEGER NOT NULL,\n          start_word INTEGER,\n          end_word   INTEGER,\n          color      TEXT NOT NULL,\n          label      TEXT,\n          created_at INTEGER NOT NULL\n        , start_char INTEGER, end_char INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "history",
+     "tbl_name": "history",
+     "sql": "CREATE TABLE history (\n          id            TEXT PRIMARY KEY,\n          type          TEXT NOT NULL,\n          title         TEXT NOT NULL,\n          timestamp     INTEGER NOT NULL,\n          session_id    TEXT,\n          session_name  TEXT,\n          book_id       TEXT,\n          chapter       INTEGER,\n          verse         INTEGER,\n          note_id       TEXT,\n          strongs_num   TEXT,\n          video_id      TEXT,\n          query         TEXT,\n          parent_id     TEXT,\n          import_source TEXT,\n          import_count  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_folders",
+     "tbl_name": "note_folders",
+     "sql": "CREATE TABLE note_folders (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          parent_id  TEXT,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_heading_collapse",
+     "tbl_name": "note_heading_collapse",
+     "sql": "CREATE TABLE note_heading_collapse (\n          note_id     TEXT NOT NULL,\n          heading_key TEXT NOT NULL,\n          collapsed   INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, heading_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_thread_collapse",
+     "tbl_name": "note_thread_collapse",
+     "sql": "CREATE TABLE note_thread_collapse (\n          note_id    TEXT NOT NULL,\n          thread_key TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, thread_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_versions",
+     "tbl_name": "note_versions",
+     "sql": "CREATE TABLE note_versions (\n          id         TEXT PRIMARY KEY,\n          note_id    TEXT NOT NULL,\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          kind       TEXT NOT NULL DEFAULT 'auto',\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes",
+     "tbl_name": "notes",
+     "sql": "CREATE TABLE notes (\n          id         TEXT PRIMARY KEY,\n          type       TEXT NOT NULL DEFAULT 'general',\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          verse_ref  TEXT,\n          color      TEXT NOT NULL DEFAULT 'blue',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL,\n          tags       TEXT NOT NULL DEFAULT '[]'\n        , imported_at INTEGER, folder_id TEXT, text_id TEXT DEFAULT 'kjva', idiom_term TEXT, idiom_meaning TEXT, idiom_aliases TEXT, idiom_auto_variants INTEGER DEFAULT 0, idiom_data TEXT, status TEXT, deleted_at INTEGER, icon TEXT, pinned INTEGER DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts",
+     "tbl_name": "notes_fts",
+     "sql": "CREATE VIRTUAL TABLE notes_fts USING fts5(\n          title,\n          content,\n          content='notes',\n          content_rowid='rowid',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_config",
+     "tbl_name": "notes_fts_config",
+     "sql": "CREATE TABLE 'notes_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_data",
+     "tbl_name": "notes_fts_data",
+     "sql": "CREATE TABLE 'notes_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_docsize",
+     "tbl_name": "notes_fts_docsize",
+     "sql": "CREATE TABLE 'notes_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_idx",
+     "tbl_name": "notes_fts_idx",
+     "sql": "CREATE TABLE 'notes_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "pdf_bookmarks",
+     "tbl_name": "pdf_bookmarks",
+     "sql": "CREATE TABLE pdf_bookmarks (\n          id         TEXT PRIMARY KEY,\n          pdf_id     TEXT NOT NULL,\n          page       INTEGER NOT NULL,\n          label      TEXT NOT NULL DEFAULT '',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdf_highlights",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE TABLE pdf_highlights (\n          id          TEXT PRIMARY KEY,\n          pdf_id      TEXT NOT NULL,\n          page        INTEGER NOT NULL,\n          rects_json  TEXT NOT NULL,\n          color       TEXT NOT NULL,\n          text        TEXT NOT NULL DEFAULT '',\n          note        TEXT,\n          created_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdfs",
+     "tbl_name": "pdfs",
+     "sql": "CREATE TABLE pdfs (\n          id          TEXT PRIMARY KEY,\n          title       TEXT NOT NULL,\n          filename    TEXT NOT NULL,\n          page_count  INTEGER NOT NULL DEFAULT 0,\n          file_size   INTEGER NOT NULL DEFAULT 0,\n          imported_at INTEGER NOT NULL\n        , file_hash TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "playlist_items",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE TABLE playlist_items (\n          id          TEXT PRIMARY KEY,\n          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,\n          position    INTEGER NOT NULL,\n          book_id     TEXT NOT NULL,\n          chapter     INTEGER NOT NULL,\n          start_verse INTEGER NOT NULL DEFAULT 1,\n          end_verse   INTEGER,\n          text_id     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "playlists",
+     "tbl_name": "playlists",
+     "sql": "CREATE TABLE playlists (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "schema_version",
+     "tbl_name": "schema_version",
+     "sql": "CREATE TABLE schema_version (version INTEGER NOT NULL)"
+    },
+    {
+     "type": "table",
+     "name": "session_local_state",
+     "tbl_name": "session_local_state",
+     "sql": "CREATE TABLE session_local_state (\n          session_id      TEXT PRIMARY KEY,\n          active_tab_json TEXT NOT NULL DEFAULT '{}',\n          updated_at      INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sessions",
+     "tbl_name": "sessions",
+     "sql": "CREATE TABLE sessions (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          icon        TEXT,\n          tab_filter  TEXT,\n          order_key   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "settings",
+     "tbl_name": "settings",
+     "sql": "CREATE TABLE settings (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_applied",
+     "tbl_name": "sync_applied",
+     "sql": "CREATE TABLE sync_applied (\n          device TEXT NOT NULL,\n          seq    INTEGER NOT NULL,\n          PRIMARY KEY (device, seq)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_conflicts",
+     "tbl_name": "sync_conflicts",
+     "sql": "CREATE TABLE sync_conflicts (\n          id          TEXT PRIMARY KEY,\n          entity      TEXT NOT NULL,\n          key         TEXT NOT NULL,\n          field       TEXT,\n          kind        TEXT NOT NULL,\n          kept_hlc    TEXT,\n          lost_hlc    TEXT NOT NULL,\n          lost_device TEXT,\n          lost_value  TEXT,\n          created_at  INTEGER NOT NULL,\n          resolved_at INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_failed",
+     "tbl_name": "sync_failed",
+     "sql": "CREATE TABLE sync_failed (\n          device   TEXT NOT NULL,\n          seq      INTEGER NOT NULL,\n          error    TEXT,\n          attempts INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (device, seq)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_outbox",
+     "tbl_name": "sync_outbox",
+     "sql": "CREATE TABLE sync_outbox (\n          seq        INTEGER PRIMARY KEY AUTOINCREMENT,\n          entity     TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          op_json    TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_record_meta",
+     "tbl_name": "sync_record_meta",
+     "sql": "CREATE TABLE sync_record_meta (\n          entity  TEXT NOT NULL,\n          key     TEXT NOT NULL,\n          hlc     TEXT NOT NULL,\n          device  TEXT NOT NULL,\n          deleted INTEGER NOT NULL DEFAULT 0,\n          hash    TEXT, field_hlc TEXT, field_hash TEXT, lineage TEXT,\n          PRIMARY KEY (entity, key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_state",
+     "tbl_name": "sync_state",
+     "sql": "CREATE TABLE sync_state (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tabs",
+     "tbl_name": "tabs",
+     "sql": "CREATE TABLE tabs (\n          id                TEXT PRIMARY KEY,\n          session_id        TEXT NOT NULL,\n          space_id          TEXT NOT NULL,\n          type              TEXT NOT NULL,\n          title             TEXT NOT NULL DEFAULT '',\n          is_pinned         INTEGER NOT NULL DEFAULT 0,\n          order_key         TEXT NOT NULL,\n          display_order_key TEXT NOT NULL,\n          origin_tab_id     TEXT,\n          origin_space_id   TEXT,\n          sync_state_json   TEXT NOT NULL DEFAULT '{}',\n          local_state_json  TEXT NOT NULL DEFAULT '{}',\n          created_at        INTEGER NOT NULL,\n          updated_at        INTEGER NOT NULL,\n          deleted_at        INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tag_edges",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE TABLE tag_edges (\n          id            TEXT PRIMARY KEY,\n          source_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          target_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          arrows        TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'forward' | 'backward' | 'both'\n          color         TEXT,                            -- slot index as string, or literal; NULL = neutral\n          dashed        INTEGER NOT NULL DEFAULT 0,\n          note          TEXT NOT NULL DEFAULT '',\n          created_at    INTEGER NOT NULL,\n          updated_at    INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_collapse",
+     "tbl_name": "trail_collapse",
+     "sql": "CREATE TABLE trail_collapse (\n          scope      TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          updated_at INTEGER NOT NULL,\n          PRIMARY KEY (scope, key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_connections",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE TABLE trail_connections (\n          id                    TEXT PRIMARY KEY,\n          trail_session_id      TEXT NOT NULL,\n          from_node_id          TEXT NOT NULL,\n          to_kind               TEXT NOT NULL,     -- 'chapter'|'lexicon'|'note'|'video'|'compare'\n          to_book_id            TEXT,\n          to_chapter            INTEGER,\n          to_verse              INTEGER,\n          to_strongs_num        TEXT,\n          to_note_id            TEXT,\n          to_video_id           TEXT,\n          clarity_tier          INTEGER NOT NULL,  -- 1 (clear) | 2 (soft) | 3 (ambiguous)\n          reason_text           TEXT,\n          reason_tags           TEXT,              -- JSON array\n          verse_pin_from        INTEGER,\n          verse_pin_to          INTEGER,\n          weight                TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'glance'\n          strongs_depth         TEXT,              -- 'click' | 'occurrences' | 'related'\n          cluster_id            TEXT,\n          dismissed_prompt_at   INTEGER,\n          created_at            INTEGER NOT NULL\n        , origin_verse_pin_from INTEGER, origin_verse_pin_to INTEGER, from_connection_id TEXT, chain_depth INTEGER NOT NULL DEFAULT 0, to_verse_end INTEGER, ties TEXT, user_note TEXT, ties_from TEXT, ties_to TEXT, is_branch INTEGER NOT NULL DEFAULT 0, is_branch_return INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_embeddings",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE TABLE trail_embeddings (\n          id          TEXT PRIMARY KEY,\n          ref_type    TEXT NOT NULL,   -- 'connection_reason' | 'lexicon_gloss' | 'recap'\n          ref_id      TEXT NOT NULL,\n          source_text TEXT NOT NULL,\n          vector      BLOB NOT NULL,   -- Float32Array, serialized\n          updated_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_nodes",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE TABLE trail_nodes (\n          id                  TEXT PRIMARY KEY,\n          trail_session_id    TEXT NOT NULL,\n          book_id             TEXT NOT NULL,\n          chapter             INTEGER NOT NULL,\n          order_index         INTEGER NOT NULL,\n          anchor_started_at   INTEGER NOT NULL,\n          anchor_ended_at     INTEGER,            -- NULL while still the active anchor\n          cached_subnote      TEXT,\n          origin_label        TEXT\n        , revisit_of_node_id TEXT, promoted_from_connection_id TEXT, translation TEXT, cluster_id TEXT, is_topic_break INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_notes",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE TABLE trail_notes (\n          id               TEXT PRIMARY KEY,\n          trail_session_id TEXT NOT NULL,\n          kind             TEXT NOT NULL DEFAULT 'annotation',\n          anchor_node_id   TEXT,\n          order_index      INTEGER NOT NULL DEFAULT 0,\n          title            TEXT,\n          body             TEXT NOT NULL DEFAULT '',\n          width            INTEGER,\n          height           INTEGER,\n          note_id          TEXT,\n          color            TEXT,\n          created_at       INTEGER NOT NULL,\n          updated_at       INTEGER NOT NULL\n        , offset_x INTEGER, offset_y INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_paused_intervals",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE TABLE trail_paused_intervals (\n          id                TEXT PRIMARY KEY,\n          trail_session_id  TEXT NOT NULL,\n          paused_at         INTEGER NOT NULL,\n          resumed_at        INTEGER               -- NULL while still paused\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_sessions",
+     "tbl_name": "trail_sessions",
+     "sql": "CREATE TABLE trail_sessions (\n          id                   TEXT PRIMARY KEY,\n          name                 TEXT NOT NULL,\n          status               TEXT NOT NULL,        -- 'live' | 'paused' | 'ended'\n          possibly_accidental  INTEGER DEFAULT 0,\n          recap_text           TEXT,\n          recap_user_edited    INTEGER DEFAULT 0,     -- once 1, auto-recap never overwrites it\n          created_at           INTEGER NOT NULL,\n          updated_at           INTEGER NOT NULL\n        , sort_order INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_tag_members",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE TABLE trail_tag_members (\n          tag_id           TEXT NOT NULL REFERENCES trail_tags(id) ON DELETE CASCADE,\n          trail_session_id TEXT NOT NULL,\n          created_at       INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, trail_session_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_tags",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE TABLE trail_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_members",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE TABLE verse_tag_members (\n          id         TEXT PRIMARY KEY,\n          tag_id     TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          kind       TEXT NOT NULL DEFAULT 'verses',\n          ranges     TEXT NOT NULL,\n          label      TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_verse",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE TABLE verse_tag_verse (\n          tag_id    TEXT NOT NULL,\n          member_id TEXT NOT NULL,\n          book_id   TEXT NOT NULL,\n          chapter   INTEGER NOT NULL,\n          verse     INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, book_id, chapter, verse, member_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tags",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE TABLE verse_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        , color_slot INTEGER, graph_x REAL, graph_y REAL, graph_pinned INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "workspaces",
+     "tbl_name": "workspaces",
+     "sql": "CREATE TABLE workspaces (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          layout_json TEXT NOT NULL,\n          created_at  INTEGER NOT NULL\n        , state_json TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_sync",
+     "tbl_name": "youtube_sync",
+     "sql": "CREATE TABLE youtube_sync (\n          channel_handle TEXT PRIMARY KEY,\n          last_full_sync TEXT,\n          last_refresh   TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcript_segments",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TABLE youtube_transcript_segments (\n          id       INTEGER PRIMARY KEY,\n          video_id TEXT NOT NULL\n            REFERENCES youtube_transcripts(video_id) ON DELETE CASCADE,\n          start_ms INTEGER NOT NULL,\n          dur_ms   INTEGER NOT NULL DEFAULT 0,\n          text     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE TABLE youtube_transcripts (\n          video_id      TEXT PRIMARY KEY,\n          lang          TEXT NOT NULL DEFAULT 'en',\n          source        TEXT NOT NULL DEFAULT 'timedtext',\n          fetched_at    INTEGER NOT NULL,\n          segment_count INTEGER NOT NULL DEFAULT 0,\n          duration_ms   INTEGER NOT NULL DEFAULT 0,\n          error         TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts",
+     "tbl_name": "youtube_transcripts_fts",
+     "sql": "CREATE VIRTUAL TABLE youtube_transcripts_fts USING fts5(\n          text,\n          content='youtube_transcript_segments',\n          content_rowid='id',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_config",
+     "tbl_name": "youtube_transcripts_fts_config",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_data",
+     "tbl_name": "youtube_transcripts_fts_data",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_docsize",
+     "tbl_name": "youtube_transcripts_fts_docsize",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_idx",
+     "tbl_name": "youtube_transcripts_fts_idx",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_user",
+     "tbl_name": "youtube_user",
+     "sql": "CREATE TABLE youtube_user (\n          video_id         TEXT PRIMARY KEY,\n          is_starred       INTEGER NOT NULL DEFAULT 0,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT '',\n          updated_at       INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_videos",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE TABLE youtube_videos (\n          video_id       TEXT PRIMARY KEY,\n          title          TEXT NOT NULL,\n          published      TEXT NOT NULL,\n          channel_name   TEXT NOT NULL,\n          channel_handle TEXT NOT NULL,\n          thumbnail_url  TEXT NOT NULL,\n          type           TEXT NOT NULL,\n          is_live_now    INTEGER NOT NULL DEFAULT 0,\n          fetched_at     TEXT NOT NULL\n        , duration_seconds INTEGER NOT NULL DEFAULT 0, is_starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '')"
+    },
+    {
+     "type": "table",
+     "name": "youtube_watch_history",
+     "tbl_name": "youtube_watch_history",
+     "sql": "CREATE TABLE youtube_watch_history (\n          video_id         TEXT PRIMARY KEY,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT NOT NULL,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT ''\n        )"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ad",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ad\n        AFTER DELETE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ai",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ai\n        AFTER INSERT ON notes BEGIN\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_au",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_au\n        AFTER UPDATE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ad",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ad\n        AFTER DELETE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ai",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ai\n        AFTER INSERT ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_au",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_au\n        AFTER UPDATE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    }
+   ],
+   "settings": [
+    {
+     "key": "crossTextHighlights",
+     "value": "false"
+    },
+    {
+     "key": "defaultText",
+     "value": "\"kjva\""
+    },
+    {
+     "key": "fontSize",
+     "value": "16"
+    },
+    {
+     "key": "lineHeight",
+     "value": "\"comfortable\""
+    },
+    {
+     "key": "noteOpenBehavior",
+     "value": "\"right-panel\""
+    },
+    {
+     "key": "onboardingCompleted",
+     "value": "false"
+    },
+    {
+     "key": "showStrongs",
+     "value": "false"
+    },
+    {
+     "key": "showStrongsTooltips",
+     "value": "true"
+    },
+    {
+     "key": "strongsClickOpensTab",
+     "value": "true"
+    },
+    {
+     "key": "transcriptAutoFetch",
+     "value": "true"
+    },
+    {
+     "key": "transcriptStorageLimitMb",
+     "value": "200"
+    },
+    {
+     "key": "vaultPath",
+     "value": "\"\""
+    },
+    {
+     "key": "vaultSync",
+     "value": "false"
+    },
+    {
+     "key": "verseIndicatorPos",
+     "value": "\"right\""
+    }
+   ],
+   "versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48
+   ]
+  },
+  "final": {
+   "objects": [
+    {
+     "type": "index",
+     "name": "idx_ai_chats_updated",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE INDEX idx_ai_chats_updated ON ai_chats(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_highlights_verse",
+     "tbl_name": "highlights",
+     "sql": "CREATE INDEX idx_highlights_verse ON highlights(text_id, book_id, chapter, verse_num)"
+    },
+    {
+     "type": "index",
+     "name": "idx_history_ts",
+     "tbl_name": "history",
+     "sql": "CREATE INDEX idx_history_ts ON history(timestamp DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_folders_parent",
+     "tbl_name": "note_folders",
+     "sql": "CREATE INDEX idx_note_folders_parent ON note_folders(parent_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_note_versions_note",
+     "tbl_name": "note_versions",
+     "sql": "CREATE INDEX idx_note_versions_note ON note_versions(note_id, created_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_deleted_at",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_deleted_at ON notes(deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_updated",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_updated ON notes(updated_at DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_notes_verse",
+     "tbl_name": "notes",
+     "sql": "CREATE INDEX idx_notes_verse ON notes(verse_ref)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_bookmarks_pdf",
+     "tbl_name": "pdf_bookmarks",
+     "sql": "CREATE INDEX idx_pdf_bookmarks_pdf ON pdf_bookmarks(pdf_id, page)"
+    },
+    {
+     "type": "index",
+     "name": "idx_pdf_hl_pdf",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE INDEX idx_pdf_hl_pdf ON pdf_highlights(pdf_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_playlist_items_playlist",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE INDEX idx_playlist_items_playlist ON playlist_items(playlist_id, position)"
+    },
+    {
+     "type": "index",
+     "name": "idx_sync_conflicts_record",
+     "tbl_name": "sync_conflicts",
+     "sql": "CREATE INDEX idx_sync_conflicts_record ON sync_conflicts(entity, key)"
+    },
+    {
+     "type": "index",
+     "name": "idx_sync_outbox_record",
+     "tbl_name": "sync_outbox",
+     "sql": "CREATE INDEX idx_sync_outbox_record ON sync_outbox(entity, key)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tabs_session",
+     "tbl_name": "tabs",
+     "sql": "CREATE INDEX idx_tabs_session ON tabs(session_id, deleted_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_pair",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE UNIQUE INDEX idx_tag_edges_pair ON tag_edges(source_tag_id, target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_src",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_src ON tag_edges(source_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_tag_edges_tgt",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE INDEX idx_tag_edges_tgt ON tag_edges(target_tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_dest",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_dest ON trail_connections(to_book_id, to_chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_parent",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_parent ON trail_connections(from_connection_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_conn_session",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE INDEX idx_trail_conn_session ON trail_connections(trail_session_id, created_at)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_embeddings_ref",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE INDEX idx_trail_embeddings_ref ON trail_embeddings(ref_type, ref_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_nodes_session",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE INDEX idx_trail_nodes_session ON trail_nodes(trail_session_id, order_index)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_anchor",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_anchor ON trail_notes(anchor_node_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_notes_session",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE INDEX idx_trail_notes_session ON trail_notes(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_paused_session",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE INDEX idx_trail_paused_session ON trail_paused_intervals(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_trail_tags_name",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE UNIQUE INDEX idx_trail_tags_name ON trail_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_ttm_session",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE INDEX idx_ttm_session ON trail_tag_members(trail_session_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_verse_tags_name",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE UNIQUE INDEX idx_verse_tags_name ON verse_tags(name COLLATE NOCASE)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtm_tag",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE INDEX idx_vtm_tag ON verse_tag_members(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_loc",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_loc ON verse_tag_verse(book_id, chapter)"
+    },
+    {
+     "type": "index",
+     "name": "idx_vtv_tag",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE INDEX idx_vtv_tag ON verse_tag_verse(tag_id)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_handle",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_handle   ON youtube_videos(channel_handle)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_published",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE INDEX idx_yt_published ON youtube_videos(published DESC)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_seg_video",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE INDEX idx_yt_seg_video\n          ON youtube_transcript_segments(video_id, start_ms)"
+    },
+    {
+     "type": "index",
+     "name": "idx_yt_transcripts_fetched",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE INDEX idx_yt_transcripts_fetched\n          ON youtube_transcripts(fetched_at DESC)"
+    },
+    {
+     "type": "table",
+     "name": "ai_chats",
+     "tbl_name": "ai_chats",
+     "sql": "CREATE TABLE ai_chats (\n          id         TEXT PRIMARY KEY,\n          title      TEXT NOT NULL,\n          messages   TEXT NOT NULL,\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL\n        , pinned_at TEXT, folder TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "ai_saved_contexts",
+     "tbl_name": "ai_saved_contexts",
+     "sql": "CREATE TABLE ai_saved_contexts (\n          id TEXT PRIMARY KEY,\n          title TEXT NOT NULL,\n          content TEXT NOT NULL DEFAULT '{}',\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL,\n          deleted_at TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "archived_groups",
+     "tbl_name": "archived_groups",
+     "sql": "CREATE TABLE archived_groups (\n          id          TEXT PRIMARY KEY,\n          label       TEXT NOT NULL,\n          archived_at INTEGER NOT NULL,\n          tabs_json   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "highlights",
+     "tbl_name": "highlights",
+     "sql": "CREATE TABLE highlights (\n          id         TEXT PRIMARY KEY,\n          text_id    TEXT NOT NULL,\n          book_id    TEXT NOT NULL,\n          chapter    INTEGER NOT NULL,\n          verse_num  INTEGER NOT NULL,\n          start_word INTEGER,\n          end_word   INTEGER,\n          color      TEXT NOT NULL,\n          label      TEXT,\n          created_at INTEGER NOT NULL\n        , start_char INTEGER, end_char INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "history",
+     "tbl_name": "history",
+     "sql": "CREATE TABLE history (\n          id            TEXT PRIMARY KEY,\n          type          TEXT NOT NULL,\n          title         TEXT NOT NULL,\n          timestamp     INTEGER NOT NULL,\n          session_id    TEXT,\n          session_name  TEXT,\n          book_id       TEXT,\n          chapter       INTEGER,\n          verse         INTEGER,\n          note_id       TEXT,\n          strongs_num   TEXT,\n          video_id      TEXT,\n          query         TEXT,\n          parent_id     TEXT,\n          import_source TEXT,\n          import_count  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_folders",
+     "tbl_name": "note_folders",
+     "sql": "CREATE TABLE note_folders (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          parent_id  TEXT,\n          created_at INTEGER NOT NULL\n        , ai_excluded INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "note_heading_collapse",
+     "tbl_name": "note_heading_collapse",
+     "sql": "CREATE TABLE note_heading_collapse (\n          note_id     TEXT NOT NULL,\n          heading_key TEXT NOT NULL,\n          collapsed   INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, heading_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_thread_collapse",
+     "tbl_name": "note_thread_collapse",
+     "sql": "CREATE TABLE note_thread_collapse (\n          note_id    TEXT NOT NULL,\n          thread_key TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (note_id, thread_key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "note_versions",
+     "tbl_name": "note_versions",
+     "sql": "CREATE TABLE note_versions (\n          id         TEXT PRIMARY KEY,\n          note_id    TEXT NOT NULL,\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          kind       TEXT NOT NULL DEFAULT 'auto',\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes",
+     "tbl_name": "notes",
+     "sql": "CREATE TABLE notes (\n          id         TEXT PRIMARY KEY,\n          type       TEXT NOT NULL DEFAULT 'general',\n          title      TEXT,\n          content    TEXT NOT NULL DEFAULT '',\n          verse_ref  TEXT,\n          color      TEXT NOT NULL DEFAULT 'blue',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL,\n          tags       TEXT NOT NULL DEFAULT '[]'\n        , imported_at INTEGER, folder_id TEXT, text_id TEXT DEFAULT 'kjva', idiom_term TEXT, idiom_meaning TEXT, idiom_aliases TEXT, idiom_auto_variants INTEGER DEFAULT 0, idiom_data TEXT, status TEXT, deleted_at INTEGER, icon TEXT, pinned INTEGER DEFAULT 0, ai_excluded INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts",
+     "tbl_name": "notes_fts",
+     "sql": "CREATE VIRTUAL TABLE notes_fts USING fts5(\n          title,\n          content,\n          content='notes',\n          content_rowid='rowid',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_config",
+     "tbl_name": "notes_fts_config",
+     "sql": "CREATE TABLE 'notes_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_data",
+     "tbl_name": "notes_fts_data",
+     "sql": "CREATE TABLE 'notes_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_docsize",
+     "tbl_name": "notes_fts_docsize",
+     "sql": "CREATE TABLE 'notes_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "notes_fts_idx",
+     "tbl_name": "notes_fts_idx",
+     "sql": "CREATE TABLE 'notes_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "pdf_bookmarks",
+     "tbl_name": "pdf_bookmarks",
+     "sql": "CREATE TABLE pdf_bookmarks (\n          id         TEXT PRIMARY KEY,\n          pdf_id     TEXT NOT NULL,\n          page       INTEGER NOT NULL,\n          label      TEXT NOT NULL DEFAULT '',\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdf_highlights",
+     "tbl_name": "pdf_highlights",
+     "sql": "CREATE TABLE pdf_highlights (\n          id          TEXT PRIMARY KEY,\n          pdf_id      TEXT NOT NULL,\n          page        INTEGER NOT NULL,\n          rects_json  TEXT NOT NULL,\n          color       TEXT NOT NULL,\n          text        TEXT NOT NULL DEFAULT '',\n          note        TEXT,\n          created_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "pdfs",
+     "tbl_name": "pdfs",
+     "sql": "CREATE TABLE pdfs (\n          id          TEXT PRIMARY KEY,\n          title       TEXT NOT NULL,\n          filename    TEXT NOT NULL,\n          page_count  INTEGER NOT NULL DEFAULT 0,\n          file_size   INTEGER NOT NULL DEFAULT 0,\n          imported_at INTEGER NOT NULL\n        , file_hash TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "playlist_items",
+     "tbl_name": "playlist_items",
+     "sql": "CREATE TABLE playlist_items (\n          id          TEXT PRIMARY KEY,\n          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,\n          position    INTEGER NOT NULL,\n          book_id     TEXT NOT NULL,\n          chapter     INTEGER NOT NULL,\n          start_verse INTEGER NOT NULL DEFAULT 1,\n          end_verse   INTEGER,\n          text_id     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "playlists",
+     "tbl_name": "playlists",
+     "sql": "CREATE TABLE playlists (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          created_at INTEGER NOT NULL,\n          updated_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "schema_version",
+     "tbl_name": "schema_version",
+     "sql": "CREATE TABLE schema_version (version INTEGER NOT NULL)"
+    },
+    {
+     "type": "table",
+     "name": "session_local_state",
+     "tbl_name": "session_local_state",
+     "sql": "CREATE TABLE session_local_state (\n          session_id      TEXT PRIMARY KEY,\n          active_tab_json TEXT NOT NULL DEFAULT '{}',\n          updated_at      INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sessions",
+     "tbl_name": "sessions",
+     "sql": "CREATE TABLE sessions (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          icon        TEXT,\n          tab_filter  TEXT,\n          order_key   TEXT NOT NULL,\n          created_at  INTEGER NOT NULL,\n          updated_at  INTEGER NOT NULL,\n          deleted_at  INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "settings",
+     "tbl_name": "settings",
+     "sql": "CREATE TABLE settings (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "study_profiles",
+     "tbl_name": "study_profiles",
+     "sql": "CREATE TABLE study_profiles (\n          id TEXT PRIMARY KEY,\n          name TEXT NOT NULL,\n          config TEXT NOT NULL DEFAULT '{}',\n          created_at TEXT NOT NULL,\n          updated_at TEXT NOT NULL,\n          deleted_at TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_applied",
+     "tbl_name": "sync_applied",
+     "sql": "CREATE TABLE sync_applied (\n          device TEXT NOT NULL,\n          seq    INTEGER NOT NULL,\n          PRIMARY KEY (device, seq)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_conflicts",
+     "tbl_name": "sync_conflicts",
+     "sql": "CREATE TABLE sync_conflicts (\n          id          TEXT PRIMARY KEY,\n          entity      TEXT NOT NULL,\n          key         TEXT NOT NULL,\n          field       TEXT,\n          kind        TEXT NOT NULL,\n          kept_hlc    TEXT,\n          lost_hlc    TEXT NOT NULL,\n          lost_device TEXT,\n          lost_value  TEXT,\n          created_at  INTEGER NOT NULL,\n          resolved_at INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_failed",
+     "tbl_name": "sync_failed",
+     "sql": "CREATE TABLE sync_failed (\n          device   TEXT NOT NULL,\n          seq      INTEGER NOT NULL,\n          error    TEXT,\n          attempts INTEGER NOT NULL DEFAULT 1,\n          PRIMARY KEY (device, seq)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_outbox",
+     "tbl_name": "sync_outbox",
+     "sql": "CREATE TABLE sync_outbox (\n          seq        INTEGER PRIMARY KEY AUTOINCREMENT,\n          entity     TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          op_json    TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_record_meta",
+     "tbl_name": "sync_record_meta",
+     "sql": "CREATE TABLE sync_record_meta (\n          entity  TEXT NOT NULL,\n          key     TEXT NOT NULL,\n          hlc     TEXT NOT NULL,\n          device  TEXT NOT NULL,\n          deleted INTEGER NOT NULL DEFAULT 0,\n          hash    TEXT, field_hlc TEXT, field_hash TEXT, lineage TEXT,\n          PRIMARY KEY (entity, key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "sync_state",
+     "tbl_name": "sync_state",
+     "sql": "CREATE TABLE sync_state (\n          key   TEXT PRIMARY KEY,\n          value TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tabs",
+     "tbl_name": "tabs",
+     "sql": "CREATE TABLE tabs (\n          id                TEXT PRIMARY KEY,\n          session_id        TEXT NOT NULL,\n          space_id          TEXT NOT NULL,\n          type              TEXT NOT NULL,\n          title             TEXT NOT NULL DEFAULT '',\n          is_pinned         INTEGER NOT NULL DEFAULT 0,\n          order_key         TEXT NOT NULL,\n          display_order_key TEXT NOT NULL,\n          origin_tab_id     TEXT,\n          origin_space_id   TEXT,\n          sync_state_json   TEXT NOT NULL DEFAULT '{}',\n          local_state_json  TEXT NOT NULL DEFAULT '{}',\n          created_at        INTEGER NOT NULL,\n          updated_at        INTEGER NOT NULL,\n          deleted_at        INTEGER\n        )"
+    },
+    {
+     "type": "table",
+     "name": "tag_edges",
+     "tbl_name": "tag_edges",
+     "sql": "CREATE TABLE tag_edges (\n          id            TEXT PRIMARY KEY,\n          source_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          target_tag_id TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          arrows        TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'forward' | 'backward' | 'both'\n          color         TEXT,                            -- slot index as string, or literal; NULL = neutral\n          dashed        INTEGER NOT NULL DEFAULT 0,\n          note          TEXT NOT NULL DEFAULT '',\n          created_at    INTEGER NOT NULL,\n          updated_at    INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_collapse",
+     "tbl_name": "trail_collapse",
+     "sql": "CREATE TABLE trail_collapse (\n          scope      TEXT NOT NULL,\n          key        TEXT NOT NULL,\n          collapsed  INTEGER NOT NULL DEFAULT 1,\n          updated_at INTEGER NOT NULL,\n          PRIMARY KEY (scope, key)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_connections",
+     "tbl_name": "trail_connections",
+     "sql": "CREATE TABLE trail_connections (\n          id                    TEXT PRIMARY KEY,\n          trail_session_id      TEXT NOT NULL,\n          from_node_id          TEXT NOT NULL,\n          to_kind               TEXT NOT NULL,     -- 'chapter'|'lexicon'|'note'|'video'|'compare'\n          to_book_id            TEXT,\n          to_chapter            INTEGER,\n          to_verse              INTEGER,\n          to_strongs_num        TEXT,\n          to_note_id            TEXT,\n          to_video_id           TEXT,\n          clarity_tier          INTEGER NOT NULL,  -- 1 (clear) | 2 (soft) | 3 (ambiguous)\n          reason_text           TEXT,\n          reason_tags           TEXT,              -- JSON array\n          verse_pin_from        INTEGER,\n          verse_pin_to          INTEGER,\n          weight                TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'glance'\n          strongs_depth         TEXT,              -- 'click' | 'occurrences' | 'related'\n          cluster_id            TEXT,\n          dismissed_prompt_at   INTEGER,\n          created_at            INTEGER NOT NULL\n        , origin_verse_pin_from INTEGER, origin_verse_pin_to INTEGER, from_connection_id TEXT, chain_depth INTEGER NOT NULL DEFAULT 0, to_verse_end INTEGER, ties TEXT, user_note TEXT, ties_from TEXT, ties_to TEXT, is_branch INTEGER NOT NULL DEFAULT 0, is_branch_return INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_embeddings",
+     "tbl_name": "trail_embeddings",
+     "sql": "CREATE TABLE trail_embeddings (\n          id          TEXT PRIMARY KEY,\n          ref_type    TEXT NOT NULL,   -- 'connection_reason' | 'lexicon_gloss' | 'recap'\n          ref_id      TEXT NOT NULL,\n          source_text TEXT NOT NULL,\n          vector      BLOB NOT NULL,   -- Float32Array, serialized\n          updated_at  INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_nodes",
+     "tbl_name": "trail_nodes",
+     "sql": "CREATE TABLE trail_nodes (\n          id                  TEXT PRIMARY KEY,\n          trail_session_id    TEXT NOT NULL,\n          book_id             TEXT NOT NULL,\n          chapter             INTEGER NOT NULL,\n          order_index         INTEGER NOT NULL,\n          anchor_started_at   INTEGER NOT NULL,\n          anchor_ended_at     INTEGER,            -- NULL while still the active anchor\n          cached_subnote      TEXT,\n          origin_label        TEXT\n        , revisit_of_node_id TEXT, promoted_from_connection_id TEXT, translation TEXT, cluster_id TEXT, is_topic_break INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "trail_notes",
+     "tbl_name": "trail_notes",
+     "sql": "CREATE TABLE trail_notes (\n          id               TEXT PRIMARY KEY,\n          trail_session_id TEXT NOT NULL,\n          kind             TEXT NOT NULL DEFAULT 'annotation',\n          anchor_node_id   TEXT,\n          order_index      INTEGER NOT NULL DEFAULT 0,\n          title            TEXT,\n          body             TEXT NOT NULL DEFAULT '',\n          width            INTEGER,\n          height           INTEGER,\n          note_id          TEXT,\n          color            TEXT,\n          created_at       INTEGER NOT NULL,\n          updated_at       INTEGER NOT NULL\n        , offset_x INTEGER, offset_y INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_paused_intervals",
+     "tbl_name": "trail_paused_intervals",
+     "sql": "CREATE TABLE trail_paused_intervals (\n          id                TEXT PRIMARY KEY,\n          trail_session_id  TEXT NOT NULL,\n          paused_at         INTEGER NOT NULL,\n          resumed_at        INTEGER               -- NULL while still paused\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_sessions",
+     "tbl_name": "trail_sessions",
+     "sql": "CREATE TABLE trail_sessions (\n          id                   TEXT PRIMARY KEY,\n          name                 TEXT NOT NULL,\n          status               TEXT NOT NULL,        -- 'live' | 'paused' | 'ended'\n          possibly_accidental  INTEGER DEFAULT 0,\n          recap_text           TEXT,\n          recap_user_edited    INTEGER DEFAULT 0,     -- once 1, auto-recap never overwrites it\n          created_at           INTEGER NOT NULL,\n          updated_at           INTEGER NOT NULL\n        , sort_order INTEGER)"
+    },
+    {
+     "type": "table",
+     "name": "trail_tag_members",
+     "tbl_name": "trail_tag_members",
+     "sql": "CREATE TABLE trail_tag_members (\n          tag_id           TEXT NOT NULL REFERENCES trail_tags(id) ON DELETE CASCADE,\n          trail_session_id TEXT NOT NULL,\n          created_at       INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, trail_session_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "trail_tags",
+     "tbl_name": "trail_tags",
+     "sql": "CREATE TABLE trail_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_members",
+     "tbl_name": "verse_tag_members",
+     "sql": "CREATE TABLE verse_tag_members (\n          id         TEXT PRIMARY KEY,\n          tag_id     TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,\n          kind       TEXT NOT NULL DEFAULT 'verses',\n          ranges     TEXT NOT NULL,\n          label      TEXT NOT NULL,\n          created_at INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tag_verse",
+     "tbl_name": "verse_tag_verse",
+     "sql": "CREATE TABLE verse_tag_verse (\n          tag_id    TEXT NOT NULL,\n          member_id TEXT NOT NULL,\n          book_id   TEXT NOT NULL,\n          chapter   INTEGER NOT NULL,\n          verse     INTEGER NOT NULL,\n          PRIMARY KEY (tag_id, book_id, chapter, verse, member_id)\n        )"
+    },
+    {
+     "type": "table",
+     "name": "verse_tags",
+     "tbl_name": "verse_tags",
+     "sql": "CREATE TABLE verse_tags (\n          id         TEXT PRIMARY KEY,\n          name       TEXT NOT NULL,\n          color      TEXT,\n          sort_order INTEGER,\n          created_at INTEGER NOT NULL\n        , color_slot INTEGER, graph_x REAL, graph_y REAL, graph_pinned INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+     "type": "table",
+     "name": "workspaces",
+     "tbl_name": "workspaces",
+     "sql": "CREATE TABLE workspaces (\n          id          TEXT PRIMARY KEY,\n          name        TEXT NOT NULL,\n          layout_json TEXT NOT NULL,\n          created_at  INTEGER NOT NULL\n        , state_json TEXT)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_sync",
+     "tbl_name": "youtube_sync",
+     "sql": "CREATE TABLE youtube_sync (\n          channel_handle TEXT PRIMARY KEY,\n          last_full_sync TEXT,\n          last_refresh   TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcript_segments",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TABLE youtube_transcript_segments (\n          id       INTEGER PRIMARY KEY,\n          video_id TEXT NOT NULL\n            REFERENCES youtube_transcripts(video_id) ON DELETE CASCADE,\n          start_ms INTEGER NOT NULL,\n          dur_ms   INTEGER NOT NULL DEFAULT 0,\n          text     TEXT NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts",
+     "tbl_name": "youtube_transcripts",
+     "sql": "CREATE TABLE youtube_transcripts (\n          video_id      TEXT PRIMARY KEY,\n          lang          TEXT NOT NULL DEFAULT 'en',\n          source        TEXT NOT NULL DEFAULT 'timedtext',\n          fetched_at    INTEGER NOT NULL,\n          segment_count INTEGER NOT NULL DEFAULT 0,\n          duration_ms   INTEGER NOT NULL DEFAULT 0,\n          error         TEXT\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts",
+     "tbl_name": "youtube_transcripts_fts",
+     "sql": "CREATE VIRTUAL TABLE youtube_transcripts_fts USING fts5(\n          text,\n          content='youtube_transcript_segments',\n          content_rowid='id',\n          tokenize='unicode61'\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_config",
+     "tbl_name": "youtube_transcripts_fts_config",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_data",
+     "tbl_name": "youtube_transcripts_fts_data",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_data'(id INTEGER PRIMARY KEY, block BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_docsize",
+     "tbl_name": "youtube_transcripts_fts_docsize",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)"
+    },
+    {
+     "type": "table",
+     "name": "youtube_transcripts_fts_idx",
+     "tbl_name": "youtube_transcripts_fts_idx",
+     "sql": "CREATE TABLE 'youtube_transcripts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"
+    },
+    {
+     "type": "table",
+     "name": "youtube_user",
+     "tbl_name": "youtube_user",
+     "sql": "CREATE TABLE youtube_user (\n          video_id         TEXT PRIMARY KEY,\n          is_starred       INTEGER NOT NULL DEFAULT 0,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT '',\n          updated_at       INTEGER NOT NULL\n        )"
+    },
+    {
+     "type": "table",
+     "name": "youtube_videos",
+     "tbl_name": "youtube_videos",
+     "sql": "CREATE TABLE youtube_videos (\n          video_id       TEXT PRIMARY KEY,\n          title          TEXT NOT NULL,\n          published      TEXT NOT NULL,\n          channel_name   TEXT NOT NULL,\n          channel_handle TEXT NOT NULL,\n          thumbnail_url  TEXT NOT NULL,\n          type           TEXT NOT NULL,\n          is_live_now    INTEGER NOT NULL DEFAULT 0,\n          fetched_at     TEXT NOT NULL\n        , duration_seconds INTEGER NOT NULL DEFAULT 0, is_starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '')"
+    },
+    {
+     "type": "table",
+     "name": "youtube_watch_history",
+     "tbl_name": "youtube_watch_history",
+     "sql": "CREATE TABLE youtube_watch_history (\n          video_id         TEXT PRIMARY KEY,\n          position_seconds REAL NOT NULL DEFAULT 0,\n          last_watched     TEXT NOT NULL,\n          title            TEXT NOT NULL DEFAULT '',\n          channel_name     TEXT NOT NULL DEFAULT '',\n          thumbnail_url    TEXT NOT NULL DEFAULT ''\n        )"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ad",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ad\n        AFTER DELETE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_ai",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_ai\n        AFTER INSERT ON notes BEGIN\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "notes_au",
+     "tbl_name": "notes",
+     "sql": "CREATE TRIGGER notes_au\n        AFTER UPDATE ON notes BEGIN\n          INSERT INTO notes_fts(notes_fts, rowid, title, content)\n          VALUES ('delete', old.rowid, old.title, old.content);\n          INSERT INTO notes_fts(rowid, title, content)\n          VALUES (new.rowid, new.title, new.content);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ad",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ad\n        AFTER DELETE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_ai",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_ai\n        AFTER INSERT ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    },
+    {
+     "type": "trigger",
+     "name": "yt_seg_au",
+     "tbl_name": "youtube_transcript_segments",
+     "sql": "CREATE TRIGGER yt_seg_au\n        AFTER UPDATE ON youtube_transcript_segments BEGIN\n          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)\n          VALUES ('delete', old.id, old.text);\n          INSERT INTO youtube_transcripts_fts(rowid, text)\n          VALUES (new.id, new.text);\n        END"
+    }
+   ],
+   "settings": [
+    {
+     "key": "crossTextHighlights",
+     "value": "false"
+    },
+    {
+     "key": "defaultText",
+     "value": "\"kjva\""
+    },
+    {
+     "key": "fontSize",
+     "value": "16"
+    },
+    {
+     "key": "lineHeight",
+     "value": "\"comfortable\""
+    },
+    {
+     "key": "noteOpenBehavior",
+     "value": "\"right-panel\""
+    },
+    {
+     "key": "onboardingCompleted",
+     "value": "false"
+    },
+    {
+     "key": "showStrongs",
+     "value": "false"
+    },
+    {
+     "key": "showStrongsTooltips",
+     "value": "true"
+    },
+    {
+     "key": "strongsClickOpensTab",
+     "value": "true"
+    },
+    {
+     "key": "transcriptAutoFetch",
+     "value": "true"
+    },
+    {
+     "key": "transcriptStorageLimitMb",
+     "value": "200"
+    },
+    {
+     "key": "vaultPath",
+     "value": "\"\""
+    },
+    {
+     "key": "vaultSync",
+     "value": "false"
+    },
+    {
+     "key": "verseIndicatorPos",
+     "value": "\"right\""
+    }
+   ],
+   "versions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49
+   ]
+  }
+ }
+}
