@@ -15,6 +15,7 @@ import { buildRecordedMigrationsSwift, buildSchemaGolden, SWIFT_MIGRATIONS_PATH 
 import { buildTabsGolden } from '../../scripts/golden/tabs'
 import { buildNotesGolden } from '../../scripts/golden/notes'
 import { buildHighlightsGolden } from '../../scripts/golden/highlights'
+import { buildWorkspacesGolden } from '../../scripts/golden/workspaces'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -86,5 +87,9 @@ describe('golden corpus', () => {
   it('highlights.json matches the TypeScript highlights service', async () => {
     const path = join(GOLDEN_DIR, 'highlights.json')
     expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(await buildHighlightsGolden()), 'highlights.json is stale — run npm run golden:export').toBe(true)
+  }, 60_000)
+  it('workspaces.json matches the TypeScript workspaces service', async () => {
+    const path = join(GOLDEN_DIR, 'workspaces.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(await buildWorkspacesGolden()), 'workspaces.json is stale — run npm run golden:export').toBe(true)
   }, 60_000)
 })

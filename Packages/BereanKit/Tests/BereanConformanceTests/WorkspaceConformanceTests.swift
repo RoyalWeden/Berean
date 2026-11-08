@@ -183,3 +183,30 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         #expect(JSValue.object(o) == g["hydrated"]!)
     }
 }
+
+@Suite("workspaces golden") struct WorkspacesConformanceTests {
+    @Test func script() throws {
+        let g = try Golden.load("workspaces")
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let clock = FakeClock(); clock.t = 90_000
+        let ids = FakeClock(); ids.t = 0
+        let log = EventLog()
+        let svc = WorkspacesService(db: db, now: { clock.t }, uuid: { ids.t += 1; return "ws\(ids.t)" }, onChange: { log.items.append($0) })
+        func summary(_ w: SavedWorkspace) -> JSValue { var o = JSObject(); o["id"] = js(w.id); o["name"] = js(w.name); o["created_at"] = .number(Double(w.createdAt)); return .object(o) }
+        var saved = [summary(try svc.save(name: "Study", layoutJSON: #"{"direction":"row"}"#, stateJSON: #"{"tabs":[]}"#))]
+        clock.t += 10; saved.append(summary(try svc.save(name: "Compare", layoutJSON: #""bible""#, stateJSON: "{}")))
+        clock.t += 10; try svc.rename("ws1", to: "Study Mode")
+        #expect(JSValue.array(saved) == g["saved"]!)
+        #expect(JSValue.array(try svc.list().map(summary)) == g["list1"]!)
+        let l = try svc.load("ws1")!
+        var lo = JSObject(); lo["id"] = js(l.id); lo["name"] = js(l.name); lo["layout_json"] = js(l.layoutJSON!); lo["created_at"] = .number(Double(l.createdAt)); lo["state_json"] = js(l.stateJSON!)
+        #expect(JSValue.object(lo) == g["loaded"]!.array[0])
+        #expect(g["loaded"]!.array[1] == .null)
+        #expect(try svc.load("nope") == nil)
+        try svc.delete("ws2")
+        #expect(JSValue.array(try svc.list().map(summary)) == g["list2"]!)
+        #expect(rowsJSON(try db.query("SELECT * FROM workspaces ORDER BY id")) == g["rows"]!)
+        #expect(log.items.map { "\($0.entity)/\($0.id)/\($0.op)" } == g.arr("events").map { "\($0["entity"]!.str)/\($0["id"]!.str)/\($0["op"]!.str)" })
+    }
+}

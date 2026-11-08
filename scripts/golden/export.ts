@@ -12,6 +12,7 @@ import { buildRecordedMigrationsSwift, buildSchemaGolden, SWIFT_MIGRATIONS_PATH 
 import { buildTabsGolden } from './tabs'
 import { buildNotesGolden } from './notes'
 import { buildHighlightsGolden } from './highlights'
+import { buildWorkspacesGolden } from './workspaces'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -84,3 +85,5 @@ writeFileSync(join(GOLDEN_DIR, 'notes.json'), serializeGolden(await buildNotesGo
 console.log('notes.json')
 writeFileSync(join(GOLDEN_DIR, 'highlights.json'), serializeGolden(await buildHighlightsGolden()))
 console.log('highlights.json')
+writeFileSync(join(GOLDEN_DIR, 'workspaces.json'), serializeGolden(await buildWorkspacesGolden()))
+console.log('workspaces.json')
