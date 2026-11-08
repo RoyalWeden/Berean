@@ -109,10 +109,108 @@ func noteJSON(_ n: Note) -> JSValue {
         clock.t += 10; try w.delete("id1"); clock.t += 10
         try db.run("DELETE FROM note_folders WHERE id = ?", [.text(folder)])
         results.append(ok(try w.restore("id1"))); results.append(ok(try w.restore("nope")))
+        // Version history.
+        func vr(_ r: NoteVersionResult) -> JSValue {
+            var o = JSObject(); o["success"] = .bool(true)
+            switch r { case .created(let id): o["id"] = js(id); case .skipped: o["skipped"] = .bool(true) }
+            return .object(o)
+        }
+        func rr(_ r: NoteRestoreResult) -> JSValue {
+            var o = JSObject()
+            switch r {
+            case .restored(let c): o["success"] = .bool(true); o["content"] = js(c)
+            case .versionNotFound: o["success"] = .bool(false); o["error"] = js("Version not found")
+            case .noteNotFound: o["success"] = .bool(false); o["error"] = js("Note not found")
+            }
+            return .object(o)
+        }
+        var versions: [JSValue] = []
+        let vn = try w.create(.init(title: "Versioned", content: "v0")).note.id
+        clock.t += 10; versions.append(vr(try w.createVersion(noteId: vn, title: "Versioned", content: "v0")))
+        clock.t += 10; versions.append(vr(try w.createVersion(noteId: vn, title: "Versioned", content: "v0")))
+        clock.t += 10; versions.append(vr(try w.createVersion(noteId: vn, title: "", content: "v1", kind: "manual")))
+        _ = try w.update(vn, .init(content: "v2 typed"))
+        let firstVersionId = try w.versions(of: vn).last!.id
+        clock.t += 10; versions.append(rr(try w.restoreVersion(noteId: vn, versionId: firstVersionId)))
+        clock.t += 10; versions.append(rr(try w.restoreVersion(noteId: vn, versionId: firstVersionId)))
+        versions.append(rr(try w.restoreVersion(noteId: vn, versionId: "nope"))); versions.append(rr(try w.restoreVersion(noteId: "nope", versionId: firstVersionId)))
+        let hour: Int64 = 3_600_000
+        for i in 0..<60 { clock.t += 6 * hour; versions.append(vr(try w.createVersion(noteId: vn, title: "Versioned", content: "c\(i)", kind: i % 17 == 0 ? "manual" : "auto"))) }
+        clock.t += 10 * 24 * hour; versions.append(vr(try w.createVersion(noteId: vn, title: "Versioned", content: "latest")))
+        let list: [JSValue] = try w.versions(of: vn).map { v in
+            var o = JSObject(); o["id"] = js(v.id); o["noteId"] = js(v.noteId); o["title"] = js(v.title); o["content"] = js(v.content)
+            o["kind"] = js(v.kind); o["createdAt"] = .number(Double(v.createdAt)); return .object(o)
+        }
         let want = g["writes"]!.object
+        #expect(JSValue.array(versions) == want["versions"]!)
+        #expect(JSValue.array(list) == want["versionList"]!)
         #expect(JSValue.array(results) == want["results"]!)
         #expect(log.items.map { "\($0.entity)/\($0.id)/\($0.op)" } == want.arr("events").map { "\($0["entity"]!.str)/\($0["id"]!.str)/\($0["op"]!.str)" })
         #expect(rowsJSON(try db.query("SELECT * FROM notes ORDER BY id")) == want["notes"]!)
         #expect(rowsJSON(try db.query("SELECT * FROM note_folders ORDER BY id")) == want["folders"]!)
+    }
+}
+
+@Suite("note markdown golden") struct NoteMarkdownConformanceTests {
+    static func note(_ v: JSValue) -> Note {
+        func s(_ k: String) -> String? { v[k]?.optionalString }
+        return Note(id: s("id")!, type: s("type")!, title: s("title") ?? "", content: s("content") ?? "", verseRef: s("verseRef"),
+                    color: s("color") ?? "blue", icon: s("icon"), status: s("status"),
+                    createdAt: Int64(v["createdAt"]!.numberValue!), updatedAt: Int64(v["updatedAt"]!.numberValue!),
+                    tags: v["tags"]?.array.map(\.str) ?? [], importedAt: nil, folderId: s("folderId"), textId: "kjva",
+                    idiomTerm: nil, idiomMeaning: nil, idiomAliases: nil, idiomAutoVariants: false, idiomData: nil, deletedAt: nil,
+                    pinned: false, aiExcluded: v["aiExcluded"]?.boolValue ?? false)
+    }
+
+    @Test func export() throws {
+        let g = try Golden.load("note-markdown")
+        let notes = g.arr("notes"), exported = g.arr("exported")
+        #expect(notes.count == exported.count && notes.count >= 10)
+        for (i, n) in notes.enumerated() { #expect(NoteMarkdownFile.markdown(for: Self.note(n)) == exported[i].str, "note \(i)") }
+    }
+
+    @Test func parse() throws {
+        let g = try Golden.load("note-markdown")
+        for (i, t) in g.arr("exported").enumerated() {
+            #expect(NoteMarkdownFile.parse(t.str).jsValue == g.arr("roundTrip")[i], "round trip \(i)")
+        }
+        for (i, c) in g.arr("parsed").enumerated() {
+            #expect(NoteMarkdownFile.parse(c["input"]!.str, fallbackTitle: "Fallback").jsValue == c["output"]!, "file \(i)")
+        }
+    }
+
+    @Test func fileNames() throws {
+        let g = try Golden.load("note-markdown")
+        let extra: [(String, String)] = [("  a/b\\c:d*e?f\"g<h>i|j  ", "abcdef123456"), ("|||", "zz"), (String(repeating: "é", count: 100), "long"), ("a\u{2003}\u{3000}b\n\tc", "ws")]
+        let inputs = g.arr("notes").map { ($0["title"]?.str ?? "", $0["id"]!.str) } + extra
+        #expect(inputs.map { NoteMarkdownFile.fileName(title: $0.0, id: $0.1) } == g.arr("names").map(\.str))
+    }
+
+    @Test func isoDates() {
+        #expect(JSDate.isoString(0) == "1970-01-01T00:00:00.000Z")
+        #expect(JSDate.isoString(-1) == "1969-12-31T23:59:59.999Z")
+        #expect(JSDate.isoString(951_782_400_999) == "2000-02-29T00:00:00.999Z")
+        #expect(JSDate.isoString(253_402_300_800_000) == "+010000-01-01T00:00:00.000Z")
+    }
+}
+
+@Suite("note markdown import") struct NoteImportTests {
+    @Test func importCreatesThenUpdatesByBereanId() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let w = NotesService(db: db)
+        guard case .created(let id) = try w.importMarkdown("# Sabbath\n\nRemember the sabbath day.", fileName: "sabbath.MD") else { Issue.record("expected create"); return }
+        let n = try w.one(id)!
+        #expect(n.title == "Sabbath" && n.content == "Remember the sabbath day." && n.type == "general")
+        let file = NoteMarkdownFile.markdown(for: n).replacingOccurrences(of: "Remember the sabbath day.", with: "Keep it holy.")
+            .replacingOccurrences(of: "---\n\n", with: "ai_excluded: true\n---\n\n")
+        #expect(try w.importMarkdown(file, fileName: "x.md") == .updated(id))
+        let u = try w.one(id)!
+        #expect(u.content == "Keep it holy." && u.aiExcluded)
+        try w.delete(id)
+        guard case .created(let other) = try w.importMarkdown(file, fileName: "x.md") else { Issue.record("trashed note must not be updated"); return }
+        #expect(other != id)
+        guard case .created(let plain) = try w.importMarkdown("", fileName: "Empty file.markdown") else { return }
+        #expect(try w.one(plain)!.title == "Empty file")
     }
 }

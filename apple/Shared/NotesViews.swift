@@ -2,6 +2,7 @@ import SwiftUI
 import BereanCore
 import BereanNotes
 import BereanReference
+import UniformTypeIdentifiers
 
 /// The Notes space home: search, type filters, folders and the note list (`NotesPanel` home view).
 struct NotesHomeView: View {
@@ -11,6 +12,8 @@ struct NotesHomeView: View {
     @State private var folderId: String?
     @State private var notes: [Note] = []
     @State private var folders: [NoteFolder] = []
+    @State private var importing = false
+    @State private var importSummary: String?
 
     static let filters: [(String, String, String)] = [("all", "All", "tray.full"), ("scripture", "Scripture", "book"), ("topic", "Topic", "text.alignleft"),
                                                      ("daily", "Daily", "calendar"), ("pinned", "Pinned", "pin"), ("trash", "Trash", "trash")]
@@ -43,7 +46,26 @@ struct NotesHomeView: View {
         }
         .searchable(text: $query, prompt: "Search notes")
         .navigationTitle("Notes")
-        .toolbar { ToolbarItem { Button { app.newNote() } label: { Label("New Note", systemImage: "square.and.pencil") }.keyboardShortcut("n", modifiers: [.command, .shift]) } }
+        .toolbar {
+            ToolbarItem { Button { app.newNote() } label: { Label("New Note", systemImage: "square.and.pencil") }.keyboardShortcut("n", modifiers: [.command, .shift]) }
+            ToolbarItem { Button { importing = true } label: { Label("Import Markdown…", systemImage: "square.and.arrow.down") } }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: MarkdownDocument.readableTypes, allowsMultipleSelection: true) { result in
+            guard case .success(let urls) = result else { return }
+            var created = 0, updated = 0
+            for url in urls {
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                guard let data = try? Data(contentsOf: url) else { continue }
+                switch try? app.notes?.importMarkdown(String(decoding: data, as: UTF8.self), fileName: url.lastPathComponent) {
+                case .created?: created += 1
+                case .updated?: updated += 1
+                default: break
+                }
+            }
+            importSummary = "Imported \(created) new note\(created == 1 ? "" : "s")\(updated > 0 ? ", updated \(updated)" : "")."
+        }
+        .alert(importSummary ?? "", isPresented: Binding(get: { importSummary != nil }, set: { if !$0 { importSummary = nil } })) { Button("OK") {} }
         .overlay { if notes.isEmpty { ContentUnavailableView(query.isEmpty ? "No notes yet" : "No matches", systemImage: "note.text", description: Text(query.isEmpty ? "Create one with ⇧⌘N or from a verse." : "Try other words.")) } }
         .task(id: "\(query)|\(filter)|\(folderId ?? "")|\(app.notesRevision)") { load() }
     }
@@ -108,6 +130,12 @@ struct NoteDetailView: View {
     @State private var content = ""
     @State private var editing = false
     @State private var saveTask: Task<Void, Never>?
+    @State private var snapshotTask: Task<Void, Never>?
+    /// Content of the last version snapshot (or as opened) — a snapshot is only taken after edits.
+    @State private var lastSnapshot: String?
+    @State private var loadedId: String?
+    @State private var showingHistory = false
+    @State private var exporting = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -129,7 +157,7 @@ struct NoteDetailView: View {
                         if editing {
                             TextEditor(text: $content).font(.system(.body, design: .monospaced)).frame(minHeight: 400).scrollContentBackground(.hidden)
                                 .focused($focus, equals: .body)
-                                .onChange(of: content) { scheduleSave() }
+                                .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
                         } else {
                             MarkdownText(content).textSelection(.enabled)
                         }
@@ -145,18 +173,45 @@ struct NoteDetailView: View {
             ToolbarItemGroup {
                 Toggle(isOn: $editing) { Label("Edit Markdown", systemImage: "pencil") }.keyboardShortcut("m", modifiers: [.command, .shift])
                 if let note {
+                    Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
+                    Button { saveNow(); exporting = true } label: { Label("Export Markdown…", systemImage: "square.and.arrow.up") }
                     Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
                     Button(role: .destructive) { try? app.notes?.delete(note.id); app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
         }
+        .sheet(isPresented: $showingHistory) {
+            NoteVersionHistoryView(noteId: noteId, currentTitle: title, currentContent: content) { restored in
+                content = restored; lastSnapshot = restored; reload()
+            }
+        }
+        .fileExporter(isPresented: $exporting, document: note.map { MarkdownDocument(text: NoteMarkdownFile.markdown(for: $0)) },
+                      contentType: MarkdownDocument.markdownType, defaultFilename: note.map { NoteMarkdownFile.fileName(title: $0.title, id: $0.id) }) { _ in }
         .task(id: noteId) {
+            if loadedId != nil, loadedId != noteId { saveNow(); snapshot() }   // leaving a note: consolidate its version
             reload()
+            loadedId = noteId; lastSnapshot = content
             let isNew = (note?.content.isEmpty ?? false)
             editing = isNew
             if isNew { try? await Task.sleep(for: .milliseconds(150)); focus = (note?.title.isEmpty ?? true) ? .title : .body }
         }
-        .onDisappear { saveNow() }
+        .onDisappear {
+            saveNow()
+            if !JSText.trim(content).isEmpty { snapshot() }
+        }
+    }
+
+    /// Editing paused for two minutes → snapshot a version (SNAPSHOT_IDLE_MS in the desktop editor).
+    func scheduleSnapshot() {
+        snapshotTask?.cancel()
+        snapshotTask = Task { try? await Task.sleep(for: .seconds(120)); if !Task.isCancelled { saveNow(); snapshot() } }
+    }
+
+    func snapshot(kind: String = "auto") {
+        snapshotTask?.cancel()
+        guard let note, lastSnapshot != content else { return }
+        lastSnapshot = content
+        try? app.notes?.createVersion(noteId: note.id, title: title, content: content, kind: kind)
     }
 
     func reload() { note = try? app.notes?.one(noteId); title = note?.title ?? ""; content = note?.content ?? "" }
@@ -222,5 +277,80 @@ struct VerseNotesView: View {
                 ContentUnavailableView("Select a verse", systemImage: "hand.tap", description: Text("Click a verse number to see and add its notes.")).frame(maxHeight: .infinity, alignment: .top)
             }
         }
+    }
+}
+
+/// Plain-text Markdown file for export / import.
+struct MarkdownDocument: FileDocument {
+    static let markdownType = UTType(filenameExtension: "md", conformingTo: .plainText) ?? .plainText
+    static var readableContentTypes: [UTType] { [markdownType, .plainText] }
+    static var readableTypes: [UTType] { [markdownType, UTType(filenameExtension: "markdown", conformingTo: .plainText) ?? .plainText, .plainText] }
+    var text: String
+    init(text: String) { self.text = text }
+    init(configuration: ReadConfiguration) throws { text = String(decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self) }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: Data(text.utf8)) }
+}
+
+/// Version history (NoteVersionHistory.tsx): snapshots newest first, preview, restore, save a version now.
+struct NoteVersionHistoryView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    let noteId: String
+    let currentTitle: String
+    let currentContent: String
+    let onRestore: (String) -> Void
+    @State private var versions: [NoteVersion] = []
+    @State private var selection: String?
+    @State private var confirmRestore = false
+
+    var selected: NoteVersion? { versions.first { $0.id == selection } }
+
+    var body: some View {
+        NavigationStack {
+            HStack(spacing: 0) {
+                List(selection: $selection) {
+                    if versions.isEmpty { Text("No versions yet. Versions are saved while you edit, or with Save Version Now.").foregroundStyle(.secondary) }
+                    ForEach(versions) { v in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Date(timeIntervalSince1970: Double(v.createdAt) / 1000), format: .dateTime.month().day().year().hour().minute())
+                            Text(Self.kindLabel(v.kind)).font(.caption).foregroundStyle(.secondary)
+                        }.tag(v.id)
+                    }
+                }
+                .frame(minWidth: 220, idealWidth: 240, maxWidth: 280)
+                .safeAreaInset(edge: .bottom) {
+                    Button { try? app.notes?.createVersion(noteId: noteId, title: currentTitle, content: currentContent, kind: "manual"); load() } label: {
+                        Label("Save Version Now", systemImage: "plus.circle").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderless).padding(10)
+                }
+                Divider()
+                Group {
+                    if let v = selected {
+                        ScrollView { MarkdownText(v.content).textSelection(.enabled).padding(20) }
+                    } else {
+                        ContentUnavailableView("Select a version", systemImage: "clock.arrow.circlepath")
+                    }
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .navigationTitle("Version History")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Restore") { confirmRestore = true }.disabled(selected == nil) }
+            }
+            .confirmationDialog("Restore this version?", isPresented: $confirmRestore) {
+                Button("Restore Version") {
+                    if let v = selected, case .restored(let c)? = try? app.notes?.restoreVersion(noteId: noteId, versionId: v.id) { onRestore(c); dismiss() }
+                }
+            } message: { Text("The current text is saved as a version first, so you can undo this.") }
+        }
+        .frame(minWidth: 640, minHeight: 440)
+        .task { load() }
+    }
+
+    func load() { versions = (try? app.notes?.versions(of: noteId)) ?? []; selection = versions.first?.id }
+
+    static func kindLabel(_ kind: String) -> String {
+        switch kind { case "manual": "Saved manually"; case "pre-restore": "Before restore"; default: "Autosaved" }
     }
 }
