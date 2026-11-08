@@ -290,3 +290,23 @@
 - UI-complete gate added to the playbook.
 - Verified in the running app: session switch, archive → restore, drag reorder kept across relaunch, picker → Psalm 24 → Back → Psalm 23.
   Swift suite 60 tests/24 suites PASS; Mac + iOS builds PASS.
+
+### 2026-11-08 10:15 PST — iPhone tab sheet, sessions and saved workspaces
+- The native iPhone tab sheet follows the existing iPhone TabCardsSheet list view:
+  - a session row with its tab count, opening the Sessions page;
+  - tab search;
+  - the session's tabs in the user's order, pinned first, with type colours and the Space shown under the title;
+  - swipe actions: Close, Archive, Pin;
+  - context menu: Duplicate, Pin, Move to Session, Archive, Close;
+  - Edit to reorder;
+  - New Tab;
+  - Archived Tabs page (restore, remove).
+- Sessions page:
+  - lists sessions with tab counts; tap switches;
+  - New Session; Rename, Archive All and Close from the context menu or swipe;
+  - **Saved Workspaces** section (open, "Open" badge, rename/delete, "Save This Session as a Workspace…"), with a one-line
+    explanation under each section.
+- Verified with real taps on the iPhone 18 Pro Simulator (Xcode MCP): tab sheet → Sessions → Save "Study Phone" → open it → the sheet
+  shows the session "Study Phone" with its tab.
+- Naming: the native iPhone uses "Sessions" (as the existing tab sheet does) and "Saved Workspaces" (the existing iPhone More page calls
+  these "Saved snapshots") so the Mac and iPhone native apps use one vocabulary.
