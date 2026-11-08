@@ -97,6 +97,11 @@ public struct JSRegex: @unchecked Sendable {
         return (0..<m.output.count).map { m.output[$0].substring.map(String.init) }
     }
 
+    /// All non-overlapping matches (`String.prototype.matchAll` / a `g` regex `exec` loop): capture strings per match.
+    public func allMatches(_ s: String) -> [[String?]] {
+        s.matches(of: regex).map { m in (0..<m.output.count).map { m.output[$0].substring.map(String.init) } }
+    }
+
     /// `s.replace(/re/g, template)` — `$1`…`$9` in the template insert capture groups (an unmatched
     /// group inserts nothing, as in JavaScript).
     public func replaceAll(_ s: String, with template: String) -> String {

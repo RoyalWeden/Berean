@@ -10,7 +10,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DD="$ROOT/build/apple/DerivedData"
 PROJECT="$ROOT/apple/Berean.xcodeproj"
 
-run_test() { swift test --package-path "$ROOT/Packages/BereanKit" --scratch-path "$ROOT/build/apple/swiftpm"; }
+# Release mode: the golden suites walk every verse of several texts (≈30 s optimised vs minutes in debug).
+run_test() { swift test -c release --package-path "$ROOT/Packages/BereanKit" --scratch-path "$ROOT/build/apple/swiftpm"; }
 run_mac() {
   xcodebuild -project "$PROJECT" -scheme BereanMac -configuration Debug -destination 'platform=macOS' \
     -derivedDataPath "$DD" build

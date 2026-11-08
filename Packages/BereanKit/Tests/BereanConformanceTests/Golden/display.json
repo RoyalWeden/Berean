@@ -1,0 +1,1846 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/display.ts",
+ "sources": {
+  "src/lib/wordReplacer.ts": "7922c0a66273dd3db1158fb8a54f24162f895e603a6add3e984c84087c783bbf",
+  "src/lib/verseUtils.ts": "54e0d76d1dee684b5447ddf6eeda57090b6f03b705cb1f4af10d43e4734304a8",
+  "src/lib/taggedTokens.ts": "4e2f235c25f678ee9af55c982a8fff03fa627d11f6b7ab1ce1a2e47d448199fb",
+  "src/store/index.ts": "3eed47e1d8d64dd6a9c171f6a478c9a47864b29edb64d3d19e06dad77ef44884",
+  "scripts/golden/display.ts": "7de430966793a8bbc4fc1e1886eeddf11ebbb8d38ac2e655742d61239f9d36c6"
+ },
+ "defaultRules": [
+  {
+   "id": "strongs-h3068",
+   "queries": [],
+   "strongsNum": "H3068",
+   "replacement": "Yehovah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "strongs-h3069",
+   "queries": [],
+   "strongsNum": "H3069",
+   "replacement": "Yehovah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "strongs-h3050",
+   "queries": [],
+   "strongsNum": "H3050",
+   "replacement": "Yah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "a1c3e5f7",
+   "queries": [
+    "elseus"
+   ],
+   "replacement": "Elisha",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "3b8e241f",
+   "queries": [
+    "elias"
+   ],
+   "replacement": "Elijah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "68d22a2b",
+   "queries": [
+    "esaias"
+   ],
+   "replacement": "Isaiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "7b60a59e",
+   "queries": [
+    "osee"
+   ],
+   "replacement": "Hosea",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "6630754e",
+   "queries": [
+    "christ jesus",
+    "jesus christ"
+   ],
+   "replacement": "Yeshua Messiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "b9f1e2a3",
+   "queries": [
+    "christ"
+   ],
+   "replacement": "Messiah",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "914c4d69",
+   "queries": [
+    "obdias"
+   ],
+   "replacement": "Obadiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "f0ab3f1a",
+   "queries": [
+    "jezekiel"
+   ],
+   "replacement": "Ezekiel",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "3954462c",
+   "queries": [
+    "jeremias",
+    "jeremy"
+   ],
+   "replacement": "Jeremiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "af2b57c0",
+   "queries": [
+    "zacharias"
+   ],
+   "replacement": "Zechariah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "afcc27c7",
+   "queries": [
+    "malachias"
+   ],
+   "replacement": "Malachi",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "c35d6066",
+   "queries": [
+    "aggæus"
+   ],
+   "replacement": "Haggai",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "d12c8d7d",
+   "queries": [
+    "sophonias"
+   ],
+   "replacement": "Zephaniah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "bfa0e688",
+   "queries": [
+    "naum"
+   ],
+   "replacement": "Nahum",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "7e62339f",
+   "queries": [
+    "jonas"
+   ],
+   "replacement": "Jonah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "95a42357",
+   "queries": [
+    "jesus"
+   ],
+   "replacement": "Yeshua",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "864afedc",
+   "queries": [
+    "michæas"
+   ],
+   "replacement": "Micah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "41e178e6",
+   "queries": [
+    "pharao"
+   ],
+   "replacement": "Pharaoh",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "b6c9a1a1",
+   "queries": [
+    "sem"
+   ],
+   "replacement": "Shem",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "5e6698ce",
+   "queries": [
+    "noe"
+   ],
+   "replacement": "Noah",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "75c0acbd",
+   "queries": [
+    "ambacum"
+   ],
+   "replacement": "Habakkuk",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "5a66cdad",
+   "queries": [
+    "josias"
+   ],
+   "replacement": "Josiah",
+   "wholeWord": false,
+   "enabled": true
+  }
+ ],
+ "customRules": [
+  {
+   "id": "strongs-h3068",
+   "queries": [],
+   "strongsNum": "H3068",
+   "replacement": "Yehovah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "strongs-h3069",
+   "queries": [],
+   "strongsNum": "H3069",
+   "replacement": "Yehovah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "strongs-h3050",
+   "queries": [],
+   "strongsNum": "H3050",
+   "replacement": "Yah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "a1c3e5f7",
+   "queries": [
+    "elseus"
+   ],
+   "replacement": "Elisha",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "3b8e241f",
+   "queries": [
+    "elias"
+   ],
+   "replacement": "Elijah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "68d22a2b",
+   "queries": [
+    "esaias"
+   ],
+   "replacement": "Isaiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "7b60a59e",
+   "queries": [
+    "osee"
+   ],
+   "replacement": "Hosea",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "6630754e",
+   "queries": [
+    "christ jesus",
+    "jesus christ"
+   ],
+   "replacement": "Yeshua Messiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "b9f1e2a3",
+   "queries": [
+    "christ"
+   ],
+   "replacement": "Messiah",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "914c4d69",
+   "queries": [
+    "obdias"
+   ],
+   "replacement": "Obadiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "f0ab3f1a",
+   "queries": [
+    "jezekiel"
+   ],
+   "replacement": "Ezekiel",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "3954462c",
+   "queries": [
+    "jeremias",
+    "jeremy"
+   ],
+   "replacement": "Jeremiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "af2b57c0",
+   "queries": [
+    "zacharias"
+   ],
+   "replacement": "Zechariah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "afcc27c7",
+   "queries": [
+    "malachias"
+   ],
+   "replacement": "Malachi",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "c35d6066",
+   "queries": [
+    "aggæus"
+   ],
+   "replacement": "Haggai",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "d12c8d7d",
+   "queries": [
+    "sophonias"
+   ],
+   "replacement": "Zephaniah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "bfa0e688",
+   "queries": [
+    "naum"
+   ],
+   "replacement": "Nahum",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "7e62339f",
+   "queries": [
+    "jonas"
+   ],
+   "replacement": "Jonah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "95a42357",
+   "queries": [
+    "jesus"
+   ],
+   "replacement": "Yeshua",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "864afedc",
+   "queries": [
+    "michæas"
+   ],
+   "replacement": "Micah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "41e178e6",
+   "queries": [
+    "pharao"
+   ],
+   "replacement": "Pharaoh",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "b6c9a1a1",
+   "queries": [
+    "sem"
+   ],
+   "replacement": "Shem",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "5e6698ce",
+   "queries": [
+    "noe"
+   ],
+   "replacement": "Noah",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "75c0acbd",
+   "queries": [
+    "ambacum"
+   ],
+   "replacement": "Habakkuk",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "5a66cdad",
+   "queries": [
+    "josias"
+   ],
+   "replacement": "Josiah",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "c1",
+   "queries": [
+    "God"
+   ],
+   "replacement": "Elohim",
+   "wholeWord": true,
+   "enabled": true
+  },
+  {
+   "id": "c2",
+   "queries": [
+    "heaven"
+   ],
+   "replacement": "shamayim",
+   "wholeWord": false,
+   "enabled": true
+  },
+  {
+   "id": "c3",
+   "queries": [
+    "LORD"
+   ],
+   "replacement": "Yehovah",
+   "wholeWord": true,
+   "enabled": false
+  },
+  {
+   "id": "c4",
+   "queries": [
+    "ÆGYPT",
+    "egypt"
+   ],
+   "replacement": "Mitzrayim",
+   "wholeWord": true,
+   "enabled": true
+  }
+ ],
+ "texts": {
+  "kjva": {
+   "GEN": {
+    "count": 1533,
+    "hash": "48c6409d4dcys"
+   },
+   "EXO": {
+    "count": 1213,
+    "hash": "8de6bc223q7do"
+   },
+   "LEV": {
+    "count": 859,
+    "hash": "76d4baef2skpf"
+   },
+   "NUM": {
+    "count": 1288,
+    "hash": "6ca88d823rpa6"
+   },
+   "DEU": {
+    "count": 959,
+    "hash": "1dd1efc6382rx"
+   },
+   "JOS": {
+    "count": 658,
+    "hash": "e3d2b26c25rc3"
+   },
+   "JDG": {
+    "count": 618,
+    "hash": "01db685e25yco"
+   },
+   "RUT": {
+    "count": 85,
+    "hash": "55f12ac6aiyp"
+   },
+   "1SA": {
+    "count": 810,
+    "hash": "0021c5292urn4"
+   },
+   "2SA": {
+    "count": 695,
+    "hash": "8e1b9a442colp"
+   },
+   "1KI": {
+    "count": 816,
+    "hash": "27db8c462sqr5"
+   },
+   "2KI": {
+    "count": 719,
+    "hash": "b9a477802oees"
+   },
+   "1CH": {
+    "count": 942,
+    "hash": "a00f84f42ciys"
+   },
+   "2CH": {
+    "count": 822,
+    "hash": "2932a20b2zgfs"
+   },
+   "EZR": {
+    "count": 280,
+    "hash": "55917a3buuic"
+   },
+   "NEH": {
+    "count": 406,
+    "hash": "7ddf10bd17ii2"
+   },
+   "EST": {
+    "count": 167,
+    "hash": "a71f99c2nc63"
+   },
+   "JOB": {
+    "count": 1070,
+    "hash": "d135007922kw5"
+   },
+   "PSA": {
+    "count": 2461,
+    "hash": "a950f3cf4ztsv"
+   },
+   "PRO": {
+    "count": 915,
+    "hash": "494096e81q4j8"
+   },
+   "ECC": {
+    "count": 222,
+    "hash": "3f1af12amxo6"
+   },
+   "SNG": {
+    "count": 117,
+    "hash": "fd410e1eax9d"
+   },
+   "ISA": {
+    "count": 1292,
+    "hash": "910ee91f482v0"
+   },
+   "JER": {
+    "count": 1364,
+    "hash": "578a32ee4v8l5"
+   },
+   "LAM": {
+    "count": 154,
+    "hash": "c46b3a68e2aa"
+   },
+   "EZK": {
+    "count": 1273,
+    "hash": "cb030dab4hy8p"
+   },
+   "DAN": {
+    "count": 357,
+    "hash": "7d3133481bz0n"
+   },
+   "HOS": {
+    "count": 197,
+    "hash": "bf13e915l9fn"
+   },
+   "JOL": {
+    "count": 73,
+    "hash": "02d6138a8cwr"
+   },
+   "AMO": {
+    "count": 146,
+    "hash": "eaa64e65han1"
+   },
+   "OBA": {
+    "count": 21,
+    "hash": "a7bdfb342r5u"
+   },
+   "JON": {
+    "count": 48,
+    "hash": "a0631edd5e3x"
+   },
+   "MIC": {
+    "count": 105,
+    "hash": "b3300daccwnz"
+   },
+   "NAM": {
+    "count": 47,
+    "hash": "a6c673855akw"
+   },
+   "HAB": {
+    "count": 56,
+    "hash": "4837d68963bp"
+   },
+   "ZEP": {
+    "count": 53,
+    "hash": "528ffdd66mp8"
+   },
+   "HAG": {
+    "count": 38,
+    "hash": "a32955634lrh"
+   },
+   "ZEC": {
+    "count": 211,
+    "hash": "28664ae2qbf8"
+   },
+   "MAL": {
+    "count": 55,
+    "hash": "34c56f5779sp"
+   },
+   "1ES": {
+    "count": 448,
+    "hash": "eba369509wme"
+   },
+   "2ES": {
+    "count": 944,
+    "hash": "aac40b72irzm"
+   },
+   "TOB": {
+    "count": 244,
+    "hash": "80e053e15j5f"
+   },
+   "JDT": {
+    "count": 339,
+    "hash": "ad9c77f48uou"
+   },
+   "ESG": {
+    "count": 117,
+    "hash": "c660a3d82cpo"
+   },
+   "WIS": {
+    "count": 436,
+    "hash": "1cec76a2956a"
+   },
+   "SIR": {
+    "count": 1393,
+    "hash": "a9ca76b1oqyr"
+   },
+   "BAR": {
+    "count": 213,
+    "hash": "c2e1b99d48yx"
+   },
+   "PRA": {
+    "count": 68,
+    "hash": "b23f714b16oi"
+   },
+   "SUS": {
+    "count": 64,
+    "hash": "16552dfc184r"
+   },
+   "BEL": {
+    "count": 42,
+    "hash": "1733b285vr9"
+   },
+   "PRM": {
+    "count": 1,
+    "hash": "d5b85108amy"
+   },
+   "1MA": {
+    "count": 924,
+    "hash": "dce84e6fjskk"
+   },
+   "2MA": {
+    "count": 555,
+    "hash": "7ab1ad52dpq2"
+   },
+   "MAT": {
+    "count": 1071,
+    "hash": "db1072ff2px0a"
+   },
+   "MRK": {
+    "count": 678,
+    "hash": "b30ebe401qtag"
+   },
+   "LUK": {
+    "count": 1151,
+    "hash": "7c103c8a2z3tb"
+   },
+   "JHN": {
+    "count": 879,
+    "hash": "da80e71f26y8d"
+   },
+   "ACT": {
+    "count": 1007,
+    "hash": "e6f25ffe2tc4m"
+   },
+   "ROM": {
+    "count": 433,
+    "hash": "49a8b28513eux"
+   },
+   "1CO": {
+    "count": 437,
+    "hash": "a7f7592113bw8"
+   },
+   "2CO": {
+    "count": 257,
+    "hash": "77159137pb4x"
+   },
+   "GAL": {
+    "count": 149,
+    "hash": "cb676434cvou"
+   },
+   "EPH": {
+    "count": 155,
+    "hash": "404529dfcpem"
+   },
+   "PHP": {
+    "count": 104,
+    "hash": "199ed11294ta"
+   },
+   "COL": {
+    "count": 95,
+    "hash": "6a489d698cc1"
+   },
+   "1TH": {
+    "count": 89,
+    "hash": "f388d5377pco"
+   },
+   "2TH": {
+    "count": 47,
+    "hash": "4f8e9aa84bah"
+   },
+   "1TI": {
+    "count": 113,
+    "hash": "a7ab9df99irj"
+   },
+   "2TI": {
+    "count": 83,
+    "hash": "ffba336973yb"
+   },
+   "TIT": {
+    "count": 46,
+    "hash": "29b63da53v8c"
+   },
+   "PHM": {
+    "count": 25,
+    "hash": "38fdaa551uaq"
+   },
+   "HEB": {
+    "count": 303,
+    "hash": "030a4007sv5a"
+   },
+   "JAS": {
+    "count": 108,
+    "hash": "f0915db49lfb"
+   },
+   "1PE": {
+    "count": 105,
+    "hash": "bba8182dac7b"
+   },
+   "2PE": {
+    "count": 61,
+    "hash": "8e3559006iqy"
+   },
+   "1JN": {
+    "count": 105,
+    "hash": "3dd1400dafvi"
+   },
+   "2JN": {
+    "count": 13,
+    "hash": "c71a032c18ph"
+   },
+   "3JN": {
+    "count": 14,
+    "hash": "9fd49569188z"
+   },
+   "JUD": {
+    "count": 25,
+    "hash": "047196fe2kr1"
+   },
+   "REV": {
+    "count": 404,
+    "hash": "bca985e11ds9u"
+   }
+  },
+  "lxx": {
+   "GEN": {
+    "count": 218,
+    "hash": "7d6ff39caly9"
+   },
+   "EXO": {
+    "count": 167,
+    "hash": "26b9f99182y1"
+   },
+   "LEV": {
+    "count": 122,
+    "hash": "c1b3080e64md"
+   },
+   "NUM": {
+    "count": 184,
+    "hash": "0193352e8ed6"
+   },
+   "DEU": {
+    "count": 137,
+    "hash": "75f8ae367odj"
+   },
+   "JOS": {
+    "count": 94,
+    "hash": "6bb0077d4kh4"
+   },
+   "JOSA": {
+    "count": 14,
+    "hash": "fb097ca8evj"
+   },
+   "JDG": {
+    "count": 88,
+    "hash": "b5b5471c50pj"
+   },
+   "JDGA": {
+    "count": 89,
+    "hash": "c611de1258zp"
+   },
+   "RUT": {
+    "count": 12,
+    "hash": "d0c138f2pbo"
+   },
+   "1SA": {
+    "count": 110,
+    "hash": "8ee4d65a6v0d"
+   },
+   "2SA": {
+    "count": 100,
+    "hash": "8e6d9e0d5t9y"
+   },
+   "1KI": {
+    "count": 117,
+    "hash": "89c7d0336p98"
+   },
+   "2KI": {
+    "count": 104,
+    "hash": "19901f7a65hn"
+   },
+   "1CH": {
+    "count": 133,
+    "hash": "9e52ce215lby"
+   },
+   "2CH": {
+    "count": 119,
+    "hash": "cbcee83b72zi"
+   },
+   "1ES": {
+    "count": 62,
+    "hash": "fbe93804327r"
+   },
+   "2ES": {
+    "count": 96,
+    "hash": "85c5951b4h0y"
+   },
+   "ESG": {
+    "count": 36,
+    "hash": "55d9b1a51zws"
+   },
+   "JDT": {
+    "count": 48,
+    "hash": "22a3553232l1"
+   },
+   "TOB": {
+    "count": 36,
+    "hash": "78fa6ccd1ri5"
+   },
+   "TOBS": {
+    "count": 33,
+    "hash": "5da629962kqy"
+   },
+   "1MA": {
+    "count": 132,
+    "hash": "25d2077b66od"
+   },
+   "2MA": {
+    "count": 79,
+    "hash": "ad1e1c1d3vym"
+   },
+   "3MA": {
+    "count": 33,
+    "hash": "3d0f5cf61t8b"
+   },
+   "4MA": {
+    "count": 68,
+    "hash": "b69423622qxz"
+   },
+   "PSA": {
+    "count": 362,
+    "hash": "aec5ab0dbwrh"
+   },
+   "ODE": {
+    "count": 39,
+    "hash": "a012c3151h3q"
+   },
+   "PRO": {
+    "count": 135,
+    "hash": "6cfcc04e415v"
+   },
+   "ECC": {
+    "count": 31,
+    "hash": "888d06801mke"
+   },
+   "SNG": {
+    "count": 17,
+    "hash": "84ec330amix"
+   },
+   "JOB": {
+    "count": 155,
+    "hash": "2eb95ce54rkg"
+   },
+   "WIS": {
+    "count": 62,
+    "hash": "60fa41432imb"
+   },
+   "SIR": {
+    "count": 200,
+    "hash": "a95fbd636ckw"
+   },
+   "PSL": {
+    "count": 42,
+    "hash": "ea4bf9901qdv"
+   },
+   "HOS": {
+    "count": 28,
+    "hash": "ad76975b16yt"
+   },
+   "MIC": {
+    "count": 15,
+    "hash": "22e4c2d6q3n"
+   },
+   "AMO": {
+    "count": 21,
+    "hash": "97f71e8913kb"
+   },
+   "JOL": {
+    "count": 10,
+    "hash": "75fc29b2iiz"
+   },
+   "JON": {
+    "count": 7,
+    "hash": "a64bd5e0c5w"
+   },
+   "OBA": {
+    "count": 3,
+    "hash": "9b62a3d6420"
+   },
+   "NAM": {
+    "count": 7,
+    "hash": "a7221d569t4"
+   },
+   "HAB": {
+    "count": 8,
+    "hash": "30683229fv9"
+   },
+   "ZEP": {
+    "count": 8,
+    "hash": "9b4a92edl95"
+   },
+   "HAG": {
+    "count": 5,
+    "hash": "0726a4a295r"
+   },
+   "ZEC": {
+    "count": 30,
+    "hash": "504d6f0b1lwo"
+   },
+   "MAL": {
+    "count": 8,
+    "hash": "9513d262gjm"
+   },
+   "ISA": {
+    "count": 184,
+    "hash": "3308c7248evc"
+   },
+   "JER": {
+    "count": 186,
+    "hash": "8b4a71889vhl"
+   },
+   "BAR": {
+    "count": 20,
+    "hash": "581c27ffs2n"
+   },
+   "EJR": {
+    "count": 10,
+    "hash": "eabde211d2x"
+   },
+   "LAM": {
+    "count": 21,
+    "hash": "9dab096ds21"
+   },
+   "EZK": {
+    "count": 181,
+    "hash": "d3de99b89ru8"
+   },
+   "BEL": {
+    "count": 6,
+    "hash": "466622e0a43"
+   },
+   "BELT": {
+    "count": 6,
+    "hash": "4e4fb561c77"
+   },
+   "DAN": {
+    "count": 58,
+    "hash": "0e38e6b5367q"
+   },
+   "DANT": {
+    "count": 61,
+    "hash": "ecd1e9b43jyy"
+   },
+   "SUS": {
+    "count": 5,
+    "hash": "9c0c7d80akv"
+   },
+   "SUST": {
+    "count": 9,
+    "hash": "baf0c708ass"
+   }
+  },
+  "enoch": {
+   "ENO": {
+    "count": 152,
+    "hash": "f3aad8084d6o"
+   }
+  },
+  "kjv": {
+   "GEN": {
+    "count": 219,
+    "hash": "773ac6de4ize"
+   },
+   "EXO": {
+    "count": 173,
+    "hash": "1b7f4e3c3lva"
+   },
+   "LEV": {
+    "count": 123,
+    "hash": "e4cf86f330ao"
+   },
+   "NUM": {
+    "count": 184,
+    "hash": "455d5cee3ubd"
+   },
+   "DEU": {
+    "count": 137,
+    "hash": "b182105d31oj"
+   },
+   "JOS": {
+    "count": 94,
+    "hash": "9eaf193f28zt"
+   },
+   "JDG": {
+    "count": 88,
+    "hash": "830a7af122ac"
+   },
+   "RUT": {
+    "count": 12,
+    "hash": "67fa1a3ba4k"
+   },
+   "1SA": {
+    "count": 116,
+    "hash": "83e357a12qfh"
+   },
+   "2SA": {
+    "count": 99,
+    "hash": "6aefcbaa2cg6"
+   },
+   "1KI": {
+    "count": 117,
+    "hash": "644687042qyy"
+   },
+   "2KI": {
+    "count": 102,
+    "hash": "23a235412jep"
+   },
+   "1CH": {
+    "count": 135,
+    "hash": "1a7044742gbg"
+   },
+   "2CH": {
+    "count": 117,
+    "hash": "f2d5ad232x14"
+   },
+   "EZR": {
+    "count": 40,
+    "hash": "a43f711bvxs"
+   },
+   "NEH": {
+    "count": 58,
+    "hash": "68d10dcb1f3m"
+   },
+   "EST": {
+    "count": 24,
+    "hash": "2f98926bomj"
+   },
+   "JOB": {
+    "count": 153,
+    "hash": "263e5d7c2eln"
+   },
+   "PSA": {
+    "count": 352,
+    "hash": "7a45dfab5go5"
+   },
+   "PRO": {
+    "count": 130,
+    "hash": "fbd0f6371z82"
+   },
+   "ECC": {
+    "count": 32,
+    "hash": "6f24100dofp"
+   },
+   "SNG": {
+    "count": 17,
+    "hash": "3ae50c58c6g"
+   },
+   "ISA": {
+    "count": 184,
+    "hash": "e12d6d7b4fih"
+   },
+   "JER": {
+    "count": 195,
+    "hash": "9e1a9f5d4u1i"
+   },
+   "LAM": {
+    "count": 22,
+    "hash": "232b58c9ev2"
+   },
+   "EZK": {
+    "count": 182,
+    "hash": "1fb947474m7f"
+   },
+   "DAN": {
+    "count": 51,
+    "hash": "c007014a1c3r"
+   },
+   "HOS": {
+    "count": 28,
+    "hash": "0355306bknj"
+   },
+   "JOL": {
+    "count": 11,
+    "hash": "f664ad2b7zr"
+   },
+   "AMO": {
+    "count": 20,
+    "hash": "1606938afv8"
+   },
+   "OBA": {
+    "count": 3,
+    "hash": "6c42ceb52l7"
+   },
+   "JON": {
+    "count": 7,
+    "hash": "95c21a934uu"
+   },
+   "MIC": {
+    "count": 15,
+    "hash": "cc485fa7cdk"
+   },
+   "NAM": {
+    "count": 7,
+    "hash": "837e24394xw"
+   },
+   "HAB": {
+    "count": 8,
+    "hash": "8cee9edc6z2"
+   },
+   "ZEP": {
+    "count": 8,
+    "hash": "656d41768ms"
+   },
+   "HAG": {
+    "count": 5,
+    "hash": "bcf45d5e40y"
+   },
+   "ZEC": {
+    "count": 30,
+    "hash": "eef85deaosc"
+   },
+   "MAL": {
+    "count": 8,
+    "hash": "925ba5be7bm"
+   },
+   "MAT": {
+    "count": 153,
+    "hash": "3fc1e5b92v65"
+   },
+   "MRK": {
+    "count": 97,
+    "hash": "d7f1ad0d1vb9"
+   },
+   "LUK": {
+    "count": 164,
+    "hash": "f88a6e1f2z7l"
+   },
+   "JHN": {
+    "count": 126,
+    "hash": "aeb3c69f25wj"
+   },
+   "ACT": {
+    "count": 144,
+    "hash": "d6b4e1b62v3d"
+   },
+   "ROM": {
+    "count": 62,
+    "hash": "75ae713f16nu"
+   },
+   "1CO": {
+    "count": 62,
+    "hash": "087e680414ek"
+   },
+   "2CO": {
+    "count": 37,
+    "hash": "2b77577dqdr"
+   },
+   "GAL": {
+    "count": 21,
+    "hash": "c77774a4eig"
+   },
+   "EPH": {
+    "count": 22,
+    "hash": "71697fafe3z"
+   },
+   "PHP": {
+    "count": 15,
+    "hash": "fb7218d593b"
+   },
+   "COL": {
+    "count": 14,
+    "hash": "711514658xv"
+   },
+   "1TH": {
+    "count": 12,
+    "hash": "d69fe53d7ty"
+   },
+   "2TH": {
+    "count": 7,
+    "hash": "23bbeada4k6"
+   },
+   "1TI": {
+    "count": 16,
+    "hash": "772cdb33ar1"
+   },
+   "2TI": {
+    "count": 12,
+    "hash": "a6cf33f97aq"
+   },
+   "TIT": {
+    "count": 7,
+    "hash": "143acaae5j2"
+   },
+   "PHM": {
+    "count": 3,
+    "hash": "6b451f3e1xs"
+   },
+   "HEB": {
+    "count": 43,
+    "hash": "0c748589wzh"
+   },
+   "JAS": {
+    "count": 16,
+    "hash": "3c361ad3azv"
+   },
+   "1PE": {
+    "count": 15,
+    "hash": "e68c31a4bpb"
+   },
+   "2PE": {
+    "count": 9,
+    "hash": "2a288b8378w"
+   },
+   "1JN": {
+    "count": 15,
+    "hash": "258f3ef4a7z"
+   },
+   "2JN": {
+    "count": 1,
+    "hash": "c25939f2so"
+   },
+   "3JN": {
+    "count": 2,
+    "hash": "dab46557y1"
+   },
+   "JUD": {
+    "count": 4,
+    "hash": "e0a975512y8"
+   },
+   "REV": {
+    "count": 58,
+    "hash": "2a7fe76d1e7n"
+   }
+  }
+ },
+ "replacer": [
+  {
+   "text": "Jesus Christ said",
+   "defaults": "Yeshua Messiah said",
+   "custom": "Yeshua Messiah said"
+  },
+  {
+   "text": "christ jesus",
+   "defaults": "Yeshua Messiah",
+   "custom": "Yeshua Messiah"
+  },
+  {
+   "text": "CHRIST",
+   "defaults": "Messiah",
+   "custom": "Messiah"
+  },
+  {
+   "text": "Christian",
+   "defaults": "Christian",
+   "custom": "Christian"
+  },
+  {
+   "text": "antichrist",
+   "defaults": "antichrist",
+   "custom": "antichrist"
+  },
+  {
+   "text": "the Jesuses",
+   "defaults": "the Yeshuaes",
+   "custom": "the Yeshuaes"
+  },
+  {
+   "text": "Elias and Esaias",
+   "defaults": "Elijah and Isaiah",
+   "custom": "Elijah and Isaiah"
+  },
+  {
+   "text": "Noe, Sem",
+   "defaults": "Noah, Shem",
+   "custom": "Noah, Shem"
+  },
+  {
+   "text": "noel",
+   "defaults": "noel",
+   "custom": "noel"
+  },
+  {
+   "text": "Naum.",
+   "defaults": "Nahum.",
+   "custom": "Nahum."
+  },
+  {
+   "text": "Pharao’s",
+   "defaults": "Pharaoh’s",
+   "custom": "Pharaoh’s"
+  },
+  {
+   "text": "Aggæus AGGÆUS",
+   "defaults": "Haggai Haggai",
+   "custom": "Haggai Haggai"
+  },
+  {
+   "text": "Michæas",
+   "defaults": "Micah",
+   "custom": "Micah"
+  },
+  {
+   "text": "jesus-christ",
+   "defaults": "Yeshua-Messiah",
+   "custom": "Yeshua-Messiah"
+  },
+  {
+   "text": "",
+   "defaults": "",
+   "custom": ""
+  },
+  {
+   "text": "JeSuS",
+   "defaults": "Yeshua",
+   "custom": "Yeshua"
+  },
+  {
+   "text": "élias",
+   "defaults": "élias",
+   "custom": "élias"
+  },
+  {
+   "text": "Egypt egyptian ÆGYPT",
+   "defaults": "Egypt egyptian ÆGYPT",
+   "custom": "Mitzrayim egyptian ÆGYPT"
+  },
+  {
+   "text": "God godly God-fearing",
+   "defaults": "God godly God-fearing",
+   "custom": "Elohim godly Elohim-fearing"
+  },
+  {
+   "text": "heavenly heaven",
+   "defaults": "heavenly heaven",
+   "custom": "shamayimly shamayim"
+  }
+ ],
+ "strongs": [
+  {
+   "word": "LORD",
+   "num": "H3068",
+   "result": "Yehovah"
+  },
+  {
+   "word": "LORD'S",
+   "num": "H3068",
+   "result": "Yehovah's"
+  },
+  {
+   "word": "LORD'S.",
+   "num": "H3068",
+   "result": "Yehovah's."
+  },
+  {
+   "word": "LORD,",
+   "num": [
+    "H3068",
+    "H430"
+   ],
+   "result": "Yehovah,"
+  },
+  {
+   "word": "GOD",
+   "num": "H3069",
+   "result": "Yehovah"
+  },
+  {
+   "word": "JAH",
+   "num": "H3050",
+   "result": "Yah"
+  },
+  {
+   "word": "Lord",
+   "num": "H136",
+   "result": "Lord"
+  },
+  {
+   "word": "LORD;”",
+   "num": "H3068",
+   "result": "Yehovah;”"
+  },
+  {
+   "word": "L0RD",
+   "num": "H3068",
+   "result": "Yehovah"
+  },
+  {
+   "word": "",
+   "num": "H3068",
+   "result": "Yehovah"
+  },
+  {
+   "word": "LORD",
+   "num": null,
+   "result": "LORD"
+  }
+ ],
+ "variants": [
+  {
+   "query": "Yeshua",
+   "defaults": [
+    "Yeshua",
+    "jesus"
+   ],
+   "custom": [
+    "Yeshua",
+    "jesus"
+   ]
+  },
+  {
+   "query": "yeshua wept",
+   "defaults": [
+    "yeshua wept",
+    "jesus wept"
+   ],
+   "custom": [
+    "yeshua wept",
+    "jesus wept"
+   ]
+  },
+  {
+   "query": "Jesus wept",
+   "defaults": [
+    "Jesus wept",
+    "Yeshua wept"
+   ],
+   "custom": [
+    "Jesus wept",
+    "Yeshua wept"
+   ]
+  },
+  {
+   "query": "Yeshua Messiah",
+   "defaults": [
+    "Yeshua Messiah",
+    "christ jesus",
+    "jesus christ",
+    "Yeshua christ",
+    "jesus Messiah"
+   ],
+   "custom": [
+    "Yeshua Messiah",
+    "christ jesus",
+    "jesus christ",
+    "Yeshua christ",
+    "jesus Messiah"
+   ]
+  },
+  {
+   "query": "Messiah",
+   "defaults": [
+    "Messiah",
+    "christ"
+   ],
+   "custom": [
+    "Messiah",
+    "christ"
+   ]
+  },
+  {
+   "query": "christ",
+   "defaults": [
+    "christ",
+    "Messiah"
+   ],
+   "custom": [
+    "christ",
+    "Messiah"
+   ]
+  },
+  {
+   "query": "Elijah Isaiah",
+   "defaults": [
+    "Elijah Isaiah",
+    "elias Isaiah",
+    "Elijah esaias"
+   ],
+   "custom": [
+    "Elijah Isaiah",
+    "elias Isaiah",
+    "Elijah esaias"
+   ]
+  },
+  {
+   "query": "Yeshuah",
+   "defaults": [
+    "Yeshuah"
+   ],
+   "custom": [
+    "Yeshuah"
+   ]
+  },
+  {
+   "query": "shem",
+   "defaults": [
+    "shem",
+    "sem"
+   ],
+   "custom": [
+    "shem",
+    "sem"
+   ]
+  },
+  {
+   "query": "pharaoh",
+   "defaults": [
+    "pharaoh",
+    "pharao"
+   ],
+   "custom": [
+    "pharaoh",
+    "pharao"
+   ]
+  },
+  {
+   "query": "",
+   "defaults": [
+    ""
+   ],
+   "custom": [
+    ""
+   ]
+  },
+  {
+   "query": "  ",
+   "defaults": [
+    "  "
+   ],
+   "custom": [
+    "  "
+   ]
+  },
+  {
+   "query": "Jonah and Jonas",
+   "defaults": [
+    "Jonah and Jonas",
+    "jonas and Jonas",
+    "Jonah and Jonah"
+   ],
+   "custom": [
+    "Jonah and Jonas",
+    "jonas and Jonas",
+    "Jonah and Jonah"
+   ]
+  },
+  {
+   "query": "yehovah",
+   "defaults": [
+    "yehovah"
+   ],
+   "custom": [
+    "yehovah"
+   ]
+  },
+  {
+   "query": "Yah",
+   "defaults": [
+    "Yah"
+   ],
+   "custom": [
+    "Yah"
+   ]
+  }
+ ],
+ "strongsSearch": [
+  {
+   "query": "yehovah",
+   "result": {
+    "strongsNums": [
+     "H3068",
+     "H3069"
+    ],
+    "residualWords": [],
+    "replacement": "Yehovah"
+   }
+  },
+  {
+   "query": "Yehovah said",
+   "result": {
+    "strongsNums": [
+     "H3068",
+     "H3069"
+    ],
+    "residualWords": [
+     "said"
+    ],
+    "replacement": "Yehovah"
+   }
+  },
+  {
+   "query": "the yah shall",
+   "result": {
+    "strongsNums": [
+     "H3050"
+    ],
+    "residualWords": [
+     "the",
+     "shall"
+    ],
+    "replacement": "Yah"
+   }
+  },
+  {
+   "query": "Yehovah's word",
+   "result": null
+  },
+  {
+   "query": "lord",
+   "result": null
+  },
+  {
+   "query": "",
+   "result": null
+  },
+  {
+   "query": "yah yehovah",
+   "result": {
+    "strongsNums": [
+     "H3068",
+     "H3069",
+     "H3050"
+    ],
+    "residualWords": [],
+    "replacement": "Yehovah"
+   }
+  },
+  {
+   "query": "Yehovah!",
+   "result": {
+    "strongsNums": [
+     "H3068",
+     "H3069"
+    ],
+    "residualWords": [],
+    "replacement": "Yehovah"
+   }
+  }
+ ],
+ "glosses": [
+  {
+   "def": "beginning, chief (thing), first (-fruits, part, time), principal thing.",
+   "words": [
+    "beginning",
+    "chief",
+    "first",
+    "principal",
+    "thing"
+   ]
+  },
+  {
+   "def": "× graciously, + favour",
+   "words": [
+    "graciously",
+    "favour"
+   ]
+  },
+  {
+   "def": "love; feast of charity",
+   "words": [
+    "love",
+    "feast",
+    "charity"
+   ]
+  },
+  {
+   "def": "",
+   "words": []
+  },
+  {
+   "def": "god(s)",
+   "words": []
+  },
+  {
+   "def": "Jehovah",
+   "words": [
+    "jehovah"
+   ]
+  }
+ ],
+ "windows": [
+  {
+   "text": "And it came to pass in those days that there went out a decree from Caesar Augustus that all the world should be taxed and this taxing was first made when Cyrenius was governor of Syria",
+   "indices": [
+    12
+   ],
+   "result": {
+    "windowText": "… there went out a decree from Caesar Augustus that all the world should be …",
+    "windowMatchIndices": [
+     4
+    ]
+   }
+  },
+  {
+   "text": "And it came to pass in those days that there went out a decree from Caesar Augustus that all the world should be taxed and this taxing was first made when Cyrenius was governor of Syria",
+   "indices": [
+    2
+   ],
+   "result": null
+  },
+  {
+   "text": "And it came to pass in those days that there went out a decree from Caesar Augustus that all the world should be taxed and this taxing was first made when Cyrenius was governor of Syria",
+   "indices": [
+    30
+   ],
+   "result": {
+    "windowText": "… was first made when Cyrenius was governor of Syria",
+    "windowMatchIndices": [
+     4
+    ]
+   }
+  },
+  {
+   "text": "And it came to pass in those days that there went out a decree from Caesar Augustus that all the world should be taxed and this taxing was first made when Cyrenius was governor of Syria",
+   "indices": [
+    40
+   ],
+   "result": null
+  },
+  {
+   "text": "And it came to pass in those days that there went out a decree from Caesar Augustus that all the world should be taxed and this taxing was first made when Cyrenius was governor of Syria",
+   "indices": [
+    15,
+    16,
+    25
+   ],
+   "result": {
+    "windowText": "… a decree from Caesar Augustus that all the world should be taxed and this …",
+    "windowMatchIndices": [
+     4,
+     5,
+     14
+    ]
+   }
+  },
+  {
+   "text": "short text",
+   "indices": [
+    3
+   ],
+   "result": null
+  },
+  {
+   "text": "And it came to pass in those days that there went out a decree from Caesar Augustus that all the world should be taxed and this taxing was first made when Cyrenius was governor of Syria",
+   "indices": [],
+   "result": null
+  }
+ ]
+}

@@ -137,3 +137,12 @@
   tie-order allowances removed from the drift guard and the Swift suite. New tests in bibleService.contract.test.ts.
 - OD-2 (ADR-0007): native Mac deployment target 27.0; native CI job → `macos-26` + newest Xcode 27.
 - Results: vitest 390 files / 5,779 tests; typecheck clean; drift guard 11/11 on Node 22 and 24; Swift Bible suite exact; Mac build OK.
+
+### 2026-11-07 19:55 PST — M2-02 complete (word replacer + verse display)
+- `BereanText.WordReplacer` (apply, applyStrongs, searchVariants, strongsSearch) — JavaScript `/\bq\b/gi` semantics hand-implemented
+  (Swift Regex has no lookbehind): non-unicode case canonicalisation table, ASCII word boundaries, stable rule ordering, cached
+  compiled rules. `VerseDisplay` (text, tokens, studyTokens, matchWordIndices, glossWords, wordWindow). Default rules generated
+  from `src/store/index.ts` into `Generated/DefaultWordReplacerRules.swift` (drift-guarded).
+- Golden `display.json`: every KJVA verse (replacer on/off/custom rules, display tokens, study tokens, match indices) + every 7th
+  verse of LXX/Enoch/KJV + hand cases. All reproduced.
+- Native package tests now run in release mode (`scripts/native/build.sh test`): 4 + 33 tests in ~30 s.
