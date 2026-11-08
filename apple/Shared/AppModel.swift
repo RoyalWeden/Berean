@@ -60,6 +60,9 @@ final class AppModel {
     var highlightsRevision = 0
     private(set) var settingsService: SettingsService?
     private(set) var workspaces: WorkspacesService?
+    private(set) var verseTags: VerseTagsService?
+    /// Bumped on every verse-tag write so chips and tag lists refresh.
+    var tagsRevision = 0
     /// Saved workspaces (newest first), shared with the existing apps' Settings → Layout list.
     var savedWorkspaces: [SavedWorkspace] = []
     /// Reading preferences (settings table keys shared with the existing apps where they exist).
@@ -96,6 +99,7 @@ final class AppModel {
             settingsService = SettingsService(db: db.connection)
             workspaces = WorkspacesService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) }, uuid: { Self.newId() }, onChange: { _ in })
             savedWorkspaces = (try? workspaces?.list()) ?? []
+            verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
             loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
             let rows = try svc.allRows()

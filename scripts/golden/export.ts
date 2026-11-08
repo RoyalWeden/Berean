@@ -14,6 +14,7 @@ import { buildNotesGolden } from './notes'
 import { buildHighlightsGolden } from './highlights'
 import { buildWorkspacesGolden } from './workspaces'
 import { buildNoteMarkdownGolden } from './noteMarkdown'
+import { buildVerseTagsGolden } from './verseTags'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -90,3 +91,5 @@ writeFileSync(join(GOLDEN_DIR, 'workspaces.json'), serializeGolden(await buildWo
 console.log('workspaces.json')
 writeFileSync(join(GOLDEN_DIR, 'note-markdown.json'), serializeGolden(buildNoteMarkdownGolden()))
 console.log('note-markdown.json')
+writeFileSync(join(GOLDEN_DIR, 'verse-tags.json'), serializeGolden(await buildVerseTagsGolden()))
+console.log('verse-tags.json')

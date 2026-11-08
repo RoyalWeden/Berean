@@ -1,0 +1,3025 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/verseTags.ts",
+ "sources": {
+  "src/platform/services/verseTagsService.ts": "2a10493a6282809462153c6f8483ed99ef58e52cf09c332f4c7d6590f72d68a3",
+  "scripts/golden/verseTags.ts": "52eb6ebb0aaaa85013474e41a55ef1e155612283f09adb3c7f340e41a62b9985"
+ },
+ "expandCases": [
+  [
+   {
+    "bookId": "JHN",
+    "chapter": 3,
+    "spans": [
+     {
+      "s": 16,
+      "e": 17
+     },
+     {
+      "s": 17,
+      "e": 18
+     }
+    ]
+   }
+  ],
+  [
+   {
+    "bookId": "GEN",
+    "chapter": 1,
+    "whole": true
+   },
+   {
+    "bookId": "GEN",
+    "chapter": 1,
+    "whole": true
+   }
+  ],
+  [
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "spans": [
+     {
+      "s": 0,
+      "e": 2
+     },
+     {
+      "s": 5.7,
+      "e": 3
+     },
+     {
+      "s": 1,
+      "e": 9999
+     }
+    ]
+   }
+  ],
+  [
+   {
+    "bookId": "EXO",
+    "chapter": 20,
+    "spans": []
+   },
+   {
+    "bookId": "EXO",
+    "chapter": 20
+   }
+  ]
+ ],
+ "expanded": [
+  [
+   {
+    "bookId": "JHN",
+    "chapter": 3,
+    "verse": 16
+   },
+   {
+    "bookId": "JHN",
+    "chapter": 3,
+    "verse": 17
+   },
+   {
+    "bookId": "JHN",
+    "chapter": 3,
+    "verse": 18
+   }
+  ],
+  [
+   {
+    "bookId": "GEN",
+    "chapter": 1,
+    "verse": 0
+   }
+  ],
+  [
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 1
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 2
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 5
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 3
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 4
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 6
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 7
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 8
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 9
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 10
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 11
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 12
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 13
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 14
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 15
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 16
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 17
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 18
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 19
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 20
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 21
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 22
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 23
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 24
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 25
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 26
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 27
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 28
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 29
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 30
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 31
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 32
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 33
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 34
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 35
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 36
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 37
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 38
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 39
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 40
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 41
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 42
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 43
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 44
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 45
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 46
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 47
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 48
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 49
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 50
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 51
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 52
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 53
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 54
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 55
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 56
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 57
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 58
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 59
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 60
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 61
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 62
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 63
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 64
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 65
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 66
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 67
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 68
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 69
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 70
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 71
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 72
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 73
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 74
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 75
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 76
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 77
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 78
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 79
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 80
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 81
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 82
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 83
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 84
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 85
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 86
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 87
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 88
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 89
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 90
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 91
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 92
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 93
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 94
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 95
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 96
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 97
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 98
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 99
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 100
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 101
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 102
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 103
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 104
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 105
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 106
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 107
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 108
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 109
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 110
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 111
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 112
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 113
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 114
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 115
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 116
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 117
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 118
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 119
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 120
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 121
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 122
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 123
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 124
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 125
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 126
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 127
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 128
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 129
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 130
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 131
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 132
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 133
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 134
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 135
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 136
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 137
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 138
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 139
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 140
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 141
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 142
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 143
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 144
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 145
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 146
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 147
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 148
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 149
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 150
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 151
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 152
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 153
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 154
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 155
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 156
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 157
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 158
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 159
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 160
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 161
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 162
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 163
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 164
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 165
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 166
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 167
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 168
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 169
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 170
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 171
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 172
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 173
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 174
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 175
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 176
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 177
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 178
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 179
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 180
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 181
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 182
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 183
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 184
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 185
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 186
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 187
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 188
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 189
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 190
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 191
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 192
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 193
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 194
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 195
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 196
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 197
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 198
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 199
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 200
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 201
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 202
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 203
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 204
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 205
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 206
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 207
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 208
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 209
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 210
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 211
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 212
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 213
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 214
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 215
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 216
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 217
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 218
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 219
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 220
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 221
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 222
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 223
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 224
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 225
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 226
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 227
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 228
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 229
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 230
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 231
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 232
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 233
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 234
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 235
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 236
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 237
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 238
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 239
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 240
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 241
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 242
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 243
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 244
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 245
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 246
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 247
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 248
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 249
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 250
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 251
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 252
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 253
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 254
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 255
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 256
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 257
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 258
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 259
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 260
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 261
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 262
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 263
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 264
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 265
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 266
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 267
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 268
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 269
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 270
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 271
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 272
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 273
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 274
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 275
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 276
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 277
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 278
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 279
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 280
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 281
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 282
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 283
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 284
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 285
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 286
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 287
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 288
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 289
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 290
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 291
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 292
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 293
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 294
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 295
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 296
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 297
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 298
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 299
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 300
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 301
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 302
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 303
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 304
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 305
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 306
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 307
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 308
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 309
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 310
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 311
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 312
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 313
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 314
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 315
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 316
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 317
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 318
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 319
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 320
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 321
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 322
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 323
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 324
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 325
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 326
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 327
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 328
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 329
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 330
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 331
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 332
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 333
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 334
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 335
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 336
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 337
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 338
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 339
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 340
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 341
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 342
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 343
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 344
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 345
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 346
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 347
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 348
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 349
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 350
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 351
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 352
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 353
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 354
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 355
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 356
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 357
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 358
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 359
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 360
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 361
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 362
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 363
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 364
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 365
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 366
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 367
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 368
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 369
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 370
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 371
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 372
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 373
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 374
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 375
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 376
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 377
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 378
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 379
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 380
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 381
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 382
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 383
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 384
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 385
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 386
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 387
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 388
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 389
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 390
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 391
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 392
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 393
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 394
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 395
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 396
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 397
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 398
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 399
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 400
+   },
+   {
+    "bookId": "PSA",
+    "chapter": 119,
+    "verse": 401
+   }
+  ],
+  []
+ ],
+ "steps": [
+  [
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 0,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 0,
+    "verseCount": 0,
+    "chapterCount": 0
+   }
+  ],
+  [
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 0,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 0,
+    "verseCount": 0,
+    "chapterCount": 0
+   }
+  ],
+  [
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 0,
+    "verseCount": 0,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 0,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 0,
+    "verseCount": 0,
+    "chapterCount": 0
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Covenant",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 0,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Covenant",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 0,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 4,
+    "chapterCount": 1
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 0,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 4,
+    "chapterCount": 1
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": "#00aa00",
+    "createdAt": 70000,
+    "colorSlot": 0,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 4,
+    "chapterCount": 1
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 11,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 4,
+    "chapterCount": 1
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 11,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 4,
+    "chapterCount": 1
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   }
+  ],
+  {
+   "verseTags": {
+    "8": [
+     {
+      "id": "t3",
+      "name": "Appointed Times",
+      "color": null,
+      "colorSlot": 2
+     },
+     {
+      "id": "t2",
+      "name": "Feasts",
+      "color": "#ff0000",
+      "colorSlot": 1
+     },
+     {
+      "id": "t1",
+      "name": "Sabbath",
+      "color": null,
+      "colorSlot": 11
+     }
+    ],
+    "9": [
+     {
+      "id": "t3",
+      "name": "Appointed Times",
+      "color": null,
+      "colorSlot": 2
+     },
+     {
+      "id": "t2",
+      "name": "Feasts",
+      "color": "#ff0000",
+      "colorSlot": 1
+     },
+     {
+      "id": "t1",
+      "name": "Sabbath",
+      "color": null,
+      "colorSlot": 11
+     }
+    ],
+    "10": [
+     {
+      "id": "t3",
+      "name": "Appointed Times",
+      "color": null,
+      "colorSlot": 2
+     },
+     {
+      "id": "t2",
+      "name": "Feasts",
+      "color": "#ff0000",
+      "colorSlot": 1
+     },
+     {
+      "id": "t1",
+      "name": "Sabbath",
+      "color": null,
+      "colorSlot": 11
+     }
+    ],
+    "11": [
+     {
+      "id": "t3",
+      "name": "Appointed Times",
+      "color": null,
+      "colorSlot": 2
+     },
+     {
+      "id": "t2",
+      "name": "Feasts",
+      "color": "#ff0000",
+      "colorSlot": 1
+     },
+     {
+      "id": "t1",
+      "name": "Sabbath",
+      "color": null,
+      "colorSlot": 11
+     }
+    ]
+   },
+   "chapterTags": []
+  },
+  {
+   "verseTags": {},
+   "chapterTags": [
+    {
+     "id": "t1",
+     "name": "Sabbath",
+     "color": null,
+     "colorSlot": 11
+    }
+   ]
+  },
+  {
+   "verseTags": {},
+   "chapterTags": []
+  },
+  [
+   {
+    "memberId": "t5",
+    "tagId": "t3",
+    "tagName": "Appointed Times",
+    "tagColor": null,
+    "tagColorSlot": 2,
+    "kind": "verses",
+    "label": "Exodus 20:8-11",
+    "ranges": [
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "spans": [
+       {
+        "s": 8,
+        "e": 11
+       }
+      ]
+     }
+    ],
+    "verses": [
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 8
+     },
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 9
+     },
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 10
+     },
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 11
+     }
+    ],
+    "wholeChapters": []
+   },
+   {
+    "memberId": "t4",
+    "tagId": "t1",
+    "tagName": "Sabbath",
+    "tagColor": null,
+    "tagColorSlot": 11,
+    "kind": "verses",
+    "label": "Exodus 20:8-11",
+    "ranges": [
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "spans": [
+       {
+        "s": 8,
+        "e": 11
+       }
+      ]
+     }
+    ],
+    "verses": [
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 8
+     },
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 9
+     },
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 10
+     },
+     {
+      "bookId": "EXO",
+      "chapter": 20,
+      "verse": 11
+     }
+    ],
+    "wholeChapters": []
+   },
+   {
+    "memberId": "t7",
+    "tagId": "t1",
+    "tagName": "Sabbath",
+    "tagColor": null,
+    "tagColorSlot": 11,
+    "kind": "chapter",
+    "label": "Genesis 2",
+    "ranges": [
+     {
+      "bookId": "GEN",
+      "chapter": 2,
+      "whole": true
+     }
+    ],
+    "verses": [],
+    "wholeChapters": [
+     {
+      "bookId": "GEN",
+      "chapter": 2
+     }
+    ]
+   }
+  ],
+  [],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 11,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 1,
+    "chapterCount": 1
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 11,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 0,
+    "chapterCount": 2
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 11,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 0,
+    "chapterCount": 2
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   }
+  ],
+  [
+   {
+    "id": "t3",
+    "name": "Appointed Times",
+    "color": null,
+    "createdAt": 70030,
+    "colorSlot": 2,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   },
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 11,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 2,
+    "verseCount": 0,
+    "chapterCount": 2
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   }
+  ],
+  {
+   "deleted": false,
+   "blocked": true,
+   "noteRefCount": 1,
+   "name": "Appointed Times"
+  },
+  {
+   "deleted": true,
+   "list": [
+    {
+     "id": "t1",
+     "name": "Sabbath",
+     "color": null,
+     "createdAt": 70000,
+     "colorSlot": 11,
+     "graphX": null,
+     "graphY": null,
+     "graphPinned": false,
+     "memberCount": 2,
+     "verseCount": 0,
+     "chapterCount": 2
+    },
+    {
+     "id": "t2",
+     "name": "Feasts",
+     "color": "#ff0000",
+     "createdAt": 70020,
+     "colorSlot": 1,
+     "graphX": null,
+     "graphY": null,
+     "graphPinned": false,
+     "memberCount": 1,
+     "verseCount": 4,
+     "chapterCount": 0
+    }
+   ]
+  },
+  {
+   "deleted": false,
+   "notFound": true
+  },
+  [
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "createdAt": 70000,
+    "colorSlot": 11,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 0,
+    "chapterCount": 1
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "createdAt": 70020,
+    "colorSlot": 1,
+    "graphX": null,
+    "graphY": null,
+    "graphPinned": false,
+    "memberCount": 1,
+    "verseCount": 4,
+    "chapterCount": 0
+   }
+  ]
+ ],
+ "events": [
+  {
+   "entity": "verse_tag",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t2",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t3",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag_member",
+   "id": "t4",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag_member",
+   "id": "t5",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag_member",
+   "id": "t6",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag_member",
+   "id": "t7",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t3",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": null,
+   "op": "bulk"
+  },
+  {
+   "entity": "verse_tag_member",
+   "id": "t4",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag_member",
+   "id": "t4",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t4",
+   "op": "delete"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t1",
+   "op": "upsert"
+  },
+  {
+   "entity": "verse_tag",
+   "id": "t3",
+   "op": "delete"
+  },
+  {
+   "entity": "verse_tag_member",
+   "id": "t4",
+   "op": "delete"
+  }
+ ],
+ "tables": {
+  "verse_tags": [
+   {
+    "id": "t1",
+    "name": "Sabbath",
+    "color": null,
+    "sort_order": 1,
+    "created_at": 70000,
+    "color_slot": 11,
+    "graph_x": null,
+    "graph_y": null,
+    "graph_pinned": 0
+   },
+   {
+    "id": "t2",
+    "name": "Feasts",
+    "color": "#ff0000",
+    "sort_order": null,
+    "created_at": 70020,
+    "color_slot": 1,
+    "graph_x": null,
+    "graph_y": null,
+    "graph_pinned": 0
+   }
+  ],
+  "verse_tag_members": [
+   {
+    "id": "t6",
+    "tag_id": "t2",
+    "kind": "verses",
+    "ranges": "[{\"bookId\":\"EXO\",\"chapter\":20,\"spans\":[{\"s\":8,\"e\":11}]}]",
+    "label": "Exodus 20:8-11",
+    "created_at": 70030
+   },
+   {
+    "id": "t7",
+    "tag_id": "t1",
+    "kind": "chapter",
+    "ranges": "[{\"bookId\":\"GEN\",\"chapter\":2,\"whole\":true}]",
+    "label": "Genesis 2",
+    "created_at": 70040
+   }
+  ],
+  "verse_tag_verse": [
+   {
+    "tag_id": "t2",
+    "member_id": "t6",
+    "book_id": "EXO",
+    "chapter": 20,
+    "verse": 8
+   },
+   {
+    "tag_id": "t2",
+    "member_id": "t6",
+    "book_id": "EXO",
+    "chapter": 20,
+    "verse": 9
+   },
+   {
+    "tag_id": "t2",
+    "member_id": "t6",
+    "book_id": "EXO",
+    "chapter": 20,
+    "verse": 10
+   },
+   {
+    "tag_id": "t2",
+    "member_id": "t6",
+    "book_id": "EXO",
+    "chapter": 20,
+    "verse": 11
+   },
+   {
+    "tag_id": "t1",
+    "member_id": "t7",
+    "book_id": "GEN",
+    "chapter": 2,
+    "verse": 0
+   }
+  ],
+  "tag_edges": []
+ }
+}

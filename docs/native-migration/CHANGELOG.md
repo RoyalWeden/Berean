@@ -310,3 +310,26 @@
   shows the session "Study Phone" with its tab.
 - Naming: the native iPhone uses "Sessions" (as the existing tab sheet does) and "Saved Workspaces" (the existing iPhone More page calls
   these "Saved snapshots") so the Mac and iPhone native apps use one vocabulary.
+
+### 2026-11-08 11:30 PST — Verse tags (service + reader UI) and the verse-actions bug
+- `BereanNotes.VerseTagsService` is a port of verseTagsService.ts: expand, list, create (case-insensitive find-or-create, least-used colour
+  slot), rename, setColor, setColorSlot, reorder, merge, delete (refuses while a note says "#name" unless forced), addMembers,
+  removeMember, updateMemberRanges, forChapter, members.
+  - Golden `verse-tags.json`: 4 expansion cases (dedup, whole chapter, 400-verse cap, fractional spans) and a 22-step script.
+  - Results, events and all four tables (`verse_tags`, `verse_tag_members`, `verse_tag_verse`, `tag_edges`) are reproduced exactly.
+  - `Math.random` is pinned in the golden; Swift takes an injected `pick`.
+- Reader:
+  - "#name" chips under tagged verses, in palette or literal colours; whole-chapter tags above the passage.
+  - Verse menu: Tag Verse… / Tag Chapter…, opening a picker that filters and creates (Return creates, or applies the single match).
+  - Chip menu: Remove “label” from #tag, and Search #tag.
+  - Search tab: "#name" lists the tag's members with verse text.
+- BUG FIXED: right-clicking verse TEXT showed the system text-editing menu (the text is selectable), so the verse actions (Copy,
+  Highlight, Tag, Note, Cross References…) were reachable only from the margin. The verse number now opens the verse actions menu, as the
+  existing app's verse popover does (CLAUDE.md §6); the row context menu shares the same items.
+- Verified in the running Mac app:
+  - verse number 16 → menu → Tag Verse… → typed "Gospel" → Create → chip shown;
+  - verse 17 → Tag Verse… → "Gospel" + Return → chip shown;
+  - chip → Search #Gospel → results with John 3:16 text.
+- Checks: Swift 62 tests/25 suites PASS; golden drift guard 22/22 PASS; Mac + iOS builds PASS.
+- Found while testing: Return in `.searchable` inside a macOS sheet does nothing (`onSubmit(of: .search)` never fires), and the field
+  was not focused, so typing went nowhere. Replaced with a focused TextField.
