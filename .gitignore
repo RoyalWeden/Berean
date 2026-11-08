@@ -57,3 +57,11 @@ electron/db-generated/
 # Database backups, whatever the suffix
 *.db.bak*
 scratch/
+
+# Native Swift apps (docs/native-migration) — build output stays inside the checkout (ADR-0004)
+build/apple/
+Packages/*/.build/
+Packages/*/.swiftpm/
+apple/**/xcuserdata/
+apple/**/*.xcodeproj/project.xcworkspace/xcuserdata/
+apple/Config/Signing.xcconfig

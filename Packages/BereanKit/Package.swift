@@ -1,0 +1,31 @@
+// swift-tools-version: 6.0
+// BereanKit — shared, UI-free Swift modules for the native Berean apps (BereanMac, BereanIOS).
+// See docs/native-migration/MASTER-SPECIFICATION.md §3 and DECISIONS.md.
+import PackageDescription
+
+let package = Package(
+    name: "BereanKit",
+    // Trial deployment floor (spec C2: owner decision pending — trial iOS 18 / macOS 15).
+    platforms: [.macOS(.v15), .iOS(.v18)],
+    products: [
+        .library(name: "BereanCore", targets: ["BereanCore"]),
+        .library(name: "BereanSync", targets: ["BereanSync"]),
+    ],
+    targets: [
+        // JavaScript-compatible JSON value model: UTF-16 strings, JS property order,
+        // JSON.parse / JSON.stringify fidelity (the sync hashes are computed over that text).
+        .target(name: "BereanCore"),
+        // Sync wire format: record/field hashes, hybrid logical clock, journal files,
+        // fractional order keys. TypeScript (src/platform/sync) is the oracle.
+        .target(name: "BereanSync", dependencies: ["BereanCore"]),
+        .testTarget(name: "BereanCoreTests", dependencies: ["BereanCore"]),
+        // Golden-corpus conformance: fixtures exported from the TypeScript implementation
+        // by `npm run golden:export` (scripts/golden). Never hand-edit Golden/*.json.
+        .testTarget(
+            name: "BereanConformanceTests",
+            dependencies: ["BereanCore", "BereanSync"],
+            resources: [.copy("Golden")]
+        ),
+    ],
+    swiftLanguageModes: [.v6]
+)

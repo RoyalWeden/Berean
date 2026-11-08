@@ -59,3 +59,23 @@ jobs:
 
       - name: Build iPhone web bundle
         run: npm run ios:build:web
+
+  native:
+    name: Native Swift (BereanKit conformance, Mac + iOS Simulator builds)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: xcodebuild -version && swift --version
+
+      # Golden fixtures are committed; the TypeScript drift guard runs in the check job.
+      - name: BereanKit conformance tests
+        run: npm run native:test
+
+      - name: Build BereanMac
+        run: npm run native:build:mac
+
+      - name: Build BereanIOS (Simulator)
+        run: npm run native:build:ios

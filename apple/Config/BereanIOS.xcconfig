@@ -1,0 +1,14 @@
+#include "Base.xcconfig"
+// Native iPhone app — development identity. Distinct from production (com.berean.app) and from
+// the Capacitor "Berean Dev" (com.berean.app.dev), which stay installed side by side.
+SDKROOT = iphoneos
+SUPPORTED_PLATFORMS = iphoneos iphonesimulator
+IPHONEOS_DEPLOYMENT_TARGET = 18.0
+TARGETED_DEVICE_FAMILY = 1
+PRODUCT_BUNDLE_IDENTIFIER = com.berean.native.ios.dev
+CODE_SIGN_STYLE = Automatic
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/Frameworks
+INFOPLIST_KEY_UILaunchScreen_Generation = YES
+INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES
+INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES
+INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight

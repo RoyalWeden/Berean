@@ -1,0 +1,7280 @@
+{
+ "cases": [
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "a": 1
+   },
+   "recordHash": "8b9e45117",
+   "fieldHashes": {
+    "a": "340ca71c1"
+   }
+  },
+  {
+   "fields": {
+    "b": 1,
+    "a": 2
+   },
+   "recordHash": "af62f0e3d",
+   "fieldHashes": {
+    "b": "340ca71c1",
+    "a": "370cabd51"
+   }
+  },
+  {
+   "fields": {
+    "2": "x",
+    "10": "y",
+    "b": "z",
+    "a": "w"
+   },
+   "recordHash": "497b60fb22",
+   "fieldHashes": {
+    "2": "d3df591f3",
+    "10": "f1dd49c23",
+    "b": "63e4b8fd3",
+    "a": "71c47b5c3"
+   }
+  },
+  {
+   "fields": {
+    "nested": {
+     "z": 1,
+     "a": {
+      "d": [
+       {
+        "y": 1,
+        "x": 2
+       }
+      ],
+      "c": null
+     }
+    }
+   },
+   "recordHash": "157d152035",
+   "fieldHashes": {
+    "nested": "2e3402b916"
+   }
+  },
+  {
+   "fields": {
+    "id": "n1",
+    "title": "Gen 1:1 — Creation",
+    "content": "In the beginning Yehovah created…",
+    "book_num": 1,
+    "chapter": 1,
+    "verse": 1,
+    "color": "blue",
+    "tags": "[\"creation\"]"
+   },
+   "recordHash": "a7976ba0a0",
+   "fieldHashes": {
+    "id": "63d9ef664",
+    "title": "b72ab782k",
+    "content": "a70b44d0z",
+    "book_num": "340ca71c1",
+    "chapter": "340ca71c1",
+    "verse": "340ca71c1",
+    "color": "c1a28b1d6",
+    "tags": "ae824864g"
+   }
+  },
+  {
+   "fields": {
+    "text": "בְּרֵאשִׁית",
+    "greek": "χάρις",
+    "emoji": "👨‍👩‍👧‍👦",
+    "flag": "🇮🇱"
+   },
+   "recordHash": "5864f8944a",
+   "fieldHashes": {
+    "text": "5028af62d",
+    "greek": "8b100a887",
+    "emoji": "045a3196d",
+    "flag": "1f02d49e6"
+   }
+  },
+  {
+   "fields": {
+    "n": 0.1,
+    "m": 1e+21,
+    "k": 1e-7,
+    "big": 9007199254740994,
+    "neg": 0
+   },
+   "recordHash": "d6b0f33f3b",
+   "fieldHashes": {
+    "n": "5080ae863",
+    "m": "b6a7b1f55",
+    "k": "5228e5cf4",
+    "big": "afb18e64g",
+    "neg": "350ca8af1"
+   }
+  },
+  {
+   "fields": {
+    "s": "\ud83d",
+    "t": "\udc4dA"
+   },
+   "recordHash": "4cb9a5931c",
+   "fieldHashes": {
+    "s": "cbf705998",
+    "t": "c03480149"
+   }
+  },
+  {
+   "fields": {
+    "nul": null,
+    "arr": [
+     null,
+     [],
+     {},
+     [
+      1,
+      [
+       2,
+       [
+        3
+       ]
+      ]
+     ]
+    ]
+   },
+   "recordHash": "bcbe44992b",
+   "fieldHashes": {
+    "nul": "77074ba44",
+    "arr": "081e9d88o"
+   }
+  },
+  {
+   "fields": {
+    "é": 1,
+    "é": 2,
+    "😀": 3,
+    "中": 4,
+    "Z": 5,
+    "a": 6
+   },
+   "recordHash": "62ee7b4e27",
+   "fieldHashes": {
+    "é": "340ca71c1",
+    "é": "370cabd51",
+    "😀": "360caa421",
+    "中": "310ca2631",
+    "Z": "300ca0d01",
+    "a": "330ca5891"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": 5607.26,
+    "a b": null,
+    "__proto__x": 1.8867250247779947e+199,
+    "content": 36,
+    "tags": {},
+    "book_num": [
+     [
+      false,
+      {},
+      null
+     ],
+     false,
+     "🗮-~͹ή<",
+     {
+      "λ": {
+       "0": true,
+       "__proto__x": false,
+       "a\ud83d": false
+      },
+      "-1": 637169157
+     }
+    ]
+   },
+   "recordHash": "1084452bcd",
+   "fieldHashes": {
+    "4294967294": "d7783c8b7",
+    "a b": "77074ba44",
+    "__proto__x": "fddfc467n",
+    "content": "89f0549c2",
+    "tags": "5465b8252",
+    "book_num": "98a195682s"
+   }
+  },
+  {
+   "fields": {
+    "tags": "",
+    "b": false,
+    "__proto__x": [],
+    "01": false,
+    "4294967295": null
+   },
+   "recordHash": "ebad605542",
+   "fieldHashes": {
+    "tags": "ffcaaa852",
+    "b": "0b0699585",
+    "__proto__x": "741638a52",
+    "01": "0b0699585",
+    "4294967295": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "4🔊䘫\udc0b": 515554123,
+    "[[Exod 20:11]]": 7287.18,
+    "\u0000\u0001\u001f": false
+   },
+   "recordHash": "0c9351104d",
+   "fieldHashes": {
+    "4🔊䘫\udc0b": "f10062349",
+    "[[Exod 20:11]]": "5357ed247",
+    "\u0000\u0001\u001f": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "1": [
+     312737978,
+     null,
+     {
+      "verse": {
+       "chapter": -1,
+       "ä": "ϋ֤cx֤🔳ͻV"
+      },
+      "鳢O%쩦\uda10׿Ꮝ": null,
+      "updated_at": [],
+      "1.5": [
+       "🎀",
+       1e+21,
+       "\udbff􏿿"
+      ]
+     }
+    ],
+    "ZACu벨O": null,
+    "}`bUW䆓": 9415.98,
+    "שם": 120172086,
+    "chapter": null,
+    "": {
+     "\udbff􏿿": {
+      "\u0012|\"y)&#\u0000\ude4f": false,
+      "׭Qלiu;B💞ﹾ🐑": "\udfff",
+      "ϓn֟&v": null
+     }
+    },
+    "é": false
+   },
+   "recordHash": "8f82f2a1121",
+   "fieldHashes": {
+    "1": "5b5f03c43f",
+    "ZACu벨O": "77074ba44",
+    "}`bUW䆓": "3cebd20d7",
+    "שם": "6e36d25e9",
+    "chapter": "77074ba44",
+    "": "8a9670cb2d",
+    "é": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "-1": 0.0013513513513513514,
+    "\udfff": 0.0011273957158962795,
+    "⼉:Nꢥ?": {},
+    "שם": -4.948901529512848e-51,
+    "a b": false
+   },
+   "recordHash": "c079cefc6e",
+   "fieldHashes": {
+    "-1": "a2159417l",
+    "\udfff": "242bcdd2l",
+    "⼉:Nꢥ?": "5465b8252",
+    "שם": "9e1a18afm",
+    "a b": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": {
+     "aa": ""
+    },
+    "": {
+     "👍\ud83d": null
+    },
+    "😀": "\ude11銴A",
+    "é": {
+     "__proto__x": -162637
+    }
+   },
+   "recordHash": "f76e4e5659",
+   "fieldHashes": {
+    "4294967294": "ccb759099",
+    "": "4e8b0566h",
+    "😀": "f3ef4486a",
+    "é": "a32b54d7m"
+   }
+  },
+  {
+   "fields": {
+    "WZXg׬\u0001yֲ": 96,
+    "B": [
+     {},
+     "",
+     false,
+     {
+      "t\u0007ϼ?ִ֜$-": 0.0016556291390728477,
+      "verse": {
+       "verse": 0.002617801047120419
+      },
+      "a\ud83d": false
+     }
+    ],
+    "color": "a\ud83d",
+    "\ud800": "?״A\uda07\b;",
+    "_": false,
+    "﻿bom": 33,
+    "updated_at": null
+   },
+   "recordHash": "3413fb81d5",
+   "fieldHashes": {
+    "WZXg׬\u0001yֲ": "09fe95a62",
+    "B": "0c7858d330",
+    "color": "2c02f7829",
+    "\ud800": "9a541437e",
+    "_": "0b0699585",
+    "﻿bom": "86f04fe32",
+    "updated_at": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "a\ud83d": 69,
+    "*": {
+     "created_at": -2.868233716160609e-104,
+     "4294967295": false,
+     "01": 0.00077433316
+    },
+    "": {
+     "a": null
+    },
+    "verse": false
+   },
+   "recordHash": "92fc4ed67b",
+   "fieldHashes": {
+    "a\ud83d": "0ce8d4102",
+    "*": "46c6ddaa24",
+    "": "1b65dc51a",
+    "verse": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "__proto__x": null
+   },
+   "recordHash": "26f51c5a13",
+   "fieldHashes": {
+    "__proto__x": "77074ba44"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "1": {},
+    "ξ\rC\u000f8s9": 1.9796745354748116e-112,
+    "": "Q🍔T/🖿🍲\"ί֑)💻",
+    "😀": "tab\there",
+    " ": {
+     "chapter": 1.7976931348623157e+308,
+     "B": 41,
+     "😀": {
+      "content": 9007199254740991
+     }
+    },
+    "a b": [
+     [
+      {
+       "0": -362158,
+       "1": null,
+       "deleted": null,
+       "_": 36
+      }
+     ]
+    ]
+   },
+   "recordHash": "975a6eccdf",
+   "fieldHashes": {
+    "1": "5465b8252",
+    "ξ\rC\u000f8s9": "aff84042n",
+    "": "ef242f3ei",
+    "😀": "5dbf4a88b",
+    " ": "1be8966624",
+    "a b": "83e43ff91c"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     "10": null,
+     "]e׃\udc06\u001b": 5523.3,
+     "\udf37`\u000f": null,
+     "é": [
+      false,
+      true
+     ]
+    },
+    "4294967294": 7.44037738e-14,
+    "id": {
+     "": {
+      "book_num": {
+       "é": null,
+       "😀": false,
+       "title": "\udc4db"
+      },
+      "-1": [
+       false,
+       false
+      ],
+      "aa": 2141036584
+     },
+     "ױ\ud896\ud90cϑz\u0015\u0013(Fu4": {
+      "0": [
+       "a\ud83d",
+       0.008695652173913044
+      ],
+      "created_at": false,
+      "\udbff􏿿": 0.0017421602787456446,
+      "a b": null
+     },
+     "\udac2🍢aϗ": null,
+     "y\u000e|4װ風%🎮💵": {
+      "Z": "kc9;Ή🕍"
+     }
+    },
+    "1.5": 1,
+    "deleted": [
+     {
+      "C\udceaNמϓꯂ䜯*F": "mϯ^Η׶"
+     },
+     true,
+     true
+    ]
+   },
+   "recordHash": "eb45e4a61c6",
+   "fieldHashes": {
+    "9": "2b0a90ef22",
+    "4294967294": "29c5aad7e",
+    "id": "59f1138a7v",
+    "1.5": "340ca71c1",
+    "deleted": "7a781d3112"
+   }
+  },
+  {
+   "fields": {
+    "🔰๺\udf7eΰ\udeeb": true,
+    "é": [
+     true,
+     {
+      "é": {
+       "created_at": false
+      },
+      "-֠\u0003Χ~": {
+       "-1": true,
+       "x🐛&🔭j\u000fRBGk": 287546384000000000,
+       "Z": 42222258400000,
+       "😀": true
+      },
+      "΂ဆ\u0006\ud936בׇ]|֡\ude8b>": true
+     },
+     "d\udcf0)쿱"
+    ],
+    "01": true,
+    "-1": {},
+    "4294967295": [],
+    "": "PV"
+   },
+   "recordHash": "3a6c1ce9f6",
+   "fieldHashes": {
+    "🔰๺\udf7eΰ\udeeb": "4db211e54",
+    "é": "b825ee664t",
+    "01": "4db211e54",
+    "-1": "5465b8252",
+    "4294967295": "741638a52",
+    "": "7445899b4"
+   }
+  },
+  {
+   "fields": {
+    "0": {
+     "": "\udbff􏿿",
+     "4294967295": null,
+     "1.5": "\u001f`ϓ\u0016"
+    },
+    "9": 5.04646823e+21,
+    "é": -282852,
+    "Z": true,
+    "5u֙w\udb06~\udb9bR\udd69e^": {
+     "aa": true,
+     "verse": null,
+     "B": 1.8970598e-10,
+     "content": true
+    },
+    "book_num": "PzJꕻ",
+    "color": null,
+    "4294967295": [
+     77
+    ]
+   },
+   "recordHash": "d5e101a2ef",
+   "fieldHashes": {
+    "0": "ffefb7471k",
+    "9": "25bb4bcce",
+    "é": "0783794f7",
+    "Z": "4db211e54",
+    "5u֙w\udb06~\udb9bR\udd69e^": "769ca77e1l",
+    "book_num": "8268e20a6",
+    "color": "77074ba44",
+    "4294967295": "b8c251a74"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "a\ud83d": 0.001182033096926714,
+    "verse": true,
+    "中": 1184141322,
+    "a": "𝔊𝔬𝔡",
+    "id": {
+     "order_key": 98,
+     "tags": 6.38132034e-14
+    },
+    "updated_at": [
+     {
+      "é": "\u0011֖LF.\uddd3",
+      "🍚6🍙ﰟf🗱": null
+     },
+     {
+      "a b": "ὁ λόγος σὰρξ ἐγένετο"
+     },
+     false,
+     3.38194845e-24
+    ]
+   },
+   "recordHash": "99ee8f2be4",
+   "fieldHashes": {
+    "a\ud83d": "b6ffe61bk",
+    "verse": "4db211e54",
+    "中": "cdc26dbea",
+    "a": "711e56258",
+    "id": "6b4fb00e12",
+    "updated_at": "a3918b032p"
+   }
+  },
+  {
+   "fields": {
+    "1": null,
+    "中": {
+     "1.5": {
+      "chapter": false,
+      "title": "line\nbreak",
+      "01": "Gen 1:1",
+      "<J\udfdb🔱🌗NU*ֺ💌": [
+       false,
+       8916.56,
+       null
+      ]
+     },
+     "aa": 17,
+     "a": true
+    },
+    "id": null,
+    "order_key": [
+     0.0010845986984815619,
+     {
+      "😀": 1.0150254907330245e-57,
+      "-1": "夬Rf֟{膄_`\ude3fೊ"
+     }
+    ],
+    "title": {
+     "2": null
+    },
+    "aa": {
+     "b": null,
+     "content": "a\ud83d",
+     "$👸\tϩ[jL0E\ud885": 9007199254740992,
+     "chapter": null
+    },
+    "deleted": {}
+   },
+   "recordHash": "8009bc44163",
+   "fieldHashes": {
+    "1": "77074ba44",
+    "中": "1064597f3d",
+    "id": "77074ba44",
+    "order_key": "0842775b24",
+    "title": "3384d282a",
+    "aa": "ccfdf7292a",
+    "deleted": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "id": null,
+    "/b׃\"9\udddc": 5826.57,
+    "aa": {
+     "01": [],
+     "deleted": -1,
+     "chapter": 4168957830000
+    }
+   },
+   "recordHash": "4ab2ac7556",
+   "fieldHashes": {
+    "id": "77074ba44",
+    "/b׃\"9\udddc": "67b896067",
+    "aa": "107d161b1a"
+   }
+  },
+  {
+   "fields": {
+    "color": null
+   },
+   "recordHash": "ea03b915e",
+   "fieldHashes": {
+    "color": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "é": [],
+    "B": true,
+    "_": {
+     "order_key": "[[Exod 20:11]]",
+     "é": [],
+     "a": ">ξ\u0013🐟"
+    },
+    "ä": {
+     "\udc4d\ud83d": -995752
+    },
+    "updated_at": -1961457932
+   },
+   "recordHash": "5cd75d9982",
+   "fieldHashes": {
+    "é": "741638a52",
+    "B": "4db211e54",
+    "_": "69489b0e1i",
+    "ä": "07de6f1fo",
+    "updated_at": "8c105945b"
+   }
+  },
+  {
+   "fields": {
+    "B": {}
+   },
+   "recordHash": "bc92f0c58",
+   "fieldHashes": {
+    "B": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     "9": [
+      {
+       "book_num": false
+      }
+     ],
+     "B": true,
+     "4294967295": 1
+    }
+   },
+   "recordHash": "36cb368c38",
+   "fieldHashes": {
+    "9": "a39dca1f1e"
+   }
+  },
+  {
+   "fields": {
+    "2": -68755,
+    "created_at": [
+     41
+    ],
+    "ä": 1613030608237,
+    "é": "ֺS\u000f-\u000fh-銩T",
+    "{\"json\":true}": "֖",
+    "-1": 0.0013531799729364006
+   },
+   "recordHash": "bd10af277c",
+   "fieldHashes": {
+    "2": "d01c9ba56",
+    "created_at": "66aabc744",
+    "ä": "a3dc5433d",
+    "é": "0e33c081l",
+    "{\"json\":true}": "e69e87713",
+    "-1": "929af45cl"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     "ä": -1781077734,
+     "👍": 1714561467111,
+     "updated_at": {
+      "10": 0.00000830389791,
+      "id": "o֔,봙📄🏲7薳9\\1",
+      "a": {
+       "10": 6233610452097.305,
+       "4294967294": null
+      },
+      "γ\f📁rףN\udf00👜": null
+     }
+    },
+    "Z": {
+     "1": 0,
+     "4294967294": true,
+     "a": null,
+     "chapter": []
+    },
+    "中": false,
+    "chapter": {
+     "__proto__x": {
+      "10": false,
+      "ä": 0.012048192771084338,
+      "Z": "\udc80־׾\u0012🍽🌊I\udd19δr\t"
+     }
+    },
+    "é": [
+     null
+    ],
+    "tags": "\ud800"
+   },
+   "recordHash": "38aacd83168",
+   "fieldHashes": {
+    "9": "db56408a4m",
+    "Z": "b3600b4b1b",
+    "中": "0b0699585",
+    "chapter": "040b66982g",
+    "é": "5f74b2a26",
+    "tags": "3ffd2a2c8"
+   }
+  },
+  {
+   "fields": {
+    "0": 85,
+    "1": -988257
+   },
+   "recordHash": "13e8665714",
+   "fieldHashes": {
+    "0": "8d01a2762",
+    "1": "a91931a77"
+   }
+  },
+  {
+   "fields": {
+    "9": null,
+    "tags": [
+     1763030529912,
+     false
+    ],
+    "a b": 1638584781071,
+    "aa": -831206,
+    "b": {
+     "a b": false,
+     "title": [
+      [
+       null,
+       0,
+       null,
+       61
+      ],
+      {
+       "2": "᪎Z׺\udee8:\uda4b֭👀",
+       "0\udd69": 9.3744888e+27,
+       "content": 5e-324,
+       "tags": 30
+      },
+      {
+       "a\ud83d": true
+      }
+     ],
+     "content": {}
+    }
+   },
+   "recordHash": "ddc72283e2",
+   "fieldHashes": {
+    "9": "77074ba44",
+    "tags": "25844bfcl",
+    "a b": "a463b312d",
+    "aa": "07b516e47",
+    "b": "b148056645"
+   }
+  },
+  {
+   "fields": {
+    "created_at": 8655.63,
+    "é": true,
+    "[\ud929C\ude9a🏝\ud8a3": [
+     {
+      "Z": "Ἐν ἀρχῇ ἦν ὁ λόγος",
+      "content": {},
+      "֔💀΅\ud8f5": {
+       "👍\ud83d": "𝔊𝔬𝔡",
+       "=🌻ׯxw\u001b጗I6": "  "
+      }
+     },
+     1273260422
+    ],
+    "book_num": null
+   },
+   "recordHash": "f397e16ab8",
+   "fieldHashes": {
+    "created_at": "c8a3de927",
+    "é": "4db211e54",
+    "[\ud929C\ude9a🏝\ud8a3": "3db41ab732",
+    "book_num": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "9": false,
+    "λ": 0,
+    "é": true,
+    "\udbff􏿿": "׀FLΠ烧u~\udbb4֫"
+   },
+   "recordHash": "91c5074137",
+   "fieldHashes": {
+    "9": "0b0699585",
+    "λ": "350ca8af1",
+    "é": "4db211e54",
+    "\udbff􏿿": "401d05edg"
+   }
+  },
+  {
+   "fields": {
+    "01": {
+     "2": [
+      -607513
+     ],
+     "4294967294": ":>/콳\t͸u\t",
+     " ": 3.29855534e-30
+    },
+    "b": 0.40272946,
+    "B": null,
+    "Im": "A}sQ🍳🗠🗪qთ'i",
+    "a b": {
+     "\udc75ϊ🐥": [
+      false
+     ]
+    }
+   },
+   "recordHash": "976576c18d",
+   "fieldHashes": {
+    "01": "9721a57e1o",
+    "b": "4b784557a",
+    "B": "77074ba44",
+    "Im": "67a8132ag",
+    "a b": "c4d66fc4l"
+   }
+  },
+  {
+   "fields": {
+    "chapter": "👍\ud83d",
+    "verse": {
+     "content": 0.0016750418760469012,
+     "": {
+      "": -287937,
+      "order_key": 0.0013404825737265416
+     },
+     "aa": null
+    },
+    "b": "🔃\ud926c>\n\u0012🍞?rrg",
+    "λ": [
+     "{\"json\":true}",
+     null,
+     null,
+     -377290
+    ],
+    "r֓Ϊί\ud85dΘ": true,
+    "M5": 7301.83,
+    "Z": null
+   },
+   "recordHash": "7a0c620fee",
+   "fieldHashes": {
+    "chapter": "fbd69b27a",
+    "verse": "4ce87f352l",
+    "b": "db40bcfcq",
+    "λ": "0fbeb6da11",
+    "r֓Ϊί\ud85dΘ": "4db211e54",
+    "M5": "59ba7dd37",
+    "Z": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "שם": null,
+    "id": {
+     "tags": 4.92883473820634e+119,
+     "book_num": 9007199254740991,
+     "4294967295": "θ<c츃\udb74",
+     " ": {}
+    },
+    "a b": 570758750,
+    "é": [
+     {},
+     null,
+     93,
+     {
+      "title": null,
+      "aa": {
+       "color": "M\uddfe\u000bב"
+      }
+     }
+    ],
+    "💞\ud946uϴ": true
+   },
+   "recordHash": "50a8ef73ce",
+   "fieldHashes": {
+    "שם": "77074ba44",
+    "id": "960ca8492j",
+    "a b": "0ab73f839",
+    "é": "fe61ed771n",
+    "💞\ud946uϴ": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "chapter": -523092,
+    "created_at": 0.002890173410404624
+   },
+   "recordHash": "7e946d1935",
+   "fieldHashes": {
+    "chapter": "405058777",
+    "created_at": "f4d6fa9ek"
+   }
+  },
+  {
+   "fields": {
+    "1": 8012.73,
+    "content": {
+     " ": "5<헮g[",
+     "b": [
+      [
+       null,
+       0.0012121212121212121,
+       0.2,
+       "a\ud83d"
+      ]
+     ],
+     "\udfff": {
+      "Z": 9631.48,
+      "΁\udec1ⅼr좑🕊": 0.0017123287671232876,
+      "title": {},
+      "aa": -2010747254
+     },
+     "updated_at": {}
+    },
+    "u*밈": "\udc4db",
+    "\udd55]Wr8\u000fϠΣ🌲": [
+     {
+      "😀": {
+       "id": true,
+       "": null
+      },
+      "λ": 9007199254740994,
+      "4294967295": {
+       "__proto__x": -417836
+      },
+      "D\u001d\uda10틐": {}
+     },
+     {
+      "a": 1724921163317,
+      "": {
+       "b": null,
+       "tags": 5.4126640542812e+43
+      }
+     }
+    ],
+    "deleted": false
+   },
+   "recordHash": "c70bb51219c",
+   "fieldHashes": {
+    "1": "3e9f22c67",
+    "content": "f09ec4c54m",
+    "u*밈": "9a81b78b9",
+    "\udd55]Wr8\u000fϠΣ🌲": "6e3f219b4m",
+    "deleted": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "שם": [
+     {
+      "deleted": {
+       "Z": "~O>",
+       "\ud800": 9007199254740994
+      },
+      "aa": -908924,
+      "V": null,
+      "שם": "֚׬"
+     },
+     {
+      "ä": null,
+      "deleted": null
+     },
+     61
+    ],
+    "😀": [
+     0.004739336492890996,
+     1703146684874,
+     true,
+     "/slash/"
+    ],
+    "": 8.056068960407324e+295,
+    "color": 0.148576303
+   },
+   "recordHash": "13688717de",
+   "fieldHashes": {
+    "שם": "9c5d44cd34",
+    "😀": "39c7a58a1f",
+    "": "5060b5fbm",
+    "color": "3fe8fb90b"
+   }
+  },
+  {
+   "fields": {
+    "ֱT🐰\u001bϯ>J2|∜֜": {
+     "created_at": -195887,
+     "é": {
+      "color": "e\ud87e\u00156׵Ĉ\f\"\ude2e\udfaaD",
+      "Z": "o״f#䕅)"
+     },
+     "__proto__x": {
+      "\udfff": "🕳쫌,\b^kϠs篕\udb2e",
+      "λ": true
+     }
+    }
+   },
+   "recordHash": "b0ee5bbfa1",
+   "fieldHashes": {
+    "ֱT🐰\u001bϯ>J2|∜֜": "ac295ee83v"
+   }
+  },
+  {
+   "fields": {
+    "1": 1e+21,
+    "'": [
+     [
+      0.3
+     ],
+     [
+      "𠀀𠀁",
+      false
+     ],
+     false,
+     {
+      "0": null,
+      "2": {
+       "Z": null,
+       "I\udc3a": 1680246604053
+      }
+     }
+    ],
+    "-1": 1.6001271900081667e-127,
+    "é": null,
+    "4294967295": null
+   },
+   "recordHash": "f726ae6896",
+   "fieldHashes": {
+    "1": "b6a7b1f55",
+    "'": "4d8ade1326",
+    "-1": "43a4bf34n",
+    "é": "77074ba44",
+    "4294967295": "77074ba44"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "(\udb94A💒\uddba\u0006": 0.034482758620689655,
+    "title": {
+     "😀": "L\\🌆\u0018",
+     "tags": "Bk*💞🌾\udfd5DΊ}S",
+     "_": {
+      "b": {
+       "4294967295": false,
+       "  ": "P9\udf35^׾🗆Ζof🍸"
+      },
+      "中": false,
+      "01": -934766033
+     },
+     "é": 8481.31
+    },
+    "a": 0.3,
+    "שם": {
+     "": true,
+     "title": null,
+     "😀": true,
+     "cפ4%\ud872M\u001d": true
+    }
+   },
+   "recordHash": "9c96135d10d",
+   "fieldHashes": {
+    "(\udb94A💒\uddba\u0006": "06bd2bbbk",
+    "title": "871da6313y",
+    "a": "4e80ab603",
+    "שם": "a8d15f7a1l"
+   }
+  },
+  {
+   "fields": {
+    "content": null,
+    "a b": 6423.62
+   },
+   "recordHash": "f399284b1e",
+   "fieldHashes": {
+    "content": "77074ba44",
+    "a b": "326462ee7"
+   }
+  },
+  {
+   "fields": {
+    "שם": 154.79,
+    "B": 527291733183534.75,
+    "a b": "",
+    "中": [
+     -96946
+    ],
+    "__proto__x": 9007199254740991
+   },
+   "recordHash": "13bf47ed58",
+   "fieldHashes": {
+    "שם": "2777c9496",
+    "B": "29e3bd3ci",
+    "a b": "ffcaaa852",
+    "中": "a52b3f4e8",
+    "__proto__x": "acb189abg"
+   }
+  },
+  {
+   "fields": {
+    "9": [
+     {
+      "ä": {
+       "1": "**bold** _it_ `code`"
+      },
+      "01": {
+       "10": null,
+       "aa": -827666
+      }
+     },
+     788364504,
+     false
+    ],
+    "4294967294": "",
+    "chapter": true,
+    "λ": false,
+    "é": false
+   },
+   "recordHash": "5ad0bcd58c",
+   "fieldHashes": {
+    "9": "20aa57f02a",
+    "4294967294": "ffcaaa852",
+    "chapter": "4db211e54",
+    "λ": "0b0699585",
+    "é": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "": 96,
+    "H7225 G3056": [
+     1,
+     [
+      null,
+      "🏡[·"
+     ]
+    ],
+    "__proto__x": {
+     "λ": " nbsp",
+     "a": {
+      "D🕈Ρϩ\udbe9ΆS\u0001\u0012💈🏮": {
+       "created_at": 368.82
+      },
+      "中": {
+       "order_key": "ύ🖼x8\ud879lsΆz",
+       "line\nbreak": 5e-324
+      },
+      "title": 902337987,
+      "😀": true
+     }
+    },
+    "שם": true,
+    "ä": [
+     {
+      "👘🕨": [
+       null
+      ],
+      "Z": false,
+      "λ": null
+     },
+     [],
+     false,
+     1.3359806993293025e+201
+    ]
+   },
+   "recordHash": "0905b68a127",
+   "fieldHashes": {
+    "": "09fe95a62",
+    "H7225 G3056": "72582cf6h",
+    "__proto__x": "9dd8cc344e",
+    "שם": "4db211e54",
+    "ä": "7a1299761x"
+   }
+  },
+  {
+   "fields": {
+    "a b": {
+     "λ": -38843,
+     "id": 4707.13,
+     "Z": "\udc4db",
+     "tags": null
+    },
+    "id": -1.1810077473335912e+123,
+    "ᱡgϯ🍝\ude4e🎳溟": "b"
+   },
+   "recordHash": "3f6577ae6e",
+   "fieldHashes": {
+    "a b": "5ee0e03c1f",
+    "id": "13801a50o",
+    "ᱡgϯ🍝\ude4e🎳溟": "d3a93f253"
+   }
+  },
+  {
+   "fields": {
+    "9": [
+     -8.786695014573881e+172,
+     0.001394700139470014,
+     {
+      "9": {
+       "a b": 5135.57,
+       "\udc49tױ׫9l\u0001צ": null,
+       "color": -582408,
+       "😀": 6159781270
+      },
+      "deleted": {
+       "4294967294": "a\ud83d",
+       "\udc4d\ud83d": false,
+       "ä": "R",
+       "a": true
+      }
+     },
+     0.006622516556291391
+    ],
+    "😀": [
+     false,
+     0.0012970168612191958,
+     "🎖\u0013",
+     null
+    ],
+    "chapter": "΋💵lRωuά\u0017"
+   },
+   "recordHash": "147cae3f130",
+   "fieldHashes": {
+    "9": "18db248364",
+    "😀": "fcb4ffac19",
+    "chapter": "5db86f5bg"
+   }
+  },
+  {
+   "fields": {
+    "01": {
+     "id": 1739811142400,
+     "color": [
+      [
+       58,
+       "**bold** _it_ `code`"
+      ],
+      {}
+     ],
+     "1.5": {
+      "created_at": {
+       "9": null,
+       " ": 0.0102825248,
+       "order_key": null,
+       "content": "a\ud83d"
+      }
+     }
+    },
+    "中": {
+     "a b": "$\udebd:🌮7🏧;N7h",
+     "\udbff􏿿": false,
+     "͵\u0018\u0005嫩~": 15
+    }
+   },
+   "recordHash": "72d23686e0",
+   "fieldHashes": {
+    "01": "3fb08ad343",
+    "中": "8b3696a01t"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "2": [
+     963901685
+    ],
+    "λ": -349936,
+    "_": [
+     "a\ud83d"
+    ],
+    "Z": true,
+    "中": [
+     0.00546448087431694,
+     {
+      "content": "",
+      "book_num": {},
+      "😀": true
+     },
+     {
+      "10": {
+       "λ": -44787,
+       "b": 70
+      },
+      "-+🏕X{\u0012YΑפ": {
+       "a b": null,
+       "שם": 85250579000000000,
+       "中": 1667258946882,
+       "updated_at": false
+      }
+     },
+     null
+    ],
+    "\udd05ׇYeנϒ\udbc8": [],
+    " ": 0.0020491803278688526
+   },
+   "recordHash": "0592980b123",
+   "fieldHashes": {
+    "2": "e30550b6b",
+    "λ": "d8f63ed07",
+    "_": "16e097b2b",
+    "Z": "4db211e54",
+    "中": "82bf3e8753",
+    "\udd05ׇYeנϒ\udbc8": "741638a52",
+    " ": "0772561el"
+   }
+  },
+  {
+   "fields": {
+    "-1": true,
+    "content": {
+     "1": 8979.19,
+     "a\ud83d": "z?R2",
+     "created_at": -69336619
+    },
+    "": {},
+    "aa": [
+     44,
+     null
+    ],
+    "Z": {},
+    "👍\ud83d": [
+     {
+      "updated_at": {
+       "Z": 1649858319765
+      },
+      "B": false
+     }
+    ],
+    "é": [
+     {
+      "10": 75,
+      "updated_at": true
+     }
+    ],
+    " ": null
+   },
+   "recordHash": "be38116cce",
+   "fieldHashes": {
+    "-1": "4db211e54",
+    "content": "d92548a51i",
+    "": "5465b8252",
+    "aa": "f909721a9",
+    "Z": "5465b8252",
+    "👍\ud83d": "0be441791a",
+    "é": "159bad17t",
+    " ": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "שם": "τ\ude0f21및β🌮ϣ֠",
+    "-1": true,
+    "1.5": {
+     "\udd43֖6υ_ꯕ\udd94־!": [
+      false,
+      "tab\there",
+      -118859,
+      {
+       "tσ閣]": 1087244895,
+       "a": true,
+       "nϑֿ": ">🍧׋Β",
+       "book_num": false
+      }
+     ]
+    },
+    "__proto__x": null,
+    "b": null
+   },
+   "recordHash": "1cdaec8ab3",
+   "fieldHashes": {
+    "שם": "8873bf46h",
+    "-1": "4db211e54",
+    "1.5": "8ee9343d33",
+    "__proto__x": "77074ba44",
+    "b": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "0": 1.4791167861819529e+192,
+    "B": true,
+    "aa": 0.0012953367875647669,
+    "": null,
+    "created_at": "EH\u001fyE\ud95ed",
+    "中": {
+     "content": {},
+     "__proto__x": {
+      "שם": {
+       "😀": false
+      },
+      "_": "Ἐν ἀρχῇ ἦν ὁ λόγος",
+      "é": {
+       "9": null,
+       "created_at": null,
+       "b": false
+      }
+     },
+     "updated_at": 2.99239274e-16
+    },
+    "RΠs>>\u0002卧>\ud9f8🏝": {
+     "\udbff􏿿": 64,
+     "verse": 0.0011574074074074073
+    }
+   },
+   "recordHash": "8b715c64145",
+   "fieldHashes": {
+    "0": "56b7a204n",
+    "B": "4db211e54",
+    "aa": "c2c5c83fl",
+    "": "77074ba44",
+    "created_at": "433ccd5ej",
+    "中": "f333f31940",
+    "RΠs>>\u0002卧>\ud9f8🏝": "0becdd2019"
+   }
+  },
+  {
+   "fields": {
+    "1": [],
+    "order_key": [
+     "χάρις",
+     "Ͷ📬ֶ\u0018૧3"
+    ],
+    "4294967295": true
+   },
+   "recordHash": "edc1b2833f",
+   "fieldHashes": {
+    "1": "741638a52",
+    "order_key": "2c9f58f5o",
+    "4294967295": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "0": {
+     "1": "x3\u0017",
+     "01": [
+      -2030291835
+     ],
+     "é": "Q"
+    },
+    "10": false,
+    "id": [
+     [
+      false
+     ],
+     {},
+     -4.763288682334153e+232
+    ],
+    "title": 9007199254740991,
+    "ϕ": [],
+    "쌒⚏wj\u0003+\u0006ר<#\udd90": false,
+    "__proto__x": null
+   },
+   "recordHash": "f91861b7bc",
+   "fieldHashes": {
+    "0": "76d5245c18",
+    "10": "0b0699585",
+    "id": "439b110910",
+    "title": "acb189abg",
+    "ϕ": "741638a52",
+    "쌒⚏wj\u0003+\u0006ר<#\udd90": "0b0699585",
+    "__proto__x": "77074ba44"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "1": "\udfff",
+    "2": false,
+    "10": [
+     false,
+     false,
+     -1,
+     {
+      "-1": {
+       "updated_at": 6.09993359e-12,
+       "Ϥ\u0006": null,
+       "-1": 4545.34
+      }
+     }
+    ],
+    "color": {
+     "9": {
+      "👾⡭": 1.7976931348623157e+308,
+      " ": "2;",
+      "1.5": {
+       "10": 1e+21,
+       "a": null,
+       "title": null
+      }
+     },
+     "👍\ud83d": {
+      "tags": 1.0342060297620343e-10
+     },
+     "chapter": 1683108631993
+    },
+    "😀": "In the beginning",
+    "deleted": true
+   },
+   "recordHash": "a719cfe8139",
+   "fieldHashes": {
+    "1": "597cdc068",
+    "2": "0b0699585",
+    "10": "4f85503d29",
+    "color": "574da7c44a",
+    "😀": "d48ad558i",
+    "deleted": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "aa": [],
+    "book_num": false,
+    "a b": 0.0012437810945273632,
+    "ςΪ8׀": [
+     82817683000000,
+     {},
+     -1552131926,
+     2.139132147442353e-222
+    ],
+    "created_at": ">",
+    "é": 0
+   },
+   "recordHash": "d26fb5178c",
+   "fieldHashes": {
+    "aa": "741638a52",
+    "book_num": "0b0699585",
+    "a b": "e151b8bel",
+    "ςΪ8׀": "37dbe63e1i",
+    "created_at": "4b3c35193",
+    "é": "350ca8af1"
+   }
+  },
+  {
+   "fields": {
+    "created_at": false,
+    "__proto__x": {
+     "book_num": null
+    },
+    "\udc4d\ud83d": {
+     "id": "Ω\r"
+    },
+    "order_key": false,
+    "ä": [
+     true
+    ],
+    "ϩ3\u001feO5ΦΨ": null
+   },
+   "recordHash": "d631ee2b82",
+   "fieldHashes": {
+    "created_at": "0b0699585",
+    "__proto__x": "e5980542h",
+    "\udc4d\ud83d": "830ee183c",
+    "order_key": "0b0699585",
+    "ä": "4c1d45a16",
+    "ϩ3\u001feO5ΦΨ": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "color": null,
+    "verse": "👍\ud83d"
+   },
+   "recordHash": "116ed1d621",
+   "fieldHashes": {
+    "color": "77074ba44",
+    "verse": "fbd69b27a"
+   }
+  },
+  {
+   "fields": {
+    "λ": 67,
+    "\udbff􏿿": 9107.54
+   },
+   "recordHash": "a8bb71461b",
+   "fieldHashes": {
+    "λ": "1ae8ea1a2",
+    "\udbff􏿿": "fe7e26f17"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "4294967294": {
+     "Z": {
+      "10": "é"
+     },
+     "__proto__x": {},
+     "": 496136371
+    },
+    "🗁Δ📑wg\f🍿": null,
+    "쩪@μ\ude2f\u0011G~V🎜\r": "}넦🌭👥o🌁O\u001b",
+    "K🐧🏶s": [
+     false
+    ],
+    "ob": 1,
+    "é": true,
+    "title": true,
+    " ": 4607.46
+   },
+   "recordHash": "1ae61a3cb6",
+   "fieldHashes": {
+    "4294967294": "19a0552b19",
+    "🗁Δ📑wg\f🍿": "77074ba44",
+    "쩪@μ\ude2f\u0011G~V🎜\r": "386000e2i",
+    "K🐧🏶s": "450515d47",
+    "ob": "340ca71c1",
+    "é": "4db211e54",
+    "title": "4db211e54",
+    " ": "3d4469de7"
+   }
+  },
+  {
+   "fields": {
+    "0": 9.90583316e-9,
+    "verse": false,
+    "a": {
+     "10": -1,
+     "book_num": null,
+     "title": " nbsp",
+     "": "🌏Uꃞ;\uddd8"
+    },
+    "a b": {
+     "order_key": 105225177
+    },
+    "content": null,
+    "📹֗^\u001e\u0003\udb31׌": {
+     "eln7{AHm΁\u0010燅": [
+      "bEΦ\b💯ך",
+      null
+     ],
+     "updated_at": {
+      "λ": {
+       "9": true,
+       "\udcf3": 855179578,
+       "01": false
+      }
+     },
+     "中": 9.21861277e-12
+    },
+    "created_at": 1644321843
+   },
+   "recordHash": "4d1c9a87135",
+   "fieldHashes": {
+    "0": "c9baed10d",
+    "verse": "0b0699585",
+    "a": "a7720f2a1m",
+    "a b": "c9ed47afn",
+    "content": "77074ba44",
+    "📹֗^\u001e\u0003\udb31׌": "7ebe066239",
+    "created_at": "80056bcfa"
+   }
+  },
+  {
+   "fields": {
+    "0": true,
+    "֛\r͵c\u0002\ude2d֫L": "ϡe \u0001🏣b🗹zꟐ\u0018g",
+    "deleted": {
+     "ä": "$\udfb4",
+     "😀": -1.651155668575395e+48,
+     "": 6659.65
+    },
+    "λ": 2274.09,
+    "a b": false
+   },
+   "recordHash": "926ad13a93",
+   "fieldHashes": {
+    "0": "4db211e54",
+    "֛\r͵c\u0002\ude2d֫L": "17c6e5b5p",
+    "deleted": "2c9048791i",
+    "λ": "03b7a0737",
+    "a b": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "deleted": {
+     "a": 9886296730000
+    }
+   },
+   "recordHash": "b9bb3a651f",
+   "fieldHashes": {
+    "deleted": "b3d66b22j"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     "4294967294": "a\ud83d",
+     "ä": 2266.63,
+     "created_at": {
+      "Z": false,
+      "content": {
+       "01": false,
+       "שם": "\udbff􏿿",
+       "/뙍": true,
+       "": "\u0016🖒[1"
+      }
+     }
+    },
+    "🇮🇱": -761933,
+    "Z": {
+     "2": {
+      "1": {
+       "4294967295": 527.77,
+       "1.5": null,
+       "中": -2.3587839983824016e-254,
+       "é": "Z\u0015."
+      },
+      "🗎de\u0007CfiϠ`(ڢ": {
+       "chapter": true,
+       "b": "X",
+       "בְּרֵאשִׁית בָּרָא אֱלֹהִים": 6
+      },
+      "id": null
+     },
+     "color": false,
+     "a b": {},
+     "deleted": 4445965.74
+    },
+    "id": 0.0024449877750611247,
+    "deleted": 0.0012406947890818859,
+    "é": -1.0177046492643525e+241
+   },
+   "recordHash": "7137a5041cb",
+   "fieldHashes": {
+    "9": "839162bd3i",
+    "🇮🇱": "0a9efcb17",
+    "Z": "b4b991b263",
+    "id": "6b3adc09l",
+    "deleted": "11b74908l",
+    "é": "808483d9o"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "a b": {},
+    "created_at": {},
+    "שם": 383.57,
+    "aa": false
+   },
+   "recordHash": "38ca100731",
+   "fieldHashes": {
+    "a b": "5465b8252",
+    "created_at": "5465b8252",
+    "שם": "f8c595d76",
+    "aa": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     "# Heading\n\n> quote": true,
+     "1.5": {
+      "2": -867884,
+      "Cͳ|ϪhϰB\u0003~": {
+       "b": 5282.23
+      },
+      "tags": 7465.9
+     }
+    },
+    "verse": false,
+    "שם": true,
+    "tags": true
+   },
+   "recordHash": "94174d5088",
+   "fieldHashes": {
+    "9": "a910975a2m",
+    "verse": "0b0699585",
+    "שם": "4db211e54",
+    "tags": "4db211e54"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "": 7356.03
+   },
+   "recordHash": "93cd53dfc",
+   "fieldHashes": {
+    "": "abd68abf7"
+   }
+  },
+  {
+   "fields": {
+    "verse": true,
+    "*P㻈": {},
+    "updated_at": [],
+    "_": {
+     "\u0017Π\u0003׾0祓,䓰\udfb4": 0.16666666666666666,
+     "䰎y筛ׂ֧t": {
+      "1.5": {
+       "id": 89,
+       "aa": 43,
+       "\udfff": "\udc4db",
+       "ΫהꚂ\b/!": 1693301044084
+      },
+      "λ": null,
+      "\u0017΀/s": null,
+      "content": 127.03
+     }
+    },
+    "a": -856763
+   },
+   "recordHash": "f0706de6e2",
+   "fieldHashes": {
+    "verse": "4db211e54",
+    "*P㻈": "5465b8252",
+    "updated_at": "741638a52",
+    "_": "f050505a4q",
+    "a": "c89ffd9f7"
+   }
+  },
+  {
+   "fields": {
+    "created_at": 2830.55
+   },
+   "recordHash": "1d6c093a16",
+   "fieldHashes": {
+    "created_at": "b24ea57c7"
+   }
+  },
+  {
+   "fields": {
+    "ä": {
+     "title": 1e-7,
+     "content": {
+      "1.5": -4.842578590119786e+303,
+      "שם": {
+       "0\u000f0\ude41\u0002!5ͷ\udca8Ώ": true,
+       "a": false,
+       "λ": false
+      },
+      "🕪ΩAΊ]κ㊲Ύ\u0015": [
+       "iL",
+       true,
+       0.0010362694300518134,
+       true
+      ]
+     },
+     "c": 28
+    }
+   },
+   "recordHash": "2893cac0bf",
+   "fieldHashes": {
+    "ä": "195d93c455"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "ä": {
+     "deleted": true
+    },
+    "id": -187290
+   },
+   "recordHash": "564c1cf323",
+   "fieldHashes": {
+    "ä": "34f1ae00g",
+    "id": "e57f39397"
+   }
+  },
+  {
+   "fields": {
+    "0": [],
+    "9": 1791491296,
+    "verse": [
+     null,
+     "🌒\udfa8ׂ💃"
+    ],
+    "aa": {
+     "content": [
+      {
+       "שם": -825339188,
+       "-1": -3.1829592575216776e-64,
+       "deleted": true
+      },
+      1294.51,
+      1e+21
+     ],
+     "title": "e🔮è📹3T)",
+     "a\ud83d": null
+    },
+    "-1": null,
+    "u׷f🔌\u001c׻g": {
+     "\udfd7<@💖q\udcebh\ude55": {
+      "a": " nbsp",
+      "\udfff": [
+       null
+      ],
+      "$\ud846\ud80a篃mp\u0019<X㴒": false
+     },
+     "B": 1.1547882302042603e-12,
+     "👍\ud83d": {}
+    }
+   },
+   "recordHash": "a3f70e89156",
+   "fieldHashes": {
+    "0": "741638a52",
+    "9": "6f91172ca",
+    "verse": "c74a13e6k",
+    "aa": "cc935aed3g",
+    "-1": "77074ba44",
+    "u׷f🔌\u001c׻g": "dcd834063p"
+   }
+  },
+  {
+   "fields": {
+    "1": {
+     "1.5": "ׂ%\udfe4</ψ"
+    },
+    "-1": {},
+    "verse": 0.001201923076923077,
+    "שם": {
+     "created_at": [
+      0.0016722408026755853,
+      0
+     ],
+     "order_key": {
+      "__proto__x": {}
+     },
+     "\uda91(i/": "ʹc\u001a",
+     "verse": false
+    },
+    "_": [
+     {
+      "tags": {},
+      "title": 7.53206562078632e-305
+     },
+     {},
+     []
+    ],
+    "é": {
+     "שם": 798.210598,
+     "4294967295": ""
+    }
+   },
+   "recordHash": "d09f348410d",
+   "fieldHashes": {
+    "1": "929ff6b1l",
+    "-1": "5465b8252",
+    "verse": "fa31560ck",
+    "שם": "610f7d2e2z",
+    "_": "c4666a581d",
+    "é": "4b80ac85x"
+   }
+  },
+  {
+   "fields": {
+    "2": false,
+    "a\ud83d": true,
+    "id": false,
+    "": {
+     "2": false,
+     "4294967294": false
+    }
+   },
+   "recordHash": "ede7a91947",
+   "fieldHashes": {
+    "2": "0b0699585",
+    "a\ud83d": "4db211e54",
+    "id": "0b0699585",
+    "": "2850da11u"
+   }
+  },
+  {
+   "fields": {
+    "0": true,
+    "9": "G\ud96fד",
+    "㩍FN🖔Ό\u001do": {
+     "color": false,
+     "": {
+      "\udc4d\ud83d": 0.00000933964708,
+      "a b": {
+       "4294967295": -93923
+      }
+     }
+    },
+    "\ude15🏮": true,
+    "a": 1243.64
+   },
+   "recordHash": "2ed5d00496",
+   "fieldHashes": {
+    "0": "4db211e54",
+    "9": "e11ede8fa",
+    "㩍FN🖔Ό\u001do": "81f7699328",
+    "\ude15🏮": "4db211e54",
+    "a": "516d0b2d7"
+   }
+  },
+  {
+   "fields": {
+    "a": true
+   },
+   "recordHash": "4b32f0b6a",
+   "fieldHashes": {
+    "a": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "Ϻ\uda82֫": "ΐ׀kϐ\u0013",
+    "updated_at": [
+     {}
+    ],
+    "deleted": 1728294972,
+    "\u0000\u0001\u001f": 1726170598116,
+    "__proto__x": [
+     0.2
+    ],
+    "中": "H7225 G3056"
+   },
+   "recordHash": "d3e1092989",
+   "fieldHashes": {
+    "Ϻ\uda82֫": "e254fc09c",
+    "updated_at": "1bcb3f154",
+    "deleted": "661a718ca",
+    "\u0000\u0001\u001f": "0d973329d",
+    "__proto__x": "79635da15",
+    "中": "df77471cd"
+   }
+  },
+  {
+   "fields": {
+    "é": {},
+    "n핞🌘זeỌYN\udece\udb18Z": {},
+    "ä": false,
+    "tags": null,
+    "é": {
+     "é": false,
+     "b": true,
+     "__proto__x": null
+    }
+   },
+   "recordHash": "97dce9fd67",
+   "fieldHashes": {
+    "é": "5465b8252",
+    "n핞🌘זeỌYN\udece\udb18Z": "5465b8252",
+    "ä": "0b0699585",
+    "tags": "77074ba44",
+    "é": "b31910a913"
+   }
+  },
+  {
+   "fields": {
+    "2": "\ude5d🕣",
+    "chapter": {
+     "order_key": {
+      "id": [
+       "﻿bom",
+       false,
+       1675191025208
+      ],
+      "é": "\udc4db",
+      "\u0014L\u0000ϊ@ϴ": null,
+      "\udc4d\ud83d": 0.0013550135501355014
+     },
+     "a": 0.1,
+     "__proto__x": 1,
+     "_": null
+    },
+    "b": {},
+    "id": null,
+    "color": 73
+   },
+   "recordHash": "d3a376bad4",
+   "fieldHashes": {
+    "2": "c24e54aea",
+    "chapter": "fcbc59d14d",
+    "b": "5465b8252",
+    "id": "77074ba44",
+    "color": "8ee5cf1f2"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "s*ϓꗞ🌌ΡZ癷=\udfcf#": null,
+    "😀": {
+     "😀": "q\udc60",
+     "3.ε;g📆w\uda37": "s8򜛗(ቕg\udb40+",
+     "1.5": 1.23e-18,
+     "In the beginning": {
+      "Ua;\u001a🌫": []
+     }
+    }
+   },
+   "recordHash": "ed2490b188",
+   "fieldHashes": {
+    "s*ϓꗞ🌌ΡZ癷=\udfcf#": "77074ba44",
+    "😀": "f7f151612w"
+   }
+  },
+  {
+   "fields": {
+    "10": null,
+    "deleted": 3.48448222e+21,
+    "tab\there": {
+     "4294967294": {
+      "content": "eם6🐆\udaaa\ud805㳋\ud945׾",
+      "id": [
+       null,
+       2.4056586e-10
+      ]
+     }
+    }
+   },
+   "recordHash": "42f41c2a81",
+   "fieldHashes": {
+    "10": "77074ba44",
+    "deleted": "329c0b9be",
+    "tab\there": "74166aaa28"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": [
+     false,
+     "ח\tP済撦\uda30\u0005^",
+     {},
+     false
+    ],
+    "\r5_צ֫ΣeׇQ": {
+     "b": 1702582156803
+    },
+    "é": {
+     "2": "?נ׵🔭🎆\udb3a",
+     "content": "@豍\ud87e\u0004鍯fי",
+     " ": [
+      null
+     ]
+    },
+    "\u00039m🍀🌷 🕫Δ׼📃r": [
+     null
+    ],
+    "λ": {
+     "}\udabac🎝׷\u0002>": {
+      "updated_at": "\uddd9a\u0002\nc׈C🏋跨Ϣ"
+     },
+     "שם": {
+      "ϗ\u0004ִס%;": "Gen 1:1"
+     }
+    },
+    "\bֹ\ud964\udbeb": 50,
+    "a": "ʹm酵\udd73\uda8aͲ"
+   },
+   "recordHash": "ed84bd86145",
+   "fieldHashes": {
+    "4294967294": "7f58e47312",
+    "\r5_צ֫ΣeׇQ": "ae46192fj",
+    "é": "02f318991q",
+    "\u00039m🍀🌷 🕫Δ׼📃r": "5f74b2a26",
+    "λ": "08153cb62l",
+    "\bֹ\ud964\udbeb": "83e140a02",
+    "a": "fb376163i"
+   }
+  },
+  {
+   "fields": {
+    "é": 1980.9428642969415,
+    "aa": null,
+    "윜1s֣]ֱ ⯲💪:": true
+   },
+   "recordHash": "e7a86aeb36",
+   "fieldHashes": {
+    "é": "045776b0i",
+    "aa": "77074ba44",
+    "윜1s֣]ֱ ⯲💪:": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "a": "z:🕡YL",
+    "λ": {
+     "9": {},
+     "é": 5e-324
+    },
+    "ä": -1220615474
+   },
+   "recordHash": "03551ce237",
+   "fieldHashes": {
+    "a": "c89618b48",
+    "λ": "3648ed22k",
+    "ä": "62701bdeb"
+   }
+  },
+  {
+   "fields": {
+    "10": null,
+    "שם": [
+     "\ud8f2·\ud8b3💀v惛<",
+     null,
+     {
+      "tags": 0.0013297872340425532,
+      "λ": {
+       "content": "ע\u001d,ΧR🖅",
+       "Z": 86
+      },
+      "color": -1722161504
+     },
+     true
+    ],
+    "chapter": {
+     "0": -487845,
+     "B": {
+      "1Hֻ֪🖬🍹Y0📕\u0014🍔": [
+       273313625000,
+       1717222370306
+      ],
+      "01": 0.0023148148148148147
+     },
+     "created_at": true
+    },
+    "a b": -575359,
+    "__proto__x": 1.7976931348623157e+308,
+    "λ": [
+     [
+      {
+       "updated_at": null
+      },
+      0.3,
+      1701018795609,
+      true
+     ],
+     null,
+     "[[Exod 20:11]]",
+     true
+    ],
+    "ꦩ֧E\udd43🔗\u0000멉\u0016,": true,
+    "1.5": "'kHϭ\n;"
+   },
+   "recordHash": "5c8cfb971bb",
+   "fieldHashes": {
+    "10": "77074ba44",
+    "שם": "0467c7cc3d",
+    "chapter": "2a5b1eca38",
+    "a b": "909ed77e7",
+    "__proto__x": "0d2c2de0n",
+    "λ": "25bf97d121",
+    "ꦩ֧E\udd43🔗\u0000멉\u0016,": "4db211e54",
+    "1.5": "5bf904779"
+   }
+  },
+  {
+   "fields": {
+    "1": null,
+    "4294967295": [
+     null
+    ],
+    "deleted": {
+     "䢆\u0001": {
+      "id": {},
+      "b": {
+       "é": null,
+       "B": -489362,
+       "β㊓D\u0000\ud952": "",
+       "\ud800": null
+      }
+     },
+     "id": null
+    },
+    "content": null,
+    "\u0000\u0001\u001f": "\udfff"
+   },
+   "recordHash": "d4ae054eb4",
+   "fieldHashes": {
+    "1": "77074ba44",
+    "4294967295": "5f74b2a26",
+    "deleted": "1228dd662l",
+    "content": "77074ba44",
+    "\u0000\u0001\u001f": "597cdc068"
+   }
+  },
+  {
+   "fields": {
+    "昄\\🕟t|": "\udc4db",
+    "__proto__x": ",׼V",
+    "cr\rlf": [
+     null
+    ]
+   },
+   "recordHash": "1f3b108d38",
+   "fieldHashes": {
+    "昄\\🕟t|": "9a81b78b9",
+    "__proto__x": "7f7326615",
+    "cr\rlf": "5f74b2a26"
+   }
+  },
+  {
+   "fields": {
+    "deleted": {
+     "4294967295": "c6Ͼ\u00058",
+     "a b": 0.002053388090349076,
+     "b": 1605249361513,
+     "id": null
+    },
+    "b": true,
+    "": 0.007142857142857143,
+    "a b": {
+     "׆\uddd6bE֫ㄘⱁ": -7.452956828735895e+73
+    }
+   },
+   "recordHash": "aae4bc4ead",
+   "fieldHashes": {
+    "deleted": "e66c31772a",
+    "b": "4db211e54",
+    "": "572f5c6ak",
+    "a b": "3882157713"
+   }
+  },
+  {
+   "fields": {
+    "verse": -3.125874083341951e-301,
+    "é": -3.7922426441458227e+130,
+    "שם": 9134.4,
+    "a\ud83d": 0.0016155088852988692,
+    "_": 1638349996233,
+    "title": [],
+    "deleted": -760969227
+   },
+   "recordHash": "1877f7eb9c",
+   "fieldHashes": {
+    "verse": "a880389en",
+    "é": "063db0aco",
+    "שם": "8791c46a6",
+    "a\ud83d": "d3c45fa6l",
+    "_": "780d2735d",
+    "title": "741638a52",
+    "deleted": "9b6817aca"
+   }
+  },
+  {
+   "fields": {
+    "color": {
+     "1": {
+      "a": 4,
+      "\udfff": 0.018518518518518517
+     },
+     "λ": {},
+     "__proto__x": "iz\u0010dׯ"
+    },
+    "N\ud81d": "👍\ud83d",
+    "Z": null,
+    "01": null,
+    "D\uddcbׂ}q\ud98bW ֢": -1694607921,
+    "book_num": null
+   },
+   "recordHash": "08978311b0",
+   "fieldHashes": {
+    "color": "cb69464b24",
+    "N\ud81d": "fbd69b27a",
+    "Z": "77074ba44",
+    "01": "77074ba44",
+    "D\uddcbׂ}q\ud98bW ֢": "fd327c6db",
+    "book_num": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "verse": 1765898025088
+   },
+   "recordHash": "29e81b4117",
+   "fieldHashes": {
+    "verse": "9aaa16e6d"
+   }
+  },
+  {
+   "fields": {
+    "2": [
+     {
+      "中": {
+       "10": null,
+       "verse": false,
+       "uWsb\ud93fϺ#": true,
+       "created_at": 81
+      }
+     },
+     7.643057598737797e-48
+    ],
+    "deleted": true,
+    "\u0001\udf24餲": [
+     [
+      21,
+      [],
+      false
+     ]
+    ],
+    "ä": {
+     "10": true,
+     "😀": "y\ude26閫׊🖑\u0016102",
+     "_": "🔆φ{焵~"
+    }
+   },
+   "recordHash": "06dbcf25c9",
+   "fieldHashes": {
+    "2": "c354fdb62j",
+    "deleted": "4db211e54",
+    "\u0001\udf24餲": "cbfcd04ff",
+    "ä": "cf7ddd5c1g"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": [
+     9,
+     "ὁ λόγος σὰρξ ἐγένετο",
+     [],
+     "\ud800"
+    ],
+    "锟🐧Z^j黧\u0005\u001a🌿\u0011": false,
+    "tags": {
+     "aa": {}
+    },
+    "a": true,
+    "4294967295": 5.916867998851654e+290
+   },
+   "recordHash": "74c5a89597",
+   "fieldHashes": {
+    "4294967294": "47b979dc12",
+    "锟🐧Z^j黧\u0005\u001a🌿\u0011": "0b0699585",
+    "tags": "66c608259",
+    "a": "4db211e54",
+    "4294967295": "b6a23623m"
+   }
+  },
+  {
+   "fields": {
+    "verse": "`'h👤΃ͳ-",
+    "1.5": 3.24771402071112e-214,
+    " ": false,
+    "-1": {},
+    "": 4124.2,
+    "😀": {
+     "\udd8c(tevKϲ": false
+    }
+   },
+   "recordHash": "5d4a217a68",
+   "fieldHashes": {
+    "verse": "94363114a",
+    "1.5": "93ed1444l",
+    " ": "0b0699585",
+    "-1": "5465b8252",
+    "": "27d241e06",
+    "😀": "3b2179bam"
+   }
+  },
+  {
+   "fields": {
+    "_": {
+     "tags": "ϡS\udcad",
+     "🌗ߒλ1👵\udc09/": null,
+     "שם": null
+    },
+    "\udfbf>\udddfz\udc25r)怓": {}
+   },
+   "recordHash": "be283d1757",
+   "fieldHashes": {
+    "_": "272fa0281f",
+    "\udfbf>\udddfz\udc25r)怓": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "🇮🇱": 1654249122930
+   },
+   "recordHash": "92e2ef8816",
+   "fieldHashes": {
+    "🇮🇱": "9cfcab15d"
+   }
+  },
+  {
+   "fields": {
+    "1.5": [
+     null,
+     [
+      [
+       null
+      ]
+     ],
+     "׏\ud9a5"
+    ],
+    " ": {
+     "0": {},
+     "\"编뉹\u0007tZa": null,
+     "שם": null
+    },
+    "a": null,
+    "deleted": -764642,
+    "_": "\tϢΕ\u0006>瑺G"
+   },
+   "recordHash": "f6d57a137c",
+   "fieldHashes": {
+    "1.5": "89426c68p",
+    " ": "41ac5d7b13",
+    "a": "77074ba44",
+    "deleted": "3920598d7",
+    "_": "ebd5b418f"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": true,
+    "中": false,
+    "é": null,
+    "": true,
+    "ό\u0007🗓P=🔛\uddff": null,
+    "book_num": "oϓ画ϣX📾"
+   },
+   "recordHash": "a244ca765f",
+   "fieldHashes": {
+    "4294967294": "4db211e54",
+    "中": "0b0699585",
+    "é": "77074ba44",
+    "": "4db211e54",
+    "ό\u0007🗓P=🔛\uddff": "77074ba44",
+    "book_num": "9f9a2b769"
+   }
+  },
+  {
+   "fields": {
+    "2": [
+     {
+      "_": 6.03843818e+24
+     },
+     null,
+     {
+      "1": true
+     }
+    ],
+    "\u001d2gzש": {
+     "": -442526
+    },
+    "b": -439936,
+    "a\ud83d": {
+     "updated_at": null,
+     "é": false,
+     "": {
+      "λ": {
+       "_": "\bTna",
+       "<script>&amp;</script>": null,
+       "content": 1.7976931348623157e+308,
+       "4294967295": 1708751556003
+      },
+      "a": {
+       "chapter": true,
+       "updated_at": false,
+       "tags": true,
+       "": 0.0011337868480725624
+      },
+      "🖙-}🗫": "׳k>n׆e\udf05bF\ud8dd🐌"
+     }
+    },
+    "quote\"back\\slash": 1641977458080,
+    "order_key": null,
+    "": {
+     "ϷY\ud9e9ϴ\u0016|-ニv΅3": 0.0010626992561105207,
+     "é": false
+    },
+    "λ": {}
+   },
+   "recordHash": "9e6123cf1d6",
+   "fieldHashes": {
+    "2": "e6fb656312",
+    "\u001d2gzש": "308ddd3dc",
+    "b": "e4fc897e7",
+    "a\ud83d": "53f4f54274",
+    "quote\"back\\slash": "06ffc115d",
+    "order_key": "77074ba44",
+    "": "d59fbb9c1m",
+    "λ": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "10": {
+     "0": false
+    },
+    "中": true,
+    "id": [
+     0.003289473684210526,
+     {
+      "ä": {
+       "_": true
+      }
+     },
+     "%k"
+    ],
+    "﻿bom": "׶z鵧\udcb3׬'b",
+    " ": {
+     "order_key": 0.3
+    },
+    "a\ud83d": -2132732463
+   },
+   "recordHash": "7f75104a8f",
+   "fieldHashes": {
+    "10": "45288be6b",
+    "中": "4db211e54",
+    "id": "f49c04ce18",
+    "﻿bom": "11460bbee",
+    " ": "3e7f10bah",
+    "a\ud83d": "a67a749fb"
+   }
+  },
+  {
+   "fields": {
+    "10": {},
+    "1.5": {
+     "title": "f9\u0006=🖖W",
+     "__proto__x": {
+      "B": 11
+     },
+     "FⲣJ׳\u0005ހ%": 0.0027624309392265192
+    },
+    "content": 1341.57,
+    "01": {
+     "🟡🔴🟢🔵🟣": false,
+     "僫": {
+      "color": false,
+      "é": false,
+      "updated_at": false,
+      "中": {
+       "Z": 6.189740253534527e+136,
+       " ": null,
+       "a": "n뫟㇭"
+      }
+     },
+     "01": 2.91044753e-28
+    },
+    "B": 1609152963344,
+    "C흙🖃5\b;웕\ud9dc/\ude36\udca3": []
+   },
+   "recordHash": "112ebdc813c",
+   "fieldHashes": {
+    "10": "5465b8252",
+    "1.5": "ad74edf72b",
+    "content": "695c2e087",
+    "01": "a631c0493x",
+    "B": "25ef9e0ad",
+    "C흙🖃5\b;웕\ud9dc/\ude36\udca3": "741638a52"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "created_at": 5611.53,
+    "01": [
+     [],
+     "**bold** _it_ `code`",
+     [
+      2740.28,
+      [
+       false,
+       null
+      ],
+      "Ἐν ἀρχῇ ἦν ὁ λόγος",
+      70
+     ],
+     [
+      {
+       "😀": 1733517817786
+      },
+      "Φ🍲$>🐩🎾"
+     ]
+    ]
+   },
+   "recordHash": "629f9cd489",
+   "fieldHashes": {
+    "created_at": "f7d883327",
+    "01": "e908093c31"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "__proto__x": [
+     1653276805725
+    ],
+    "created_at": false,
+    "color": "΄J\u0017j1Ο\u0017👠?",
+    "Z": 321.005467,
+    "a b": {
+     "4294967295": ":\t33אΘf \ud80a",
+     "deleted": [
+      [
+       561436438,
+       19241337,
+       1705540961079,
+       "\udc4db"
+      ],
+      [
+       ""
+      ],
+      "Ϟׇc'(\u001b)䬉",
+      {
+       "4294967294": 1710224571550
+      }
+     ],
+     "verse": null
+    },
+    "chapter": -4.028982515569931e-261,
+    "שם": [
+     false,
+     "*G7u֩ϳ_\u0000󣴛",
+     []
+    ]
+   },
+   "recordHash": "996197ae143",
+   "fieldHashes": {
+    "__proto__x": "bcd382f0f",
+    "created_at": "0b0699585",
+    "color": "45ead623n",
+    "Z": "948dcc9da",
+    "a b": "1845e5b248",
+    "chapter": "cddac66cn",
+    "שם": "b1739615s"
+   }
+  },
+  {
+   "fields": {
+    "01": ",κ\u001cΖΓa䤎7🌮B"
+   },
+   "recordHash": "546c2a0819",
+   "fieldHashes": {
+    "01": "ccc85eafi"
+   }
+  },
+  {
+   "fields": {
+    "2": -6.03365434108896e-96,
+    "a b": 1.7976931348623157e+308,
+    "μ֧΃0\u001b\udfd2t\r\udf8e#": "ס`\u0005Ͽ",
+    "01": {
+     "🟡🔴🟢🔵🟣": false,
+     "id": 43,
+     "deleted": 6013.95,
+     "é": {
+      "1": {
+       "שם": true
+      },
+      "__proto__x": null,
+      "P֯ׯ\u0015ᛑ": {
+       "": "# Heading\n\n> quote",
+       "👨‍👩‍👧‍👦": false
+      }
+     }
+    }
+   },
+   "recordHash": "bd489d90fb",
+   "fieldHashes": {
+    "2": "3add91c1l",
+    "a b": "0d2c2de0n",
+    "μ֧΃0\u001b\udfd2t\r\udf8e#": "332a5725b",
+    "01": "4bb7cc1743"
+   }
+  },
+  {
+   "fields": {
+    "0": {
+     "🟡🔴🟢🔵🟣": [
+      null,
+      [
+       8085.84,
+       "H7225 G3056",
+       null,
+       1
+      ],
+      2.79250342e-18,
+      [
+       null,
+       0,
+       -296294
+      ]
+     ],
+     "a\ud83d": -851794
+    },
+    "2": [],
+    "10": null,
+    "😀": null,
+    "λ": 59,
+    "__proto__x": {
+     "λ": {
+      "😀": {
+       "0": "ע\u001f",
+       "a": 3.11279998e-29,
+       "😀": false
+      }
+     }
+    },
+    "4294967295": null
+   },
+   "recordHash": "d9937cc1e8",
+   "fieldHashes": {
+    "0": "20ad13f92u",
+    "2": "741638a52",
+    "10": "77074ba44",
+    "😀": "77074ba44",
+    "λ": "8ce14ecb2",
+    "__proto__x": "d1c3705c1m",
+    "4294967295": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "䛜3": {
+     "\udf42🎒ַ\udf77nΞבK׍K萰": [
+      1001487548,
+      null,
+      {},
+      5e-324
+     ]
+    }
+   },
+   "recordHash": "5c10e05c3d",
+   "fieldHashes": {
+    "䛜3": "f79825791i"
+   }
+  },
+  {
+   "fields": {
+    "order_key": {},
+    "title": 0.001183431952662722,
+    "deleted": null
+   },
+   "recordHash": "8ec46b573c",
+   "fieldHashes": {
+    "order_key": "5465b8252",
+    "title": "fa725d17k",
+    "deleted": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "tags": [
+     "ΒJm\udd24.֟",
+     null,
+     0.002849002849002849
+    ],
+    "aa": true,
+    "deleted": {
+     "λ": -95347,
+     "__proto__x": {
+      "🔁u|\udd51": "",
+      "01": {}
+     },
+     "ä": "g樂🎡👆"
+    },
+    "ä": {
+     "__proto__x": [
+      true
+     ],
+     "t🕖|ϜuZ\ud864䨾\u000bHi": [],
+     "_": -1.3436739363193717e+249
+    },
+    "id": true,
+    "𠀀𠀁": {
+     "é": true,
+     "color": {
+      "updated_at": -956750,
+      "Z": "🌚N𣫂*📓💜\ud8fcν)Ί",
+      "book_num": {
+       "book_num": null,
+       "deleted": 2552.96,
+       "中": true
+      },
+      "": "\tס\u0005"
+     }
+    }
+   },
+   "recordHash": "1cae7bfd179",
+   "fieldHashes": {
+    "tags": "19f6b8b415",
+    "aa": "4db211e54",
+    "deleted": "ef2e32291t",
+    "ä": "62c8f5ad26",
+    "id": "4db211e54",
+    "𠀀𠀁": "cff642083w"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": [
+     1.155675577425126e-271,
+     {
+      "a": "\u0000׀A\n_",
+      "a\ud83d": false
+     },
+     {}
+    ],
+    "B": 0.2,
+    "😀": true,
+    "6🐤🎯👨%🎦\udfad%": {
+     "\udfff": {
+      "10": false,
+      "ä": 0.004149377593360996,
+      "01": {
+       "": null,
+       "4294967295": false,
+       "Yeshua": "ΥU",
+       "content": null
+      },
+      "book_num": true
+     },
+     "Z": {
+      "b": null,
+      "שם": false
+     }
+    },
+    "_": [
+     [
+      "%\udc82\udc33טDηj(/",
+      [],
+      {
+       "中": null,
+       "שם": -674934,
+       "content": null
+      }
+     ],
+     {
+      "1": "\udbff􏿿",
+      "׬ϓ": {
+       "9": "a",
+       "__proto__x": 2.4899961204263568e+281,
+       "Ϯꀧj赐֗㾏(׳罞\udc730": "\udc4db"
+      },
+      "b": 2167.34
+     },
+     []
+    ],
+    "chapter": false
+   },
+   "recordHash": "b616fb551d8",
+   "fieldHashes": {
+    "4294967294": "661a01401r",
+    "B": "4f80acf33",
+    "😀": "4db211e54",
+    "6🐤🎯👨%🎦\udfad%": "644c6a3449",
+    "_": "0b214c4051",
+    "chapter": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "9": "📝🏢🗳\ud984֚",
+    "chapter": 1.678422601479678e-99,
+    "😀": {
+     "0": "",
+     "😀": {
+      "👍\ud83d": 2286.2,
+      "color": {
+       "{J🗍\u0000(\ude90mo\u001aל=": null,
+       "b": 39
+      }
+     },
+     "id": false
+    }
+   },
+   "recordHash": "35cb35689c",
+   "fieldHashes": {
+    "9": "6b277cffg",
+    "chapter": "b2810207l",
+    "😀": "f39fc5d72o"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "tags": ""
+   },
+   "recordHash": "578c82dcb",
+   "fieldHashes": {
+    "tags": "ffcaaa852"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "10": 26,
+    "_": false,
+    " ": {
+     "9": {
+      "a": {},
+      "\uddebΛ": {
+       "0": -1706865048,
+       "ﷀ䢰\u001d\u001d\udc87ό)": 31,
+       "H7225 G3056": false
+      },
+      "λ": [
+       17
+      ]
+     },
+     "chapter": 6.23271204e-30,
+     "ä": true
+    },
+    "中": {},
+    "\udc4db": 0.002347417840375587,
+    "color": false
+   },
+   "recordHash": "a7b7be87d1",
+   "fieldHashes": {
+    "10": "8bf296592",
+    "_": "0b0699585",
+    " ": "59b2c2143p",
+    "中": "5465b8252",
+    "\udc4db": "430b9cb8k",
+    "color": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": 1886962312,
+    "λ": {
+     "a": [
+      9007199254740991,
+      {
+       "4294967294": 580054373,
+       "1.5": false
+      }
+     ],
+     "aa": 0.0024875621890547263,
+     "Z": 65
+    },
+    "id": [
+     [
+      ";=[\u001bרϚ",
+      false,
+      0.1
+     ],
+     0.0019011406844106464,
+     {
+      "2": [],
+      "chapter": "νw🖘D🗺📏\udc25"
+     },
+     {
+      ":VΘ": 1154.98,
+      "\udfa1\u0012M": {
+       "4294967294": null,
+       "\ud914֨": ""
+      },
+      "title": 440878458000000000000
+     }
+    ],
+    "__proto__x": "\udc4d\ud83d",
+    "title": 9007199254740992,
+    "Fxq錇ֳ🌒\udbad)Ϊ": "\udd29노🐷C🏩\u001cλ\ud86a9d"
+   },
+   "recordHash": "43c70f3f19e",
+   "fieldHashes": {
+    "4294967294": "7e910c75a",
+    "λ": "39c6356a2n",
+    "id": "bf5d760e52",
+    "__proto__x": "38a8b75be",
+    "title": "adb18b3eg",
+    "Fxq錇ֳ🌒\udbad)Ϊ": "a381a3c2t"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": {
+     "<\u001c֓,": -522521,
+     "ä": null,
+     "H7225 G3056": 0.0014534883720930232
+    },
+    "㺎\ud8dc|\uda80d3W!U1J": {
+     "10": false,
+     "שם": null
+    },
+    "שם": -1.3247524392757928e-19,
+    "aa": -3.137738759334562e+246,
+    "\udfff": {},
+    "\ude12ϰv.\u0016γ䏑J\u0016a": "🍏",
+    "פמ": "ׂ\ud882θ💁lΦ👧֕\udb14⋉׿"
+   },
+   "recordHash": "5064c58f106",
+   "fieldHashes": {
+    "4294967294": "e1c01fa71u",
+    "㺎\ud8dc|\uda80d3W!U1J": "4a425894m",
+    "שם": "3217be4cn",
+    "aa": "97f74ffan",
+    "\udfff": "5465b8252",
+    "\ude12ϰv.\u0016γ䏑J\u0016a": "19922e7a4",
+    "פמ": "dad3d577p"
+   }
+  },
+  {
+   "fields": {
+    "": null,
+    "chapter": {
+     "9": {
+      "2": 0.004201680672268907,
+      "\udfff": null,
+      "a b": ")֞β"
+     },
+     "b": {
+      "a": {
+       "chapter": "쐡B΢\udd21🎙\ud854nνf"
+      }
+     },
+     "a": {
+      "$O\\🌰\udccdε": []
+     },
+     "content": false
+    },
+    "title": 2.586640339485303e+149
+   },
+   "recordHash": "48766aacc3",
+   "fieldHashes": {
+    "": "77074ba44",
+    "chapter": "497e3b0b40",
+    "title": "60fa52a0m"
+   }
+  },
+  {
+   "fields": {
+    "id": {
+     "b": 1.23e-18,
+     "🌉": null
+    }
+   },
+   "recordHash": "782d3e631f",
+   "fieldHashes": {
+    "id": "69aec664o"
+   }
+  },
+  {
+   "fields": {
+    "9": [
+     {
+      "tags": false,
+      "λ": {
+       "0": 21,
+       "a b": -535768730,
+       "ף\t": 78,
+       "id": false
+      },
+      "deleted": {
+       "updated_at": 1795435567
+      },
+      "ä": {
+       "\b\u001a\u001cׯ\u0005📲׃\udf8bϟ,\uda87": -298802291,
+       "👍": 69
+      }
+     },
+     {
+      "10": null
+     }
+    ],
+    "order_key": true,
+    "👍\ud83d": false,
+    "b": [],
+    "zw​j": [
+     [
+      {},
+      "1👏",
+      [
+       true,
+       1634133573115
+      ],
+      "# Heading\n\n> quote"
+     ],
+     null,
+     {
+      "chapter": "ϩΧR",
+      "👍": "",
+      "verse": "M솔\udf01\u0015v3Φ4༯Ϧ"
+     }
+    ]
+   },
+   "recordHash": "8b75a05c161",
+   "fieldHashes": {
+    "9": "f26f87e450",
+    "order_key": "4db211e54",
+    "👍\ud83d": "0b0699585",
+    "b": "741638a52",
+    "zw​j": "2a75139b3a"
+   }
+  },
+  {
+   "fields": {
+    "B\u00196\t\"E+\u001b🐿ג࡫": null,
+    "🏴\u0001": {},
+    "B": true,
+    "é": "\udc08_)🔰\udadf㗢VϜ\udb97\\O",
+    "-1": -787142603,
+    " ": "a\ud83d"
+   },
+   "recordHash": "552554e879",
+   "fieldHashes": {
+    "B\u00196\t\"E+\u001b🐿ג࡫": "77074ba44",
+    "🏴\u0001": "5465b8252",
+    "B": "4db211e54",
+    "é": "179f27a4u",
+    "-1": "86793950a",
+    " ": "2c02f7829"
+   }
+  },
+  {
+   "fields": {
+    "0": "峬֕?Ϭ\udd00\\Y",
+    "9": true,
+    "📺\udfb8Η\u000bצﳥ\u0006΍": {},
+    "content": 554191536
+   },
+   "recordHash": "9de7a46350",
+   "fieldHashes": {
+    "0": "d1e69615f",
+    "9": "4db211e54",
+    "📺\udfb8Η\u000bצﳥ\u0006΍": "5465b8252",
+    "content": "161497b09"
+   }
+  },
+  {
+   "fields": {
+    "0": [
+     {
+      "0": null,
+      ">\u0002\u0017,": {
+       " ": null,
+       "b": null,
+       "中": 1146120229,
+       "a b": "cr\rlf"
+      },
+      "01": 98
+     },
+     null
+    ],
+    "9": 1670343710767,
+    "a": -1.0697195014955594e+169,
+    "deleted": true,
+    "\u0001🔋\udbdb:": {
+     "9": false,
+     "created_at": [
+      {
+       "4294967295": 0.0014577259475218659
+      },
+      {
+       "0": -381905,
+       "deleted": false
+      },
+      1681953518936,
+      [
+       9221.34,
+       9007199254740992
+      ]
+     ],
+     "book_num": {
+      "4294967294": 8221.83,
+      "\u0006\udb0a🏎7": -89816,
+      "id": -736853,
+      "deleted": ";G\u0005"
+     }
+    },
+    "B": 9.97616724e-15,
+    "C\udfd6~Ί": 0.0028735632183908046,
+    "Z": "\u001eΚά"
+   },
+   "recordHash": "5099b6231da",
+   "fieldHashes": {
+    "0": "cde2724c2k",
+    "9": "aaa68c01d",
+    "a": "c6f89a3co",
+    "deleted": "4db211e54",
+    "\u0001🔋\udbdb:": "17ef021e6b",
+    "B": "a14c404ee",
+    "C\udfd6~Ί": "e6d7654al",
+    "Z": "5d7ccaa8a"
+   }
+  },
+  {
+   "fields": {
+    "": true,
+    "Z": null
+   },
+   "recordHash": "8bfe274812",
+   "fieldHashes": {
+    "": "4db211e54",
+    "Z": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "order_key": 7302.27,
+    "中": null,
+    "aa": {}
+   },
+   "recordHash": "aff6c78a26",
+   "fieldHashes": {
+    "order_key": "f887c4627",
+    "中": "77074ba44",
+    "aa": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "10": {
+     "1ָ💟Ϡ👅砋": true
+    },
+    "4294967294": {
+     "-1": {
+      "졿3\u0012䗮\r\u001c࿱\udd0e줨O": "=Ω쨖׳>b\u0010'"
+     },
+     "order_key": {
+      "I📤": 0.008264462809917356
+     },
+     "content": "\udcd1`uהֿ🏈\udca3🎗5֗"
+    },
+    "ä": -857761,
+    "㝌\ud8dd6o": [
+     false,
+     {
+      "4294967294": [],
+      "4294967295": {
+       "é": true,
+       "=g\uded1>R\ud841׿q׵": null,
+       "b": "quote\"back\\slash"
+      },
+      "é": 55,
+      "": false
+     },
+     false,
+     {
+      "title": {
+       "id": false,
+       "-1": "Nι%70\udbfc׬g📂!",
+       "\r择텠": true
+      },
+      "a": 0.0013386880856760374,
+      "λ": ""
+     }
+    ],
+    "a": false,
+    "order_key": [
+     6950.37,
+     2173.0668,
+     4.305377510498097e-307
+    ]
+   },
+   "recordHash": "4babaf8a1da",
+   "fieldHashes": {
+    "10": "a36f1b65h",
+    "4294967294": "315268a93l",
+    "ä": "ae1458907",
+    "㝌\ud8dd6o": "3fc11c7d61",
+    "a": "0b0699585",
+    "order_key": "d8b5c12016"
+   }
+  },
+  {
+   "fields": {
+    "2": [
+     [
+      null,
+      {
+       "deleted": null,
+       "order_key": null
+      },
+      null,
+      {
+       "0": null,
+       "order_key": "a\ud83d",
+       "-1": null
+      }
+     ]
+    ],
+    "中": 6.57527092297702e-273,
+    "aa": null,
+    "[[Exod 20:11]]": null,
+    "1.5": [
+     {
+      "📥\udf0dN\u0010w\ud91b΄\f꣄🌂": "ϭxJIﻻ֥ẓ🍆׽נ\u001e",
+      "1.5": 4.2473408195917636e+191
+     },
+     [
+      1671850082284
+     ],
+     8819.18
+    ],
+    "$\ud939": 3.79592066e-7,
+    "a": 5091.28
+   },
+   "recordHash": "a397bc03131",
+   "fieldHashes": {
+    "2": "2c7f325d2i",
+    "中": "596b2373l",
+    "aa": "77074ba44",
+    "[[Exod 20:11]]": "77074ba44",
+    "1.5": "ea9d912e30",
+    "$\ud939": "afdb8b1fd",
+    "a": "ea4ae45a7"
+   }
+  },
+  {
+   "fields": {
+    "1": 94,
+    "1.5": {
+     "2": false,
+     "Z": null,
+     "1.5": {
+      "b": [
+       0.0014184397163120568,
+       44,
+       true,
+       6.556879104924407e+39
+      ],
+      "a b": {}
+     },
+     "é": [
+      9007199254740994,
+      58,
+      "LtͶJL",
+      {}
+     ]
+    },
+    "Vr🔁\ud984🔚\ud8ce΍🌝ֲV": {
+     "6*vοΝuᾼ׽ֹ": {
+      "4294967294": [
+       "]\uda6cαl",
+       6856.5
+      ]
+     },
+     "שם": -829722
+    },
+    "o\udd87w]🌱\u0004菆䔔\u0011": 0.0021231422505307855,
+    "created_at": -1829634313
+   },
+   "recordHash": "0e48a7a7138",
+   "fieldHashes": {
+    "1": "07fe92802",
+    "1.5": "6a0786583p",
+    "Vr🔁\ud984🔚\ud8ce΍🌝ֲV": "0b9850421q",
+    "o\udd87w]🌱\u0004菆䔔\u0011": "b185fdeel",
+    "created_at": "2f695da6b"
+   }
+  },
+  {
+   "fields": {
+    " ": null,
+    "é": 5.39529448e+27
+   },
+   "recordHash": "c055015b1d",
+   "fieldHashes": {
+    " ": "77074ba44",
+    "é": "5ee18aefe"
+   }
+  },
+  {
+   "fields": {
+    "0": [
+     "\udbb5}bcKͺQ",
+     -926020
+    ],
+    "Ͱ\ud977\bb": [],
+    " ": 0.3,
+    "$": {
+     "2": "ϡ",
+     "chapter": null,
+     "updated_at": {
+      "😀": 0.0011627906976744186,
+      "é": {
+       "שם": 0
+      },
+      "verse": false
+     }
+    },
+    "`B\uddd3": 1715629776899
+   },
+   "recordHash": "9b73e4b3b1",
+   "fieldHashes": {
+    "0": "6da50ee1o",
+    "Ͱ\ud977\bb": "741638a52",
+    " ": "4e80ab603",
+    "$": "40d8b8bb2l",
+    "`B\uddd3": "d7e3f5e8d"
+   }
+  },
+  {
+   "fields": {
+    "0": [],
+    "\udf0eu": "{\"json\":true}",
+    "title": {
+     "😀": null
+    },
+    "😀": null
+   },
+   "recordHash": "66ddb72842",
+   "fieldHashes": {
+    "0": "741638a52",
+    "\udf0eu": "f72253b5h",
+    "title": "3bd2216bb",
+    "😀": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    " ": false,
+    "": {},
+    "deleted": [
+     "勎8V",
+     "Yeshua",
+     {},
+     false
+    ],
+    "B": {
+     "cψ΢핟7x\u0011^ײx": "**bold** _it_ `code`",
+     "book_num": 1751596104871
+    }
+   },
+   "recordHash": "7fa188677e",
+   "fieldHashes": {
+    " ": "0b0699585",
+    "": "5465b8252",
+    "deleted": "4ab72545p",
+    "B": "f894ab731w"
+   }
+  },
+  {
+   "fields": {
+    "匌M": true
+   },
+   "recordHash": "e34a1d8eb",
+   "fieldHashes": {
+    "匌M": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "\u0017j<\udddc喿🕸׌\u000f֗𡤿": {
+     "a b": {
+      "1": {
+       "\udfff": "a\ud83d",
+       "שם": false
+      },
+      "order_key": true,
+      "aa": "{嶏ϮRֺד꬇S膽"
+     }
+    }
+   },
+   "recordHash": "6eee66286f",
+   "fieldHashes": {
+    "\u0017j<\udddc喿🕸׌\u000f֗𡤿": "76d2689827"
+   }
+  },
+  {
+   "fields": {
+    "0": {
+     "榀ָֺ🍺\u0010": [
+      {
+       "é": null
+      }
+     ],
+     "׶֬G6U": "ז㉙ϟ{@l💌",
+     "created_at": 3715.75,
+     "΍ױ🗕ׁ": {}
+    },
+    "10": {
+     "10": [
+      0.2,
+      4096130140000,
+      -608591955,
+      false
+     ],
+     "created_at": true,
+     "é": "a\ud83d",
+     "": {
+      "created_at": [
+       "V\u0012🗌׉ν7쥋0Ϫ떟׿",
+       "\u0001֥ײK🏱",
+       "4👂c",
+       "\u000b🍳"
+      ],
+      "content": null,
+      "_": 187269444
+     }
+    },
+    "title": [],
+    "": {},
+    "verse": 98,
+    "01": false
+   },
+   "recordHash": "8b9f0157133",
+   "fieldHashes": {
+    "0": "d27fe65827",
+    "10": "b05a8bf14x",
+    "title": "741638a52",
+    "": "5465b8252",
+    "verse": "13fea5642",
+    "01": "0b0699585"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "10": "\udc4d\ud83d",
+    "4294967294": [
+     "\udbff􏿿"
+    ],
+    "aa": false,
+    "é": {}
+   },
+   "recordHash": "afc8fbdd41",
+   "fieldHashes": {
+    "10": "38a8b75be",
+    "4294967294": "0290c73ac",
+    "aa": "0b0699585",
+    "é": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "\t׎֮֗·\u0003": null
+   },
+   "recordHash": "6f5da74015",
+   "fieldHashes": {
+    "\t׎֮֗·\u0003": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "color": "ὁ λόγος σὰρξ ἐγένετο"
+   },
+   "recordHash": "26b98d1f20",
+   "fieldHashes": {
+    "color": "c270f52em"
+   }
+  },
+  {
+   "fields": {
+    "\u001c": {
+     "9": "ײxj\ud8dd",
+     "\u001d䄊\\Kח׷🍎": 4.90413089e-22,
+     "\udcd80🍐\udda7\u00148\fz\u0018": true
+    }
+   },
+   "recordHash": "79ec5a7463",
+   "fieldHashes": {
+    "\u001c": "b03eeac72g"
+   }
+  },
+  {
+   "fields": {
+    "0": 4035.91,
+    "\udfff": 8135.97,
+    "1.5": 0.007194244604316547,
+    "\udc4db": {
+     "4294967295": [
+      2039.91,
+      "!}🖄o🖧囐",
+      false,
+      true
+     ]
+    },
+    "b": "🐙",
+    "\udbff􏿿": null,
+    "é": null
+   },
+   "recordHash": "6cdbd78894",
+   "fieldHashes": {
+    "0": "704858477",
+    "\udfff": "6a316d307",
+    "1.5": "60a74f0ek",
+    "\udc4db": "08e610ad1a",
+    "b": "f9ec83734",
+    "\udbff􏿿": "77074ba44",
+    "é": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "quote\"back\\slash": "",
+    "_": false,
+    "😀": {
+     "1": {
+      "updated_at": [],
+      "aa": [],
+      "B": {
+       "id": 0,
+       "ζ\ude36σ=Q֪J🏝\u0017📒📿": "n\uddaa\u0000nul_U턜j\ud9a7",
+       "é": "\u0016🖼>jh㎒CNX)🌳"
+      },
+      "color": {}
+     },
+     "Z": null
+    },
+    "\u0010Ϲ26͵ϝ\ude05": {
+     "9": -6.716334815182216e-190,
+     "ϯ🌈 \udeafϢZ)﫰b!": {
+      "4294967295": true,
+      "a": 45,
+      "😀": 84,
+      "chapter": {
+       "⾂b[H׮R\udd84": false,
+       "2oDצ<\ude28`\udd5c🕿\udd6b\u0003": null,
+       "aa": 1612044517
+      }
+     },
+     "deleted": [
+      true,
+      0
+     ],
+     "": []
+    },
+    "title": 5e-324,
+    "中": null,
+    "4294967295": []
+   },
+   "recordHash": "6dc515b81bd",
+   "fieldHashes": {
+    "quote\"back\\slash": "ffcaaa852",
+    "_": "0b0699585",
+    "😀": "b06252be42",
+    "\u0010Ϲ26͵ϝ\ude05": "7124c07d5h",
+    "title": "299ce3096",
+    "中": "77074ba44",
+    "4294967295": "741638a52"
+   }
+  },
+  {
+   "fields": {
+    "10": -2.7268604012659516e+265,
+    "book_num": -5.9861223409014466e+302
+   },
+   "recordHash": "666be64643",
+   "fieldHashes": {
+    "10": "773d0c59o",
+    "book_num": "33fb1283o"
+   }
+  },
+  {
+   "fields": {
+    "deleted": 8.065774e-15,
+    "__proto__x": 6.65645446e+26,
+    "\"ֳ΂֡\udd5e\udbdb֪aX\ud9cb\udbd3": null
+   },
+   "recordHash": "2a0f5de85c",
+   "fieldHashes": {
+    "deleted": "66825876c",
+    "__proto__x": "a9468625e",
+    "\"ֳ΂֡\udd5e\udbdb֪aX\ud9cb\udbd3": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "9": 20,
+    "chapter": [
+     8.61614067e-12
+    ],
+    "_": "\udc4d\ud83d",
+    "title": {
+     "0": "f姿ώ\u0013ׇͿ🍍K🌻죱",
+     "title": null
+    },
+    "created_at": null,
+    "\udfff": "\udd10וxϏ᝘$🕟@\u000f🍓",
+    "\u001bΣφ׵6׈": 1761930913297
+   },
+   "recordHash": "96e2f615b5",
+   "fieldHashes": {
+    "9": "8df2997f2",
+    "chapter": "db28f7a1g",
+    "_": "38a8b75be",
+    "title": "9f8ed75e12",
+    "created_at": "77074ba44",
+    "\udfff": "09f96db1o",
+    "\u001bΣφ׵6׈": "b02d0813d"
+   }
+  },
+  {
+   "fields": {
+    "id": [],
+    "\u0001Κ6_ע֧L": 112570704,
+    "yg׬🗁Zy": {
+     "01": false,
+     "\u0015*zγF": 0.1,
+     "🗐8\ude9fc🔳🔒\udd69\u001a": "\udd57Q\ud9d5f母t^$LￅϤ",
+     "中": {
+      "0": [
+       750.951837,
+       false,
+       null,
+       ""
+      ],
+      "1.5": 9.41182525e-26,
+      "\udb5eલֶ🗄": null,
+      "aa": 270108660000000000000
+     }
+    }
+   },
+   "recordHash": "5b56a731e6",
+   "fieldHashes": {
+    "id": "741638a52",
+    "\u0001Κ6_ע֧L": "066af2e69",
+    "yg׬🗁Zy": "3f62ae3655"
+   }
+  },
+  {
+   "fields": {
+    "0": {
+     "λ": "׵🎸蠻F׷y\u0016o"
+    },
+    "order_key": 75,
+    "ä": true,
+    "é": true,
+    "4294967295": {
+     "tags": 53,
+     "deleted": null
+    }
+   },
+   "recordHash": "2b0fddab66",
+   "fieldHashes": {
+    "0": "57bd6f43m",
+    "order_key": "8ce5cbf92",
+    "ä": "4db211e54",
+    "é": "4db211e54",
+    "4294967295": "aa4563e8q"
+   }
+  },
+  {
+   "fields": {
+    "😀": -1726135665
+   },
+   "recordHash": "63430dfd12",
+   "fieldHashes": {
+    "😀": "b6d66442b"
+   }
+  },
+  {
+   "fields": {
+    "10": 5e-324,
+    "4294967294": 1661304496467,
+    "b": "Gen 1:1",
+    " ": 498190458,
+    "שם": "͸\ud9c0🔦",
+    "tags": [
+     {},
+     [],
+     null
+    ]
+   },
+   "recordHash": "036e2a4f69",
+   "fieldHashes": {
+    "10": "299ce3096",
+    "4294967294": "6cf6b1bed",
+    "b": "5ad586139",
+    " ": "764b20c99",
+    "שם": "ba3873d3b",
+    "tags": "8458e852c"
+   }
+  },
+  {
+   "fields": {
+    "deleted": "Kυ🗫ྐ蘝ϥ\udf27",
+    "title": [
+     "g񰈷🌋lᏃ🕵\u0019֩",
+     -829871,
+     -5.165361691569389e+75,
+     "\udc4db"
+    ],
+    "\udfff": {
+     "άׇV䦪": null
+    },
+    "b": "👍\ud83d",
+    "ὁ λόγος σὰρξ ἐγένετο": {
+     "01": {
+      "ϛm镰:}\u0001c΅΄\u000f": -24066,
+      "中": {
+       "\u001a": 0.0010256410256410256,
+       "B": null,
+       "甞఍": -824634
+      },
+      "b": null,
+      "": {}
+     },
+     "book_num": 1588399668,
+     "֤+\u000bHl🖈\r7": null
+    },
+    "ä": null
+   },
+   "recordHash": "f84a937a145",
+   "fieldHashes": {
+    "deleted": "0aa3bc0ff",
+    "title": "9166f8091p",
+    "\udfff": "cd4f764bd",
+    "b": "fbd69b27a",
+    "ὁ λόγος σὰρξ ἐγένετο": "c35c89da4d",
+    "ä": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "g\ud965h֞찒\"ꍳ\ude9dbׇ": 0.004830917874396135,
+    "שם": {
+     "__proto__x": {},
+     "chapter": null
+    },
+    "_": {
+     "é": {
+      "🔯": 9.52442243e+24
+     },
+     "a": [
+      [
+       9541.81
+      ]
+     ],
+     "😀": null
+    },
+    "T\ud918🍰ױ\ud847": {},
+    "2ε": "👋🏽",
+    "created_at": 1832124295
+   },
+   "recordHash": "d5aec1e4c9",
+   "fieldHashes": {
+    "g\ud965h֞찒\"ꍳ\ude9dbׇ": "4e6cd803k",
+    "שם": "858f07ebw",
+    "_": "599665e31i",
+    "T\ud918🍰ױ\ud847": "5465b8252",
+    "2ε": "dc566eac6",
+    "created_at": "f947102aa"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": false,
+    "tags": false,
+    "Z": true
+   },
+   "recordHash": "002059bc2a",
+   "fieldHashes": {
+    "4294967294": "0b0699585",
+    "tags": "0b0699585",
+    "Z": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "10": {},
+    "é": {
+     "1": "\udc4db"
+    }
+   },
+   "recordHash": "41fdf1e01d",
+   "fieldHashes": {
+    "10": "5465b8252",
+    "é": "950a9d48f"
+   }
+  },
+  {
+   "fields": {
+    "_": {
+     "2": "Ο\udbcd\udb99H",
+     "a": {
+      "1": 14,
+      "chapter": -411188
+     }
+    },
+    "-1": "Lꦜ",
+    "chapter": -555598468,
+    "b": [
+     -2088608156
+    ]
+   },
+   "recordHash": "8440fc606c",
+   "fieldHashes": {
+    "_": "6a78eb7d1h",
+    "-1": "f26d9f754",
+    "chapter": "4342da4da",
+    "b": "2d3f0cb0d"
+   }
+  },
+  {
+   "fields": {
+    "__proto__x": -2.6803295436881306e+216,
+    "": -516963,
+    "\udf38": "쯃g*֦ץF淓",
+    "chapter": {
+     "": 0.0015151515151515152,
+     "\udc4d\ud83d": {
+      "b": {
+       "👨‍👩‍👧‍👦": -32167,
+       "λ": "H7225 G3056"
+      },
+      "🔎֓\udc2a[$'ͽ🍝": 4.70196792e-25,
+      "aa": false
+     },
+     "01": 1763877433590
+    },
+    "中": 39,
+    "😀": {},
+    "verse": "׮ι🖕;ϝ';d\u0005"
+   },
+   "recordHash": "92351e84110",
+   "fieldHashes": {
+    "__proto__x": "e8cd2d4do",
+    "": "f929c0b87",
+    "\udf38": "e19882859",
+    "chapter": "0f32717e47",
+    "中": "90f05fa12",
+    "😀": "5465b8252",
+    "verse": "b302f75eh"
+   }
+  },
+  {
+   "fields": {
+    "book_num": 0,
+    "b": null,
+    "Z": {
+     "\b3Ϸ`\n{📊輝T": "\ud90dϭ\uda09h'🌐׃🕷ϸ\ud8c1͸",
+     "ס👏?!ד": "\udc4db"
+    }
+   },
+   "recordHash": "14336b345e",
+   "fieldHashes": {
+    "book_num": "350ca8af1",
+    "b": "77074ba44",
+    "Z": "09a9d6511u"
+   }
+  },
+  {
+   "fields": {
+    "10": "䅁3/\udc4eO|\uddc2-机",
+    "1.5": null,
+    "book_num": "a\ud83d",
+    " ": {},
+    "\ud800": {
+     "9": {
+      "\udc4d\ud83d": 5,
+      "a b": "\ude02@F\u0002\u0013\ude17a8^ק",
+      "created_at": "👍"
+     },
+     "tags": false,
+     "title": 0.0010695187165775401
+    }
+   },
+   "recordHash": "dbf0f247c9",
+   "fieldHashes": {
+    "10": "b5b410cdl",
+    "1.5": "77074ba44",
+    "book_num": "2c02f7829",
+    " ": "5465b8252",
+    "\ud800": "8bff7a333g"
+   }
+  },
+  {
+   "fields": {
+    "book_num": null,
+    "aa": {},
+    "쮺㷗pέ^ֹhi\udf4f\n": "a\ud83d",
+    " ": 4.48594436e+24
+   },
+   "recordHash": "18a690cb49",
+   "fieldHashes": {
+    "book_num": "77074ba44",
+    "aa": "5465b8252",
+    "쮺㷗pέ^ֹhi\udf4f\n": "2c02f7829",
+    " ": "9083ea4ae"
+   }
+  },
+  {
+   "fields": {
+    "1": {
+     "é": {
+      "": -3.693915196739864e-190,
+      "-1": [
+       true,
+       false,
+       false
+      ],
+      "😀": true,
+      "color": "\udc4db"
+     },
+     "book_num": true,
+     "content": {}
+    },
+    "content": [
+     "",
+     [
+      false,
+      {
+       "b": "\udbff􏿿",
+       "created_at": "🗣r",
+       "中": 5e-324
+      },
+      62,
+      ""
+     ]
+    ],
+    "S$ΐ\udc1d֞\u0018]\uda8e׸Ϡ": -90184,
+    "ä": null
+   },
+   "recordHash": "73ae21b0f1",
+   "fieldHashes": {
+    "1": "3a661a0537",
+    "content": "c48add741t",
+    "S$ΐ\udc1d֞\u0018]\uda8e׸Ϡ": "6706011c6",
+    "ä": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": -82098,
+    "id": [
+     {
+      "\udbff􏿿": [
+       "K\udf01\u0012\udf7e<=\udd5f🗣H",
+       null,
+       true,
+       null
+      ],
+      "4294967295": false,
+      "title": null
+     }
+    ],
+    "a": "a\ud83d",
+    "order_key": true,
+    "1.5": "Y楎׾C🍖\udfa0K",
+    "tags": "a\ud83d",
+    "é": {
+     "": [
+      "👋🏽",
+      [
+       "a"
+      ],
+      -18675,
+      false
+     ],
+     "中": "*א\u0000\ud951W~Y🏼",
+     "verse": {}
+    },
+    "Qg🍽H䗃)ί\udbf8א\udb3c": 4.54686236e-29
+   },
+   "recordHash": "7044b025133",
+   "fieldHashes": {
+    "4294967294": "b5a2ef0b6",
+    "id": "d359cde92p",
+    "a": "2c02f7829",
+    "order_key": "4db211e54",
+    "1.5": "c440b8a2f",
+    "tags": "2c02f7829",
+    "é": "92af722d1x",
+    "Qg🍽H䗃)ί\udbf8א\udb3c": "eb3bf572e"
+   }
+  },
+  {
+   "fields": {
+    "שם": null
+   },
+   "recordHash": "8cf9d7feb",
+   "fieldHashes": {
+    "שם": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "b": [
+     [],
+     6274.54
+    ]
+   },
+   "recordHash": "0f455f7b12",
+   "fieldHashes": {
+    "b": "f73a8573c"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": [
+     null,
+     1066106522
+    ],
+    "__proto__x": null,
+    " ": 0.0014285714285714286,
+    "ὁ λόγος σὰρξ ἐγένετο": {}
+   },
+   "recordHash": "cf5d329c66",
+   "fieldHashes": {
+    "4294967294": "b2b0440bh",
+    "__proto__x": "77074ba44",
+    " ": "9814e03al",
+    "ὁ λόγος σὰρξ ἐγένετο": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "1": "R֐~\u0004🏾:V)09",
+    "Z": true,
+    "ä": [
+     1.23e-18,
+     {
+      "4294967294": {
+       "0": null
+      },
+      "𠀀𠀁": true
+     }
+    ],
+    "שם": [
+     9795.25
+    ],
+    "4294967295": {
+     "λ": "é",
+     "/slash/": {
+      "b": {},
+      "é": {},
+      "😀": {}
+     }
+    }
+   },
+   "recordHash": "285e383fa0",
+   "fieldHashes": {
+    "1": "f47b694ci",
+    "Z": "4db211e54",
+    "ä": "01f399441c",
+    "שם": "f20fa2aa9",
+    "4294967295": "08d2c12c19"
+   }
+  },
+  {
+   "fields": {
+    "a": null,
+    "1.5": "",
+    "w\uda7d\u0019חט": -327651,
+    "tags": null,
+    "😀": {}
+   },
+   "recordHash": "becb1f8741",
+   "fieldHashes": {
+    "a": "77074ba44",
+    "1.5": "ffcaaa852",
+    "w\uda7d\u0019חט": "ea9fefe67",
+    "tags": "77074ba44",
+    "😀": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "10": [
+     27,
+     [
+      [
+       null,
+       null
+      ],
+      -1.2950409023567711e-42,
+      true
+     ]
+    ],
+    "4294967295": [
+     true,
+     {
+      "Z": "\ud971\u0001\u0001\u0017👔"
+     },
+     null
+    ],
+    "{\"json\":true}": {
+     "ä": false,
+     "ׁד\u0017\u000b🐯ϧ": "Ἐν ἀρχῇ ἦν ὁ λόγος",
+     "é": [
+      {
+       "aa": false
+      },
+      true,
+      {
+       "KΌ\udb71Ψ\u001e": "👍\ud83d",
+       "中": null,
+       "created_at": 30236224
+      }
+     ],
+     "id": null
+    },
+    "aa": false,
+    "sz🕄": true,
+    "Z": {
+     "\udc4d\ud83d": {
+      "B": null,
+      "a b": null
+     },
+     "aa": "\udd3a",
+     " ,💨\u0014=g🎧": {}
+    }
+   },
+   "recordHash": "7f775a5417f",
+   "fieldHashes": {
+    "10": "b9bb102d1b",
+    "4294967295": "4fa6c4241b",
+    "{\"json\":true}": "c972bcbc45",
+    "aa": "0b0699585",
+    "sz🕄": "4db211e54",
+    "Z": "63d4d06920"
+   }
+  },
+  {
+   "fields": {
+    "\ud8b3(<>蛭I&4Ϥa": {
+     "1.5": {
+      "ä": 1145441044,
+      "_ 👓PfP͹li": true,
+      "__proto__x": {}
+     },
+     "Z": null
+    },
+    "4294967295": {
+     "book_num": {
+      "tags": {},
+      "\udbff􏿿": 1003405470,
+      "Dο֣\udb5doS\u0011$Oq🐫": true
+     },
+     "ὁ λόγος σὰρξ ἐγένετο": 0.001841620626151013
+    },
+    "中": 6278.35
+   },
+   "recordHash": "a1d66df2e9",
+   "fieldHashes": {
+    "\ud8b3(<>蛭I&4Ϥa": "6523eaed1v",
+    "4294967295": "de599f403c",
+    "中": "e3c40db47"
+   }
+  },
+  {
+   "fields": {
+    "9": 0.002066115702479339,
+    "b": "`=",
+    "updated_at": {
+     "10": [
+      false
+     ],
+     "👍\ud83d": null,
+     "֬?": ""
+    },
+    "שם": -1181575874
+   },
+   "recordHash": "eae3d21368",
+   "fieldHashes": {
+    "9": "10dfbee4k",
+    "b": "5e545d2c4",
+    "updated_at": "dd03a3f512",
+    "שם": "7c1888f7b"
+   }
+  },
+  {
+   "fields": {
+    "10": true,
+    "01": 9007199254740992,
+    "ᑇ": false,
+    "created_at": {
+     "F$M坏Ϝ]}P䌻": "",
+     "B": {}
+    },
+    "🗦[aσ": true
+   },
+   "recordHash": "84c634e35d",
+   "fieldHashes": {
+    "10": "4db211e54",
+    "01": "adb18b3eg",
+    "ᑇ": "0b0699585",
+    "created_at": "7058f33en",
+    "🗦[aσ": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "title": null,
+    "λ": null,
+    "1.5": {
+     "B": {
+      "created_at": 45
+     }
+    },
+    "B": true,
+    "4294967295": {
+     "": {
+      " ": [],
+      "_": 0.00186219739292365,
+      "created_at": null
+     }
+    }
+   },
+   "recordHash": "906f760b83",
+   "fieldHashes": {
+    "title": "77074ba44",
+    "λ": "77074ba44",
+    "1.5": "2d8227cen",
+    "B": "4db211e54",
+    "4294967295": "fdbeb92e1j"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "B": {
+     "a b": 9452212800000000000,
+     "": "\udfff",
+     "_": 1e-7
+    },
+    "id": 1707910727617.7324
+   },
+   "recordHash": "dd7b5ed34e",
+   "fieldHashes": {
+    "B": "9a67dfc51c",
+    "id": "64cbbf64i"
+   }
+  },
+  {
+   "fields": {
+    "1": null,
+    "10": false,
+    "Z": "l",
+    "1.5": 9.82800795e-29,
+    "中": null,
+    "id": {},
+    "λ": -1.1092484784409277e+138
+   },
+   "recordHash": "562144f060",
+   "fieldHashes": {
+    "1": "77074ba44",
+    "10": "0b0699585",
+    "Z": "dbadc8eb3",
+    "1.5": "7c622634e",
+    "中": "77074ba44",
+    "id": "5465b8252",
+    "λ": "dd628fefo"
+   }
+  },
+  {
+   "fields": {
+    "中": {}
+   },
+   "recordHash": "43e713e28",
+   "fieldHashes": {
+    "中": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "9": false,
+    "d׮\ud9c3o": {
+     "λ": false
+    },
+    "é": 3088.26,
+    "\udfff": "ο\u0012%陟y蘊\udc55",
+    "\ud88a\ud99ai>t🌪\u0013֚\udd37׉\udc1c": [
+     1635478142887,
+     true
+    ],
+    "שם": 2.8951230518361863e-59,
+    "中": 4.2825232e-25
+   },
+   "recordHash": "74d178e2b7",
+   "fieldHashes": {
+    "9": "0b0699585",
+    "d׮\ud9c3o": "c2feed4bb",
+    "é": "4ed992e87",
+    "\udfff": "a023acb9j",
+    "\ud88a\ud99ai>t🌪\u0013֚\udd37׉\udc1c": "99b8a949k",
+    "שם": "577698fam",
+    "中": "f8539c74d"
+   }
+  },
+  {
+   "fields": {
+    "_🔺ϻ⸄\udafa֙\u001b": {
+     "2": 4.20704072e+24,
+     "title": -1387855315,
+     "𠀀𠀁": {
+      "10": "\udbff􏿿",
+      "": null,
+      "Φ!🌷臏צ\u0011ׇ㰆\\\b\r": "૦"
+     },
+     "B": {
+      "😀": [
+       -665962449,
+       1603517243970,
+       "=🐮햕䳐]8\u0007🏥5j",
+       "䉢🏵־*"
+      ]
+     }
+    },
+    "Z": [],
+    "content": true,
+    "Ϡ🔉\u0004ֶϪ⹦ॸ΢🔕Q": "\ud917OrD"
+   },
+   "recordHash": "04e03799f4",
+   "fieldHashes": {
+    "_🔺ϻ⸄\udafa֙\u001b": "6e03ab254m",
+    "Z": "741638a52",
+    "content": "4db211e54",
+    "Ϡ🔉\u0004ֶϪ⹦ॸ΢🔕Q": "9105345eb"
+   }
+  },
+  {
+   "fields": {
+    "é": [
+     5943.56
+    ]
+   },
+   "recordHash": "0fa9c3fef",
+   "fieldHashes": {
+    "é": "73cb79359"
+   }
+  },
+  {
+   "fields": {
+    "1": null,
+    "Z": -430984,
+    "b": {
+     "-1": {
+      "  ": [
+       ":\u0012寁&Dω\u001b",
+       1712862053659,
+       "蓣\ud865M🔶c]\u0018Wϥu֙"
+      ],
+      "4294967295": null,
+      "?]\r": -42266
+     }
+    },
+    "-1": "\f🌪🗄",
+    "_": {
+     ")ς$Eץό\u0017": 18
+    },
+    "": {},
+    "4294967295": false,
+    "a b": "x֣ぉ׌"
+   },
+   "recordHash": "5f3edb30d1",
+   "fieldHashes": {
+    "1": "77074ba44",
+    "Z": "c4cf8f5e7",
+    "b": "f42640f12y",
+    "-1": "24da56e68",
+    "_": "3d258b12j",
+    "": "5465b8252",
+    "4294967295": "0b0699585",
+    "a b": "d3b9e4d16"
+   }
+  },
+  {
+   "fields": {
+    "title": "u~\u001a6y[🐰_V🏨",
+    "content": null,
+    "4294967295": [
+     null,
+     null,
+     1674969003076
+    ],
+    "order_key": {
+     "1": {
+      "💒\uda3e\u001dך": null,
+      "1.5": "🖮👋🍄o="
+     },
+     "4294967295": {
+      "10": "\udc4d\ud83d",
+      "שם": null
+     }
+    }
+   },
+   "recordHash": "e0d334cfbc",
+   "fieldHashes": {
+    "title": "818ab6efj",
+    "content": "77074ba44",
+    "4294967295": "2249831fp",
+    "order_key": "e812757a2k"
+   }
+  },
+  {
+   "fields": {
+    "2": [
+     [
+      null,
+      "G\udbd5\u00030E\f׹Fl"
+     ]
+    ],
+    "\udc4d\ud83d": [],
+    "id": "녚Ώl䬻s׎~"
+   },
+   "recordHash": "d7ce35c946",
+   "fieldHashes": {
+    "2": "e309957bv",
+    "\udc4d\ud83d": "741638a52",
+    "id": "5668bce69"
+   }
+  },
+  {
+   "fields": {
+    "a": -1.2638441298057086e+217,
+    "λ": 7624.56,
+    "中": {
+     "4294967295": "\udfff",
+     "aa": null
+    }
+   },
+   "recordHash": "bf853d1050",
+   "fieldHashes": {
+    "a": "b3d28b06o",
+    "λ": "8be3d1f37",
+    "中": "64442768x"
+   }
+  },
+  {
+   "fields": {
+    "deleted": [
+     [
+      {
+       "created_at": 894559666,
+       "book_num": 0.0012033694344163659,
+       "_": 3.1950864625321236e-308
+      },
+      [
+       true,
+       false,
+       1618631849769,
+       -6.279204287481639e-216
+      ],
+      {
+       "": true,
+       "👍\ud83d": null,
+       "׿֚ν9\u0004\u0013:": null,
+       "é": null
+      },
+      0.001890359168241966
+     ],
+     {
+      "👨g": 7.952836802699945e-225,
+      "4294967295": null
+     }
+    ],
+    "__proto__x": [
+     {
+      "﻿bom": 9007199254740991,
+      "b": 9007199254740992,
+      "content": "e/֤👵"
+     },
+     0.0017482517482517483,
+     {
+      "😀": false,
+      "updated_at": 4.90068975e-14,
+      "簾🐽䦾ϣk🖳\u0014\udf51": null
+     },
+     {
+      "order_key": "\udc4db",
+      "4294967295": -766303633
+     }
+    ],
+    "_": "\u0003v",
+    "4294967295": 95
+   },
+   "recordHash": "84229ad2215",
+   "fieldHashes": {
+    "deleted": "a9a0824c7k",
+    "__proto__x": "e44f4ef85p",
+    "_": "aca554c39",
+    "4294967295": "08fe94132"
+   }
+  },
+  {
+   "fields": {
+    "tags": 3.2987272896858405e+254,
+    "id": null,
+    "aa": 3733.75
+   },
+   "recordHash": "7cd08a3c37",
+   "fieldHashes": {
+    "tags": "2158d351n",
+    "id": "77074ba44",
+    "aa": "1445ffa57"
+   }
+  },
+  {
+   "fields": {
+    "4294967295": "\ud8ca",
+    "Ἐν ἀρχῇ ἦν ὁ λόγος": 1.7976931348623157e+308,
+    "בְּרֵאשִׁית בָּרָא אֱלֹהִים": 0.001148105625717566,
+    "__proto__x": true,
+    "ä": 1.23e-18,
+    "שם": 1613513439433
+   },
+   "recordHash": "e4730205a9",
+   "fieldHashes": {
+    "4294967295": "6ebcd0788",
+    "Ἐν ἀρχῇ ἦν ὁ λόγος": "0d2c2de0n",
+    "בְּרֵאשִׁית בָּרָא אֱלֹהִים": "957b8082k",
+    "__proto__x": "4db211e54",
+    "ä": "cb23b7e68",
+    "שם": "1102506bd"
+   }
+  },
+  {
+   "fields": {
+    "10": false,
+    "line\nbreak": 8848.22,
+    "é": [
+     [
+      [
+       1679037766211,
+       null,
+       null,
+       "׃\u001dMI־΁iϸ"
+      ]
+     ],
+     null
+    ],
+    "b": "📛\u00170\udfa4"
+   },
+   "recordHash": "7a8489346f",
+   "fieldHashes": {
+    "10": "0b0699585",
+    "line\nbreak": "e52af6f57",
+    "é": "0521ceeb1e",
+    "b": "13860b58h"
+   }
+  },
+  {
+   "fields": {
+    "10": {
+     "é": false
+    },
+    "01": false,
+    "1.5": -235073,
+    "s֪ϱͺ": null,
+    "שם": 1.193409197339773e+126,
+    "}ϗP\udd78_": [],
+    "B": "α📽H\ud917~*💜\u0018🖻ϡ",
+    "a b": 33
+   },
+   "recordHash": "083add058b",
+   "fieldHashes": {
+    "10": "cb04ccd8c",
+    "01": "0b0699585",
+    "1.5": "47aab3b47",
+    "s֪ϱͺ": "77074ba44",
+    "שם": "3dc937a2m",
+    "}ϗP\udd78_": "741638a52",
+    "B": "4f597d1ap",
+    "a b": "86f04fe32"
+   }
+  },
+  {
+   "fields": {
+    "chapter": {
+     "01": {
+      "10": 1e+21,
+      " ": 0.0027100271002710027,
+      "created_at": {
+       "_": "\u001e",
+       "chapter": true
+      },
+      "בְּרֵאשִׁית בָּרָא אֱלֹהִים": true
+     }
+    },
+    "b": {
+     "0": {
+      "": {
+       "😀": null
+      },
+      "\u0000": -861262,
+      "\udba5": {},
+      "chapter": ""
+     },
+     "id": {
+      "0": -1274270541,
+      "created_at": null
+     },
+     "\udc4d\ud83d": "A\u0011׉\u0004",
+     "ר#Τ📤Z\udda8🍾": 2.56450709e-22
+    },
+    "ä": "é",
+    "4294967295": 79,
+    "aa": 3381.83
+   },
+   "recordHash": "224d420e15b",
+   "fieldHashes": {
+    "chapter": "e8ce9b473f",
+    "b": "0b6eec604p",
+    "ä": "df3d22e34",
+    "4294967295": "98e5dedd2",
+    "aa": "cdb779af7"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "verse": {
+     "0": false,
+     "4294967294": {
+      "01": [
+       0
+      ],
+      "ﰀk͸gn\u0004ױ~c֪": [],
+      "🗐{:\n]🖾💾Ϧ<\f": false,
+      "4294967295": -1141972527
+     }
+    },
+    "color": "֖)\\🔍🖘",
+    "b": null,
+    "B": {
+     "2": null,
+     "title": 5897.9
+    },
+    "1.5": 4991.88,
+    "01": -71534,
+    "֠\udfc9\udb12᧙🗡\r": 1420685028
+   },
+   "recordHash": "8271bbabe8",
+   "fieldHashes": {
+    "verse": "dd42d2bc2y",
+    "color": "302b9f0ba",
+    "b": "77074ba44",
+    "B": "bf73b374p",
+    "1.5": "74af76c67",
+    "01": "7163cb8c6",
+    "֠\udfc9\udb12᧙🗡\r": "f43c27dba"
+   }
+  },
+  {
+   "fields": {
+    "book_num": [
+     [],
+     -503654
+    ]
+   },
+   "recordHash": "4405459b19",
+   "fieldHashes": {
+    "book_num": "e5ecf793c"
+   }
+  },
+  {
+   "fields": {
+    "🔫2֫🖾G׭\u0002": 0.00000863049906,
+    "😀": "֞쌬sΒO9֪CkD",
+    "Z": {
+     "book_num": 19,
+     "b": "a\ud83d"
+    }
+   },
+   "recordHash": "bbe67ff857",
+   "fieldHashes": {
+    "🔫2֫🖾G׭\u0002": "1d4aee84g",
+    "😀": "1b97e7e4c",
+    "Z": "35ef6550t"
+   }
+  },
+  {
+   "fields": {
+    "title": {},
+    "B": "ב\u0013׫=🗉W\u0019"
+   },
+   "recordHash": "f6afb1d725",
+   "fieldHashes": {
+    "title": "5465b8252",
+    "B": "9d069d5bk"
+   }
+  },
+  {
+   "fields": {
+    "1": {
+     "λ": -2.990296807720759e-222,
+     "😀": {
+      "4294967294": "👍\ud83d",
+      "-1": null,
+      "中": [
+       null,
+       95
+      ]
+     },
+     "B": []
+    },
+    "😀": {
+     "0": null,
+     "ϥ☗": null,
+     "a b": {},
+     "-1": 7905.31
+    },
+    "u6": 5757.83,
+    "book_num": 4364.92,
+    "4294967295": {
+     "0": null
+    },
+    "λ": "",
+    "__proto__x": [
+     true,
+     -620731193
+    ]
+   },
+   "recordHash": "eda39f73ef",
+   "fieldHashes": {
+    "1": "25d493272j",
+    "😀": "0f28b11b16",
+    "u6": "6c46c3c87",
+    "book_num": "87d314bf7",
+    "4294967295": "5df0109ca",
+    "λ": "ffcaaa852",
+    "__proto__x": "aeb514a6h"
+   }
+  },
+  {
+   "fields": {
+    "B": false
+   },
+   "recordHash": "c11e4544b",
+   "fieldHashes": {
+    "B": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "order_key": {
+     "10": 2.91103626e-9,
+     "🌫🏪JᙕUa\u0002": {
+      "0": "׃\udd7d🗽ʹ/눎 쌁֛勢΁",
+      "1": [
+       "🖚֞ϓ",
+       false,
+       null
+      ],
+      "created_at": false,
+      "chapter": {
+       "㌻+ָύR\u0001ꇆש[u": 1e-7,
+       "𝔊𝔬𝔡": "S📦xz🎴꥓",
+       "a": 31,
+       "_": "line\nbreak"
+      }
+     },
+     "color": {
+      "chapter": {
+       "ä": "🏜"
+      },
+      "😀": null,
+      " ": "t",
+      "tags": [
+       null,
+       "line\nbreak",
+       true
+      ]
+     }
+    }
+   },
+   "recordHash": "3bf8ff7111a",
+   "fieldHashes": {
+    "order_key": "d84a07117g"
+   }
+  },
+  {
+   "fields": {
+    "1": false,
+    "\u0015Ϻ": 0.2
+   },
+   "recordHash": "470b777619",
+   "fieldHashes": {
+    "1": "0b0699585",
+    "\u0015Ϻ": "4f80acf33"
+   }
+  },
+  {
+   "fields": {
+    "color": [
+     8293.48,
+     null,
+     {}
+    ],
+    "ä": {},
+    "content": {
+     "χάρις": "\ud800"
+    },
+    "-1": null
+   },
+   "recordHash": "bf6328e949",
+   "fieldHashes": {
+    "color": "736a7ea8h",
+    "ä": "5465b8252",
+    "content": "510e74d3i",
+    "-1": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "order_key": {
+     "Z": 7142.39,
+     "title": false
+    }
+   },
+   "recordHash": "ae09d92a29",
+   "fieldHashes": {
+    "order_key": "886bc730r"
+   }
+  },
+  {
+   "fields": {
+    "中": 0.903399997,
+    "created_at": [],
+    "a b": {
+     "aa": "",
+     "Ε🍃\u00189Q\u001d!ⱦ\u0006": "\udeb9"
+    },
+    "id": true,
+    "λ": 5e-324,
+    "updated_at": {
+     "aa": {
+      "01": null,
+      "Z": true
+     },
+     "中": "䡽א",
+     "_": "ַ\udc81~֜q\uda46\ud9f5👂"
+    },
+    "😀": -5.303818270047805e-43
+   },
+   "recordHash": "98f08c6dd8",
+   "fieldHashes": {
+    "中": "1c3df519b",
+    "created_at": "741638a52",
+    "a b": "932955881a",
+    "id": "4db211e54",
+    "λ": "299ce3096",
+    "updated_at": "fcf442b71v",
+    "😀": "3ee33680m"
+   }
+  },
+  {
+   "fields": {
+    "Z": false,
+    "\u0014🍿\t7\uddf0\ud892ָεH^F": "👍\ud83d",
+    "é": {
+     "4294967295": true,
+     "content": {
+      "0": {
+       "-1": false,
+       "created_at": "A@a`"
+      },
+      "4294967295": {
+       "4294967294": 45,
+       "é": "E/\">O⚅'@\udaab\u000e",
+       "λ": "יְהוָה",
+       "-1": "{\"json\":true}"
+      },
+      "שם": 1666091212449
+     },
+     "title": null
+    }
+   },
+   "recordHash": "ef6d519aff",
+   "fieldHashes": {
+    "Z": "0b0699585",
+    "\u0014🍿\t7\uddf0\ud892ָεH^F": "fbd69b27a",
+    "é": "e18057175g"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    " ": "\uda83\"🔆ϲϻ",
+    "title": false,
+    "order_key": 1705510612210,
+    "B": {
+     "1": {},
+     "content": true,
+     "😀": 1663208881678
+    }
+   },
+   "recordHash": "fd9f3d536b",
+   "fieldHashes": {
+    " ": "583862d4e",
+    "title": "0b0699585",
+    "order_key": "b21cf384d",
+    "B": "8fc418dc16"
+   }
+  },
+  {
+   "fields": {
+    "שם": "\uda9eMηףֻ֟",
+    "__proto__x": false,
+    "book_num": false,
+    "@j⨜\u00065;YͰ": true
+   },
+   "recordHash": "50db65ea4d",
+   "fieldHashes": {
+    "שם": "3beb3690d",
+    "__proto__x": "0b0699585",
+    "book_num": "0b0699585",
+    "@j⨜\u00065;YͰ": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "order_key": false,
+    " ": null,
+    "װQZdcFϰί": {
+     "B": "Ω5開jC🌂Z򲅉"
+    },
+    "updated_at": [
+     [
+      {
+       "order_key": "🏪Γ=\f",
+       "updated_at": -323121,
+       "é": null,
+       "deleted": null
+      },
+      3.738122149931323e+52,
+      0.0554186463,
+      {
+       "4294967294": true,
+       "aa": 0.0011904761904761906,
+       "created_at": true,
+       "ä": false
+      }
+     ],
+     {},
+     null
+    ],
+    "": [],
+    "b": {
+     "b": [
+      "\udc4d\ud83d",
+      true,
+      "\u0007\udaef⯺Ͽm"
+     ],
+     "Z": 1595406080322,
+     "B": {
+      "K뇒ϙ\ud8b66㮀\u001d*\u000e": false,
+      "title": null,
+      "שם": {},
+      "é": 1.7976931348623157e+308
+     },
+     "content": {
+      "book_num": "🐫ϼ.򙺖4",
+      "엾᭜\u0016\udbfa": false,
+      "λ": false,
+      "": null
+     }
+    }
+   },
+   "recordHash": "36cbd9b61f3",
+   "fieldHashes": {
+    "order_key": "0b0699585",
+    " ": "77074ba44",
+    "װQZdcFϰί": "ff8b89d2i",
+    "updated_at": "622d545d5a",
+    "": "741638a52",
+    "b": "fac279d269"
+   }
+  },
+  {
+   "fields": {
+    "order_key": -1978204472,
+    "é": null,
+    "ä": [
+     5.96341092e-18,
+     {
+      "B": true,
+      "Z": 7016.42,
+      "׭L\u0003👬\u001b🕭": null,
+      "tags": null
+     },
+     {}
+    ]
+   },
+   "recordHash": "8d68613f77",
+   "fieldHashes": {
+    "order_key": "c2b7c742b",
+    "é": "77074ba44",
+    "ä": "cfbed2dc28"
+   }
+  },
+  {
+   "fields": {
+    "ä": {
+     "é": "",
+     "👍\ud83d": false
+    },
+    "ΩZ`\udbbbBX": {
+     "tags": true,
+     "ä": "\udc4d\ud83d"
+    },
+    "b": {
+     "2": "\udd21=",
+     "שם": {
+      "book_num": true,
+      "_": 1641561233956
+     }
+    }
+   },
+   "recordHash": "3e5b8aae8b",
+   "fieldHashes": {
+    "ä": "c235aab1p",
+    "ΩZ`\udbbbBX": "6602742ew",
+    "b": "f41f69371k"
+   }
+  },
+  {
+   "fields": {
+    "aa": 4670.09,
+    "tags": {
+     "4294967294": 1657646601094,
+     "中": -532594,
+     "\u000fB朥⿎🍂㟑👠🍰P": {
+      "a": "\udea4z悍S🐛KI髂֘'"
+     },
+     "W䵑{鵩ύe֓n\u0011🕴": 0.003952569169960474
+    }
+   },
+   "recordHash": "d6785cd693",
+   "fieldHashes": {
+    "aa": "be5a77ed7",
+    "tags": "653ec43d3h"
+   }
+  },
+  {
+   "fields": {
+    ">槦=\u000f👃": [
+     0.001379310344827586,
+     1.5077680249628762e+158,
+     [
+      false,
+      7997.55
+     ]
+    ],
+    "tags": [
+     false,
+     null,
+     "Yͺצ\udb50",
+     "quote\"back\\slash"
+    ],
+    "a": "ὁ λόγος σὰρξ ἐγένετο",
+    "chapter": [
+     {
+      "color": [
+       true
+      ]
+     }
+    ],
+    "deleted": null,
+    "\udb551֕🌵ΩϮ*": [
+     1655339442525
+    ],
+    "B": {
+     "color": "ϟ🌲䫵🖯",
+     "content": {
+      "book_num": {
+       "λ": "Q🔝כ\udadcGg\udac2=",
+       "a": false,
+       "aa": null
+      },
+      "\udc4db": true,
+      "content": false
+     }
+    }
+   },
+   "recordHash": "2aadf8f1167",
+   "fieldHashes": {
+    ">槦=\u000f👃": "bbb94de11q",
+    "tags": "2819531219",
+    "a": "c270f52em",
+    "chapter": "f1cf9808i",
+    "deleted": "77074ba44",
+    "\udb551֕🌵ΩϮ*": "d763dd9ff",
+    "B": "23fe87e63c"
+   }
+  },
+  {
+   "fields": {
+    "chapter": {
+     "1": [
+      {
+       "9": null,
+       "updated_at": null,
+       "😀": "\u0000{"
+      },
+      {},
+      {
+       "__proto__x": -1.5374326563256329e+242,
+       "a b": 0.0016420361247947454,
+       "λ": -1301186051
+      }
+     ],
+     "book_num": {}
+    },
+    "B": {
+     "9": [
+      {
+       "": "📎",
+       "content": 5
+      },
+      false,
+      {
+       "1": 2
+      }
+     ],
+     "ͱ󠺬\t": null,
+     "é": null,
+     "__proto__x": 1694097135594
+    },
+    "Z": false,
+    "created_at": 26,
+    "\udc3d3": 1e-7,
+    "title": {
+     "_": 9.99728975e-16,
+     "👍\ud83d": 4881.75,
+     "Pׂセ\u000bg👟\udb4fS": -102876206,
+     "id": null
+    }
+   },
+   "recordHash": "67ff6bef18a",
+   "fieldHashes": {
+    "chapter": "6728729e48",
+    "B": "edf3e3682l",
+    "Z": "0b0699585",
+    "created_at": "8bf296592",
+    "\udc3d3": "5228e5cf4",
+    "title": "0065d1672a"
+   }
+  },
+  {
+   "fields": {
+    "0": {
+     "a b": 91,
+     "λ": {},
+     "__proto__x": null
+    },
+    "4294967294": 9186.6,
+    "中": null,
+    " ": {
+     "_": null,
+     "book_num": {
+      "9": [
+       3.37423285e-21
+      ],
+      "🌱ϟ🍛#ሆ\ud809": [
+       9007199254740991,
+       "׿🗿π֕",
+       false
+      ],
+      "a\ud83d": 3045.5,
+      "__proto__x": []
+     },
+     "שם": true,
+     "中": 1.7976931348623157e+308
+    },
+    "book_num": {
+     "color": {
+      "__proto__x": {
+       "title": false,
+       "😀": null,
+       "中": "䶂ֺ\bֿ~צX🖢\b7"
+      }
+     }
+    },
+    "B": [
+     false,
+     {
+      "updated_at": true
+     }
+    ],
+    "a b": {
+     "𝔊𝔬𝔡": 0.3,
+     "🏊ΎC'l躾\u0001扆ו\udcda0": 15,
+     "B": ""
+    },
+    "b": {
+     "0": null,
+     "é": [
+      "\udb8dDNϙ﷫=🌙k",
+      14,
+      null
+     ],
+     "ϗEP\u0011σ6ׄ*🐛\u001fc": {
+      "1": null,
+      "é": -1541394960
+     }
+    }
+   },
+   "recordHash": "ff2fcdf91fb",
+   "fieldHashes": {
+    "0": "e0e09376z",
+    "4294967294": "f40f05096",
+    "中": "77074ba44",
+    " ": "3d518f334k",
+    "book_num": "65556eef1y",
+    "B": "a44269f9r",
+    "a b": "26b2ba481d",
+    "b": "09e5edba2l"
+   }
+  },
+  {
+   "fields": {
+    "__proto__x": [],
+    "ä": "n%"
+   },
+   "recordHash": "2a297a0e1a",
+   "fieldHashes": {
+    "__proto__x": "741638a52",
+    "ä": "9c0be45a4"
+   }
+  },
+  {
+   "fields": {
+    "b": -921391,
+    "**bold** _it_ `code`": 5e-324
+   },
+   "recordHash": "aa383c102b",
+   "fieldHashes": {
+    "b": "8a1ad1897",
+    "**bold** _it_ `code`": "299ce3096"
+   }
+  },
+  {
+   "fields": {
+    "😀": null,
+    "": "钋陳E"
+   },
+   "recordHash": "a6ceaf6814",
+   "fieldHashes": {
+    "😀": "77074ba44",
+    "": "ee3005c85"
+   }
+  },
+  {
+   "fields": {
+    "0": [],
+    "😀": -5.600822962080174e+77,
+    "deleted": null,
+    "𠀀𠀁": null,
+    "aa": -348584,
+    "\uda34ֲΗ隁׷*A": [
+     {},
+     false,
+     -1
+    ]
+   },
+   "recordHash": "e43b978e69",
+   "fieldHashes": {
+    "0": "741638a52",
+    "😀": "b6652516m",
+    "deleted": "77074ba44",
+    "𠀀𠀁": "77074ba44",
+    "aa": "0318bd647",
+    "\uda34ֲΗ隁׷*A": "20c35538d"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     "Z": {
+      "9": {
+       "2": 9007199254740991
+      },
+      "_": null,
+      "\u0002r9\ude78J": [
+       false
+      ]
+     },
+     "__proto__x": 18700018881368.01
+    },
+    "Z": true,
+    "id": 0.004629629629629629
+   },
+   "recordHash": "e1ba53b38d",
+   "fieldHashes": {
+    "9": "f01604302s",
+    "Z": "4db211e54",
+    "id": "0f104fack"
+   }
+  },
+  {
+   "fields": {
+    "2": -634468518,
+    "4294967295": {
+     "2": [
+      3.0862679959824856e+50,
+      -1,
+      {}
+     ],
+     "color": null
+    },
+    "chapter": null,
+    "é": {
+     "Ϥ6y\u0012妪A|📅Vv\ud94f": [],
+     "👍\ud83d": {
+      "2": {
+       "é": 1603084971528,
+       "created_at": null,
+       "é": -1415687327,
+       "😀": true
+      },
+      "é": {
+       "é": -555897
+      },
+      "id": {},
+      "a b": 0.003875968992248062
+     },
+     "": {}
+    }
+   },
+   "recordHash": "2d2f72d4110",
+   "fieldHashes": {
+    "2": "1b0d5579a",
+    "4294967295": "186c3e111d",
+    "chapter": "77074ba44",
+    "é": "104c457f4s"
+   }
+  },
+  {
+   "fields": {
+    "9": "📓b",
+    "͸혅🎮׽K🐷[N\udf5bk": null,
+    "\ud800": 2400964750000000000,
+    "שם": {
+     "0": "׾",
+     "9": "\fO▮\u001c🖻"
+    }
+   },
+   "recordHash": "e93b6f8d63",
+   "fieldHashes": {
+    "9": "4bab7b215",
+    "͸혅🎮׽K🐷[N\udf5bk": "77074ba44",
+    "\ud800": "1fe29cacj",
+    "שם": "802bff8as"
+   }
+  },
+  {
+   "fields": {
+    "1": 0.0026595744680851063,
+    "updated_at": {
+     "é": "lEDςY\u001bPϥ코\udab6튫",
+     "😀": 1e+21,
+     "中": -5208
+    }
+   },
+   "recordHash": "7f4db6f55b",
+   "fieldHashes": {
+    "1": "df275c94l",
+    "updated_at": "45a7df1c1e"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": true,
+    "λ": 4.48322251e+23,
+    "Y\ud87d'Ϙ㹻뵔e": {
+     "_": null,
+     "id": [
+      {}
+     ]
+    },
+    "-1": "\udbff􏿿"
+   },
+   "recordHash": "df90b7be5a",
+   "fieldHashes": {
+    "4294967294": "4db211e54",
+    "λ": "ee1537c7e",
+    "Y\ud87d'Ϙ㹻뵔e": "ca6c22dak",
+    "-1": "4a8b5498a"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "color": "\udc4db",
+    "\u0016&֠֕\udce3L": null,
+    "order_key": 7399398770000000
+   },
+   "recordHash": "e76af6c848",
+   "fieldHashes": {
+    "color": "9a81b78b9",
+    "\u0016&֠֕\udce3L": "77074ba44",
+    "order_key": "9488192fg"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "ä": -983638,
+    "book_num": null,
+    "created_at": "Z׻🍣w뛏\u0010Oe\u000e",
+    "b": [
+     [
+      [
+       null,
+       false,
+       -1571830024,
+       true
+      ]
+     ],
+     "׳יq⫲\"\u0007",
+     false
+    ]
+   },
+   "recordHash": "d09b356a7c",
+   "fieldHashes": {
+    "ä": "d0a9cd137",
+    "book_num": "77074ba44",
+    "created_at": "f63504dbm",
+    "b": "8e729bfb1i"
+   }
+  },
+  {
+   "fields": {
+    "1": "💂͸",
+    "10": "X(<쉤֧8",
+    "👨‍👩‍👧‍👦": null,
+    "👋🏽": {},
+    "tags": [
+     null
+    ],
+    "䗒🐮Ϋ萜\uda41:ϲ📜O": 3545.89,
+    "鄼첧֫9fׯ\ud934wΓ": "χάρις"
+   },
+   "recordHash": "1f5d93e978",
+   "fieldHashes": {
+    "1": "3d58f8705",
+    "10": "85639eb88",
+    "👨‍👩‍👧‍👦": "77074ba44",
+    "👋🏽": "5465b8252",
+    "tags": "5f74b2a26",
+    "䗒🐮Ϋ萜\uda41:ϲ📜O": "21c651077",
+    "鄼첧֫9fׯ\ud934wΓ": "8b100a887"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "1": -4.971111705901168e+170,
+    "1.5": {
+     "chapter": 1103740495
+    },
+    "\udde2d2p{📱": null
+   },
+   "recordHash": "9d969d114e",
+   "fieldHashes": {
+    "1": "5c7c9067n",
+    "1.5": "fe651feam",
+    "\udde2d2p{📱": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "_": "🕅.瓋🖐䮎Ϻֱ",
+    "ä": null,
+    "title": {
+     "ql🍖📦θ": "׵\udd8f쩙׸嶛\u0012;4Ͷ",
+     "tags": [
+      {}
+     ],
+     "-1": "\udc4db",
+     "created_at": 1752945200639
+    },
+    "4294967295": 20,
+    "chapter": 48,
+    "created_at": null
+   },
+   "recordHash": "e0411e66a9",
+   "fieldHashes": {
+    "_": "a2cb8e26b",
+    "ä": "77074ba44",
+    "title": "090f6cbc2f",
+    "4294967295": "8df2997f2",
+    "chapter": "91e395412",
+    "created_at": "77074ba44"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "updated_at": [
+     "\udbff􏿿",
+     true,
+     {
+      "book_num": {}
+     }
+    ],
+    "content": -719484,
+    "1.5": [
+     2945.31,
+     {
+      "order_key": true
+     },
+     [
+      {
+       "9": 24,
+       "01": null
+      },
+      {},
+      false
+     ],
+     {
+      "שם": null,
+      "é": {
+       "color": true
+      }
+     }
+    ],
+    "book_num": null,
+    "{\"json\":true}": 1638160413043,
+    "01": "0🎽\rla\udedf<@;",
+    "שם": null
+   },
+   "recordHash": "5b82e137f4",
+   "fieldHashes": {
+    "updated_at": "5165ecaax",
+    "content": "b5c299357",
+    "1.5": "ad1610a02h",
+    "book_num": "77074ba44",
+    "{\"json\":true}": "5f3f13ebd",
+    "01": "6addf236i",
+    "שם": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": "1👟ϤB\u0017Ϩ",
+    "-1": false,
+    "ϕ\uda2c\u000e\u00160j🏗K📘g🖇": 0.0010309278350515464,
+    "created_at": {
+     "10": "i🌌8׍9",
+     "f\u0013": false,
+     "中": 2070.55
+    },
+    "中": "é",
+    " ": "{5諓|JD侳",
+    "color": null
+   },
+   "recordHash": "b2a75601bb",
+   "fieldHashes": {
+    "4294967294": "904f5667e",
+    "-1": "0b0699585",
+    "ϕ\uda2c\u000e\u00160j🏗K📘g🖇": "1ca47032l",
+    "created_at": "62be9b4118",
+    "中": "507809f23",
+    " ": "73a5d7859",
+    "color": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "id": true,
+    "__proto__x": {},
+    "created_at": {
+     "a": "  ",
+     "deleted": 9.82426107e+22,
+     "order_key": "N\uda97 򟕎䆡lׅ\udee6Z"
+    },
+    "中": "ζ>="
+   },
+   "recordHash": "c8d8226879",
+   "fieldHashes": {
+    "id": "4db211e54",
+    "__proto__x": "5465b8252",
+    "created_at": "c31dfee11y",
+    "中": "9625650e5"
+   }
+  },
+  {
+   "fields": {
+    "color": 3256.27,
+    "é": "",
+    "\ud97bͰ\u0000🏀\ude61κ\udc83": -5.930260490820152e+301,
+    "content": null,
+    "s׉\u0012u": 99137510.2,
+    "é": true
+   },
+   "recordHash": "f49155e57f",
+   "fieldHashes": {
+    "color": "4b3b8f207",
+    "é": "ffcaaa852",
+    "\ud97bͰ\u0000🏀\ude61κ\udc83": "47abeb9cn",
+    "content": "77074ba44",
+    "s׉\u0012u": "01565b5aa",
+    "é": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "created_at": {
+     "10": "8ί΄G\u0016\u0014W亹\udf6d",
+     "溹׵Zzz׊\u000b\u000f": "👨‍👩‍👧‍👦",
+     "|χO/": false,
+     "a b": 9007199254740992
+    },
+    "_": 0.006289308176100629,
+    "1.5": null
+   },
+   "recordHash": "7b5e77ac9b",
+   "fieldHashes": {
+    "created_at": "fadf1bc62w",
+    "_": "e7a18fe7k",
+    "1.5": "77074ba44"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "1": null,
+    "9": [
+     [
+      75,
+      [
+       1585238808865,
+       false
+      ]
+     ]
+    ],
+    "deleted": "\b💽💂v🌜\fx\u0005\fv䊉"
+   },
+   "recordHash": "ae0b6fbb4e",
+   "fieldHashes": {
+    "1": "77074ba44",
+    "9": "91805107s",
+    "deleted": "5016cc99o"
+   }
+  },
+  {
+   "fields": {
+    "_": "ά🏠"
+   },
+   "recordHash": "d3564626b",
+   "fieldHashes": {
+    "_": "007d98975"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     " ": false,
+     "1.5": "",
+     "a": {
+      "שם": []
+     }
+    },
+    "deleted": {
+     "9": {},
+     "-1": {
+      "֮ת΀;🎇": true
+     },
+     "שם": {
+      "color": 4427.34,
+      "_": {},
+      "$🖫떘\u0016מ\udc2d": {
+       "tags": 7.273440028455852e+245
+      }
+     }
+    }
+   },
+   "recordHash": "36bd17caa2",
+   "fieldHashes": {
+    "9": "fd307f13y",
+    "deleted": "ef982b9233"
+   }
+  },
+  {
+   "fields": {
+    "9": {
+     "10": -2.7677315994015953e-235,
+     "01": "֩\u0011װ$ל\udec7\ude99P",
+     "🗰^s⡴Έq\u0000]Y": [
+      [
+       "a\ud83d",
+       9.064675580573865e-141,
+       1647060267586
+      ]
+     ]
+    },
+    "-1": {},
+    " ": {
+     "1": null,
+     "tags": false,
+     "é": "׿\u0002􇵹g\udd24֚ac\u0002🕋"
+    },
+    "book_num": "﻿bom",
+    "é": 1773216846730,
+    "tags": [
+     3.0541106218641235e+36,
+     false,
+     [
+      {
+       "verse": false
+      }
+     ],
+     []
+    ],
+    "b": 4.349216325273614e+259
+   },
+   "recordHash": "78945f4714b",
+   "fieldHashes": {
+    "9": "a3da39d03n",
+    "-1": "5465b8252",
+    " ": "9e1048241m",
+    "book_num": "3a972da26",
+    "é": "75534ab0d",
+    "tags": "c836191d1f",
+    "b": "8dbce0d1m"
+   }
+  },
+  {
+   "fields": {
+    "9": "\udc4d\ud83d",
+    "中": {
+     "0": "a\ud83d",
+     "2": {
+      "id": false,
+      "-1": "3턉",
+      "שם": {
+       "é": 0.000509047949,
+       "a": 9325.46,
+       "title": 3638.94
+      },
+      "4294967295": {
+       "__proto__x": 0.0012453300124533001,
+       "aa": "\udfff",
+       "01": null,
+       "ä": 1601073651720
+      }
+     }
+    },
+    "__proto__x": false,
+    "": {},
+    "I:": 1622966919239
+   },
+   "recordHash": "c84ef4ea101",
+   "fieldHashes": {
+    "9": "38a8b75be",
+    "中": "fe0a601558",
+    "__proto__x": "0b0699585",
+    "": "5465b8252",
+    "I:": "ddb89d94d"
+   }
+  },
+  {
+   "fields": {
+    "a": null,
+    "é": []
+   },
+   "recordHash": "2c4f76ea11",
+   "fieldHashes": {
+    "a": "77074ba44",
+    "é": "741638a52"
+   }
+  },
+  {
+   "fields": {
+    "": {
+     "order_key": "🌖溺*",
+     "Ϻ?👁": 89,
+     "id": false,
+     "中": null
+    },
+    " ": [
+     5873.21,
+     "quote\"back\\slash",
+     false
+    ]
+   },
+   "recordHash": "fde71eb260",
+   "fieldHashes": {
+    "": "3fff01311e",
+    " ": "0ad8e69410"
+   }
+  },
+  {
+   "fields": {
+    "order_key": 1613988717092,
+    "a": true,
+    "😀": [
+     {
+      "Ἐν ἀρχῇ ἦν ὁ λόγος": null
+     },
+     9.79158104e-26
+    ]
+   },
+   "recordHash": "524643d956",
+   "fieldHashes": {
+    "order_key": "7608da35d",
+    "a": "4db211e54",
+    "😀": "2fe2010f18"
+   }
+  },
+  {
+   "fields": {
+    "1": null,
+    "é": true,
+    "שם": -735021,
+    "": [],
+    "updated_at": true
+   },
+   "recordHash": "d3787fdc38",
+   "fieldHashes": {
+    "1": "77074ba44",
+    "é": "4db211e54",
+    "שם": "d1fa0bfa7",
+    "": "741638a52",
+    "updated_at": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "zw​j": "u"
+   },
+   "recordHash": "0b179f9ec",
+   "fieldHashes": {
+    "zw​j": "e9bf28163"
+   }
+  },
+  {
+   "fields": {
+    "a b": [
+     null
+    ],
+    "1.5": {
+     " ": true
+    },
+    "😀": null,
+    "01": [
+     null,
+     null
+    ],
+    " 򌝓ϔϵφ\ud878H": {}
+   },
+   "recordHash": "484bbb9f4d",
+   "fieldHashes": {
+    "a b": "5f74b2a26",
+    "1.5": "48e446f3a",
+    "😀": "77074ba44",
+    "01": "0e36151bb",
+    " 򌝓ϔϵφ\ud878H": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": {},
+    "tags": {
+     "2": false,
+     "10": {
+      "a": 0.0016051364365971107,
+      "Ϟή\udf4c\u0010:🖷}4\u0006+": [
+       "a\ud83d",
+       86
+      ],
+      "🌷": "\ud95e\u0003Ꜣe\u0001Ϡℙ;\u001c"
+     },
+     "b": {
+      "b": -88165,
+      "1.5": "M'"
+     }
+    },
+    "_": 2.7884632015111234e-288,
+    "aa": true,
+    "中": {
+     "中": "ͷ",
+     "Η񇺦\u0011ך1i": null
+    }
+   },
+   "recordHash": "25f03060fb",
+   "fieldHashes": {
+    "4294967294": "5465b8252",
+    "tags": "27310bdf49",
+    "_": "5f3f7711n",
+    "aa": "4db211e54",
+    "中": "58e1a327u"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "10": true,
+    "": "\u00126yח*\udb4d= Z֬"
+   },
+   "recordHash": "a412234c25",
+   "fieldHashes": {
+    "10": "4db211e54",
+    "": "f4af9d0fm"
+   }
+  },
+  {
+   "fields": {
+    "é": null,
+    "book_num": 1.4359279276346597e+239,
+    "chapter": -521621,
+    "__proto__x": "a\ud83d",
+    "id": {
+     "𠀀𠀁": 0.020833333333333332,
+     "title": null,
+     "1.5": null
+    },
+    "😀": [
+     [],
+     null,
+     {}
+    ],
+    "ä": 0.03225806451612903
+   },
+   "recordHash": "928953dabb",
+   "fieldHashes": {
+    "é": "77074ba44",
+    "book_num": "40e9e700n",
+    "chapter": "3de021997",
+    "__proto__x": "2c02f7829",
+    "id": "aca304ab1h",
+    "😀": "da816d10c",
+    "ä": "5dff8324j"
+   }
+  },
+  {
+   "fields": {
+    "2": 39,
+    "Oׯׅ🌩ֻ?": {},
+    "\udfe0BϤgzΑΈ": -9.676881825586382e-147,
+    "a b": [
+     false
+    ],
+    "ä": false,
+    "id": [
+     {
+      "2": "👍\ud83d",
+      "λ": {
+       "aa": true
+      },
+      "-1": true
+     },
+     9007199254740992
+    ]
+   },
+   "recordHash": "a495845697",
+   "fieldHashes": {
+    "2": "90f05fa12",
+    "Oׯׅ🌩ֻ?": "5465b8252",
+    "\udfe0BϤgzΑΈ": "2e054faen",
+    "a b": "450515d47",
+    "ä": "0b0699585",
+    "id": "51bd55471p"
+   }
+  },
+  {
+   "fields": {
+    "1.5": 1882785266
+   },
+   "recordHash": "3a00787412",
+   "fieldHashes": {
+    "1.5": "0493fdfaa"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "0": null,
+    "👋🏽": 3351.18,
+    "order_key": -332020,
+    "b": 5308.08,
+    "updated_at": [
+     93,
+     {
+      "0": 7800.75
+     },
+     "\udadf֡\\💖\uda8cֽ\ud8aeh🎽Fe"
+    ],
+    "\udfb5\u0005\ud880栍\u0004/": 1598327026382,
+    "ϫװ\udbb1": {
+     "id": true
+    },
+    "Τ\u0011ͷ퐔ꇺ": "👍\ud83d"
+   },
+   "recordHash": "0b2c734cd3",
+   "fieldHashes": {
+    "0": "77074ba44",
+    "👋🏽": "fd042dec7",
+    "order_key": "b6b01d767",
+    "b": "e32273d57",
+    "updated_at": "05cd51391e",
+    "\udfb5\u0005\ud880栍\u0004/": "ff3b13dfd",
+    "ϫװ\udbb1": "5cf9cbe0b",
+    "Τ\u0011ͷ퐔ꇺ": "fbd69b27a"
+   }
+  },
+  {
+   "fields": {
+    "title": [],
+    "zw​j": false,
+    "content": "\udbe9u֦S傳}🗏",
+    "\u001e\ud987": null,
+    "Ἐν ἀρχῇ ἦν ὁ λόγος": "1🐫ZצְΈ印禤k\u0016׎",
+    "é": -2.670806971359145e-146,
+    "📼\udfa1\udf01tֱ4璊頄": {
+     "\udc69׭Ε通'6\udd4b": null,
+     "👍\ud83d": -1071628569
+    }
+   },
+   "recordHash": "34b0a478d5",
+   "fieldHashes": {
+    "title": "741638a52",
+    "zw​j": "0b0699585",
+    "content": "447415f8f",
+    "\u001e\ud987": "77074ba44",
+    "Ἐν ἀρχῇ ἦν ὁ λόγος": "77d28f71j",
+    "é": "bff429f0n",
+    "📼\udfa1\udf01tֱ4璊頄": "3ffc788b1d"
+   }
+  },
+  {
+   "fields": {
+    "0": 9007199254740994,
+    "01": {
+     "1": 1730921432800,
+     "中": true,
+     "😀": false,
+     "id": false
+    },
+    "😀": {
+     "4294967294": 7.99138559e+23,
+     "é": {
+      "": false,
+      "B\ude02#+🐿ץ%瓝": "🇮🇱"
+     },
+     "01": -472917
+    },
+    "ä": {
+     "\ud86a:\uda2f🗮Vr\ud8e4ϵ": {
+      "🖠Q\u000bהΚ֭t\ud84d": "🟡🔴🟢🔵🟣",
+      "": {
+       "verse": 5729.92,
+       "01": -297664,
+       "aa": false
+      }
+     }
+    },
+    "\udfff": {
+     "9": [
+      [
+       91
+      ],
+      true
+     ],
+     "__proto__x": "S\u00030\u0011ဟ\n\ud8d0s>",
+     "order_key": 0.002551020408163265
+    },
+    " h褶": {
+     "((Yׇ\udac6ײx\u00184P🔖": 47,
+     "1.5": {
+      "9": {},
+      "e": {
+       "aa": "Gen 1:1",
+       "\udfff": true,
+       "׹": false,
+       "👨‍👩‍👧‍👦": "zw​j"
+      }
+     },
+     "\ud800": 1770774028782,
+     "\udfff": 9007199254740991
+    }
+   },
+   "recordHash": "9a0183be225",
+   "fieldHashes": {
+    "0": "afb18e64g",
+    "01": "d5d7eab11e",
+    "😀": "3c7269ff2a",
+    "ä": "2f7a081f33",
+    "\udfff": "d2f695e52j",
+    " h褶": "6db89d544f"
+   }
+  },
+  {
+   "fields": {
+    "9": 0.00574235806,
+    "a": {
+     "chapter": 701042816000000
+    },
+    "title": [
+     false,
+     {
+      "-1": {}
+     },
+     96
+    ],
+    "ä": {
+     "λ": 0.02040816326530612,
+     "B": 50,
+     "color": {
+      "color": false,
+      "WΨmΰ\udc3e2֙u͵곂🏎": {
+       "_": -584011,
+       "chapter": "e!u",
+       "/slash/": 0.0016286644951140066,
+       "1.5": 0.0013440860215053765
+      }
+     },
+     "\ud9c0\u0001": "֮"
+    },
+    "é": true,
+    "B": 1e-7,
+    "\ud800": null
+   },
+   "recordHash": "3eb1ce4f12e",
+   "fieldHashes": {
+    "9": "64d79dadd",
+    "a": "f2af166br",
+    "title": "9d951259k",
+    "ä": "237c293a55",
+    "é": "4db211e54",
+    "B": "5228e5cf4",
+    "\ud800": "77074ba44"
+   }
+  },
+  {
+   "fields": {},
+   "recordHash": "5465b8252",
+   "fieldHashes": {}
+  },
+  {
+   "fields": {
+    "2": 17,
+    "Z": "驇",
+    "content": "Wϴrx",
+    "cr\rlf": {
+     "updated_at": 0.0010548523206751054,
+     "Z": null,
+     "_": "Ἐν ἀρχῇ ἦν ὁ λόγος",
+     "order_key": "\t\udb54G\u001c3"
+    }
+   },
+   "recordHash": "30a8227a90",
+   "fieldHashes": {
+    "2": "1aeb28b12",
+    "Z": "7bef87ec3",
+    "content": "4c501f6a6",
+    "cr\rlf": "7ef7a7ce2t"
+   }
+  },
+  {
+   "fields": {
+    "💴[ϣ3\tϗ֘o֝籫-": {
+     "0": "&9\u001cע\r\"`",
+     "b": [
+      [
+       -413307,
+       9007199254740992,
+       -1.7871798033012884e+46
+      ]
+     ],
+     "deleted": {
+      "10": [
+       null,
+       null
+      ],
+      "é": {
+       "": -1529794184,
+       "a": false
+      },
+      "title": 42
+     },
+     "order_key": 0.2
+    }
+   },
+   "recordHash": "2b1f4edab8",
+   "fieldHashes": {
+    "💴[ϣ3\tϗ֘o֝籫-": "da4341ed4m"
+   }
+  },
+  {
+   "fields": {
+    "2": {
+     "10": 94,
+     "中": [],
+     "😀": {
+      "(%Y": 5e-324,
+      "λ": "tab\there",
+      "\ud9cbצ🕍帙渕׻'핱aT\u001e": false,
+      "\ude26": [
+       ""
+      ]
+     }
+    },
+    "id": null,
+    "é": true
+   },
+   "recordHash": "82ab7c577a",
+   "fieldHashes": {
+    "2": "bcb7b0fc2p",
+    "id": "77074ba44",
+    "é": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "👨׈7b": [],
+    " ": 0,
+    "content": [
+     "👍\ud83d",
+     "Ϲ:,"
+    ]
+   },
+   "recordHash": "bff424872f",
+   "fieldHashes": {
+    "👨׈7b": "741638a52",
+    " ": "350ca8af1",
+    "content": "21a12f56i"
+   }
+  },
+  {
+   "fields": {
+    "1.5": [],
+    "4294967295": {},
+    "created_at": {
+     "4294967294": 725514105,
+     "׾JZ🔀\udbaanOא": -4.03164806997449e-307
+    },
+    "chapter": [
+     1718936825689
+    ],
+    "color": -1945447409
+   },
+   "recordHash": "f5f35cd196",
+   "fieldHashes": {
+    "1.5": "741638a52",
+    "4294967295": "5465b8252",
+    "created_at": "8ab0d9411s",
+    "chapter": "65fee19cf",
+    "color": "b30dd675b"
+   }
+  },
+  {
+   "fields": {
+    "10": 65,
+    "created_at": {
+     "0": true,
+     "\ud9d9dy_K\uda7c\"㕭": true
+    },
+    "id": {
+     "ä": false,
+     "__proto__x": null,
+     "deleted": 8.749100526911713e-203,
+     "id": {}
+    },
+    "\ud800": [
+     "OC"
+    ],
+    "😀": false,
+    "color": {
+     "k9αjK\ud83e🎟΀\ro": 46,
+     "chapter": "i"
+    },
+    "content": 0.022222222222222223,
+    "aa": 0.000022142216566920578
+   },
+   "recordHash": "831eecb510e",
+   "fieldHashes": {
+    "10": "18e8e6f42",
+    "created_at": "711be3ea11",
+    "id": "6a23b3ee1y",
+    "\ud800": "7a2ad9976",
+    "😀": "0b0699585",
+    "color": "d650c8a212",
+    "content": "ed969f1ek",
+    "aa": "42ede627n"
+   }
+  },
+  {
+   "fields": {
+    "title": 0.0016129032258064516,
+    "ä": -96345,
+    "": {
+     "8\f\ud977\t+💖l\u0007kΓ%": {},
+     "updated_at": false,
+     "8kβ🎋Ϛ\u0001\u0001\ude34韹V׀": {},
+     "": 2.86984655e-29
+    }
+   },
+   "recordHash": "5dbc0dd393",
+   "fieldHashes": {
+    "title": "2ab50584l",
+    "ä": "c93ce71f6",
+    "": "dbcb1a202t"
+   }
+  },
+  {
+   "fields": {
+    "__proto__x": 2012233264,
+    "title": true,
+    "B": null
+   },
+   "recordHash": "eaf1842d2f",
+   "fieldHashes": {
+    "__proto__x": "a0fdc780a",
+    "title": "4db211e54",
+    "B": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "aa": -1469136912,
+    "é": null,
+    "é": null,
+    "01": null,
+    "color": [],
+    "": 0,
+    "יְהוָה": [
+     0.0051813471502590676,
+     9007199254740991
+    ]
+   },
+   "recordHash": "a154ba0a71",
+   "fieldHashes": {
+    "aa": "707956ceb",
+    "é": "77074ba44",
+    "é": "77074ba44",
+    "01": "77074ba44",
+    "color": "741638a52",
+    "": "350ca8af1",
+    "יְהוָה": "26b77dc714"
+   }
+  },
+  {
+   "fields": {
+    "-1": -141187274
+   },
+   "recordHash": "c54c8eb711",
+   "fieldHashes": {
+    "-1": "8637e92fa"
+   }
+  },
+  {
+   "fields": {
+    "2": null,
+    "ä": false,
+    "\udc4db": false,
+    "é": null,
+    "book_num": true
+   },
+   "recordHash": "54cd236e3d",
+   "fieldHashes": {
+    "2": "77074ba44",
+    "ä": "0b0699585",
+    "\udc4db": "0b0699585",
+    "é": "77074ba44",
+    "book_num": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "": true,
+    "👍\ud83d": {
+     "9": 0.001076426264800861,
+     "oQ": "**bold** _it_ `code`",
+     "deleted": -826881,
+     "ä": true
+    },
+    "中": 1.7976931348623157e+308,
+    "4294967295": true,
+    "book_num": {
+     " ": 0.001336898395721925
+    },
+    "aa": true
+   },
+   "recordHash": "b1fb996bc4",
+   "fieldHashes": {
+    "": "4db211e54",
+    "👍\ud83d": "22995bfb29",
+    "中": "0d2c2de0n",
+    "4294967295": "4db211e54",
+    "book_num": "fd5e306cq",
+    "aa": "4db211e54"
+   }
+  },
+  {
+   "fields": {
+    "color": 5e-324,
+    "😀": {},
+    "λ": -962950725,
+    "ä": 3951.18,
+    "a b": 1743733942048,
+    "a\ud83d": {
+     "נ": 1.8992466543238801e+174,
+     "": 5190.68
+    },
+    "-1": null
+   },
+   "recordHash": "411a6dc984",
+   "fieldHashes": {
+    "color": "299ce3096",
+    "😀": "5465b8252",
+    "λ": "3252bf29a",
+    "ä": "0e237b927",
+    "a b": "ffca2044d",
+    "a\ud83d": "958158a514",
+    "-1": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": -479731,
+    "4294967295": false,
+    "_": "🍙ν\u000b=\u000e텪\uda1b",
+    "aa": {
+     "deleted": [
+      7078.47,
+      "΀Ϙ",
+      {
+       "10": true,
+       "verse": 7205.05,
+       "aa": "|ϭ",
+       "id": true
+      }
+     ]
+    },
+    "quote\"back\\slash": "line\nbreak",
+    "tags": [],
+    "λ": null
+   },
+   "recordHash": "65ec916ccd",
+   "fieldHashes": {
+    "4294967294": "ee28ab497",
+    "4294967295": "0b0699585",
+    "_": "9ce72286p",
+    "aa": "01818eb222",
+    "quote\"back\\slash": "d37e5d16d",
+    "tags": "741638a52",
+    "λ": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "1": 2.5957397198639195e-99,
+    "deleted": {
+     "1": null,
+     "\udc5en뜁י": [
+      0.0011547344110854503
+     ],
+     "🟡🔴🟢🔵🟣": null,
+     "created_at": null
+    },
+    "color": {
+     "updated_at": [],
+     "שם": false
+    },
+    "book_num": null,
+    "__proto__x": "# Heading\n\n> quote"
+   },
+   "recordHash": "2ed20c9cd2",
+   "fieldHashes": {
+    "1": "d01c50d5m",
+    "deleted": "3faa2cb52a",
+    "color": "77185703s",
+    "book_num": "77074ba44",
+    "__proto__x": "b611a620m"
+   }
+  },
+  {
+   "fields": {
+    "`🏟🕈j2z\udfae": "׎׼芖S\udcb2ΒVϘ\u0012"
+   },
+   "recordHash": "46eb71bb28",
+   "fieldHashes": {
+    "`🏟🕈j2z\udfae": "9e7d07b8l"
+   }
+  },
+  {
+   "fields": {
+    "__proto__x": "\udfff",
+    "content": [
+     {
+      "1.5": 5480.86,
+      "שם": {
+       "a b": -925383184
+      },
+      "\ud9db(tR": {}
+     }
+    ],
+    "chapter": {
+     "0": {
+      "\udfff": [],
+      "mPϰ": {
+       "9": 3524.49,
+       "a b": true
+      },
+      "\ud800": -1295192899
+     },
+     "content": null,
+     "tags": true
+    },
+    "cMI:쬥֤T,σ": {
+     "4294967295": 556942708
+    },
+    "é": [
+     3574.09,
+     1080899852,
+     1632395163975
+    ],
+    "verse": false
+   },
+   "recordHash": "e4b68ebe121",
+   "fieldHashes": {
+    "__proto__x": "597cdc068",
+    "content": "9091088d1k",
+    "chapter": "dd8273fe2q",
+    "cMI:쬥֤T,σ": "0ff7c122o",
+    "é": "aa89b9a3y",
+    "verse": "0b0699585"
+   }
+  },
+  {
+   "fields": {
+    "1": "𠀀𠀁",
+    "tags": -293691,
+    "verse": {
+     "דֿgxP": {}
+    },
+    "ä": {
+     "aa": {
+      "é": null,
+      "é": {},
+      "M🗂kױ\udf26 J\ud87d🔂 ": -1.3403186259977026e-258
+     },
+     "": "֞y🔫🔧",
+     "deleted": false,
+     "\udc4d\ud83d": null
+    },
+    "Z": {
+     "__proto__x": true,
+     "tags": 8145.17
+    },
+    "In the beginning": "\udfff"
+   },
+   "recordHash": "84e7b9f5f3",
+   "fieldHashes": {
+    "1": "0b15fcc06",
+    "tags": "af10504a7",
+    "verse": "23f20e7ac",
+    "ä": "9ff4f0e83f",
+    "Z": "15335490y",
+    "In the beginning": "597cdc068"
+   }
+  },
+  {
+   "fields": {
+    "中": {
+     "中": 42,
+     "title": -222463,
+     "__proto__x": true
+    },
+    "👨‍👩‍👧‍👦": {
+     "😀": 3775.57,
+     "B": {
+      "updated_at": 9007199254740994
+     }
+    },
+    "aa": null,
+    "__proto__x": [
+     null
+    ]
+   },
+   "recordHash": "a46630eb8f",
+   "fieldHashes": {
+    "中": "770a77fe16",
+    "👨‍👩‍👧‍👦": "ff3ced5e1e",
+    "aa": "77074ba44",
+    "__proto__x": "5f74b2a26"
+   }
+  },
+  {
+   "fields": {
+    "4294967294": [
+     null,
+     "#"
+    ],
+    "⪧": false,
+    "book_num": {}
+   },
+   "recordHash": "597547bf31",
+   "fieldHashes": {
+    "4294967294": "a55316f7a",
+    "⪧": "0b0699585",
+    "book_num": "5465b8252"
+   }
+  },
+  {
+   "fields": {
+    "tags": [],
+    "created_at": null
+   },
+   "recordHash": "4a03ebd91d",
+   "fieldHashes": {
+    "tags": "741638a52",
+    "created_at": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "0": "\u0014,덨ꔪ픐ϼ,Φ",
+    "verse": false,
+    "book_num": null,
+    "中": null
+   },
+   "recordHash": "6a7bf78a3c",
+   "fieldHashes": {
+    "0": "135ba4e5f",
+    "verse": "0b0699585",
+    "book_num": "77074ba44",
+    "中": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "{\"json\":true}": null,
+    " ": "֦\ude84x👃ಇ\udea6ࡱ*\udd4b:="
+   },
+   "recordHash": "77400fc13a",
+   "fieldHashes": {
+    "{\"json\":true}": "77074ba44",
+    " ": "4d007bcet"
+   }
+  },
+  {
+   "fields": {
+    "2": -520416,
+    "λ": {
+     "b": [
+      null,
+      {
+       "9": false,
+       "\u0018}🗚": "",
+       "χάρις": "👍\ud83d",
+       "b": "ὁ λόγος σὰρξ ἐγένετο"
+      }
+     ],
+     "#׻\bϯΩׇ/": 40,
+     "order_key": 1741700940445,
+     "book_num": null
+    },
+    "color": {
+     "0": null,
+     "ϣ📼p\ud977ϱc?8χ": {
+      "verse": {
+       "b": "1ׁIϔ\udbc5֖"
+      },
+      "4294967295": {
+       "👍\ud83d": 0.005917159763313609,
+       ")g": 9007199254740991,
+       "\udc4d\ud83d": "/slash/"
+      }
+     },
+     "B": 39790.1595,
+     "verse": 4765.09
+    }
+   },
+   "recordHash": "ae776af9161",
+   "fieldHashes": {
+    "2": "de76c9c87",
+    "λ": "15b5ff173z",
+    "color": "5b13a4cc53"
+   }
+  },
+  {
+   "fields": {
+    "content": {
+     "10": {
+      "4294967294": 1607786183297,
+      "😀": true,
+      "book_num": "ֻ\u000f⾼\"ף\udd1ad"
+     },
+     "01": "**bold** _it_ `code`"
+    }
+   },
+   "recordHash": "799f39a575",
+   "fieldHashes": {
+    "content": "a76f334a2x"
+   }
+  },
+  {
+   "fields": {
+    "é": null,
+    "01": {},
+    "": [
+     792657952
+    ],
+    "a": null,
+    "4294967295": true,
+    "__proto__x": {
+     "2": null
+    },
+    "\u0011<픍Z": [
+     null,
+     7
+    ]
+   },
+   "recordHash": "4852a1ae69",
+   "fieldHashes": {
+    "é": "77074ba44",
+    "01": "5465b8252",
+    "": "b4031f21b",
+    "a": "77074ba44",
+    "4294967295": "4db211e54",
+    "__proto__x": "3384d282a",
+    "\u0011<픍Z": "ff11a7518"
+   }
+  },
+  {
+   "fields": {
+    "a": null
+   },
+   "recordHash": "1b65dc51a",
+   "fieldHashes": {
+    "a": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "10": 0.002008032128514056,
+    "\u001f_": "/2🌺\u0016oo",
+    "b": 3275.3,
+    "id": null
+   },
+   "recordHash": "a45cf72d49",
+   "fieldHashes": {
+    "10": "0dfd9216k",
+    "\u001f_": "1478ae96e",
+    "b": "abdaf02b6",
+    "id": "77074ba44"
+   }
+  },
+  {
+   "fields": {
+    "10": -1.1438653971389517e+58,
+    "01": {
+     "z\udac2.׋鋝׸\n": {
+      "a": []
+     },
+     " ": [
+      {
+       "10": false,
+       "ε.🕀\u0014\ud913🎟ׅי-": false,
+       "a\ud83d": true
+      },
+      "\ud800",
+      [
+       null,
+       "ὁ λόγος σὰρξ ἐγένετο",
+       null,
+       false
+      ],
+      {
+       "10": 65,
+       "01": "[[Exod 20:11]]",
+       "λ": 4369.58,
+       "a b": "🗤暫τEU(\u0000\udf14\ude48"
+      }
+     ]
+    },
+    "2对i": [
+     {
+      "id": 1632409486227
+     },
+     [
+      null
+     ]
+    ],
+    "中": {
+     "2": "i娇?!->",
+     "ϱzb䥆ϙLT\udfef\u0007": true,
+     "B": [
+      {},
+      null
+     ]
+    },
+    "order_key": {
+     "chapter": -1.204706015153664e-72,
+     "\ud855": null,
+     "updated_at": true
+    },
+    "λ": 1583467316353
+   },
+   "recordHash": "2a05d9fe1bf",
+   "fieldHashes": {
+    "10": "f728ac80n",
+    "01": "a23d701f62",
+    "2对i": "16e45b49t",
+    "中": "afcb91af1j",
+    "order_key": "e46b2e8e1u",
+    "λ": "b60f4fd2d"
+   }
+  },
+  {
+   "fields": {
+    "Z": [
+     1750608925,
+     true
+    ],
+    "1.5": 1049.43,
+    "֥䃭oμͻ赉<\f!": -757838,
+    "aa": {
+     "id": true,
+     "😀": {}
+    },
+    "䣻\u001b岃.\u001f7[\u0004s\u0007": 7.60234743e-31,
+    "b": {
+     "B": "\byq\ud902\u000f\uddc7ב "
+    }
+   },
+   "recordHash": "690f4e09a8",
+   "fieldHashes": {
+    "Z": "794db278h",
+    "1.5": "5c35ff067",
+    "֥䃭oμͻ赉<\f!": "92e2a2147",
+    "aa": "02e70e05j",
+    "䣻\u001b岃.\u001f7[\u0004s\u0007": "1738ba03e",
+    "b": "c92683b2w"
+   }
+  },
+  {
+   "fields": {
+    "a b": {
+     "4294967295": 21,
+     "order_key": "",
+     "\u001e*": null
+    },
+    "$Mi\ud8faϤ\udfa0ן\uded3\udd20֟뭰": {
+     "a b": false
+    },
+    "": 2.490453848320016e-69,
+    "b": {},
+    "id": [
+     {
+      "10": "׿ֻK\u000b\u0014",
+      " ": 0.00423728813559322,
+      "4294967295": "dפϛD\uddb7:💓ϋ"
+     },
+     {
+      "title": [
+       "\udc82\u0011Aϖiπש",
+       null,
+       false
+      ],
+      "verse": 1622228665562
+     },
+     "🟡🔴🟢🔵🟣",
+     0
+    ],
+    "\ud800": 0,
+    "created_at": [
+     "Έ\u001cG"
+    ]
+   },
+   "recordHash": "9c39daae153",
+   "fieldHashes": {
+    "a b": "571215051c",
+    "$Mi\ud8faϤ\udfa0ן\uded3\udd20֟뭰": "ce2d5bebd",
+    "": "7fc5457fl",
+    "b": "5465b8252",
+    "id": "916868594g",
+    "\ud800": "350ca8af1",
+    "created_at": "209bdcf1c"
+   }
+  },
+  {
+   "fields": {
+    "9": [
+     null,
+     false,
+     {}
+    ],
+    "\ud800": 66.66,
+    "order_key": {
+     "🌧eׁ>": null,
+     "Ⳣ3⣵󐗧": [
+      [
+       "׈🎠",
+       0.0031545741324921135
+      ],
+      -0.003915759510564871,
+      "zn\udd8a↑🖒nDtf^",
+      {
+       "中": "/SלΘ\u0006G",
+       "a": 1.2004332688089881e-35,
+       "a b": "בְּרֵאשִׁית בָּרָא אֱלֹהִים"
+      }
+     ]
+    },
+    "book_num": false,
+    "b": {
+     "chapter": true,
+     "": {
+      "\u0003hi΍\n": "\udfff",
+      "1.5": 1143293923,
+      "籴q@^ϛ䲻㹴🕛": null,
+      " ": "\u0014轴׸\u0000🗬"
+     },
+     "color": {
+      "中": false
+     },
+     "שם": 1e-7
+    }
+   },
+   "recordHash": "f68ab64517c",
+   "fieldHashes": {
+    "9": "a9ed9ceff",
+    "\ud800": "2d3399315",
+    "order_key": "5d9cc8da4y",
+    "book_num": "0b0699585",
+    "b": "c86620df3n"
+   }
+  }
+ ],
+ "format": 1,
+ "generator": "scripts/golden/corpus.ts",
+ "sources": {
+  "src/platform/sync/engine.ts": "6756b08ebdd47dd312c7820e8ce9baf0bccdb085d10f109f12340abd5b8eeb3d",
+  "src/platform/sync/merge.ts": "84c5a3bc8f58772b461602ff3cdc6848e34024c981aa15affa18934d752a2a3d"
+ }
+}

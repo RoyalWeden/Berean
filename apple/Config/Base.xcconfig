@@ -1,0 +1,17 @@
+// Shared settings for the native Berean apps (docs/native-migration/DECISIONS.md ADR-0002/0003).
+// Development identities ONLY: no iCloud container, no App Group, no production bundle id.
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+GENERATE_INFOPLIST_FILE = YES
+INFOPLIST_KEY_CFBundleDisplayName = Berean Native Dev
+INFOPLIST_KEY_NSHumanReadableCopyright = Berean
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
+ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor
+ENABLE_PREVIEWS = YES
+ENABLE_USER_SCRIPT_SANDBOXING = YES
+DEAD_CODE_STRIPPING = YES
+PRODUCT_NAME = $(TARGET_NAME)
+// Optional, local, gitignored: DEVELOPMENT_TEAM etc. for device builds. Never commit it.
+#include? "Signing.xcconfig"

@@ -1,0 +1,7 @@
+# Copy/paste into Claude Code after installing the files
+
+You are authorized to **implement**, not merely plan, the Berean native Swift migration. Begin by reading `CLAUDE.md`, `docs/native-migration/EXECUTION-PLAYBOOK.md`, all five live tracking files in that directory, the separate Berean Native Migration Master Specification DOCX, and applicable `docs/native-migration-audit/` documents. Reconcile the specification and audit against actual code and current Git HEAD. Initialize the status/task/log/decision/handoff files from verified repository evidence, never assumptions.
+
+Use the playbook's autonomous execution protocol: complete safe tasks continuously during this session, including code, tests, commits, validated PRs and subsequent unblocked tasks. Do **not** pause after milestones merely to ask to continue. If a task needs me, record the blocker and advance another ready task; only ask for actions that genuinely require my authority, credentials, device or product decision. All destructive unique-data, production identity/data/sync, signing/upload/release, legal and major product tradeoff gates remain protected.
+
+Keep a durable, append-only engineering log and a precise `HANDOFF.md` checkpoint before context compaction or session termination. Work from an isolated Git worktree, preserve old apps, and do not open production data. **Start actual code implementation today** after the shortest necessary safety and specification checks; establish the Swift targets and golden compatibility corpus, run the relevant tests, record evidence and continue.

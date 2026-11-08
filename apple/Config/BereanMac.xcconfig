@@ -1,0 +1,15 @@
+#include "Base.xcconfig"
+// Native macOS app — development identity. Distinct from production (com.berean.app) and from
+// the Capacitor/Electron "Berean Dev" (com.berean.app.dev): it can never open their data.
+SDKROOT = macosx
+SUPPORTED_PLATFORMS = macosx
+MACOSX_DEPLOYMENT_TARGET = 15.0
+PRODUCT_BUNDLE_IDENTIFIER = com.berean.native.mac.dev
+ENABLE_APP_SANDBOX = YES
+ENABLE_HARDENED_RUNTIME = YES
+// "Sign to Run Locally" until a release decision assigns a team and profile.
+CODE_SIGN_IDENTITY = -
+CODE_SIGN_STYLE = Manual
+COMBINE_HIDPI_IMAGES = YES
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks
+INFOPLIST_KEY_LSApplicationCategoryType = public.app-category.reference
