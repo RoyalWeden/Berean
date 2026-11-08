@@ -35,7 +35,7 @@
 | M6-02 | Mac resizable pane system | M5 gate or independently safe | DONE (Mac) | Study inspector (resizable), Compare mode, the 16 scripture layout presets (legacy ids, per tab, HSplit/VSplit study panels), saved workspaces (state_json v2 golden-verified; save/open/rename/delete). Follow-up: iPhone workspace UI (M8). |
 | M6-03 | iPhone 3-control tabs/Quick Open | M5 gate or independently safe | IN_PROGRESS | Bottom tab cards / plus / caret, tab cards sheet with sessions (simulator launch verified). TODO: verse sheet, gestures, Quick Open parity. |
 | M6-04 | Themes, commands, access | M5 gate or independently safe | IN_PROGRESS | Settings window/sheet (text, size, spacing, word replacer, theme), menu commands and shortcuts. TODO: full settings sections, accessibility pass, shortcut parity table. |
-| M7-01 | Markdown grammar and goldens | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
+| M7-01 | Markdown grammar and goldens | M6 gate or independently safe | IN_PROGRESS | DONE: note ⇄ .md file format (`noteMarkdownFile.ts` → `NoteMarkdownFile`, golden note-markdown.json), import/export UI, note version history (golden). TODO: the vault exporter's extras (images → attachments/, highlight previews, folder layout — electron/ipc/vault.ts) with M7-03 vault sync; rich editor grammar (M7-02). |
 | M7-02 | Native editor research spikes | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
 | M7-03 | Mac/iOS editor implementation | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
 | M7-04 | Highlights/annotations parity | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
