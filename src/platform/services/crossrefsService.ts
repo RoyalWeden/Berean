@@ -66,7 +66,7 @@ export function createCrossrefsService(ctx: ServiceContext) {
       if (!database) return { refs: [], loading: false, error: true }
 
       const rows = await database.all<{ to_book: string; to_ch: number; to_vs: number; to_vs_end: number | null; votes: number }>(
-        'SELECT to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch = ? AND from_vs = ? ORDER BY votes DESC LIMIT 150',
+        'SELECT to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch = ? AND from_vs = ? ORDER BY votes DESC, rowid LIMIT 150',
         [bookId.toUpperCase(), chapter, verse])
 
       const texts = await fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))
@@ -148,7 +148,7 @@ export function createCrossrefsService(ctx: ServiceContext) {
 
       const chapters = toCanonicalChapters(bookId, chapter, textId)
       const rows = await database.all<{ from_vs: number; to_book: string; to_ch: number; to_vs: number; to_vs_end: number | null; votes: number }>(
-        `SELECT from_vs, to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch IN (${placeholders(chapters.length)}) ORDER BY from_vs ASC, votes DESC`,
+        `SELECT from_vs, to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch IN (${placeholders(chapters.length)}) ORDER BY from_vs ASC, votes DESC, rowid`,
         [bookId.toUpperCase(), ...chapters])
 
       const texts = await fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))

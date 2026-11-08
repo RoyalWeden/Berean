@@ -1,5 +1,5 @@
 import Testing
-@testable import BereanCore
+import BereanCore
 
 @Suite struct JSObjectTests {
     @Test func arrayIndexKeysComeFirstInNumericOrder() {

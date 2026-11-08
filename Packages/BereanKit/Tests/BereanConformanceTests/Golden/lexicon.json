@@ -3,7 +3,7 @@
  "generator": "scripts/golden/lexicon.ts",
  "sources": {
   "src/platform/services/lexiconService.ts": "54abbfdfa19571ca4edc3770ff2ea6eadc4a60860d9c11b4a665e8343cb332bb",
-  "scripts/golden/lexicon.ts": "5236b6afb4944f2a253ebd246c2dc188ef37805f034cf749ee0b4a57d9e91574"
+  "scripts/golden/lexicon.ts": "e420c09c8d02b55ba18a3328c82b562739a63b25ec395a7e643bb2bdf3d1c328"
  },
  "databases": {
   "strongs_hebrew.db": "600dfebc4b04f2ddb29073426c3d5ecd6a6407d9bb602567425c29121e492b8f",
@@ -8963,6 +8963,395 @@
     "rows": [],
     "hasMore": false
    }
+  }
+ ],
+ "occurrences": [
+  {
+   "num": "G5485",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 304,
+   "hash": "9884b168396f",
+   "first": [
+    {
+     "book_id": "1CO",
+     "chapter": 1,
+     "verse_num": 3,
+     "text": "Grace be unto you, and peace, from God our Father, and from the Lord Jesus Christ.",
+     "text_tagged": "Grace{G5485} *be{} unto{} you,{G5213} and{G2532} peace,{G1515} from{G575} God{G2316} our{G2257} Father,{G3962} and{G2532} *from{} the{} Lord{G2962} Jesus{G2424} Christ.{G5547}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      0
+     ]
+    },
+    {
+     "book_id": "1CO",
+     "chapter": 1,
+     "verse_num": 4,
+     "text": "I thank my God always on your behalf, for the grace of God which is given you by Jesus Christ;",
+     "text_tagged": "I{} thank{G2168} my{G3450} God{G2316} always{G3842} on{} your{} behalf,{G4012|G5216} for{G1909} the{G3588} grace{G5485} of{} God{G2316} which{} is{} given{G1325} you{G5213} by{G1722} Jesus{G2424} Christ;{G5547}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "num": "H7225",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 49,
+   "hash": "a8afd8cekuc",
+   "first": [
+    {
+     "book_id": "1SA",
+     "chapter": 2,
+     "verse_num": 29,
+     "text": "Wherefore kick ye at my sacrifice and at mine offering, which I have commanded in my habitation; and honourest thy sons above me, to make yourselves fat with the chiefest of all the offerings of Israel my people?",
+     "text_tagged": "Wherefore{H4100} kick{H1163} ye{} at{} my{} sacrifice{H2077} and{} at{} mine{} offering,{H4503} which{H834} I{} have{} commanded{H6680} *in{} *my{} habitation;{H4583} and{} honourest{H3513} ~{H853} thy{} sons{H1121} above{H4480} me,{} to{} make{} yourselves{} fat{H1254} with{} the{} chiefest{H7225} of{} all{H3605} the{} offerings{H4503} of{} Israel{H3478} my{} people?{H5971}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      29
+     ]
+    },
+    {
+     "book_id": "1SA",
+     "chapter": 15,
+     "verse_num": 21,
+     "text": "But the people took of the spoil, sheep and oxen, the chief of the things which should have been utterly destroyed, to sacrifice unto the Lord thy God in Gilgal.",
+     "text_tagged": "But{} the{} people{H5971} took{H3947} of{} the{} spoil,{H7998} sheep{H6629} and{} oxen,{H1241} the{} chief{H7225} of{} the{} things{} which{} should{} have{} been{} utterly{} destroyed,{H2764} to{} sacrifice{H2076} unto{} the{} LORD{H3068} thy{} God{H430} in{} Gilgal.{H1537}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      11
+     ]
+    }
+   ]
+  },
+  {
+   "num": "G26",
+   "bookId": "1JN",
+   "quickLimit": null,
+   "count": 14,
+   "hash": "61a072b75en",
+   "first": [
+    {
+     "book_id": "1JN",
+     "chapter": 2,
+     "verse_num": 5,
+     "text": "But whoso keepeth his word, in him verily is the love of God perfected: hereby know we that we are in him.",
+     "text_tagged": "But{G1161} whoso{G3739|G302} keepeth{G5083} his{G848} word,{G3056} in{G1722} him{G5129} verily{G230} is{} the{G3588} love{G26} of{} God{G2316} perfected:{G5048} hereby{G1722|G5129} know{G1097} we{} that{G3754} we{} are{G2070} in{G1722} him.{G846}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      10
+     ]
+    },
+    {
+     "book_id": "1JN",
+     "chapter": 2,
+     "verse_num": 15,
+     "text": "Love not the world, neither the things that are in the world. If any man love the world, the love of the Father is not in him.",
+     "text_tagged": "Love{G25} not{G3361} the{G3588} world,{G2889} neither{G3366} the{} things{G3588} *that{} *are{} in{G1722} the{G3588} world.{G2889} If{G1437} any{} man{G5100} love{G25} the{G3588} world,{G2889} the{G3588} love{G26} of{} the{G3588} Father{G3962} is{G2076} not{G3756} in{G1722} him.{G846}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      19
+     ]
+    }
+   ]
+  },
+  {
+   "num": "G26",
+   "bookId": null,
+   "quickLimit": 20,
+   "count": 38,
+   "hash": "2db37e8ee6f",
+   "first": [
+    {
+     "book_id": "1CO",
+     "chapter": 4,
+     "verse_num": 21,
+     "text": "What will ye? shall I come unto you with a rod, or in love, and in the spirit of meekness? ",
+     "text_tagged": "What{G5101} will{G2309} ye?{} shall{} I{} come{G2064} unto{G4314} you{G5209} with{G1722} a{} rod,{G4464} or{G2228} in{G1722} love,{G26} and{G5037} *in{} the{} spirit{G4151} of{} meekness?{G4236}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      13
+     ]
+    },
+    {
+     "book_id": "1CO",
+     "chapter": 8,
+     "verse_num": 1,
+     "text": "Now as touching things offered unto idols, we know that we all have knowledge. Knowledge puffeth up, but charity edifieth.",
+     "text_tagged": "Now{G1161} as{} touching{G4012} things{} offered{} unto{} idols,{G1494} we{} know{G1492} that{G3754} we{} all{G3956} have{G2192} knowledge.{G1108} Knowledge{G1108} puffeth{} up,{G5448} but{G1161} charity{G26} edifieth.{G3618}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      18
+     ]
+    }
+   ]
+  },
+  {
+   "num": "H3068",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 1000,
+   "hash": "e8fdae4cd31n",
+   "first": [
+    {
+     "book_id": "1CH",
+     "chapter": 2,
+     "verse_num": 3,
+     "text": "The sons of Judah; Er, and Onan, and Shelah: which three were born unto him of the daughter of Shua the Canaanitess. And Er, the firstborn of Judah, was evil in the sight of the Lord; and he slew him.",
+     "text_tagged": "The{} sons{H1121} of{} Judah;{H3063} Er,{H6147} and{} Onan,{H209} and{} Shelah:{H7956} *which{} three{H7969} were{} born{H3205} unto{} him{} of{} the{} daughter{H1323} of{} Shua{H7770} the{} Canaanitess.{H3669} And{} Er,{H6147} the{} firstborn{H1060} of{} Judah,{H3063} was{H1961} evil{H7451} in{} the{} sight{H5869} of{} the{} LORD;{H3068} and{} he{} slew{H4191} him.{}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      35
+     ]
+    },
+    {
+     "book_id": "1CH",
+     "chapter": 6,
+     "verse_num": 15,
+     "text": "And Jehozadak went into captivity, when the Lord carried away Judah and Jerusalem by the hand of Nebuchadnezzar.",
+     "text_tagged": "And{} Jehozadak{H3087} went{H1980} *into{} *captivity,{} when{} the{} LORD{H3068} carried{} away{H1540} ~{H853} Judah{H3063} and{} Jerusalem{H3389} by{} the{} hand{H3027} of{} Nebuchadnezzar.{H5019}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      7
+     ]
+    }
+   ]
+  },
+  {
+   "num": "H3068",
+   "bookId": "psa",
+   "quickLimit": 5,
+   "count": 5,
+   "hash": "d0ab57621fz",
+   "first": [
+    {
+     "book_id": "PSA",
+     "chapter": 1,
+     "verse_num": 2,
+     "text": "But his delight is in the law of the Lord; and in his law doth he meditate day and night.",
+     "text_tagged": "But{H3588|H518} his{} delight{H2656} *is{} in{} the{} law{H8451} of{} the{} LORD;{H3068} and{} in{} his{} law{H8451} doth{} he{} meditate{H1897} day{H3119} and{} night.{H3915}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      9
+     ]
+    },
+    {
+     "book_id": "PSA",
+     "chapter": 1,
+     "verse_num": 6,
+     "text": "For the Lord knoweth the way of the righteous: but the way of the ungodly shall perish. ",
+     "text_tagged": "For{H3588} the{} LORD{H3068} knoweth{H3045} the{} way{H1870} of{} the{} righteous:{H6662} but{} the{} way{H1870} of{} the{} ungodly{H7563} shall{} perish.{H6}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "num": "G3056",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 811,
+   "hash": "842ea89b9tp7",
+   "first": [
+    {
+     "book_id": "1CO",
+     "chapter": 1,
+     "verse_num": 5,
+     "text": "That in every thing ye are enriched by him, in all utterance, and in all knowledge;",
+     "text_tagged": "That{G3754} in{G1722} every{} thing{G3956} ye{} are{} enriched{G4148} by{G1722} him,{G846} in{G1722} all{G3956} utterance,{G3056} and{G2532} *in{} all{G3956} knowledge;{G1108}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      11
+     ]
+    },
+    {
+     "book_id": "1CO",
+     "chapter": 1,
+     "verse_num": 17,
+     "text": "For Christ sent me not to baptize, but to preach the gospel: not with wisdom of words, lest the cross of Christ should be made of none effect.",
+     "text_tagged": "For{G1063} Christ{G5547} sent{G649} me{G3165} not{G3756} to{} baptize,{G907} but{G235} to{} preach{} the{} gospel:{G2097} not{G3756} with{G1722} wisdom{G4678} of{} words,{G3056} lest{G3363} the{G3588} cross{G4716} of{} Christ{G5547} should{} be{} made{} of{} none{} effect.{G2758}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      16
+     ]
+    }
+   ]
+  },
+  {
+   "num": "H853",
+   "bookId": "GEN",
+   "quickLimit": 10,
+   "count": 10,
+   "hash": "8c34d92944l",
+   "first": [
+    {
+     "book_id": "GEN",
+     "chapter": 1,
+     "verse_num": 1,
+     "text": "In the beginning God created the heaven and the earth.",
+     "text_tagged": "In{} the{} beginning{H7225} God{H430} created{H1254} ~{H853} the{} heaven{H8064} and{} the{} earth.{H776}",
+     "text_id": "kjva",
+     "matchWordIndices": []
+    },
+    {
+     "book_id": "GEN",
+     "chapter": 1,
+     "verse_num": 4,
+     "text": "And God saw the light, that it was good: and God divided the light from the darkness.",
+     "text_tagged": "And{} God{H430} saw{H7200} ~{H853} the{} light,{H216} that{H3588} *it{} *was{} good:{H2896} and{} God{H430} divided{H914|H996} the{} light{H216} from{H996} the{} darkness.{H2822}",
+     "text_id": "kjva",
+     "matchWordIndices": []
+    }
+   ]
+  },
+  {
+   "num": "G646",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 6,
+   "hash": "49b2d6df2ti",
+   "first": [
+    {
+     "book_id": "2TH",
+     "chapter": 2,
+     "verse_num": 3,
+     "text": "Let no man deceive you by any means: for that day shall not come, except there come a falling away first, and that man of sin be revealed, the son of perdition;",
+     "text_tagged": "Let{} no{G3361} man{G5100} deceive{G1818} you{G5209} by{G2596} any{G3367} means:{G5158} for{G3754} *that{} *day{} *shall{} *not{} *come,{} except{G3362} there{} come{G2064} a{} falling{} away{G646} first,{G4412} and{G2532} that{} man{G444} of{} sin{G266} be{} revealed,{G601} the{G3588} son{G5207} of{} perdition;{G684}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      18,
+      19
+     ]
+    },
+    {
+     "book_id": "ACT",
+     "chapter": 21,
+     "verse_num": 21,
+     "text": "And they are informed of thee, that thou teachest all the Jews which are among the Gentiles to forsake Moses, saying that they ought not to circumcise their children, neither to walk after the customs.",
+     "text_tagged": "And{G1161} they{} are{} informed{G2727} of{G4012} thee,{G4675} that{G3754} thou{} teachest{G1321} all{G3956} the{G3588} Jews{G2453} which{G3588} are{} among{G2596} the{G3588} Gentiles{G1484} to{} forsake{G646} Moses,{G3475} saying{G3004} that{} they{G846} ought{} not{G3361} to{} circumcise{G4059} *their{} children,{G5043} neither{G3366} to{} walk{G4043} after{} the{G3588} customs.{G1485}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      18
+     ]
+    }
+   ]
+  },
+  {
+   "num": "g40",
+   "bookId": "rev",
+   "quickLimit": null,
+   "count": 24,
+   "hash": "f9852778bt0",
+   "first": [
+    {
+     "book_id": "REV",
+     "chapter": 3,
+     "verse_num": 7,
+     "text": "And to the angel of the church in Philadelphia write; These things saith he that is holy, he that is true, he that hath the key of David, he that openeth, and no man shutteth; and shutteth, and no man openeth;",
+     "text_tagged": "!And{G2532} !to{} !the{G3588} !angel{G32} !of{} !the{G3588} !church{G1577} !in{G1722} !Philadelphia{G5359} !write;{G1125} !These{G3592} !things{G3592} !saith{G3004} !he{} !that{} !is{} !holy,{G40} !he{} !that{} !is{} !true,{G228} !he{G3588} !that{} !hath{G2192} !the{G3588} !key{G2807} !of{} !David,{G1138} !he{G3588} !that{} !openeth,{G455} !and{G2532} !no{} !man{G3762} !shutteth;{G2808} !and{G2532} !shutteth,{G2808} !and{G2532} !no{} !man{G3762} !openeth;{G455}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      16
+     ]
+    },
+    {
+     "book_id": "REV",
+     "chapter": 4,
+     "verse_num": 8,
+     "text": "And the four beasts had each of them six wings about him; and they were full of eyes within: and they rest not day and night, saying, Holy, holy, holy, Lord God Almighty, which was, and is, and is to come.",
+     "text_tagged": "And{G2532} the{} four{G5064} beasts{G2226} had{G2192} each{} of{} them{G303|G1520} six{G1803} wings{G4420} about{G2943} *him;{} and{G2532} *they{} *were{} full{G1073} of{} eyes{G3788} within:{G2081} and{G2532} they{} rest{G2192|G372} not{G3756} day{G2250} and{G2532} night,{G3571} saying,{G3004} Holy,{G40} holy,{G40} holy,{G40} Lord{G2962} God{G2316} Almighty,{G3841} which{} was,{} and{} is,{} and{} is{} to{} come.{G3801}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      27,
+      28,
+      29
+     ]
+    }
+   ]
+  },
+  {
+   "num": "H2617",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 241,
+   "hash": "07ca54ee2if7",
+   "first": [
+    {
+     "book_id": "1CH",
+     "chapter": 16,
+     "verse_num": 34,
+     "text": "O give thanks unto the Lord; for he is good; for his mercy endureth for ever.",
+     "text_tagged": "O{} give{} thanks{H3034} unto{} the{} LORD;{H3068} for{H3588} *he{} *is{} good;{H2896} for{H3588} his{} mercy{H2617} *endureth{} for{} ever.{H5769}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      12
+     ]
+    },
+    {
+     "book_id": "1CH",
+     "chapter": 16,
+     "verse_num": 41,
+     "text": "And with them Heman and Jeduthun, and the rest that were chosen, who were expressed by name, to give thanks to the Lord, because his mercy endureth for ever;",
+     "text_tagged": "And{} with{H5973} them{} Heman{H1968} and{} Jeduthun,{H3038} and{} the{} rest{H7605} that{} were{} chosen,{H1305} who{H834} were{} expressed{H5344} by{} name,{H8034} to{} give{} thanks{H3034} to{} the{} LORD,{H3068} because{H3588} his{} mercy{H2617} *endureth{} for{} ever;{H5769}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      25
+     ]
+    }
+   ]
+  },
+  {
+   "num": "G1",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 4,
+   "hash": "e88a7a8420t",
+   "first": [
+    {
+     "book_id": "REV",
+     "chapter": 1,
+     "verse_num": 8,
+     "text": "I am Alpha and Omega, the beginning and the ending, saith the Lord, which is, and which was, and which is to come, the Almighty.",
+     "text_tagged": "!I{G1473} !am{G1510} ~{G3588} !Alpha{G1} !and{G2532} ~{G3588} !Omega,{G5598} !the{G3588} !beginning{G746} !and{G2532} !the{} !ending,{G5056} saith{G3004} the{G3588} Lord,{G2962} which{G3588} is,{} and{} which{} was,{} and{} which{} is{} to{} come,{G3801} the{G3588} Almighty.{G3841}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      2
+     ]
+    },
+    {
+     "book_id": "REV",
+     "chapter": 1,
+     "verse_num": 11,
+     "text": "Saying, I am Alpha and Omega, the first and the last: and, What thou seest, write in a book, and send it unto the seven churches which are in Asia; unto Ephesus, and unto Smyrna, and unto Pergamos, and unto Thyatira, and unto Sardis, and unto Philadelphia, and unto Laodicea.",
+     "text_tagged": "Saying,{G3004} !I{G1473} !am{G1510} ~{G3588} !Alpha{G1} !and{G2532} ~{G3588} !Omega,{G5598} !the{G3588} !first{G4413} !and{G2532} !the{G3588} !last:{G2078} !and,{G2532} !What{G3739} !thou{} !seest,{G991} !write{G1125} !in{G1519} !a{} !book,{G975} !and{G2532} !send{G3992} *it{} !unto{} !the{G3588} !seven{G2033} !churches{G1577} !which{G3588} !are{} !in{G1722} !Asia;{G773} !unto{G1519} !Ephesus,{G2181} !and{G2532} !unto{G1519} !Smyrna,{G4667} !and{G2532} !unto{G1519} !Pergamos,{G4010} !and{G2532} !unto{G1519} !Thyatira,{G2363} !and{G2532} !unto{G1519} !Sardis,{G4554} !and{G2532} !unto{G1519} !Philadelphia,{G5359} !and{G2532} !unto{G1519} !Laodicea.{G2993}",
+     "text_id": "kjva",
+     "matchWordIndices": [
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "num": "X1",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 0,
+   "hash": "741638a52",
+   "first": []
+  },
+  {
+   "num": "H99999",
+   "bookId": null,
+   "quickLimit": null,
+   "count": 0,
+   "hash": "741638a52",
+   "first": []
   }
  ]
 }

@@ -4,13 +4,22 @@
 #   scripts/native/build.sh test      swift test for Packages/BereanKit (golden conformance)
 #   scripts/native/build.sh mac       BereanMac (Debug, com.berean.native.mac.dev)
 #   scripts/native/build.sh ios       BereanIOS for the iOS Simulator (Debug, com.berean.native.ios.dev)
-#   scripts/native/build.sh all       all three
+#   scripts/native/build.sh ios-test  BereanKit golden suites on an iOS Simulator
+#   scripts/native/build.sh all       test + mac + ios builds
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DD="$ROOT/build/apple/DerivedData"
 PROJECT="$ROOT/apple/Berean.xcodeproj"
 
-run_test() { swift test --package-path "$ROOT/Packages/BereanKit" --scratch-path "$ROOT/build/apple/swiftpm"; }
+# Release mode: the golden suites walk every verse of several texts (≈30 s optimised vs minutes in debug).
+run_test() { swift test -c release --package-path "$ROOT/Packages/BereanKit" --scratch-path "$ROOT/build/apple/swiftpm"; }
+# BereanKit golden suites on an iOS Simulator (the platform SQLite there differs from macOS — B-15).
+run_ios_test() {
+  local udid
+  udid=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in sorted(d.items(), reverse=True) if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+  (cd "$ROOT/Packages/BereanKit" && xcodebuild test -quiet -scheme BereanKit-Package -configuration Release \
+    -destination "platform=iOS Simulator,id=$udid" -derivedDataPath "$ROOT/build/apple/DerivedData-ios-tests")
+}
 run_mac() {
   xcodebuild -project "$PROJECT" -scheme BereanMac -configuration Debug -destination 'platform=macOS' \
     -derivedDataPath "$DD" build
@@ -30,6 +39,7 @@ verify_identity() {
 
 case "${1:-all}" in
   test) run_test ;;
+  ios-test) run_ios_test ;;
   mac) run_mac ;;
   ios) run_ios ;;
   all) run_test; run_mac; run_ios ;;

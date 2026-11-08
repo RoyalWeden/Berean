@@ -990,4 +990,12 @@ enum ReferenceTables {
             ("Similitude 10", 10, [62, 63, 64, 65]),
         ],
     ]
+    /// STRUCTURAL_NOTES (src/lib/translationChapterMap.ts).
+    static let structuralNotes: [String: String] = [
+        "EZR": "The Septuagint's Ezra (23 chapters) corresponds to the KJV's Ezra (10 chapters) AND Nehemiah (13 chapters) combined into one continuous book — the Greek tradition never separated them.",
+        "ESG": "Esther in the Septuagint interleaves several whole passages (\"Additions to Esther\") that don't exist in the Hebrew/KJV text at all, so chapter numbers here don't line up with the KJV.",
+        "BAR": "The KJV Apocrypha's Baruch has 6 chapters, with the Epistle of Jeremiah appended as chapter 6. The Septuagint keeps Baruch and the Epistle of Jeremiah as two separate books, so LXX Baruch chapter 6 doesn't exist — see the Epistle of Jeremiah (LJE) instead.",
+        "PRO": "The Septuagint reorders and renumbers a block of chapters in the second half of Proverbs (roughly chapters 24-31) differently from the KJV — chapter numbers there are not a simple one-to-one match.",
+        "SIR": "Sirach (Ecclesiasticus) has a long-standing double versification tradition (Greek vs. later editorial numbering) — chapter/verse numbers past the earlier chapters commonly run one behind the KJV Apocrypha edition.",
+    ]
 }

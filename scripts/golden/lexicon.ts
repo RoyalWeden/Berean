@@ -48,6 +48,13 @@ export async function buildLexiconGolden(): Promise<{ name: string; data: unknow
   for (const [num, textId, bookId, offset, limit] of [['H7225', 'kjva', 'GEN', 0, 20], ['G5485', 'kjva', 'ROM', 0, 5], ['G5485', 'kjva', 'ROM', 5, 5], ['G5485', 'lxx', 'GEN', 0, 50],
     ['h430', 'kjva', 'gen', 10, 100], ['H430', 'lxx', 'GEN', 0, 10], ['G26', 'kjva', '1JN', 0, 0], ['G26', 'kjva', '1JN', -5, 3.7], ['G1', 'xyz', 'GEN', 0, 5]] as const)
     pages.push({ num, textId, bookId, offset, limit, page: await svc.getOccurrencePage(num, { textId, bookId, offset, limit }) })
+  const occurrences: unknown[] = []
+  for (const [num, bookId, quick] of [['G5485', undefined, undefined], ['H7225', undefined, undefined], ['G26', '1JN', undefined], ['G26', undefined, 20],
+    ['H3068', undefined, undefined], ['H3068', 'psa', 5], ['G3056', undefined, undefined], ['H853', 'GEN', 10], ['G646', undefined, undefined], ['g40', 'rev', undefined],
+    ['H2617', undefined, undefined], ['G1', undefined, undefined], ['X1', undefined, undefined], ['H99999', undefined, undefined]] as const) {
+    const rows = await svc.getOccurrences(num, bookId, quick)
+    occurrences.push({ num, bookId: bookId ?? null, quickLimit: quick ?? null, count: rows.length, hash: shortHash(JSON.stringify(rows)), first: rows.slice(0, 2) })
+  }
   for (const db of open.values()) await db.close()
   return {
     name: 'lexicon',
@@ -55,7 +62,7 @@ export async function buildLexiconGolden(): Promise<{ name: string; data: unknow
       format: 1, generator: 'scripts/golden/lexicon.ts',
       sources: Object.fromEntries(['src/platform/services/lexiconService.ts', 'scripts/golden/lexicon.ts'].map((p) => [p, createHash('sha256').update(readFileSync(resolve(ROOT, p))).digest('hex')])),
       databases: Object.fromEntries(Object.values(files).map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'data', f))).digest('hex')])),
-      entryBlocks, entryCases, related, search, pages,
+      entryBlocks, entryCases, related, search, pages, occurrences,
     },
   }
 }

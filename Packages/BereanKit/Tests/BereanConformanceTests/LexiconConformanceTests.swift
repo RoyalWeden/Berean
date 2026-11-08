@@ -60,4 +60,21 @@ extension LexiconEntry {
         }
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
     }
+
+    @Test func occurrences() async {
+        var failures: [String] = []
+        for c in g.arr("occurrences") {
+            let rows = await svc.occurrences(c["num"]!.str, bookId: c["bookId"]?.optionalString, quickLimit: c["quickLimit"]?.numberValue.map { Int($0) })
+            let json = rows.map { r -> JSValue in
+                var o = JSObject()
+                o["book_id"] = .string(JSString(r.bookId)); o["chapter"] = .number(Double(r.chapter)); o["verse_num"] = .number(Double(r.verseNum))
+                o["text"] = .string(JSString(r.text)); o["text_tagged"] = r.textTagged.map { .string(JSString($0)) } ?? .null
+                o["text_id"] = .string(JSString(r.textId)); o["matchWordIndices"] = .array(r.matchWordIndices.map { .number(Double($0)) })
+                return .object(o)
+            }
+            let d = digest(json)
+            if d["count"] != c["count"] || d["hash"] != c["hash"] { failures.append("\(c["num"]!.str) \(c["bookId"]?.optionalString ?? "-") \(rows.count)") }
+        }
+        #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
+    }
 }

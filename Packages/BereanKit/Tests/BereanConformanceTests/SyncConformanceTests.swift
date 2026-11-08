@@ -1,6 +1,6 @@
 import Testing
 import BereanCore
-@testable import BereanSync
+import BereanSync
 
 @Suite("sync-hash golden") struct SyncHashConformanceTests {
     @Test func recordAndFieldHashes() throws {

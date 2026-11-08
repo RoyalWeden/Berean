@@ -2,10 +2,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildGoldenCorpus, GOLDEN_DIR, serializeGolden } from './corpus'
-import { buildReferenceTablesSwift, SWIFT_TABLES_PATH } from './swiftTables'
+import { buildDefaultRulesSwift, buildReferenceTablesSwift, SWIFT_RULES_PATH, SWIFT_TABLES_PATH } from './swiftTables'
 import { buildBibleGolden } from './bible'
 import { buildTextGolden } from './text'
 import { buildLexiconGolden } from './lexicon'
+import { buildDisplayGolden } from './display'
+import { buildCrossrefsGolden } from './crossrefs'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -17,6 +19,8 @@ for (const f of buildGoldenCorpus()) {
 
 mkdirSync(dirname(SWIFT_TABLES_PATH), { recursive: true })
 writeFileSync(SWIFT_TABLES_PATH, buildReferenceTablesSwift())
+mkdirSync(dirname(SWIFT_RULES_PATH), { recursive: true })
+writeFileSync(SWIFT_RULES_PATH, buildDefaultRulesSwift())
 console.log('ReferenceTables.swift')
 
 const bible = await buildBibleGolden()
@@ -44,4 +48,22 @@ if (lexicon) {
   console.log(`lexicon.json  ${text.length} chars`)
 } else {
   console.log('lexicon.json  skipped (data/*.db not present)')
+}
+
+const display = await buildDisplayGolden()
+if (display) {
+  const text = serializeGolden(display)
+  writeFileSync(join(GOLDEN_DIR, 'display.json'), text)
+  console.log(`display.json  ${text.length} chars`)
+} else {
+  console.log('display.json  skipped (data/*.db not present)')
+}
+
+const crossrefs = await buildCrossrefsGolden()
+if (crossrefs) {
+  const text = serializeGolden(crossrefs)
+  writeFileSync(join(GOLDEN_DIR, 'crossrefs.json'), text)
+  console.log(`crossrefs.json  ${text.length} chars`)
+} else {
+  console.log('crossrefs.json  skipped (data/*.db not present)')
 }

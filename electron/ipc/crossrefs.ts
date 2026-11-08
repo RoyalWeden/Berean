@@ -106,7 +106,7 @@ export function getCrossRefsForVerse(bookId: string, chapter: number, verse: num
     if (!database) return { refs: [], loading: false, error: true }
 
     const rows = prep(database,
-      'SELECT to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch = ? AND from_vs = ? ORDER BY votes DESC LIMIT 150'
+      'SELECT to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch = ? AND from_vs = ? ORDER BY votes DESC, rowid LIMIT 150'
     ).all(bookId.toUpperCase(), chapter, verse) as Array<{
       to_book: string; to_ch: number; to_vs: number; to_vs_end: number | null; votes: number
     }>
@@ -195,7 +195,7 @@ export function getIncomingCrossRefsForVerse(bookId: string, chapter: number, ve
     if (!database) return { refs: [], loading: false, error: true }
 
     const rows = prep(database,
-      'SELECT from_book, from_ch, from_vs, votes FROM refs WHERE to_book = ? AND to_ch = ? AND to_vs = ? ORDER BY votes DESC LIMIT 150'
+      'SELECT from_book, from_ch, from_vs, votes FROM refs WHERE to_book = ? AND to_ch = ? AND to_vs = ? ORDER BY votes DESC, rowid LIMIT 150'
     ).all(bookId.toUpperCase(), chapter, verse) as Array<{
       from_book: string; from_ch: number; from_vs: number; votes: number
     }>

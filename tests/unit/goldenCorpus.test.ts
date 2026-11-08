@@ -5,10 +5,12 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildGoldenCorpus, GOLDEN_DIR, serializeGolden } from '../../scripts/golden/corpus'
-import { buildReferenceTablesSwift, SWIFT_TABLES_PATH } from '../../scripts/golden/swiftTables'
+import { buildDefaultRulesSwift, buildReferenceTablesSwift, SWIFT_RULES_PATH, SWIFT_TABLES_PATH } from '../../scripts/golden/swiftTables'
 import { buildBibleGolden } from '../../scripts/golden/bible'
 import { buildTextGolden } from '../../scripts/golden/text'
 import { buildLexiconGolden } from '../../scripts/golden/lexicon'
+import { buildDisplayGolden } from '../../scripts/golden/display'
+import { buildCrossrefsGolden } from '../../scripts/golden/crossrefs'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -24,6 +26,9 @@ describe('golden corpus', () => {
       }
     })
   }
+  it('DefaultWordReplacerRules.swift matches src/store/index.ts', () => {
+    expect(existsSync(SWIFT_RULES_PATH) && readFileSync(SWIFT_RULES_PATH, 'utf8') === buildDefaultRulesSwift(), 'DefaultWordReplacerRules.swift is stale — run npm run golden:export').toBe(true)
+  })
   it('ReferenceTables.swift matches src/lib/parseRef.ts', () => {
     expect(existsSync(SWIFT_TABLES_PATH) && readFileSync(SWIFT_TABLES_PATH, 'utf8') === buildReferenceTablesSwift(), 'ReferenceTables.swift is stale — run npm run golden:export').toBe(true)
   })
@@ -45,5 +50,17 @@ describe('golden corpus', () => {
     if (!g) return
     const path = join(GOLDEN_DIR, 'lexicon.json')
     expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'lexicon.json is stale — run npm run golden:export').toBe(true)
+  }, 300_000)
+  it('display.json matches the TypeScript word replacer / verse display (skipped without data/*.db)', async () => {
+    const g = await buildDisplayGolden()
+    if (!g) return
+    const path = join(GOLDEN_DIR, 'display.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'display.json is stale — run npm run golden:export').toBe(true)
+  }, 300_000)
+  it('crossrefs.json matches the TypeScript cross-reference service (skipped without data/*.db)', async () => {
+    const g = await buildCrossrefsGolden()
+    if (!g) return
+    const path = join(GOLDEN_DIR, 'crossrefs.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(g), 'crossrefs.json is stale — run npm run golden:export').toBe(true)
   }, 300_000)
 })

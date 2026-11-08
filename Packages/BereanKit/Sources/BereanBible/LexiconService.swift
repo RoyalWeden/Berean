@@ -1,5 +1,6 @@
 import BereanCore
 import BereanSQLite
+import BereanText
 
 /// Strong's lexicon lookups — port of src/platform/services/lexiconService.ts (same SQL).
 public struct LexiconEntry: Equatable, Sendable {
@@ -11,6 +12,12 @@ public struct LexiconOccurrencePage: Equatable, Sendable {
     public struct Row: Equatable, Sendable { public var bookId: String, chapter: Int, verseNum: Int, text: String }
     public var rows: [Row]
     public var hasMore: Bool
+}
+
+/// One verse carrying a Strong's number, with the word positions to highlight (`LexiconOccurrence`).
+public struct LexiconOccurrence: Equatable, Sendable {
+    public var bookId: String, chapter: Int, verseNum: Int, text: String, textTagged: String?, textId: String
+    public var matchWordIndices: [Int]
 }
 
 public actor LexiconService {
@@ -127,5 +134,107 @@ public actor LexiconService {
         return LexiconOccurrencePage(rows: rows.prefix(lim).map { r in
             .init(bookId: r.values[0].string ?? "", chapter: r.values[1].int ?? 0, verseNum: r.values[2].int ?? 0, text: r.values[3].string ?? "")
         }, hasMore: rows.count > lim)
+    }
+
+    // MARK: getOccurrences
+
+    static let tagRegex = JSRegex(#"([!*~]?)([^{}!*~]*)\{([^}]*)\}"#)
+    static let functionWords: Set<String> = ["the", "a", "an", "his", "her", "its", "our", "your", "their", "my", "thy", "thine", "by", "in", "of", "on", "at",
+        "to", "for", "or", "and", "but", "yet", "so", "if", "as", "he", "she", "it", "we", "us", "me", "him", "be", "is", "was", "are", "not", "no", "do",
+        "did", "had", "who", "whom", "now", "with", "from", "unto", "upon", "into", "than", "then", "that", "this", "these", "those", "them", "they",
+        "i", "you", "ye", "thou", "thee", "shall", "will", "hath", "have", "been", "were", "am", "up", "out", "over", "under", "again", "also", "even"]
+
+    static func clean(_ w: String) -> String { String(JSText.lower(w).unicodeScalars.filter { ("a"..."z").contains($0) }.map(Character.init)) }
+
+    /// `findMatchWordIndices` inside `getOccurrences`: tag positions re-anchored past function words the
+    /// LXX tagging sometimes carries the number on, then expanded over adjacent untagged gloss words.
+    static func occurrenceIndices(tagged: String?, plain: String, num: String, gloss: [String]) -> [Int] {
+        let plainWords = JSText.collapseWhitespace(JSText.trim(plain)).split(separator: " ").map(String.init)
+        if let tagged, !tagged.isEmpty {
+            var wordTags: [String] = []
+            for m in tagRegex.allMatches(tagged) where m[1] != "~" { wordTags.append(JSText.trim(m[3] ?? "")) }
+            var matched: [Int] = []
+            for (i, t) in wordTags.enumerated() where !t.isEmpty {
+                if t.split(separator: "|", omittingEmptySubsequences: false).map({ JSText.upper(JSText.trim(String($0))) }).contains(num) { matched.append(i) }
+            }
+            if !matched.isEmpty {
+                func word(_ i: Int) -> String { i < plainWords.count ? clean(plainWords[i]) : "" }
+                let glossHasContent = gloss.contains { $0.utf16.count >= 5 }
+                var reanchored: [Int] = []
+                for idx in matched {
+                    let mc = word(idx)
+                    if gloss.contains(mc) { reanchored.append(idx); continue }
+                    if !glossHasContent || !functionWords.contains(mc) { reanchored.append(idx); continue }
+                    var found = false
+                    for d in 1...4 {
+                        let j = idx + d
+                        if j >= plainWords.count { break }
+                        let w = word(j)
+                        if w.utf16.count >= 4 && gloss.contains(where: { $0 == w || $0 == w + "s" || $0 + "s" == w }) { reanchored.append(j); found = true; break }
+                    }
+                    if !found {
+                        for d in 1...3 {
+                            let j = idx + d
+                            if j >= plainWords.count { break }
+                            let w = word(j)
+                            if w.utf16.count >= 5 && !functionWords.contains(w) { reanchored.append(j); found = true; break }
+                        }
+                    }
+                    if !found { reanchored.append(idx) }
+                }
+                var expanded = Set(reanchored)
+                if !gloss.isEmpty {
+                    for idx in reanchored {
+                        for dir in [-1, 1] {
+                            var j = idx + dir
+                            while j >= 0 && j < wordTags.count && wordTags[j].isEmpty {
+                                let c = word(j)
+                                if c.utf16.count >= 3 && gloss.contains(c) { expanded.insert(j); j += dir } else { break }
+                            }
+                        }
+                    }
+                }
+                return expanded.sorted()
+            }
+        }
+        guard !gloss.isEmpty, !plainWords.isEmpty else { return [] }
+        return plainWords.enumerated().compactMap { idx, w in
+            let c = clean(w)
+            return c.utf16.count >= 4 && gloss.contains(where: { $0 == c || $0 == c + "s" || $0 + "s" == c }) ? idx : nil
+        }
+    }
+
+    /// `getOccurrences` — verses whose own tagged text carries the number (KJVA for Hebrew; KJVA + LXX for Greek,
+    /// up to 1000 / 500 per text, or `quickLimit`), optionally scoped to one book.
+    public func occurrences(_ strongsNum: String, bookId: String? = nil, quickLimit: Int? = nil) -> [LexiconOccurrence] {
+        let num = Self.normalizedId(strongsNum)
+        guard let lang = num.first, lang == "H" || lang == "G", let lex = lexicon(lang) else { return [] }
+        let isGreek = lang == "G"
+        let scope = bookId.map { JSText.upper($0) }
+        let kjva = connection(textPath("kjva")), lxx = connection(textPath("lxx"))
+        func scan(_ db: SQLiteConnection?, _ textId: String, _ limit: Int) -> [(String, Int, Int, String)] {
+            guard let db else { return [] }
+            var params: [SQLiteValue] = [.text("%{\(num)}%"), .text("%{\(num)|%"), .text("%|\(num)}%"), .text("%|\(num)|%")]
+            if let scope { params.append(.text(scope)) }
+            params.append(.integer(Int64(limit)))
+            let sql = """
+                SELECT book_id, chapter, verse_num as verse FROM verses
+                           WHERE (text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?)\(scope != nil ? " AND book_id = ?" : "")
+                           ORDER BY book_id, chapter, verse_num LIMIT ?
+                """
+            return ((try? db.query(sql, params)) ?? []).map { ($0.values[0].string ?? "", $0.values[1].int ?? 0, $0.values[2].int ?? 0, textId) }
+        }
+        let raw = isGreek ? scan(kjva, "kjva", quickLimit ?? 500) + scan(lxx, "lxx", quickLimit ?? 500) : scan(kjva, "kjva", quickLimit ?? 1000)
+        if raw.isEmpty { return [] }
+        let shortDef = (try? lex.query("SELECT short_def FROM entries WHERE strongs_id = ?", [.text(num)]))?.first?.values.first?.string ?? ""
+        let gloss = VerseDisplay.glossWords(shortDef)
+        return raw.map { b, c, v, t in
+            let db = t == "lxx" ? lxx : kjva
+            let row = (try? db?.query("SELECT text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1",
+                                      [.text(b), .integer(Int64(c)), .integer(Int64(v))]))??.first
+            let text = row?.values[0].string ?? "", tagged = row?.values[1].string
+            return LexiconOccurrence(bookId: b, chapter: c, verseNum: v, text: text, textTagged: tagged, textId: t,
+                                     matchWordIndices: Self.occurrenceIndices(tagged: tagged, plain: text, num: num, gloss: gloss))
+        }
     }
 }
