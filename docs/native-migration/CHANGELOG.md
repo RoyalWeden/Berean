@@ -188,3 +188,10 @@
   the selected verse, Strong's and the open panel from the database. iOS Simulator launch shows the reader with the three bottom controls.
 - Known gaps: Notes/YouTube/PDF/Tags/History/Settings/Calendar tab types show an explanatory placeholder (state preserved); no layout presets,
   multi-pane compare, settings UI, highlights, notes yet; tab back/forward history not yet.
+
+### 2026-11-08 00:55 PST — Correction: native upgrade floor is v42, not v18 (ADR-0009)
+- A per-version scan of bereanMigrations.ts (the first scan split the file wrongly) found data-dependent JavaScript up to v42 (verse-tag
+  colour-slot loop) and try/catch ALTERs in v20–v41. `Migrator.lastDataDependentVersion` = 42; libraries below v42 are refused with
+  `requiresLegacyUpgrade`. Test: v41 refused; v42 → v49 replay equals the fresh v49 schema. Real libraries are ≥ v47, so no user impact.
+- Housekeeping: local branch `native/m2-finish` was deleted with `-D` after its unmerged commits were rebased onto `native/m3-store`
+  (content preserved; noted for the record).

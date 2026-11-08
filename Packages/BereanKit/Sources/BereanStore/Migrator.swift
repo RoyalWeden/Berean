@@ -7,7 +7,7 @@ import Darwin
 ///
 /// The statements are the ones the TypeScript migrations (src/platform/db/bereanMigrations.ts) execute
 /// on a new database, recorded per version and generated into `RecordedMigrations.swift`. Replay is exact
-/// for a new database and for upgrades whose pending steps are pure SQL (every version after 17). Older
+/// for a new database and for upgrades whose pending steps are replay-safe (v43 onward; see `lastDataDependentVersion`). Older
 /// libraries, libraries from a newer app, damaged files and a failed pre-migration backup all stop
 /// migration with the database untouched — stricter than the legacy runner, which logs a failed backup
 /// and continues (spec §5.1: a failed pre-migration backup must stop the migration).
@@ -25,7 +25,7 @@ public enum Migrator {
     public enum MigrationError: Error, Equatable, Sendable {
         /// The library was written by a newer Berean; this build must not touch it.
         case newerThanSupported(found: Int, supported: Int)
-        /// Pending steps include data-dependent legacy migrations (≤ v17): open it once in the current Berean first.
+        /// Pending steps include data-dependent legacy migrations (≤ v42): open it once in the current Berean first.
         case requiresLegacyUpgrade(found: Int)
         /// `PRAGMA quick_check` failed: never migrate, sync or overwrite a damaged library.
         case damaged(String)
@@ -39,8 +39,11 @@ public enum Migrator {
     /// epoch milliseconds when the statement is replayed.
     public static let nowPlaceholder: Int64 = 1111111111111
 
-    /// Highest version a data-dependent (JavaScript) migration has; upgrades must start above it.
-    static let lastDataDependentVersion = 17
+    /// Highest version whose TypeScript migration does data-dependent work replay cannot reproduce on an
+    /// existing library (v42 assigns verse-tag colour slots in a JavaScript loop; earlier ones too). v43–v49
+    /// only create tables, run SQL backfills or add columns behind `hasColumn` guards, which on a library
+    /// genuinely at the previous version take exactly the recorded fresh path. Upgrades must start at ≥ v42.
+    static let lastDataDependentVersion = 42
 
     public static func currentVersion(_ db: SQLiteConnection) throws(SQLiteError) -> Int {
         try db.exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")

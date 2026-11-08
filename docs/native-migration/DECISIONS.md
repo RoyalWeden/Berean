@@ -110,8 +110,10 @@
   ~1,300 lines of SQL invites drift; migrations 1–17 also contain data-dependent JavaScript (backfills, conditional ALTERs).
 - Result: `scripts/golden/schema.ts` records every statement the TypeScript runs per version on a NEW database and generates
   `BereanStore/Generated/RecordedMigrations.swift`; `Migrator` replays it. Policy:
-  new library → replay all; existing library ≥ v18 → replay pending pure-SQL steps; existing library ≤ v17 with pending steps →
-  `requiresLegacyUpgrade` (open once in the current Berean, which runs the JS logic); newer than supported → refuse untouched;
+  new library → replay all; existing library ≥ v42 → replay pending steps; existing library ≤ v41 →
+  `requiresLegacyUpgrade` (open once in the current Berean, which runs the JS logic). CORRECTION 2026-11-08: the first version of this
+  ADR said "≥ v18 / pure SQL"; a proper per-version scan showed v42 (and many earlier steps) contain data-dependent JavaScript or
+  try/catch ALTERs. v43–v49 are replay-safe (CREATE, SQL backfill, ALTERs behind hasColumn guards that are no-ops only on re-runs). newer than supported → refuse untouched;
   `PRAGMA quick_check` failure → refuse; pre-migration backup failure → STOP (stricter than legacy, per spec §5.1); failing step →
   rolled back, previous version kept. `migrate(to:)` lets a production build freeze at the production level (v48) while
   development uses v49 (spec: keep v48 production and v49 development distinct).

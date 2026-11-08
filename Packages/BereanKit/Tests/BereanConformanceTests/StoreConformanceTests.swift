@@ -64,9 +64,14 @@ func schemaDump(_ db: SQLiteConnection) throws -> JSValue {
 
         // Library needing data-dependent legacy steps.
         let old = try freshDB()
-        try Migrator.migrate(old, to: 12)
-        #expect(throws: Migrator.MigrationError.requiresLegacyUpgrade(found: 12)) { try Migrator.migrate(old) }
-        #expect(try Migrator.currentVersion(old) == 12)
+        try Migrator.migrate(old, to: 41)
+        #expect(throws: Migrator.MigrationError.requiresLegacyUpgrade(found: 41)) { try Migrator.migrate(old) }
+        #expect(try Migrator.currentVersion(old) == 41)
+        // From v42 the remaining steps are replay-safe and reach the same schema as a fresh library.
+        let v42 = try freshDB()
+        try Migrator.migrate(v42, to: 42)
+        #expect(try Migrator.migrate(v42) == Array(43...49))
+        #expect(try schemaDump(v42) == g["checkpoints"]!["final"]!)
 
         // Failed backup stops the migration; nothing changes.
         let db = try freshDB()
