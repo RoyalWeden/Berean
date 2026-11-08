@@ -6,6 +6,8 @@ SUPPORTED_PLATFORMS = macosx
 MACOSX_DEPLOYMENT_TARGET = 27.0
 PRODUCT_BUNDLE_IDENTIFIER = com.berean.native.mac.dev
 ENABLE_APP_SANDBOX = YES
+// Open/save panels (Export Markdown…, Import Markdown…) need user-selected file access inside the sandbox.
+ENABLE_USER_SELECTED_FILES = readwrite
 ENABLE_HARDENED_RUNTIME = YES
 // "Sign to Run Locally" until a release decision assigns a team and profile.
 CODE_SIGN_IDENTITY = -

@@ -12,8 +12,6 @@ struct NotesHomeView: View {
     @State private var folderId: String?
     @State private var notes: [Note] = []
     @State private var folders: [NoteFolder] = []
-    @State private var importing = false
-    @State private var importSummary: String?
 
     static let filters: [(String, String, String)] = [("all", "All", "tray.full"), ("scripture", "Scripture", "book"), ("topic", "Topic", "text.alignleft"),
                                                      ("daily", "Daily", "calendar"), ("pinned", "Pinned", "pin"), ("trash", "Trash", "trash")]
@@ -48,24 +46,8 @@ struct NotesHomeView: View {
         .navigationTitle("Notes")
         .toolbar {
             ToolbarItem { Button { app.newNote() } label: { Label("New Note", systemImage: "square.and.pencil") }.keyboardShortcut("n", modifiers: [.command, .shift]) }
-            ToolbarItem { Button { importing = true } label: { Label("Import Markdown…", systemImage: "square.and.arrow.down") } }
+            ToolbarItem { Button { app.importMarkdownFiles() } label: { Label("Import Markdown…", systemImage: "square.and.arrow.down") }.help("Import Markdown (.md) files as notes") }
         }
-        .fileImporter(isPresented: $importing, allowedContentTypes: MarkdownDocument.readableTypes, allowsMultipleSelection: true) { result in
-            guard case .success(let urls) = result else { return }
-            var created = 0, updated = 0
-            for url in urls {
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                guard let data = try? Data(contentsOf: url) else { continue }
-                switch try? app.notes?.importMarkdown(String(decoding: data, as: UTF8.self), fileName: url.lastPathComponent) {
-                case .created?: created += 1
-                case .updated?: updated += 1
-                default: break
-                }
-            }
-            importSummary = "Imported \(created) new note\(created == 1 ? "" : "s")\(updated > 0 ? ", updated \(updated)" : "")."
-        }
-        .alert(importSummary ?? "", isPresented: Binding(get: { importSummary != nil }, set: { if !$0 { importSummary = nil } })) { Button("OK") {} }
         .overlay { if notes.isEmpty { ContentUnavailableView(query.isEmpty ? "No notes yet" : "No matches", systemImage: "note.text", description: Text(query.isEmpty ? "Create one with ⇧⌘N or from a verse." : "Try other words.")) } }
         .task(id: "\(query)|\(filter)|\(folderId ?? "")|\(app.notesRevision)") { load() }
     }
@@ -135,7 +117,6 @@ struct NoteDetailView: View {
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
     @State private var showingHistory = false
-    @State private var exporting = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -174,7 +155,12 @@ struct NoteDetailView: View {
                 Toggle(isOn: $editing) { Label("Edit Markdown", systemImage: "pencil") }.keyboardShortcut("m", modifiers: [.command, .shift])
                 if let note {
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
-                    Button { saveNow(); exporting = true } label: { Label("Export Markdown…", systemImage: "square.and.arrow.up") }
+                    Menu {
+                        Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
+                        Button("Copy as Markdown") { copyMarkdown() }
+                        ShareLink(item: NoteMarkdownFile.markdown(for: note)) { Text("Share…") }
+                    } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                    .help("Export, copy or share this note as Markdown")
                     Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
                     Button(role: .destructive) { try? app.notes?.delete(note.id); app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
                 }
@@ -185,8 +171,6 @@ struct NoteDetailView: View {
                 content = restored; lastSnapshot = restored; reload()
             }
         }
-        .fileExporter(isPresented: $exporting, document: note.map { MarkdownDocument(text: NoteMarkdownFile.markdown(for: $0)) },
-                      contentType: MarkdownDocument.markdownType, defaultFilename: note.map { NoteMarkdownFile.fileName(title: $0.title, id: $0.id) }) { _ in }
         .task(id: noteId) {
             if loadedId != nil, loadedId != noteId { saveNow(); snapshot() }   // leaving a note: consolidate its version
             reload()
@@ -195,10 +179,27 @@ struct NoteDetailView: View {
             editing = isNew
             if isNew { try? await Task.sleep(for: .milliseconds(150)); focus = (note?.title.isEmpty ?? true) ? .title : .body }
         }
+        // Reflect changes made elsewhere (import, version restore, another window) unless this view has unsaved edits.
+        .onChange(of: app.notesRevision) {
+            guard let fresh = try? app.notes?.one(noteId), let note, fresh.updatedAt != note.updatedAt,
+                  title == note.title, content == note.content else { return }
+            reload(); lastSnapshot = content
+        }
         .onDisappear {
             saveNow()
             if !JSText.trim(content).isEmpty { snapshot() }
         }
+    }
+
+    func copyMarkdown() {
+        saveNow()
+        guard let note = try? app.notes?.one(noteId) else { return }
+        let text = NoteMarkdownFile.markdown(for: note)
+        #if os(macOS)
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
+        #else
+        UIPasteboard.general.string = text
+        #endif
     }
 
     /// Editing paused for two minutes → snapshot a version (SNAPSHOT_IDLE_MS in the desktop editor).
@@ -278,17 +279,6 @@ struct VerseNotesView: View {
             }
         }
     }
-}
-
-/// Plain-text Markdown file for export / import.
-struct MarkdownDocument: FileDocument {
-    static let markdownType = UTType(filenameExtension: "md", conformingTo: .plainText) ?? .plainText
-    static var readableContentTypes: [UTType] { [markdownType, .plainText] }
-    static var readableTypes: [UTType] { [markdownType, UTType(filenameExtension: "markdown", conformingTo: .plainText) ?? .plainText, .plainText] }
-    var text: String
-    init(text: String) { self.text = text }
-    init(configuration: ReadConfiguration) throws { text = String(decoding: configuration.file.regularFileContents ?? Data(), as: UTF8.self) }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: Data(text.utf8)) }
 }
 
 /// Version history (NoteVersionHistory.tsx): snapshots newest first, preview, restore, save a version now.

@@ -259,3 +259,18 @@
   idle, on leaving a note and on close (desktop SNAPSHOT_IDLE_MS rules); Export Markdown… (file exporter) and Import Markdown… (Notes home).
   Verified in the running Mac app: two seeded versions listed and previewed; restoring wrote a pre-restore snapshot and updated the note.
 - Tooling: `npm run golden:export` now runs vite-node with vitest.config.ts so `@/` imports resolve (all existing goldens unchanged).
+
+### 2026-11-08 07:30 PST — FIX: note Share/Export did nothing (Michael's manual test); #21 re-landed
+- Root cause (reproduced in the running app): SwiftUI `.fileExporter` attached to the note view never presented from the note toolbar —
+  no panel, no log line. Separately the sandboxed app lacked `com.apple.security.files.user-selected.read-write`, which any save/open
+  panel needs (`ENABLE_USER_SELECTED_FILES = readwrite`).
+- Fix: `NoteFileTransfer` drives `NSSavePanel`/`NSOpenPanel` as window sheets (iPhone: `UIDocumentPickerViewController`); outcomes are
+  reported (saved / cancelled / failed → alert with the system reason). The toolbar control is now a labelled Share menu (Export as
+  Markdown File…, Copy as Markdown, Share…), plus File ▸ Import Markdown… / Export Note as Markdown… ⇧⌘E.
+- Second bug found while verifying: an open note did not refresh after an import (or any external change) — the note view now reloads on
+  `notesRevision` unless it holds unsaved edits.
+- Verified in the running Mac app: toolbar Share ▸ Export and ⇧⌘E present the save panel; file written in the vault format; edited file
+  re-imported → "Imported 0 new notes, updated 1." and the open note updated in place; Cancel → no alert; read-only folder → "The note
+  could not be exported. You don't have permission…". Regression: `npm run native:ui:smoke` (System Events, local only) — PASS.
+- PR #21 had merged into `native/m6-layouts` after #20 was already merged, so its commit never reached main. Re-landed by cherry-pick on
+  `native/m7-export` (tree identical to #21) together with this fix.

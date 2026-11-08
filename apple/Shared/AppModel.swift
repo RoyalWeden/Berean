@@ -51,6 +51,8 @@ final class AppModel {
     var books: [String: [BookRow]] = [:]
     var libraryError: String?
     var commandPaletteShown = false
+    /// One-line result shown in an alert after a user action (export/import outcome, errors).
+    var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.
     var notesRevision = 0
     private(set) var notes: NotesService?
@@ -192,6 +194,47 @@ final class AppModel {
         sessions.remove(at: i)
         if currentSessionId == id { currentSessionId = sessions[0].id }
         scheduleSave()
+    }
+
+    // MARK: Markdown files
+
+    /// The note shown by the active tab (Notes space), if any.
+    var activeNoteId: String? {
+        guard let t = activeTab, t.tabType == .note else { return nil }
+        return t.state["noteId"]?.stringValue?.string
+    }
+
+    func exportActiveNote() { if let id = activeNoteId { exportNote(id) } }
+
+    /// File ▸ Export Note as Markdown… / the note Share menu: native save panel → .md in the vault format.
+    func exportNote(_ id: String) {
+        guard let note = try? notes?.one(id) else { userMessage = "This note could not be read."; return }
+        NoteFileTransfer.exportMarkdown(NoteMarkdownFile.markdown(for: note), suggestedName: NoteMarkdownFile.fileName(title: note.title, id: note.id)) { [weak self] outcome in
+            switch outcome {
+            case .saved(let url): self?.lastExportURL = url
+            case .cancelled: break
+            case .failed(let why): self?.userMessage = "The note could not be exported. \(why)"
+            }
+        }
+    }
+    /// Where the last export was written (shown nowhere; kept for tests and diagnostics).
+    var lastExportURL: URL?
+
+    /// File ▸ Import Markdown… / Notes home: open panel → notes (berean_id updates, otherwise new notes).
+    func importMarkdownFiles() {
+        NoteFileTransfer.chooseMarkdownFiles { [weak self] files in
+            guard let self, !files.isEmpty else { return }
+            var created = 0, updated = 0, failed = 0, lastId: String?
+            for f in files {
+                switch Result(catching: { try self.notes?.importMarkdown(f.text, fileName: f.name) }) {
+                case .success(.created(let id)?): created += 1; lastId = id
+                case .success(.updated(let id)?): updated += 1; lastId = id
+                default: failed += 1
+                }
+            }
+            if files.count == 1, let lastId { self.openNote(lastId) }
+            self.userMessage = "Imported \(created) new note\(created == 1 ? "" : "s")\(updated > 0 ? ", updated \(updated)" : "")\(failed > 0 ? ". \(failed) could not be imported." : ".")"
+        }
     }
 
     // MARK: saved workspaces (same rows and state_json v2 as src/lib/workspaceSnapshot.ts)

@@ -22,3 +22,9 @@
 ## Important constraints
 Never reset/delete an unknown dirty worktree, access production data without authorization, or assume a merged PR means
 functional parity. No `--force` (worktree remove, push), no `branch -D`, no `reset --hard`. Keep log and task state in Git.
+
+## Merge requirements (2026-11-08)
+- `gh pr merge` by Claude is blocked by the auto-mode classifier ("Merge Without Review"); Michael merges native PRs.
+- Merge in the order listed; for stacked PRs merge the lower one first and **wait until GitHub retargets the next PR to main before
+  merging it** — #21 was merged into its already-merged base branch and missed main (re-landed via `native/m7-export`).
+- Before merging: CI green (both jobs) + the local Mac check comment (ADR-0007: `npm run native:build:mac`, Xcode 27).
