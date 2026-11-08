@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		BE7EA000000000000000001A /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000018 /* BereanCore */; };
-		BE7EA000000000000000001B /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000019 /* BereanSync */; };
-		BE7EA0000000000000000025 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000023 /* BereanCore */; };
-		BE7EA0000000000000000026 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000024 /* BereanSync */; };
+		BE7EA0000000000000000020 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA000000000000000001F /* BereanCore */; };
+		BE7EA0000000000000000022 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000021 /* BereanSync */; };
+		BE7EA0000000000000000024 /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000023 /* BereanReference */; };
+		BE7EA0000000000000000026 /* BereanCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000025 /* BereanCore */; };
+		BE7EA0000000000000000028 /* BereanSync in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000027 /* BereanSync */; };
+		BE7EA000000000000000002A /* BereanReference in Frameworks */ = {isa = PBXBuildFile; productRef = BE7EA0000000000000000029 /* BereanReference */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,17 +34,19 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BE7EA000000000000000001A /* BereanCore in Frameworks */,
-				BE7EA000000000000000001B /* BereanSync in Frameworks */,
+				BE7EA0000000000000000020 /* BereanCore in Frameworks */,
+				BE7EA0000000000000000022 /* BereanSync in Frameworks */,
+				BE7EA0000000000000000024 /* BereanReference in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BE7EA000000000000000001E /* Frameworks */ = {
+		BE7EA000000000000000001A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BE7EA0000000000000000025 /* BereanCore in Frameworks */,
-				BE7EA0000000000000000026 /* BereanSync in Frameworks */,
+				BE7EA0000000000000000026 /* BereanCore in Frameworks */,
+				BE7EA0000000000000000028 /* BereanSync in Frameworks */,
+				BE7EA000000000000000002A /* BereanReference in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,20 +104,21 @@
 			);
 			name = BereanMac;
 			packageProductDependencies = (
-				BE7EA0000000000000000018 /* BereanCore */,
-				BE7EA0000000000000000019 /* BereanSync */,
+				BE7EA000000000000000001F /* BereanCore */,
+				BE7EA0000000000000000021 /* BereanSync */,
+				BE7EA0000000000000000023 /* BereanReference */,
 			);
 			productName = BereanMac;
 			productReference = BE7EA0000000000000000008 /* BereanMac.app */;
 			productType = "com.apple.product-type.application";
 		};
-		BE7EA000000000000000001C /* BereanIOS */ = {
+		BE7EA0000000000000000018 /* BereanIOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BE7EA0000000000000000020 /* Build configuration list for PBXNativeTarget "BereanIOS" */;
+			buildConfigurationList = BE7EA000000000000000001C /* Build configuration list for PBXNativeTarget "BereanIOS" */;
 			buildPhases = (
-				BE7EA000000000000000001D /* Sources */,
-				BE7EA000000000000000001E /* Frameworks */,
-				BE7EA000000000000000001F /* Resources */,
+				BE7EA0000000000000000019 /* Sources */,
+				BE7EA000000000000000001A /* Frameworks */,
+				BE7EA000000000000000001B /* Resources */,
 			);
 			buildRules = (
 			);
@@ -125,8 +130,9 @@
 			);
 			name = BereanIOS;
 			packageProductDependencies = (
-				BE7EA0000000000000000023 /* BereanCore */,
-				BE7EA0000000000000000024 /* BereanSync */,
+				BE7EA0000000000000000025 /* BereanCore */,
+				BE7EA0000000000000000027 /* BereanSync */,
+				BE7EA0000000000000000029 /* BereanReference */,
 			);
 			productName = BereanIOS;
 			productReference = BE7EA0000000000000000009 /* BereanIOS.app */;
@@ -145,7 +151,7 @@
 					BE7EA0000000000000000011 = {
 						CreatedOnToolsVersion = 27.2;
 					};
-					BE7EA000000000000000001C = {
+					BE7EA0000000000000000018 = {
 						CreatedOnToolsVersion = 27.2;
 					};
 				};
@@ -168,7 +174,7 @@
 			projectRoot = "";
 			targets = (
 				BE7EA0000000000000000011 /* BereanMac */,
-				BE7EA000000000000000001C /* BereanIOS */,
+				BE7EA0000000000000000018 /* BereanIOS */,
 			);
 		};
 /* End PBXProject section */
@@ -181,7 +187,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BE7EA000000000000000001F /* Resources */ = {
+		BE7EA000000000000000001B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -198,7 +204,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BE7EA000000000000000001D /* Sources */ = {
+		BE7EA0000000000000000019 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -252,7 +258,7 @@
 			};
 			name = Release;
 		};
-		BE7EA0000000000000000021 /* Debug */ = {
+		BE7EA000000000000000001D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BE7EA000000000000000000C /* BereanIOS.xcconfig */;
 			buildSettings = {
@@ -260,7 +266,7 @@
 			};
 			name = Debug;
 		};
-		BE7EA0000000000000000022 /* Release */ = {
+		BE7EA000000000000000001E /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BE7EA000000000000000000C /* BereanIOS.xcconfig */;
 			buildSettings = {
@@ -290,11 +296,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BE7EA0000000000000000020 /* Build configuration list for PBXNativeTarget "BereanIOS" */ = {
+		BE7EA000000000000000001C /* Build configuration list for PBXNativeTarget "BereanIOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				BE7EA0000000000000000021 /* Debug */,
-				BE7EA0000000000000000022 /* Release */,
+				BE7EA000000000000000001D /* Debug */,
+				BE7EA000000000000000001E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -309,21 +315,29 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		BE7EA0000000000000000018 /* BereanCore */ = {
+		BE7EA000000000000000001F /* BereanCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanCore;
 		};
-		BE7EA0000000000000000019 /* BereanSync */ = {
+		BE7EA0000000000000000021 /* BereanSync */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanSync;
 		};
-		BE7EA0000000000000000023 /* BereanCore */ = {
+		BE7EA0000000000000000023 /* BereanReference */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanReference;
+		};
+		BE7EA0000000000000000025 /* BereanCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanCore;
 		};
-		BE7EA0000000000000000024 /* BereanSync */ = {
+		BE7EA0000000000000000027 /* BereanSync */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = BereanSync;
+		};
+		BE7EA0000000000000000029 /* BereanReference */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BereanReference;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

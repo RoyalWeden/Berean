@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildGoldenCorpus, GOLDEN_DIR, serializeGolden } from '../../scripts/golden/corpus'
+import { buildReferenceTablesSwift, SWIFT_TABLES_PATH } from '../../scripts/golden/swiftTables'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -20,4 +21,7 @@ describe('golden corpus', () => {
       }
     })
   }
+  it('ReferenceTables.swift matches src/lib/parseRef.ts', () => {
+    expect(existsSync(SWIFT_TABLES_PATH) && readFileSync(SWIFT_TABLES_PATH, 'utf8') === buildReferenceTablesSwift(), 'ReferenceTables.swift is stale — run npm run golden:export').toBe(true)
+  })
 })

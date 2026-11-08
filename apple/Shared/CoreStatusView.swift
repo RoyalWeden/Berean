@@ -1,6 +1,7 @@
 import SwiftUI
 import BereanCore
 import BereanSync
+import BereanReference
 
 /// Milestone-1 placeholder shared by both apps: proves the app links BereanKit and that the
 /// ported sync primitives run on-device. Replaced by the real shell in the vertical slices (M5).
@@ -11,6 +12,7 @@ struct CoreStatusView: View {
         ("color", .string("blue")),
     ])
     @State private var lastTick = HLC.zero
+    @State private var query = "Isaiah 63:17-64:3"
 
     var body: some View {
         Form {
@@ -23,6 +25,17 @@ struct CoreStatusView: View {
                         Int64(Date().timeIntervalSince1970 * 1000)
                     }
                     if let t = clock?.tick() { lastTick = t }
+                }
+            }
+            Section("Reference") {
+                TextField("Reference", text: $query, prompt: Text("Gen 1:1, Ps 23, Rec. Clem. IV 35"))
+                    .autocorrectionDisabled()
+                if let ref = Reference.parse(query) {
+                    LabeledContent("Book", value: Reference.bookName(ref.bookId))
+                    LabeledContent("Label", value: Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))
+                    LabeledContent("Canonical", value: Reference.createCanonical(ref.bookId, chapter: ref.chapter, verse: ref.verse))
+                } else {
+                    Text("Not a reference").foregroundStyle(.secondary)
                 }
             }
             Section {

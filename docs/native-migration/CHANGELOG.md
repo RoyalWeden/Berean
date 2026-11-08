@@ -58,3 +58,19 @@
 - **Fix:** such numbers are now built by parsing a decimal string (correctly rounded on every engine); the corpus rules forbid
   non-exact arithmetic; the drift guard now prints the first differing line.
 - **Verified:** drift guard passes under Node 22.23.4 and Node 24.14.0; `swift test` still 23/23.
+
+### 2026-11-07 19:05 PST — M2-01 (first part) / M1-02 — IMPLEMENTED (branch `native/m2-reference`, CI pending)
+- **Code changed:** `Packages/BereanKit/Sources/BereanReference` (parseRef grammar, book tokens incl. fuzzy fallback,
+  labels, canonical forms, Hermas sections, RCL3 chapter numbering); `BereanCore/JSText.swift` (JS trim/whitespace/parseInt/
+  Number); `scripts/golden/swiftTables.ts` generates `Generated/ReferenceTables.swift` from the TypeScript tables (drift-guarded);
+  golden `reference.json` (11.9k calls over 24 functions, both Hermas translations, boundaries); `scripts/native/gen_xcodeproj.py`
+  (project generator, now in the repo); both apps link BereanReference and show a live reference parser.
+- **Commands and results:** `npm run native:check` → 4 + 20 Swift tests pass, Mac + iOS builds OK, identities OK. Drift guard 7/7.
+  Mutations: fuzzy distance 2 → 39 mismatches; verse cap 199 → 375; chapter cap +1 → 289 (boundary cases added after the
+  first verse-cap mutation went unnoticed). iOS Simulator (iPhone 17 Pro) install + launch of `com.berean.native.ios.dev` OK.
+- **Known gaps (documented in code):** JS Final_Sigma lowercasing not reproduced (no observable effect on book tokens);
+  `Reference.parse` returns nil for chapter numbers beyond `Int` (Esther has no chapter cap); Swift Regex rejects class ranges
+  starting at U+2000, so the whitespace class lists those scalars.
+- **Data touched:** none.
+- **Next exact action:** after PR #14 merges, open the PR for `native/m2-reference`; then Strong's ids (`strongsId.ts`),
+  `findReferencesInText`, tagged tokens / DisplayMap (M2-02).

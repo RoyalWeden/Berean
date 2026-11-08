@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .library(name: "BereanCore", targets: ["BereanCore"]),
         .library(name: "BereanSync", targets: ["BereanSync"]),
+        .library(name: "BereanReference", targets: ["BereanReference"]),
     ],
     targets: [
         // JavaScript-compatible JSON value model: UTF-16 strings, JS property order,
@@ -18,12 +19,15 @@ let package = Package(
         // Sync wire format: record/field hashes, hybrid logical clock, journal files,
         // fractional order keys. TypeScript (src/platform/sync) is the oracle.
         .target(name: "BereanSync", dependencies: ["BereanCore"]),
+        // Book catalogue and reference grammar (src/lib/parseRef.ts). Tables are generated from
+        // the TypeScript (Generated/ReferenceTables.swift).
+        .target(name: "BereanReference", dependencies: ["BereanCore"]),
         .testTarget(name: "BereanCoreTests", dependencies: ["BereanCore"]),
         // Golden-corpus conformance: fixtures exported from the TypeScript implementation
         // by `npm run golden:export` (scripts/golden). Never hand-edit Golden/*.json.
         .testTarget(
             name: "BereanConformanceTests",
-            dependencies: ["BereanCore", "BereanSync"],
+            dependencies: ["BereanCore", "BereanSync", "BereanReference"],
             resources: [.copy("Golden")]
         ),
     ],
