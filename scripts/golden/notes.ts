@@ -85,7 +85,22 @@ export async function buildNotesGolden(): Promise<{ name: string; data: unknown 
   clock += 10; await w.delete('id1'); clock += 10
   await wdb.run('DELETE FROM note_folders WHERE id = ?', [folder.id])
   results.push(await w.restore('id1')); results.push(await w.restore('nope'))
-  const writes = { results: JSON.parse(JSON.stringify(results)), events, notes: await wdb.all('SELECT * FROM notes ORDER BY id'), folders: await wdb.all('SELECT * FROM note_folders ORDER BY id') }
+  // Version history (M7-01): snapshots, duplicate skip, restore (+ pre-restore), prune (7-day window, one per day, cap 50).
+  const versions: unknown[] = []
+  const vn = ((await w.create({ title: 'Versioned', content: 'v0' })) as { note: { id: string } }).note
+  clock += 10; versions.push(await w.createVersion(vn.id, 'Versioned', 'v0'))
+  clock += 10; versions.push(await w.createVersion(vn.id, 'Versioned', 'v0'))
+  clock += 10; versions.push(await w.createVersion(vn.id, '', 'v1', 'manual'))
+  await w.update(vn.id, { content: 'v2 typed' })
+  const firstVersionId = ((await w.getVersions(vn.id)).at(-1) as { id: string }).id
+  clock += 10; versions.push(await w.restoreVersion(vn.id, firstVersionId))
+  clock += 10; versions.push(await w.restoreVersion(vn.id, firstVersionId))
+  versions.push(await w.restoreVersion(vn.id, 'nope'), await w.restoreVersion('nope', firstVersionId))
+  const HOUR = 3_600_000
+  for (let i = 0; i < 60; i++) { clock += 6 * HOUR; versions.push(await w.createVersion(vn.id, 'Versioned', `c${i}`, i % 17 === 0 ? 'manual' : 'auto')) }
+  clock += 10 * 24 * HOUR; versions.push(await w.createVersion(vn.id, 'Versioned', 'latest'))
+  const versionList = await w.getVersions(vn.id)
+  const writes = { results: JSON.parse(JSON.stringify(results)), versions: JSON.parse(JSON.stringify(versions)), versionList, events, notes: await wdb.all('SELECT * FROM notes ORDER BY id'), folders: await wdb.all('SELECT * FROM note_folders ORDER BY id') }
   await wdb.close()
   return {
     name: 'notes',

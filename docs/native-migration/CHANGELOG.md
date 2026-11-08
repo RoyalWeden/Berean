@@ -246,3 +246,16 @@
   A native save writes the desktop default mosaic tree as layout_json (the native layout preset travels inside each tab's state).
 - Verified: a workspace row in the existing app's v2 format, seeded into the native dev library, opened as session "Ten Words" with
   its 3 tabs, active tab and order, and persisted as `ws:qa-ws1` tab rows.
+
+### 2026-11-08 11:00 PST — Note Markdown files + version history (M7-01 part)
+- `BereanNotes.NoteMarkdownFile`: port of src/lib/noteMarkdownFile.ts (export, import parse, file name) over UTF-16 units; `JSDate.isoString`.
+  Golden `note-markdown.json`: 12 notes exported + round-tripped, 17 hand-written files (CRLF, BOM, no frontmatter, `#`-heading edge
+  cases, empty/unclosed frontmatter, U+2028 in values, quoted/unterminated titles, highlight-preview stripping), 16 file names.
+- `NotesService` version history: createVersion (duplicate skip), versions, restoreVersion (pre-restore snapshot), prune (7 days, one per
+  UTC day, manual/pre-restore kept, cap 50) — notes golden gains a 70-step version script (results, final list, events).
+- `NotesService.importMarkdown` (iPhone Notes import rules: berean_id updates an existing non-trashed note, else creates; ai_excluded
+  applied, never cleared) + `setAiExcluded`; behaviour test.
+- App: Version History sheet (list, preview, Restore with confirmation, Save Version Now); automatic snapshots after 2 minutes of editing
+  idle, on leaving a note and on close (desktop SNAPSHOT_IDLE_MS rules); Export Markdown… (file exporter) and Import Markdown… (Notes home).
+  Verified in the running Mac app: two seeded versions listed and previewed; restoring wrote a pre-restore snapshot and updated the note.
+- Tooling: `npm run golden:export` now runs vite-node with vitest.config.ts so `@/` imports resolve (all existing goldens unchanged).
