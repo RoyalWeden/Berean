@@ -2,9 +2,11 @@ import SwiftUI
 
 @main
 struct BereanIOSApp: App {
+    @State private var app = AppModel()
+
     var body: some Scene {
         WindowGroup {
-            NavigationStack { ReaderView() }
+            IOSRootView().environment(app).preferredColorScheme(app.colorScheme)
         }
     }
 }

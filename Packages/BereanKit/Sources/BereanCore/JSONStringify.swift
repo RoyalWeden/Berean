@@ -14,6 +14,22 @@ public extension JSON {
 
     static func stringifyString(_ value: JSValue) -> String { stringify(value).string }
 
+    /// Every plain object's keys sorted by UTF-16 order (arrays untouched) — the shape `stableJson`
+    /// (src/platform/sync/tabFields.ts) and `hashFields` stringify.
+    static func sortedDeep(_ v: JSValue) -> JSValue {
+        switch v {
+        case .array(let a): return .array(a.map(sortedDeep))
+        case .object(let o):
+            var out = JSObject()
+            for k in o.keys.sorted() { out[k] = sortedDeep(o[k]!) }
+            return .object(out)
+        default: return v
+        }
+    }
+
+    /// `stableJson` — sorted-key JSON for change detection.
+    static func stableJSON(_ v: JSValue) -> String { stringify(sortedDeep(v)).string }
+
     static func write(_ value: JSValue, into out: inout [UInt16]) {
         switch value {
         case .null: out.append(contentsOf: "null".utf16)

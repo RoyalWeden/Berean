@@ -103,6 +103,24 @@
   differences. Regression tests: bibleService.contract.test.ts (equal-relevance order + SQL contract on all four FTS paths).
 - User-visible effect: only the order of results that were exactly tied, now fixed instead of build-dependent.
 
+### ADR-0009 — Native schema migrations by replaying the recorded TypeScript statements
+- Date/author: 2026-11-07, Claude (engineering)
+- Status: ACCEPTED
+- Problem: berean.db's 48 migrations (v1–v49, v18 deliberately absent) must be identical in the native store. Hand-porting
+  ~1,300 lines of SQL invites drift; migrations 1–17 also contain data-dependent JavaScript (backfills, conditional ALTERs).
+- Result: `scripts/golden/schema.ts` records every statement the TypeScript runs per version on a NEW database and generates
+  `BereanStore/Generated/RecordedMigrations.swift`; `Migrator` replays it. Policy:
+  new library → replay all; existing library ≥ v42 → replay pending steps; existing library ≤ v41 →
+  `requiresLegacyUpgrade` (open once in the current Berean, which runs the JS logic). CORRECTION 2026-11-08: the first version of this
+  ADR said "≥ v18 / pure SQL"; a proper per-version scan showed v42 (and many earlier steps) contain data-dependent JavaScript or
+  try/catch ALTERs. v43–v49 are replay-safe (CREATE, SQL backfill, ALTERs behind hasColumn guards that are no-ops only on re-runs). newer than supported → refuse untouched;
+  `PRAGMA quick_check` failure → refuse; pre-migration backup failure → STOP (stricter than legacy, per spec §5.1); failing step →
+  rolled back, previous version kept. `migrate(to:)` lets a production build freeze at the production level (v48) while
+  development uses v49 (spec: keep v48 production and v49 development distinct).
+- Evidence: schema.json — Swift replay equals the TypeScript sqlite_master + seeded settings + schema_version at v17, v18, v43, v47,
+  v48 and v49; v48→v49 upgrade equals fresh v49; refusal and rollback tests. Connections use WAL + foreign keys like electron/db/berean.ts.
+- Drift guard: tests/unit/goldenCorpus.test.ts fails if bereanMigrations.ts changes without regenerating.
+
 ## Owner decisions — 2026-11-07 (second authorization message)
 
 ### OD-1 — Vault layout (resolves F-02)

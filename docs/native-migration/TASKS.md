@@ -17,10 +17,10 @@
 | M2-02 | Tagged text/offset DisplayMap | M1 gate or independently safe | VERIFIED (macOS + iOS Simulator tests) | BereanText: tokens, italic/red-letter ranges, stripping, offset maps, word replacer, display/study tokens — text.json + display.json every verse, macOS and iOS Simulator. |
 | M2-03 | SQLite read-only bundle layer | M1 gate or independently safe | VERIFIED (macOS + iOS Simulator tests) | BereanSQLite (system SQLite, read-only): macOS 3.54.0, iOS Simulator 3.51.0, both FTS5; all search goldens exact (ADR-0008). Real-device iOS 18 SQLite check still recommended (B-15 device). GRDB prototype moves to M3-01. |
 | M2-04 | Read-only services/search | M1 gate or independently safe | VERIFIED (macOS + iOS Simulator tests) | BereanBible: Bible, Lexicon (entries/related/search/pages/occurrences), Crossrefs (Classic/TSKe/Hermas) — bible/lexicon/crossrefs goldens 100% on both. Scripture-search filters (advanced search UI) come with M5-04. |
-| M3-01 | Mutable SQLite and safe migration | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
+| M3-01 | Mutable SQLite and safe migration | M2 gate or independently safe | IMPLEMENTED_UNVERIFIED | BereanStore Migrator replays recorded TS migrations (ADR-0009), schema exact at v17/18/43/47/48/49; refusals + rollback tested. TODO: GRDB evaluation note, real v48 library copy test, single-instance lock. |
 | M3-02 | Import verified database copies | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
 | M3-03 | Legacy localStorage exporter/importer | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
-| M3-04 | CRUD and change feed on synthetic store | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
+| M3-04 | CRUD and change feed on synthetic store | M2 gate or independently safe | IN_PROGRESS | Sessions/tabs/archived groups (tabs.json) and notes read + basic writes (notes.json) done. TODO: note versions, highlights, settings, workspaces, verse tags, history services. |
 | M3-05 | Vault/PDF file compatibility | M2 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M3; add exact tests/PR. |
 | M4-01 | Legacy sync defect reconciliation | M3 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M4; add exact tests/PR. |
 | M4-02 | Hash/journal/merge Swift port | M3 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M4; add exact tests/PR. |
@@ -31,10 +31,10 @@
 | M5-02 | iPhone Scripture reader and gestures | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
 | M5-03 | Lexicons/crossrefs/compare | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
 | M5-04 | Unified search surfaces | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
-| M6-01 | Mac app shell/navigation/windows | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
+| M6-01 | Mac app shell/navigation/windows | M5 gate or independently safe | IN_PROGRESS | Sidebar Spaces + vertical tabs + sessions + command palette + menus, persisted via synced tables (manually driven + relaunch verified). TODO: tab history, multi-window, layouts, settings. |
 | M6-02 | Mac resizable pane system | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
-| M6-03 | iPhone 3-control tabs/Quick Open | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
-| M6-04 | Themes, commands, access | M5 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M6; add exact tests/PR. |
+| M6-03 | iPhone 3-control tabs/Quick Open | M5 gate or independently safe | IN_PROGRESS | Bottom tab cards / plus / caret, tab cards sheet with sessions (simulator launch verified). TODO: verse sheet, gestures, Quick Open parity. |
+| M6-04 | Themes, commands, access | M5 gate or independently safe | IN_PROGRESS | Settings window/sheet (text, size, spacing, word replacer, theme), menu commands and shortcuts. TODO: full settings sections, accessibility pass, shortcut parity table. |
 | M7-01 | Markdown grammar and goldens | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
 | M7-02 | Native editor research spikes | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |
 | M7-03 | Mac/iOS editor implementation | M6 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M7; add exact tests/PR. |

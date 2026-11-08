@@ -157,3 +157,69 @@
 - B-15: the full BereanKit golden suite passes on the iOS Simulator (iOS 27.2, SQLite 3.51.0, FTS5) — `npm run native:test:ios`,
   now also a CI step. macOS: SQLite 3.54.0.
 - G2 accepted (STATUS). Next: M3 (writable store on synthetic copies) in parallel with M6 Mac shell work on read-only data.
+
+### 2026-11-07 22:45 PST — M3-01 (schema + migrations) — IMPLEMENTED
+- `BereanSQLite`: read-write open, `exec`, `run`. `BereanStore`: `Migrator` (ADR-0009) and `UserDatabase` (WAL, foreign keys, transactions).
+- Golden `schema.json` + generated `RecordedMigrations.swift` (92 statements over 48 steps). Tests: every checkpoint schema exact, v48→v49
+  upgrade, newer/old/damaged/backup-failure refusals, step rollback, WAL/FK/transaction behaviour. Synthetic in-memory/temp databases only.
+
+### 2026-11-07 23:20 PST — M3-04 (sessions/tabs) + workspace model — IMPLEMENTED
+- `BereanWorkspace`: `SpaceId`, `TabType`, `Tab` (state kept as an ordered JSObject so unknown fields round-trip), `Session`,
+  `ArchivedGroup`; `TabFields` (split/merge allow-lists from tabFields.ts), `TabPersistence` (assignOrderKeys, buildSnapshot, hydrate),
+  `SessionsService` (reads, upserts with sync-clock rules, tombstones, applySnapshot, purge, device-local active tab) reporting
+  `DataChange` events for sync capture. `JSON.stableJSON` in BereanCore.
+- Golden `tabs.json`: split/merge for 13 states, stableJson, assignOrderKeys, buildSnapshot of a two-session store, an 11-step service
+  script on a migrated DB with a fake clock (raw table dumps, list results, 22 events, diffs, purge) and hydration — all reproduced.
+
+### 2026-11-08 00:40 PST — M6-01/M6-03 (first slice): native app shells on the synced workspace model
+- `apple/Shared/AppModel.swift`: sessions → Spaces → tabs, persisted through BereanWorkspace into a native **dev** library in the app's
+  own container (`Application Support/BereanNative/berean.db`, migrated by BereanStore with a VACUUM INTO backup before upgrades),
+  single-instance flock (OD-5), debounced snapshot saves, device-local active tab per space.
+- Mac (`MacRootView`): NavigationSplitView sidebar of Spaces with vertical tabs (select, reorder, pin, duplicate, move to session, close),
+  session menu (switch/new/rename/delete), detail by tab type (Scripture, Lexicon, Search), study inspector (Lexicon / Cross References),
+  command palette (⌘T/⌘K: reference → Scripture, Strong's → Lexicon, words → Search), menu commands (⌘W, ⌘1–5 Spaces, ⌃Tab).
+  Scripture: 760-pt reading column, verse selection, word replacer restorations, KJV italics/red letter, clickable Strong's numbers, text picker,
+  chapter navigation across books, context menu (copy, cross references, open in new tab), versification notes for LXX numbering.
+- iPhone (`IOSRootView`): bottom tab cards / plus / caret (existing mobile navigation), tab cards sheet grouped by Space with sessions,
+  shared content views; inspector as a sheet.
+- Bundled corpora extended (LXX Brenton, Enoch, Jubilees, cross_references, tske_refs).
+- Verified by driving the running Mac app (System Events + cliclick): ⌘K "John 3:16" opened a new tab at verse 16; Strong's toggle; study
+  panel; clicking a Strong's number showed the lexicon entry with occurrences; quitting and relaunching restored both tabs, the active tab,
+  the selected verse, Strong's and the open panel from the database. iOS Simulator launch shows the reader with the three bottom controls.
+- Known gaps: Notes/YouTube/PDF/Tags/History/Settings/Calendar tab types show an explanatory placeholder (state preserved); no layout presets,
+  multi-pane compare, settings UI, highlights, notes yet; tab back/forward history not yet.
+
+### 2026-11-08 00:55 PST — Correction: native upgrade floor is v42, not v18 (ADR-0009)
+- A per-version scan of bereanMigrations.ts (the first scan split the file wrongly) found data-dependent JavaScript up to v42 (verse-tag
+  colour-slot loop) and try/catch ALTERs in v20–v41. `Migrator.lastDataDependentVersion` = 42; libraries below v42 are refused with
+  `requiresLegacyUpgrade`. Test: v41 refused; v42 → v49 replay equals the fresh v49 schema. Real libraries are ≥ v47, so no user impact.
+- Housekeeping: local branch `native/m2-finish` was deleted with `-D` after its unmerged commits were rebased onto `native/m3-store`
+  (content preserved; noted for the record).
+
+### 2026-11-08 01:30 PST — Notes Space (Mac + iPhone) on BereanNotes
+- `BereanNotes.NotesService`: read path (list, get, folders, FTS search all/any/phrase + "untitled", by verse / by chapter with KJV⇄LXX
+  cross-links and Psalm numbering, chapter dot counts, trash, daily dates) and writes (create with daily-date ids, default status and
+  idempotent ids; update; soft delete; restore to root when the folder is gone; folders; pin) — golden `notes.json` (19 synthetic notes,
+  39 searches, verse/chapter cases, an 11-step write script with table dumps and change events), all reproduced.
+- UI: Notes home (search, type filters incl. Trash, folders, pinned first, context menu pin/trash/restore), note view (rendered Markdown
+  with headings/quotes/lists/rules + inline Markdown; ⇧⌘M Markdown source mode with autosave — interim until the M7 native editor), study
+  inspector Notes panel (verse notes + "New Note for <verse>"), verse note dots in Scripture, context menu Add Note / Verse Notes, ⇧⌘N.
+- Verified by driving the Mac app: ⇧⌘N → typed title, Return, Markdown body → autosaved; ⇧⌘M rendered it; tab title followed the note title.
+
+### 2026-11-08 02:10 PST — Highlights (M7-04 first part)
+- `BereanNotes.HighlightsService` (getChapter, toggle verse/word/char with deterministic ids, remove) — golden `highlights.json`
+  (11-step toggle script, chapter maps, rows, events incl. bulk scope), all reproduced.
+- Scripture: whole-verse highlights tint the row (word-range highlights faintly); character-range highlights are drawn on the displayed
+  words by mapping the stored verse.text offsets through `OffsetMap` (word replacer/annotation changes respected); verse context menu
+  Highlight ▸ colours / Remove Highlights. Verified in the running app with seeded dev-library highlights (John 3:16 chars 4–25, 3:17 verse).
+- Known gaps: highlighting a partial text selection (needs the TextKit reader, M5-01); spaces/Strong's chips between highlighted words
+  are not tinted.
+- Test-harness note: a cliclick click on the sidebar left SwiftUI in a mouse-down tracking loop (screens lagged, keystrokes hung); an explicit
+  `dd:`/`du:` pair released it. Use explicit down/up for sidebar clicks in future visual QA.
+
+### 2026-11-08 02:30 PST — Settings (M6-04 first part)
+- `BereanStore.SettingsService` (settings table get/set/all, JSON values; seeded defaults verified by test).
+- App: reading preferences on AppModel persisted in the settings table (`defaultText`, `fontSize`, `lineHeight` — same keys as the
+  existing apps — plus `wordReplacerEnabled`, `theme`); Mac Settings scene (⌘,) and iPhone Settings sheet; reader applies text size,
+  line spacing and the word-replacer toggle; theme System/Light/Dark; new Scripture tabs open in the default text. Verified by opening
+  the Settings window in the running app.

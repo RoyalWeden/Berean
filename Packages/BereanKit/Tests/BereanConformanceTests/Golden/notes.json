@@ -1,0 +1,1588 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/notes.ts",
+ "sources": {
+  "src/platform/services/notesService.ts": "e7cfd4e651746df3d678a20afffd998713df029029abe2ee08b909e195e6d7a8",
+  "src/lib/noteUtils.ts": "f3dc400ec01ee101b28acfac33b09938b698a34c25d9e4f99c24ef7e0a8e469c",
+  "scripts/golden/notes.ts": "e2415fe20e85160a4162f3bad0e56eb354e72fff05c79f1efc4fde89b370166b"
+ },
+ "rows": [
+  {
+   "type": "verse",
+   "title": "Creation",
+   "content": "In the beginning Yehovah created. See [[Exod 20:11]].",
+   "verse_ref": "GEN.1.1",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[\"creation\",\"torah\"]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n01",
+   "created_at": 1000,
+   "updated_at": 5000
+  },
+  {
+   "type": "verse",
+   "title": "Light",
+   "content": "Let there be light — seven days",
+   "verse_ref": "GEN.1.3",
+   "color": "yellow",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n02",
+   "created_at": 1100,
+   "updated_at": 4000
+  },
+  {
+   "type": "verse",
+   "title": "LXX light",
+   "content": "φῶς — Septuagint reading",
+   "verse_ref": "GEN.1.3",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "lxx",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n03",
+   "created_at": 1200,
+   "updated_at": 4100
+  },
+  {
+   "type": "verse",
+   "title": "Chapter note",
+   "content": "Whole chapter overview",
+   "verse_ref": "GEN.1",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n04",
+   "created_at": 1300,
+   "updated_at": 3000
+  },
+  {
+   "type": "verse",
+   "title": "Range",
+   "content": "sub range",
+   "verse_ref": "GEN.1.2.extra",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n05",
+   "created_at": 1400,
+   "updated_at": 3100
+  },
+  {
+   "type": "verse",
+   "title": "Psalm 10 KJV",
+   "content": "Why standest thou afar off",
+   "verse_ref": "PSA.10.1",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n06",
+   "created_at": 1500,
+   "updated_at": 3200
+  },
+  {
+   "type": "verse",
+   "title": "Psalm 9 LXX",
+   "content": "LXX nine merges ten",
+   "verse_ref": "PSA.9.22",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "lxx",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n07",
+   "created_at": 1600,
+   "updated_at": 3300
+  },
+  {
+   "type": "general",
+   "title": "Grace study",
+   "content": "Grace is divine influence upon the heart. Titus 2:11-14",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[\"grace\"]",
+   "imported_at": null,
+   "folder_id": "f1",
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 1,
+   "ai_excluded": 0,
+   "id": "n08",
+   "created_at": 1700,
+   "updated_at": 9000
+  },
+  {
+   "type": "general",
+   "title": "",
+   "content": "An untitled thought about the sabbath",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n09",
+   "created_at": 1800,
+   "updated_at": 8000
+  },
+  {
+   "type": "general",
+   "title": null,
+   "content": "",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n10",
+   "created_at": 1900,
+   "updated_at": 7000
+  },
+  {
+   "type": "daily",
+   "title": "Daily — 2026-11-07",
+   "content": "Read Genesis 1",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n11",
+   "created_at": 2000,
+   "updated_at": 7500
+  },
+  {
+   "type": "general",
+   "title": "Daily — January 9, 2026",
+   "content": "old style daily title",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n12",
+   "created_at": 2100,
+   "updated_at": 7400
+  },
+  {
+   "type": "daily",
+   "title": "Daily — 2026-11-07",
+   "content": "a longer duplicate daily note for the same date",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n13",
+   "created_at": 2200,
+   "updated_at": 7300
+  },
+  {
+   "type": "general",
+   "title": "Deleted",
+   "content": "gone",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": 9500,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n14",
+   "created_at": 2300,
+   "updated_at": 7200
+  },
+  {
+   "type": "general",
+   "title": "Deleted earlier",
+   "content": "gone too",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": 9400,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n15",
+   "created_at": 2400,
+   "updated_at": 7100
+  },
+  {
+   "type": "idiom",
+   "title": "Idiom",
+   "content": "eye",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": "👁",
+   "status": "done",
+   "tags": "[]",
+   "imported_at": 1234,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": "evil eye",
+   "idiom_meaning": "stingy",
+   "idiom_aliases": "[\"bad eye\"]",
+   "idiom_auto_variants": 1,
+   "idiom_data": "{\"x\":1}",
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n16",
+   "created_at": 2500,
+   "updated_at": 7000
+  },
+  {
+   "type": "verse",
+   "title": "Enoch",
+   "content": "Watchers",
+   "verse_ref": "ENO.6.1",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "enoch",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n17",
+   "created_at": 2600,
+   "updated_at": 6900
+  },
+  {
+   "type": "verse",
+   "title": "Null tid",
+   "content": "text_id null counts as kjva",
+   "verse_ref": "GEN.1.10",
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": null,
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 0,
+   "id": "n18",
+   "created_at": 2700,
+   "updated_at": 6800
+  },
+  {
+   "type": "general",
+   "title": "Genesis 1:1-3 study",
+   "content": "verse-shaped title",
+   "verse_ref": null,
+   "color": "blue",
+   "icon": null,
+   "status": null,
+   "tags": "[]",
+   "imported_at": null,
+   "folder_id": null,
+   "text_id": "kjva",
+   "idiom_term": null,
+   "idiom_meaning": null,
+   "idiom_aliases": null,
+   "idiom_auto_variants": 0,
+   "idiom_data": null,
+   "deleted_at": null,
+   "pinned": 0,
+   "ai_excluded": 1,
+   "id": "n19",
+   "created_at": 2800,
+   "updated_at": 6700
+  }
+ ],
+ "folderRows": [
+  {
+   "id": "f1",
+   "name": "studies",
+   "parent_id": null,
+   "created_at": 100,
+   "ai_excluded": 0
+  },
+  {
+   "id": "f2",
+   "name": "Archive",
+   "parent_id": null,
+   "created_at": 101,
+   "ai_excluded": 1
+  },
+  {
+   "id": "f3",
+   "name": "b child",
+   "parent_id": "f1",
+   "created_at": 102,
+   "ai_excluded": 0
+  }
+ ],
+ "all": [
+  {
+   "id": "n08",
+   "type": "general",
+   "title": "Grace study",
+   "content": "Grace is divine influence upon the heart. Titus 2:11-14",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 1700,
+   "updatedAt": 9000,
+   "tags": [
+    "grace"
+   ],
+   "folderId": "f1",
+   "textId": "kjva",
+   "pinned": true,
+   "aiExcluded": false
+  },
+  {
+   "id": "n09",
+   "type": "general",
+   "title": "",
+   "content": "An untitled thought about the sabbath",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 1800,
+   "updatedAt": 8000,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n11",
+   "type": "daily",
+   "title": "Daily — 2026-11-07",
+   "content": "Read Genesis 1",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 2000,
+   "updatedAt": 7500,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n12",
+   "type": "general",
+   "title": "Daily — January 9, 2026",
+   "content": "old style daily title",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 2100,
+   "updatedAt": 7400,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n13",
+   "type": "daily",
+   "title": "Daily — 2026-11-07",
+   "content": "a longer duplicate daily note for the same date",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 2200,
+   "updatedAt": 7300,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n10",
+   "type": "general",
+   "title": "",
+   "content": "",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 1900,
+   "updatedAt": 7000,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n16",
+   "type": "idiom",
+   "title": "Idiom",
+   "content": "eye",
+   "verseRef": null,
+   "color": "blue",
+   "icon": "👁",
+   "status": "done",
+   "createdAt": 2500,
+   "updatedAt": 7000,
+   "tags": [],
+   "importedAt": 1234,
+   "folderId": null,
+   "textId": "kjva",
+   "idiomTerm": "evil eye",
+   "idiomMeaning": "stingy",
+   "idiomAliases": [
+    "bad eye"
+   ],
+   "idiomAutoVariants": true,
+   "idiomData": {
+    "x": 1
+   },
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n17",
+   "type": "verse",
+   "title": "Enoch",
+   "content": "Watchers",
+   "verseRef": "ENO.6.1",
+   "color": "blue",
+   "createdAt": 2600,
+   "updatedAt": 6900,
+   "tags": [],
+   "folderId": null,
+   "textId": "enoch",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n18",
+   "type": "verse",
+   "title": "Null tid",
+   "content": "text_id null counts as kjva",
+   "verseRef": "GEN.1.10",
+   "color": "blue",
+   "createdAt": 2700,
+   "updatedAt": 6800,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n19",
+   "type": "general",
+   "title": "Genesis 1:1-3 study",
+   "content": "verse-shaped title",
+   "verseRef": null,
+   "color": "blue",
+   "createdAt": 2800,
+   "updatedAt": 6700,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": true
+  },
+  {
+   "id": "n01",
+   "type": "verse",
+   "title": "Creation",
+   "content": "In the beginning Yehovah created. See [[Exod 20:11]].",
+   "verseRef": "GEN.1.1",
+   "color": "blue",
+   "createdAt": 1000,
+   "updatedAt": 5000,
+   "tags": [
+    "creation",
+    "torah"
+   ],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n03",
+   "type": "verse",
+   "title": "LXX light",
+   "content": "φῶς — Septuagint reading",
+   "verseRef": "GEN.1.3",
+   "color": "blue",
+   "createdAt": 1200,
+   "updatedAt": 4100,
+   "tags": [],
+   "folderId": null,
+   "textId": "lxx",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n02",
+   "type": "verse",
+   "title": "Light",
+   "content": "Let there be light — seven days",
+   "verseRef": "GEN.1.3",
+   "color": "yellow",
+   "createdAt": 1100,
+   "updatedAt": 4000,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n07",
+   "type": "verse",
+   "title": "Psalm 9 LXX",
+   "content": "LXX nine merges ten",
+   "verseRef": "PSA.9.22",
+   "color": "blue",
+   "createdAt": 1600,
+   "updatedAt": 3300,
+   "tags": [],
+   "folderId": null,
+   "textId": "lxx",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n06",
+   "type": "verse",
+   "title": "Psalm 10 KJV",
+   "content": "Why standest thou afar off",
+   "verseRef": "PSA.10.1",
+   "color": "blue",
+   "createdAt": 1500,
+   "updatedAt": 3200,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n05",
+   "type": "verse",
+   "title": "Range",
+   "content": "sub range",
+   "verseRef": "GEN.1.2.extra",
+   "color": "blue",
+   "createdAt": 1400,
+   "updatedAt": 3100,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  },
+  {
+   "id": "n04",
+   "type": "verse",
+   "title": "Chapter note",
+   "content": "Whole chapter overview",
+   "verseRef": "GEN.1",
+   "color": "blue",
+   "createdAt": 1300,
+   "updatedAt": 3000,
+   "tags": [],
+   "folderId": null,
+   "textId": "kjva",
+   "pinned": false,
+   "aiExcluded": false
+  }
+ ],
+ "page": [
+  "n11",
+  "n12",
+  "n13"
+ ],
+ "one": {
+  "id": "n16",
+  "type": "idiom",
+  "title": "Idiom",
+  "content": "eye",
+  "verseRef": null,
+  "color": "blue",
+  "icon": "👁",
+  "status": "done",
+  "createdAt": 2500,
+  "updatedAt": 7000,
+  "tags": [],
+  "importedAt": 1234,
+  "folderId": null,
+  "textId": "kjva",
+  "idiomTerm": "evil eye",
+  "idiomMeaning": "stingy",
+  "idiomAliases": [
+   "bad eye"
+  ],
+  "idiomAutoVariants": true,
+  "idiomData": {
+   "x": 1
+  },
+  "pinned": false,
+  "aiExcluded": false
+ },
+ "missing": null,
+ "folders": [
+  {
+   "id": "f2",
+   "name": "Archive",
+   "parentId": null,
+   "createdAt": 101,
+   "aiExcluded": true
+  },
+  {
+   "id": "f3",
+   "name": "b child",
+   "parentId": "f1",
+   "createdAt": 102,
+   "aiExcluded": false
+  },
+  {
+   "id": "f1",
+   "name": "studies",
+   "parentId": null,
+   "createdAt": 100,
+   "aiExcluded": false
+  }
+ ],
+ "trash": [
+  "n14",
+  "n15"
+ ],
+ "daily": [
+  {
+   "dateKey": "2026-01-09",
+   "noteId": "n12",
+   "length": 21
+  },
+  {
+   "dateKey": "2026-11-07",
+   "noteId": "n13",
+   "length": 47
+  }
+ ],
+ "searches": [
+  {
+   "query": "light",
+   "mode": "all",
+   "results": [
+    "n03",
+    "n02"
+   ]
+  },
+  {
+   "query": "light",
+   "mode": "any",
+   "results": [
+    "n03",
+    "n02"
+   ]
+  },
+  {
+   "query": "light",
+   "mode": "phrase",
+   "results": [
+    "n03",
+    "n02"
+   ]
+  },
+  {
+   "query": "grace divine",
+   "mode": "all",
+   "results": [
+    "n08"
+   ]
+  },
+  {
+   "query": "grace divine",
+   "mode": "any",
+   "results": [
+    "n08"
+   ]
+  },
+  {
+   "query": "grace divine",
+   "mode": "phrase",
+   "results": []
+  },
+  {
+   "query": "untitled",
+   "mode": "all",
+   "results": [
+    "n09",
+    "n10"
+   ]
+  },
+  {
+   "query": "untitled",
+   "mode": "any",
+   "results": [
+    "n09",
+    "n10"
+   ]
+  },
+  {
+   "query": "untitled",
+   "mode": "phrase",
+   "results": [
+    "n09",
+    "n10"
+   ]
+  },
+  {
+   "query": "Untitled sabbath",
+   "mode": "all",
+   "results": [
+    "n09",
+    "n10"
+   ]
+  },
+  {
+   "query": "Untitled sabbath",
+   "mode": "any",
+   "results": [
+    "n09",
+    "n10"
+   ]
+  },
+  {
+   "query": "Untitled sabbath",
+   "mode": "phrase",
+   "results": [
+    "n09",
+    "n10"
+   ]
+  },
+  {
+   "query": "seven",
+   "mode": "all",
+   "results": [
+    "n02"
+   ]
+  },
+  {
+   "query": "seven",
+   "mode": "any",
+   "results": [
+    "n02"
+   ]
+  },
+  {
+   "query": "seven",
+   "mode": "phrase",
+   "results": [
+    "n02"
+   ]
+  },
+  {
+   "query": "7",
+   "mode": "all",
+   "results": [
+    "n02"
+   ]
+  },
+  {
+   "query": "7",
+   "mode": "any",
+   "results": [
+    "n02"
+   ]
+  },
+  {
+   "query": "7",
+   "mode": "phrase",
+   "results": []
+  },
+  {
+   "query": "Genesis 1:1-3",
+   "mode": "all",
+   "results": [
+    "n19"
+   ]
+  },
+  {
+   "query": "Genesis 1:1-3",
+   "mode": "any",
+   "results": [
+    "n11",
+    "n19",
+    "n08",
+    "n13",
+    "n01",
+    "n06"
+   ]
+  },
+  {
+   "query": "Genesis 1:1-3",
+   "mode": "phrase",
+   "results": [
+    "n19"
+   ]
+  },
+  {
+   "query": "gone",
+   "mode": "all",
+   "results": []
+  },
+  {
+   "query": "gone",
+   "mode": "any",
+   "results": []
+  },
+  {
+   "query": "gone",
+   "mode": "phrase",
+   "results": []
+  },
+  {
+   "query": "φῶς",
+   "mode": "all",
+   "results": []
+  },
+  {
+   "query": "φῶς",
+   "mode": "any",
+   "results": []
+  },
+  {
+   "query": "φῶς",
+   "mode": "phrase",
+   "results": []
+  },
+  {
+   "query": "\"quoted\"",
+   "mode": "all",
+   "results": []
+  },
+  {
+   "query": "\"quoted\"",
+   "mode": "any",
+   "results": []
+  },
+  {
+   "query": "\"quoted\"",
+   "mode": "phrase",
+   "results": []
+  },
+  {
+   "query": "",
+   "mode": "all",
+   "results": []
+  },
+  {
+   "query": "",
+   "mode": "any",
+   "results": []
+  },
+  {
+   "query": "",
+   "mode": "phrase",
+   "results": []
+  },
+  {
+   "query": "xyz",
+   "mode": "all",
+   "results": []
+  },
+  {
+   "query": "xyz",
+   "mode": "any",
+   "results": []
+  },
+  {
+   "query": "xyz",
+   "mode": "phrase",
+   "results": []
+  },
+  {
+   "query": "eye stingy",
+   "mode": "all",
+   "results": []
+  },
+  {
+   "query": "eye stingy",
+   "mode": "any",
+   "results": [
+    "n16"
+   ]
+  },
+  {
+   "query": "eye stingy",
+   "mode": "phrase",
+   "results": []
+  }
+ ],
+ "byVerse": [
+  {
+   "ref": "GEN.1.3",
+   "textId": "kjva",
+   "ids": [
+    "n02",
+    "n03"
+   ]
+  },
+  {
+   "ref": "GEN.1.3",
+   "textId": "lxx",
+   "ids": [
+    "n02",
+    "n03"
+   ]
+  },
+  {
+   "ref": "PSA.10.1",
+   "textId": "lxx",
+   "ids": []
+  },
+  {
+   "ref": "PSA.9.22",
+   "textId": "kjva",
+   "ids": [
+    "n07"
+   ]
+  },
+  {
+   "ref": "ENO.6.1",
+   "textId": "enoch",
+   "ids": [
+    "n17"
+   ]
+  },
+  {
+   "ref": "GEN.1.1",
+   "textId": "kjv",
+   "ids": []
+  }
+ ],
+ "byChapter": [
+  {
+   "bookId": "GEN",
+   "chapter": 1,
+   "textId": "kjva",
+   "ids": [
+    "n04",
+    "n01",
+    "n18",
+    "n02",
+    "n03"
+   ],
+   "counts": {
+    "1": 1,
+    "3": 2,
+    "10": 1
+   }
+  },
+  {
+   "bookId": "GEN",
+   "chapter": 1,
+   "textId": "lxx",
+   "ids": [
+    "n04",
+    "n01",
+    "n18",
+    "n03",
+    "n02"
+   ],
+   "counts": {
+    "1": 1,
+    "3": 2,
+    "10": 1
+   }
+  },
+  {
+   "bookId": "PSA",
+   "chapter": 9,
+   "textId": "lxx",
+   "ids": [
+    "n06",
+    "n07"
+   ],
+   "counts": {
+    "1": 1,
+    "22": 1
+   }
+  },
+  {
+   "bookId": "PSA",
+   "chapter": 10,
+   "textId": "kjva",
+   "ids": [
+    "n06",
+    "n07"
+   ],
+   "counts": {
+    "1": 1,
+    "22": 1
+   }
+  },
+  {
+   "bookId": "ENO",
+   "chapter": 6,
+   "textId": "enoch",
+   "ids": [
+    "n17"
+   ],
+   "counts": {
+    "1": 1
+   }
+  },
+  {
+   "bookId": "EXO",
+   "chapter": 1,
+   "textId": "kjva",
+   "ids": [],
+   "counts": {}
+  }
+ ],
+ "writes": {
+  "results": [
+   {
+    "success": true,
+    "note": {
+     "id": "id1",
+     "type": "general",
+     "title": "First",
+     "content": "Hello",
+     "verseRef": null,
+     "color": "blue",
+     "createdAt": 50000,
+     "updatedAt": 50000,
+     "tags": [
+      "a"
+     ],
+     "folderId": null,
+     "textId": "kjva",
+     "pinned": false,
+     "aiExcluded": false
+    }
+   },
+   {
+    "success": true,
+    "note": {
+     "id": "daily-2026-11-07",
+     "type": "daily",
+     "title": "Daily — 2026-11-07",
+     "content": "today",
+     "verseRef": null,
+     "color": "blue",
+     "createdAt": 50010,
+     "updatedAt": 50010,
+     "tags": [],
+     "folderId": null,
+     "textId": "kjva",
+     "pinned": false,
+     "aiExcluded": false
+    }
+   },
+   {
+    "success": true,
+    "note": {
+     "id": "id2",
+     "type": "daily",
+     "title": "Daily — 2026-11-07",
+     "content": "second same day",
+     "verseRef": null,
+     "color": "blue",
+     "createdAt": 50020,
+     "updatedAt": 50020,
+     "tags": [],
+     "folderId": null,
+     "textId": "kjva",
+     "pinned": false,
+     "aiExcluded": false
+    }
+   },
+   {
+    "success": true,
+    "note": {
+     "id": "share-1",
+     "type": "general",
+     "title": "Shared",
+     "content": "x",
+     "verseRef": null,
+     "color": "blue",
+     "createdAt": 50030,
+     "updatedAt": 50030,
+     "tags": [],
+     "folderId": null,
+     "textId": "kjva",
+     "pinned": false,
+     "aiExcluded": false
+    }
+   },
+   {
+    "success": true,
+    "note": {
+     "id": "share-1",
+     "type": "general",
+     "title": "Shared",
+     "content": "x",
+     "verseRef": null,
+     "color": "blue",
+     "createdAt": 50030,
+     "updatedAt": 50030,
+     "tags": [],
+     "folderId": null,
+     "textId": "kjva",
+     "pinned": false,
+     "aiExcluded": false
+    },
+    "existed": true
+   },
+   {
+    "success": true,
+    "note": {
+     "id": "id3",
+     "type": "verse",
+     "title": "Gen 1:1",
+     "content": "",
+     "verseRef": "GEN.1.1",
+     "color": "green",
+     "status": "todo",
+     "createdAt": 50050,
+     "updatedAt": 50050,
+     "tags": [],
+     "folderId": null,
+     "textId": "lxx",
+     "idiomAliases": [
+      "x"
+     ],
+     "idiomAutoVariants": true,
+     "pinned": false,
+     "aiExcluded": false
+    }
+   },
+   {
+    "success": true,
+    "note": {
+     "id": "id4",
+     "type": "general",
+     "title": "No status",
+     "content": "",
+     "verseRef": null,
+     "color": "blue",
+     "createdAt": 50060,
+     "updatedAt": 50060,
+     "tags": [],
+     "folderId": null,
+     "textId": "kjva",
+     "pinned": false,
+     "aiExcluded": false
+    }
+   },
+   {
+    "success": true
+   },
+   {
+    "success": false,
+    "error": "Note not found"
+   },
+   {
+    "success": true
+   },
+   {
+    "success": false,
+    "error": "Note not found"
+   }
+  ],
+  "events": [
+   {
+    "entity": "note",
+    "id": "id1",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "daily-2026-11-07",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "id2",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "share-1",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "id3",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "id4",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "id1",
+    "op": "upsert"
+   },
+   {
+    "entity": "note_folder",
+    "id": "id5",
+    "op": "upsert"
+   },
+   {
+    "entity": "note_folder",
+    "id": "id6",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "id1",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "id1",
+    "op": "upsert"
+   },
+   {
+    "entity": "note_folder",
+    "id": "id5",
+    "op": "upsert"
+   },
+   {
+    "entity": "note",
+    "id": "id1",
+    "op": "delete"
+   },
+   {
+    "entity": "note",
+    "id": "id1",
+    "op": "upsert"
+   }
+  ],
+  "notes": [
+   {
+    "id": "daily-2026-11-07",
+    "type": "daily",
+    "title": "Daily — 2026-11-07",
+    "content": "today",
+    "verse_ref": null,
+    "color": "blue",
+    "created_at": 50010,
+    "updated_at": 50010,
+    "tags": "[]",
+    "imported_at": null,
+    "folder_id": null,
+    "text_id": "kjva",
+    "idiom_term": null,
+    "idiom_meaning": null,
+    "idiom_aliases": null,
+    "idiom_auto_variants": 0,
+    "idiom_data": null,
+    "status": null,
+    "deleted_at": null,
+    "icon": null,
+    "pinned": 0,
+    "ai_excluded": 0
+   },
+   {
+    "id": "id1",
+    "type": "general",
+    "title": "First (edited)",
+    "content": "Hello world",
+    "verse_ref": null,
+    "color": "blue",
+    "created_at": 50000,
+    "updated_at": 50070,
+    "tags": "[]",
+    "imported_at": null,
+    "folder_id": null,
+    "text_id": "kjva",
+    "idiom_term": null,
+    "idiom_meaning": null,
+    "idiom_aliases": null,
+    "idiom_auto_variants": 0,
+    "idiom_data": "{\"k\":1}",
+    "status": "done",
+    "deleted_at": null,
+    "icon": null,
+    "pinned": 1,
+    "ai_excluded": 0
+   },
+   {
+    "id": "id2",
+    "type": "daily",
+    "title": "Daily — 2026-11-07",
+    "content": "second same day",
+    "verse_ref": null,
+    "color": "blue",
+    "created_at": 50020,
+    "updated_at": 50020,
+    "tags": "[]",
+    "imported_at": null,
+    "folder_id": null,
+    "text_id": "kjva",
+    "idiom_term": null,
+    "idiom_meaning": null,
+    "idiom_aliases": null,
+    "idiom_auto_variants": 0,
+    "idiom_data": null,
+    "status": null,
+    "deleted_at": null,
+    "icon": null,
+    "pinned": 0,
+    "ai_excluded": 0
+   },
+   {
+    "id": "id3",
+    "type": "verse",
+    "title": "Gen 1:1",
+    "content": "",
+    "verse_ref": "GEN.1.1",
+    "color": "green",
+    "created_at": 50050,
+    "updated_at": 50050,
+    "tags": "[]",
+    "imported_at": null,
+    "folder_id": null,
+    "text_id": "lxx",
+    "idiom_term": null,
+    "idiom_meaning": null,
+    "idiom_aliases": "[\"x\"]",
+    "idiom_auto_variants": 1,
+    "idiom_data": null,
+    "status": "todo",
+    "deleted_at": null,
+    "icon": null,
+    "pinned": 0,
+    "ai_excluded": 0
+   },
+   {
+    "id": "id4",
+    "type": "general",
+    "title": "No status",
+    "content": "",
+    "verse_ref": null,
+    "color": "blue",
+    "created_at": 50060,
+    "updated_at": 50060,
+    "tags": "[]",
+    "imported_at": null,
+    "folder_id": null,
+    "text_id": "kjva",
+    "idiom_term": null,
+    "idiom_meaning": null,
+    "idiom_aliases": null,
+    "idiom_auto_variants": 0,
+    "idiom_data": null,
+    "status": null,
+    "deleted_at": null,
+    "icon": null,
+    "pinned": 0,
+    "ai_excluded": 0
+   },
+   {
+    "id": "share-1",
+    "type": "general",
+    "title": "Shared",
+    "content": "x",
+    "verse_ref": null,
+    "color": "blue",
+    "created_at": 50030,
+    "updated_at": 50030,
+    "tags": "[]",
+    "imported_at": null,
+    "folder_id": null,
+    "text_id": "kjva",
+    "idiom_term": null,
+    "idiom_meaning": null,
+    "idiom_aliases": null,
+    "idiom_auto_variants": 0,
+    "idiom_data": null,
+    "status": null,
+    "deleted_at": null,
+    "icon": null,
+    "pinned": 0,
+    "ai_excluded": 0
+   }
+  ],
+  "folders": [
+   {
+    "id": "id6",
+    "name": "New Folder",
+    "parent_id": "id5",
+    "created_at": 50090,
+    "ai_excluded": 0
+   }
+  ]
+ }
+}
