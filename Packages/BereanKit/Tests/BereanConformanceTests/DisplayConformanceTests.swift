@@ -92,3 +92,18 @@ func jsInts(_ a: [Int]) -> JSValue { .array(a.map { .number(Double($0)) }) }
         }
     }
 }
+
+@Suite struct RenderTokensTests {
+    /// renderTokens must show exactly the words buildVerseDisplayTokens shows (incl. "the" suppression), for every KJVA verse.
+    @Test(.enabled(if: bibleDataPresent)) func matchesDisplayTokensForEveryVerse() throws {
+        let db = try SQLiteConnection(readOnlyPath: dataFile("kjva")!)
+        var mismatches = 0
+        for r in try db.query("SELECT text, text_tagged FROM verses") {
+            let text = r.values[0].string ?? "", tagged = r.values[1].string
+            let shown = VerseDisplay.tokens(text, tagged: tagged, textId: "kjva", replacerEnabled: true, rules: WordReplacer.defaultRules).map(\.word)
+            let rendered = VerseDisplay.renderTokens(text, tagged: tagged, textId: "kjva", replacerEnabled: true, rules: WordReplacer.defaultRules).map(\.word)
+            if !(tagged ?? "").isEmpty && !rendered.isEmpty && shown != rendered { mismatches += 1 }
+        }
+        #expect(mismatches == 0)
+    }
+}

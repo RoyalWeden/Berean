@@ -24,6 +24,9 @@ struct BereanMacApp: App {
                 Button("New Session") { app.newSession() }.keyboardShortcut("n", modifiers: [.command, .shift, .option])
             }
             CommandMenu("Go") {
+                Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)
+                Button("Forward") { app.goForward() }.keyboardShortcut("]").disabled(!app.canGoForward)
+                Divider()
                 ForEach(Array(SpaceId.allCases.enumerated()), id: \.offset) { i, space in
                     Button(space.title) { app.activeSpace = space }.keyboardShortcut(KeyEquivalent(Character("\(i + 1)")))
                 }

@@ -63,6 +63,8 @@ struct IOSRootView: View {
                     ForEach(availableTexts) { Text($0.name).tag($0.id) }
                 }
             }
+            if app.canGoBack { Button("Back") { app.goBack() } }
+            if app.canGoForward { Button("Forward") { app.goForward() } }
             Button("Settings") { showSettings = true }
             if let tab = app.activeTab { Button("Close Tab", role: .destructive) { app.close(tab.id) } }
         } label: { Label("Commands", systemImage: "chevron.up.circle") }

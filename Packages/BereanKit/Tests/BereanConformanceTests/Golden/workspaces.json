@@ -1,0 +1,80 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/workspaces.ts",
+ "sources": {
+  "src/platform/services/workspacesService.ts": "fdf611eb37ad10ecee7a62d69fb218a5a5ef14151b502da44e5e51ee400e88b4",
+  "scripts/golden/workspaces.ts": "99044e5ca67ae6f36b010dc1b81ba54a89d01a1cdf714efe873f3723b3c23736"
+ },
+ "saved": [
+  {
+   "id": "ws1",
+   "name": "Study",
+   "created_at": 90000
+  },
+  {
+   "id": "ws2",
+   "name": "Compare",
+   "created_at": 90010
+  }
+ ],
+ "list1": [
+  {
+   "id": "ws2",
+   "name": "Compare",
+   "created_at": 90010
+  },
+  {
+   "id": "ws1",
+   "name": "Study Mode",
+   "created_at": 90000
+  }
+ ],
+ "loaded": [
+  {
+   "id": "ws1",
+   "name": "Study Mode",
+   "layout_json": "{\"direction\":\"row\"}",
+   "created_at": 90000,
+   "state_json": "{\"tabs\":[]}"
+  },
+  null
+ ],
+ "list2": [
+  {
+   "id": "ws1",
+   "name": "Study Mode",
+   "created_at": 90000
+  }
+ ],
+ "rows": [
+  {
+   "id": "ws1",
+   "name": "Study Mode",
+   "layout_json": "{\"direction\":\"row\"}",
+   "created_at": 90000,
+   "state_json": "{\"tabs\":[]}"
+  }
+ ],
+ "events": [
+  {
+   "entity": "workspace",
+   "id": "ws1",
+   "op": "upsert"
+  },
+  {
+   "entity": "workspace",
+   "id": "ws2",
+   "op": "upsert"
+  },
+  {
+   "entity": "workspace",
+   "id": "ws1",
+   "op": "upsert"
+  },
+  {
+   "entity": "workspace",
+   "id": "ws2",
+   "op": "delete"
+  }
+ ]
+}

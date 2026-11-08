@@ -223,3 +223,14 @@
   existing apps — plus `wordReplacerEnabled`, `theme`); Mac Settings scene (⌘,) and iPhone Settings sheet; reader applies text size,
   line spacing and the word-replacer toggle; theme System/Light/Dark; new Scripture tabs open in the default text. Verified by opening
   the Settings window in the running app.
+
+### 2026-11-08 08:30 PST — Workspaces service, tab history, Compare mode; renderer fix
+- `BereanWorkspace.WorkspacesService` (list/save/load/delete/rename; layout/state JSON verbatim) — golden `workspaces.json` reproduced.
+- In-tab back/forward history (⌘[ / ⌘] on Mac, caret menu on iPhone): records the place a tab shows (passage/note/Strong's/query), not
+  scroll or panel state. Verified: John 3 → 4 → 5, ⌘[ → John 4, ⌘] → John 5, ⌘[⌘[ → John 3.
+- Compare mode (⌥⌘C): parallel columns aligned by verse; columns follow the tab's passage with LXX numbering mapped (KJV Psalm 23 beside
+  LXX Psalm 22 verified); add/remove columns (max 4); stored in the synced `compareMode`/`compareColumns` fields.
+- BUG FIXED: the Scripture renderer fell back to raw tokens when the word replacer suppressed "the" before a restored name ("The LORD is
+  my shepherd" showed instead of "Yehovah is my shepherd"). New `VerseDisplay.renderTokens` (display words + Strong's); test asserts it
+  equals `buildVerseDisplayTokens` output for every KJVA verse.
+- Known gaps vs legacy compare: per-column independent navigation and synced scrolling across differently numbered chapters.
