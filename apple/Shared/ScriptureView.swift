@@ -4,6 +4,7 @@ import BereanBible
 import BereanText
 import BereanReference
 import BereanWorkspace
+import BereanNotes
 
 /// A Scripture tab: chapter text with KJV italics and red letter, the word replacer's restorations (Yehovah,
 /// Yeshua, …) on by default as in the existing app, optional Strong's numbers that open the lexicon, and a
@@ -14,6 +15,7 @@ struct ScriptureView: View {
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
     @State private var noteCounts: [Int: Int] = [:]
+    @State private var highlights: [Int: [Highlight]] = [:]
     @State private var referenceText = ""
     @FocusState private var referenceFocused: Bool
 
@@ -40,14 +42,21 @@ struct ScriptureView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Select verse")
-                            VerseRowView(row: v, textId: st.translation, showStrongs: st.showStrongs)
+                            VerseRowView(row: v, textId: st.translation, showStrongs: st.showStrongs, highlights: (highlights[v.verseNum] ?? []).filter { $0.startChar != nil })
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.vertical, 3).padding(.horizontal, 8)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(selectedVerse == v.verseNum ? Color.accentColor.opacity(0.14) : .clear))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(rowTint(v.verseNum)))
                         .id(v.verseNum)
                         .contextMenu {
                             Button("Copy Verse") { copy(v, st) }
+                            Menu("Highlight") {
+                                ForEach(highlightColors, id: \.self) { c in
+                                    Button { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } label: { Label(c.capitalized, systemImage: "circle.fill") }
+                                }
+                                Divider()
+                                Button("Remove Highlights") { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) }
+                            }
                             Button("Add Note") { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) }
                             Button("Verse Notes") { selectedVerse = v.verseNum; openInspector("notes") }
                             Button("Cross References") { selectedVerse = v.verseNum; openInspector("crossrefs") }
@@ -66,6 +75,9 @@ struct ScriptureView: View {
             .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v } } }
             .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
                 noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
+            }
+            .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
+                highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
             }
             .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)") {
                 verses = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
@@ -108,6 +120,13 @@ struct ScriptureView: View {
         }
     }
 
+    /// Selection tint, else the colour of a whole-verse highlight (word-range highlights tint the row too, faintly).
+    func rowTint(_ verse: Int) -> Color {
+        if selectedVerse == verse { return Color.accentColor.opacity(0.14) }
+        if let h = highlights[verse]?.last(where: { $0.startChar == nil }) { return Color.highlight(h.color).opacity(h.startWord == nil ? 0.28 : 0.12) }
+        return .clear
+    }
+
     func mutate(_ f: (inout BibleState) -> Void) {
         app.update(tabId) { t in
             var s = BibleState(t.state); f(&s)
@@ -138,10 +157,19 @@ struct ScriptureView: View {
     }
 }
 
+let highlightColors = ["yellow", "red", "green", "blue", "purple"]
+
+extension Color {
+    static func highlight(_ name: String) -> Color {
+        switch name { case "red": return .red; case "green": return .green; case "blue": return .blue; case "purple": return .purple; case "orange": return .orange; default: return .yellow }
+    }
+}
+
 struct VerseRowView: View {
     let row: ChapterVerseRow
     let textId: String
     let showStrongs: Bool
+    var highlights: [Highlight] = []
 
     var body: some View {
         Text(attributed)
@@ -172,12 +200,31 @@ struct VerseRowView: View {
                 let nums: [String] = { switch t.strongs { case .none: return []; case .one(let s): return [s]; case .many(let a): return a } }()
                 return (t.word, t.isItalic, t.isRedLetter, nums)
             }
+        // Stored character highlights are offsets into verse.text; map them onto the displayed words.
+        let shown = words.map(\.0).joined(separator: " ")
+        let ranges: [(Int, Int, String)] = highlights.compactMap { h in
+            guard let s = h.startChar, let e = h.endChar else { return nil }
+            let off = OffsetMap.originalToDisplay(display: shown, original: row.text, offsets: [s, e])
+            return (off[0], off[1], h.color)
+        }
+        var pos = 0
         for (i, w) in words.enumerated() {
-            if i > 0 { out += AttributedString(" ") }
-            var a = AttributedString(w.0)
-            if w.1 { a.font = .system(.body, design: .serif).italic() }
-            if w.2 { a.foregroundColor = .red }
-            out += a
+            if i > 0 { var sp = AttributedString(" "); if ranges.contains(where: { $0.0 <= pos && pos < $0.1 }) { sp.backgroundColor = Color.highlight(ranges.first { $0.0 <= pos && pos < $0.1 }!.2).opacity(0.35) }; out += sp; pos += 1 }
+            let units = Array(w.0.utf16)
+            var k = 0
+            while k < units.count {
+                let p = pos + k
+                let hit = ranges.last { $0.0 <= p && p < $0.1 }
+                var j = k + 1
+                while j < units.count, (ranges.last { $0.0 <= pos + j && pos + j < $0.1 })?.2 == hit?.2 { j += 1 }
+                var a = AttributedString(String(decoding: units[k..<j], as: UTF16.self))
+                if w.1 { a.font = .system(.body, design: .serif).italic() }
+                if w.2 { a.foregroundColor = .red }
+                if let hit { a.backgroundColor = Color.highlight(hit.2).opacity(0.35) }
+                out += a
+                k = j
+            }
+            pos += units.count
             if showStrongs && !w.3.isEmpty {
                 for (k, n) in w.3.enumerated() {
                     let id = n.trimmingCharacters(in: CharacterSet(charactersIn: "()"))

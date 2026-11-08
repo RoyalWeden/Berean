@@ -11,6 +11,7 @@ import { buildCrossrefsGolden } from './crossrefs'
 import { buildRecordedMigrationsSwift, buildSchemaGolden, SWIFT_MIGRATIONS_PATH } from './schema'
 import { buildTabsGolden } from './tabs'
 import { buildNotesGolden } from './notes'
+import { buildHighlightsGolden } from './highlights'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
@@ -81,3 +82,5 @@ writeFileSync(join(GOLDEN_DIR, 'tabs.json'), serializeGolden(await buildTabsGold
 console.log('tabs.json')
 writeFileSync(join(GOLDEN_DIR, 'notes.json'), serializeGolden(await buildNotesGolden()))
 console.log('notes.json')
+writeFileSync(join(GOLDEN_DIR, 'highlights.json'), serializeGolden(await buildHighlightsGolden()))
+console.log('highlights.json')

@@ -53,6 +53,8 @@ final class AppModel {
     /// Bumped on every note write so note lists and verse dots refresh.
     var notesRevision = 0
     private(set) var notes: NotesService?
+    private(set) var highlights: HighlightsService?
+    var highlightsRevision = 0
 
     private var database: UserDatabase?
     private var sessionsService: SessionsService?
@@ -77,6 +79,7 @@ final class AppModel {
             let svc = SessionsService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) })
             database = db; sessionsService = svc
             notes = NotesService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.notesRevision += 1 } })
+            highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
             let rows = try svc.allRows()
             var local: [String: [String: String?]] = [:]
             for s in rows.sessions {

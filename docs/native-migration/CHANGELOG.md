@@ -205,3 +205,14 @@
   with headings/quotes/lists/rules + inline Markdown; ⇧⌘M Markdown source mode with autosave — interim until the M7 native editor), study
   inspector Notes panel (verse notes + "New Note for <verse>"), verse note dots in Scripture, context menu Add Note / Verse Notes, ⇧⌘N.
 - Verified by driving the Mac app: ⇧⌘N → typed title, Return, Markdown body → autosaved; ⇧⌘M rendered it; tab title followed the note title.
+
+### 2026-11-08 02:10 PST — Highlights (M7-04 first part)
+- `BereanNotes.HighlightsService` (getChapter, toggle verse/word/char with deterministic ids, remove) — golden `highlights.json`
+  (11-step toggle script, chapter maps, rows, events incl. bulk scope), all reproduced.
+- Scripture: whole-verse highlights tint the row (word-range highlights faintly); character-range highlights are drawn on the displayed
+  words by mapping the stored verse.text offsets through `OffsetMap` (word replacer/annotation changes respected); verse context menu
+  Highlight ▸ colours / Remove Highlights. Verified in the running app with seeded dev-library highlights (John 3:16 chars 4–25, 3:17 verse).
+- Known gaps: highlighting a partial text selection (needs the TextKit reader, M5-01); spaces/Strong's chips between highlighted words
+  are not tinted.
+- Test-harness note: a cliclick click on the sidebar left SwiftUI in a mouse-down tracking loop (screens lagged, keystrokes hung); an explicit
+  `dd:`/`du:` pair released it. Use explicit down/up for sidebar clicks in future visual QA.

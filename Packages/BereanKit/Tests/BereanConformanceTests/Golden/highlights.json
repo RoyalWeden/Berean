@@ -1,0 +1,328 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/highlights.ts",
+ "sources": {
+  "src/platform/services/highlightsService.ts": "4d78fc97feead3af2a6257237d966c8d3a3e9df19850a7b3e9ed31cf43da955c",
+  "scripts/golden/highlights.ts": "07ce9467a5850c18694c5bab2ad0572b5dafe1f6c779ea8dfb7f99accd439679"
+ },
+ "script": [
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "yellow"
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "red"
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "red"
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "green",
+   "startWord": 2,
+   "endWord": 4
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "blue",
+   "startChar": 4,
+   "endChar": 13
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "blue",
+   "startChar": 4,
+   "endChar": 13,
+   "startWord": 1,
+   "endWord": 1
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 17,
+   "color": "purple",
+   "startChar": 0,
+   "endChar": 3
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 3,
+   "color": "yellow"
+  },
+  {
+   "bookId": "GEN",
+   "chapter": 1,
+   "verseNum": 1,
+   "color": "yellow",
+   "textId": "lxx"
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "green",
+   "startWord": 2,
+   "endWord": 4
+  },
+  {
+   "bookId": "JHN",
+   "chapter": 3,
+   "verseNum": 16,
+   "color": "orange",
+   "startWord": 2
+  }
+ ],
+ "results": [
+  {
+   "created": true,
+   "id": "hl-kjva-JHN-3-16-v",
+   "color": "yellow"
+  },
+  {
+   "updated": true,
+   "id": "hl-kjva-JHN-3-16-v",
+   "color": "red"
+  },
+  {
+   "removed": true,
+   "id": "hl-kjva-JHN-3-16-v"
+  },
+  {
+   "created": true,
+   "id": "hl-kjva-JHN-3-16-w2-4",
+   "color": "green"
+  },
+  {
+   "created": true,
+   "id": "hl-kjva-JHN-3-16-c4-13",
+   "color": "blue"
+  },
+  {
+   "removed": true,
+   "id": "hl-kjva-JHN-3-16-c4-13"
+  },
+  {
+   "created": true,
+   "id": "hl-kjva-JHN-3-17-c0-3",
+   "color": "purple"
+  },
+  {
+   "created": true,
+   "id": "hl-kjva-JHN-3-3-v",
+   "color": "yellow"
+  },
+  {
+   "created": true,
+   "id": "hl-lxx-GEN-1-1-v",
+   "color": "yellow"
+  },
+  {
+   "removed": true,
+   "id": "hl-kjva-JHN-3-16-w2-4"
+  },
+  {
+   "created": true,
+   "id": "hl-kjva-JHN-3-16-v",
+   "color": "orange"
+  }
+ ],
+ "chapter": {
+  "3": [
+   {
+    "id": "hl-kjva-JHN-3-3-v",
+    "color": "yellow",
+    "startWord": null,
+    "endWord": null,
+    "startChar": null,
+    "endChar": null
+   }
+  ],
+  "16": [
+   {
+    "id": "hl-kjva-JHN-3-16-v",
+    "color": "orange",
+    "startWord": null,
+    "endWord": null,
+    "startChar": null,
+    "endChar": null
+   }
+  ],
+  "17": [
+   {
+    "id": "hl-kjva-JHN-3-17-c0-3",
+    "color": "purple",
+    "startWord": null,
+    "endWord": null,
+    "startChar": 0,
+    "endChar": 3
+   }
+  ]
+ },
+ "lxx": {
+  "1": [
+   {
+    "id": "hl-lxx-GEN-1-1-v",
+    "color": "yellow",
+    "startWord": null,
+    "endWord": null,
+    "startChar": null,
+    "endChar": null
+   }
+  ]
+ },
+ "after": {
+  "3": [
+   {
+    "id": "hl-kjva-JHN-3-3-v",
+    "color": "yellow",
+    "startWord": null,
+    "endWord": null,
+    "startChar": null,
+    "endChar": null
+   }
+  ],
+  "16": [
+   {
+    "id": "hl-kjva-JHN-3-16-v",
+    "color": "orange",
+    "startWord": null,
+    "endWord": null,
+    "startChar": null,
+    "endChar": null
+   }
+  ]
+ },
+ "rows": [
+  {
+   "id": "hl-kjva-JHN-3-16-v",
+   "text_id": "kjva",
+   "book_id": "JHN",
+   "chapter": 3,
+   "verse_num": 16,
+   "start_word": null,
+   "end_word": null,
+   "color": "orange",
+   "label": null,
+   "created_at": 70055,
+   "start_char": null,
+   "end_char": null
+  },
+  {
+   "id": "hl-kjva-JHN-3-3-v",
+   "text_id": "kjva",
+   "book_id": "JHN",
+   "chapter": 3,
+   "verse_num": 3,
+   "start_word": null,
+   "end_word": null,
+   "color": "yellow",
+   "label": null,
+   "created_at": 70040,
+   "start_char": null,
+   "end_char": null
+  },
+  {
+   "id": "hl-lxx-GEN-1-1-v",
+   "text_id": "lxx",
+   "book_id": "GEN",
+   "chapter": 1,
+   "verse_num": 1,
+   "start_word": null,
+   "end_word": null,
+   "color": "yellow",
+   "label": null,
+   "created_at": 70045,
+   "start_char": null,
+   "end_char": null
+  }
+ ],
+ "events": [
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-v",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-v",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-v",
+   "op": "delete",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-w2-4",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-c4-13",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-c4-13",
+   "op": "delete",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-17-c0-3",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-3-v",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-lxx-GEN-1-1-v",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-w2-4",
+   "op": "delete",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": "hl-kjva-JHN-3-16-v",
+   "op": "upsert",
+   "scope": null
+  },
+  {
+   "entity": "highlight",
+   "id": null,
+   "op": "bulk",
+   "scope": "kjva:JHN:3:17"
+  }
+ ]
+}
