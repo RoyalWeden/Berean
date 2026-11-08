@@ -8,22 +8,21 @@
 3. Verify exact Git state, compare recorded completion to code/tests, then resume next ready task.
 
 ## Recovery state
-- Updated: 2026-11-07 17:55 PST
-- `main` = `origin/main` = `ceaaa73` at start of this slice
-- Active worktree: `/Users/roywe/Berean-native`, branch `native/m0-execution-records` (first M1 PR)
-- Other worktrees: `/Users/roywe/Berean` (main; untracked `docs/native-migration/` install copy — delete only after this PR
-  merges and main is pulled), `/Users/roywe/Berean-ai-bench` (remove after this PR merges; its REPORT.md is archived by PR #13 as
-  `docs/archive/AI-BENCHMARK-REPORT-2026-10-28.md`)
-- Latest verified work: M1 first slice — see CHANGELOG 2026-11-07 17:50
-- Tests last run: `npm run native:check` (23 Swift tests pass, Mac + iOS Simulator builds, identity OK); `npx vitest run`
-  (5,771 pass); `npm run typecheck` clean
-- Known broken: nothing
-- Native Mac surfaces: core status view only. Native iPhone: builds; not launched in the Simulator yet
-- Next exact task: wait for PR CI → merge (normal merge, no force) → pull main → remove `Berean-ai-bench` → M1-02 remainder
-  → M1-03 reference goldens → M2-01 `BereanReference`
-- Spec/audit sections to re-read for M2: spec §3 (modules), §4 Stage 1; audits 08, 11, 14; `src/lib/parseRef.ts`
-- Owner approvals held: native migration implementation; cleanup Groups A/B; REPORT.md archive PR. Missing: anything
-  touching production data, production iCloud, production identities, uploads, releases
+- Updated: 2026-11-07 18:37 PST
+- `main` = `origin/main` = `ce37379` (PR #13 docs archive and PR #14 M1 slice merged); `/Users/roywe/Berean` clean
+- Active worktree: `/Users/roywe/Berean-native`, branch `native/m2-reference` → PR #15 (CI running)
+- Other worktrees: none (`Berean-ai-bench`, `Berean-docs-archive` removed). Kept branches: `feature/octarine-vault-integration` (F-02),
+  `worktree-agent-a0acb949f0128b5e6` (unmerged)
+- Latest verified work: BereanReference, StrongsId, findReferences, BereanSQLite, BereanBible (Bible + Lexicon services), BereanText — CHANGELOG 18:20/18:35
+- Tests last run: `npm run native:test` 4 + 30 Swift tests (~60 s, text suite dominates); drift guard 11/11 on Node 22 and 24; full vitest 5,775 pass (before BereanText); typecheck clean.
+- Golden export rule: export with Node 22 (`npx -y node@22 node_modules/vite-node/vite-node.mjs scripts/golden/export.ts`) so bible.json carries CI's SQLite 3.53.4
+- Known broken: nothing. Known reported difference: FTS equal-rank order (F-05)
+- Native surfaces: core status view + live reference parser (Mac launched, iOS Simulator launched)
+- Next exact task: PR #15 green → merge → first native reader view for G2 (bundle kjva.db etc. into the dev apps via a copy
+  build phase guarded for CI; chapter view + search on Mac and iPhone using BibleService/TaggedText); then word replacer,
+  getOccurrences, cross-references
+- Owner approvals held: native migration; cleanup; docs archive. Missing: production data / iCloud / identities / uploads / releases;
+  decisions C-1…C-17, F-02, F-04, F-05 tie-breaker, ADR-0002 M4 Dev container
 - Dangerous pending operations: none
 - Rollback: native work is additive; revert the PR
 

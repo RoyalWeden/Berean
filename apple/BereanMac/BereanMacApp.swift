@@ -4,7 +4,7 @@ import SwiftUI
 struct BereanMacApp: App {
     var body: some Scene {
         WindowGroup {
-            NavigationStack { CoreStatusView() }
+            NavigationStack { ReaderView() }
                 .frame(minWidth: 480, minHeight: 320)
         }
     }

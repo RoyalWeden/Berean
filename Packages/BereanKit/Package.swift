@@ -10,6 +10,10 @@ let package = Package(
     products: [
         .library(name: "BereanCore", targets: ["BereanCore"]),
         .library(name: "BereanSync", targets: ["BereanSync"]),
+        .library(name: "BereanReference", targets: ["BereanReference"]),
+        .library(name: "BereanSQLite", targets: ["BereanSQLite"]),
+        .library(name: "BereanBible", targets: ["BereanBible"]),
+        .library(name: "BereanText", targets: ["BereanText"]),
     ],
     targets: [
         // JavaScript-compatible JSON value model: UTF-16 strings, JS property order,
@@ -18,12 +22,21 @@ let package = Package(
         // Sync wire format: record/field hashes, hybrid logical clock, journal files,
         // fractional order keys. TypeScript (src/platform/sync) is the oracle.
         .target(name: "BereanSync", dependencies: ["BereanCore"]),
+        // Book catalogue and reference grammar (src/lib/parseRef.ts). Tables are generated from
+        // the TypeScript (Generated/ReferenceTables.swift).
+        .target(name: "BereanReference", dependencies: ["BereanCore"]),
+        // System SQLite (ADR-0006): read-only bundled corpora now, the user store in M3.
+        .target(name: "BereanSQLite", linkerSettings: [.linkedLibrary("sqlite3")]),
+        // Read-only Scripture services (src/platform/services/bibleService.ts).
+        .target(name: "BereanBible", dependencies: ["BereanCore", "BereanSQLite", "BereanReference"]),
+        // Verse text: tagged tokens, italic/red-letter ranges, annotation stripping, offset maps.
+        .target(name: "BereanText", dependencies: ["BereanCore"]),
         .testTarget(name: "BereanCoreTests", dependencies: ["BereanCore"]),
         // Golden-corpus conformance: fixtures exported from the TypeScript implementation
         // by `npm run golden:export` (scripts/golden). Never hand-edit Golden/*.json.
         .testTarget(
             name: "BereanConformanceTests",
-            dependencies: ["BereanCore", "BereanSync"],
+            dependencies: ["BereanCore", "BereanSync", "BereanReference", "BereanSQLite", "BereanBible", "BereanText"],
             resources: [.copy("Golden")]
         ),
     ],

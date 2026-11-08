@@ -1,0 +1,1998 @@
+{
+ "cases": [
+  {
+   "text": "",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G5485",
+     "index": 0
+    }
+   ],
+   "normalized": "G5485"
+  },
+  {
+   "text": "g5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "g5485",
+     "index": 0
+    }
+   ],
+   "normalized": "G5485"
+  },
+  {
+   "text": "G-5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G-5485",
+     "index": 0
+    }
+   ],
+   "normalized": "G5485"
+  },
+  {
+   "text": "G 5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G 5485",
+     "index": 0
+    }
+   ],
+   "normalized": "G5485"
+  },
+  {
+   "text": "H02617",
+   "ids": [
+    {
+     "id": "H2617",
+     "lang": "H",
+     "number": 2617,
+     "raw": "H02617",
+     "index": 0
+    }
+   ],
+   "normalized": "H2617"
+  },
+  {
+   "text": "G–25",
+   "ids": [
+    {
+     "id": "G25",
+     "lang": "G",
+     "number": 25,
+     "raw": "G–25",
+     "index": 0
+    }
+   ],
+   "normalized": "G25"
+  },
+  {
+   "text": "G‐25",
+   "ids": [
+    {
+     "id": "G25",
+     "lang": "G",
+     "number": 25,
+     "raw": "G‐25",
+     "index": 0
+    }
+   ],
+   "normalized": "G25"
+  },
+  {
+   "text": "G‑25",
+   "ids": [
+    {
+     "id": "G25",
+     "lang": "G",
+     "number": 25,
+     "raw": "G‑25",
+     "index": 0
+    }
+   ],
+   "normalized": "G25"
+  },
+  {
+   "text": "G‒25",
+   "ids": [
+    {
+     "id": "G25",
+     "lang": "G",
+     "number": 25,
+     "raw": "G‒25",
+     "index": 0
+    }
+   ],
+   "normalized": "G25"
+  },
+  {
+   "text": "G—25",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G 5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G 5485",
+     "index": 0
+    }
+   ],
+   "normalized": "G5485"
+  },
+  {
+   "text": "G  5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G  5485",
+     "index": 0
+    }
+   ],
+   "normalized": "G5485"
+  },
+  {
+   "text": "G - 5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G - 5485",
+     "index": 0
+    }
+   ],
+   "normalized": "G5485"
+  },
+  {
+   "text": "5G",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "H2O2",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "AG5485",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G548501",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G54850",
+   "ids": [
+    {
+     "id": "G54850",
+     "lang": "G",
+     "number": 54850,
+     "raw": "G54850",
+     "index": 0
+    }
+   ],
+   "normalized": "G54850"
+  },
+  {
+   "text": "G0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G00",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G000123",
+   "ids": [
+    {
+     "id": "G123",
+     "lang": "G",
+     "number": 123,
+     "raw": "G000123",
+     "index": 0
+    }
+   ],
+   "normalized": "G123"
+  },
+  {
+   "text": "H7225a",
+   "ids": [
+    {
+     "id": "H7225",
+     "lang": "H",
+     "number": 7225,
+     "raw": "H7225a",
+     "index": 0
+    }
+   ],
+   "normalized": "H7225"
+  },
+  {
+   "text": "H7225ab",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "H7225A",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "H1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G5485 and H2617 and g5485",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G5485",
+     "index": 0
+    },
+    {
+     "id": "H2617",
+     "lang": "H",
+     "number": 2617,
+     "raw": "H2617",
+     "index": 10
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "grace (G5485) mercy (H2617).",
+   "ids": [
+    {
+     "id": "G5485",
+     "lang": "G",
+     "number": 5485,
+     "raw": "G5485",
+     "index": 7
+    },
+    {
+     "id": "H2617",
+     "lang": "H",
+     "number": 2617,
+     "raw": "H2617",
+     "index": 21
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "éG12",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G12é",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "١G12",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G12٣",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "😀G12😀",
+   "ids": [
+    {
+     "id": "G12",
+     "lang": "G",
+     "number": 12,
+     "raw": "G12",
+     "index": 2
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "xG12",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "_G12",
+   "ids": [
+    {
+     "id": "G12",
+     "lang": "G",
+     "number": 12,
+     "raw": "G12",
+     "index": 1
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "G12_",
+   "ids": [
+    {
+     "id": "G12",
+     "lang": "G",
+     "number": 12,
+     "raw": "G12",
+     "index": 0
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "H 1",
+   "ids": [
+    {
+     "id": "H1",
+     "lang": "H",
+     "number": 1,
+     "raw": "H 1",
+     "index": 0
+    }
+   ],
+   "normalized": "H1"
+  },
+  {
+   "text": "H​1",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h 0001b",
+   "ids": [
+    {
+     "id": "H1",
+     "lang": "H",
+     "number": 1,
+     "raw": "h 0001b",
+     "index": 0
+    }
+   ],
+   "normalized": "H1"
+  },
+  {
+   "text": "What does G26 mean vs H157?",
+   "ids": [
+    {
+     "id": "G26",
+     "lang": "G",
+     "number": 26,
+     "raw": "G26",
+     "index": 10
+    },
+    {
+     "id": "H157",
+     "lang": "H",
+     "number": 157,
+     "raw": "H157",
+     "index": 22
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "G1 G2 G3 G1 g2",
+   "ids": [
+    {
+     "id": "G1",
+     "lang": "G",
+     "number": 1,
+     "raw": "G1",
+     "index": 0
+    },
+    {
+     "id": "G2",
+     "lang": "G",
+     "number": 2,
+     "raw": "G2",
+     "index": 3
+    },
+    {
+     "id": "G3",
+     "lang": "G",
+     "number": 3,
+     "raw": "G3",
+     "index": 6
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "G\t\t5",
+   "ids": [
+    {
+     "id": "G5",
+     "lang": "G",
+     "number": 5,
+     "raw": "G\t\t5",
+     "index": 0
+    }
+   ],
+   "normalized": "G5"
+  },
+  {
+   "text": "G- 5",
+   "ids": [
+    {
+     "id": "G5",
+     "lang": "G",
+     "number": 5,
+     "raw": "G- 5",
+     "index": 0
+    }
+   ],
+   "normalized": "G5"
+  },
+  {
+   "text": "Strong's G26",
+   "ids": [
+    {
+     "id": "G26",
+     "lang": "G",
+     "number": 26,
+     "raw": "G26",
+     "index": 9
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": "G\n26",
+   "ids": [
+    {
+     "id": "G26",
+     "lang": "G",
+     "number": 26,
+     "raw": "G\n26",
+     "index": 0
+    }
+   ],
+   "normalized": "G26"
+  },
+  {
+   "text": "H8674",
+   "ids": [
+    {
+     "id": "H8674",
+     "lang": "H",
+     "number": 8674,
+     "raw": "H8674",
+     "index": 0
+    }
+   ],
+   "normalized": "H8674"
+  },
+  {
+   "text": "H8675",
+   "ids": [
+    {
+     "id": "H8675",
+     "lang": "H",
+     "number": 8675,
+     "raw": "H8675",
+     "index": 0
+    }
+   ],
+   "normalized": "H8675"
+  },
+  {
+   "text": "x-h😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "0 h17399",
+   "ids": [
+    {
+     "id": "H17399",
+     "lang": "H",
+     "number": 17399,
+     "raw": "h17399",
+     "index": 2
+    }
+   ],
+   "normalized": null
+  },
+  {
+   "text": " 1234567(x",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567h 1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "g",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "éhx",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "GH",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "–) a",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é-)(",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "4244900",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "H-",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "x50870 ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "43550-0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "Ggxx",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "GH84986",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " – H",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " é",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567–Gé",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "a",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é😀h",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "aa00é",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "– ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")G ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "a-",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "aG",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "–é–",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "-H",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567😀a😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "xé",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " hg)",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "a49882😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " 001234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "ag",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "–😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "–😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "-g",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "31235Hhh",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h–",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")ah",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "x)",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567 52010G",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "97956H-)",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G01234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " h ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "x)",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "gH )",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "aG1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "x😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "00-G",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " a",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "5961100-",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h-H)",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "éa",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "g",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "gG",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "H-",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é(",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "(",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h00x",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "–xG",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "00",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "Géé",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "(g1234567 ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "x–0033669",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G)G ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "a(",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " ))",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "-699870",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h 002237",
+   "ids": [
+    {
+     "id": "H2237",
+     "lang": "H",
+     "number": 2237,
+     "raw": "h 002237",
+     "index": 0
+    }
+   ],
+   "normalized": "H2237"
+  },
+  {
+   "text": "-1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é1234567)h",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "000",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "00g😀10615",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é00h",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "😀0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")0  ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ") ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "00– 0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "51203 éé",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "x(",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "594891234567a😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "g ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "g😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "éh()",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "–(ég",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "31633–h",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h–😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")a",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "ghH50351",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567G",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "0  ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "éG",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "00Gg0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "x ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")😀😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "😀H",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "– ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " Hé ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " gg0",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "(",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " 0000",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G()H",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " 😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567)h–",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "71047-",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é0000",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "g0gG",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " G😀",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "g -",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567éé",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "00a 1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "8088300",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "h",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "H–Gh",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")x",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": ")(–",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "hGH",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "90495😀G ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "H",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "0G(00",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "0000éh",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "-(a",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "😀 H",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "00",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "(",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "-H😀)",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " ",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "0(1234567G",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "1234567",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": " x",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "G00H",
+   "ids": [],
+   "normalized": null
+  },
+  {
+   "text": "é 😀(",
+   "ids": [],
+   "normalized": null
+  }
+ ],
+ "references": [
+  {
+   "text": "what does john 1:1 quote",
+   "refs": [
+    {
+     "bookId": "JHN",
+     "chapter": 1,
+     "verse": 1
+    }
+   ]
+  },
+  {
+   "text": "Compare Gen 1:1 with John 1:1-3, then 1 John 1:5.",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 1,
+     "verse": 1
+    },
+    {
+     "bookId": "JHN",
+     "chapter": 1,
+     "verse": 1,
+     "endVerse": 3
+    },
+    {
+     "bookId": "1JN",
+     "chapter": 1,
+     "verse": 5
+    }
+   ]
+  },
+  {
+   "text": "see 2 Kings 2:11 and II Kings 2:12",
+   "refs": [
+    {
+     "bookId": "2KI",
+     "chapter": 2,
+     "verse": 11
+    },
+    {
+     "bookId": "2KI",
+     "chapter": 2,
+     "verse": 12
+    }
+   ]
+  },
+  {
+   "text": "In Isaiah 53:5 (KJV)",
+   "refs": [
+    {
+     "bookId": "ISA",
+     "chapter": 53,
+     "verse": 5
+    }
+   ]
+  },
+  {
+   "text": "Psalm 23 and psalm 23",
+   "refs": [
+    {
+     "bookId": "PSA",
+     "chapter": 23
+    }
+   ]
+  },
+  {
+   "text": "is 5 the answer?",
+   "refs": [
+    {
+     "bookId": "ISA",
+     "chapter": 5
+    }
+   ]
+  },
+  {
+   "text": "Song of Solomon 2:1",
+   "refs": [
+    {
+     "bookId": "SNG",
+     "chapter": 2,
+     "verse": 1
+    }
+   ]
+  },
+  {
+   "text": "song of songs 1:2!",
+   "refs": [
+    {
+     "bookId": "SNG",
+     "chapter": 1,
+     "verse": 2
+    }
+   ]
+  },
+  {
+   "text": "Rev 22:21;",
+   "refs": [
+    {
+     "bookId": "REV",
+     "chapter": 22,
+     "verse": 21
+    }
+   ]
+  },
+  {
+   "text": "  leading space Gen 3:15",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 3,
+     "verse": 15
+    }
+   ]
+  },
+  {
+   "text": "Gen 1:1 Gen 1:1",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 1,
+     "verse": 1
+    }
+   ]
+  },
+  {
+   "text": "jude 3",
+   "refs": []
+  },
+  {
+   "text": "Obadiah 1:4",
+   "refs": [
+    {
+     "bookId": "OBA",
+     "chapter": 1,
+     "verse": 4
+    }
+   ]
+  },
+  {
+   "text": "1 Cor 13:4 and I Cor 13:5",
+   "refs": [
+    {
+     "bookId": "1CO",
+     "chapter": 13,
+     "verse": 4
+    },
+    {
+     "bookId": "1CO",
+     "chapter": 13,
+     "verse": 5
+    }
+   ]
+  },
+  {
+   "text": "third John 1:2",
+   "refs": [
+    {
+     "bookId": "JHN",
+     "chapter": 1,
+     "verse": 2
+    }
+   ]
+  },
+  {
+   "text": "III John 1:4",
+   "refs": [
+    {
+     "bookId": "3JN",
+     "chapter": 1,
+     "verse": 4
+    }
+   ]
+  },
+  {
+   "text": "Matt. 5:17-19",
+   "refs": [
+    {
+     "bookId": "MAT",
+     "chapter": 5,
+     "verse": 17,
+     "endVerse": 19
+    }
+   ]
+  },
+  {
+   "text": "Matthew 5:17–19",
+   "refs": [
+    {
+     "bookId": "MAT",
+     "chapter": 5,
+     "verse": 17,
+     "endVerse": 19
+    }
+   ]
+  },
+  {
+   "text": "Exodus 20:8-11 Deut 5:12",
+   "refs": [
+    {
+     "bookId": "EXO",
+     "chapter": 20,
+     "verse": 8,
+     "endVerse": 11
+    },
+    {
+     "bookId": "DEU",
+     "chapter": 5,
+     "verse": 12
+    }
+   ]
+  },
+  {
+   "text": "Hebrews 4:9 vs Heb. 4:10",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 4,
+     "verse": 9
+    },
+    {
+     "bookId": "HEB",
+     "chapter": 4,
+     "verse": 10
+    }
+   ]
+  },
+  {
+   "text": "Enoch 1:9 and Jubilees 2:1",
+   "refs": [
+    {
+     "bookId": "ENO",
+     "chapter": 1,
+     "verse": 9
+    },
+    {
+     "bookId": "JUB",
+     "chapter": 2,
+     "verse": 1
+    }
+   ]
+  },
+  {
+   "text": "The year 2026 had 12 months",
+   "refs": []
+  },
+  {
+   "text": "Gen 999:1",
+   "refs": []
+  },
+  {
+   "text": "Recognitions 4:35",
+   "refs": []
+  },
+  {
+   "text": "",
+   "refs": []
+  },
+  {
+   "text": "Gen 1:1",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 1,
+     "verse": 1
+    }
+   ]
+  },
+  {
+   "text": "is is (Rom Ps 8:28)",
+   "refs": [
+    {
+     "bookId": "PSA",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "I 1 of Solomon of song 2 and of 1",
+   "refs": [
+    {
+     "bookId": "SNG",
+     "chapter": 2
+    }
+   ]
+  },
+  {
+   "text": "Ps 24 song is 1 john",
+   "refs": [
+    {
+     "bookId": "PSA",
+     "chapter": 24
+    },
+    {
+     "bookId": "ISA",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "Solomon 1 song Gen 2",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 2
+    }
+   ]
+  },
+  {
+   "text": "and Kings Gen I Rev Gen",
+   "refs": []
+  },
+  {
+   "text": "Gen (Rom Heb. 8:28) 20 8:28) 8:28)",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "and 2 I 6 Heb. 1",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "Heb. john 8:28) john 8:28)",
+   "refs": [
+    {
+     "bookId": "JHN",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "of Solomon 1 Heb. 2",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 2
+    }
+   ]
+  },
+  {
+   "text": "Solomon (Rom Kings 2 song and of",
+   "refs": []
+  },
+  {
+   "text": "1:20 I 2 Kings (Rom of 10:17 1 30:27",
+   "refs": []
+  },
+  {
+   "text": "2 Ps john is 2 Ps",
+   "refs": [
+    {
+     "bookId": "ISA",
+     "chapter": 2
+    }
+   ]
+  },
+  {
+   "text": "2 30:1 Kings song 24 Gen 1 21:4 8:28) Heb.",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "8:28) 22:11 Kings john Kings song is song",
+   "refs": []
+  },
+  {
+   "text": "of I Heb. 19 8:28) Gen Kings (Rom Solomon",
+   "refs": []
+  },
+  {
+   "text": "and is song Heb. and Kings",
+   "refs": []
+  },
+  {
+   "text": "Gen Kings I Gen 25:28 2",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 25,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "Heb. 1:21 and Rev song of (Rom",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 1,
+     "verse": 21
+    }
+   ]
+  },
+  {
+   "text": "Kings of Rev Ps",
+   "refs": []
+  },
+  {
+   "text": "(Rom I 11 I I",
+   "refs": []
+  },
+  {
+   "text": "Solomon 1 I and is Kings 14:15",
+   "refs": []
+  },
+  {
+   "text": "1 Gen of 18 Rev 15 Kings 13:13",
+   "refs": [
+    {
+     "bookId": "REV",
+     "chapter": 15
+    }
+   ]
+  },
+  {
+   "text": "27:24 (Rom song song",
+   "refs": []
+  },
+  {
+   "text": "and Ps 2 17 Ps 2 1",
+   "refs": [
+    {
+     "bookId": "PSA",
+     "chapter": 2
+    }
+   ]
+  },
+  {
+   "text": "Solomon I 11:10 I",
+   "refs": []
+  },
+  {
+   "text": "Solomon Ps Heb. Gen is Rev 18 2 john 2",
+   "refs": [
+    {
+     "bookId": "REV",
+     "chapter": 18
+    },
+    {
+     "bookId": "JHN",
+     "chapter": 2
+    }
+   ]
+  },
+  {
+   "text": "(Rom Rev Kings of john is 1",
+   "refs": [
+    {
+     "bookId": "ISA",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "Solomon I Rev 18:27 I Ps of of of",
+   "refs": [
+    {
+     "bookId": "REV",
+     "chapter": 18,
+     "verse": 27
+    }
+   ]
+  },
+  {
+   "text": "song Heb. Gen",
+   "refs": []
+  },
+  {
+   "text": "john and (Rom Heb. 8:28) and I Ps Gen",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "Rev Heb. 15 Heb. 8:28) and",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "song 10:4 7 Heb. and 2",
+   "refs": []
+  },
+  {
+   "text": "Ps I (Rom 8:28) Ps I is",
+   "refs": [
+    {
+     "bookId": "ROM",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "and of is 6 11 12 john Solomon",
+   "refs": [
+    {
+     "bookId": "ISA",
+     "chapter": 6
+    }
+   ]
+  },
+  {
+   "text": "8:28) Heb. Heb. Rev 8:28) 1",
+   "refs": [
+    {
+     "bookId": "REV",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "of of 27 (Rom and 1 Solomon",
+   "refs": []
+  },
+  {
+   "text": "is Solomon of Gen 1 20 Heb.",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "of 24:30 john song 1 of song 1",
+   "refs": [
+    {
+     "bookId": "SNG",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "is I (Rom",
+   "refs": []
+  },
+  {
+   "text": "is 1 I I (Rom 1 is is",
+   "refs": [
+    {
+     "bookId": "ISA",
+     "chapter": 1
+    },
+    {
+     "bookId": "ROM",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "Heb. 18 I Kings of 8:28) I",
+   "refs": []
+  },
+  {
+   "text": "I I of john 1 Ps Solomon 8:28) Solomon 27:18",
+   "refs": [
+    {
+     "bookId": "JHN",
+     "chapter": 1
+    },
+    {
+     "bookId": "PSS",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "is song is (Rom of 8:28) Heb. Ps",
+   "refs": []
+  },
+  {
+   "text": "john and Ps",
+   "refs": []
+  },
+  {
+   "text": "of Ps Gen Gen Gen Heb.",
+   "refs": []
+  },
+  {
+   "text": "john Heb. and 27:15 Kings of Ps of",
+   "refs": []
+  },
+  {
+   "text": "(Rom 8:28) 25:15 Ps of and Kings I",
+   "refs": [
+    {
+     "bookId": "ROM",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "8:28) 8:28) Rev and is",
+   "refs": []
+  },
+  {
+   "text": "Heb. Rev Ps",
+   "refs": []
+  },
+  {
+   "text": "Rev of 8:28) Rev 28:26",
+   "refs": []
+  },
+  {
+   "text": "Heb. 7:27 14 song",
+   "refs": [
+    {
+     "bookId": "HEB",
+     "chapter": 7,
+     "verse": 27
+    }
+   ]
+  },
+  {
+   "text": "(Rom is and (Rom Rev Heb. Heb. Rev 14",
+   "refs": [
+    {
+     "bookId": "REV",
+     "chapter": 14
+    }
+   ]
+  },
+  {
+   "text": "and song 29 8:28) 13:14 song I Solomon",
+   "refs": []
+  },
+  {
+   "text": "8:28) song john Kings",
+   "refs": []
+  },
+  {
+   "text": "Gen 11 13 Solomon Solomon Kings Heb. is Ps 8:28)",
+   "refs": [
+    {
+     "bookId": "GEN",
+     "chapter": 11
+    },
+    {
+     "bookId": "PSA",
+     "chapter": 8,
+     "verse": 28
+    }
+   ]
+  },
+  {
+   "text": "Solomon 6 of Heb. 26:21 1 7:12 Gen",
+   "refs": []
+  },
+  {
+   "text": "Kings (Rom 1 I 2 Ps 1",
+   "refs": [
+    {
+     "bookId": "ROM",
+     "chapter": 1
+    },
+    {
+     "bookId": "PSA",
+     "chapter": 1
+    }
+   ]
+  },
+  {
+   "text": "and I I of 8:28) john song is Solomon is",
+   "refs": []
+  },
+  {
+   "text": "2 (Rom 2 Rev song I",
+   "refs": [
+    {
+     "bookId": "ROM",
+     "chapter": 2
+    }
+   ]
+  },
+  {
+   "text": "Kings is Heb. is 28 8:28) 2 Kings",
+   "refs": [
+    {
+     "bookId": "ISA",
+     "chapter": 28
+    }
+   ]
+  }
+ ],
+ "format": 1,
+ "generator": "scripts/golden/corpus.ts",
+ "sources": {
+  "src/lib/research/strongsId.ts": "ecff3448b745805dd54969ace7b597860fb1cac03ddf4ca386d4b7eaeae9371d",
+  "src/lib/research/references.ts": "0c885bc3521729c6e1fe86f3d94788517f103496f405427adfc143c3e52a3d91"
+ }
+}

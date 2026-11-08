@@ -70,6 +70,16 @@
   committed fixtures; `BereanConformanceTests` must reproduce 100% of them.
 - Revisit: any change to `src/platform/sync/*` → re-export, rerun `npm run native:test`.
 
+### ADR-0006 — SQLite access: system SQLite first, GRDB prototype deferred to the user store
+- Date/author: 2026-11-07, Claude (engineering)
+- Status: ACCEPTED for read-only corpora; GRDB prototype still required before M3 (spec §3)
+- Result: `BereanSQLite` is a thin wrapper over the system `libsqlite3` (no third-party dependency): read-only
+  open (`SQLITE_OPEN_READONLY`), prepared statements, bound parameters, column cache. `BereanBible` ports
+  `bibleService.ts` with identical SQL. GRDB is evaluated for the mutable store (WAL, migrations, observation)
+  in M3-01, with this wrapper as the fallback.
+- Evidence: bible.json golden — all 20 bundled texts' books, 3 chapters per book, verses and 316 searches match the
+  TypeScript service, except equal-rank ordering (F-05).
+
 ## Findings resolved from code (audit 15 A-items and M0 investigations)
 
 ### F-01 — A-4 synced entity kinds (24 vs 22)
@@ -112,3 +122,15 @@ folder. Cause not proven — no blame assigned. Mitigation: ADR-0004.
 | C-17 | Voices minimum-device floor | Owner | OPEN | 15 C-17 |
 
 Use the live table in audit 15 to identify the engineering A, experimental B and external D prerequisites; group owner questions rather than blocking all engineering work.
+
+### F-04 — Number-word search expansion drops "twenty", "sixty", "eighty"
+`src/lib/numberWords.ts` (and the main-process copy) set 20/60/80 to "score"/"threescore"/"fourscore" after the
+regular tens, so "twenty" is never expanded to "20" and "20" expands to "score". Reproduced exactly in Swift
+(`BibleText.numberTokenAlternates`). Candidate for the owner's lossy-behaviour decision C-10 (fix in both or keep).
+
+### F-05 — FTS result order among equal ranks depends on the SQLite version (B-15 evidence)
+`searchText` orders by `rank` only. For `love` scoped to JHN+1JN, Node's SQLite 3.51.2 and macOS's 3.54.0 return the
+same 65 rows but order equal-rank ties differently (verified with the raw SQL in both). Electron's better-sqlite3 has its
+own SQLite build, so the desktop order is already version-dependent. Conformance tests therefore require exact order
+except within equal-rank ties, where the identical row set is required and reported. PROPOSED (engineering, needs no
+data change): add a deterministic tie-breaker (`ORDER BY rank, v.id`) to both implementations in one change.

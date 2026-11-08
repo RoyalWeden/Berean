@@ -1,0 +1,3614 @@
+{
+ "format": 1,
+ "generator": "scripts/golden/text.ts",
+ "sources": {
+  "src/lib/taggedTokens.ts": "4e2f235c25f678ee9af55c982a8fff03fa627d11f6b7ab1ce1a2e47d448199fb",
+  "src/lib/verseUtils.ts": "54e0d76d1dee684b5447ddf6eeda57090b6f03b705cb1f4af10d43e4734304a8",
+  "src/lib/annotationFilters.ts": "0913f58cbaa06ebb88c0c6ff3a97542b4be3ffd900d8e707b1f94737e5271fee",
+  "scripts/golden/text.ts": "4cea3e8a7f6c4820d7141bf09aa064d7458dee95d45570912fbe1ca3197279d4"
+ },
+ "texts": {
+  "kjva": {
+   "tokens": {
+    "GEN": {
+     "count": 1533,
+     "hash": "96272ec12tchc"
+    },
+    "EXO": {
+     "count": 1213,
+     "hash": "97c736bf2ev4z"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "71acb9e81t1ea"
+    },
+    "NUM": {
+     "count": 1288,
+     "hash": "7c23e99c2ezho"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "ef8b697122za0"
+    },
+    "JOS": {
+     "count": 658,
+     "hash": "d8bd946d1e07l"
+    },
+    "JDG": {
+     "count": 618,
+     "hash": "029cc4761e7ug"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "7f15956b6s1y"
+    },
+    "1SA": {
+     "count": 810,
+     "hash": "83a3ef0d1ubv1"
+    },
+    "2SA": {
+     "count": 695,
+     "hash": "12c48ede1iiff"
+    },
+    "1KI": {
+     "count": 816,
+     "hash": "0bdc3b251sz0f"
+    },
+    "2KI": {
+     "count": 719,
+     "hash": "4dcecddb1q8ri"
+    },
+    "1CH": {
+     "count": 942,
+     "hash": "b323a8161hxj9"
+    },
+    "2CH": {
+     "count": 822,
+     "hash": "989557311wy91"
+    },
+    "EZR": {
+     "count": 280,
+     "hash": "05a81cfcji8j"
+    },
+    "NEH": {
+     "count": 406,
+     "hash": "978c2ec0rm4p"
+    },
+    "EST": {
+     "count": 167,
+     "hash": "c530efb1ewrj"
+    },
+    "JOB": {
+     "count": 1070,
+     "hash": "e02a105f1b8rl"
+    },
+    "PSA": {
+     "count": 2461,
+     "hash": "702ce80d36i5y"
+    },
+    "PRO": {
+     "count": 915,
+     "hash": "c9907afc139jb"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "318bcd7deq1q"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "31636f476z1e"
+    },
+    "ISA": {
+     "count": 1292,
+     "hash": "4a8e498b2ovhb"
+    },
+    "JER": {
+     "count": 1364,
+     "hash": "bc03f1d634kei"
+    },
+    "LAM": {
+     "count": 154,
+     "hash": "6f5ccef18wpn"
+    },
+    "EZK": {
+     "count": 1273,
+     "hash": "c30984482vkhp"
+    },
+    "DAN": {
+     "count": 357,
+     "hash": "8a1f2493ue88"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "df27285fdka3"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "05e547045buu"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "1a941df9b2ta"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "d45f1a051rgg"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "59f622ec3gr2"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "2edceac288av"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "00fc6a473cnk"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "865e1a0f3utl"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "2ea8280948yg"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "e5111ebf2yqc"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "64e437degzea"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "a45a4f884os2"
+    },
+    "1ES": {
+     "count": 448,
+     "hash": "49af193d11d"
+    },
+    "2ES": {
+     "count": 944,
+     "hash": "7a8acbbd26p"
+    },
+    "TOB": {
+     "count": 244,
+     "hash": "4254c59dkd"
+    },
+    "JDT": {
+     "count": 339,
+     "hash": "eb3a3325sa"
+    },
+    "ESG": {
+     "count": 117,
+     "hash": "515a31359s"
+    },
+    "WIS": {
+     "count": 436,
+     "hash": "fd27479d10d"
+    },
+    "SIR": {
+     "count": 1393,
+     "hash": "01e020d5384"
+    },
+    "BAR": {
+     "count": 213,
+     "hash": "610a7c35hs"
+    },
+    "PRA": {
+     "count": 68,
+     "hash": "f7c2c91d5p"
+    },
+    "SUS": {
+     "count": 64,
+     "hash": "c0cdd53d5d"
+    },
+    "BEL": {
+     "count": 42,
+     "hash": "fdc0466d3j"
+    },
+    "PRM": {
+     "count": 1,
+     "hash": "b99059554"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "947ba15d251"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "961dcce51aa"
+    },
+    "MAT": {
+     "count": 1071,
+     "hash": "383508da1q745"
+    },
+    "MRK": {
+     "count": 678,
+     "hash": "5c71dbab13ulc"
+    },
+    "LUK": {
+     "count": 1151,
+     "hash": "4f62c43b1w5io"
+    },
+    "JHN": {
+     "count": 879,
+     "hash": "c7ee8be81e96w"
+    },
+    "ACT": {
+     "count": 1007,
+     "hash": "ed73712b1sb14"
+    },
+    "ROM": {
+     "count": 433,
+     "hash": "ec134ad8p00s"
+    },
+    "1CO": {
+     "count": 437,
+     "hash": "b1150f8ap2ik"
+    },
+    "2CO": {
+     "count": 257,
+     "hash": "6395e0b1g3qp"
+    },
+    "GAL": {
+     "count": 149,
+     "hash": "c450d9dc85ah"
+    },
+    "EPH": {
+     "count": 155,
+     "hash": "f391ab987zqs"
+    },
+    "PHP": {
+     "count": 104,
+     "hash": "05454d8b5s0r"
+    },
+    "COL": {
+     "count": 95,
+     "hash": "22aaf18a58uy"
+    },
+    "1TH": {
+     "count": 89,
+     "hash": "8e4bfe684v82"
+    },
+    "2TH": {
+     "count": 47,
+     "hash": "7375f0a42pum"
+    },
+    "1TI": {
+     "count": 113,
+     "hash": "2d08d8ec5ysx"
+    },
+    "2TI": {
+     "count": 83,
+     "hash": "045481924gkq"
+    },
+    "TIT": {
+     "count": 46,
+     "hash": "d4a5052c2fdu"
+    },
+    "PHM": {
+     "count": 25,
+     "hash": "acee947315qd"
+    },
+    "HEB": {
+     "count": 303,
+     "hash": "d656f6a0i95b"
+    },
+    "JAS": {
+     "count": 108,
+     "hash": "84a8238462xn"
+    },
+    "1PE": {
+     "count": 105,
+     "hash": "3778f9df6ivz"
+    },
+    "2PE": {
+     "count": 61,
+     "hash": "c51ecfcc43ed"
+    },
+    "1JN": {
+     "count": 105,
+     "hash": "a7b8bbb66m2s"
+    },
+    "2JN": {
+     "count": 13,
+     "hash": "2a25a53ds9m"
+    },
+    "3JN": {
+     "count": 14,
+     "hash": "81ec76e8rvt"
+    },
+    "JUD": {
+     "count": 25,
+     "hash": "2783b33e1m29"
+    },
+    "REV": {
+     "count": 404,
+     "hash": "24ef11acvjw7"
+    }
+   },
+   "ranges": {
+    "GEN": {
+     "count": 1533,
+     "hash": "2a3090d11l98"
+    },
+    "EXO": {
+     "count": 1213,
+     "hash": "24898da21i12"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "deb59dd91e9i"
+    },
+    "NUM": {
+     "count": 1288,
+     "hash": "22d8b67b1egu"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "fe406bb317t2"
+    },
+    "JOS": {
+     "count": 658,
+     "hash": "ea9e70aboak"
+    },
+    "JDG": {
+     "count": 618,
+     "hash": "656db069qft"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "1ac00484475"
+    },
+    "1SA": {
+     "count": 810,
+     "hash": "1109d32e155g"
+    },
+    "2SA": {
+     "count": 695,
+     "hash": "3a7cf9e4w2k"
+    },
+    "1KI": {
+     "count": 816,
+     "hash": "c53caa9411wy"
+    },
+    "2KI": {
+     "count": 719,
+     "hash": "29bc0dd3zgf"
+    },
+    "1CH": {
+     "count": 942,
+     "hash": "d4074b3d16im"
+    },
+    "2CH": {
+     "count": 822,
+     "hash": "2662882b156e"
+    },
+    "EZR": {
+     "count": 280,
+     "hash": "ce9eb818b17"
+    },
+    "NEH": {
+     "count": 406,
+     "hash": "4d43a96cgss"
+    },
+    "EST": {
+     "count": 167,
+     "hash": "c5a22cb07rp"
+    },
+    "JOB": {
+     "count": 1070,
+     "hash": "b1d58b8e1aef"
+    },
+    "PSA": {
+     "count": 2461,
+     "hash": "58a846c72qlp"
+    },
+    "PRO": {
+     "count": 915,
+     "hash": "7dbe3f6d1ccx"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "a44391c6gdz"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "a1121dbc9e1"
+    },
+    "ISA": {
+     "count": 1292,
+     "hash": "0d19d65b1x8b"
+    },
+    "JER": {
+     "count": 1364,
+     "hash": "8fd294541ktg"
+    },
+    "LAM": {
+     "count": 154,
+     "hash": "54136d3e7df"
+    },
+    "EZK": {
+     "count": 1273,
+     "hash": "6735cb3c1y5f"
+    },
+    "DAN": {
+     "count": 357,
+     "hash": "4444e855gu5"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "50406cfeac6"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "c06e10b5238"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "b6c07e9c62e"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "805266d61hl"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "f0f7cf231i9"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "d9800bd85fx"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "00958b4f320"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "c34c918f3hp"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "ab23844e2ul"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "15201c0828h"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "f24aeb02aap"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "f75314f33ex"
+    },
+    "1ES": {
+     "count": 448,
+     "hash": "49af193d11d"
+    },
+    "2ES": {
+     "count": 944,
+     "hash": "7a8acbbd26p"
+    },
+    "TOB": {
+     "count": 244,
+     "hash": "4254c59dkd"
+    },
+    "JDT": {
+     "count": 339,
+     "hash": "eb3a3325sa"
+    },
+    "ESG": {
+     "count": 117,
+     "hash": "515a31359s"
+    },
+    "WIS": {
+     "count": 436,
+     "hash": "fd27479d10d"
+    },
+    "SIR": {
+     "count": 1393,
+     "hash": "01e020d5384"
+    },
+    "BAR": {
+     "count": 213,
+     "hash": "610a7c35hs"
+    },
+    "PRA": {
+     "count": 68,
+     "hash": "f7c2c91d5p"
+    },
+    "SUS": {
+     "count": 64,
+     "hash": "c0cdd53d5d"
+    },
+    "BEL": {
+     "count": 42,
+     "hash": "fdc0466d3j"
+    },
+    "PRM": {
+     "count": 1,
+     "hash": "b99059554"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "947ba15d251"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "961dcce51aa"
+    },
+    "MAT": {
+     "count": 1071,
+     "hash": "3786a124h4k3"
+    },
+    "MRK": {
+     "count": 678,
+     "hash": "ac63aaf36z95"
+    },
+    "LUK": {
+     "count": 1151,
+     "hash": "c31031d5fsif"
+    },
+    "JHN": {
+     "count": 879,
+     "hash": "51c867c6ac7k"
+    },
+    "ACT": {
+     "count": 1007,
+     "hash": "09611c00188q"
+    },
+    "ROM": {
+     "count": 433,
+     "hash": "1958d9f0e6p"
+    },
+    "1CO": {
+     "count": 437,
+     "hash": "fb3734ach4t"
+    },
+    "2CO": {
+     "count": 257,
+     "hash": "aa6a3bdcdr0"
+    },
+    "GAL": {
+     "count": 149,
+     "hash": "054061d742z"
+    },
+    "EPH": {
+     "count": 155,
+     "hash": "188892e12xj"
+    },
+    "PHP": {
+     "count": 104,
+     "hash": "8292c3d638f"
+    },
+    "COL": {
+     "count": 95,
+     "hash": "b961db5a32q"
+    },
+    "1TH": {
+     "count": 89,
+     "hash": "d4a56edc1y1"
+    },
+    "2TH": {
+     "count": 47,
+     "hash": "6193820719c"
+    },
+    "1TI": {
+     "count": 113,
+     "hash": "492971102p4"
+    },
+    "2TI": {
+     "count": 83,
+     "hash": "3ba1db5d220"
+    },
+    "TIT": {
+     "count": 46,
+     "hash": "b17c589b115"
+    },
+    "PHM": {
+     "count": 25,
+     "hash": "a899ed2cd7"
+    },
+    "HEB": {
+     "count": 303,
+     "hash": "21f675669uz"
+    },
+    "JAS": {
+     "count": 108,
+     "hash": "91eccd532n9"
+    },
+    "1PE": {
+     "count": 105,
+     "hash": "a569cfd74vf"
+    },
+    "2PE": {
+     "count": 61,
+     "hash": "01019f0b2c1"
+    },
+    "1JN": {
+     "count": 105,
+     "hash": "12df1cb92fj"
+    },
+    "2JN": {
+     "count": 13,
+     "hash": "d5862a8d5v"
+    },
+    "3JN": {
+     "count": 14,
+     "hash": "1513efc798"
+    },
+    "JUD": {
+     "count": 25,
+     "hash": "68971bdbib"
+    },
+    "REV": {
+     "count": 404,
+     "hash": "9fd8a56d2k54"
+    }
+   },
+   "rangesPositional": {
+    "GEN": {
+     "count": 1533,
+     "hash": "83dd1a931lat"
+    },
+    "EXO": {
+     "count": 1213,
+     "hash": "c248a14c1i2q"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "67ea14681ecs"
+    },
+    "NUM": {
+     "count": 1288,
+     "hash": "c913f9e11eig"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "154591d317xy"
+    },
+    "JOS": {
+     "count": 658,
+     "hash": "8ff58d08oaj"
+    },
+    "JDG": {
+     "count": 618,
+     "hash": "d987db89qft"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "672bced9475"
+    },
+    "1SA": {
+     "count": 810,
+     "hash": "983bb175158q"
+    },
+    "2SA": {
+     "count": 695,
+     "hash": "7e6793f7w46"
+    },
+    "1KI": {
+     "count": 816,
+     "hash": "f03261c2121r"
+    },
+    "2KI": {
+     "count": 719,
+     "hash": "6a188fc6zjq"
+    },
+    "1CH": {
+     "count": 942,
+     "hash": "578d79da16im"
+    },
+    "2CH": {
+     "count": 822,
+     "hash": "66f004c815b7"
+    },
+    "EZR": {
+     "count": 280,
+     "hash": "1aa731c9b2t"
+    },
+    "NEH": {
+     "count": 406,
+     "hash": "ca8c1355gsq"
+    },
+    "EST": {
+     "count": 167,
+     "hash": "c5a22cb07rp"
+    },
+    "JOB": {
+     "count": 1070,
+     "hash": "9965ee4e1ag0"
+    },
+    "PSA": {
+     "count": 2461,
+     "hash": "4034fd3e2xxs"
+    },
+    "PRO": {
+     "count": 915,
+     "hash": "7dbe3f6d1ccx"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "a44391c6gdz"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "bc88b4c89e1"
+    },
+    "ISA": {
+     "count": 1292,
+     "hash": "f00604751x8b"
+    },
+    "JER": {
+     "count": 1364,
+     "hash": "140dca8a1ktg"
+    },
+    "LAM": {
+     "count": 154,
+     "hash": "54136d3e7df"
+    },
+    "EZK": {
+     "count": 1273,
+     "hash": "653574b11y5f"
+    },
+    "DAN": {
+     "count": 357,
+     "hash": "150d93dcgu5"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "54d408a4ac6"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "c06e10b5238"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "9f3518db62e"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "805266d61hl"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "f0f7cf231i9"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "aca1796d5fx"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "00958b4f320"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "c34c918f3hp"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "ab23844e2ul"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "15201c0828h"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "f24aeb02aap"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "f75314f33ex"
+    },
+    "1ES": {
+     "count": 448,
+     "hash": "49af193d11d"
+    },
+    "2ES": {
+     "count": 944,
+     "hash": "7a8acbbd26p"
+    },
+    "TOB": {
+     "count": 244,
+     "hash": "4254c59dkd"
+    },
+    "JDT": {
+     "count": 339,
+     "hash": "eb3a3325sa"
+    },
+    "ESG": {
+     "count": 117,
+     "hash": "515a31359s"
+    },
+    "WIS": {
+     "count": 436,
+     "hash": "fd27479d10d"
+    },
+    "SIR": {
+     "count": 1393,
+     "hash": "01e020d5384"
+    },
+    "BAR": {
+     "count": 213,
+     "hash": "610a7c35hs"
+    },
+    "PRA": {
+     "count": 68,
+     "hash": "f7c2c91d5p"
+    },
+    "SUS": {
+     "count": 64,
+     "hash": "c0cdd53d5d"
+    },
+    "BEL": {
+     "count": 42,
+     "hash": "fdc0466d3j"
+    },
+    "PRM": {
+     "count": 1,
+     "hash": "b99059554"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "947ba15d251"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "961dcce51aa"
+    },
+    "MAT": {
+     "count": 1071,
+     "hash": "a800be5eh7bo"
+    },
+    "MRK": {
+     "count": 678,
+     "hash": "0a8dd56870w6"
+    },
+    "LUK": {
+     "count": 1151,
+     "hash": "79b739f3fwn0"
+    },
+    "JHN": {
+     "count": 879,
+     "hash": "8806cfc0acz0"
+    },
+    "ACT": {
+     "count": 1007,
+     "hash": "9a27248d19c9"
+    },
+    "ROM": {
+     "count": 433,
+     "hash": "bd9152c3e9w"
+    },
+    "1CO": {
+     "count": 437,
+     "hash": "ca565cd8h6e"
+    },
+    "2CO": {
+     "count": 257,
+     "hash": "aa6a3bdcdr0"
+    },
+    "GAL": {
+     "count": 149,
+     "hash": "054061d742z"
+    },
+    "EPH": {
+     "count": 155,
+     "hash": "188892e12xj"
+    },
+    "PHP": {
+     "count": 104,
+     "hash": "8292c3d638f"
+    },
+    "COL": {
+     "count": 95,
+     "hash": "b961db5a32q"
+    },
+    "1TH": {
+     "count": 89,
+     "hash": "33de92fb1zo"
+    },
+    "2TH": {
+     "count": 47,
+     "hash": "6193820719c"
+    },
+    "1TI": {
+     "count": 113,
+     "hash": "492971102p4"
+    },
+    "2TI": {
+     "count": 83,
+     "hash": "3ba1db5d220"
+    },
+    "TIT": {
+     "count": 46,
+     "hash": "b17c589b115"
+    },
+    "PHM": {
+     "count": 25,
+     "hash": "a899ed2cd7"
+    },
+    "HEB": {
+     "count": 303,
+     "hash": "21f675669uz"
+    },
+    "JAS": {
+     "count": 108,
+     "hash": "91eccd532n9"
+    },
+    "1PE": {
+     "count": 105,
+     "hash": "7cca34184x0"
+    },
+    "2PE": {
+     "count": 61,
+     "hash": "01019f0b2c1"
+    },
+    "1JN": {
+     "count": 105,
+     "hash": "6e86c0e02h5"
+    },
+    "2JN": {
+     "count": 13,
+     "hash": "d5862a8d5v"
+    },
+    "3JN": {
+     "count": 14,
+     "hash": "1513efc798"
+    },
+    "JUD": {
+     "count": 25,
+     "hash": "68971bdbib"
+    },
+    "REV": {
+     "count": 404,
+     "hash": "9229671a2k8c"
+    }
+   },
+   "offsets": {
+    "GEN": {
+     "count": 1533,
+     "hash": "939811e2btk8"
+    },
+    "EXO": {
+     "count": 1213,
+     "hash": "a85935978lmo"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "f20a148f5r72"
+    },
+    "NUM": {
+     "count": 1288,
+     "hash": "8b2244b19es2"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "994196996glb"
+    },
+    "JOS": {
+     "count": 658,
+     "hash": "c24cc20f4ax0"
+    },
+    "JDG": {
+     "count": 618,
+     "hash": "db2361db43ft"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "e6e058bfju6"
+    },
+    "1SA": {
+     "count": 810,
+     "hash": "c40402de5ifi"
+    },
+    "2SA": {
+     "count": 695,
+     "hash": "a0e0e1734ykl"
+    },
+    "1KI": {
+     "count": 816,
+     "hash": "3b0e32d55g74"
+    },
+    "2KI": {
+     "count": 719,
+     "hash": "467fa6164q9d"
+    },
+    "1CH": {
+     "count": 942,
+     "hash": "7f8677d67ca6"
+    },
+    "2CH": {
+     "count": 822,
+     "hash": "aad347bc5pj7"
+    },
+    "EZR": {
+     "count": 280,
+     "hash": "5b632c081xqy"
+    },
+    "NEH": {
+     "count": 406,
+     "hash": "da80d5f82n1p"
+    },
+    "EST": {
+     "count": 167,
+     "hash": "741f48be12v5"
+    },
+    "JOB": {
+     "count": 1070,
+     "hash": "ea8f82ccapqx"
+    },
+    "PSA": {
+     "count": 2461,
+     "hash": "847bbed6o8eo"
+    },
+    "PRO": {
+     "count": 915,
+     "hash": "9fcd8f5b9vxx"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "cdb391331uoh"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "0a535801w01"
+    },
+    "ISA": {
+     "count": 1292,
+     "hash": "d41bbba28ksb"
+    },
+    "JER": {
+     "count": 1364,
+     "hash": "1c78bd0e8rbn"
+    },
+    "LAM": {
+     "count": 154,
+     "hash": "7f3f5dfc13ky"
+    },
+    "EZK": {
+     "count": 1273,
+     "hash": "5b71119f8erg"
+    },
+    "DAN": {
+     "count": 357,
+     "hash": "6bd0b67d2bte"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "77e9e6931ho4"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "a403e6a5gyz"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "181544f911kn"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "2350c8fd4h7"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "192c5783c9u"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "06133d0bntc"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "6f23ae77aqp"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "2f57332ado5"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "0be5df8bcyz"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "7f5c62c18ce"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "6d35d0791hpy"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "e7543ba6cbd"
+    },
+    "1ES": {
+     "count": 448,
+     "hash": "4e70177d1q9"
+    },
+    "2ES": {
+     "count": 944,
+     "hash": "6bbc3a4d3n5"
+    },
+    "TOB": {
+     "count": 244,
+     "hash": "0cacecc9xx"
+    },
+    "JDT": {
+     "count": 339,
+     "hash": "fc7bfe881b4"
+    },
+    "ESG": {
+     "count": 117,
+     "hash": "6ad8e2dega"
+    },
+    "WIS": {
+     "count": 436,
+     "hash": "5a831d091ol"
+    },
+    "SIR": {
+     "count": 1393,
+     "hash": "a387cb725di"
+    },
+    "BAR": {
+     "count": 213,
+     "hash": "8f718c3etm"
+    },
+    "PRA": {
+     "count": 68,
+     "hash": "ec1788799h"
+    },
+    "SUS": {
+     "count": 64,
+     "hash": "b62273fd8x"
+    },
+    "BEL": {
+     "count": 42,
+     "hash": "9b03d3935v"
+    },
+    "PRM": {
+     "count": 1,
+     "hash": "5f74b2a26"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "6cff43013kd"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "c67a7320254"
+    },
+    "MAT": {
+     "count": 1071,
+     "hash": "8682ee278zyr"
+    },
+    "MRK": {
+     "count": 678,
+     "hash": "1bdf65b35lno"
+    },
+    "LUK": {
+     "count": 1151,
+     "hash": "e499c4849lkp"
+    },
+    "JHN": {
+     "count": 879,
+     "hash": "74acf7ba7l5d"
+    },
+    "ACT": {
+     "count": 1007,
+     "hash": "53db11957tt8"
+    },
+    "ROM": {
+     "count": 433,
+     "hash": "42f3b04e3ias"
+    },
+    "1CO": {
+     "count": 437,
+     "hash": "60a663803l1n"
+    },
+    "2CO": {
+     "count": 257,
+     "hash": "b6199428216x"
+    },
+    "GAL": {
+     "count": 149,
+     "hash": "b0ad94221ble"
+    },
+    "EPH": {
+     "count": 155,
+     "hash": "af105b921fow"
+    },
+    "PHP": {
+     "count": 104,
+     "hash": "016ac032wn2"
+    },
+    "COL": {
+     "count": 95,
+     "hash": "4ec222c9rt2"
+    },
+    "1TH": {
+     "count": 89,
+     "hash": "3de6983don5"
+    },
+    "2TH": {
+     "count": 47,
+     "hash": "e021dc1cfco"
+    },
+    "1TI": {
+     "count": 113,
+     "hash": "13f767c5xe7"
+    },
+    "2TI": {
+     "count": 83,
+     "hash": "0e22a3c9psv"
+    },
+    "TIT": {
+     "count": 46,
+     "hash": "644de4dcefk"
+    },
+    "PHM": {
+     "count": 25,
+     "hash": "c55577539mx"
+    },
+    "HEB": {
+     "count": 303,
+     "hash": "a1d1db012gkw"
+    },
+    "JAS": {
+     "count": 108,
+     "hash": "8e62a83fw0z"
+    },
+    "1PE": {
+     "count": 105,
+     "hash": "d6964946sjl"
+    },
+    "2PE": {
+     "count": 61,
+     "hash": "e95f1a15drl"
+    },
+    "1JN": {
+     "count": 105,
+     "hash": "aadd421fv80"
+    },
+    "2JN": {
+     "count": 13,
+     "hash": "97ff8ce33ft"
+    },
+    "3JN": {
+     "count": 14,
+     "hash": "7ebb8ddf3xn"
+    },
+    "JUD": {
+     "count": 25,
+     "hash": "1fd06b556gj"
+    },
+    "REV": {
+     "count": 404,
+     "hash": "15ad07a92ndh"
+    }
+   }
+  },
+  "lxx": {
+   "tokens": {
+    "GEN": {
+     "count": 1531,
+     "hash": "01a066082e5xz"
+    },
+    "EXO": {
+     "count": 1165,
+     "hash": "ec5062461trsb"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "71846a941eiw7"
+    },
+    "NUM": {
+     "count": 1287,
+     "hash": "d3a0c4a21ufow"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "ee86dd7f1owd9"
+    },
+    "JOS": {
+     "count": 659,
+     "hash": "899e3b4013gfu"
+    },
+    "JOSA": {
+     "count": 96,
+     "hash": "930f821e2swu"
+    },
+    "JDG": {
+     "count": 617,
+     "hash": "06d1733515951"
+    },
+    "JDGA": {
+     "count": 618,
+     "hash": "e34c8196168ba"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "b73cc61e5hep"
+    },
+    "1SA": {
+     "count": 773,
+     "hash": "7fd177a81hb1s"
+    },
+    "2SA": {
+     "count": 696,
+     "hash": "513d4d831bfp1"
+    },
+    "1KI": {
+     "count": 825,
+     "hash": "d250be161j335"
+    },
+    "2KI": {
+     "count": 723,
+     "hash": "7ed260991dxj0"
+    },
+    "1CH": {
+     "count": 930,
+     "hash": "a80bce6a16y29"
+    },
+    "2CH": {
+     "count": 833,
+     "hash": "1b7ca0031kltm"
+    },
+    "1ES": {
+     "count": 434,
+     "hash": "83adcb1bnvjg"
+    },
+    "2ES": {
+     "count": 672,
+     "hash": "fddfa271z539"
+    },
+    "ESG": {
+     "count": 252,
+     "hash": "b039585dfi86"
+    },
+    "JDT": {
+     "count": 340,
+     "hash": "3b85dc70obnp"
+    },
+    "TOB": {
+     "count": 248,
+     "hash": "950b75d7el4w"
+    },
+    "TOBS": {
+     "count": 232,
+     "hash": "cfc1802cj5xi"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "5a363aed1ckux"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "b9f65c65vqfr"
+    },
+    "3MA": {
+     "count": 228,
+     "hash": "28381214dm95"
+    },
+    "4MA": {
+     "count": 479,
+     "hash": "81eae677kwf8"
+    },
+    "PSA": {
+     "count": 2534,
+     "hash": "3d22639a2ksv3"
+    },
+    "ODE": {
+     "count": 276,
+     "hash": "6ac545cab3oo"
+    },
+    "PRO": {
+     "count": 939,
+     "hash": "2043a5c3tpm5"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "736f583fc1k8"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "60f6a4ab5d6k"
+    },
+    "JOB": {
+     "count": 1083,
+     "hash": "0a3d5178zyhp"
+    },
+    "WIS": {
+     "count": 435,
+     "hash": "0d4c20bcigu9"
+    },
+    "SIR": {
+     "count": 1402,
+     "hash": "4cb4bcaf1dmjz"
+    },
+    "PSL": {
+     "count": 293,
+     "hash": "5f75a485d2j0"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "5125d834agks"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "86c6f4d86a6g"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "f6ea813f8irq"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "4fe7fdf2471o"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "4d8e70522vxm"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "1710832a192e"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "aeb647f62hmm"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "77e78f2f2xl7"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "d8597e0338wl"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "d310e7b02ico"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "745daa06d6f1"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "fe17feb33rhq"
+    },
+    "ISA": {
+     "count": 1289,
+     "hash": "072048c31ztv3"
+    },
+    "JER": {
+     "count": 1298,
+     "hash": "6c87a05024suz"
+    },
+    "BAR": {
+     "count": 141,
+     "hash": "f83dc8f56ze3"
+    },
+    "EJR": {
+     "count": 72,
+     "hash": "1e5407643eri"
+    },
+    "LAM": {
+     "count": 150,
+     "hash": "1156a7e96b1w"
+    },
+    "EZK": {
+     "count": 1267,
+     "hash": "5ca2cc4626lvt"
+    },
+    "BEL": {
+     "count": 36,
+     "hash": "e3907e3a2d0k"
+    },
+    "BELT": {
+     "count": 42,
+     "hash": "33128f952b1q"
+    },
+    "DAN": {
+     "count": 412,
+     "hash": "6692092csljm"
+    },
+    "DANT": {
+     "count": 424,
+     "hash": "e3268ad0rpry"
+    },
+    "SUS": {
+     "count": 37,
+     "hash": "4d5ad84b23ta"
+    },
+    "SUST": {
+     "count": 64,
+     "hash": "3ac1053630iz"
+    }
+   },
+   "ranges": {
+    "GEN": {
+     "count": 1531,
+     "hash": "ece25b653jm"
+    },
+    "EXO": {
+     "count": 1165,
+     "hash": "a81803f52p4"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "4b19c6651zm"
+    },
+    "NUM": {
+     "count": 1287,
+     "hash": "8704a4852za"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "22ed584527y"
+    },
+    "JOS": {
+     "count": 659,
+     "hash": "75aefd251iy"
+    },
+    "JOSA": {
+     "count": 96,
+     "hash": "5619303d81"
+    },
+    "JDG": {
+     "count": 617,
+     "hash": "837450951fg"
+    },
+    "JDGA": {
+     "count": 618,
+     "hash": "07ef3c6d1fj"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "824d183574"
+    },
+    "1SA": {
+     "count": 773,
+     "hash": "09e541b51sg"
+    },
+    "2SA": {
+     "count": 696,
+     "hash": "bb9b117d1m1"
+    },
+    "1KI": {
+     "count": 825,
+     "hash": "66889b151ws"
+    },
+    "2KI": {
+     "count": 723,
+     "hash": "654ebf251oa"
+    },
+    "1CH": {
+     "count": 930,
+     "hash": "3adc20ad25j"
+    },
+    "2CH": {
+     "count": 833,
+     "hash": "815b03551xg"
+    },
+    "1ES": {
+     "count": 434,
+     "hash": "3d8fe22d107"
+    },
+    "2ES": {
+     "count": 672,
+     "hash": "d6af163d1k1"
+    },
+    "ESG": {
+     "count": 252,
+     "hash": "070c7a5dl1"
+    },
+    "JDT": {
+     "count": 340,
+     "hash": "a5a1c69dsd"
+    },
+    "TOB": {
+     "count": 248,
+     "hash": "ffd0577dkp"
+    },
+    "TOBS": {
+     "count": 232,
+     "hash": "e1c669fdjd"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "947ba15d251"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "961dcce51aa"
+    },
+    "3MA": {
+     "count": 228,
+     "hash": "8afde01dj1"
+    },
+    "4MA": {
+     "count": 479,
+     "hash": "c8c6794513y"
+    },
+    "PSA": {
+     "count": 2534,
+     "hash": "149d9a0d5v7"
+    },
+    "ODE": {
+     "count": 276,
+     "hash": "e119f09dn1"
+    },
+    "PRO": {
+     "count": 939,
+     "hash": "cfefd8e526a"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "d0d4fa4dij"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "515a31359s"
+    },
+    "JOB": {
+     "count": 1083,
+     "hash": "4081cd652ia"
+    },
+    "WIS": {
+     "count": 435,
+     "hash": "1e99162510a"
+    },
+    "SIR": {
+     "count": 1402,
+     "hash": "8a9c05ed38v"
+    },
+    "PSL": {
+     "count": 293,
+     "hash": "6d690ab5og"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "b7257fb5gg"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "4d17c0958s"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "8b22072dc7"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "b9d2b79564"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "98a6d7bd41"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "3bf766351s"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "4307f3c53y"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "76e7757d4p"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "2f417f354g"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "5b43500d37"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "3038af25hm"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "4355e6054m"
+    },
+    "ISA": {
+     "count": 1289,
+     "hash": "98c88d952zg"
+    },
+    "JER": {
+     "count": 1298,
+     "hash": "ed5c732d307"
+    },
+    "BAR": {
+     "count": 141,
+     "hash": "5ef8e3f5bs"
+    },
+    "EJR": {
+     "count": 72,
+     "hash": "456702fd61"
+    },
+    "LAM": {
+     "count": 150,
+     "hash": "8029828dcj"
+    },
+    "EZK": {
+     "count": 1267,
+     "hash": "6210f0252xm"
+    },
+    "BEL": {
+     "count": 36,
+     "hash": "ffbade1d31"
+    },
+    "BELT": {
+     "count": 42,
+     "hash": "fdc0466d3j"
+    },
+    "DAN": {
+     "count": 412,
+     "hash": "c372f15dyd"
+    },
+    "DANT": {
+     "count": 424,
+     "hash": "df3bcbfdzd"
+    },
+    "SUS": {
+     "count": 37,
+     "hash": "9da842b534"
+    },
+    "SUST": {
+     "count": 64,
+     "hash": "c0cdd53d5d"
+    }
+   },
+   "rangesPositional": {
+    "GEN": {
+     "count": 1531,
+     "hash": "ece25b653jm"
+    },
+    "EXO": {
+     "count": 1165,
+     "hash": "a81803f52p4"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "4b19c6651zm"
+    },
+    "NUM": {
+     "count": 1287,
+     "hash": "8704a4852za"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "22ed584527y"
+    },
+    "JOS": {
+     "count": 659,
+     "hash": "75aefd251iy"
+    },
+    "JOSA": {
+     "count": 96,
+     "hash": "5619303d81"
+    },
+    "JDG": {
+     "count": 617,
+     "hash": "837450951fg"
+    },
+    "JDGA": {
+     "count": 618,
+     "hash": "07ef3c6d1fj"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "824d183574"
+    },
+    "1SA": {
+     "count": 773,
+     "hash": "09e541b51sg"
+    },
+    "2SA": {
+     "count": 696,
+     "hash": "bb9b117d1m1"
+    },
+    "1KI": {
+     "count": 825,
+     "hash": "66889b151ws"
+    },
+    "2KI": {
+     "count": 723,
+     "hash": "654ebf251oa"
+    },
+    "1CH": {
+     "count": 930,
+     "hash": "3adc20ad25j"
+    },
+    "2CH": {
+     "count": 833,
+     "hash": "815b03551xg"
+    },
+    "1ES": {
+     "count": 434,
+     "hash": "3d8fe22d107"
+    },
+    "2ES": {
+     "count": 672,
+     "hash": "d6af163d1k1"
+    },
+    "ESG": {
+     "count": 252,
+     "hash": "070c7a5dl1"
+    },
+    "JDT": {
+     "count": 340,
+     "hash": "a5a1c69dsd"
+    },
+    "TOB": {
+     "count": 248,
+     "hash": "ffd0577dkp"
+    },
+    "TOBS": {
+     "count": 232,
+     "hash": "e1c669fdjd"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "947ba15d251"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "961dcce51aa"
+    },
+    "3MA": {
+     "count": 228,
+     "hash": "8afde01dj1"
+    },
+    "4MA": {
+     "count": 479,
+     "hash": "c8c6794513y"
+    },
+    "PSA": {
+     "count": 2534,
+     "hash": "149d9a0d5v7"
+    },
+    "ODE": {
+     "count": 276,
+     "hash": "e119f09dn1"
+    },
+    "PRO": {
+     "count": 939,
+     "hash": "cfefd8e526a"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "d0d4fa4dij"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "515a31359s"
+    },
+    "JOB": {
+     "count": 1083,
+     "hash": "4081cd652ia"
+    },
+    "WIS": {
+     "count": 435,
+     "hash": "1e99162510a"
+    },
+    "SIR": {
+     "count": 1402,
+     "hash": "8a9c05ed38v"
+    },
+    "PSL": {
+     "count": 293,
+     "hash": "6d690ab5og"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "b7257fb5gg"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "4d17c0958s"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "8b22072dc7"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "b9d2b79564"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "98a6d7bd41"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "3bf766351s"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "4307f3c53y"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "76e7757d4p"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "2f417f354g"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "5b43500d37"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "3038af25hm"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "4355e6054m"
+    },
+    "ISA": {
+     "count": 1289,
+     "hash": "98c88d952zg"
+    },
+    "JER": {
+     "count": 1298,
+     "hash": "ed5c732d307"
+    },
+    "BAR": {
+     "count": 141,
+     "hash": "5ef8e3f5bs"
+    },
+    "EJR": {
+     "count": 72,
+     "hash": "456702fd61"
+    },
+    "LAM": {
+     "count": 150,
+     "hash": "8029828dcj"
+    },
+    "EZK": {
+     "count": 1267,
+     "hash": "6210f0252xm"
+    },
+    "BEL": {
+     "count": 36,
+     "hash": "ffbade1d31"
+    },
+    "BELT": {
+     "count": 42,
+     "hash": "fdc0466d3j"
+    },
+    "DAN": {
+     "count": 412,
+     "hash": "c372f15dyd"
+    },
+    "DANT": {
+     "count": 424,
+     "hash": "df3bcbfdzd"
+    },
+    "SUS": {
+     "count": 37,
+     "hash": "9da842b534"
+    },
+    "SUST": {
+     "count": 64,
+     "hash": "c0cdd53d5d"
+    }
+   },
+   "offsets": {
+    "GEN": {
+     "count": 1531,
+     "hash": "50a2d621che7"
+    },
+    "EXO": {
+     "count": 1165,
+     "hash": "5ed01ddd92hj"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "848096fd6jkd"
+    },
+    "NUM": {
+     "count": 1287,
+     "hash": "c8ed9f97a12f"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "010933f36u99"
+    },
+    "JOS": {
+     "count": 659,
+     "hash": "f3e334f14jbt"
+    },
+    "JOSA": {
+     "count": 96,
+     "hash": "89b16d1dlwl"
+    },
+    "JDG": {
+     "count": 617,
+     "hash": "8e7aae174b0h"
+    },
+    "JDGA": {
+     "count": 618,
+     "hash": "0e9b3c8d4ant"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "0a8b0f7bjhv"
+    },
+    "1SA": {
+     "count": 773,
+     "hash": "69665a675cap"
+    },
+    "2SA": {
+     "count": 696,
+     "hash": "3df2a68d4v3n"
+    },
+    "1KI": {
+     "count": 825,
+     "hash": "b123ea595za3"
+    },
+    "2KI": {
+     "count": 723,
+     "hash": "c180235352t5"
+    },
+    "1CH": {
+     "count": 930,
+     "hash": "f139cd497hdh"
+    },
+    "2CH": {
+     "count": 833,
+     "hash": "5a2c203360f3"
+    },
+    "1ES": {
+     "count": 434,
+     "hash": "36e7720b3kan"
+    },
+    "2ES": {
+     "count": 672,
+     "hash": "0d0181a74iat"
+    },
+    "ESG": {
+     "count": 252,
+     "hash": "f632c0711woz"
+    },
+    "JDT": {
+     "count": 340,
+     "hash": "3e1b87e72crv"
+    },
+    "TOB": {
+     "count": 248,
+     "hash": "3043be7b1xlh"
+    },
+    "TOBS": {
+     "count": 232,
+     "hash": "47cdf9191nnl"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "8559fa597dmz"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "265c464b3yf1"
+    },
+    "3MA": {
+     "count": 228,
+     "hash": "0e9373f71lip"
+    },
+    "4MA": {
+     "count": 479,
+     "hash": "60f810fd47rj"
+    },
+    "PSA": {
+     "count": 2534,
+     "hash": "2bf9f163ny0z"
+    },
+    "ODE": {
+     "count": 276,
+     "hash": "ce02646727bz"
+    },
+    "PRO": {
+     "count": 939,
+     "hash": "430cc5118nm5"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "acc74ff91xlr"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "fcf8ffe71005"
+    },
+    "JOB": {
+     "count": 1083,
+     "hash": "1477e32d9d95"
+    },
+    "WIS": {
+     "count": 435,
+     "hash": "243ecb3b3urh"
+    },
+    "SIR": {
+     "count": 1402,
+     "hash": "7fb0eba9bzlr"
+    },
+    "PSL": {
+     "count": 293,
+     "hash": "537a045331hd"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "c9f0e60b1mqd"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "3b93c35dpu7"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "91be16c713kh"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "ad4f4b6dkct"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "3ca1b789cbh"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "d6b8605b58h"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "1f8e35a7cab"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "6ff38703fzv"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "5fa04bbbdnt"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "048f3dd1agx"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "d7c49df91jkz"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "3983477bdlv"
+    },
+    "ISA": {
+     "count": 1289,
+     "hash": "9c6230a59q4b"
+    },
+    "JER": {
+     "count": 1298,
+     "hash": "5614e8339jqf"
+    },
+    "BAR": {
+     "count": 141,
+     "hash": "53d1cea315i3"
+    },
+    "EJR": {
+     "count": 72,
+     "hash": "4e51e227m7r"
+    },
+    "LAM": {
+     "count": 150,
+     "hash": "2168f4db1151"
+    },
+    "EZK": {
+     "count": 1267,
+     "hash": "73cb4e019jiv"
+    },
+    "BEL": {
+     "count": 36,
+     "hash": "f20cd7b18jz"
+    },
+    "BELT": {
+     "count": 42,
+     "hash": "c779a329ctx"
+    },
+    "DAN": {
+     "count": 412,
+     "hash": "1bd29bdf303x"
+    },
+    "DANT": {
+     "count": 424,
+     "hash": "1e4e4b5b34sj"
+    },
+    "SUS": {
+     "count": 37,
+     "hash": "41b58567b3x"
+    },
+    "SUST": {
+     "count": 64,
+     "hash": "90c091e7kf7"
+    }
+   }
+  },
+  "strip:lxx": {
+   "lxx_supply": {
+    "GEN": {
+     "count": 1531,
+     "hash": "ce2152f92d3"
+    },
+    "EXO": {
+     "count": 1165,
+     "hash": "ae0390991sr"
+    },
+    "LEV": {
+     "count": 859,
+     "hash": "97e624f91br"
+    },
+    "NUM": {
+     "count": 1287,
+     "hash": "34a8a1b91zj"
+    },
+    "DEU": {
+     "count": 959,
+     "hash": "ca6968391hb"
+    },
+    "JOS": {
+     "count": 659,
+     "hash": "de91537910n"
+    },
+    "JOSA": {
+     "count": 96,
+     "hash": "8774913d5d"
+    },
+    "JDG": {
+     "count": 617,
+     "hash": "1c778559yb"
+    },
+    "JDGA": {
+     "count": 618,
+     "hash": "996d675dyd"
+    },
+    "RUT": {
+     "count": 85,
+     "hash": "40f52a194r"
+    },
+    "1SA": {
+     "count": 773,
+     "hash": "9f5fe31916z"
+    },
+    "2SA": {
+     "count": 696,
+     "hash": "a57029bd12p"
+    },
+    "1KI": {
+     "count": 825,
+     "hash": "ef08145919v"
+    },
+    "2KI": {
+     "count": 723,
+     "hash": "dbbc3f79147"
+    },
+    "1CH": {
+     "count": 930,
+     "hash": "8ffbf1dd1fp"
+    },
+    "2CH": {
+     "count": 833,
+     "hash": "866d29d91ab"
+    },
+    "1ES": {
+     "count": 434,
+     "hash": "7c4454ddo5"
+    },
+    "2ES": {
+     "count": 672,
+     "hash": "a4223d3d11d"
+    },
+    "ESG": {
+     "count": 252,
+     "hash": "ac6a7cfde1"
+    },
+    "JDT": {
+     "count": 340,
+     "hash": "3655a57dix"
+    },
+    "TOB": {
+     "count": 248,
+     "hash": "aefa15bddt"
+    },
+    "TOBS": {
+     "count": 232,
+     "hash": "98bec2bdcx"
+    },
+    "1MA": {
+     "count": 924,
+     "hash": "89925afd1fd"
+    },
+    "2MA": {
+     "count": 555,
+     "hash": "7fbdc3f9uv"
+    },
+    "3MA": {
+     "count": 228,
+     "hash": "1382807dcp"
+    },
+    "4MA": {
+     "count": 479,
+     "hash": "cb18be39qn"
+    },
+    "PSA": {
+     "count": 2534,
+     "hash": "e577c11d3wt"
+    },
+    "ODE": {
+     "count": 276,
+     "hash": "af52d97dfd"
+    },
+    "PRO": {
+     "count": 939,
+     "hash": "395d4bf91g7"
+    },
+    "ECC": {
+     "count": 222,
+     "hash": "9c530f9dcd"
+    },
+    "SNG": {
+     "count": 117,
+     "hash": "039d00196j"
+    },
+    "JOB": {
+     "count": 1083,
+     "hash": "b8f3def91o7"
+    },
+    "WIS": {
+     "count": 435,
+     "hash": "58081979o7"
+    },
+    "SIR": {
+     "count": 1402,
+     "hash": "c45b7a5d25x"
+    },
+    "PSL": {
+     "count": 293,
+     "hash": "d02b5919gb"
+    },
+    "HOS": {
+     "count": 197,
+     "hash": "0702d719az"
+    },
+    "MIC": {
+     "count": 105,
+     "hash": "1cae25595v"
+    },
+    "AMO": {
+     "count": 146,
+     "hash": "01081edd85"
+    },
+    "JOL": {
+     "count": 73,
+     "hash": "d3248f5943"
+    },
+    "JON": {
+     "count": 48,
+     "hash": "28c7d83d2p"
+    },
+    "OBA": {
+     "count": 21,
+     "hash": "9ff77e1917"
+    },
+    "NAM": {
+     "count": 47,
+     "hash": "d2ae65392n"
+    },
+    "HAB": {
+     "count": 56,
+     "hash": "1f5d31bd35"
+    },
+    "ZEP": {
+     "count": 53,
+     "hash": "871354192z"
+    },
+    "HAG": {
+     "count": 38,
+     "hash": "23fb6d1d25"
+    },
+    "ZEC": {
+     "count": 211,
+     "hash": "5f04df79br"
+    },
+    "MAL": {
+     "count": 55,
+     "hash": "ce8ec2b933"
+    },
+    "ISA": {
+     "count": 1289,
+     "hash": "4f8ad3591zn"
+    },
+    "JER": {
+     "count": 1298,
+     "hash": "d9fcf6dd205"
+    },
+    "BAR": {
+     "count": 141,
+     "hash": "b818d0997v"
+    },
+    "EJR": {
+     "count": 72,
+     "hash": "a97c04bd41"
+    },
+    "LAM": {
+     "count": 150,
+     "hash": "472de21d8d"
+    },
+    "EZK": {
+     "count": 1267,
+     "hash": "390215791yf"
+    },
+    "BEL": {
+     "count": 36,
+     "hash": "70901c7d21"
+    },
+    "BELT": {
+     "count": 42,
+     "hash": "1d35fb5d2d"
+    },
+    "DAN": {
+     "count": 412,
+     "hash": "c403fafdmx"
+    },
+    "DANT": {
+     "count": 424,
+     "hash": "da31a6bdnl"
+    },
+    "SUS": {
+     "count": 37,
+     "hash": "b08ca91923"
+    },
+    "SUST": {
+     "count": 64,
+     "hash": "633beb3d3l"
+    }
+   }
+  },
+  "strip:enoch": {
+   "enoch_supply": {
+    "ENO": {
+     "count": 1063,
+     "hash": "d6aec9111cy2"
+    }
+   },
+   "enoch_uncertain": {
+    "ENO": {
+     "count": 1063,
+     "hash": "a57b2636p2l"
+    }
+   },
+   "enoch_restored": {
+    "ENO": {
+     "count": 1063,
+     "hash": "6eb805ca8g6"
+    }
+   },
+   "enoch_supply+enoch_uncertain+enoch_restored": {
+    "ENO": {
+     "count": 1063,
+     "hash": "2f76ec381xkj"
+    }
+   }
+  },
+  "strip:jubilees": {
+   "jubilees_date": {
+    "JUB": {
+     "count": 1305,
+     "hash": "109859c91blg"
+    }
+   },
+   "jubilees_bracket": {
+    "JUB": {
+     "count": 1305,
+     "hash": "2b08b40et6e"
+    }
+   },
+   "jubilees_restored": {
+    "JUB": {
+     "count": 1305,
+     "hash": "abd574c1fag"
+    }
+   },
+   "jubilees_stanza": {
+    "JUB": {
+     "count": 1305,
+     "hash": "8a1014628ht"
+    }
+   },
+   "jubilees_supply": {
+    "JUB": {
+     "count": 1305,
+     "hash": "9f07c93b2e0h"
+    }
+   },
+   "jubilees_date+jubilees_bracket+jubilees_restored+jubilees_stanza+jubilees_supply": {
+    "JUB": {
+     "count": 1305,
+     "hash": "38d2b9c93stv"
+    }
+   }
+  }
+ },
+ "tokenCases": [
+  {
+   "tagged": "",
+   "tokens": [],
+   "ranges": []
+  },
+  {
+   "tagged": " ",
+   "tokens": [],
+   "ranges": []
+  },
+  {
+   "tagged": "In{} the{} beginning{H7225}",
+   "tokens": [
+    {
+     "word": "In",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "the",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "beginning",
+     "strongsNum": "H7225",
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "~{H853} *the{} !word{G1063}",
+   "tokens": [
+    {
+     "word": "",
+     "strongsNum": "H853",
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": true,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "the",
+     "strongsNum": null,
+     "isItalic": true,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "word",
+     "strongsNum": "G1063",
+     "isItalic": false,
+     "isRedLetter": true,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": [
+    {
+     "start": 3,
+     "end": 6,
+     "isRedLetter": false,
+     "isItalic": true
+    },
+    {
+     "start": 8,
+     "end": 12,
+     "isRedLetter": true,
+     "isItalic": false
+    }
+   ]
+  },
+  {
+   "tagged": "divided{H914|H996} x{|}",
+   "tokens": [
+    {
+     "word": "divided",
+     "strongsNum": [
+      "H914",
+      "H996"
+     ],
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "x",
+     "strongsNum": [
+      "",
+      ""
+     ],
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "sup>({} /sup>{G1} sup>){} /sup>{}",
+   "tokens": [
+    {
+     "word": "(",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": true
+    },
+    {
+     "word": "",
+     "strongsNum": "G1",
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": ")",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": true
+    },
+    {
+     "word": "",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "blu>To{} /blu>Rome.{}",
+   "tokens": [
+    {
+     "word": "To",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "Rome.",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "<b>Psalm{} b>1{}</b>",
+   "tokens": [
+    {
+     "word": "Psalm",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "1",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "no-brace",
+   "tokens": [
+    {
+     "word": "no-brace",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "brace{open",
+   "tokens": [
+    {
+     "word": "brace{open",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "{H1}",
+   "tokens": [
+    {
+     "word": "",
+     "strongsNum": "H1",
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "!*both{G2}",
+   "tokens": [
+    {
+     "word": "both",
+     "strongsNum": "G2",
+     "isItalic": true,
+     "isRedLetter": true,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": [
+    {
+     "start": 2,
+     "end": 6,
+     "isRedLetter": true,
+     "isItalic": true
+    }
+   ]
+  },
+  {
+   "tagged": "*!order{G3}",
+   "tokens": [
+    {
+     "word": "!order",
+     "strongsNum": "G3",
+     "isItalic": true,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": [
+    {
+     "start": 1,
+     "end": 7,
+     "isRedLetter": false,
+     "isItalic": true
+    }
+   ]
+  },
+  {
+   "tagged": "a{ H1 }",
+   "tokens": [
+    {
+     "word": "a{",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "H1",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "}",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "sup>[x]{}",
+   "tokens": [
+    {
+     "word": "[x]",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "SUP>({}",
+   "tokens": [
+    {
+     "word": "(",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": true
+    }
+   ],
+   "ranges": []
+  },
+  {
+   "tagged": "x{}  y{}",
+   "tokens": [
+    {
+     "word": "x",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    },
+    {
+     "word": "y",
+     "strongsNum": null,
+     "isItalic": false,
+     "isRedLetter": false,
+     "isParenthetical": false,
+     "isStrongsBracket": false
+    }
+   ],
+   "ranges": []
+  }
+ ],
+ "offsets": [
+  {
+   "display": "In the beginning",
+   "original": "In the beginning",
+   "toOriginal": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    16,
+    16
+   ],
+   "toDisplay": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    16,
+    16
+   ]
+  },
+  {
+   "display": "the void",
+   "original": "the void,",
+   "toOriginal": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    9,
+    9
+   ],
+   "toDisplay": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    6,
+    7,
+    8,
+    8,
+    8
+   ]
+  },
+  {
+   "display": "Lamb’s book",
+   "original": "Lamb's  book ",
+   "toOriginal": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    9,
+    10,
+    11,
+    12,
+    12,
+    12
+   ],
+   "toDisplay": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    7,
+    8,
+    9,
+    10,
+    11,
+    11,
+    11,
+    11
+   ]
+  },
+  {
+   "display": "Yehovah said",
+   "original": "the LORD said",
+   "toOriginal": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    13,
+    13
+   ],
+   "toDisplay": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    12,
+    12
+   ]
+  },
+  {
+   "display": "and God said",
+   "original": "and [then] God said",
+   "toOriginal": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    19,
+    19
+   ],
+   "toDisplay": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    3,
+    3,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    12,
+    12
+   ]
+  },
+  {
+   "display": "",
+   "original": "abc",
+   "toOriginal": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "toDisplay": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  {
+   "display": "abc",
+   "original": "",
+   "toOriginal": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "toDisplay": [
+    0,
+    0,
+    0,
+    3
+   ]
+  },
+  {
+   "display": "a b c d",
+   "original": "a x c d e",
+   "toOriginal": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    7,
+    7
+   ],
+   "toDisplay": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    7,
+    7,
+    7,
+    7
+   ]
+  },
+  {
+   "display": "“Hi” there",
+   "original": "\"Hi\" there",
+   "toOriginal": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    10,
+    10
+   ],
+   "toDisplay": [
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    10,
+    10
+   ]
+  }
+ ],
+ "stripCases": [
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "lxx",
+   "hidden": [
+    "lxx_supply"
+   ],
+   "result": "and Lord (said) 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply"
+   ],
+   "result": "and [the] Lord 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_uncertain"
+   ],
+   "result": "and Lord (said) 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_restored"
+   ],
+   "result": "and [the] Lord (said)"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply",
+    "enoch_uncertain",
+    "enoch_restored"
+   ],
+   "result": "and Lord"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date"
+   ],
+   "result": "and [the] Lord (said) 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_bracket"
+   ],
+   "result": "and Lord (said) 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_restored"
+   ],
+   "result": "and [the] Lord (said) 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_stanza"
+   ],
+   "result": "and [the] Lord (said) 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_supply"
+   ],
+   "result": "and [the] Lord 〈it〉"
+  },
+  {
+   "text": "and [the] Lord (said) 〈it〉",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date",
+    "jubilees_bracket",
+    "jubilees_restored",
+    "jubilees_stanza",
+    "jubilees_supply"
+   ],
+   "result": "and Lord 〈it〉"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "lxx",
+   "hidden": [
+    "lxx_supply"
+   ],
+   "result": "In the year <restored> (b) (supplied) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply"
+   ],
+   "result": "In [1307 A.M.] the year [of] <restored> word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_uncertain"
+   ],
+   "result": "In the year <restored> (b) (supplied) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_restored"
+   ],
+   "result": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply",
+    "enoch_uncertain",
+    "enoch_restored"
+   ],
+   "result": "In the year <restored> word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date"
+   ],
+   "result": "In the year [of] <restored> (b) (supplied) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_bracket"
+   ],
+   "result": "In [1307 A.M.] the year <restored> (b) (supplied) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_restored"
+   ],
+   "result": "In [1307 A.M.] the year [of] (b) (supplied) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_stanza"
+   ],
+   "result": "In [1307 A.M.] the year [of] <restored> (supplied) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_supply"
+   ],
+   "result": "In [1307 A.M.] the year [of] <restored> (b) word"
+  },
+  {
+   "text": "In [1307 A.M.] the year [of] <restored> (b) (supplied) word",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date",
+    "jubilees_bracket",
+    "jubilees_restored",
+    "jubilees_stanza",
+    "jubilees_supply"
+   ],
+   "result": "In the year word"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "lxx",
+   "hidden": [
+    "lxx_supply"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_uncertain"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_restored"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply",
+    "enoch_uncertain",
+    "enoch_restored"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_bracket"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_restored"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_stanza"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_supply"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "x , , y ;  z",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date",
+    "jubilees_bracket",
+    "jubilees_restored",
+    "jubilees_stanza",
+    "jubilees_supply"
+   ],
+   "result": "x, y; z"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "lxx",
+   "hidden": [
+    "lxx_supply"
+   ],
+   "result": "text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply"
+   ],
+   "result": "[1307-1320 Anno Mundi] text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_uncertain"
+   ],
+   "result": "text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_restored"
+   ],
+   "result": "[1307-1320 Anno Mundi] text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "enoch",
+   "hidden": [
+    "enoch_supply",
+    "enoch_uncertain",
+    "enoch_restored"
+   ],
+   "result": "text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date"
+   ],
+   "result": "text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_bracket"
+   ],
+   "result": "[1307-1320 Anno Mundi] text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_restored"
+   ],
+   "result": "[1307-1320 Anno Mundi] text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_stanza"
+   ],
+   "result": "[1307-1320 Anno Mundi] text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_supply"
+   ],
+   "result": "[1307-1320 Anno Mundi] text"
+  },
+  {
+   "text": "[1307-1320 Anno Mundi] text",
+   "textId": "jubilees",
+   "hidden": [
+    "jubilees_date",
+    "jubilees_bracket",
+    "jubilees_restored",
+    "jubilees_stanza",
+    "jubilees_supply"
+   ],
+   "result": "text"
+  }
+ ]
+}

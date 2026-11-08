@@ -24,6 +24,9 @@ import {
 } from '../../src/platform/sync/journal'
 import { compareOrder, isValidOrderKey, keyBetween, keysAfter } from '../../src/platform/sync/fractional'
 import type { SyncOp } from '../../src/platform/sync/types'
+import * as ref from '../../src/lib/parseRef'
+import { normalizeStrongsId, parseStrongsIds } from '../../src/lib/research/strongsId'
+import { findReferencesInText } from '../../src/lib/research/references'
 
 export const GOLDEN_FORMAT = 1
 const ROOT = resolve(__dirname, '../..')
@@ -35,6 +38,8 @@ const SOURCES: Record<string, string[]> = {
   hlc: ['src/platform/sync/hlc.ts'],
   journal: ['src/platform/sync/journal.ts', 'src/platform/sync/types.ts'],
   fractional: ['src/platform/sync/fractional.ts'],
+  reference: ['src/lib/parseRef.ts', 'src/lib/hermasMap.ts', 'src/lib/chapterNumbering.ts'],
+  strongs: ['src/lib/research/strongsId.ts', 'src/lib/research/references.ts'],
 }
 
 function sourceHashes(name: string): Record<string, string> {
@@ -329,8 +334,130 @@ function fractional(): GoldenFile {
   return file('fractional', { between, walk, after, valid, compare })
 }
 
+function reference(): GoldenFile {
+  const r = mulberry32(0x7ef)
+  const calls: Array<{ fn: string; args: unknown[]; hermas?: string; out: unknown }> = []
+  const HERMAS = ['hermas', 'hermas_taylor']
+  const call = (fn: string, args: unknown[], hermas?: string) => {
+    if (hermas) ref.setHermasTextId(hermas)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const out = norm((ref as any)[fn](...args) ?? null)
+    if (hermas) ref.setHermasTextId('hermas')
+    calls.push({ fn, args, ...(hermas ? { hermas } : {}), out })
+  }
+  const books = ref.ALL_BOOKS
+  const misspell = (w: string): string[] => {
+    const out: string[] = []
+    if (w.length > 4) {
+      const i = 1 + int(r, w.length - 2)
+      out.push(w.slice(0, i) + w.slice(i + 1))                       // drop
+      out.push(w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2))      // swap
+      out.push(w.slice(0, i) + w[i] + w.slice(i))                     // double
+      out.push(w.slice(0, i) + 'x' + w.slice(i + 1))                  // substitute
+    }
+    return out
+  }
+
+  // Book tokens: every pattern and name, case variants, prefixes, misspellings, junk.
+  const tokens = new Set<string>(['', ' ', 'a', 'jo', 'j', 'to', 'II Kings', 'III John', 'I Sam', 'i samuel', 'iii jn', 'iv kings',
+    'song of solomon 1', 'vsdeuteronomy', 'Genesys', 'Corinthans', '1 Corinthans', 'Deuteronmy', 'Philipians', 'Revelaton', 'Room', 'Gen.', 'Ge n', 'GEN', 'gEnEsIs', 'Ἰησοῦς', 'בראשית', 'Ps', 'Pss', 'man', 'Hermas', 'recognitions'])
+  for (const b of books) {
+    tokens.add(b.name); tokens.add(b.name.toUpperCase()); tokens.add(b.name.toLowerCase()); tokens.add(` ${b.name}  `)
+    for (const p of b.patterns) tokens.add(p)
+    const ns = b.name.toLowerCase().replace(/\s+/g, '')
+    for (let k = 2; k < Math.min(ns.length, 6); k++) tokens.add(ns.slice(0, k))
+    for (const m of misspell(b.name.toLowerCase())) tokens.add(m)
+  }
+  for (let i = 0; i < 60; i++) tokens.add(randomString(r))
+  for (const t of tokens) { call('resolveBookToken', [t]); call('isExactBookToken', [t]) }
+
+  // parseRef inputs.
+  const inputs = new Set<string>()
+  const forms = ['# 1', '# 1:1', '#1:1', '#. 2:3', '# 3:4-5', '# 3:4–6', '# 2-3', '# 1:2-3:4', '# 1:2,4,6-8', '# 1 2', '# 1:1 LXX', '# 1:1 lxx',
+    '# 999', '# 1:201', '# Chapter 2', '#, 3:1', '# 0', '# 1:0', '# 1.5', '# 2 : 3', '# 1:2, 5', '# 1:2,x', '# 1:3,250', '  #   4:5  ', '# 1:2 - 3', '# 1:1 LXXX']
+  for (const b of books) {
+    for (const f of forms) inputs.add(f.replace('#', b.name))
+    // Boundaries: verse cap (200) and each book's chapter cap.
+    for (const f of ['# 1:200', '# 1:3-200', '# 1:2,200', '# 1:2,201', '# 1:199-201']) inputs.add(f.replace('#', b.name))
+    const max = ref.maxChapterFor(b.id)
+    if (max !== undefined) for (const c of [max, max + 1]) { inputs.add(`${b.name} ${c}`); inputs.add(`${b.name} ${c}:1`); inputs.add(`${b.name} 1-${c}`) }
+    for (const p of b.patterns) inputs.add(`${p} 1:1`)
+    inputs.add(`${pick(r, b.patterns)} ${1 + int(r, 30)}:${1 + int(r, 40)}`)
+    inputs.add(`${b.name.toUpperCase()} 1`)
+  }
+  for (const s of ['', '   ', 'Gen', '1:1', 'Gen 1:1:1', 'John3:16', 'jn 3 16', '1 sam 2 3', 'gen 1 1', 'james 1 15', 'song of solomon 1 1',
+    'Isa. 53:5', 'Gen. 1:1', '1 Cor. 13:4', 'Rec. Clem. IV 35', 'Recognitions 4:35', 'Recognitions of Clement 4:35', 'RCL 4:35', 'RCL 4 25:1',
+    'rcl x 3', 'rcl 11 3', 'rcl 4', 'Recognitions, Book 10 41:8', 'Recognitions of Clement, Book 10, Chapter 41:8', 'Recognitions, Book 3, Chapter 12',
+    'Recognitions, Book 3 5', 'Recognitions, Book 3 12:1', 'Recognitions, Book 3 76', 'Recognitions, Book 11 1', 'RCL3 12', 'RCL3 2', 'Hermas Vision 2 3:1',
+    'Shepherd of Hermas, Mandate 4', 'Hermas Similitude 9', 'Shepherd of Hermas, Vision 2.1:2', 'her vis 3', 'Hermas, Visions 5:2', 'Hermas, Similitudes, 35:1',
+    'Hermas Mandate 5 2', 'Hermas Mandate 13', 'Hermas Vision 3.14', 'Hosea 13-14', 'Isaiah 63:17-64:3', 'Deuteronomy 32:3-4,6', 'Deuteronomy 32:3,6,9-13,23,25',
+    'Deut 32:3,6 and then', 'is 99', 'is 5', 'am 3', 'Psalm 119:176', 'Psalm 151', 'Ps 23', 'Pss 3', 'II Kings 2:1', 'III John 1:2', 'I Sam 3',
+    'Genesys 1:1', 'Revelaton 22:21', 'Room 5', 'Isaiah 66:3 LXX', 'Gen\t1:1', 'Gen 1:1', 'Gen 1:1', 'Gen 1:1\n', 'Ｇｅｎ 1:1', 'Gen ١:١',
+    'Gen 1-', 'Gen 1:', 'Exod 20:1–17', 'Exod 20:1—17', 'Didache 1:1', 'Jude 1:3', 'Obadiah 1', 'Obadiah 2', '1Jn 1:9', '1 jo 1:9', '3 John 1:4'])
+    inputs.add(s)
+  for (let i = 0; i < 150; i++) inputs.add(`${pick(r, [...tokens])} ${int(r, 200)}${r() < 0.6 ? `:${int(r, 210)}` : ''}${r() < 0.2 ? `-${int(r, 50)}` : ''}`)
+  for (const s of inputs) {
+    call('parseRef', [s])
+    if (/her|shep/i.test(s)) call('parseRef', [s], 'hermas_taylor')
+  }
+
+  // Canonical conversions.
+  const canon = ['GEN.1.1', 'GEN.1.0', 'GEN.1', 'GEN', 'XYZ.1.1', 'RCL3.2.1', 'RCL3.1.1', 'HER_VIS.5.2', 'PSA.119.176', '1CO.13.4', 'gen.1.1', 'GEN.x.1', 'GEN.1.x', 'GEN..1', '.1.1', 'DID.1.1', 'GEN.1.1.1']
+  for (const s of [...inputs].slice(0, 400).concat(['GEN.1.1', 'Gen 1.1', 'gen.1.1', 'Genesis 1:1', 'Hosea 13-14', 'Gen 1:2-3'])) call('toCanonical', [s])
+  for (const c of canon) for (const fn of ['toFilename', 'toUIDisplay', 'toWikilink', 'toRelatedVerse', 'parseCanonical']) call(fn, [c])
+  for (const [b, c, v] of [['GEN', 1, 1], ['GEN', 1, undefined], ['RCL3', 2, 0]] as const) call('createCanonical', v === undefined ? [b, c] : [b, c, v])
+
+  // Labels.
+  for (const b of books) {
+    call('bookName', [b.id]); call('bookOrder', [b.id]); call('maxChapterFor', [b.id])
+    for (const ch of [1, 2, 3, 12, 25, 65]) {
+      for (const h of HERMAS) {
+        if (h === 'hermas_taylor' && !b.id.startsWith('HER_')) continue
+        call('bookChapterVerseLabel', [b.id, ch], h); call('bookChapterVerseLabel', [b.id, ch, 7], h)
+      }
+      call('bookChapterHoverLabel', [b.id, ch]); call('bookChapterLabel', [b.id, ch])
+    }
+    for (const h of HERMAS) call('getTranslationForBook', [b.id], h)
+  }
+  for (const id of ['XYZ', '', 'gen']) { call('bookName', [id]); call('bookOrder', [id]); call('bookChapterVerseLabel', [id, 3, 4]) }
+  for (const n of ['I Samuel', 'II Kings', 'III John', 'IV Maccabees', 'Revelation of John', 'Revelation of John 2', 'Recognitions of Clement — Book VII', 'Book XVI', 'Book IV and Book V', 'I', 'Isaiah', 'IIKings', ''])
+    call('normalizeBookName', [n])
+  for (const [n, id] of [['I John', '1JN'], ['3MA', '3MA'], ['', 'GEN'], ['  ', 'XYZ'], ['Genesis', undefined], ['ii maccabees', '2MA']] as const) call('displayBookName', id === undefined ? [n] : [n, id])
+  for (const d of ['PRO.30.26', 'RCL3.2.1', 'HER_VIS.9', 'GEN', 'GEN.x', 'GEN.1.x', 'XYZ.1.2']) for (const h of HERMAS) call('formatDottedVerseRef', [d], h)
+  for (const [v, t] of [['DEU.29.3', 'kjva'], ['DEU.29.3', 'LXX'], ['DEU.29.3-5', undefined], ['DEU.29.3-3', undefined], ['GEN.1.1,GEN.1.3', 'lxx'], ['', undefined], ['garbage', undefined], [' GEN.1 , EXO.2.3 ', null]] as const)
+    call('verseRefDisplay', t === undefined ? [v] : [v, t])
+  for (const t of ['enoch', 'ENOCH', 'hermas_taylor', 'kjv', 'lxx', 'didache_hoole', '']) call('isDedicatedTranslation', [t])
+  for (const s of ['H7225', 'g3056', ' G1 ', 'H123456', 'X1', 'H', 'h0']) call('isStrongsRef', [s])
+  for (const s of ['in the beginning', "Yehovah's word", 'a b c', '  ', 'AND OR NOT "quoted" (x)', 'é ü', 'H7225*']) call('safeFtsQuery', [s])
+  return file('reference', { calls })
+}
+
+function strongs(): GoldenFile {
+  const r = mulberry32(0x57a0)
+  const texts = [
+    '', 'G5485', 'g5485', 'G-5485', 'G 5485', 'H02617', 'G–25', 'G‐25', 'G‑25', 'G‒25', 'G—25', 'G 5485', 'G  5485', 'G - 5485',
+    '5G', 'H2O2', 'AG5485', 'G548501', 'G54850', 'G0', 'G00', 'G000123', 'H7225a', 'H7225ab', 'H7225A', 'H1234567', 'G5485 and H2617 and g5485',
+    'grace (G5485) mercy (H2617).', 'éG12', 'G12é', '١G12', 'G12٣', '😀G12😀', 'xG12', '_G12', 'G12_', 'H 1', 'H​1', 'h 0001b',
+    'What does G26 mean vs H157?', 'G1 G2 G3 G1 g2', 'G\t\t5', 'G- 5', 'Strong\'s G26', 'G\n26', 'H8674', 'H8675',
+  ]
+  for (let i = 0; i < 150; i++) {
+    const parts = Array.from({ length: 1 + int(r, 4) }, () => pick(r, ['G', 'H', 'g', 'h', 'x', ' ', '-', '–', '0', '00', `${int(r, 99999)}`, 'a', 'é', '😀', ' ', '1234567', '(', ')']))
+    texts.push(parts.join(''))
+  }
+  const cases = texts.map((text) => ({ text, ids: norm(parseStrongsIds(text)), normalized: normalizeStrongsId(text) }))
+  const refTexts = [
+    'what does john 1:1 quote', 'Compare Gen 1:1 with John 1:1-3, then 1 John 1:5.', 'see 2 Kings 2:11 and II Kings 2:12', 'In Isaiah 53:5 (KJV)',
+    'Psalm 23 and psalm 23', 'is 5 the answer?', 'Song of Solomon 2:1', 'song of songs 1:2!', 'Rev 22:21;', '  leading space Gen 3:15', 'Gen 1:1 Gen 1:1',
+    'jude 3', 'Obadiah 1:4', '1 Cor 13:4 and I Cor 13:5', 'third John 1:2', 'III John 1:4', 'Matt. 5:17-19', 'Matthew 5:17–19', 'Exodus 20:8-11 Deut 5:12',
+    'Hebrews 4:9 vs Heb. 4:10', 'Enoch 1:9 and Jubilees 2:1', 'The year 2026 had 12 months', 'Gen 999:1', 'Recognitions 4:35', '', 'Gen 1:1',
+  ]
+  for (let i = 0; i < 60; i++) refTexts.push(Array.from({ length: 3 + int(r, 8) }, () => pick(r, ['Gen', 'john', '1', '2', 'I', 'Kings', 'of', 'song', 'Solomon', 'is', `${1 + int(r, 30)}:${1 + int(r, 30)}`, `${1 + int(r, 30)}`, 'and', 'Ps', '(Rom', '8:28)', 'Heb.', 'Rev'])).join(' '))
+  const references = refTexts.map((text) => ({ text, refs: norm(findReferencesInText(text)) }))
+  return file('strongs', { cases, references })
+}
+
 export function buildGoldenCorpus(): GoldenFile[] {
-  return [coreJson(), syncHash(), hlc(), journal(), fractional()]
+  return [coreJson(), syncHash(), hlc(), journal(), fractional(), reference(), strongs()]
 }
 
 /** Canonical on-disk text (stable across runs; `JSON.stringify` escapes unpaired surrogates). */

@@ -4,7 +4,7 @@
 > session that wrote it; re-verify against live Git before relying on it after a gap.
 
 ## Snapshot
-- Updated at: 2026-11-07 17:50 PST
+- Updated at: 2026-11-07 18:45 PST
 - Master specification: `/Users/roywe/Downloads/Berean Native Migration Master Specification.docx`
   (51,616 bytes, 2026-11-05 14:19, sha256 prefix `be647ccd4c941d69`). Text copy committed as
   `docs/native-migration/MASTER-SPECIFICATION.md` (161 paragraphs, read in full).
@@ -14,8 +14,8 @@
 - Legacy suite on this branch: `npx vitest run` → 390 files, 5,771 tests passed (2026-11-07)
 - Native Mac boot: VERIFIED — `npm run native:build:mac`, app launched, window "Berean" rendered the core view
   (record hash `c33dc73245`, identical to TypeScript `hashFields` for the same fields)
-- Native iPhone: BUILDS for the iOS Simulator (`npm run native:build:ios`); simulator launch not yet exercised
-- Active milestone: M1 (project, CI, compatibility oracle) — first PR open
+- Native iPhone: builds and launches in the iOS Simulator (iPhone 17 Pro), shows the core view and a live reference parser
+- Active milestone: M2 (pure core + read-only data) — PR #15 open; M1 slice merged (PR #14, `ce37379`)
 - Last accepted gate: none formally accepted (G0 evidence below; G1 pending CI)
 
 ## Current task
