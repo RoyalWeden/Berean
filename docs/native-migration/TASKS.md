@@ -7,7 +7,7 @@
 | ID | Task | Depends on | Status | Required evidence / milestone gate |
 |---|---|---|---|---|
 | M0-01 | Verify current Git/CI baseline and old apps | M-1 gate | VERIFIED | main `ceaaa73` CI success (2026-11-05); `npx vitest run` 390 files / 5,771 tests on the native branch (2026-11-07). Legacy Mac launch + iOS simulator not re-run this session (unchanged code). |
-| M0-02 | Complete approved archive/worktree consolidation | M-1 gate | IN_PROGRESS | Group A + B removed after line-level integration check and bundle backup; Octarine branch accounted for (DECISIONS F-02, kept). Remaining: REPORT.md archive (PR #13) → remove `Berean-ai-bench`, `git branch -d eval/ai-benchmark`. |
+| M0-02 | Complete approved archive/worktree consolidation | M-1 gate | VERIFIED | Groups A + B and Berean-ai-bench removed after verified backups; PR #13 merged (`a4e3d74`); Octarine and agent branches kept (F-02 / unmerged). |
 | M0-03 | Protect backups and investigate build-directory cleanup | M-1 gate | VERIFIED | Backups listed in STATUS G0; dev-builds disappearance evidence in DECISIONS F-03; mitigation ADR-0004 (`build/apple/`). |
 | M1-01 | Native app targets and local Swift package | M0 gate or independently safe | IMPLEMENTED_UNVERIFIED | `apple/Berean.xcodeproj` BereanMac + BereanIOS linking `Packages/BereanKit`; Mac launch verified locally; awaiting CI `native` job. Share/Widget targets later (M8-06). |
 | M1-02 | Swift CI/identity safety | M0 gate or independently safe | IN_PROGRESS | Swift 6 language mode + complete strict concurrency; CI job `native`; identity check in `scripts/native/build.sh`. iOS Simulator launch smoke done 2026-11-07. TODO: shared schemes, `swift format lint`. |
