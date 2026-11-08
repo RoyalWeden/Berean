@@ -186,6 +186,6 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 | UI-10 | Consolidated texts (one KJV, one LXX) + lxx→Brenton mapping fix | DONE | CHANGELOG 13:30 |
 | UI-11 | Continuous cross-verse selection + copy formats | DONE (Mac) | Lev 8:2-4 copy verified; iPhone TODO |
 | UI-12 | Rich-text note editor (no visible Markdown), Copy as Plain Text | TODO | next |
-| UI-13 | Physical iPhone workflow | TODO | |
-| UI-14 | iPhone navigation simplification + Plus fix + Workspaces wording | TODO | |
+| UI-13 | Physical iPhone workflow | DONE | npm run native:ios:device; installed + launched on iPhone 16e |
+| UI-14 | iPhone navigation simplification + Plus fix + Workspaces wording | DONE (first pass) | ADR-0013; real-tap verified in Simulator |
 | UI-15 | Storage unification of sessions/workspaces | DEFERRED | until legacy clients retire (ADR-0011) |

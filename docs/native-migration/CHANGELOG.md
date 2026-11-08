@@ -392,3 +392,14 @@
   - Plus → "John 3:16" + Return → John 3 with v16 selected;
   - Tabs → workspace row → Workspaces list (Study 1 tab, Study Phone 3 tabs ✓);
   - More → menu with Cross References / Notes / Strong's / Compare / Duplicate / Close / Settings.
+
+### 2026-11-08 15:40 PST — Physical iPhone deployment (UI-13)
+- `npm run native:ios:device [UDID]` (scripts/native/ios-device.sh):
+  - finds the connected iPhone;
+  - creates the gitignored `apple/Config/Signing.xcconfig` with ONLY the team id (copied from ios/App/Signing.xcconfig; never its bundle
+    id, iCloud container or App Group);
+  - builds with automatic development signing;
+  - refuses to install unless the bundle id is `com.berean.native.ios.dev` and there are no iCloud / App Group entitlements;
+  - installs and launches with devicectl.
+- Done on Michael's iPhone 16e. The device now lists Berean (com.berean.app 0.8.1 (7)), Berean Dev (com.berean.app.dev) and Berean Native
+  Dev (com.berean.native.ios.dev) side by side; production was not touched.
