@@ -378,6 +378,7 @@ struct BibleState: Equatable {
     var rightPanelTab = "lexicon"
     var rightPanelLexiconEntry: String? = nil
     var compareMode = false
+    var scriptureLayout = "standard"
 
     init(bookId: String, chapter: Int) { self.bookId = bookId; self.chapter = chapter }
 
@@ -391,6 +392,7 @@ struct BibleState: Equatable {
         rightPanelTab = o["rightPanelTab"]?.stringValue?.string ?? "lexicon"
         rightPanelLexiconEntry = o["rightPanelLexiconEntry"]?.stringValue?.string
         compareMode = o["compareMode"]?.boolValue ?? false
+        scriptureLayout = o["scriptureLayout"]?.stringValue?.string ?? "standard"
     }
 
     var object: JSObject { merged(into: JSObject()) }
@@ -404,6 +406,7 @@ struct BibleState: Equatable {
         o["rightPanelOpen"] = .bool(rightPanelOpen); o["rightPanelTab"] = .string(JSString(rightPanelTab))
         if let e = rightPanelLexiconEntry { o["rightPanelLexiconEntry"] = .string(JSString(e)) } else { o.remove("rightPanelLexiconEntry") }
         if compareMode { o["compareMode"] = .bool(true) } else { o.remove("compareMode") }
+        o["scriptureLayout"] = .string(JSString(scriptureLayout))
         return o
     }
 }

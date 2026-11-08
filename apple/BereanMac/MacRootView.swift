@@ -127,12 +127,23 @@ struct MacRootView: View {
             switch tab.tabType {
             case .bible:
                 let st = BibleState(tab.state)
-                ScriptureView(tabId: tab.id)
+                let layout = ScriptureLayout(rawValue: st.scriptureLayout) ?? .standard
+                ScriptureLayoutView(tabId: tab.id, layout: layout)
                     .id(tab.id)
-                    .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { v in
+                    .inspector(isPresented: Binding(get: { layout.usesInspector && st.rightPanelOpen }, set: { v in
                         app.update(tab.id) { t in var s = BibleState(t.state); s.rightPanelOpen = v; t.state = s.merged(into: t.state) }
                     })) {
                         StudyInspector(tabId: tab.id).inspectorColumnWidth(min: 280, ideal: 340, max: 520)
+                    }
+                    .toolbar {
+                        ToolbarItem {
+                            Menu {
+                                Picker("Layout", selection: Binding(get: { layout }, set: { v in
+                                    app.update(tab.id) { t in var s = BibleState(t.state); s.scriptureLayout = v.rawValue; if v == .standard { s.rightPanelOpen = true }; t.state = s.merged(into: t.state) }
+                                })) { ForEach(ScriptureLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) } }
+                                    .pickerStyle(.inline)
+                            } label: { Label("Layout", systemImage: layout.symbol) }
+                        }
                     }
             case .lexicon:
                 LexiconEntryView(strongsId: tab.state["strongsNum"]?.stringValue?.string ?? "")
