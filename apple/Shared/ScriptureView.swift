@@ -16,8 +16,7 @@ struct ScriptureView: View {
     @State private var selectedVerse: Int?
     @State private var noteCounts: [Int: Int] = [:]
     @State private var highlights: [Int: [Highlight]] = [:]
-    @State private var referenceText = ""
-    @FocusState private var referenceFocused: Bool
+    @State private var pickerShown = false
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
 
@@ -100,19 +99,38 @@ struct ScriptureView: View {
 
     @ToolbarContentBuilder
     func toolbar(_ st: BibleState) -> some ToolbarContent {
+        #if os(macOS)
+        // History (the tab's own back/forward) — as in the existing toolbar, separate from chapter stepping.
+        ToolbarItemGroup(placement: .navigation) {
+            Button { app.goBack() } label: { Label("Back", systemImage: "arrow.left") }.disabled(!app.canGoBack).help("Back (⌘[)")
+            Button { app.goForward() } label: { Label("Forward", systemImage: "arrow.right") }.disabled(!app.canGoForward).help("Forward (⌘])")
+        }
+        // The passage pill: ‹ Book Chapter ⌄ › — previous / next chapter around the book & chapter picker.
+        ToolbarItem(placement: .principal) {
+            ControlGroup {
+                Button { step(-1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
+                    .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).help("Previous chapter (⌥⌘←)")
+                Button { pickerShown.toggle() } label: {
+                    // One Text: toolbar buttons flatten stacked label views.
+                    Text("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))  \(Image(systemName: "chevron.down"))")
+                        .fontWeight(.semibold)
+                }
+                .accessibilityLabel("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter))). Choose book and chapter")
+                .help("Choose book and chapter")
+                Button { step(1) } label: { Label("Next Chapter", systemImage: "chevron.forward") }
+                    .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
+            }
+            .controlGroupStyle(.navigation)
+            .popover(isPresented: $pickerShown, arrowEdge: .bottom) {
+                PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter) { b, c in
+                    mutate { $0.bookId = b; $0.chapter = c; $0.verse = nil }; pickerShown = false
+            }
+                }
+        }
+        #else
         ToolbarItemGroup(placement: .navigation) {
             Button { step(-1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
-                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
             Button { step(1) } label: { Label("Next Chapter", systemImage: "chevron.forward") }
-                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
-        }
-        #if os(macOS)
-        ToolbarItem(placement: .principal) {
-            TextField("Go to reference", text: $referenceText)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 180, idealWidth: 240)
-                .focused($referenceFocused)
-                .onSubmit { app.openQuery(referenceText, newTab: false); referenceText = ""; referenceFocused = false }
         }
         #endif
         ToolbarItemGroup {
@@ -120,7 +138,8 @@ struct ScriptureView: View {
                 Picker("Text", selection: Binding(get: { st.translation }, set: { v in mutate { $0.translation = v } })) {
                     ForEach(availableTexts) { Text($0.name).tag($0.id) }
                 }
-            } label: { Label("Text", systemImage: "books.vertical") }
+            } label: { Label(availableTexts.first { $0.id == st.translation }?.short ?? "Text", systemImage: "books.vertical").labelStyle(.titleAndIcon) }
+            .help("Bible text: \(availableTexts.first { $0.id == st.translation }?.name ?? st.translation)")
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
                 .keyboardShortcut("c", modifiers: [.command, .option])
             Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
@@ -249,9 +268,11 @@ struct VerseRowView: View {
 }
 
 extension View {
+    /// macOS: the passage pill and text button already say where the reader is, so the window title is kept for the
+    /// Window menu / Mission Control but not drawn in the toolbar (as in the existing app's toolbar).
     @ViewBuilder func navigationSubtitleCompat(_ s: String) -> some View {
         #if os(macOS)
-        self.navigationSubtitle(s)
+        self.navigationSubtitle(s).toolbar(removing: .title)
         #else
         self
         #endif

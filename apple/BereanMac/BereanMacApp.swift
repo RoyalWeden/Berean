@@ -19,9 +19,10 @@ struct BereanMacApp: App {
             CommandGroup(after: .newItem) {
                 Button("New Tab…") { app.commandPaletteShown = true }.keyboardShortcut("t")
                 Button("Open Reference or Search…") { app.commandPaletteShown = true }.keyboardShortcut("k")
+                Button("Go to Reference…") { app.commandPaletteShown = true }.keyboardShortcut("l")
                 Button("Close Tab") { app.closeActiveTab() }.keyboardShortcut("w")
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
-                Button("New Session") { app.newSession() }.keyboardShortcut("n", modifiers: [.command, .shift, .option])
+                Button("New Session") { app.newSession() }.keyboardShortcut("0", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .importExport) {
                 Button("Import Markdown…") { app.importMarkdownFiles() }

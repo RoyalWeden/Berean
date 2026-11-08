@@ -274,3 +274,19 @@
   could not be exported. You don't have permission…". Regression: `npm run native:ui:smoke` (System Events, local only) — PASS.
 - PR #21 had merged into `native/m6-layouts` after #20 was already merged, so its commit never reached main. Re-landed by cherry-pick on
   `native/m7-export` (tree identical to #21) together with this fix.
+
+### 2026-11-08 09:30 PST — Native Mac navigation redesign from a real side-by-side comparison (ADR-0010)
+- Captured the existing app (`BEREAN_CDP_PORT=9222 npm run dev`, Berean Dev profile) and the native app at 1300×800, then compared:
+  sidebar, session popover, tab context menu, toolbar. Tracker: `VISUAL-UX-PARITY.md` (17 areas).
+- Sidebar: session switcher (sessions with tab counts and a checkmark, New Session ⌘⇧0, Rename, Close, Saved Workspaces, Save Session
+  as Workspace…) · location field "Space › Title" (opens ⌘K) · New Tab · one tab list in display order (pinned first, type-coloured
+  symbols, × on hover/active, drag reorder persisted to display_order) · Workspaces section (open, "Open" badge, rename/delete, + save) ·
+  Archived section (restore / remove). Sidebar context menu: Group Tabs by Space, Archive All Tabs.
+- Tabs: Archive Tab (archived_groups, tabs_json = JS tab objects); closing the active tab selects its list neighbour; new tabs are placed
+  after the active tab in the display order.
+- Scripture toolbar: history ← → (were missing; ⌘[ ⌘] only) + passage pill ‹ Psalm 23 › with a book/chapter picker popover (book list
+  by section with filter, chapter grid, current chapter marked); text button shows the short name (KJVA); duplicate "Go to reference"
+  field removed (⌘L / ⌘K open the location search); window title kept for the Window menu but not drawn in the toolbar.
+- UI-complete gate added to the playbook.
+- Verified in the running app: session switch, archive → restore, drag reorder kept across relaunch, picker → Psalm 24 → Back → Psalm 23.
+  Swift suite 60 tests/24 suites PASS; Mac + iOS builds PASS.

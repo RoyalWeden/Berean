@@ -10,10 +10,10 @@ import BereanReference
 import BereanNotes
 
 /// The texts the native app offers, in compare/picker order.
-struct TextInfo: Identifiable, Hashable { let id: String; let name: String }
+struct TextInfo: Identifiable, Hashable { let id: String; let name: String; let short: String }
 let availableTexts: [TextInfo] = [
-    .init(id: "kjva", name: "KJV + Apocrypha"), .init(id: "kjv", name: "KJV"), .init(id: "lxx", name: "Septuagint (LXX)"),
-    .init(id: "lxx_brenton", name: "Brenton LXX"), .init(id: "enoch", name: "1 Enoch"), .init(id: "jubilees", name: "Jubilees"),
+    .init(id: "kjva", name: "KJV + Apocrypha", short: "KJVA"), .init(id: "kjv", name: "KJV", short: "KJV"), .init(id: "lxx", name: "Septuagint (LXX)", short: "LXX"),
+    .init(id: "lxx_brenton", name: "Brenton LXX", short: "Brenton"), .init(id: "enoch", name: "1 Enoch", short: "Enoch"), .init(id: "jubilees", name: "Jubilees", short: "Jubilees"),
 ]
 
 /// Prevents two copies of the app opening the same library (DECISIONS OD-5: no simultaneous database access).
@@ -305,6 +305,7 @@ final class AppModel {
         let id = Self.newId()
         let tab = BereanWorkspace.Tab(id: id, spaceId: space, type: type.rawValue, title: title, state: state, originTabId: origin?.id, originSpaceId: origin?.spaceId)
         if sessions.isEmpty { seedDefault() }
+        insertInDisplayOrder(id, after: activeTab?.id)
         var list = sessions[sessionIndex].tabs[space] ?? []
         if let cur = activeTabId(in: space), let idx = list.firstIndex(where: { $0.id == cur }) { list.insert(tab, at: idx + 1) } else { list.append(tab) }
         sessions[sessionIndex].tabs[space] = list
@@ -313,6 +314,13 @@ final class AppModel {
     }
 
     func close(_ tabId: String) {
+        // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
+        let wasActive = activeTab?.id == tabId
+        let ordered = orderedTabs
+        let neighbour: BereanWorkspace.Tab? = ordered.firstIndex { $0.id == tabId }.flatMap { i in
+            i + 1 < ordered.count ? ordered[i + 1] : (i > 0 ? ordered[i - 1] : nil)
+        }
+        defer { if wasActive, let n = neighbour, findTab(n.id) != nil { select(n.id, in: n.spaceId) } }
         for sp in SpaceId.allCases {
             guard var list = sessions[sessionIndex].tabs[sp], let idx = list.firstIndex(where: { $0.id == tabId }) else { continue }
             list.remove(at: idx)

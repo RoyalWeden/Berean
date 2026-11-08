@@ -189,6 +189,20 @@ Text reader is a critical engineering component: stored highlights refer to **pl
 
 Do not blindly carry nonstandard Mac shortcuts into native; owner C-5 must settle `Cmd+H`, `Cmd+G`, `Cmd+Shift+S`, `Cmd+L`, Paste Match Style collisions. Preserve intent and offer tested focus-aware command behavior.
 
+### UI-complete gate (added 2026-11-08 at the owner's request)
+A visible feature is **not UI-complete** until all of the following hold:
+1. Its visible interaction has been exercised in the running app. On the Mac, use System Events menus/keys or
+   explicit `cliclick dd/du`. On the iPhone, use the Simulator via Xcode MCP / probe. Service tests alone never
+   count.
+2. Its important workflows match the existing app's functionality.
+3. Every intentional design difference has been compared against the existing app and recorded in
+   `VISUAL-UX-PARITY.md`.
+4. Any interaction that could not be exercised is reported as unverified.
+
+Check specifically for buttons that do nothing, sheets and panels that never appear, commands routed to the wrong
+window, duplicate controls, lost shortcuts, single-platform controls, and features that exist but can't be found.
+Prefer workflow-level regression scripts (e.g. `npm run native:ui:smoke`) over "the view initialises" tests.
+
 ## 8. Native iPhone experience contract
 
 The iPhone is **not** a mini Mac with fixed stock tabs. Audit 07 documents a special mobile navigation model:

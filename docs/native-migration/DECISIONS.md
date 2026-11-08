@@ -208,3 +208,27 @@ regular tens, so "twenty" is never expanded to "20" and "20" expands to "score".
 same 65 rows but order equal-rank ties differently (verified with the raw SQL in both). Electron's better-sqlite3 has its
 own SQLite build, so the desktop order is already version-dependent. Conformance tests therefore require exact order
 except within equal-rank ties, where the identical row set is required and reported. RESOLVED by OD-4 / ADR-0008.
+
+### ADR-0010 — Native Mac navigation keeps the existing sidebar model (2026-11-08)
+**Context.** The owner's review found that the native sidebar had stopped resembling Berean. Tabs were grouped
+under Space headers, sessions sat in a small menu, and workspaces could only be found in Settings. A side-by-side
+capture against the existing app (VISUAL-UX-PARITY.md) confirmed that the existing sidebar is a different model:
+a session control in the header, a location field, "+ New Tab", and **one tab list in the user's own order**
+(`sessionDisplayOrders` ⇄ synced `display_order_key`).
+
+**Decision.**
+- The native sidebar follows that model, built from native components: a `Menu` session switcher with tab counts
+  and saved workspaces, a location field that opens ⌘K, New Tab, pinned tabs first and then the display order,
+  type-coloured symbols, close on hover, and drag reorder that writes the display order.
+- Saved workspaces get a sidebar section of their own; Settings keeps a management list.
+- Archived tab groups are shown and restorable (`archived_groups`, tabs_json in the JS tab shape).
+- Grouping by Space remains a per-viewer option (`@AppStorage`), off by default.
+- The Scripture toolbar uses history ← → plus the passage pill (‹ book chapter ›, with a book/chapter popover),
+  matching the existing toolbar.
+
+**Rejected.**
+- A horizontal tab strip: it wastes reading width and loses the user's order and the type cues.
+- Spaces as top-level sidebar sections: the existing app dropped those in favour of the unified list.
+
+**Compatibility.** No stored structure changed. The display order, pins, archived groups and workspace v2 JSON
+use the existing columns and shapes.
