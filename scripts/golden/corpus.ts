@@ -26,6 +26,7 @@ import { compareOrder, isValidOrderKey, keyBetween, keysAfter } from '../../src/
 import type { SyncOp } from '../../src/platform/sync/types'
 import * as ref from '../../src/lib/parseRef'
 import { normalizeStrongsId, parseStrongsIds } from '../../src/lib/research/strongsId'
+import { findReferencesInText } from '../../src/lib/research/references'
 
 export const GOLDEN_FORMAT = 1
 const ROOT = resolve(__dirname, '../..')
@@ -38,7 +39,7 @@ const SOURCES: Record<string, string[]> = {
   journal: ['src/platform/sync/journal.ts', 'src/platform/sync/types.ts'],
   fractional: ['src/platform/sync/fractional.ts'],
   reference: ['src/lib/parseRef.ts', 'src/lib/hermasMap.ts', 'src/lib/chapterNumbering.ts'],
-  strongs: ['src/lib/research/strongsId.ts'],
+  strongs: ['src/lib/research/strongsId.ts', 'src/lib/research/references.ts'],
 }
 
 function sourceHashes(name: string): Record<string, string> {
@@ -444,7 +445,15 @@ function strongs(): GoldenFile {
     texts.push(parts.join(''))
   }
   const cases = texts.map((text) => ({ text, ids: norm(parseStrongsIds(text)), normalized: normalizeStrongsId(text) }))
-  return file('strongs', { cases })
+  const refTexts = [
+    'what does john 1:1 quote', 'Compare Gen 1:1 with John 1:1-3, then 1 John 1:5.', 'see 2 Kings 2:11 and II Kings 2:12', 'In Isaiah 53:5 (KJV)',
+    'Psalm 23 and psalm 23', 'is 5 the answer?', 'Song of Solomon 2:1', 'song of songs 1:2!', 'Rev 22:21;', '  leading space Gen 3:15', 'Gen 1:1 Gen 1:1',
+    'jude 3', 'Obadiah 1:4', '1 Cor 13:4 and I Cor 13:5', 'third John 1:2', 'III John 1:4', 'Matt. 5:17-19', 'Matthew 5:17–19', 'Exodus 20:8-11 Deut 5:12',
+    'Hebrews 4:9 vs Heb. 4:10', 'Enoch 1:9 and Jubilees 2:1', 'The year 2026 had 12 months', 'Gen 999:1', 'Recognitions 4:35', '', 'Gen 1:1',
+  ]
+  for (let i = 0; i < 60; i++) refTexts.push(Array.from({ length: 3 + int(r, 8) }, () => pick(r, ['Gen', 'john', '1', '2', 'I', 'Kings', 'of', 'song', 'Solomon', 'is', `${1 + int(r, 30)}:${1 + int(r, 30)}`, `${1 + int(r, 30)}`, 'and', 'Ps', '(Rom', '8:28)', 'Heb.', 'Rev'])).join(' '))
+  const references = refTexts.map((text) => ({ text, refs: norm(findReferencesInText(text)) }))
+  return file('strongs', { cases, references })
 }
 
 export function buildGoldenCorpus(): GoldenFile[] {

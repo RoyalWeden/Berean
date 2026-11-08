@@ -80,3 +80,23 @@ import BereanReference
         #expect(failures.isEmpty, Comment(rawValue: "\(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
     }
 }
+
+@Suite("findReferencesInText golden") struct FindReferencesConformanceTests {
+    @Test func referencesInFreeText() throws {
+        let g = try Golden.load("strongs")
+        var failures: [String] = []
+        for c in g.arr("references") {
+            let text = c["text"]!.str
+            let got: [JSValue] = Reference.findReferences(in: text).map { r in
+                var o = JSObject()
+                o["bookId"] = .string(JSString(r.bookId)); o["chapter"] = .number(Double(r.chapter))
+                if let v = r.verse { o["verse"] = .number(Double(v)) }
+                if let v = r.endVerse { o["endVerse"] = .number(Double(v)) }
+                if let v = r.endChapter { o["endChapter"] = .number(Double(v)) }
+                return .object(o)
+            }
+            if JSValue.array(got) != c["refs"]! { failures.append("\(text.debugDescription): \(JSON.stringify(.array(got)).string) want \(JSON.stringify(c["refs"]!).string)") }
+        }
+        #expect(failures.isEmpty, Comment(rawValue: "\(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
+    }
+}
