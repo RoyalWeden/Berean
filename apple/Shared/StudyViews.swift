@@ -7,6 +7,7 @@ import BereanNotes
 
 /// A lexicon entry with definition, related words and occurrences (Lexicon tab and study inspector).
 struct LexiconEntryView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var app
     let strongsId: String
     let tabId: String
@@ -141,12 +142,14 @@ struct LexiconEntryView: View {
                         }
                         if !occurrences.isEmpty {
                             Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
+                                leaveInspector()
                                 app.openSearch(e.strongsNum, reuseTab: true)
                             }
                             .buttonStyle(.interactivePlain)
                         }
                         if compact, !occurrences.isEmpty {
                             Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
+                                leaveInspector()
                                 app.openLexicon(strongsId, reuseTab: true)
                             }
                             .buttonStyle(.interactivePlain)
@@ -154,7 +157,7 @@ struct LexiconEntryView: View {
                         LazyVStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(matches.prefix(visibleOccurrences)), id: \.4) { _, o, _, preview, _ in
                                 let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
-                                Button { app.visitScripture(passage) } label: {
+                                Button { leaveInspector(); app.visitScripture(passage) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         HStack {
                                             Text(passage.label).font(.subheadline.weight(.semibold))
@@ -236,6 +239,12 @@ struct LexiconEntryView: View {
             updatePreviews()
             occurrencesLoading = false
         }
+    }
+
+    private func leaveInspector() {
+        #if os(iOS)
+        if compact { dismiss() }
+        #endif
     }
 
     private var entryControlHeight: CGFloat {

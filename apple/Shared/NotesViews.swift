@@ -472,23 +472,45 @@ private enum NotePreviewBlock {
 /// Notes attached to a verse (study inspector "Notes" panel).
 struct VerseNotesView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
     @State private var notes: [Note] = []
 
     var body: some View {
-        Group {
+        List {
+            ForEach(notes) { note in
+                Button {
+                    #if os(iOS)
+                    dismiss()
+                    #endif
+                    app.openNote(note.id)
+                } label: {
+                    NoteRowView(note: note)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+            }
             if let verse {
-                List {
-                    ForEach(notes) { n in Button { app.openNote(n.id) } label: { NoteRowView(note: n) }.buttonStyle(.interactivePlain) }
-                    Button { app.newNote(verseRef: "\(bookId).\(chapter).\(verse)", textId: textId) } label: {
-                        Label("New Note for \(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse))", systemImage: "plus")
+                Button {
+                    if app.newNote(verseRef: "\(bookId).\(chapter).\(verse)", textId: textId) != nil {
+                        #if os(iOS)
+                        dismiss()
+                        #endif
                     }
+                } label: {
+                    Label("New Note for \(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)))", systemImage: "plus")
                 }
-                .task(id: "\(bookId)|\(chapter)|\(verse)|\(textId)|\(app.notesRevision)") {
-                    notes = (try? app.notes?.byVerse("\(bookId).\(chapter).\(verse)", textId: textId)) ?? []
-                }
+            } else if notes.isEmpty {
+                ContentUnavailableView("No chapter notes", systemImage: "note.text",
+                                       description: Text("Select a verse to add a note."))
+            }
+        }
+        .task(id: "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(textId)|\(app.notesRevision)") {
+            if let verse {
+                notes = (try? app.notes?.byVerse("\(bookId).\(chapter).\(verse)", textId: textId)) ?? []
             } else {
-                ContentUnavailableView("Select a verse", systemImage: "hand.tap", description: Text("Click a verse number to see and add its notes.")).frame(maxHeight: .infinity, alignment: .top)
+                notes = (try? app.notes?.byChapter(bookId, chapter, textId: textId)) ?? []
             }
         }
     }
