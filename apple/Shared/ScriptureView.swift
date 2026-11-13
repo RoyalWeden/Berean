@@ -275,7 +275,12 @@ struct ScriptureView: View {
                 return "[\(label)](\(destination))"
             }
         } : []
-        app.newNote(verseRef: "\(first.bookId).\(first.chapter).\(first.verseNum)",
+        var attachment = "\(first.bookId).\(first.chapter).\(first.verseNum)"
+        if let last = selectedRows.last, last.verseNum > first.verseNum,
+           selection.count == last.verseNum - first.verseNum + 1 {
+            attachment += "-\(last.verseNum)"
+        }
+        app.newNote(verseRef: attachment,
                     textId: state.translation, title: selectionLabel(state), content: links.joined(separator: "\n\n"))
     }
 
