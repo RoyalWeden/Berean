@@ -240,3 +240,5 @@ Snapshot reopening now allocates unique tab IDs even if a saved snapshot contain
 Snapshot origin remapping now uses the stored origin Space when duplicate legacy tab IDs occur across Spaces. A regression verifies that a Lexicon tab linked to a Notes tab keeps that link even when a Scripture tab has the same original ID. Both focused snapshot restore tests passed. Live snapshot opening remains to verify.
 
 New native workspace snapshots record the current Space when it has tabs. First opening the snapshot activates that Space and its saved tab; older snapshots use the existing fallback. The optional field leaves the legacy v2 shape readable. The focused snapshot tests and both Dev builds passed. Live opening of a snapshot saved from Notes or Lexicon remains to verify.
+
+Live workspaces now remember their last active Space per device and restore it when switching back or relaunching. The selected tab still comes from the existing per-Space workspace state. Snapshot preferred Space takes priority on its first open. Deleted workspace preferences are removed. Both Dev builds passed. Live Notes-to-Scripture workspace switching and relaunch remain to verify.

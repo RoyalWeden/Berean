@@ -68,7 +68,17 @@ final class AppModel {
 
     var sessions: [Session] = []
     var currentSessionId = ""
-    var activeSpace: SpaceId = .scripture
+    var activeSpace: SpaceId = .scripture {
+        didSet { rememberWorkspaceSpace() }
+    }
+    private var workspaceSpaces = UserDefaults.standard.dictionary(forKey: "nativeWorkspaceSpaces") as? [String: String] ?? [:]
+
+    private func rememberWorkspaceSpace() {
+        guard !currentSessionId.isEmpty, activeTab != nil,
+              workspaceSpaces[currentSessionId] != activeSpace.rawValue else { return }
+        workspaceSpaces[currentSessionId] = activeSpace.rawValue
+        UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
+    }
     private(set) var recentTabIDs = Array((UserDefaults.standard.stringArray(forKey: "nativeRecentTabIDs") ?? []).prefix(20))
     var displayOrders: [String: [String]] = [:]
     var archivedGroups: [ArchivedGroup] = []
@@ -157,6 +167,10 @@ final class AppModel {
             if h.sessions.isEmpty { seedDefault() } else {
                 sessions = h.sessions; displayOrders = h.displayOrders; archivedGroups = h.archivedGroups; keys = h.keys
                 currentSessionId = UserDefaults.standard.string(forKey: "currentSessionId").flatMap { id in sessions.contains { $0.id == id } ? id : nil } ?? sessions[0].id
+                if let space = workspaceSpaces[currentSessionId].flatMap(SpaceId.init(rawValue:)),
+                   let id = activeTabId(in: space), tabs(in: space).contains(where: { $0.id == id }) {
+                    activeSpace = space
+                }
             }
         } catch {
             libraryError = "Could not open the library: \(error)"
@@ -230,12 +244,13 @@ final class AppModel {
     var sessionIndex: Int { sessions.firstIndex { $0.id == currentSessionId } ?? 0 }
     var session: Session { sessions.isEmpty ? Session(id: "", name: "") : sessions[sessionIndex] }
 
-    func switchSession(_ id: String, preferredSpace: SpaceId? = nil) {
+    func switchSession(_ id: String, preferredSpace: SpaceId? = nil, rememberPrevious: Bool = true) {
         guard id != currentSessionId, let destination = sessions.first(where: { $0.id == id }) else { return }
-        rememberActiveTab()
+        if rememberPrevious { rememberActiveTab() }
         currentSessionId = id
-        if let preferredSpace, !destination.tabs(in: preferredSpace).isEmpty {
-            activeSpace = preferredSpace
+        let remembered = workspaceSpaces[id].flatMap(SpaceId.init(rawValue:))
+        if let space = preferredSpace ?? remembered, !destination.tabs(in: space).isEmpty {
+            activeSpace = space
         }
         if activeTab == nil {
             let ordered = destination.workspacePreviewTabs
@@ -244,6 +259,7 @@ final class AppModel {
                 return
             }
         }
+        rememberWorkspaceSpace()
         scheduleSave()
     }
     func newSession(named name: String = "New Session") {
@@ -258,7 +274,11 @@ final class AppModel {
     func deleteSession(_ id: String) {
         guard sessions.count > 1, let i = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions.remove(at: i)
-        if currentSessionId == id { currentSessionId = sessions[0].id }
+        workspaceSpaces.removeValue(forKey: id)
+        UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
+        if currentSessionId == id {
+            switchSession(sessions[0].id, rememberPrevious: false)
+        }
         scheduleSave()
     }
 
