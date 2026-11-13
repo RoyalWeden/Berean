@@ -158,7 +158,7 @@ struct ScriptureView: View {
     func copySelection(_ st: BibleState, plain: Bool) {
         let rows = selectedRows
         guard !rows.isEmpty else { return }
-        let text = { (v: ChapterVerseRow) in VerseDisplay.text(v.text, tagged: v.textTagged, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules) }
+        let text = { (v: ChapterVerseRow) in clipboardVerseText(v, st) }
         let suffix = st.translation == "lxx" ? " LXX" : ""
         if plain { Clipboard.copy(rows.map(text).joined(separator: " ")); return }
         let head = selectionLabel(st) + suffix
@@ -486,10 +486,16 @@ struct ScriptureView: View {
         }
     }
 
-    func copy(_ v: ChapterVerseRow, _ st: BibleState) {
-        let text = VerseDisplay.text(v.text, tagged: v.textTagged, textId: st.translation, replacerEnabled: true, rules: WordReplacer.defaultRules)
-        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum, hermas: HermasText(textId: st.translation))
-        Clipboard.copy("\(label) \(text)")
+    private func clipboardVerseText(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
+        VerseDisplay.text(verse.text, tagged: verse.textTagged, textId: state.translation,
+                          replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+    }
+
+    func copy(_ verse: ChapterVerseRow, _ state: BibleState) {
+        let label = Reference.bookChapterVerseLabel(verse.bookId, chapter: verse.chapter,
+                                                    verse: verse.verseNum, hermas: HermasText(textId: state.translation))
+        let suffix = state.translation == "lxx" ? " LXX" : ""
+        Clipboard.copy("\(label)\(suffix) \(clipboardVerseText(verse, state))")
     }
 }
 
