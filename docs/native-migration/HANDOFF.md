@@ -60,3 +60,11 @@ PR #24 also includes the icon-only iPhone dock, one-row passage toolbar, direct 
 - Both Xcode Dev builds and `git diff --check` passed. Mac Dev showed the labeled action panel and caret-free picker, and Escape dismissed the panel. Repeat Shift-click with visible verses and inspect the clipboard. Verify the new gutter marker on the Simulator and check Compare preferences and the narrow Mac panel interactively.
 
 The one-row floating verse toolbar supersedes the two-row selection panel. Both native readers use bold accent verse numbers with no filled badge. Both Dev builds passed. Mac Dev confirmed the toolbar, accessible action names, single-verse selection and Escape. Mac range selection and iPhone runtime appearance remain to verify.
+
+## Parity batch after the compact verse toolbar
+
+- Branch `native/reader-notes`, draft PR #24. Commits `134595e` (daily note sunrise), `b46abfb` (Mac reader/sidebar and Hermas edition), and `9a774f9` (Strong’s search snippets).
+- Calendar and Today share a sunrise boundary when local coordinates are supplied through Calendar. No location or no local sunrise uses midnight. Daily note identities and date keys stay compatible.
+- Both apps have an edition preference for unqualified Shepherd of Hermas references. Existing tabs and explicit results retain their text IDs. Mac inline Strong’s tooltips include the lemma, transliteration and gloss. Scripture search carries matched words into snippets and applies book scope to Strong’s searches.
+- In the running Mac Dev app, Filter Tabs narrowed four open tabs to Jonah. Verse link clicks with Shift selected Jude 1:2–4, and Cross References opened the inspector. The runtime pass did not establish the inspector's exact reference or verify hover content.
+- Next checks: open a Taylor and a Roberts–Donaldson reference from Settings/Go on both platforms, test Calendar Sunrise Settings and a Strong’s result on the iPhone Simulator, and hover an inline Strong’s number on Mac. Continue with note previews, deep links, Study Trail arrival capture, and the original-app parity inventory.

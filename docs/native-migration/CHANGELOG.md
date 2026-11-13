@@ -490,3 +490,9 @@
 - Replaced the two-row panel with a compact floating icon row on both platforms. Mac keeps hover help and iPhone keeps 44-point tap targets.
 - Whole-verse selection uses bold accent verse numbers. The selection no longer paints a box behind the number.
 - Both Dev builds passed. Mac Dev verified single-verse selection, the floating toolbar and Escape dismissal.
+
+### 2026-11-13 — Reader, tab, and calendar parity
+- Added a reversible Mac sidebar tab filter and improved verse gutter range handling. Cross References uses the current verse.
+- Added Mac Strong’s gloss tooltips and shared Strong’s search snippets with match positions. Added the Hermas edition preference and edition-aware reference labels.
+- Added local sunrise settings for Today and Calendar with tests for the DST boundary, missing coordinates, and polar fallback.
+- Mac Dev verified tab filtering, Shift-click range selection and opening Cross References. See HANDOFF for remaining runtime checks.

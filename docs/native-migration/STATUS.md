@@ -10,6 +10,11 @@
 - User priority: SHARED-UX-020, reduce accumulation and improve finding unnamed workspaces and tabs on both platforms. See TASKS.
 - Supplied specification read from `/Users/roywe/Documents/ChatGPT/Berean/Berean Native Migration Master Specification.docx`.
 
+## 2026-11-13 parity batch
+
+- Draft PR #24 includes Mac workspace tab filtering, a larger Mac verse click area, Strong’s hover glosses and search match marking, shared Hermas edition settings, and sunrise-aware Today.
+- Mac runtime verified title filtering and Shift-click range selection. See HANDOFF for the targeted iPhone and settings checks still open.
+
 ## Initial snapshot
 - Updated at: 2026-11-07 18:45 PST
 - Master specification: `/Users/roywe/Downloads/Berean Native Migration Master Specification.docx`

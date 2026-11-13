@@ -22,7 +22,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S02 | Book / chapter / passage navigation | implemented | ✅ | 🟡 | P1 | iPhone chapter swipe and Go reuse available reading tabs; edge taps and pull navigation pending. |
 | S03 | Reference parsing | implemented | ✅ | ✅ | — | Golden-pinned parser + native resolver (bare book names, "Jude 5", other texts) |
 | S04 | Verse rendering | implemented | ✅ | 🟡 | P1 | Mac continuous TextKit reader (red letters, italics, titles, note dots, tags, highlights). iPhone per-verse SwiftUI rows; no psalm superscription special-casing check yet |
-| S05 | Strong's rendering and lexicon access | implemented | ✅ | 🟡 | P1 | Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover gloss remains pending. |
+| S05 | Strong's rendering and lexicon access | implemented | ✅ | 🟡 | P1 | Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover now loads the lemma, transliteration, and gloss. Runtime hover verification remains pending. |
 | S06 | Interlinear | deferred | — | — | — | Deferred in original too |
 | S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Both readers use a single selectable chapter. iPhone long-press word selection and its copy menu verified in Simulator; cross-verse handle drag and clipboard output need touch QA. |
 | S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Missing vs original: copy reference, play audio from here, compare this verse |
@@ -55,7 +55,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N09 | Export, import, print | implemented | ✅ | 🟡 | — | Export (save panel) / import / copy; iPhone document picker untapped; no print |
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
 | N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes home supports folder navigation, sort/group, pin/trash/restore and scoped search. Board and advanced appearance parity remain. |
-| N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have a month grid and date-to-note navigation using legacy keys. Sunrise-based Today remains pending. |
+| N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have a month grid and date-to-note navigation using legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
 | N13 | Idiom / reference-book editor | implemented, niche | ❌ | ❌ | P3 | Idiom editor not ported |
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
 | N15 | e-Sword import | implemented (Mac only) | ❌ | — | P3 | e-Sword import not ported |
@@ -76,7 +76,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U09 | Menus, context actions, commands | implemented | 🟡 | 🟡 | P2 | Menus/context menus partial; no Commands group in ⌘K |
 | U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; no shortcuts list in Settings |
 | U11 | Themes and appearance | implemented | ✅ | ✅ | — | System/light/dark; dark mode visually checked on Mac reader/search |
-| U12 | Settings | implemented | 🟡 | 🟡 | P2 | Reading, Appearance, Workspaces, Library. Missing many sections (Texts, Shortcuts, About, Notes, YouTube, AI, Read Aloud) |
+| U12 | Settings | implemented | 🟡 | 🟡 | P2 | Reading, Appearance, Workspaces, Library. Includes preferred Shepherd of Hermas edition. Text ordering and other settings sections remain open. |
 | U13 | Onboarding and hints | partial | ❌ | ❌ | P3 | Onboarding not ported |
 | U14 | Study Trail | implemented | ❌ | ❌ | P1 | Study Trail not ported (1223-line service) |
 | U15 | Tasks panel and first steps | implemented (Mac only) | ❌ | — | P3 | Tasks panel not ported |
@@ -166,7 +166,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** iPhone: sheet drag-up instead of hover. Floating-lexicon items hidden on iPhone.
 - **Original files:** `src/components/bible/{StrongsInline,StrongsTooltip,SelectedVersesStrongs}.tsx`; `src/components/lexicon/{LexiconPanel,LexiconTab,StrongsContextMenu,parts}.tsx`; `src/mobile/study/StrongsSheet.tsx`; `src/platform/services/lexiconService.ts` (432 lines); `electron/ipc/lexicon.ts`.
 - **Known original defects:** LIKE-scan over all verses per lookup (no index); PLAN.md calls the `occurrences` tables stale. Hebrew occurrences lack `text_id`.
-- **Native Mac / iPhone:** ✅ / 🟡 — Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover gloss remains pending.
+- **Native Mac / iPhone:** ✅ / 🟡 — Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover now loads the lemma, transliteration, and gloss. Runtime hover verification remains pending.
 - **Native files:** ChapterTextView.swift, StudyViews.swift LexiconEntryView
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -463,7 +463,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Mac uses Electron geolocation path in main (INFERRED: `NSLocationWhenInUseUsageDescription` in `extendInfo`); iPhone plugin.
 - **Original files:** `src/lib/{dailyNotes,dailyNoteUtils,calendarModel,noteUtils}.ts`, `src/components/notes/{CalendarWidget,CalendarTabPanel,ContinuousDailyScroll,DailyNoteEditsSection}.tsx`, `src/mobile/calendar/*`, `BereanLocationPlugin.swift`, `suncalc`.
 - **Known original defects:** Location denied fallback to midnight (INFERRED); title-as-key means renames could break daily detection.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Both apps have a month grid and date-to-note navigation using legacy keys. Sunrise-based Today remains pending.
+- **Native Mac / iPhone:** 🟡 / 🟡 — Both apps have a month grid and date-to-note navigation using legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback.
 - **Native files:** AppModel+Workspaces
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -652,7 +652,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/settings/*`, `src/mobile/settings/*`. 3. store-backed switches; `settings` table. 4. none. 5. `settings(key,value JSON)`; many prefs only in localStorage. 6. different pages. 7. SettingsModal is a very large monolith (INFERRED). 8. `settings/sections/__tests__` exists; `settingsServi
 - **Known original defects:** —
-- **Native Mac / iPhone:** 🟡 / 🟡 — Reading, Appearance, Workspaces, Library. Missing many sections (Texts, Shortcuts, About, Notes, YouTube, AI, Read Aloud)
+- **Native Mac / iPhone:** 🟡 / 🟡 — Reading, Appearance, Workspaces, Library. Includes preferred Shepherd of Hermas edition. Text ordering and other settings sections remain open.
 - **Native files:** SettingsView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
