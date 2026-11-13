@@ -37,14 +37,15 @@ struct ChapterTextView: NSViewRepresentable {
     var chapterTags: [(name: String, color: String?, slot: Int?)] = []
     var verses: [ReaderVerse]
     var style: ReaderStyle
-    var selectedVerse: Int?
+    var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
     var reference: (Int) -> String                  // verse → "John 3:16"
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
     var onStrongs: (String) -> Void
-    var onSelectVerse: (Int?) -> Void
+    /// A verse number was clicked (shift = extend the range from the last clicked verse).
+    var onVerseClick: (Int, Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -73,7 +74,7 @@ struct ChapterTextView: NSViewRepresentable {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
-        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerse)
+        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses)
         if key != c.lastKey {
             let keepScroll = c.lastPassage == passageId
             let origin = scroll.contentView.bounds.origin
@@ -98,7 +99,7 @@ struct ChapterTextView: NSViewRepresentable {
     }
 
     struct Key: Equatable {
-        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var selected: Int?
+        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var selected: Set<Int>
     }
 
     // MARK: - Coordinator: builds the text, routes clicks, copies
@@ -161,9 +162,9 @@ struct ChapterTextView: NSViewRepresentable {
                 // Gutter: right-aligned verse number (a link → verse actions), note dot.
                 let numAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
-                    .foregroundColor: p.selectedVerse == v.verse ? NSColor.controlAccentColor : NSColor.secondaryLabelColor,
+                    .foregroundColor: p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor : NSColor.secondaryLabelColor,
                     .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
-                    .toolTip: "Verse \(v.verse) — click for highlight, tag, note, copy…",
+                    .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                 ]
                 out.append(NSAttributedString(string: "\t", attributes: base))
                 out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
@@ -213,7 +214,7 @@ struct ChapterTextView: NSViewRepresentable {
                 out.append(NSAttributedString(string: "\n", attributes: base))
                 let range = NSRange(location: start, length: out.length - start)
                 out.addAttribute(Self.verseKey, value: v.verse, range: range)
-                let tint: NSColor? = p.selectedVerse == v.verse ? NSColor.controlAccentColor.withAlphaComponent(0.13)
+                let tint: NSColor? = p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor.withAlphaComponent(0.16)
                     : v.tint.map { NSColor(Color.highlight($0)).withAlphaComponent(0.22) }
                 if let tint {
                     out.enumerateAttribute(.backgroundColor, in: NSRange(location: textStart, length: out.length - textStart - 1)) { val, r, _ in
@@ -241,7 +242,7 @@ struct ChapterTextView: NSViewRepresentable {
             guard let url = link as? URL ?? (link as? String).flatMap(URL.init(string:)) else { return false }
             switch url.scheme {
             case "berean-verse":
-                if let v = Int(url.absoluteString.dropFirst("berean-verse:".count)) { parent.onSelectVerse(v); popUp(parent.verseMenu(v), at: charIndex, in: textView) }
+                if let v = Int(url.absoluteString.dropFirst("berean-verse:".count)) { parent.onVerseClick(v, NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false) }
             case "strongs":
                 parent.onStrongs(String(url.absoluteString.dropFirst("strongs:".count)))
             case "berean-tag":
@@ -286,7 +287,12 @@ struct ChapterTextView: NSViewRepresentable {
         func copyText(plain: Bool) -> String? {
             guard let tv = textView else { return nil }
             let r = tv.selectedRange()
-            guard r.length > 0 else { return nil }
+            if r.length == 0 {
+                let vs = parent.verses.filter { parent.selectedVerses.contains($0.verse) }
+                guard let first = vs.first, let last = vs.last else { return nil }
+                if plain { return vs.map(\.displayText).joined(separator: " ") }
+                return ([vs.count == 1 ? parent.reference(first.verse) : parent.rangeReference(first.verse, last.verse)] + vs.map { "\($0.verse) \($0.displayText)" }).joined(separator: "\n")
+            }
             let vs = verses(in: r)
             if vs.count <= 1 && !plain { return plainText(r) }
             let texts = vs.compactMap { v in parent.verses.first { $0.verse == v } }
@@ -315,7 +321,7 @@ final class ReaderTextView: NSTextView {
         window?.makeFirstResponder(self)
         // A single click on a link (verse number, Strong's number, tag chip) acts like a button; anything else is text
         // selection. (The built-in link handling did not fire for these custom-scheme links inside SwiftUI.)
-        if event.clickCount == 1, !event.modifierFlags.contains(.shift), let i = charIndex(at: event), let ts = textStorage, i < ts.length,
+        if event.clickCount == 1, let i = charIndex(at: event), let ts = textStorage, i < ts.length,
            let link = ts.attribute(.link, at: i, effectiveRange: nil), let c = coordinator {
             _ = c.textView(self, clickedOnLink: link, at: i)
             return
@@ -373,7 +379,7 @@ final class ReaderTextView: NSTextView {
     }
 
     override func copy(_ sender: Any?) {
-        guard let s = coordinator?.copyText(plain: false) else { return super.copy(sender) }
+        guard let s = coordinator?.copyText(plain: false) else { return }
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
     }
 
@@ -386,7 +392,7 @@ final class ReaderTextView: NSTextView {
     /// (verified 2026-11-08: the key equivalent arrives here, `copy:` never does).
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if window?.firstResponder === self, selectedRange().length > 0, event.charactersIgnoringModifiers?.lowercased() == "c" {
+        if window?.firstResponder === self, selectedRange().length > 0 || !(coordinator?.parent.selectedVerses.isEmpty ?? true), event.charactersIgnoringModifiers?.lowercased() == "c" {
             if mods == [.command] { copy(nil); return true }
             if mods == [.command, .shift] { copyPlain(nil); return true }
         }

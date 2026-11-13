@@ -14,16 +14,14 @@ struct MacRootView: View {
         NavigationSplitView(columnVisibility: $columns) {
             BereanSidebar()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
+                // Browser-style: [sidebar] [‹] [›] together in the sidebar's title bar (Yab / Safari / Arc).
+                .toolbar(removing: .sidebarToggle)
+                .toolbar { ToolbarItemGroup(placement: .automatic) { if columns != .detailOnly { navGroup } } }
         } detail: {
             detail
                 .toolbar {
-                    // Back / Forward of the active tab, next to the sidebar button; they stay put when the sidebar is collapsed.
-                    ToolbarItemGroup(placement: .navigation) {
-                        Button { app.goBack() } label: { Label("Back", systemImage: "arrow.left") }
-                            .disabled(!app.canGoBack).help("Back (⌘[)")
-                        Button { app.goForward() } label: { Label("Forward", systemImage: "arrow.right") }
-                            .disabled(!app.canGoForward).help("Forward (⌘])")
-                    }
+                    // With the sidebar hidden the same buttons sit right after the sidebar button.
+                    ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
         .sheet(isPresented: $app.commandPaletteShown) { CommandPalette() }
@@ -32,6 +30,22 @@ struct MacRootView: View {
         .alert("Library", isPresented: Binding(get: { app.libraryError != nil }, set: { if !$0 { app.libraryError = nil } })) {
             Button("OK") { app.libraryError = nil }
         } message: { Text(app.libraryError ?? "") }
+    }
+
+    /// [sidebar] [‹] [›] — one group, the same order whether the sidebar is shown or hidden.
+    @ViewBuilder var navGroup: some View {
+        Button { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } } label: {
+            Label(columns == .detailOnly ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.left")
+        }
+        .help(columns == .detailOnly ? "Show Sidebar (⌃⌘S)" : "Hide Sidebar (⌃⌘S)")
+        historyButtons
+    }
+
+    @ViewBuilder var historyButtons: some View {
+        Button { app.goBack() } label: { Label("Back", systemImage: "chevron.backward") }
+            .disabled(!app.canGoBack).help("Back (⌘[)")
+        Button { app.goForward() } label: { Label("Forward", systemImage: "chevron.forward") }
+            .disabled(!app.canGoForward).help("Forward (⌘])")
     }
 
     func newTab(in space: SpaceId) {
