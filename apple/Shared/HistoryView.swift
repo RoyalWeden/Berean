@@ -1,6 +1,7 @@
 import SwiftUI
 import BereanNotes
 import BereanCore
+import BereanReference
 
 struct CompareHistoryDestination: Codable, Equatable {
     struct Column: Codable, Equatable {
@@ -8,6 +9,10 @@ struct CompareHistoryDestination: Codable, Equatable {
         let bookId: String
         let chapter: Int
         let pinned: Bool
+
+        var label: String {
+            "\(Reference.readerChapterLabel(bookId, chapter, textId: textId)) · \(textInfo(textId).short)"
+        }
 
         var value: JSValue {
             var record = JSObject()
@@ -80,7 +85,9 @@ struct HistoryView: View {
         return entries.filter { e in
             category.includes(e.type)
                 && !(category == .scripture && studyOnly && e.type == "bible" && (e.verse ?? 0) == 0)
-                && (query.isEmpty || e.title.localizedStandardContains(query) || (e.type == "search" && (e.query ?? "").localizedStandardContains(query)))
+                && (query.isEmpty || e.title.localizedStandardContains(query)
+                    || (e.type == "search" && (e.query ?? "").localizedStandardContains(query))
+                    || (compareDestination(e)?.columns.contains { $0.label.localizedStandardContains(query) } ?? false))
         }
     }
 
@@ -173,6 +180,12 @@ struct HistoryView: View {
                             .foregroundStyle(.secondary)
                             .accessibilityLabel(text.name)
                     }
+                }
+                if let comparison = compareDestination(e), !comparison.columns.isEmpty {
+                    Text(comparison.columns.map(\.label).joined(separator: "  /  "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
                 if let s = e.sessionName, s != app.session.name { Text(s).font(.caption2).foregroundStyle(.tertiary) }
             }
