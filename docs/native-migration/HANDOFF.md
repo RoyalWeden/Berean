@@ -46,4 +46,4 @@ PR #24 also includes the icon-only iPhone dock, one-row passage toolbar, direct 
 - Mac Dev verified ⌘K and ⌘L reuse, ⌘T explicit creation, opening a passage already in another workspace, and repeated Scripture searches and Strong’s lookups without extra tabs. Pinned and filtered-search safeguards need separate runtime coverage.
 - Next acceptance work includes physical iPhone text handles and swipes, archive/restore across duplicate workspace names, and Study Trail service parity.
 
-- Archive restore now keeps the active tab and skips IDs already open in any workspace. Mac and iOS Simulator builds passed. Runtime restore checks are pending.
+- Archive restore now keeps the active tab and skips IDs already open in any workspace. Mac and iOS Simulator builds passed. On the iPhone 18 Pro Simulator, archiving Genesis 1 reduced the workspace from 10 tabs to 9. Restoring it brought the count back to 10 and kept Jonah 1 LXX selected. Mac and bulk restore runtime checks remain open.
