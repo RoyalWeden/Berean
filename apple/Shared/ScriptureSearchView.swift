@@ -53,7 +53,7 @@ struct ScriptureSearchView: View {
         .navigationTitle(query.isEmpty ? "Search" : "Search: \(query)")
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
         .onChange(of: query) { _, newQuery in field = newQuery; focusText = nil }
-        .task(id: "\(query)|\(targets)|\(mode.rawValue)|\(bookFilter)") { await runSearch() }
+        .task(id: "\(query)|\(targets)|\(mode.rawValue)|\(bookFilter)|\(app.wordReplacerEnabled)") { await runSearch() }
     }
 
     // MARK: header — field, scope, options
@@ -164,17 +164,28 @@ struct ScriptureSearchView: View {
 
     func runSearch() async {
         let q = query
-        guard q.utf16.count >= 2 else { result = ScriptureSearchResult(hits: [], truncatedTexts: []); return }
+        guard q.utf16.count >= 2 else {
+            loading = false
+            result = ScriptureSearchResult(hits: [], truncatedTexts: [])
+            return
+        }
         loading = true
-        defer { loading = false }
+        defer { if !Task.isCancelled { loading = false } }
+        let targetTexts = Set(targets)
+        let books = Set(bookFilter)
         if let strongs = await ScriptureSearch.strongs(q, lexicon: app.lexicon) {
-            result = ScriptureSearchResult(hits: strongs.filter { targets.contains($0.textId) }, truncatedTexts: [])
+            guard !Task.isCancelled else { return }
+            let hits = strongs.filter { targetTexts.contains($0.textId) && (books.isEmpty || books.contains($0.bookId)) }
+            result = ScriptureSearchResult(hits: hits, truncatedTexts: [])
             return
         }
         var text = q, m = mode
         if text.hasPrefix("\""), text.hasSuffix("\""), text.count > 2 { text = String(text.dropFirst().dropLast()); m = .phrase }
-        result = await ScriptureSearch.run(text, in: targets, mode: m, bookIds: bookFilter.isEmpty ? nil : bookFilter,
-                                           replacer: app.wordReplacerEnabled, bible: app.bible, lexicon: app.lexicon)
+        guard !Task.isCancelled else { return }
+        let found = await ScriptureSearch.run(text, in: targets, mode: m, bookIds: bookFilter.isEmpty ? nil : bookFilter,
+                                              replacer: app.wordReplacerEnabled, bible: app.bible, lexicon: app.lexicon)
+        guard !Task.isCancelled else { return }
+        result = found
     }
 
     // MARK: results
@@ -275,7 +286,7 @@ struct ScriptureSearchView: View {
                             .padding(.horizontal, 5).padding(.vertical, 1).background(Color.secondary.opacity(0.12), in: .capsule)
                     }
                 }
-                Text(highlighted(displayText(h))).font(.callout).foregroundStyle(.secondary).lineLimit(4)
+                Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
@@ -291,28 +302,41 @@ struct ScriptureSearchView: View {
         VerseDisplay.text(h.text, tagged: h.textTagged, textId: h.textId, replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
     }
 
-    /// Query words (and their replacer variants) highlighted in the snippet.
-    func highlighted(_ s: String) -> AttributedString {
+    /// Mark Strong's matches and any plain query words in the same snippet.
+    func highlighted(_ hit: ScriptureHit) -> AttributedString {
+        let snippet = hit.strongsSnippet(replacerEnabled: app.wordReplacerEnabled)
+        let window = snippet.flatMap { VerseDisplay.wordWindow($0.text, matchIndices: $0.indices) }
+        let s = window?.text ?? snippet?.text ?? displayText(hit)
+        let indices = Set(window?.indices ?? snippet?.indices ?? [])
         var a = AttributedString(s)
+        if !indices.isEmpty {
+            for (index, word) in s.split(separator: " ").enumerated() where indices.contains(index) {
+                mark(word.startIndex..<word.endIndex, in: &a)
+            }
+        }
         var q = query
         if q.hasPrefix("\""), q.hasSuffix("\"") { q = String(q.dropFirst().dropLast()) }
-        let words = Set(WordReplacer.searchVariants(q, rules: WordReplacer.defaultRules).flatMap { $0.split(separator: " ").map { $0.lowercased() } })
+        if StrongsId.normalize(q) != nil { return a }
+        let variants = app.wordReplacerEnabled ? WordReplacer.searchVariants(q, rules: WordReplacer.defaultRules) : [q]
+        let words = Set(variants.flatMap { $0.split(separator: " ").map(String.init) })
             .filter { $0.count >= 2 && StrongsId.normalize($0) == nil }
-        let lower = s.lowercased()
         for w in words {
-            var from = lower.startIndex
-            while let r = lower.range(of: w, range: from..<lower.endIndex) {
-                let before = r.lowerBound == lower.startIndex ? nil : lower[lower.index(before: r.lowerBound)]
-                let after = r.upperBound == lower.endIndex ? nil : lower[r.upperBound]
-                if !(before?.isLetter ?? false), !(after?.isLetter ?? false),
-                   let lo = AttributedString.Index(r.lowerBound, within: a), let hi = AttributedString.Index(r.upperBound, within: a) {
-                    a[lo..<hi].backgroundColor = Color.yellow.opacity(0.35)
-                    a[lo..<hi].foregroundColor = .primary
-                }
+            var from = s.startIndex
+            while let r = s.range(of: w, options: .caseInsensitive, range: from..<s.endIndex) {
+                let before = r.lowerBound == s.startIndex ? nil : s[s.index(before: r.lowerBound)]
+                let after = r.upperBound == s.endIndex ? nil : s[r.upperBound]
+                if !(before?.isLetter ?? false), !(after?.isLetter ?? false) { mark(r, in: &a) }
                 from = r.upperBound
             }
         }
         return a
+    }
+
+    private func mark(_ range: Range<String.Index>, in text: inout AttributedString) {
+        guard let start = AttributedString.Index(range.lowerBound, within: text),
+              let end = AttributedString.Index(range.upperBound, within: text) else { return }
+        text[start..<end].backgroundColor = Color.yellow.opacity(0.35)
+        text[start..<end].foregroundColor = .primary
     }
 
     // MARK: history
