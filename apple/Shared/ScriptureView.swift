@@ -18,7 +18,22 @@ struct ScriptureView: View {
     @State private var loadedChapter: String?
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
-    @State private var applyingLocalSelection = false
+    private struct SelectionDestination: Equatable {
+        let verse: Int?
+        let endVerse: Int?
+
+        init(_ state: BibleState) {
+            verse = state.verse
+            endVerse = state.endVerse
+        }
+
+        init(verse: Int?, endVerse: Int?) {
+            self.verse = verse
+            self.endVerse = endVerse
+        }
+    }
+
+    @State private var pendingSelectionDestination: SelectionDestination?
     /// Verses selected by clicking verse numbers (⇧-click extends from `anchor`), as in the existing reader.
     @State private var selection: Set<Int> = []
     @State private var anchor: Int?
@@ -84,11 +99,10 @@ struct ScriptureView: View {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .onChange(of: [st.verse, st.endVerse]) {
-            if applyingLocalSelection {
-                applyingLocalSelection = false
-                if st.verse == selectedVerse, st.endVerse == nil { return }
-            }
+        .onChange(of: SelectionDestination(st)) { _, destination in
+            let appliedLocally = pendingSelectionDestination == destination
+            pendingSelectionDestination = nil
+            if appliedLocally { return }
             guard loadedChapter == chapter else { return }
             applyPassageSelection(st)
         }
@@ -151,13 +165,20 @@ struct ScriptureView: View {
     }
 
     private func persistLocalSelection() {
-        let current = state
-        #if os(iOS)
-        guard current.endVerse != nil else { return }
-        #endif
-        guard current.verse != selectedVerse || current.endVerse != nil else { return }
-        applyingLocalSelection = true
-        mutate(recordHistory: false) { $0.verse = selectedVerse; $0.endVerse = nil }
+        let destination: SelectionDestination
+        if let first = selection.min(), let last = selection.max(), first != last, selection.count == last - first + 1 {
+            destination = SelectionDestination(verse: first, endVerse: last)
+        } else {
+            // Legacy destinations represent one verse or a continuous range.
+            destination = SelectionDestination(verse: selectedVerse, endVerse: nil)
+        }
+        writeLocalSelectionDestination(destination)
+    }
+
+    private func writeLocalSelectionDestination(_ destination: SelectionDestination) {
+        guard SelectionDestination(state) != destination else { return }
+        pendingSelectionDestination = destination
+        mutate(recordHistory: false) { $0.verse = destination.verse; $0.endVerse = destination.endVerse }
     }
 
     var selectedRows: [ChapterVerseRow] { verses.filter { selection.contains($0.verseNum) } }
@@ -252,7 +273,7 @@ struct ScriptureView: View {
             }
             .help("Add note")
             Button("Cross References", systemImage: "arrow.triangle.branch") {
-                openInspector("crossrefs", verse: selectedVerse)
+                openInspector("crossrefs", verse: state.verse ?? selection.min())
             }
                 .help("Cross references")
             if let text = selectionText(st) {
@@ -277,7 +298,7 @@ struct ScriptureView: View {
                             app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: st.translation)
                         }
                         Button("Cross References", systemImage: "arrow.triangle.branch") {
-                            openInspector("crossrefs", verse: verse)
+                            openInspector("crossrefs", verse: state.verse ?? selection.min())
                         }
                     }
                 } label: {
@@ -317,7 +338,7 @@ struct ScriptureView: View {
                 app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
             }
             Button("Cross References", systemImage: "arrow.triangle.branch") {
-                openInspector("crossrefs", verse: verse.verseNum)
+                openInspector("crossrefs", verse: state.verse ?? selection.min())
             }
         }
         if let text = selectionText(st) {
@@ -607,8 +628,10 @@ struct ScriptureView: View {
 
     func showLexicon(_ id: String) { mutate { $0.rightPanelOpen = true; $0.rightPanelTab = "lexicon"; $0.rightPanelLexiconEntry = id } }
     func openInspector(_ tab: String, verse: Int? = nil) {
+        if let verse, verse != state.verse, !selection.contains(verse) {
+            writeLocalSelectionDestination(SelectionDestination(verse: verse, endVerse: nil))
+        }
         mutate(recordHistory: false) {
-            if let verse { $0.verse = verse }
             $0.rightPanelOpen = true
             $0.rightPanelTab = tab
         }
