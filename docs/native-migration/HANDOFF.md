@@ -220,3 +220,5 @@ Recent Tabs now survives relaunch through device-local preferences. The list kee
 Open-tab search on Mac and iPhone now matches Scripture edition names and passage ranges. Search results and the iPhone tab list show the range and edition so similarly named chapters can be distinguished. The original stored tab title still participates in search. Both Dev builds passed. Live edition-qualified cross-workspace lookup and selecting matching ranges remain to verify.
 
 iOS 27 Simulator verified edition-qualified cross-workspace search through Tabs → Workspaces. From Workspace 3, “Study Phone Obadiah LXX” showed Obadiah 1:18–20 with the workspace, Space and LXX subtitle. Tapping it opened the existing tab with all three verses selected and Study Phone still at 13 tabs. Direct dock search and Mac edition-qualified search remain open.
+
+Archive browsing and inactive-tab cleanup now use the same Scripture range and edition labels as open-tab search on Mac and iPhone. They match title, range, edition and Space, including hyphen or en dash in ranges. Both Dev builds passed. Live search and selection with two archived editions of the same chapter remain to verify.

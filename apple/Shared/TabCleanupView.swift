@@ -9,10 +9,9 @@ struct TabCleanupView: View {
     var body: some View {
         let tabs = app.inactiveTabs
         let selected = tabs.filter { included.contains($0.id) }
-        let terms = query.split(whereSeparator: \.isWhitespace)
+        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let matches = tabs.filter { tab in
-            let title = tab.title.isEmpty ? "Untitled" : tab.title
-            return terms.allSatisfy { "\(title) \(tab.spaceId.title)".localizedStandardContains(String($0)) }
+            return terms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
         }
         NavigationStack {
             List {
@@ -42,8 +41,8 @@ struct TabCleanupView: View {
                         )) {
                             Label {
                                 VStack(alignment: .leading) {
-                                    Text(tab.title.isEmpty ? "Untitled" : tab.title)
-                                    Text(tab.spaceId.title).font(.caption).foregroundStyle(.secondary)
+                                    Text(tab.navigationLabel)
+                                    Text(tab.navigationDetail).font(.caption).foregroundStyle(.secondary)
                                 }
                             } icon: {
                                 Image(systemName: tab.symbol).foregroundStyle(tab.tint)

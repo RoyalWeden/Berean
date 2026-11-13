@@ -360,12 +360,10 @@ struct ArchivedTabsPage: View {
     let onOpen: () -> Void
     @State private var query = ""
 
-    private var searchTerms: [Substring] { query.split(whereSeparator: \.isWhitespace) }
+    private var searchTerms: [Substring] { query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace) }
 
     private func matches(_ tab: BereanWorkspace.Tab) -> Bool {
-        let title = tab.title.isEmpty ? "Untitled" : tab.title
-        let text = "\(title) \(tab.spaceId.title)"
-        return searchTerms.allSatisfy { text.localizedStandardContains(String($0)) }
+        searchTerms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
     }
 
     var body: some View {
@@ -382,8 +380,8 @@ struct ArchivedTabsPage: View {
                             } label: {
                                 Label {
                                     VStack(alignment: .leading) {
-                                        Text(tab.title.isEmpty ? "Untitled" : tab.title)
-                                        Text(tab.spaceId.title).font(.caption).foregroundStyle(.secondary)
+                                        Text(tab.navigationLabel)
+                                        Text(tab.navigationDetail).font(.caption).foregroundStyle(.secondary)
                                     }
                                 } icon: {
                                     Image(systemName: tab.symbol).foregroundStyle(tab.tint)

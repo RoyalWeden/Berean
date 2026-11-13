@@ -309,11 +309,10 @@ struct BereanSidebar: View {
     // MARK: archive
 
     private var archiveSearch: some View {
-        let terms = archiveQuery.split(whereSeparator: \.isWhitespace)
+        let terms = archiveQuery.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let groups = app.archivedGroups.map { group in
             (group, group.tabs.filter { tab in
-                let title = tab.title.isEmpty ? "Untitled" : tab.title
-                return terms.allSatisfy { "\(title) \(tab.spaceId.title)".localizedStandardContains(String($0)) }
+                return terms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
             })
         }.filter { !$0.1.isEmpty }
         return VStack(spacing: 12) {
@@ -335,9 +334,9 @@ struct BereanSidebar: View {
                                     showsArchiveSearch = false
                                 } label: {
                                     HStack {
-                                        Label(tab.title.isEmpty ? "Untitled" : tab.title, systemImage: tab.symbol)
+                                        Label(tab.navigationLabel, systemImage: tab.symbol)
                                         Spacer()
-                                        Text(tab.spaceId.title).foregroundStyle(.secondary)
+                                        Text(tab.navigationDetail).foregroundStyle(.secondary)
                                     }
                                     .padding(.vertical, 4)
                                     .contentShape(.rect)
@@ -393,7 +392,7 @@ struct BereanSidebar: View {
                         Button("Restore All") { app.restoreArchived(g.id) }
                         Menu("Restore One Tab") {
                             ForEach(app.archivedTabs(g)) { tab in
-                                Button(tab.title.isEmpty ? "Untitled" : tab.title, systemImage: tab.symbol) {
+                                Button(tab.navigationLabel + " · " + tab.navigationDetail, systemImage: tab.symbol) {
                                     app.restoreArchivedTab(tab.id, from: g.id)
                                 }
                             }
