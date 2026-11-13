@@ -65,10 +65,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
         }
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
-                      verses: verses, style: style, selected: selectedVerses, dark: colorScheme == .dark)
+                      verses: verses, style: style, dark: colorScheme == .dark)
         let samePassage = coordinator.passageId == passageId
-        let revealVerse = samePassage && coordinator.key?.selected.isEmpty == true
-            ? selectedVerses.max() : nil
+        let previousSelection = coordinator.renderedSelection
+        let revealVerse = samePassage ? selectedVerses.subtracting(previousSelection).max() : nil
         let clearance = selectedVerses.isEmpty ? ReaderFloatingControls.dockOffset : ReaderFloatingControls.scrollClearance
         let previousOffset = view.contentOffset
         let previousInset = view.adjustedContentInset
@@ -97,6 +97,11 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
             coordinator.key = key
             coordinator.passageId = passageId
+        }
+        if previousSelection != selectedVerses {
+            coordinator.updateMarkerColors(in: view.textStorage, changed: previousSelection.symmetricDifference(selectedVerses))
+            coordinator.renderedSelection = selectedVerses
+            (view as? ReaderTextView)?.updateVerseOutline()
         }
         if keepChapterEndVisible {
             view.layoutIfNeeded()
@@ -145,7 +150,6 @@ struct IOSChapterTextView: UIViewRepresentable {
         let tags: [TagKey]
         let verses: [ReaderVerse]
         let style: ReaderStyle
-        let selected: Set<Int>
         let dark: Bool
     }
 
@@ -208,6 +212,19 @@ struct IOSChapterTextView: UIViewRepresentable {
         var passageId: String?
         var lastTarget: Int?
         var verseRanges: [Int: NSRange] = [:]
+        var renderedSelection: Set<Int> = []
+        private var markerRanges: [Int: NSRange] = [:]
+
+        func updateMarkerColors(in storage: NSTextStorage, changed: Set<Int>) {
+            storage.beginEditing()
+            for verse in changed {
+                guard let range = markerRanges[verse] else { continue }
+                let color = parent.selectedVerses.contains(verse) ? UIColor.tintColor : UIColor.secondaryLabel
+                storage.addAttribute(.foregroundColor, value: color, range: range)
+            }
+            storage.endEditing()
+        }
+
         fileprivate var bodyRanges: [Int: NSRange] = [:]
 
         init(_ parent: IOSChapterTextView) { self.parent = parent }
@@ -216,6 +233,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let out = NSMutableAttributedString()
             verseRanges.removeAll(keepingCapacity: true)
             bodyRanges.removeAll(keepingCapacity: true)
+            markerRanges.removeAll(keepingCapacity: true)
             let size = CGFloat(parent.style.fontSize)
             let regular = font(size)
             let italic = regular.fontDescriptor.withSymbolicTraits(.traitItalic).map { UIFont(descriptor: $0, size: size) } ?? UIFont.italicSystemFont(ofSize: size)
@@ -247,13 +265,13 @@ struct IOSChapterTextView: UIViewRepresentable {
                 if parent.style.showVerseNumbers {
                     let selected = parent.selectedVerses.contains(verse.verse)
                     let number = base.merging([
-                        .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: selected ? .bold : .medium),
+                        .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: .semibold),
                         .foregroundColor: selected ? UIColor.tintColor : UIColor.secondaryLabel,
                         .link: URL(string: "berean-verse:\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }
-                    out.append(NSAttributedString(string: "\t", attributes: number))
-                    out.append(NSAttributedString(string: "\(verse.verse)", attributes: number))
-                    out.append(NSAttributedString(string: "\t", attributes: number))
+                    let markerStart = out.length
+                    out.append(NSAttributedString(string: "\t\(verse.verse)\t", attributes: number))
+                    markerRanges[verse.verse] = NSRange(location: markerStart, length: out.length - markerStart)
                 }
                 let bodyStart = out.length
                 let tint = verse.tint.map { UIColor(Color.highlight($0)).withAlphaComponent(0.25) }
