@@ -22,7 +22,7 @@ struct NoteRowView: View {
     }
 }
 
-func verseLabel(_ ref: String, _ textId: String) -> String { Reference.verseRefDisplay(ref, textId: textId) }
+func verseLabel(_ ref: String, _ textId: String) -> String { Reference.verseRefDisplay(ref, textId: textId, hermas: HermasText(textId: textId)) }
 
 extension Color {
     static func noteColor(_ name: String) -> Color {
@@ -56,24 +56,33 @@ struct NoteDetailView: View {
                         .focused($focus, equals: .title)
                         .onSubmit { focus = .body }
                         .onChange(of: title) { scheduleSave() }
-                    if let ref = note.verseRef,
-                       let passage = Reference.parseCanonical(ref),
-                       let chapter = Int(exactly: passage.chapter) {
-                        let label = verseLabel(ref, note.textId)
-                        Button {
-                            saveNow()
-                            app.visitScripture(ResolvedPassage(textId: note.textId, bookId: passage.bookId, chapter: chapter,
-                                                             verse: passage.verse.flatMap(Int.init(exactly:))))
-                        } label: {
-                            Label(label, systemImage: "book")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Color.accentColor)
-                                .padding(.vertical, 6)
-                                .contentShape(.rect)
+                    if let ref = note.verseRef {
+                        let attachments = ref.split(separator: ",").compactMap { part -> ResolvedPassage? in
+                            guard let link = Reference.parseNoteAttachment(String(part)) else { return nil }
+                            return ResolvedPassage(textId: note.textId, bookId: link.bookId, chapter: link.chapter,
+                                                   verse: link.verse, endVerse: link.endVerse)
                         }
-                        .buttonStyle(.interactivePlain)
-                        .accessibilityLabel("Open \(label) in Scripture")
-                        .help("Open in Scripture")
+                        if let passage = attachments.first, attachments.count == 1 {
+                            Button { followAttachment(passage) } label: {
+                                Label(verseLabel(ref, note.textId), systemImage: "book")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                    .padding(.vertical, 6)
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.interactivePlain)
+                            .accessibilityLabel("Open \(verseLabel(ref, note.textId)) in Scripture")
+                            .help("Open in Scripture")
+                        } else if !attachments.isEmpty {
+                            Menu {
+                                ForEach(attachments.indices, id: \.self) { index in
+                                    let passage = attachments[index]
+                                    Button(passage.label, systemImage: "book") { followAttachment(passage) }
+                                }
+                            } label: {
+                                Label("Scripture Attachments", systemImage: "book")
+                            }
+                        }
                     }
                     if showSource {
                         // Advanced: the Markdown source (View ▸ Show Markdown Source, ⇧⌘M).
@@ -171,6 +180,11 @@ struct NoteDetailView: View {
     }
 
     /// Wikilinks open the note with that title; verse references and web links open where they belong.
+    private func followAttachment(_ passage: ResolvedPassage) {
+        saveNow()
+        app.visitScripture(passage)
+    }
+
     func openLink(_ url: URL) {
         if url.scheme == "berean-note" {
             saveNow()
