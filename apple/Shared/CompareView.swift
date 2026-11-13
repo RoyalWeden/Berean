@@ -152,6 +152,13 @@ struct CompareView: View {
                             }
                         }
                     }
+                    Button {
+                        setColumns(Array(cols.reversed()))
+                    } label: {
+                        Label(cols.count == 2 ? "Swap Columns" : "Reverse Column Order",
+                              systemImage: "arrow.left.arrow.right")
+                    }
+                    .disabled(cols.count < 2)
                     Section("Open in Reader") {
                         ForEach(cols) { column in
                             Button(column.label) { setColumns([column]) }
@@ -191,7 +198,7 @@ struct CompareView: View {
                     HStack {
                         Text(textInfo(c.text).name).font(.headline)
                         Spacer()
-                        closeTranslation(c, columns: cols)
+                        columnActions(c, columns: cols)
                     }
                     .frame(minWidth: 180)
                 }
@@ -218,7 +225,7 @@ struct CompareView: View {
                 HStack {
                     Text(textInfo(text.text).name).font(.subheadline.weight(.semibold))
                     Spacer()
-                    closeTranslation(text, columns: columns)
+                    columnActions(text, columns: columns)
                 }
             }
             ForEach(rows.keys.sorted(), id: \.self) { verse in
@@ -318,7 +325,7 @@ struct CompareView: View {
             .accessibilityLabel("Change passage for \(column.label)")
             .help("Change column passage")
             Spacer()
-            closeTranslation(column, columns: columns)
+            columnActions(column, columns: columns)
         }
         .padding(.horizontal, 8)
     }
@@ -391,16 +398,44 @@ struct CompareView: View {
         #endif
     }
 
-    private func closeTranslation(_ text: CompareColumn, columns: [CompareColumn]) -> some View {
-        Button { setColumns(columns.filter { $0.id != text.id }) } label: {
-            Label("Close \(textInfo(text.text).name)", systemImage: "xmark.circle")
+    private func columnActions(_ column: CompareColumn, columns: [CompareColumn]) -> some View {
+        let pinned = column.isPinned || !column.follows(state)
+        return Menu {
+            Button {
+                editingColumn = column
+            } label: {
+                Label("Change Passage", systemImage: "book")
+            }
+            Button {
+                setPinned(!pinned, for: column)
+            } label: {
+                Label(pinned ? "Follow Main Passage" : "Pin Passage",
+                      systemImage: pinned ? "pin.slash" : "pin")
+            }
+            Button {
+                setColumns([column])
+            } label: {
+                Label("Open in Reader", systemImage: "book.pages")
+            }
+            Divider()
+            Button {
+                setColumns(columns.filter { $0.id != column.id })
+            } label: {
+                Label("Close Column", systemImage: "xmark")
+            }
+        } label: {
+            Label("Actions for \(column.label)", systemImage: "ellipsis.circle")
                 .labelStyle(.iconOnly)
                 .foregroundStyle(.secondary)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
-        .buttonStyle(.interactivePlain)
-        .help("Close \(textInfo(text.text).name)")
+        .menuStyle(.borderlessButton)
+        #if os(macOS)
+        .menuIndicator(.hidden)
+        .pointerStyle(.link)
+        #endif
+        .help("Column actions")
     }
 
     private func verseButton(_ verse: Int, state: BibleState) -> some View {
