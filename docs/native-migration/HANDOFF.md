@@ -102,3 +102,17 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
   - synthetic context-menu clicks can leave AppKit in menu tracking: use keyboard navigation, `pkill` if stuck;
   - region captures beyond the app window can include other windows: keep captures inside the window;
   - the iPhone Simulator Xcode MCP only drives iOS 27 runtimes (iPhone 18 Pro D0CC2F4C…).
+
+## Checkpoint 2026-11-12 (end of cycle 2) — exact state
+- Branch `native/m6-navigation` at the last pushed commit (see `git log -1`); PR #23 OPEN (stacked on #22, OPEN). Merge order unchanged.
+- Done since the earlier checkpoint:
+  - partial highlights (Mac);
+  - iPhone swipe chapters;
+  - ⌘⇧D Today's Note;
+  - Copy Reference and Compare This Verse;
+  - verse-number hit target;
+  - shortcut pass-through;
+  - History;
+  - Tag Manager.
+- Next (unchanged order): IOS-FUNC-002 iPhone continuous reader → U14 Study Trail service + goldens → MAC-FUNC-013 calendar →
+  SHARED-FUNC-014 settings sections → M4 sync.
