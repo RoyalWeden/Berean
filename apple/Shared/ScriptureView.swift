@@ -707,7 +707,12 @@ struct ScriptureView: View {
         Button("Search #\(tag.name)") { app.openQuery("#\(tag.name)") }
     }
 
-    func showLexicon(_ id: String) { mutate { $0.rightPanelOpen = true; $0.rightPanelTab = "lexicon"; $0.rightPanelLexiconEntry = id } }
+    func showLexicon(_ id: String) {
+        let reader = state
+        app.recordHistory(type: "strongs-click", title: id, bookId: reader.bookId,
+                          chapter: reader.chapter, strongsNum: id)
+        mutate { $0.rightPanelOpen = true; $0.rightPanelTab = "lexicon"; $0.rightPanelLexiconEntry = id }
+    }
     func openInspector(_ tab: String, verse: Int? = nil) {
         if let verse, verse != state.verse, !selection.contains(verse) {
             writeLocalSelectionDestination(SelectionDestination(verse: verse, endVerse: nil))

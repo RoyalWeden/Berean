@@ -126,38 +126,64 @@ struct HistoryView: View {
     }
 
     static func symbol(_ type: String) -> String {
-        switch type { case "bible": "book"; case "note": "note.text"; case "lexicon": "character.book.closed"; case "search": "magnifyingglass"; case "youtube": "play.rectangle"; case "import": "square.and.arrow.down"; default: "clock" }
+        switch type { case "bible": "book"; case "note": "note.text"; case "lexicon", "strongs-click": "character.book.closed"; case "search": "magnifyingglass"; case "youtube": "play.rectangle"; case "import": "square.and.arrow.down"; default: "clock" }
     }
 
-    func row(_ e: HistoryEntry) -> some View {
-        Button { open(e) } label: {
-            HStack(spacing: 10) {
-                Image(systemName: Self.symbol(e.type)).frame(width: 20).foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 6) {
-                        Text(e.title).lineLimit(1)
-                        if let passage = scriptureDestination(e) {
-                            let text = textInfo(passage.textId)
-                            Text(text.short)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel(text.name)
-                        }
+    private func rowLabel(_ e: HistoryEntry) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: Self.symbol(e.type)).frame(width: 20).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(e.title).lineLimit(1)
+                    if let passage = scriptureDestination(e) {
+                        let text = textInfo(passage.textId)
+                        Text(text.short)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(text.name)
                     }
-                    if let s = e.sessionName, s != app.session.name { Text(s).font(.caption2).foregroundStyle(.tertiary) }
                 }
-                Spacer()
-                Text(Date(timeIntervalSince1970: Double(e.timestamp) / 1000).formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                if let s = e.sessionName, s != app.session.name { Text(s).font(.caption2).foregroundStyle(.tertiary) }
             }
-            .contentShape(.rect)
+            Spacer()
+            Text(Date(timeIntervalSince1970: Double(e.timestamp) / 1000).formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.secondary).monospacedDigit()
         }
-        .buttonStyle(.interactivePlain)
+        .contentShape(.rect)
+    }
+
+    private func canOpen(_ entry: HistoryEntry) -> Bool {
+        switch entry.type {
+        case "bible": entry.bookId != nil && entry.chapter != nil
+        case "note": entry.noteId != nil
+        case "lexicon", "strongs-click": entry.strongsNum?.isEmpty == false
+        case "search": entry.query?.isEmpty == false
+        default: false
+        }
+    }
+
+    func row(_ entry: HistoryEntry) -> some View {
+        Group {
+            if canOpen(entry) {
+                Button { open(entry) } label: { rowLabel(entry) }
+                    .buttonStyle(.interactivePlain)
+            } else {
+                rowLabel(entry)
+            }
+        }
         .contextMenu {
-            Button("Open") { open(e) }
-            Button("Remove from History", role: .destructive) { try? app.historyService?.delete(e.id); load() }
+            if canOpen(entry) { Button("Open") { open(entry) } }
+            Button("Remove from History", role: .destructive) {
+                try? app.historyService?.delete(entry.id)
+                load()
+            }
         }
         #if os(iOS)
-        .swipeActions { Button("Remove", role: .destructive) { try? app.historyService?.delete(e.id); load() } }
+        .swipeActions {
+            Button("Remove", role: .destructive) {
+                try? app.historyService?.delete(entry.id)
+                load()
+            }
+        }
         #endif
     }
 
@@ -180,7 +206,7 @@ struct HistoryView: View {
                 app.openScripture(bookId: book, chapter: chapter, verse: e.verse, reuseTab: true)
             }
         case "note": if let n = e.noteId { app.openNote(n) }
-        case "lexicon": if let s = e.strongsNum { app.openLexicon(s, reuseTab: true) }
+        case "lexicon", "strongs-click": if let s = e.strongsNum { app.openLexicon(s, reuseTab: true) }
         case "search": if let q = e.query { app.openSearch(q, reuseTab: true) }
         default: break
         }
