@@ -437,8 +437,9 @@ struct SidebarTabRow: View {
     @State private var hovering = false
 
     var body: some View {
+        let comparing = tab.tabType == .bible && BibleState(tab.state).compareMode
         HStack(spacing: 8) {
-            Image(systemName: tab.symbol).font(.system(size: 13, weight: .medium)).foregroundStyle(tab.tint).frame(width: 18)
+            Image(systemName: comparing ? "rectangle.split.2x1" : tab.symbol).font(.system(size: 13, weight: .medium)).foregroundStyle(tab.tint).frame(width: 18)
             Text(tab.navigationLabel)
                 .font(.system(size: 13, weight: isActive ? .medium : .regular))
                 .foregroundStyle(isActive ? .primary : .secondary)
@@ -449,15 +450,22 @@ struct SidebarTabRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .layoutPriority(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 72)
             }
-            if hovering {
-                Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 18, height: 18) }
+            ZStack {
+                if hovering {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 18, height: 18)
+                    }
                     .buttonStyle(SidebarCloseButtonStyle())
-                    .help("Close Tab (⌘W)").accessibilityLabel("Close \(tab.navigationLabel)")
-            } else if tab.isPinned {
-                Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.tertiary)
+                    .help("Close Tab (⌘W)")
+                    .accessibilityLabel("Close \(tab.navigationLabel)")
+                } else if tab.isPinned {
+                    Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.tertiary)
+                }
             }
+            .frame(width: 18, height: 18)
         }
         .padding(.leading, 10).padding(.trailing, 6)
         .frame(height: 34)
@@ -471,6 +479,7 @@ struct SidebarTabRow: View {
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
         .pointerStyle(.link)
+        .help("\(tab.navigationLabel) · \(tab.navigationDetail)")
         .animation(.easeOut(duration: 0.12), value: hovering)
         .animation(.easeOut(duration: 0.15), value: isActive)
         .accessibilityElement(children: .combine)

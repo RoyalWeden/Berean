@@ -224,3 +224,5 @@ iOS 27 Simulator verified edition-qualified cross-workspace search through Tabs 
 Archive browsing and inactive-tab cleanup now use the same Scripture range and edition labels as open-tab search on Mac and iPhone. They match title, range, edition and Space, including hyphen or en dash in ranges. Both Dev builds passed. Live search and selection with two archived editions of the same chapter remain to verify.
 
 Mac sidebar Scripture rows now show the selected verse or range and a compact edition label, plus Compare when active. The row has a pointing-hand cursor and an accessibility label that includes the edition. Both Dev builds passed. Live Mac verified that the Jonah 2 KJVA row exposed its edition and still opened the correct chapter. Pointer appearance, range truncation in a narrow sidebar, and drag reorder remain to verify.
+
+Mac Scripture sidebar rows use a split icon for Compare, cap edition label width, and reserve the close/pin slot so hovering does not move the passage label. The tooltip exposes the full passage and edition. Both Dev builds passed. Narrow-width clipping, tooltips and drag behavior still need live checks.

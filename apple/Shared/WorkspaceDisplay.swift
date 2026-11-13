@@ -53,13 +53,13 @@ extension BereanWorkspace.Tab {
     var scriptureEditionLabel: String? {
         guard tabType == .bible else { return nil }
         let reader = BibleState(state)
-        let edition = textInfo(reader.translation).short
-        return reader.compareMode ? "\(edition) · Compare" : edition
+        return textInfo(reader.translation).short
     }
 
     var navigationDetail: String {
         guard let edition = scriptureEditionLabel else { return spaceId.title }
-        return "\(spaceId.title) · \(edition)"
+        let detail = "\(spaceId.title) · \(edition)"
+        return BibleState(state).compareMode ? detail + " · Compare" : detail
     }
 
     var navigationSearchText: String {
