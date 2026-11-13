@@ -231,13 +231,24 @@ public final class NotesService: @unchecked Sendable {
     /// remain available in the chapter view.
     public func coveringVerse(_ bookId: String, _ chapter: Int, _ verse: Int, textId: String) throws -> [Note] {
         let candidates = try byChapter(bookId, chapter, textId: textId)
-        let matching = candidates.filter { note in
-            guard let ref = note.verseRef, let attachment = Reference.parseNoteAttachment(ref),
-                  attachment.bookId == bookId, let start = attachment.verse else { return false }
-            // byChapter has already matched the attachment chapter for the note's edition.
-            return verse >= start && verse <= (attachment.endVerse ?? start)
-        }
+        let matching = candidates.filter { Self.attachedRange($0, bookId: bookId)?.contains(verse) == true }
         return Self.stableSort(matching) { $0.createdAt < $1.createdAt }
+    }
+
+    /// Counts the same attachments the inspector displays, bounded by the installed chapter's verses.
+    public func coveringVerseCounts(_ bookId: String, _ chapter: Int, verses: Set<Int>, textId: String) throws -> [Int: Int] {
+        var counts: [Int: Int] = [:]
+        for note in try byChapter(bookId, chapter, textId: textId) {
+            guard let range = Self.attachedRange(note, bookId: bookId) else { continue }
+            for verse in verses where range.contains(verse) { counts[verse, default: 0] += 1 }
+        }
+        return counts
+    }
+
+    private static func attachedRange(_ note: Note, bookId: String) -> ClosedRange<Int>? {
+        guard let ref = note.verseRef, let attachment = Reference.parseNoteAttachment(ref),
+              attachment.bookId == bookId, let start = attachment.verse else { return nil }
+        return start...(attachment.endVerse ?? start)
     }
 
     func verseRefs(_ bookId: String, _ chapter: Int, tid: String, param: String? = nil) throws -> [String] {

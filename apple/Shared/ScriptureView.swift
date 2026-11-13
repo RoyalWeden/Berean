@@ -127,8 +127,10 @@ struct ScriptureView: View {
             guard loadedChapter == chapter else { return }
             applyPassageSelection(st)
         }
-        .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
-            noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
+        .task(id: "\(chapter)|\(loadedChapter ?? "")|\(app.notesRevision)") {
+            guard loadedChapter == chapter else { return }
+            noteCounts = (try? app.notes?.coveringVerseCounts(st.bookId, st.chapter,
+                                                              verses: Set(verses.map(\.verseNum)), textId: st.translation)) ?? [:]
         }
         .task(id: "\(st.bookId)|\(st.chapter)|\(app.tagsRevision)") {
             if let r = try? app.verseTags?.forChapter(st.bookId, st.chapter) { verseTags = r.verseTags; chapterTags = r.chapterTags } else { verseTags = [:]; chapterTags = [] }
@@ -143,6 +145,7 @@ struct ScriptureView: View {
             let loaded = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
             let destination = state
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
+            noteCounts = [:]
             verses = loaded
             applyPassageSelection(destination)
             loadedChapter = chapter

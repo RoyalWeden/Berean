@@ -102,6 +102,10 @@ func noteJSON(_ n: Note) -> JSValue {
         let last = try svc.coveringVerse("JHN", 3, 16, textId: "kjva").map(\.id)
         #expect(first.contains(range.id))
         #expect(last.contains(range.id))
+        let counts = try svc.coveringVerseCounts("JHN", 3, verses: [14, 16, 17], textId: "kjva")
+        #expect(counts[14] == first.count)
+        #expect(counts[16] == last.count)
+        #expect(counts[15] == nil)
         #expect(!last.contains(chapter.id))
         #expect(!(try svc.coveringVerse("JHN", 3, 17, textId: "kjva")).contains { $0.id == range.id })
     }
