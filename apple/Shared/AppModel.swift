@@ -484,6 +484,12 @@ final class AppModel {
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = id.flatMap { try? notes?.one($0)?.displayTitle } ?? "Notes"
         if let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }), t.tabType == .note, activeSpace == .notes {
+            // Keep the Notes home location, so closing the note returns to the same folder.
+            var title = title
+            if let loc = t.state["listFolderId"] {
+                o["listFolderId"] = loc
+                if id == nil { title = NotesHomeView.title(loc.stringValue?.string, (try? notes?.folders()) ?? []) }
+            }
             update(t.id) { $0.state = o; $0.title = title }
         } else { openTab(.note, in: .notes, title: title, state: o) }
     }

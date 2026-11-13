@@ -356,3 +356,40 @@ func noteJSON(_ n: Note) -> JSValue {
         }
     }
 }
+
+@Suite("note folders and trash") struct NoteFolderTrashTests {
+    @Test func folderOperations() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try db.exec("PRAGMA foreign_keys = ON")
+        try Migrator.migrate(db)
+        let w = NotesService(db: db)
+        let a = try w.createFolder("A"), b = try w.createFolder("B", parentId: a), c = try w.createFolder("C", parentId: b)
+        #expect(try w.setFolderParent(a, c) == false)            // cycle refused
+        let n1 = try w.create(.init(title: "in B", content: "x", folderId: b)).note.id
+        let n2 = try w.create(.init(title: "in C", content: "y", folderId: c)).note.id
+        try w.deleteFolder(b)                                       // C moves up to A, n1 to root
+        #expect(try w.one(n1)!.folderId == nil)
+        #expect(try w.folders().first { $0.id == c }?.parentId == a)
+        let trashed = try w.deleteFolderDeep(a)                    // A and C removed, n2 trashed
+        #expect(trashed == [n2])
+        #expect(try w.folders().isEmpty)
+        #expect(try w.trash().map(\.id) == [n2])
+        #expect(try w.purgeTrashItem(n1) == false)                 // not in trash
+        try w.delete(n1)
+        #expect(try w.emptyTrash().sorted() == [n1, n2].sorted())
+        #expect(try w.trash().isEmpty && w.one(n1) == nil)
+    }
+
+    @Test func systemFolders() {
+        func n(_ type: String, _ title: String, ref: String? = nil, tags: [String] = []) -> Note {
+            Note(id: "x", type: type, title: title, content: "", verseRef: ref, color: "blue", icon: nil, status: nil, createdAt: 0, updatedAt: 0, tags: tags,
+                 importedAt: nil, folderId: nil, textId: "kjva", idiomTerm: nil, idiomMeaning: nil, idiomAliases: nil, idiomAutoVariants: false, idiomData: nil,
+                 deletedAt: nil, pinned: false, aiExcluded: false)
+        }
+        #expect(NotesService.systemFolder(n("daily", "Daily — 2026-11-12")) == "daily")
+        #expect(NotesService.systemFolder(n("general", "Daily — 2026-01-01")) == "daily")
+        #expect(NotesService.systemFolder(n("verse", "x", ref: "JHN.3.16")) == "verse")
+        #expect(NotesService.systemFolder(n("general", "x", tags: ["esword"])) == "esword")
+        #expect(NotesService.systemFolder(n("general", "Topic")) == nil)
+    }
+}

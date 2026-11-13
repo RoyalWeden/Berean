@@ -432,6 +432,91 @@ public final class NotesService: @unchecked Sendable {
         return true
     }
 
+    // MARK: folders and trash — folderDelete / folderDeleteDeep / folderSetParent / purgeTrashItem / emptyTrash
+
+    /// Deletes a folder: its subfolders move up to its parent and its notes move to the root.
+    public func deleteFolder(_ id: String) throws {
+        let parent = try db.query("SELECT parent_id FROM note_folders WHERE id = ?", [.text(id)]).first?["parent_id"]?.string
+        try tx {
+            try db.run("UPDATE note_folders SET parent_id = ? WHERE parent_id = ?", [Self.t(parent), .text(id)])
+            try db.run("UPDATE notes SET folder_id = NULL WHERE folder_id = ?", [.text(id)])
+            try db.run("DELETE FROM note_folders WHERE id = ?", [.text(id)])
+        }
+        onChange("note_folder", id, "delete")
+    }
+
+    /// Deletes a folder and everything in it: descendant folders are removed and their notes go to Trash.
+    @discardableResult
+    public func deleteFolderDeep(_ id: String) throws -> [String] {
+        var trashed: [String] = []
+        try tx {
+            var children: [String?: [String]] = [:]
+            for r in try db.query("SELECT id, parent_id FROM note_folders") { children[r["parent_id"]?.string, default: []].append(r["id"]?.string ?? "") }
+            var stack = [id], toDelete: [String] = []
+            while let cur = stack.popLast() { toDelete.append(cur); stack += children[cur] ?? [] }
+            let n = now()
+            for fid in toDelete {
+                trashed += try db.query("SELECT id FROM notes WHERE folder_id = ? AND deleted_at IS NULL", [.text(fid)]).compactMap { $0["id"]?.string }
+                try db.run("UPDATE notes SET deleted_at = ? WHERE folder_id = ?", [.integer(n), .text(fid)])
+                try db.run("DELETE FROM note_folders WHERE id = ?", [.text(fid)])
+            }
+        }
+        onChange("note_folder", id, "delete")
+        if !trashed.isEmpty { onChange("note", "", "bulk") }
+        return trashed
+    }
+
+    /// Nests a folder; refuses a move that would create a cycle.
+    @discardableResult
+    public func setFolderParent(_ id: String, _ parentId: String?) throws -> Bool {
+        var cur = parentId
+        while let c = cur {
+            if c == id { return false }
+            cur = try db.query("SELECT parent_id FROM note_folders WHERE id = ?", [.text(c)]).first?["parent_id"]?.string
+        }
+        try db.run("UPDATE note_folders SET parent_id = ? WHERE id = ?", [Self.t(parentId), .text(id)])
+        onChange("note_folder", id, "upsert")
+        return true
+    }
+
+    /// Permanently deletes one trashed note (and its versions / collapse state).
+    @discardableResult
+    public func purgeTrashItem(_ id: String) throws -> Bool {
+        guard let r = try db.query("SELECT deleted_at FROM notes WHERE id = ?", [.text(id)]).first, Self.i64(r["deleted_at"]) != nil else { return false }
+        for t in ["note_versions", "note_heading_collapse", "note_thread_collapse"] { try db.run("DELETE FROM \(t) WHERE note_id = ?", [.text(id)]) }
+        try db.run("DELETE FROM notes WHERE id = ?", [.text(id)])
+        onChange("note", id, "delete")
+        return true
+    }
+
+    @discardableResult
+    public func emptyTrash() throws -> [String] {
+        let ids = try db.query("SELECT id FROM notes WHERE deleted_at IS NOT NULL").compactMap { $0["id"]?.string }
+        try tx {
+            for id in ids {
+                for t in ["note_versions", "note_heading_collapse", "note_thread_collapse"] { try db.run("DELETE FROM \(t) WHERE note_id = ?", [.text(id)]) }
+                try db.run("DELETE FROM notes WHERE id = ?", [.text(id)])
+            }
+        }
+        onChange("note", "", "bulk")
+        return ids
+    }
+
+    func tx(_ body: () throws -> Void) throws {
+        let name = "ns_\(UInt32.random(in: 0...UInt32.max))"
+        try db.exec("SAVEPOINT \(name)")
+        do { try body(); try db.exec("RELEASE \(name)") } catch { try? db.exec("ROLLBACK TO \(name)"); try? db.exec("RELEASE \(name)"); throw error }
+    }
+
+    /// The system folder a note belongs to when not filed in a user folder (noteMovability.ts `systemFolderOf`).
+    public static func systemFolder(_ n: Note) -> String? {
+        if n.tags.contains("biblegateway") { return "biblegateway" }
+        if n.tags.contains("esword") { return "esword" }
+        if n.type == "daily" || n.type == "journal" || n.title.hasPrefix("Daily — ") || n.title.hasPrefix("Journal — ") { return "daily" }
+        if n.verseRef != nil || n.type == "verse" { return "verse" }
+        return nil
+    }
+
     public func createFolder(_ name: String, parentId: String? = nil) throws -> String {
         let id = uuid()
         try db.run("INSERT INTO note_folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)", [.text(id), .text(name.isEmpty ? "New Folder" : name), Self.t(parentId), .integer(now())])
