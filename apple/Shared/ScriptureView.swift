@@ -252,6 +252,12 @@ struct ScriptureView: View {
         return ([reference] + rows.map { "\($0.verseNum) \(clipboardVerseText($0, state))" }).joined(separator: "\n")
     }
 
+    private func addNoteForSelection(_ state: BibleState) {
+        guard let first = selectedRows.first else { return }
+        app.newNote(verseRef: "\(first.bookId).\(first.chapter).\(first.verseNum)",
+                    textId: state.translation, title: selectionLabel(state))
+    }
+
     private func selectionReference(_ state: BibleState) -> String {
         selectionLabel(state) + (state.translation == "lxx" ? " LXX" : "")
     }
@@ -334,9 +340,7 @@ struct ScriptureView: View {
             #if os(macOS)
             selectionCopyButton(.reference, state: st).help("Copy selected verse reference")
             Button("Add Note", systemImage: "square.and.pencil") {
-                if let verse = selectedRows.first(where: { $0.verseNum == selectedVerse }) {
-                    app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
-                }
+                addNoteForSelection(st)
             }
             .help("Add note")
             Button("Cross References", systemImage: "arrow.triangle.branch") {
@@ -361,10 +365,8 @@ struct ScriptureView: View {
                     if let text = selectionText(st) {
                         ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
                     }
-                    if let verse = selectedVerse, let row = selectedRows.first(where: { $0.verseNum == verse }) {
-                        Button("Add Note", systemImage: "square.and.pencil") {
-                            app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: st.translation)
-                        }
+                    if !selectedRows.isEmpty {
+                        Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
                         Button("Cross References", systemImage: "arrow.triangle.branch") {
                             openInspector("crossrefs", verse: state.verse ?? selection.min())
                         }
@@ -402,10 +404,8 @@ struct ScriptureView: View {
         Button("Tag Verses", systemImage: "tag") {
             tagging = (selectionRanges(st), selectionLabel(st), "verses")
         }
-        if let verse = selectedRows.first(where: { $0.verseNum == selectedVerse }) {
-            Button("Add Note", systemImage: "square.and.pencil") {
-                app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
-            }
+        if !selectedRows.isEmpty {
+            Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
             Button("Cross References", systemImage: "arrow.triangle.branch") {
                 openInspector("crossrefs", verse: state.verse ?? selection.min())
             }
