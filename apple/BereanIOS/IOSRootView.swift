@@ -191,12 +191,16 @@ struct TabCardsSheet: View {
                         NavigationLink { ArchivedTabsPage() } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
                 }
+                let otherMatches = app.matchingWorkspaceTabs(query).filter {
+                    $0.workspaceID != app.currentSessionId && (spaceFilter == nil || $0.tab.spaceId == spaceFilter)
+                }
                 Section {
                     let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
                     ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
                     ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
-                    if shown.isEmpty { Text(query.isEmpty && spaceFilter == nil ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
+                    if shown.isEmpty && otherMatches.isEmpty { Text(query.isEmpty && spaceFilter == nil ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
+                WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() })
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search tabs")
             .sheet(isPresented: $showTabCleanup) { TabCleanupView() }
@@ -256,6 +260,37 @@ struct TabCardsSheet: View {
 
 /// Workspaces (ADR-0011): one list — live workspaces, then saved ones not open — with switch, new, rename, duplicate,
 /// delete; "Save Snapshot" is a secondary action on the current workspace.
+private struct WorkspaceTabResults: View {
+    @Environment(AppModel.self) private var app
+    var title = "Open Tabs in Other Workspaces"
+    let matches: [AppModel.WorkspaceTabMatch]
+    let onOpen: () -> Void
+
+    var body: some View {
+        if !matches.isEmpty {
+            Section(title) {
+                ForEach(matches) { match in
+                    Button {
+                        app.openWorkspaceTab(match)
+                        onOpen()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading) {
+                                Text(match.tab.title.isEmpty ? "Untitled" : match.tab.title)
+                                Text(match.workspaceName + " · " + match.tab.spaceId.title)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: match.tab.symbol).foregroundStyle(match.tab.tint)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct SessionsPage: View {
     @Environment(AppModel.self) private var app
     let closeTabs: () -> Void
@@ -267,28 +302,7 @@ struct SessionsPage: View {
 
     var body: some View {
         List {
-            let matches = app.matchingWorkspaceTabs(query)
-            if !matches.isEmpty {
-                Section("Open Tabs") {
-                    ForEach(matches) { match in
-                        Button {
-                            app.openWorkspaceTab(match)
-                            closeTabs()
-                        } label: {
-                            Label {
-                                VStack(alignment: .leading) {
-                                    Text(match.tab.title.isEmpty ? "Untitled" : match.tab.title)
-                                    Text(match.workspaceName + " · " + match.tab.spaceId.title)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            } icon: {
-                                Image(systemName: match.tab.symbol).foregroundStyle(match.tab.tint)
-                            }
-                        }
-                    }
-                }
-            }
+            WorkspaceTabResults(title: "Open Tabs", matches: app.matchingWorkspaceTabs(query), onOpen: closeTabs)
             Section {
                 ForEach(app.workspaceItems.filter { $0.matches(query.trimmingCharacters(in: .whitespacesAndNewlines)) }) { w in
                     Button { app.open(w); closeTabs() } label: {
