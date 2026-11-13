@@ -625,16 +625,13 @@ final class AppModel {
 
     private struct StudyVerseFocus {
         let state: BibleState
-        let verse: Int
+        let verse: Int?
     }
 
     private var studyVerseFocus: [String: StudyVerseFocus] = [:]
 
     func focusStudyVerse(_ verse: Int?, in tabId: String) {
-        guard let tab = findTab(tabId), let verse else {
-            studyVerseFocus.removeValue(forKey: tabId)
-            return
-        }
+        guard let tab = findTab(tabId) else { return }
         studyVerseFocus[tabId] = StudyVerseFocus(state: BibleState(tab.state), verse: verse)
     }
 

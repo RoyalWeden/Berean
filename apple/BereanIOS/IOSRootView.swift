@@ -124,7 +124,10 @@ struct IOSRootView: View {
                         Button("Find in Chapter", systemImage: "magnifyingglass") { findRequest += 1 }
                     }
                     Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" } } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }
-                    Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" } } label: { Label("Notes for This Chapter", systemImage: "note.text") }
+                    Button("Notes for This Chapter", systemImage: "note.text") {
+                        app.focusStudyVerse(nil, in: tab.id)
+                        mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" }
+                    }
                     let reference = Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)
                     let shareReference = reference + (st.translation == "lxx" ? " LXX" : "")
                     Button("Copy Chapter Reference", systemImage: "doc.on.doc") { Clipboard.copy(shareReference) }
