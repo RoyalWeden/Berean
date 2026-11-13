@@ -1,5 +1,36 @@
 import SwiftUI
 import BereanNotes
+import BereanCore
+
+struct CompareHistoryDestination: Codable, Equatable {
+    struct Column: Codable, Equatable {
+        let textId: String
+        let bookId: String
+        let chapter: Int
+        let pinned: Bool
+
+        var value: JSValue {
+            var record = JSObject()
+            record["textId"] = .string(JSString(textId))
+            record["bookId"] = .string(JSString(bookId))
+            record["chapter"] = .number(Double(chapter))
+            if pinned { record["nativePinnedPassage"] = .bool(true) }
+            return .object(record)
+        }
+    }
+
+    let passage: RecentPassage
+    let columns: [Column]
+
+    init(state: JSObject) {
+        let reader = BibleState(state)
+        passage = RecentPassage(textId: reader.translation, bookId: reader.bookId, chapter: reader.chapter,
+                                verse: reader.verse, endVerse: reader.endVerse)
+        columns = CompareColumn.resolved(in: state).map {
+            Column(textId: $0.text, bookId: $0.book, chapter: $0.chapter, pinned: $0.isPinned)
+        }
+    }
+}
 
 /// History (the existing History tab / sheet): everything you opened — passages, notes, Strong's numbers, searches — newest
 /// first, grouped by day, filterable; tap to reopen. Device-local (`history` table).
@@ -126,7 +157,7 @@ struct HistoryView: View {
     }
 
     static func symbol(_ type: String) -> String {
-        switch type { case "bible": "book"; case "note": "note.text"; case "lexicon", "strongs-click": "character.book.closed"; case "search": "magnifyingglass"; case "youtube": "play.rectangle"; case "import": "square.and.arrow.down"; default: "clock" }
+        switch type { case "bible": "book"; case "compare": "rectangle.split.2x1"; case "note": "note.text"; case "lexicon", "strongs-click": "character.book.closed"; case "search": "magnifyingglass"; case "youtube": "play.rectangle"; case "import": "square.and.arrow.down"; default: "clock" }
     }
 
     private func rowLabel(_ e: HistoryEntry) -> some View {
@@ -135,7 +166,7 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(e.title).lineLimit(1)
-                    if let passage = scriptureDestination(e) {
+                    if let passage = scriptureDestination(e) ?? compareDestination(e)?.passage {
                         let text = textInfo(passage.textId)
                         Text(text.short)
                             .font(.caption.weight(.medium))
@@ -153,7 +184,7 @@ struct HistoryView: View {
 
     private func canOpen(_ entry: HistoryEntry) -> Bool {
         switch entry.type {
-        case "bible": entry.bookId != nil && entry.chapter != nil
+        case "bible", "compare": entry.bookId != nil && entry.chapter != nil
         case "note": entry.noteId != nil
         case "lexicon", "strongs-click": entry.strongsNum?.isEmpty == false
         case "search": entry.query?.isEmpty == false
@@ -195,6 +226,14 @@ struct HistoryView: View {
         return passage
     }
 
+    private func compareDestination(_ entry: HistoryEntry) -> CompareHistoryDestination? {
+        guard entry.type == "compare", let payload = entry.query,
+              let destination = try? JSONDecoder().decode(CompareHistoryDestination.self, from: Data(payload.utf8)),
+              destination.passage.bookId == entry.bookId, destination.passage.chapter == entry.chapter,
+              destination.passage.verse == entry.verse else { return nil }
+        return destination
+    }
+
     func open(_ e: HistoryEntry) {
         switch e.type {
         case "bible":
@@ -205,6 +244,9 @@ struct HistoryView: View {
             } else {
                 app.openScripture(bookId: book, chapter: chapter, verse: e.verse, reuseTab: true)
             }
+        case "compare":
+            guard let book = e.bookId, let chapter = e.chapter else { return }
+            app.reopenComparison(bookId: book, chapter: chapter, verse: e.verse, destination: compareDestination(e))
         case "note": if let n = e.noteId { app.openNote(n) }
         case "lexicon", "strongs-click": if let s = e.strongsNum { app.openLexicon(s, reuseTab: true) }
         case "search": if let q = e.query { app.openSearch(q, reuseTab: true) }

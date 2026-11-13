@@ -63,6 +63,19 @@ struct CompareColumn: Identifiable {
         })
     }
 
+    static func resolved(in state: JSObject) -> [CompareColumn] {
+        let saved = state["compareColumns"]?.arrayValue ?? []
+        let anchor = BibleState(state)
+        let valid = saved.enumerated().compactMap { index, value in
+            value.objectValue.flatMap { CompareColumn(id: index, record: $0, anchor: anchor) }
+        }
+        if !valid.isEmpty { return valid }
+        return [
+            CompareColumn(id: 0, text: anchor.translation, anchor: anchor),
+            CompareColumn(id: 1, text: anchor.translation == "lxx" ? "kjva" : "lxx", anchor: anchor)
+        ]
+    }
+
     var historyKey: String { destinationKey + (isPinned ? ":pinned" : "") }
 
     var destinationKey: String { "\(text):\(book):\(chapter)" }
@@ -84,16 +97,7 @@ struct CompareView: View {
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
     var columns: [CompareColumn] {
-        let saved = app.findTab(tabId)?.state["compareColumns"]?.arrayValue ?? []
-        let anchor = state
-        let valid = saved.enumerated().compactMap { index, value in
-            value.objectValue.flatMap { CompareColumn(id: index, record: $0, anchor: anchor) }
-        }
-        if !valid.isEmpty { return valid }
-        return [
-            CompareColumn(id: 0, text: anchor.translation, anchor: anchor),
-            CompareColumn(id: 1, text: anchor.translation == "lxx" ? "kjva" : "lxx", anchor: anchor)
-        ]
+        CompareColumn.resolved(in: app.findTab(tabId)?.state ?? JSObject())
     }
 
     var body: some View {

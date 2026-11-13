@@ -489,6 +489,15 @@ final class AppModel {
                 if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
                 forwardStack[tabId] = []
             }
+            if recordHistory, after.tabType == .bible, BibleState(after.state).compareMode {
+                let destination = CompareHistoryDestination(state: after.state)
+                if !BibleState(before.state).compareMode || CompareHistoryDestination(state: before.state) != destination {
+                    let passage = destination.passage
+                    let payload = (try? JSONEncoder().encode(destination)).flatMap { String(data: $0, encoding: .utf8) }
+                    self.recordHistory(type: "compare", title: "Compare · \(passage.label)",
+                                       bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, query: payload)
+                }
+            }
             scheduleSave(); return
         }
     }
@@ -689,6 +698,26 @@ final class AppModel {
             openNote(n.id)
             return n.id
         } catch { libraryError = "Could not create the note: \(error)"; return nil }
+    }
+
+    func reopenComparison(bookId: String, chapter: Int, verse: Int?, destination: CompareHistoryDestination?) {
+        var reader = BibleState(bookId: bookId, chapter: chapter)
+        reader.translation = destination?.passage.textId ?? defaultText
+        reader.verse = verse
+        reader.endVerse = destination?.passage.endVerse
+        reader.compareMode = true
+        var state = reader.object
+        state["compareColumns"] = .array(destination?.columns.map(\.value) ?? [])
+        let comparison = CompareHistoryDestination(state: state)
+        let title = Reference.readerChapterLabel(bookId, chapter, textId: reader.translation)
+        // Keep other open comparisons intact when a History entry has a different destination.
+        if let existing = tabs(in: .scripture).first(where: {
+            $0.tabType == .bible && BibleState($0.state).compareMode && CompareHistoryDestination(state: $0.state) == comparison
+        }) {
+            select(existing.id, in: .scripture)
+        } else {
+            openTab(.bible, in: .scripture, title: title, state: state)
+        }
     }
 
     func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false) {
