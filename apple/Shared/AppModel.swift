@@ -573,10 +573,21 @@ final class AppModel {
         } else { openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin) }
     }
 
+    func refreshNoteTabTitles(_ note: Note) {
+        for tab in tabs(in: .notes) where tab.tabType == .note
+            && tab.state["noteId"]?.stringValue?.string == note.id && tab.title != note.displayTitle {
+            update(tab.id, recordHistory: false) { $0.title = note.displayTitle }
+        }
+    }
+
     func openNote(_ id: String?, newTab: Bool = false) {
-        if let id, let n = try? notes?.one(id) { recordHistory(type: "note", title: n.displayTitle, noteId: id) }
+        let note = id.flatMap { try? notes?.one($0) }
+        if let note {
+            refreshNoteTabTitles(note)
+            recordHistory(type: "note", title: note.displayTitle, noteId: note.id)
+        }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
-        let title = id.flatMap { try? notes?.one($0)?.displayTitle } ?? "Notes"
+        let title = note?.displayTitle ?? "Notes"
         if !newTab, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
             select(exact.id, in: .notes)
             return

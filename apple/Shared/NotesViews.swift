@@ -251,7 +251,12 @@ struct NoteDetailView: View {
         try? app.notes?.createVersion(noteId: note.id, title: title, content: content, kind: kind)
     }
 
-    func reload() { note = try? app.notes?.one(noteId); title = note?.title ?? ""; content = note?.content ?? "" }
+    func reload() {
+        note = try? app.notes?.one(noteId)
+        title = note?.title ?? ""
+        content = note?.content ?? ""
+        if let note { app.refreshNoteTabTitles(note) }
+    }
 
     func scheduleSave() {
         saveTask?.cancel()
@@ -260,11 +265,15 @@ struct NoteDetailView: View {
 
     func saveNow() {
         guard let note, title != note.title || content != note.content else { return }
-        try? app.notes?.update(note.id, .init(title: title, content: content))
-        self.note = try? app.notes?.one(noteId)
-        app.update(app.activeTab?.id ?? "") { tab in
-            guard tab.tabType == .note, tab.state["noteId"]?.stringValue?.string == note.id else { return }
-            tab.title = title.isEmpty ? "Untitled" : title
+        guard let service = app.notes else { return }
+        do {
+            try service.update(note.id, .init(title: title, content: content))
+            if let saved = try service.one(note.id) {
+                self.note = saved
+                app.refreshNoteTabTitles(saved)
+            }
+        } catch {
+            app.userMessage = "Could not save the note: \(error)"
         }
     }
 }
