@@ -557,7 +557,7 @@ struct ScriptureView: View {
         Button("Add Note") { perform { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } }
         Button("Verse Notes") { perform { openInspector("notes", verse: v.verseNum) } }
         Button("Cross References") { perform { openInspector("crossrefs", verse: v.verseNum) } }
-        Button("Compare This Verse") { perform { mutate { $0.verse = v.verseNum; $0.compareMode = true } } }
+        Button("Compare This Verse") { perform { mutate { $0.verse = v.verseNum; $0.endVerse = nil; $0.compareMode = true } } }
         Button("Open in New Tab") { perform { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
     }
 
@@ -835,7 +835,7 @@ extension ScriptureView {
         m.addItem(ClosureMenuItem("Verse Notes") { openInspector("notes", verse: v.verseNum) })
         m.addItem(ClosureMenuItem("Cross References", image: "arrow.triangle.branch") { openInspector("crossrefs", verse: v.verseNum) })
         m.addItem(.separator())
-        m.addItem(ClosureMenuItem("Compare This Verse", image: "rectangle.split.2x1") { selection = [v.verseNum]; anchor = v.verseNum; mutate { $0.verse = v.verseNum; $0.compareMode = true } })
+        m.addItem(ClosureMenuItem("Compare This Verse", image: "rectangle.split.2x1") { selection = [v.verseNum]; anchor = v.verseNum; mutate { $0.verse = v.verseNum; $0.endVerse = nil; $0.compareMode = true } })
         m.addItem(ClosureMenuItem("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })
         return m
     }

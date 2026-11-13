@@ -18,7 +18,10 @@ struct CompareView: View {
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
     var columns: [String] {
         let cols = app.findTab(tabId)?.state["compareColumns"]?.arrayValue?.compactMap { $0["textId"]?.stringValue?.string } ?? []
-        return cols.isEmpty ? [state.translation, state.translation == "lxx" ? "kjva" : "lxx"] : cols
+        var seen = Set<String>()
+        let installed = Set(availableTexts.map(\.id))
+        let valid = cols.filter { installed.contains($0) && seen.insert($0).inserted }
+        return valid.isEmpty ? [state.translation, state.translation == "lxx" ? "kjva" : "lxx"] : valid
     }
 
     var body: some View {
@@ -65,11 +68,21 @@ struct CompareView: View {
         .toolbar {
             ToolbarItem {
                 Menu {
-                    ForEach(availableTexts.filter { !cols.contains($0.id) }) { text in
-                        Button(text.name) { setColumns(cols + [text.id]) }
+                    Menu("Add Translation", systemImage: "plus") {
+                        ForEach(availableTexts.filter { !cols.contains($0.id) }) { text in
+                            Button(text.name) { setColumns(cols + [text.id]) }
+                        }
                     }
-                } label: { Label("Add Translation", systemImage: "rectangle.split.3x1") }
                     .disabled(cols.count >= 4)
+                    Section("Open in Reader") {
+                        ForEach(cols, id: \.self) { text in
+                            Button(textInfo(text).name) { setColumns([text]) }
+                        }
+                    }
+                } label: {
+                    Label("Manage Translations", systemImage: "rectangle.split.3x1")
+                }
+                .help("Add a translation or open one in the reader")
             }
         }
         .task(id: passage) { await load(st, cols, passage: passage) }
