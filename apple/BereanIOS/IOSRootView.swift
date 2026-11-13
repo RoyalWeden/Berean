@@ -191,6 +191,10 @@ struct TabCardsSheet: View {
                         NavigationLink { ArchivedTabsPage(onOpen: { dismiss() }) } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
                 }
+                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, spaceFilter == nil {
+                    WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
+                                        onOpen: { dismiss() })
+                }
                 let otherMatches = app.matchingWorkspaceTabs(query).filter {
                     $0.workspaceID != app.currentSessionId && (spaceFilter == nil || $0.tab.spaceId == spaceFilter)
                 }

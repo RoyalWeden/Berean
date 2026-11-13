@@ -69,6 +69,7 @@ final class AppModel {
     var sessions: [Session] = []
     var currentSessionId = ""
     var activeSpace: SpaceId = .scripture
+    var recentTabIDs: [String] = []
     var displayOrders: [String: [String]] = [:]
     var archivedGroups: [ArchivedGroup] = []
     var books: [String: [BookRow]] = [:]
@@ -229,7 +230,12 @@ final class AppModel {
     var sessionIndex: Int { sessions.firstIndex { $0.id == currentSessionId } ?? 0 }
     var session: Session { sessions.isEmpty ? Session(id: "", name: "") : sessions[sessionIndex] }
 
-    func switchSession(_ id: String) { currentSessionId = id; scheduleSave() }
+    func switchSession(_ id: String) {
+        guard id != currentSessionId else { return }
+        rememberActiveTab()
+        currentSessionId = id
+        scheduleSave()
+    }
     func newSession(named name: String = "New Session") {
         let s = Session(id: Self.newId(), name: name)
         sessions.append(s); currentSessionId = s.id
@@ -363,7 +369,15 @@ final class AppModel {
     func activeTabId(in space: SpaceId) -> String? { session.activeTabId[space] ?? nil }
     var activeTab: BereanWorkspace.Tab? { activeTabId(in: activeSpace).flatMap { id in tabs(in: activeSpace).first { $0.id == id } } }
 
-    func select(_ tabId: String, in space: SpaceId) {
+    private func rememberActiveTab() {
+        guard let id = activeTab?.id else { return }
+        recentTabIDs.removeAll { $0 == id }
+        recentTabIDs.insert(id, at: 0)
+        if recentTabIDs.count > 20 { recentTabIDs.removeLast() }
+    }
+
+    func select(_ tabId: String, in space: SpaceId, rememberPrevious: Bool = true) {
+        if rememberPrevious, activeTab?.id != tabId { rememberActiveTab() }
         sessions[sessionIndex].activeTabId[space] = tabId
         activeSpace = space
         scheduleSave()

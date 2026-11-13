@@ -41,6 +41,17 @@ extension AppModel {
         var id: String { "\(workspaceID)/\(tab.id)" }
     }
 
+    var recentWorkspaceTabs: [WorkspaceTabMatch] {
+        recentTabIDs.filter { $0 != activeTab?.id }.compactMap { id in
+            for workspace in sessions {
+                if let tab = workspace.allTabs.first(where: { $0.id == id }) {
+                    return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: workspace.name, tab: tab)
+                }
+            }
+            return nil
+        }
+    }
+
     func matchingWorkspaceTabs(_ query: String) -> [WorkspaceTabMatch] {
         let terms = query.split(whereSeparator: \.isWhitespace)
         guard !terms.isEmpty else { return [] }
@@ -57,9 +68,10 @@ extension AppModel {
     }
 
     func openWorkspaceTab(_ match: WorkspaceTabMatch) {
-        guard sessions.first(where: { $0.id == match.workspaceID })?.allTabs.contains(where: { $0.id == match.tab.id }) == true else { return }
+        guard let tab = sessions.first(where: { $0.id == match.workspaceID })?.allTabs.first(where: { $0.id == match.tab.id }) else { return }
+        let sameWorkspace = match.workspaceID == currentSessionId
         switchSession(match.workspaceID)
-        select(match.tab.id, in: match.tab.spaceId)
+        select(tab.id, in: tab.spaceId, rememberPrevious: sameWorkspace)
     }
 
     func insertInDisplayOrder(_ id: String, after anchor: String?) {

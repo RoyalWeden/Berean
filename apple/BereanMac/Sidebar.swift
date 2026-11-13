@@ -190,6 +190,11 @@ struct BereanSidebar: View {
     /// One Workspace control: the current workspace; its menu lists every workspace (live and saved) and the actions.
     var workspaceSwitcher: some View {
         Menu {
+            if let previous = app.recentWorkspaceTabs.first {
+                Button("Return to \(previous.tab.title.isEmpty ? "Untitled" : previous.tab.title)", systemImage: "arrow.uturn.backward") {
+                    app.openWorkspaceTab(previous)
+                }
+            }
             Button("Find Open Tab…", systemImage: "magnifyingglass") {
                 workspaceQuery = ""
                 showsWorkspaceSearch = true
