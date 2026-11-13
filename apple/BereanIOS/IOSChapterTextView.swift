@@ -19,7 +19,6 @@ struct IOSChapterTextView: UIViewRepresentable {
     var scrollTarget: Int?
     var reference: (Int, Int) -> String
     var onStrongs: (String) -> Void
-    var onVerseClick: (Int) -> Void
     var onVerseActions: (Int) -> Void
     var onTagClick: (String, Int?) -> Void
     var onHighlight: (Piece, String) -> Void
@@ -253,7 +252,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             switch url.scheme {
             case "berean-verse":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
-                return UIAction { [weak self] _ in self?.parent.onVerseClick(verse) }
+                return UIAction { [weak self] _ in self?.parent.onVerseActions(verse) }
             case "strongs":
                 let id = String(url.absoluteString.dropFirst("strongs:".count))
                 return UIAction { [weak self] _ in self?.parent.onStrongs(id) }

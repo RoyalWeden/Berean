@@ -456,3 +456,10 @@
 - `4946b16`, `5ca6b6f` add the compact labeled dock, remove Scripture link underlines, streamline the destination picker and reuse compatible tabs during normal iPhone navigation.
 - Verification and remaining touch checks are recorded in HANDOFF. No production database, signing, or sync work in this branch.
 - `87fd228` adds contained-tab lookup and preview for workspaces, and reviewable bulk archive that preserves pinned and selected tabs. Archive groups use the existing restore path.
+
+### 2026-11-12 — Scripture navigation and verse actions
+
+- iPhone Scripture shows the passage and text picker and chapter arrows in a single toolbar. Study commands are in More. The dock uses icons with accessibility labels.
+- Tapping an iPhone verse number highlights the verse and opens its actions directly. Long press still opens text selection. Notes and cross-references receive the verse with the inspector request.
+- Closing a comparison column returns to the reader when fewer than two remain. The remaining translation and its chapter numbering carry over. Previously saved single-column comparisons can also be closed.
+- Xcode 27.2 Dev builds passed for Mac and iPhone Simulator. On iPhone 18 Pro, tapping Jonah 1:2 opened its actions, Copy Verse closed the sheet, a saved one-column comparison could be closed, and closing KJV in a fresh two-column comparison kept Jonah 1 in the Septuagint reader.

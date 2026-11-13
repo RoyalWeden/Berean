@@ -50,7 +50,10 @@ struct ScriptureView: View {
             if st.compareMode { CompareView(tabId: tabId) } else { chapterBody(st) }
         }
         .navigationTitle(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))
-        .navigationSubtitleCompat(st.compareMode ? "Compare" : (textInfo(st.translation).name))
+        .navigationSubtitleCompat(st.compareMode ? "Compare" : textInfo(st.translation).name)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar { toolbar(st) }
     }
 
@@ -90,7 +93,9 @@ struct ScriptureView: View {
             selection = st.verse.map { [$0] } ?? []; anchor = st.verse
             scrollTarget = st.verse
         }
+        #if os(macOS)
         .overlay(alignment: .bottom) { selectionBar(st).animation(.snappy(duration: 0.2), value: selection) }
+        #endif
         .overlay { if verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
     }
 
@@ -155,16 +160,6 @@ struct ScriptureView: View {
                 Button { tagging = (selectionRanges(st), selectionLabel(st), "verses") } label: { Label("Tag", systemImage: "tag") }.help("Tag these verses")
                 Button { if let v = selectedRows.first { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } } label: { Label("Note", systemImage: "square.and.pencil") }.help("New note on \(selectionLabel(st))")
                 Button { openInspector("crossrefs") } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }.help("Cross references")
-                #if os(iOS)
-                if selectedRows.count == 1, let verse = selectedRows.first {
-                    Menu {
-                        verseActions(verse, st)
-                    } label: {
-                        Label("More Verse Actions", systemImage: "ellipsis")
-                    }
-                    .fixedSize()
-                }
-                #endif
                 Divider().frame(height: 18)
                 Button { selection = []; anchor = nil; selectedVerse = nil } label: { Label("Clear Selection", systemImage: "xmark") }
                     .keyboardShortcut(.cancelAction).help("Clear selection (Esc)")
@@ -189,7 +184,7 @@ struct ScriptureView: View {
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) },
             verses: rv,
             style: readerStyle(st),
-            selectedVerses: selection,
+            selectedVerses: tappedVerse.map { [$0.row.verseNum] } ?? selection,
             scrollTarget: scrollTarget,
             reference: { first, last in
                 let suffix = st.translation == "lxx" ? " LXX" : ""
@@ -197,9 +192,8 @@ struct ScriptureView: View {
                 return label + (first == last ? "" : "-\(last)") + suffix
             },
             onStrongs: { showLexicon($0) },
-            onVerseClick: { verseClick($0, shift: false) },
-            onVerseActions: { n in
-                if let row = verses.first(where: { $0.verseNum == n }) {
+            onVerseActions: { number in
+                if let row = verses.first(where: { $0.verseNum == number }) {
                     tappedVerse = TappedVerse(row: row)
                 }
             },
@@ -251,8 +245,18 @@ struct ScriptureView: View {
                 Button { step(-1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
                     .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).help("Previous chapter (⌥⌘←)")
                 Button { pickerShown.toggle() } label: {
-                    Text("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))\(textInfo(st.translation).section == "Bible" ? "  " : "")\(Text(textInfo(st.translation).section == "Bible" ? textInfo(st.translation).short : "").foregroundStyle(.secondary))")
-                        .fontWeight(.semibold)
+                    HStack(spacing: 5) {
+                        Text(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter)))
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                        Text(textInfo(st.translation).short)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .accessibilityLabel("\(Reference.bookChapterLabel(st.bookId, chapter: Double(st.chapter))), \(textInfo(st.translation).name). Choose passage or text")
                 .help("Choose book, chapter or text — search every text, see history (⌘L)")
@@ -267,6 +271,7 @@ struct ScriptureView: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { pickerShown = false } } } }.presentationDetents([.large]) }
             #endif
         }
+        #if os(macOS)
         ToolbarItemGroup {
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
                 .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
@@ -275,6 +280,7 @@ struct ScriptureView: View {
             Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { v in mutate { $0.rightPanelOpen = v } })) { Label("Study Panel", systemImage: "sidebar.trailing") }
                 .keyboardShortcut("i", modifiers: [.command, .option]).help("Study panel: notes, lexicon, cross references (⌥⌘I)")
         }
+        #endif
     }
 
     func picker(_ st: BibleState, compact: Bool) -> some View {
@@ -337,8 +343,8 @@ struct ScriptureView: View {
             }
         }
         Button("Add Note") { perform { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } }
-        Button("Verse Notes") { perform { selectedVerse = v.verseNum; openInspector("notes") } }
-        Button("Cross References") { perform { selectedVerse = v.verseNum; openInspector("crossrefs") } }
+        Button("Verse Notes") { perform { openInspector("notes", verse: v.verseNum) } }
+        Button("Cross References") { perform { openInspector("crossrefs", verse: v.verseNum) } }
         Button("Compare This Verse") { perform { mutate { $0.verse = v.verseNum; $0.compareMode = true } } }
         Button("Open in New Tab") { perform { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
     }
@@ -356,7 +362,13 @@ struct ScriptureView: View {
     }
 
     func showLexicon(_ id: String) { mutate { $0.rightPanelOpen = true; $0.rightPanelTab = "lexicon"; $0.rightPanelLexiconEntry = id } }
-    func openInspector(_ tab: String) { mutate { $0.rightPanelOpen = true; $0.rightPanelTab = tab } }
+    func openInspector(_ tab: String, verse: Int? = nil) {
+        mutate {
+            if let verse { $0.verse = verse }
+            $0.rightPanelOpen = true
+            $0.rightPanelTab = tab
+        }
+    }
 
     func copy(_ v: ChapterVerseRow, _ st: BibleState) {
         let text = VerseDisplay.text(v.text, tagged: v.textTagged, textId: st.translation, replacerEnabled: true, rules: WordReplacer.defaultRules)
@@ -567,8 +579,8 @@ extension ScriptureView {
         })
         m.addItem(.separator())
         m.addItem(ClosureMenuItem("Add Note", image: "square.and.pencil") { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) })
-        m.addItem(ClosureMenuItem("Verse Notes") { selectedVerse = v.verseNum; openInspector("notes") })
-        m.addItem(ClosureMenuItem("Cross References", image: "arrow.triangle.branch") { selectedVerse = v.verseNum; openInspector("crossrefs") })
+        m.addItem(ClosureMenuItem("Verse Notes") { openInspector("notes", verse: v.verseNum) })
+        m.addItem(ClosureMenuItem("Cross References", image: "arrow.triangle.branch") { openInspector("crossrefs", verse: v.verseNum) })
         m.addItem(.separator())
         m.addItem(ClosureMenuItem("Compare This Verse", image: "rectangle.split.2x1") { selection = [v.verseNum]; anchor = v.verseNum; mutate { $0.verse = v.verseNum; $0.compareMode = true } })
         m.addItem(ClosureMenuItem("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })

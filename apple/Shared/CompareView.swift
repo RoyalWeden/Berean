@@ -28,7 +28,13 @@ struct CompareView: View {
                         HStack {
                             Text(textInfo(c).name).font(.headline)
                             Spacer()
-                            if cols.count > 1 { Button { setColumns(cols.filter { $0 != c }) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.buttonStyle(.plain).help("Remove column") }
+                            Button { setColumns(cols.filter { $0 != c }) } label: {
+                                Label("Close \(textInfo(c).name)", systemImage: "xmark.circle")
+                                    .labelStyle(.iconOnly)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Close \(textInfo(c).name)")
                         }
                     }
                 }
@@ -70,12 +76,25 @@ struct CompareView: View {
             let ch = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: c)
             for r in await app.bible.queryChapter(st.bookId, ch, textId: c) { out[r.verseNum, default: [:]][c] = r }
         }
+        guard !Task.isCancelled else { return }
         rows = out
     }
 
     func setColumns(_ cols: [String]) {
         let st = state
         app.update(tabId) { t in
+            if cols.count < 2 {
+                var reader = st
+                reader.compareMode = false
+                if let remaining = cols.first {
+                    reader.chapter = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: remaining)
+                    reader.translation = remaining
+                }
+                t.state = reader.merged(into: t.state)
+                t.state.remove("compareColumns")
+                t.title = Reference.bookChapterLabel(reader.bookId, chapter: Double(reader.chapter))
+                return
+            }
             t.state["compareColumns"] = .array(cols.map { c in
                 var o = JSObject()
                 o["textId"] = .string(JSString(c)); o["bookId"] = .string(JSString(st.bookId))

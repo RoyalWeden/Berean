@@ -31,3 +31,7 @@
 1. Use isolated Dev fixtures with duplicate names such as “Session 8,” two similarly named passages, and pinned tabs. Verify Mac ⌘K and iPhone Workspaces search identify the workspace by a contained passage. Preview archive, exclude a tab, archive, reopen the workspace and restore the archive group. Check selection and pinned tabs.
 2. Continue reducing tab creation in routine Mac navigation while retaining explicit New Tab. Consider direct passage results across workspaces, exact-destination reuse and duplicate review. Use the owner’s screenshot as the reproduction shape: similarly named sessions and repeated Scripture tabs.
 3. Complete iPhone touch QA, then continue Study Trail U14 service/goldens, sunrise-aware Today, remaining Settings and gated M4.
+
+## Scripture follow-up
+
+PR #24 also includes the icon-only iPhone dock, one-row passage toolbar, direct verse-number action sheet and automatic exit from Compare when closing the final extra column. Xcode 27.2 Dev builds passed for both platforms. iPhone 18 Pro Simulator verified verse tint and action presentation, Copy Verse dismissal, recovery from a saved single-column comparison, and preserving the Septuagint when closing KJV in a two-column Jonah comparison. Clipboard contents, Mac runtime, and physical iPhone are still pending for this follow-up.

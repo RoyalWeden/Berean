@@ -34,9 +34,9 @@ struct IOSRootView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 8) {
-            Button { showTabs = true } label: { bottomItem("Tabs", symbol: "square.on.square", badge: app.tabCount(app.currentSessionId)) }
+            Button { showTabs = true } label: { bottomItem(symbol: "square.on.square", badge: app.tabCount(app.currentSessionId)) }
                 .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
-            Button { openGo() } label: { bottomItem("Go", symbol: "magnifyingglass", prominent: true) }
+            Button { openGo() } label: { bottomItem(symbol: "magnifyingglass", prominent: true) }
                 .accessibilityLabel("Go to a passage or search")
             menu
         }
@@ -45,35 +45,32 @@ struct IOSRootView: View {
         .padding(.vertical, 3)
         .background(.regularMaterial, in: .capsule)
         .overlay { Capsule().strokeBorder(.primary.opacity(0.09)) }
-        .frame(maxWidth: 360)
+        .frame(maxWidth: 260)
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity)
     }
 
-    private func bottomItem(_ title: String, symbol: String, prominent: Bool = false, badge: Int? = nil) -> some View {
-        VStack(spacing: 3) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .frame(width: 46, height: 30)
-                .foregroundStyle(prominent ? Color.white : Color.primary)
-                .background {
-                    if prominent { Capsule().fill(Color.accentColor) }
+    private func bottomItem(symbol: String, prominent: Bool = false, badge: Int? = nil) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 17, weight: .semibold))
+            .frame(width: 46, height: 30)
+            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .background {
+                if prominent { Capsule().fill(Color.accentColor) }
+            }
+            .overlay(alignment: .topTrailing) {
+                if let badge, badge > 0 {
+                    Text(badge > 99 ? "99+" : String(badge))
+                        .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(.thinMaterial, in: .capsule)
+                        .offset(x: 6, y: -1)
+                        .accessibilityHidden(true)
                 }
-                .overlay(alignment: .topTrailing) {
-                    if let badge, badge > 0 {
-                        Text(badge > 99 ? "99+" : String(badge))
-                            .font(.system(size: 9, weight: .semibold).monospacedDigit())
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(.thinMaterial, in: .capsule)
-                            .offset(x: 6, y: -1)
-                            .accessibilityHidden(true)
-                    }
-                }
-            Text(title).font(.caption2.weight(.semibold)).foregroundStyle(.primary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 50)
+            }
+        .frame(maxWidth: .infinity, minHeight: 44)
         .contentShape(.rect)
     }
 
@@ -138,7 +135,7 @@ struct IOSRootView: View {
                 Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }
-        } label: { bottomItem("More", symbol: "ellipsis") }
+        } label: { bottomItem(symbol: "ellipsis") }
         .accessibilityLabel("More: commands for this tab")
     }
 
