@@ -14,6 +14,18 @@ struct LexiconEntryView: View {
     @State private var related: [LexiconRelated] = []
     @State private var occurrences: [LexiconOccurrence] = []
     @State private var loaded = false
+    @State private var occurrencesLoading = false
+    @State private var occurrenceEdition: String?
+    @State private var visibleOccurrences = 40
+
+    private var editions: [String] {
+        Array(Set(occurrences.map(\.textId))).sorted()
+    }
+
+    private var matchingOccurrences: [LexiconOccurrence] {
+        guard let occurrenceEdition else { return occurrences }
+        return occurrences.filter { $0.textId == occurrenceEdition }
+    }
 
     var body: some View {
         ScrollView {
@@ -37,9 +49,24 @@ struct LexiconEntryView: View {
                             }
                         }
                     }
-                    section("Occurrences (\(occurrences.count)\(occurrences.count >= 1000 ? "+" : ""))") {
+                    section("Occurrences") {
+                        if occurrencesLoading {
+                            ProgressView().accessibilityLabel("Loading occurrences")
+                        } else if occurrences.isEmpty {
+                            Text("No occurrences found").foregroundStyle(.secondary)
+                        }
+                        if editions.count > 1 {
+                            Picker("Edition", selection: $occurrenceEdition) {
+                                Text("All Editions").tag(nil as String?)
+                                ForEach(editions, id: \.self) { edition in
+                                    Text(textInfo(edition).short).tag(Optional(edition))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        let matches = matchingOccurrences
                         LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(occurrences.prefix(compact ? 40 : 400).enumerated()), id: \.offset) { _, o in
+                            ForEach(Array(matches.prefix(visibleOccurrences).enumerated()), id: \.offset) { _, o in
                                 let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
                                 Button { app.visitScripture(passage) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -61,6 +88,18 @@ struct LexiconEntryView: View {
                                 }.buttonStyle(.interactivePlain)
                             }
                         }
+                        if matches.count > visibleOccurrences {
+                            Button("Show More Occurrences", systemImage: "chevron.down") {
+                                visibleOccurrences += 40
+                            }
+                            .buttonStyle(.interactivePlain)
+                        }
+                        if compact, !occurrences.isEmpty {
+                            Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
+                                app.openLexicon(strongsId, reuseTab: true)
+                            }
+                            .buttonStyle(.interactivePlain)
+                        }
                     }
                 } else if loaded {
                     ContentUnavailableView("No entry for \(strongsId)", systemImage: "character.book.closed")
@@ -71,12 +110,27 @@ struct LexiconEntryView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .onChange(of: occurrenceEdition) { visibleOccurrences = 40 }
         .task(id: strongsId) {
             loaded = false
-            entry = await app.lexicon.entry(strongsId)
-            related = await app.lexicon.related(strongsId)
-            occurrences = await app.lexicon.occurrences(strongsId, quickLimit: compact ? 60 : nil)
+            entry = nil
+            related = []
+            occurrences = []
+            occurrenceEdition = nil
+            visibleOccurrences = 40
+            occurrencesLoading = true
+            let newEntry = await app.lexicon.entry(strongsId)
+            guard !Task.isCancelled else { return }
+            entry = newEntry
             loaded = true
+            guard newEntry != nil else { return }
+            let newRelated = await app.lexicon.related(strongsId)
+            guard !Task.isCancelled else { return }
+            related = newRelated
+            let newOccurrences = await app.lexicon.occurrences(strongsId, quickLimit: compact ? 60 : nil)
+            guard !Task.isCancelled else { return }
+            occurrences = newOccurrences
+            occurrencesLoading = false
         }
     }
 
