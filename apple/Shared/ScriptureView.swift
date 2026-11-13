@@ -210,6 +210,18 @@ struct ScriptureView: View {
                     clearSelectionButton
                 }
                 .fixedSize(horizontal: true, vertical: false)
+                HStack(spacing: 2) {
+                    Menu {
+                        Button("Copy Verses", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
+                        highlightMenu(st, iconOnly: false)
+                        additionalVerseActions(st)
+                    } label: {
+                        verseMenuLabel("Verse Actions", symbol: "ellipsis")
+                    }
+                    .menuIndicator(.hidden)
+                    clearSelectionButton
+                }
+                .fixedSize(horizontal: true, vertical: false)
             }
             .labelStyle(.iconOnly)
             .buttonStyle(VerseActionButtonStyle())
@@ -282,24 +294,46 @@ struct ScriptureView: View {
 
     private func compactVerseMenu(_ st: BibleState) -> some View {
         Menu {
-            Button("Tag Verses", systemImage: "tag") {
-                tagging = (selectionRanges(st), selectionLabel(st), "verses")
-            }
-            if let verse = selectedRows.first(where: { $0.verseNum == selectedVerse }) {
-                Button("Add Note", systemImage: "square.and.pencil") {
-                    app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
-                }
-                Button("Cross References", systemImage: "arrow.triangle.branch") {
-                    openInspector("crossrefs", verse: verse.verseNum)
-                }
-            }
-            if let text = selectionText(st) {
-                ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
-            }
+            additionalVerseActions(st)
         } label: {
-            Label("More Verse Actions", systemImage: "ellipsis")
+            verseMenuLabel("More Verse Actions", symbol: "ellipsis")
         }
         .menuIndicator(.hidden)
+    }
+
+    @ViewBuilder private func additionalVerseActions(_ st: BibleState) -> some View {
+        #if os(iOS)
+        if selectedRows.count == 1, let row = selectedRows.first {
+            Button("All Verse Actions", systemImage: "list.bullet") {
+                tappedVerse = TappedVerse(row: row)
+            }
+        }
+        #endif
+        Button("Tag Verses", systemImage: "tag") {
+            tagging = (selectionRanges(st), selectionLabel(st), "verses")
+        }
+        if let verse = selectedRows.first(where: { $0.verseNum == selectedVerse }) {
+            Button("Add Note", systemImage: "square.and.pencil") {
+                app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
+            }
+            Button("Cross References", systemImage: "arrow.triangle.branch") {
+                openInspector("crossrefs", verse: verse.verseNum)
+            }
+        }
+        if let text = selectionText(st) {
+            ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
+        }
+    }
+
+    private func verseMenuLabel(_ title: String, symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .labelStyle(.iconOnly)
+            .contentShape(.rect)
+            #if os(macOS)
+            .pointerStyle(.link)
+            #else
+            .hoverEffect(.highlight)
+            #endif
     }
 
     private var clearSelectionButton: some View {
@@ -318,7 +352,7 @@ struct ScriptureView: View {
         persistLocalSelection()
     }
 
-    private func highlightMenu(_ st: BibleState) -> some View {
+    private func highlightMenu(_ st: BibleState, iconOnly: Bool = true) -> some View {
         Menu {
             ForEach(highlightColors, id: \.self) { color in
                 Button(color.capitalized, systemImage: "circle.fill") {
@@ -342,7 +376,11 @@ struct ScriptureView: View {
                 }
             }
         } label: {
-            Label("Highlight", systemImage: "highlighter")
+            if iconOnly {
+                verseMenuLabel("Highlight", symbol: "highlighter")
+            } else {
+                Label("Highlight", systemImage: "highlighter").labelStyle(.titleAndIcon)
+            }
         }
         .menuIndicator(.hidden)
         #if os(macOS)
