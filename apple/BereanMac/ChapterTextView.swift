@@ -143,16 +143,15 @@ struct ChapterTextView: NSViewRepresentable {
                 // Gutter: right-aligned verse number (a link → verse actions), note dot.
                 let selected = p.selectedVerses.contains(v.verse)
                 let numAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
-                    .foregroundColor: selected ? NSColor.alternateSelectedControlTextColor : (p.style.showVerseNumbers ? NSColor.secondaryLabelColor : NSColor.clear),
+                    .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: selected ? .bold : .medium),
+                    .foregroundColor: selected ? NSColor.controlAccentColor : (p.style.showVerseNumbers ? NSColor.secondaryLabelColor : NSColor.clear),
                     .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
                     .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                 ]
                 // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
                 let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
                 out.append(NSAttributedString(string: "\t", attributes: gutterTab))
-                let badgeAttrs = selected ? numAttrs.merging([.backgroundColor: NSColor.controlAccentColor]) { $1 } : numAttrs
-                out.append(NSAttributedString(string: "\(v.verse)", attributes: badgeAttrs))
+                out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
                 out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                 let textStart = out.length
                 verseTextStarts[v.verse] = textStart

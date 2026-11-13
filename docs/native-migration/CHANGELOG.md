@@ -485,3 +485,8 @@
 - **Verification:** `npm run native:build:mac`, `npm run native:build:ios` and `git diff --check` passed. Mac Dev visually confirmed the panel and picker and verified Escape dismissal. The attempted range click did not establish a new range.
 - **Data touched:** isolated Mac Dev fixtures for UI verification.
 - **Next:** use visible verse numbers for Mac range and clipboard verification, repeat multi-verse selection in the iPhone Simulator, and exercise Compare settings and narrow Mac pane layout.
+
+### 2026-11-13 — Simplify verse selection controls
+- Replaced the two-row panel with a compact floating icon row on both platforms. Mac keeps hover help and iPhone keeps 44-point tap targets.
+- Whole-verse selection uses bold accent verse numbers. The selection no longer paints a box behind the number.
+- Both Dev builds passed. Mac Dev verified single-verse selection, the floating toolbar and Escape dismissal.

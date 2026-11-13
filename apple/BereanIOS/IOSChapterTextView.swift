@@ -171,15 +171,12 @@ struct IOSChapterTextView: UIViewRepresentable {
                 if parent.style.showVerseNumbers {
                     let selected = parent.selectedVerses.contains(verse.verse)
                     let number = base.merging([
-                        .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: .semibold),
-                        .foregroundColor: UIColor.secondaryLabel,
+                        .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: selected ? .bold : .medium),
+                        .foregroundColor: selected ? UIColor.tintColor : UIColor.secondaryLabel,
                         .link: URL(string: "berean-verse:\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }
                     out.append(NSAttributedString(string: "\t", attributes: number))
-                    let badge = selected ? number.merging([
-                        .foregroundColor: UIColor.white, .backgroundColor: UIColor.tintColor,
-                    ]) { _, new in new } : number
-                    out.append(NSAttributedString(string: "\(verse.verse)", attributes: badge))
+                    out.append(NSAttributedString(string: "\(verse.verse)", attributes: number))
                     out.append(NSAttributedString(string: "\t", attributes: number))
                 }
                 let bodyStart = out.length

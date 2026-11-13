@@ -58,3 +58,5 @@ PR #24 also includes the icon-only iPhone dock, one-row passage toolbar, direct 
 - Native Scripture marks selected verse numbers in the gutter on both platforms. The text keeps its existing saved highlights and normal character selection. Mac keyboard copy uses the exact selected reference, including gaps.
 - Compare follows the Scripture font and verse-number settings. Passage changes clear stale results while new columns load, and column close controls have larger targets.
 - Both Xcode Dev builds and `git diff --check` passed. Mac Dev showed the labeled action panel and caret-free picker, and Escape dismissed the panel. Repeat Shift-click with visible verses and inspect the clipboard. Verify the new gutter marker on the Simulator and check Compare preferences and the narrow Mac panel interactively.
+
+The one-row floating verse toolbar supersedes the two-row selection panel. Both native readers use bold accent verse numbers with no filled badge. Both Dev builds passed. Mac Dev confirmed the toolbar, accessible action names, single-verse selection and Escape. Mac range selection and iPhone runtime appearance remain to verify.

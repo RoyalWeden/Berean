@@ -155,99 +155,51 @@ struct ScriptureView: View {
         Clipboard.copy(([head] + rows.map { "\($0.verseNum) \(text($0))" }).joined(separator: "\n"))
     }
 
-    /// The bar shown while verses are selected: what is selected and what can be done with it.
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
         if !selection.isEmpty {
-            #if os(iOS)
-            VStack(spacing: 0) {
-                HStack {
-                    Text(selectionLabel(st)).font(.footnote.weight(.semibold)).lineLimit(1)
-                    Spacer(minLength: 8)
-                    Button { clearVerseSelection() } label: {
-                        Label("Clear Selection", systemImage: "xmark")
-                            .labelStyle(.iconOnly)
-                            .frame(width: 44, height: 44)
-                            .contentShape(.rect)
+            HStack(spacing: 2) {
+                Button("Copy Verses", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
+                    .verseActionHelp("Copy with reference (⌘C)")
+                highlightMenu(st).verseActionHelp("Highlight")
+                Button("Tag Verses", systemImage: "tag") {
+                    tagging = (selectionRanges(st), selectionLabel(st), "verses")
+                }
+                .verseActionHelp("Tag verses")
+                #if os(macOS)
+                Button("Add Note", systemImage: "square.and.pencil") {
+                    if let verse = selectedRows.first {
+                        app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
                     }
                 }
-                HStack(spacing: 0) {
-                    Button("Copy Verses", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
-                    highlightMenu(st)
-                    Button("Tag Verses", systemImage: "tag") {
-                        tagging = (selectionRanges(st), selectionLabel(st), "verses")
-                    }
-                    if selectedRows.count == 1, let row = selectedRows.first {
-                        Button("More Verse Actions", systemImage: "ellipsis") {
-                            tappedVerse = TappedVerse(row: row)
-                        }
+                .help("Add note")
+                Button("Cross References", systemImage: "arrow.triangle.branch") { openInspector("crossrefs") }
+                    .help("Cross references")
+                #else
+                if selectedRows.count == 1, let row = selectedRows.first {
+                    Button("More Verse Actions", systemImage: "ellipsis") {
+                        tappedVerse = TappedVerse(row: row)
                     }
                 }
-                .labelStyle(.iconOnly)
-                .buttonStyle(VerseActionButtonStyle())
+                #endif
+                Divider().frame(height: 16).padding(.horizontal, 3)
+                Button("Clear Selection", systemImage: "xmark") { clearVerseSelection() }
+                    .foregroundStyle(.secondary)
+                    #if os(macOS)
+                    .keyboardShortcut(.cancelAction)
+                    .help("Clear selection (Esc)")
+                    #endif
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: 320)
+            .labelStyle(.iconOnly)
+            .buttonStyle(VerseActionButtonStyle())
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
             .glassEffectCompat()
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(selectionLabel(st))
-            #else
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    Text(selectionLabel(st))
-                        .font(.headline)
-                        .lineLimit(1)
-                    Text(selection.count == 1 ? "1 verse selected" : "\(selection.count) verses selected")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    Button("Clear Selection", systemImage: "xmark") { clearVerseSelection() }
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.borderless)
-                        .keyboardShortcut(.cancelAction)
-                        .help("Clear selection (Esc)")
-                }
-                ViewThatFits(in: .horizontal) {
-                    macVerseActions(st, compact: false)
-                    macVerseActions(st, compact: true)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.quaternary) }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 6)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Selected \(selectionLabel(st))")
-            #endif
         }
     }
-
-    #if os(macOS)
-    private func macVerseActions(_ st: BibleState, compact: Bool) -> some View {
-        HStack(spacing: 8) {
-            Button("Copy", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
-                .help("Copy with reference (⌘C)")
-            highlightMenu(st)
-            Button("Tag", systemImage: "tag") {
-                tagging = (selectionRanges(st), selectionLabel(st), "verses")
-            }
-            Button("Add Note", systemImage: "square.and.pencil") {
-                if let verse = selectedRows.first {
-                    app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
-                }
-            }
-            Button("Cross References", systemImage: "arrow.triangle.branch") { openInspector("crossrefs") }
-        }
-        .labelStyle(compact ? VerseActionLabelStyle.icon : VerseActionLabelStyle.standard)
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .fixedSize()
-    }
-    #endif
 
     private func clearVerseSelection() {
         selection = []
@@ -742,32 +694,26 @@ extension ScriptureView {
 #endif
 
 
-#if os(iOS)
+private extension View {
+    @ViewBuilder func verseActionHelp(_ title: String) -> some View {
+        #if os(macOS)
+        help(title)
+        #else
+        self
+        #endif
+    }
+}
+
 private struct VerseActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .font(.system(size: 15, weight: .medium))
+            #if os(macOS)
+            .frame(width: 38, height: 32)
+            #else
+            .frame(width: 44, height: 44)
+            #endif
             .contentShape(.rect)
             .opacity(configuration.isPressed ? 0.55 : 1)
     }
 }
-#endif
-
-
-#if os(macOS)
-private enum VerseActionLabelStyle: LabelStyle {
-    case standard, icon
-
-    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
-        switch self {
-        case .standard:
-            HStack(spacing: 5) {
-                configuration.icon
-                configuration.title
-            }
-        case .icon:
-            configuration.icon
-        }
-    }
-}
-#endif
