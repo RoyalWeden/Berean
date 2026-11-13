@@ -88,6 +88,8 @@ final class AppModel {
     private(set) var settingsService: SettingsService?
     private(set) var workspaces: WorkspacesService?
     private(set) var verseTags: VerseTagsService?
+    private(set) var historyService: HistoryService?
+    var historyRevision = 0
     /// Bumped on every verse-tag write so chips and tag lists refresh.
     var tagsRevision = 0
     /// Saved workspaces (newest first), shared with the existing apps' Settings → Layout list.
@@ -128,6 +130,7 @@ final class AppModel {
             settingsService = SettingsService(db: db.connection)
             workspaces = WorkspacesService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) }, uuid: { Self.newId() }, onChange: { _ in })
             savedWorkspaces = (try? workspaces?.list()) ?? []
+            historyService = HistoryService(db: db.connection)
             verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
             loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
@@ -269,6 +272,20 @@ final class AppModel {
             if files.count == 1, let lastId { self.openNote(lastId) }
             self.userMessage = "Imported \(created) new note\(created == 1 ? "" : "s")\(updated > 0 ? ", updated \(updated)" : "")\(failed > 0 ? ". \(failed) could not be imported." : ".")"
         }
+    }
+
+    // MARK: history (device-local `history` table, as the existing apps)
+
+    func recordHistory(type: String, title: String, bookId: String? = nil, chapter: Int? = nil, verse: Int? = nil, noteId: String? = nil, strongsNum: String? = nil, query: String? = nil) {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let e = HistoryEntry(id: "hist-\(now)-\(Self.newId().prefix(8))", type: type, title: title, timestamp: now, sessionId: currentSessionId, sessionName: session.name,
+                             bookId: bookId, chapter: chapter, verse: verse, noteId: noteId, strongsNum: strongsNum, query: query)
+        if (try? historyService?.add(e, maxEntries: 5000)) == true { historyRevision += 1 }
+    }
+
+    func openHistory() {
+        if let t = session.allTabs.first(where: { $0.tabType == .history }) { select(t.id, in: t.spaceId); return }
+        openTab(.history, in: .search, title: "History", state: JSObject())   // the existing apps group History with Search
     }
 
     // MARK: saved workspaces (same rows and state_json v2 as src/lib/workspaceSnapshot.ts)
@@ -477,17 +494,20 @@ final class AppModel {
 
     /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
     func openSearch(_ query: String) {
+        recordHistory(type: "search", title: "\"\(query)\"", query: query)
         var o = JSObject(); o["query"] = .string(JSString(query))
         openTab(.search, in: .search, title: "Search: \(query)", state: o)
         SearchHistory.record(query)
     }
 
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil) {
+        recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
         openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin)
     }
 
     func openNote(_ id: String?) {
+        if let id, let n = try? notes?.one(id) { recordHistory(type: "note", title: n.displayTitle, noteId: id) }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = id.flatMap { try? notes?.one($0)?.displayTitle } ?? "Notes"
         if let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }), t.tabType == .note, activeSpace == .notes {

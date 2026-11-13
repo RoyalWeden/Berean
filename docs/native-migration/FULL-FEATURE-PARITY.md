@@ -27,7 +27,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Mac: cross-verse text selection; verse-number click/⇧-click selection; selection bar; legacy copy formats (⌘C/⌘⇧C). iPhone: tap-select verses + selection bar; no cross-verse text selection (rows) |
 | S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Missing vs original: copy reference, play audio from here, compare this verse |
 | S09 | Multiple translations and editions | implemented | ✅ | ✅ | — | Text switching in navigator; Compare mode for parallel texts |
-| S10 | Reading position and history | implemented | 🟡 | 🟡 | P2 | Per-tab back/forward history + picker History (recent passages). Missing: global History tab/sheet, scroll-position memory per tab |
+| S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward history + picker History (recent passages). Missing: global History tab/sheet, scroll-position memory per tab |
 | S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size, line spacing, Scripture font, word replacer, theme. Missing: verse-number visibility, red-letter toggle, paragraph mode, per-text options (Hermas translation etc.) |
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
 | S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Compare columns aligned by verse; missing per-column navigation, verse compare view from verse menu |

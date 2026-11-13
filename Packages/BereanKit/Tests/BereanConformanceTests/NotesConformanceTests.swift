@@ -393,3 +393,24 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(NotesService.systemFolder(n("general", "Topic")) == nil)
     }
 }
+
+@Suite("navigation history") struct HistoryServiceTests {
+    @Test func addDedupPageDeleteClear() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let h = HistoryService(db: db)
+        func e(_ id: String, _ ts: Int64, ch: Int = 3) -> HistoryEntry { HistoryEntry(id: id, type: "bible", title: "John \(ch)", timestamp: ts, bookId: "JHN", chapter: ch) }
+        #expect(try h.add(e("a", 1_000)))
+        #expect(try h.add(e("b", 1_000 + 60_000)) == false)            // same place within 5 minutes
+        #expect(try h.add(e("c", 1_000 + 6 * 60_000)))                  // same place later
+        #expect(try h.add(e("d", 1_000 + 7 * 60_000, ch: 4)))
+        #expect(try h.all().map(\.id) == ["d", "c", "a"])
+        #expect(try h.page(before: 1_000 + 6 * 60_000).map(\.id) == ["a"])
+        _ = try h.add(HistoryEntry(id: "s", type: "search", title: "\"grace\"", timestamp: 9_999_999, query: "grace"), maxEntries: 2)
+        #expect(try h.all().map(\.id) == ["s", "d"])                   // capped to 2
+        try h.delete("s")
+        #expect(try h.all().map(\.id) == ["d"])
+        try h.clear()
+        #expect(try h.all().isEmpty)
+    }
+}

@@ -95,7 +95,7 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
   2. IOS-FUNC-002 — iPhone continuous reader (UITextView port of ChapterTextView) for cross-verse selection, partial highlights and
      tappable Strong's.
   3. U14 — Study Trail: port `src/platform/services/studyTrailService.ts` with goldens (scripts/golden pattern), then the map UI.
-  4. SHARED-FUNC-012 — History screen; MAC-FUNC-013 — Daily Note command + calendar.
+  4. (done) History screen, ⌘⇧D. Remaining: MAC-FUNC-013 calendar.
   5. SHARED-FUNC-016 — Tag manager; SHARED-FUNC-014 — Settings sections.
   6. M4 sync engine (OD-5 gates).
 - Harness notes:

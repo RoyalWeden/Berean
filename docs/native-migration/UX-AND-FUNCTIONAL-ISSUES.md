@@ -19,7 +19,6 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | OPEN |
 | SHARED-FUNC-010 | Verse actions lack Play Audio From Here (Copy Reference and Compare This Verse added). | both | P3 | S08 | OPEN (waits for Read Aloud) |
 | SHARED-FUNC-011 | Notes editor: tables as source text, images as captions, columns/threads without chrome (ADR-0014 limits). | both | P2 | N04/N05 | OPEN |
-| SHARED-FUNC-012 | No global History screen (original History tab/sheet). | both | P2 | S10 | OPEN |
 | MAC-FUNC-013 | No calendar on Mac (⌘⇧D Today's Note now exists). | Mac | P2 | N12 | OPEN (partly fixed) |
 | SHARED-FUNC-014 | Settings missing sections: Texts, Shortcuts, About, Notes, Hermas translation, verse-number and red-letter toggles. | both | P2 | U12/S11 | OPEN |
 | MAC-UI-015 | Sidebar drag: no drop line and no auto-scroll near the edges; no pinned-tab grid; no density setting. | Mac | P2 | U02 | OPEN |
@@ -57,3 +56,4 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | IOS-FUNC-001 | iPhone reader had no swipe chapter change. | iOS | P1 | Horizontal swipe (> 90 pt, mostly horizontal, not from the very edge) → next / previous chapter over real chapters and books. Verified in the Simulator: Obadiah 1 → Jonah 1 → Obadiah 1, and vertical scroll unaffected; PR #23. Edge-tap paging not added (the system back gesture owns the edge). |
 | MAC-FUNC-027 | Found by exploratory testing: single-digit verse numbers were nearly impossible to click — the tap landed on the gutter tab before the right-aligned number. | Mac | P1 | The whole gutter (both tabs and the number) is the verse-number target; verified that a click on "3" selects it and ⌘C copies "John 3:3 …"; PR #23 |
 | MAC-FUNC-028 | Found by exploratory testing: app shortcuts such as ⌘⇧D did nothing while the reader had focus (NSTextView swallowed them). | Mac | P1 | The reader passes unhandled key equivalents to the menus; verified ⌘⇧D → today's note `daily-2026-11-12` (the existing app's id format); PR #23 |
+| SHARED-FUNC-012 | No History screen. | both | P2 | `HistoryService` port (shared `history` table, device-local; 5-minute duplicate rule; cap 5000; tested). Records passages, notes, Strong's and searches. History tab (Search space, as in the original): by day, filter, type picker, reopen, remove, clear, Show Older. ⌘Y, ⌘K Commands, iPhone New sheet. Verified on the Mac (Romans 8 + "grace" listed); PR #23 |

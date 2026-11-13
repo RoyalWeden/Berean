@@ -33,6 +33,7 @@ extension AppModel {
         var list = recentPassages.filter { !($0.textId == textId && $0.bookId == bookId && $0.chapter == chapter) }
         list.insert(RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse), at: 0)
         if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserDefaults.standard.set(data, forKey: Self.recentKey) }
+        recordHistory(type: "bible", title: Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse), bookId: bookId, chapter: chapter, verse: verse)
     }
 
     /// Every book of every listed text, in list order.

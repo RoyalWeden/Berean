@@ -34,6 +34,8 @@ struct BereanMacApp: App {
                 Button("Toggle Sidebar") { app.sidebarToggleRequest += 1 }.keyboardShortcut("s", modifiers: [.command, .control])
             }
             CommandMenu("Go") {
+                Button("History") { app.openHistory() }.keyboardShortcut("y")
+                Divider()
                 Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)
                 Button("Forward") { app.goForward() }.keyboardShortcut("]").disabled(!app.canGoForward)
                 Divider()
