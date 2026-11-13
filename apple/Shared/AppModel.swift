@@ -750,6 +750,13 @@ final class AppModel {
         }
     }
 
+    func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true) {
+        openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
+                      endVerse: passage.endVerse, textId: passage.textId, reuseTab: reuseTab)
+        recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
+                     verse: passage.verse, endVerse: passage.endVerse)
+    }
+
     func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false) {
         var st = BibleState(bookId: bookId, chapter: chapter)
         st.verse = verse

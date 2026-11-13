@@ -40,11 +40,24 @@ struct LexiconEntryView: View {
                     section("Occurrences (\(occurrences.count)\(occurrences.count >= 1000 ? "+" : ""))") {
                         LazyVStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(occurrences.prefix(compact ? 40 : 400).enumerated()), id: \.offset) { _, o in
-                                Button { app.openScripture(bookId: o.bookId, chapter: o.chapter, verse: o.verseNum, textId: o.textId, reuseTab: true) } label: {
+                                let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
+                                Button { app.visitScripture(passage) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("\(Reference.bookChapterVerseLabel(o.bookId, chapter: o.chapter, verse: o.verseNum))\(o.textId == "lxx" ? " LXX" : "")").font(.subheadline.weight(.semibold))
+                                        HStack {
+                                            Text(passage.label).font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(Color.accentColor)
+                                            Text(textInfo(passage.textId).short)
+                                                .font(.caption).foregroundStyle(.secondary)
+                                            Spacer()
+                                            Image(systemName: "chevron.forward")
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                                .accessibilityHidden(true)
+                                        }
                                         Text(highlighted(o)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(.rect)
                                 }.buttonStyle(.interactivePlain)
                             }
                         }
@@ -148,12 +161,13 @@ struct CrossRefsView: View {
     }
 
     func refRow(_ b: String, _ c: Int, _ v: Int, _ end: Int?, _ text: String, detail: String?) -> some View {
-        Button {
-            app.openScripture(bookId: b, chapter: c, verse: v > 0 ? v : nil, endVerse: end, textId: "kjva", reuseTab: true)
+        let passage = ResolvedPassage(textId: "kjva", bookId: b, chapter: c, verse: v > 0 ? v : nil, endVerse: end)
+        return Button {
+            app.visitScripture(passage)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
-                    Text(Reference.bookChapterVerseLabel(b, chapter: c, verse: v > 0 ? v : nil) + (end.map { "–\($0)" } ?? "")).font(.subheadline.weight(.semibold))
+                    Text(passage.label).font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.accentColor)
                     Spacer()
                     if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }

@@ -278,7 +278,7 @@ struct ScriptureSearchView: View {
         let passage = ResolvedPassage(textId: h.textId, bookId: h.bookId, chapter: h.chapter, verse: h.verseNum)
         let edition = textInfo(h.textId)
         return Button {
-            openResult(passage, reuseTab: true)
+            app.visitScripture(passage)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -302,16 +302,10 @@ struct ScriptureSearchView: View {
         }
         .buttonStyle(.interactivePlain)
         .contextMenu {
-            Button("Open in New Tab", systemImage: "plus.square") { openResult(passage, reuseTab: false) }
+            Button("Open in New Tab", systemImage: "plus.square") { app.visitScripture(passage, reuseTab: false) }
             Button("Copy Verse", systemImage: "doc.on.doc") { Clipboard.copy("\(passage.label) \(edition.short) \(displayText(h))") }
             Button("Copy Reference", systemImage: "number") { Clipboard.copy("\(passage.label) \(edition.short)") }
         }
-    }
-
-    private func openResult(_ passage: ResolvedPassage, reuseTab: Bool) {
-        app.openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
-                          textId: passage.textId, reuseTab: reuseTab)
-        app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse)
     }
 
     func displayText(_ h: ScriptureHit) -> String {
