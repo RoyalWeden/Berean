@@ -5,6 +5,8 @@ struct DeepLinkTests {
     @Test(arguments: [
         ("berean://verse/Gen/1/1", DeepLinkRoute.verse(bookId: "GEN", chapter: 1, verse: 1)),
         ("berean://verse/Genesis/1/1-5?text=lxx", .verse(bookId: "GEN", chapter: 1, verse: 1, endVerse: 5, textId: "lxx")),
+        ("berean://verse/SIR/0/1-2?text=kjva", .verse(bookId: "SIR", chapter: 0, verse: 1, endVerse: 2, textId: "kjva")),
+        ("berean://verse/1CL/0?text=1clement", .verse(bookId: "1CL", chapter: 0, textId: "1clement")),
         ("berean://verse/Exo/20", .verse(bookId: "EXO", chapter: 20)),
         ("berean://open?ref=Rev%2022%3A1-5", .verse(bookId: "REV", chapter: 22, verse: 1, endVerse: 5)),
         ("berean://open?ref=Psa+23&play=1", .verse(bookId: "PSA", chapter: 23, play: true)),
@@ -37,7 +39,7 @@ struct DeepLinkTests {
 
     @Test(arguments: [
         "", "https://example.com/note/1", "https:///berean/note/1", "berean://verse/NotABook/1",
-        "berean://verse/Gen", "berean://verse/Gen/0", "berean://verse/Gen/1.5", "berean://lexicon/X1",
+        "berean://verse/Gen", "berean://verse/Gen/0", "berean://verse/Gen/1.5", "berean://verse/SIR/-1", "berean://lexicon/X1",
         "berean://nothing/1", "mailto:a@b", "berean://video/", "berean://search?q=++"
     ])
     func rejectsUnsupportedOrMalformedRoutes(link: String) {

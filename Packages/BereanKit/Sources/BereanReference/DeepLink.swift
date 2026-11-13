@@ -66,7 +66,8 @@ public enum DeepLink {
         switch head.lowercased() {
         case "verse":
             guard parts.count >= 2, let book = Reference.resolveBookToken(parts[0]),
-                  let chapter = positiveInteger(parts[1]) else { return nil }
+                  let number = nonnegativeNumber(parts[1]), let chapter = Int(exactly: number),
+                  chapter > 0 || book == "SIR" || book == "1CL" else { return nil }
             let match = parts.dropFirst(2).first.flatMap { verseSpec.match($0) }
             return verseRoute(bookId: book, chapter: chapter,
                               verse: match?[1].flatMap(Int.init), endVerse: match?[2].flatMap(Int.init))
