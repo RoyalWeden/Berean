@@ -91,7 +91,7 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
   - New sheet closes (iPhone).
 - Checks: Swift 78/30 PASS; Mac + iOS builds PASS.
 - **Next tasks in priority order:**
-  1. IOS-FUNC-001 — iPhone swipe / edge-tap chapter change (ScriptureView rowsScroll, DragGesture + step()).
+  1. (done) IOS-FUNC-001 swipe chapter change.
   2. IOS-FUNC-002 — iPhone continuous reader (UITextView port of ChapterTextView) for cross-verse selection, partial highlights and
      tappable Strong's.
   3. U14 — Study Trail: port `src/platform/services/studyTrailService.ts` with goldens (scripts/golden pattern), then the map UI.

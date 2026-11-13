@@ -14,7 +14,6 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 |---|---|---|---|---|---|
 | SHARED-FUNC-006 | Study Trail missing entirely. | both | P1 | U14 | OPEN |
 | SHARED-DATA-001 | No native sync; native libraries are isolated dev copies (by design until the M4 gates). | both | P1 | A01 | OPEN (gated, OD-5) |
-| IOS-FUNC-001 | iPhone reader: no swipe or edge-tap chapter change (original pager); chapter change needs the pill or More. | iOS | P1 | S02 | OPEN |
 | IOS-FUNC-002 | iPhone reader: no cross-verse text selection (per-verse rows). | iOS | P2 | S07 | OPEN |
 | MAC-UI-008 | Strong's search results do not highlight the matched words (the occurrence word indices are available). | both | P3 | Q03 | OPEN |
 | MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | OPEN |
@@ -55,3 +54,4 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | IOS-FUNC-005 | New sheet stayed open after Return (`dismiss()` ineffective after navigation). | iOS | P1 | Closes through the presenter's binding; verified "obadiah" → Obadiah 1 with the sheet closed (Simulator); PR #23 |
 | IOS-UI-006 | The verse selection bar overlapped the bottom bar. | iOS | P2 | Raised 72 pt on iPhone; PR #23 |
 | MAC-FUNC-005 | No highlight from a partial text selection. | Mac | P1 | Context menu → Highlight Selection ▸ colour; selection split per verse, display offsets → stored offsets (OffsetMap) → character highlight. Verified John 3:16: stored 50–69 = "begotten Son, that", the shown words; PR #23. (iPhone partial selection waits for IOS-FUNC-002.) |
+| IOS-FUNC-001 | iPhone reader had no swipe chapter change. | iOS | P1 | Horizontal swipe (> 90 pt, mostly horizontal, not from the very edge) → next / previous chapter over real chapters and books. Verified in the Simulator: Obadiah 1 → Jonah 1 → Obadiah 1, and vertical scroll unaffected; PR #23. Edge-tap paging not added (the system back gesture owns the edge). |

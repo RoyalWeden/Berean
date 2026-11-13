@@ -198,6 +198,13 @@ struct ScriptureView: View {
             .padding(.horizontal, 24).padding(.vertical, 16)
             .frame(maxWidth: .infinity)
         }
+        // iPhone: swipe left / right for the next / previous chapter (the original reader's pager). Mostly-horizontal
+        // drags only, so vertical scrolling and the system back-swipe from the very edge are unaffected.
+        .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { g in
+            let dx = g.translation.width, dy = g.translation.height
+            guard abs(dx) > 90, abs(dx) > abs(dy) * 2.2, g.startLocation.x > 24 else { return }
+            step(dx < 0 ? 1 : -1)
+        })
         .environment(\.openURL, OpenURLAction { url in
             if url.scheme == "strongs" { showLexicon(url.absoluteString.replacingOccurrences(of: "strongs:", with: "")); return .handled }
             return .systemAction
