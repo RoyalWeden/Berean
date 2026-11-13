@@ -62,9 +62,8 @@ struct NoteDetailView: View {
                         let label = verseLabel(ref, note.textId)
                         Button {
                             saveNow()
-                            app.openScripture(bookId: passage.bookId, chapter: chapter,
-                                              verse: passage.verse.flatMap(Int.init(exactly:)),
-                                              textId: note.textId, reuseTab: true)
+                            app.visitScripture(ResolvedPassage(textId: note.textId, bookId: passage.bookId, chapter: chapter,
+                                                             verse: passage.verse.flatMap(Int.init(exactly:))))
                         } label: {
                             Label(label, systemImage: "book")
                                 .font(.subheadline.weight(.medium))
@@ -476,6 +475,10 @@ struct VerseNotesView: View {
     let bookId: String, chapter: Int, verse: Int?, textId: String
     @State private var notes: [Note] = []
 
+    private var passageLabel: String {
+        Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+    }
+
     var body: some View {
         List {
             ForEach(notes) { note in
@@ -491,19 +494,18 @@ struct VerseNotesView: View {
                 }
                 .buttonStyle(.interactivePlain)
             }
-            if let verse {
-                Button {
-                    if app.newNote(verseRef: "\(bookId).\(chapter).\(verse)", textId: textId) != nil {
-                        #if os(iOS)
-                        dismiss()
-                        #endif
-                    }
-                } label: {
-                    Label("New Note for \(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)))", systemImage: "plus")
+            if verse == nil, notes.isEmpty {
+                ContentUnavailableView("No chapter notes", systemImage: "note.text")
+            }
+            Button {
+                let ref = "\(bookId).\(chapter)" + (verse.map { ".\($0)" } ?? "")
+                if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
+                    #if os(iOS)
+                    dismiss()
+                    #endif
                 }
-            } else if notes.isEmpty {
-                ContentUnavailableView("No chapter notes", systemImage: "note.text",
-                                       description: Text("Select a verse to add a note."))
+            } label: {
+                Label("New Note for \(passageLabel)", systemImage: "plus")
             }
         }
         .task(id: "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(textId)|\(app.notesRevision)") {
