@@ -478,3 +478,10 @@
 - Mac Go and iPhone More open saved Study Trails with their recaps and ordered Scripture stops. The reader uses legacy tables and preserves saved translations. The migrated fixture checks legacy ordering and excludes the implicit loose-stops bucket. The Mac entry and empty state were checked in the running app.
 
 - Study Trail can start a named trail, add the current chapter, pause, resume, and finish. Existing connections show their destination and reason. Recording currently requires an explicit action.
+
+### 2026-11-13 — Scripture selection and Compare polish
+- **Branch and base:** `native/reader-notes` at `c90d7ec`, draft PR #24.
+- **Delivered:** macOS Scripture selection panel with spaced native controls and a caret-free passage picker. Both readers use a verse-number marker for whole-verse selection and preserve saved highlights. Mac keyboard copy formats references with gaps. Compare follows reader settings and clears stale results when navigating.
+- **Verification:** `npm run native:build:mac`, `npm run native:build:ios` and `git diff --check` passed. Mac Dev visually confirmed the panel and picker and verified Escape dismissal. The attempted range click did not establish a new range.
+- **Data touched:** isolated Mac Dev fixtures for UI verification.
+- **Next:** use visible verse numbers for Mac range and clipboard verification, repeat multi-verse selection in the iPhone Simulator, and exercise Compare settings and narrow Mac pane layout.

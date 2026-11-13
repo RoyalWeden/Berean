@@ -100,7 +100,7 @@ struct ScriptureView: View {
             scrollTarget = st.verse
         }
         #if os(macOS)
-        .overlay(alignment: .bottom) { selectionBar(st).animation(.snappy(duration: 0.2), value: selection) }
+        .safeAreaInset(edge: .bottom, spacing: 0) { selectionBar(st) }
         #else
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !selection.isEmpty {
@@ -194,29 +194,60 @@ struct ScriptureView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(selectionLabel(st))
             #else
-            HStack(spacing: 4) {
-                Text(selectionLabel(st)).font(.callout.weight(.semibold)).lineLimit(1).padding(.horizontal, 8)
-                Divider().frame(height: 18)
-                Button { copySelection(st, plain: false) } label: { Label("Copy", systemImage: "doc.on.doc") }.help("Copy with reference (⌘C)")
-                highlightMenu(st)
-                Button { tagging = (selectionRanges(st), selectionLabel(st), "verses") } label: { Label("Tag", systemImage: "tag") }.help("Tag these verses")
-                Button { if let v = selectedRows.first { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } } label: { Label("Note", systemImage: "square.and.pencil") }.help("New note on \(selectionLabel(st))")
-                Button { openInspector("crossrefs") } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }.help("Cross references")
-                Divider().frame(height: 18)
-                Button { clearVerseSelection() } label: { Label("Clear Selection", systemImage: "xmark") }
-                    .keyboardShortcut(.cancelAction).help("Clear selection (Esc)")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    Text(selectionLabel(st))
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(selection.count == 1 ? "1 verse selected" : "\(selection.count) verses selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Button("Clear Selection", systemImage: "xmark") { clearVerseSelection() }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .keyboardShortcut(.cancelAction)
+                        .help("Clear selection (Esc)")
+                }
+                ViewThatFits(in: .horizontal) {
+                    macVerseActions(st, compact: false)
+                    macVerseActions(st, compact: true)
+                }
             }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .glassEffectCompat()
-            .padding(.bottom, 14)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.quaternary) }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Selected \(selectionLabel(st))")
             #endif
         }
     }
+
+    #if os(macOS)
+    private func macVerseActions(_ st: BibleState, compact: Bool) -> some View {
+        HStack(spacing: 8) {
+            Button("Copy", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
+                .help("Copy with reference (⌘C)")
+            highlightMenu(st)
+            Button("Tag", systemImage: "tag") {
+                tagging = (selectionRanges(st), selectionLabel(st), "verses")
+            }
+            Button("Add Note", systemImage: "square.and.pencil") {
+                if let verse = selectedRows.first {
+                    app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
+                }
+            }
+            Button("Cross References", systemImage: "arrow.triangle.branch") { openInspector("crossrefs") }
+        }
+        .labelStyle(compact ? VerseActionLabelStyle.icon : VerseActionLabelStyle.standard)
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+        .fixedSize()
+    }
+    #endif
 
     private func clearVerseSelection() {
         selection = []
@@ -248,7 +279,7 @@ struct ScriptureView: View {
                 }
             }
         } label: {
-            Label("Highlight Verses", systemImage: "highlighter")
+            Label("Highlight", systemImage: "highlighter")
         }
         .menuIndicator(.hidden)
     }
@@ -365,11 +396,6 @@ struct ScriptureView: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                #if os(macOS)
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                #endif
             }
             #if os(iOS)
             .padding(.horizontal, 4)
@@ -506,6 +532,7 @@ struct VerseRowView: View {
     var lineSpacing: CGFloat = 5
     var replacer = true
     var family = "system"
+    @AppStorage("showRedLetters") private var showRedLetters = true
 
     var body: some View {
         Text(attributed)
@@ -550,7 +577,7 @@ struct VerseRowView: View {
                 while j < units.count, (ranges.last { $0.0 <= pos + j && pos + j < $0.1 })?.2 == hit?.2 { j += 1 }
                 var a = AttributedString(String(decoding: units[k..<j], as: UTF16.self))
                 if w.1 { a.font = ScriptureFont.font(family, size: fontSize).italic() }
-                if w.2 && (UserDefaults.standard.object(forKey: "showRedLetters") as? Bool ?? true) { a.foregroundColor = .red }
+                if w.2 && showRedLetters { a.foregroundColor = .red }
                 if let hit { a.backgroundColor = Color.highlight(hit.2).opacity(0.35) }
                 out += a
                 k = j
@@ -654,7 +681,7 @@ extension ScriptureView {
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: readerStyle(st),
             selectedVerses: selection, scrollTarget: scrollTarget,
-            reference: { Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: $0) + suffix },
+            selectionReference: { selectionLabel(st) + suffix },
             rangeReference: { a, b in "\(Reference.bookName(st.bookId)) \(Reference.displayChapterString(st.bookId, st.chapter)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
             verseMenu: { verseNSMenu($0, st) },
             tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
@@ -722,6 +749,25 @@ private struct VerseActionButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(.rect)
             .opacity(configuration.isPressed ? 0.55 : 1)
+    }
+}
+#endif
+
+
+#if os(macOS)
+private enum VerseActionLabelStyle: LabelStyle {
+    case standard, icon
+
+    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+        switch self {
+        case .standard:
+            HStack(spacing: 5) {
+                configuration.icon
+                configuration.title
+            }
+        case .icon:
+            configuration.icon
+        }
     }
 }
 #endif

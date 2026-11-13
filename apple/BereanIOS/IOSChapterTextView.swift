@@ -169,16 +169,21 @@ struct IOSChapterTextView: UIViewRepresentable {
                     ]) { _, new in new }))
                 }
                 if parent.style.showVerseNumbers {
-                    out.append(NSAttributedString(string: "\t\(verse.verse)\t", attributes: base.merging([
+                    let selected = parent.selectedVerses.contains(verse.verse)
+                    let number = base.merging([
                         .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: .semibold),
-                        .foregroundColor: parent.selectedVerses.contains(verse.verse) ? UIColor.tintColor : UIColor.secondaryLabel,
+                        .foregroundColor: UIColor.secondaryLabel,
                         .link: URL(string: "berean-verse:\(verse.verse)")!, Self.skip: true,
-                    ]) { _, new in new }))
+                    ]) { _, new in new }
+                    out.append(NSAttributedString(string: "\t", attributes: number))
+                    let badge = selected ? number.merging([
+                        .foregroundColor: UIColor.white, .backgroundColor: UIColor.tintColor,
+                    ]) { _, new in new } : number
+                    out.append(NSAttributedString(string: "\(verse.verse)", attributes: badge))
+                    out.append(NSAttributedString(string: "\t", attributes: number))
                 }
                 let bodyStart = out.length
-                let tint = parent.selectedVerses.contains(verse.verse)
-                    ? UIColor.tintColor.withAlphaComponent(0.16)
-                    : verse.tint.map { UIColor(Color.highlight($0)).withAlphaComponent(0.25) }
+                let tint = verse.tint.map { UIColor(Color.highlight($0)).withAlphaComponent(0.25) }
                 var wordBase = base
                 if let tint { wordBase[.backgroundColor] = tint }
                 var offset = 0

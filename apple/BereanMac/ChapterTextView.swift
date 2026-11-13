@@ -13,7 +13,7 @@ struct ChapterTextView: NSViewRepresentable {
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
-    var reference: (Int) -> String                  // verse → "John 3:16"
+    var selectionReference: () -> String
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
@@ -141,16 +141,18 @@ struct ChapterTextView: NSViewRepresentable {
                     out.append(NSAttributedString(string: "\t\t" + title + "\n", attributes: base.merging([.font: font(size * 0.85, italic: true), .foregroundColor: NSColor.secondaryLabelColor, Self.skipKey: true]) { $1 }))
                 }
                 // Gutter: right-aligned verse number (a link → verse actions), note dot.
+                let selected = p.selectedVerses.contains(v.verse)
                 let numAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
-                    .foregroundColor: p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor : (p.style.showVerseNumbers ? NSColor.secondaryLabelColor : NSColor.clear),
+                    .foregroundColor: selected ? NSColor.alternateSelectedControlTextColor : (p.style.showVerseNumbers ? NSColor.secondaryLabelColor : NSColor.clear),
                     .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
                     .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                 ]
                 // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
                 let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
                 out.append(NSAttributedString(string: "\t", attributes: gutterTab))
-                out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
+                let badgeAttrs = selected ? numAttrs.merging([.backgroundColor: NSColor.controlAccentColor]) { $1 } : numAttrs
+                out.append(NSAttributedString(string: "\(v.verse)", attributes: badgeAttrs))
                 out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                 let textStart = out.length
                 verseTextStarts[v.verse] = textStart
@@ -198,8 +200,7 @@ struct ChapterTextView: NSViewRepresentable {
                 out.append(NSAttributedString(string: "\n", attributes: base))
                 let range = NSRange(location: start, length: out.length - start)
                 out.addAttribute(Self.verseKey, value: v.verse, range: range)
-                let tint: NSColor? = p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor.withAlphaComponent(0.16)
-                    : v.tint.map { NSColor(Color.highlight($0)).withAlphaComponent(0.22) }
+                let tint = v.tint.map { NSColor(Color.highlight($0)).withAlphaComponent(0.22) }
                 if let tint {
                     out.enumerateAttribute(.backgroundColor, in: NSRange(location: textStart, length: out.length - textStart - 1)) { val, r, _ in
                         if val == nil { out.addAttribute(.backgroundColor, value: tint, range: r) }
@@ -293,9 +294,9 @@ struct ChapterTextView: NSViewRepresentable {
             let r = tv.selectedRange()
             if r.length == 0 {
                 let vs = parent.verses.filter { parent.selectedVerses.contains($0.verse) }
-                guard let first = vs.first, let last = vs.last else { return nil }
+                guard !vs.isEmpty else { return nil }
                 if plain { return vs.map(\.displayText).joined(separator: " ") }
-                return ([vs.count == 1 ? parent.reference(first.verse) : parent.rangeReference(first.verse, last.verse)] + vs.map { "\($0.verse) \($0.displayText)" }).joined(separator: "\n")
+                return ([parent.selectionReference()] + vs.map { "\($0.verse) \($0.displayText)" }).joined(separator: "\n")
             }
             let vs = verses(in: r)
             if vs.count <= 1 && !plain { return plainText(r) }
@@ -327,6 +328,9 @@ final class ReaderTextView: NSTextView {
         // selection. (The built-in link handling did not fire for these custom-scheme links inside SwiftUI.)
         if event.clickCount == 1, let i = charIndex(at: event), let ts = textStorage, i < ts.length,
            let link = ts.attribute(.link, at: i, effectiveRange: nil), let c = coordinator {
+            if let url = link as? URL, url.scheme == "berean-verse" {
+                setSelectedRange(NSRange(location: i, length: 0))
+            }
             _ = c.textView(self, clickedOnLink: link, at: i)
             return
         }
@@ -343,9 +347,11 @@ final class ReaderTextView: NSTextView {
     func charIndex(at event: NSEvent) -> Int? {
         let p = convert(event.locationInWindow, from: nil)
         guard let lm = layoutManager, let tc = textContainer else { return nil }
+        guard lm.numberOfGlyphs > 0 else { return nil }
         let pt = NSPoint(x: p.x - textContainerOrigin.x, y: p.y - textContainerOrigin.y)
         var fraction: CGFloat = 0
         let g = lm.glyphIndex(for: pt, in: tc, fractionOfDistanceThroughGlyph: &fraction)
+        guard g < lm.numberOfGlyphs else { return nil }
         let rect = lm.boundingRect(forGlyphRange: NSRange(location: g, length: 1), in: tc)
         guard rect.insetBy(dx: -2, dy: -2).contains(pt) else { return nil }
         return lm.characterIndexForGlyph(at: g)

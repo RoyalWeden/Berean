@@ -51,3 +51,10 @@ PR #24 also includes the icon-only iPhone dock, one-row passage toolbar, direct 
 - Study Trail now has a read-only browser on Mac (Go → Study Trail) and iPhone (More → Study Trail). It reads legacy trail order, recaps, and stops with their saved translations. The migrated SQLite fixture passed. The next slice is connections and recording lifecycle.
 
 - Study Trail supports named trails, manual recording of the current Scripture chapter, pause, resume, and finish. Saved Scripture, lexicon, and note connections appear with their reasons. The legacy-schema tests cover ordered connections, revisits, closed pauses, and completion. Mac Dev UI verified creation, reopening the trail after relaunch, recording Jude, pausing, resuming, and finishing with one saved stop. Map, automatic recording, and connection editing remain open.
+
+## Verse selection and Compare polish
+
+- Mac Scripture uses a material action panel with the selected reference, count, Clear Selection and spaced native buttons. At narrow pane widths it switches to icons with accessible labels. The passage picker no longer displays a caret.
+- Native Scripture marks selected verse numbers in the gutter on both platforms. The text keeps its existing saved highlights and normal character selection. Mac keyboard copy uses the exact selected reference, including gaps.
+- Compare follows the Scripture font and verse-number settings. Passage changes clear stale results while new columns load, and column close controls have larger targets.
+- Both Xcode Dev builds and `git diff --check` passed. Mac Dev showed the labeled action panel and caret-free picker, and Escape dismissed the panel. Repeat Shift-click with visible verses and inspect the clipboard. Verify the new gutter marker on the Simulator and check Compare preferences and the narrow Mac panel interactively.
