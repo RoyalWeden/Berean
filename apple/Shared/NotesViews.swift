@@ -56,11 +56,25 @@ struct NoteDetailView: View {
                         .focused($focus, equals: .title)
                         .onSubmit { focus = .body }
                         .onChange(of: title) { scheduleSave() }
-                    if let ref = note.verseRef {
-                        Button(verseLabel(ref, note.textId)) {
-                            let p = ref.split(separator: ".").map(String.init)
-                            if p.count >= 2, let c = Int(p[1]) { app.openScripture(bookId: p[0], chapter: c, verse: p.count > 2 ? Int(p[2]) : nil, textId: note.textId, reuseTab: true) }
-                        }.buttonStyle(.borderless)
+                    if let ref = note.verseRef,
+                       let passage = Reference.parseCanonical(ref),
+                       let chapter = Int(exactly: passage.chapter) {
+                        let label = verseLabel(ref, note.textId)
+                        Button {
+                            saveNow()
+                            app.openScripture(bookId: passage.bookId, chapter: chapter,
+                                              verse: passage.verse.flatMap(Int.init(exactly:)),
+                                              textId: note.textId, reuseTab: true)
+                        } label: {
+                            Label(label, systemImage: "book")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.vertical, 6)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .accessibilityLabel("Open \(label) in Scripture")
+                        .help("Open in Scripture")
                     }
                     if showSource {
                         // Advanced: the Markdown source (View ▸ Show Markdown Source, ⇧⌘M).
@@ -160,6 +174,7 @@ struct NoteDetailView: View {
     /// Wikilinks open the note with that title; verse references and web links open where they belong.
     func openLink(_ url: URL) {
         if url.scheme == "berean-note" {
+            saveNow()
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
             if let p = app.resolvePassage(title) { app.openScripture(bookId: p.bookId, chapter: p.chapter, verse: p.verse, endVerse: p.endVerse, textId: p.textId, reuseTab: true); return }
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
