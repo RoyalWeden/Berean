@@ -36,7 +36,7 @@ struct LexiconEntryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if let e = entry {
+                if let e = entry, e.strongsNum == strongsId.uppercased() {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
@@ -55,8 +55,19 @@ struct LexiconEntryView: View {
                         section("Related") {
                             ForEach(related, id: \.strongsNum) { r in
                                 Button { app.navigateLexicon(r.strongsNum, in: tabId) } label: {
-                                    HStack { Text(r.strongsNum).monospaced(); Text(r.lemma); Text(r.gloss).foregroundStyle(.secondary).lineLimit(1) }
-                                }.buttonStyle(.borderless)
+                                    HStack(spacing: 8) {
+                                        Text(r.strongsNum).monospaced().foregroundStyle(Color.accentColor)
+                                        Text(r.lemma)
+                                        Text(r.gloss).foregroundStyle(.secondary).lineLimit(1)
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "chevron.forward")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                            .accessibilityHidden(true)
+                                    }
+                                    .frame(minHeight: entryControlHeight)
+                                    .contentShape(.rect)
+                                }.buttonStyle(.interactivePlain)
                             }
                         }
                     }
@@ -170,7 +181,7 @@ struct LexiconEntryView: View {
                             .buttonStyle(.interactivePlain)
                         }
                     }
-                } else if loaded {
+                } else if loaded && entry == nil {
                     ContentUnavailableView("No entry for \(strongsId)", systemImage: "character.book.closed")
                 } else {
                     ProgressView().frame(maxWidth: .infinity)
@@ -179,6 +190,7 @@ struct LexiconEntryView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .id(strongsId)
         .onChange(of: occurrenceEdition) {
             occurrenceBook = nil
             selectedRenderings = []
@@ -226,12 +238,20 @@ struct LexiconEntryView: View {
         }
     }
 
+    private var entryControlHeight: CGFloat {
+        #if os(iOS)
+        44
+        #else
+        32
+        #endif
+    }
+
     private func adjacentButton(_ destination: String?, title: String, symbol: String) -> some View {
         Button {
             if let destination { app.navigateLexicon(destination, in: tabId) }
         } label: {
             Image(systemName: symbol)
-                .frame(width: 34, height: 36)
+                .frame(width: entryControlHeight, height: entryControlHeight)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
