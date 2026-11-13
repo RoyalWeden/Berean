@@ -659,6 +659,23 @@ final class AppModel {
         }
     }
 
+    func navigateLexicon(_ strongs: String, in tabId: String) {
+        guard let tab = findTab(tabId) else { return }
+        if tab.tabType == .bible {
+            update(tabId, recordHistory: false) {
+                $0.state["rightPanelLexiconEntry"] = .string(JSString(strongs))
+            }
+        } else if tab.tabType == .lexicon {
+            update(tabId) {
+                $0.state["strongsNum"] = .string(JSString(strongs))
+                $0.title = strongs
+            }
+        } else {
+            return
+        }
+        recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
+    }
+
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false) {
         recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))

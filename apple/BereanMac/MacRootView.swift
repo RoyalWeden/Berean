@@ -73,7 +73,7 @@ struct MacRootView: View {
                         }
                     }
             case .lexicon:
-                LexiconEntryView(strongsId: tab.state["strongsNum"]?.stringValue?.string ?? "")
+                LexiconEntryView(strongsId: tab.state["strongsNum"]?.stringValue?.string ?? "", tabId: tab.id)
                     .id(tab.id)
                     .navigationTitle(tab.title)
             case .search:

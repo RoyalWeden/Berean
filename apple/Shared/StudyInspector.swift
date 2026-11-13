@@ -27,7 +27,7 @@ struct StudyInspector: View {
             } else if st.rightPanelTab == "crossrefs" {
                 CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.crossReferenceVerse(in: tabId, state: st), textId: st.translation)
             } else if let id = st.rightPanelLexiconEntry {
-                LexiconEntryView(strongsId: id, compact: true)
+                LexiconEntryView(strongsId: id, tabId: tabId, compact: true)
             } else {
                 ContentUnavailableView("No word selected", systemImage: "character.book.closed",
                                        description: Text("Turn on Strong's numbers and click one to look it up."))

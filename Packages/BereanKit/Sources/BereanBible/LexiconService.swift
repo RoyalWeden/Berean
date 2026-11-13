@@ -56,6 +56,26 @@ public actor LexiconService {
         return (try? db.query("SELECT * FROM entries WHERE strongs_id = ?", [.text(num)]))?.first.map(Self.mapEntry)
     }
 
+    /// Find the nearest existing entries in the same lexicon, ordered by Strong's number.
+    public func adjacentEntries(_ strongsNum: String) -> (previous: String?, next: String?) {
+        let id = Self.normalizedId(strongsNum)
+        guard let language = id.first, language == "H" || language == "G",
+              let number = Int64(id.dropFirst().prefix(while: \.isNumber)),
+              let db = lexicon(language) else { return (nil, nil) }
+        func neighbor(before: Bool) -> String? {
+            let comparison = before ? "<" : ">"
+            let direction = before ? "DESC" : "ASC"
+            let sql = """
+                SELECT strongs_id FROM entries
+                WHERE (CAST(SUBSTR(strongs_id, 2) AS INTEGER), strongs_id) \(comparison) (?, ?)
+                ORDER BY CAST(SUBSTR(strongs_id, 2) AS INTEGER) \(direction), strongs_id \(direction)
+                LIMIT 1
+                """
+            return (try? db.query(sql, [.integer(number), .text(id)]))?.first?["strongs_id"]?.string
+        }
+        return (neighbor(before: true), neighbor(before: false))
+    }
+
     /// `getRelated` — entries whose derivation cites this one (Hebrew: bare number as a whole token).
     public func related(_ strongsNum: String) -> [LexiconRelated] {
         let num = Self.normalizedId(strongsNum)

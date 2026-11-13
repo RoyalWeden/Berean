@@ -9,11 +9,13 @@ import BereanNotes
 struct LexiconEntryView: View {
     @Environment(AppModel.self) private var app
     let strongsId: String
+    let tabId: String
     var compact = false
     @State private var entry: LexiconEntry?
     @State private var related: [LexiconRelated] = []
     @State private var occurrences: [LexiconOccurrence] = []
     @State private var previews: [OccurrenceKey: OccurrencePreview] = [:]
+    @State private var adjacent: (previous: String?, next: String?) = (nil, nil)
     @State private var loaded = false
     @State private var occurrencesLoading = false
     @State private var occurrenceEdition: String?
@@ -36,7 +38,12 @@ struct LexiconEntryView: View {
             VStack(alignment: .leading, spacing: 14) {
                 if let e = entry {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        HStack {
+                            Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
+                            Spacer()
+                            adjacentButton(adjacent.previous, title: "Previous Entry", symbol: "chevron.backward")
+                            adjacentButton(adjacent.next, title: "Next Entry", symbol: "chevron.forward")
+                        }
                         Text(e.lemma).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
                         Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
                     }
@@ -47,7 +54,7 @@ struct LexiconEntryView: View {
                     if !related.isEmpty {
                         section("Related") {
                             ForEach(related, id: \.strongsNum) { r in
-                                Button { app.openLexicon(r.strongsNum, reuseTab: true) } label: {
+                                Button { app.navigateLexicon(r.strongsNum, in: tabId) } label: {
                                     HStack { Text(r.strongsNum).monospaced(); Text(r.lemma); Text(r.gloss).foregroundStyle(.secondary).lineLimit(1) }
                                 }.buttonStyle(.borderless)
                             }
@@ -190,6 +197,7 @@ struct LexiconEntryView: View {
         .task(id: strongsId) {
             loaded = false
             entry = nil
+            adjacent = (nil, nil)
             related = []
             occurrences = []
             previews = [:]
@@ -204,6 +212,9 @@ struct LexiconEntryView: View {
             entry = newEntry
             loaded = true
             guard newEntry != nil else { return }
+            let neighbors = await app.lexicon.adjacentEntries(strongsId)
+            guard !Task.isCancelled else { return }
+            adjacent = neighbors
             let newRelated = await app.lexicon.related(strongsId)
             guard !Task.isCancelled else { return }
             related = newRelated
@@ -213,6 +224,20 @@ struct LexiconEntryView: View {
             updatePreviews()
             occurrencesLoading = false
         }
+    }
+
+    private func adjacentButton(_ destination: String?, title: String, symbol: String) -> some View {
+        Button {
+            if let destination { app.navigateLexicon(destination, in: tabId) }
+        } label: {
+            Image(systemName: symbol)
+                .frame(width: 34, height: 36)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .disabled(destination == nil)
+        .accessibilityLabel(destination.map { "\(title), \($0)" } ?? title)
+        .help(destination.map { "\(title), \($0)" } ?? title)
     }
 
     private struct OccurrenceKey: Hashable {

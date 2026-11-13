@@ -85,7 +85,7 @@ struct IOSRootView: View {
                         app.update(tab.id) { t in var s = BibleState(t.state); s.rightPanelOpen = v; t.state = s.merged(into: t.state) }
                     })) { StudyInspector(tabId: tab.id).presentationDetents([.medium, .large]) }
             case .lexicon:
-                LexiconEntryView(strongsId: tab.state["strongsNum"]?.stringValue?.string ?? "").id(tab.id).navigationTitle(tab.title)
+                LexiconEntryView(strongsId: tab.state["strongsNum"]?.stringValue?.string ?? "", tabId: tab.id).id(tab.id).navigationTitle(tab.title)
             case .search:
                 SearchResultsView(tabId: tab.id).id(tab.id)
             case .note:
