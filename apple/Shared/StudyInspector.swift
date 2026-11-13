@@ -71,6 +71,7 @@ struct CommandPalette: View {
         let commands: [(String, String, () -> Void)] = [
             ("New Note", "square.and.pencil", { app.newNote() }),
             ("Today's Note", "calendar", { app.openTodayDailyNote() }),
+            ("Calendar", "calendar", { app.openCalendar() }),
             ("Notes Home", "tray.full", { app.openNote(nil) }),
             ("History", "clock", { app.openHistory() }),
             ("Tags", "tag", { app.openTags() }),

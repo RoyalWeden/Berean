@@ -104,12 +104,30 @@ extension AppModel {
 }
 
 extension AppModel {
-    /// Today's daily note: find (getDailyDates) or create ("Daily — yyyy-MM-dd", type daily), then open it —
-    /// the same find-or-create as src/lib/dailyNotes.ts `resolveDailyNoteId`.
-    func openTodayDailyNote() {
-        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
-        let key = f.string(from: Date())
-        if let hit = (try? notes?.dailyDates())?.first(where: { $0.dateKey == key }) { openNote(hit.noteId); return }
-        if let n = try? notes?.create(.init(type: "daily", title: "Daily — \(key)", content: "")).note { openNote(n.id) }
+    func openCalendar() {
+        if let tab = session.allTabs.first(where: { $0.tabType == .calendar }) {
+            select(tab.id, in: tab.spaceId)
+        } else {
+            openTab(.calendar, in: .notes, title: "Calendar", state: JSObject())
+        }
+    }
+
+    func openTodayDailyNote() { openDailyNote(DailyNoteCalendar.dateKey(Date())) }
+
+    func openDailyNote(_ key: String) {
+        guard let notes else {
+            userMessage = "The notes library is unavailable."
+            return
+        }
+        do {
+            if let hit = try notes.dailyDates().first(where: { $0.dateKey == key }) {
+                openNote(hit.noteId)
+            } else {
+                let created = try notes.create(.init(type: "daily", title: "Daily — \(key)", content: ""))
+                openNote(created.note.id)
+            }
+        } catch {
+            userMessage = "Could not open the daily note: \(error)"
+        }
     }
 }

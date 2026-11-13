@@ -53,6 +53,8 @@ struct IOSRootView: View {
                 SearchResultsView(tabId: tab.id).id(tab.id)
             case .note:
                 if let id = tab.state["noteId"]?.stringValue?.string { NoteDetailView(noteId: id).id(tab.id + id) } else { NotesHomeView(tabId: tab.id).id(tab.id) }
+            case .calendar:
+                DailyNoteCalendar(tabId: tab.id).id(tab.id)
             case .history:
                 HistoryView().id(tab.id)
             case .tags:
@@ -94,6 +96,7 @@ struct IOSRootView: View {
                 }
             }
             Section {
+                Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }
         } label: { Label("More", systemImage: "ellipsis.circle") }
