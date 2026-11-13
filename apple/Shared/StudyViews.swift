@@ -13,6 +13,7 @@ struct LexiconEntryView: View {
     @State private var entry: LexiconEntry?
     @State private var related: [LexiconRelated] = []
     @State private var occurrences: [LexiconOccurrence] = []
+    @State private var previews: [OccurrenceKey: OccurrencePreview] = [:]
     @State private var loaded = false
     @State private var occurrencesLoading = false
     @State private var occurrenceEdition: String?
@@ -79,8 +80,8 @@ struct LexiconEntryView: View {
                         }
                         let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
                         let indexed = scoped.enumerated().map { index, occurrence in
-                            let preview = occurrencePreview(occurrence)
-                            return (index, occurrence, renderingWords(preview), preview)
+                            let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
+                            return (index, occurrence, preview.renderings, preview)
                         }
                         let forms = indexed.reduce(into: [String: Int]()) { counts, row in
                             for word in row.2 { counts[word, default: 0] += 1 }
@@ -180,7 +181,10 @@ struct LexiconEntryView: View {
             selectedRenderings = []
             visibleOccurrences = 40
         }
-        .onChange(of: app.wordReplacerEnabled) { selectedRenderings = [] }
+        .onChange(of: app.wordReplacerEnabled) {
+            selectedRenderings = []
+            updatePreviews()
+        }
         .onChange(of: selectedRenderings) { visibleOccurrences = 40 }
         .onChange(of: sortByMatches) { visibleOccurrences = 40 }
         .task(id: strongsId) {
@@ -188,6 +192,7 @@ struct LexiconEntryView: View {
             entry = nil
             related = []
             occurrences = []
+            previews = [:]
             occurrenceEdition = nil
             occurrenceBook = nil
             selectedRenderings = []
@@ -205,30 +210,51 @@ struct LexiconEntryView: View {
             let newOccurrences = await app.lexicon.occurrences(strongsId, quickLimit: compact ? 60 : nil)
             guard !Task.isCancelled else { return }
             occurrences = newOccurrences
+            updatePreviews()
             occurrencesLoading = false
+        }
+    }
+
+    private struct OccurrenceKey: Hashable {
+        let text: String
+        let book: String
+        let chapter: Int
+        let verse: Int
+
+        init(_ occurrence: LexiconOccurrence) {
+            text = occurrence.textId
+            book = occurrence.bookId
+            chapter = occurrence.chapter
+            verse = occurrence.verseNum
         }
     }
 
     private struct OccurrencePreview {
         let words: [Substring]
         let matches: Set<Int>
+        let renderings: Set<String>
     }
 
-    private func occurrencePreview(_ occurrence: LexiconOccurrence) -> OccurrencePreview {
+    private func updatePreviews() {
+        let replacerEnabled = app.wordReplacerEnabled
+        previews = occurrences.reduce(into: [:]) { result, occurrence in
+            result[OccurrenceKey(occurrence)] = Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: replacerEnabled)
+        }
+    }
+
+    private static func occurrencePreview(_ occurrence: LexiconOccurrence, strongsId: String, replacerEnabled: Bool) -> OccurrencePreview {
         let hit = ScriptureHit(textId: occurrence.textId, bookId: occurrence.bookId, chapter: occurrence.chapter,
                                verseNum: occurrence.verseNum, text: occurrence.text, textTagged: occurrence.textTagged,
                                matchWordIndices: occurrence.matchWordIndices, matchedStrongs: [strongsId.uppercased()])
-        let snippet = hit.strongsSnippet(replacerEnabled: app.wordReplacerEnabled)
-        return OccurrencePreview(words: (snippet?.text ?? occurrence.text).split(whereSeparator: \.isWhitespace),
-                                 matches: Set(snippet?.indices ?? occurrence.matchWordIndices))
-    }
-
-    private func renderingWords(_ preview: OccurrencePreview) -> Set<String> {
-        Set(preview.matches.compactMap { index in
-            guard preview.words.indices.contains(index) else { return nil }
-            let word = preview.words[index].filter { $0.isLetter || $0 == "'" || $0 == "’" }.lowercased()
+        let snippet = hit.strongsSnippet(replacerEnabled: replacerEnabled)
+        let words = (snippet?.text ?? occurrence.text).split(whereSeparator: \.isWhitespace)
+        let matches = Set(snippet?.indices ?? occurrence.matchWordIndices)
+        let renderings = Set(matches.compactMap { index -> String? in
+            guard words.indices.contains(index) else { return nil }
+            let word = words[index].filter { $0.isLetter || $0 == "'" || $0 == "’" }.lowercased()
             return word.isEmpty ? nil : word
         })
+        return OccurrencePreview(words: words, matches: matches, renderings: renderings)
     }
 
     private func highlighted(_ preview: OccurrencePreview) -> AttributedString {
