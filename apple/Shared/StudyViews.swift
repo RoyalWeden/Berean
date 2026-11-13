@@ -16,13 +16,14 @@ struct LexiconEntryView: View {
     @State private var loaded = false
     @State private var occurrencesLoading = false
     @State private var occurrenceEdition: String?
+    @State private var occurrenceBook: String?
     @State private var visibleOccurrences = 40
 
     private var editions: [String] {
         Array(Set(occurrences.map(\.textId))).sorted()
     }
 
-    private var matchingOccurrences: [LexiconOccurrence] {
+    private var editionOccurrences: [LexiconOccurrence] {
         guard let occurrenceEdition else { return occurrences }
         return occurrences.filter { $0.textId == occurrenceEdition }
     }
@@ -64,7 +65,22 @@ struct LexiconEntryView: View {
                             }
                             .pickerStyle(.menu)
                         }
-                        let matches = matchingOccurrences
+                        let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
+                        if books.count > 1 {
+                            Picker("Book", selection: $occurrenceBook) {
+                                Text("All Books").tag(nil as String?)
+                                ForEach(books.keys.sorted { Reference.bookName($0) < Reference.bookName($1) }, id: \.self) { book in
+                                    Text("\(Reference.bookName(book)) (\(books[book]?.count ?? 0))").tag(Optional(book))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        let matches = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
+                        if !matches.isEmpty {
+                            Text("\(matches.count) loaded occurrences")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         LazyVStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(matches.prefix(visibleOccurrences).enumerated()), id: \.offset) { _, o in
                                 let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
@@ -94,6 +110,12 @@ struct LexiconEntryView: View {
                             }
                             .buttonStyle(.interactivePlain)
                         }
+                        if !occurrences.isEmpty {
+                            Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
+                                app.openSearch(e.strongsNum, reuseTab: true)
+                            }
+                            .buttonStyle(.interactivePlain)
+                        }
                         if compact, !occurrences.isEmpty {
                             Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
                                 app.openLexicon(strongsId, reuseTab: true)
@@ -110,13 +132,18 @@ struct LexiconEntryView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onChange(of: occurrenceEdition) { visibleOccurrences = 40 }
+        .onChange(of: occurrenceEdition) {
+            occurrenceBook = nil
+            visibleOccurrences = 40
+        }
+        .onChange(of: occurrenceBook) { visibleOccurrences = 40 }
         .task(id: strongsId) {
             loaded = false
             entry = nil
             related = []
             occurrences = []
             occurrenceEdition = nil
+            occurrenceBook = nil
             visibleOccurrences = 40
             occurrencesLoading = true
             let newEntry = await app.lexicon.entry(strongsId)
