@@ -19,6 +19,7 @@ struct ChapterTextView: NSViewRepresentable {
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
     var strongsTooltips: [String: String] = [:]
     var onStrongs: (String) -> Void
+    var onNotes: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
     /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
@@ -267,7 +268,7 @@ struct ChapterTextView: NSViewRepresentable {
                     }
                 }
                 if v.noteCount > 0 {
-                    out.append(NSAttributedString(string: v.noteCount > 1 ? "  ●\(v.noteCount)" : "  ●", attributes: [.font: NSFont.systemFont(ofSize: max(8, size * 0.5)), .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: para, Self.skipKey: true, .toolTip: "\(v.noteCount) note(s)"]))
+                    out.append(NSAttributedString(string: v.noteCount > 1 ? "  ●\(v.noteCount)" : "  ●", attributes: [.font: NSFont.systemFont(ofSize: max(8, size * 0.5)), .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: para, Self.skipKey: true, .link: URL(string: "berean-verse-notes:\(v.verse)")!, .toolTip: "Open notes for verse \(v.verse) (\(v.noteCount))"]))
                 }
                 if !v.tags.isEmpty {
                     out.append(NSAttributedString(string: "  ", attributes: base.merging([Self.skipKey: true]) { $1 }))
@@ -304,6 +305,8 @@ struct ChapterTextView: NSViewRepresentable {
             switch url.scheme {
             case "berean-verse":
                 if let v = Int(url.absoluteString.dropFirst("berean-verse:".count)) { parent.onVerseClick(v, NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false) }
+            case "berean-verse-notes":
+                if let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) { parent.onNotes(verse) }
             case "strongs":
                 parent.onStrongs(String(url.absoluteString.dropFirst("strongs:".count)))
             case "berean-tag":

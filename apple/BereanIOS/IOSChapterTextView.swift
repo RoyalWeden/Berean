@@ -20,6 +20,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var findRequest: Int
     var reference: (Int, Int) -> String
     var onStrongs: (String) -> Void
+    var onNotes: (Int) -> Void
     var onVerseTap: (Int) -> Void
     var onVerseActions: (Int) -> Void
     var onTagClick: (String, Int?) -> Void
@@ -300,7 +301,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 if verse.noteCount > 0 {
                     out.append(NSAttributedString(string: verse.noteCount > 1 ? "  ●\(verse.noteCount)" : "  ●",
                         attributes: base.merging([.font: UIFont.systemFont(ofSize: max(8, size * 0.5)),
-                                                  .foregroundColor: UIColor.tintColor, Self.skip: true]) { _, new in new }))
+                                                  .foregroundColor: UIColor.tintColor, .link: URL(string: "berean-verse-notes:\(verse.verse)")!, Self.skip: true]) { _, new in new }))
                 }
                 appendTags(verse.tags, verse: verse.verse, to: out, base: base, dark: dark)
                 out.append(NSAttributedString(string: "\n", attributes: base))
@@ -362,6 +363,9 @@ struct IOSChapterTextView: UIViewRepresentable {
                     textView?.selectedTextRange = nil
                     self?.parent.onVerseTap(verse)
                 }
+            case "berean-verse-notes":
+                guard let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) else { return nil }
+                return UIAction { [weak self] _ in self?.parent.onNotes(verse) }
             case "strongs":
                 let id = String(url.absoluteString.dropFirst("strongs:".count))
                 return UIAction { [weak self] _ in self?.parent.onStrongs(id) }

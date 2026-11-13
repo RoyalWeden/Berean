@@ -428,7 +428,7 @@ final class AppModel {
     }
 
     func close(_ tabId: String) {
-        crossReferenceFocus.removeValue(forKey: tabId)
+        studyVerseFocus.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
         let wasActive = activeTab?.id == tabId
         let ordered = orderedTabs
@@ -484,10 +484,10 @@ final class AppModel {
                 }
             }
             let after = sessions[sessionIndex].tabs[sp]![idx]
-            let locationChanged = (recordHistory || crossReferenceFocus[tabId] != nil)
+            let locationChanged = (recordHistory || studyVerseFocus[tabId] != nil)
                 && Self.location(before) != Self.location(after)
-            if locationChanged, crossReferenceFocus[tabId] != nil {
-                crossReferenceFocus.removeValue(forKey: tabId)
+            if locationChanged, studyVerseFocus[tabId] != nil {
+                studyVerseFocus.removeValue(forKey: tabId)
             }
             if recordHistory, locationChanged {
                 sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
@@ -623,23 +623,23 @@ final class AppModel {
         SearchHistory.record(query)
     }
 
-    private struct CrossReferenceFocus {
+    private struct StudyVerseFocus {
         let state: BibleState
         let verse: Int
     }
 
-    private var crossReferenceFocus: [String: CrossReferenceFocus] = [:]
+    private var studyVerseFocus: [String: StudyVerseFocus] = [:]
 
-    func focusCrossReferences(_ verse: Int?, in tabId: String) {
+    func focusStudyVerse(_ verse: Int?, in tabId: String) {
         guard let tab = findTab(tabId), let verse else {
-            crossReferenceFocus.removeValue(forKey: tabId)
+            studyVerseFocus.removeValue(forKey: tabId)
             return
         }
-        crossReferenceFocus[tabId] = CrossReferenceFocus(state: BibleState(tab.state), verse: verse)
+        studyVerseFocus[tabId] = StudyVerseFocus(state: BibleState(tab.state), verse: verse)
     }
 
-    func crossReferenceVerse(in tabId: String, state: BibleState) -> Int? {
-        if let focus = crossReferenceFocus[tabId],
+    func studyVerse(in tabId: String, state: BibleState) -> Int? {
+        if let focus = studyVerseFocus[tabId],
            focus.state.bookId == state.bookId, focus.state.chapter == state.chapter,
            focus.state.translation == state.translation {
             return focus.verse

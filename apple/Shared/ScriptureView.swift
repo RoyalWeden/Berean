@@ -199,7 +199,7 @@ struct ScriptureView: View {
         }
         let disjoint = destination.endVerse == nil && selection.count > 1 ? selection.sorted() : []
         writeLocalSelectionDestination(destination, disjoint: disjoint)
-        app.focusCrossReferences(selectedVerse, in: tabId)
+        app.focusStudyVerse(selectedVerse, in: tabId)
     }
 
     private func writeLocalSelectionDestination(_ destination: SelectionDestination, disjoint: [Int] = []) {
@@ -517,6 +517,7 @@ struct ScriptureView: View {
                 return label + (first == last ? "" : "-\(last)") + suffix
             },
             onStrongs: { showLexicon($0) },
+            onNotes: { openInspector("notes", verse: $0) },
             onVerseTap: { verseClick($0, shift: false) },
             onVerseActions: { number in
                 if let row = verses.first(where: { $0.verseNum == number }) {
@@ -725,12 +726,16 @@ struct ScriptureView: View {
         app.inspectStrongs(id, in: tabId, bookId: reader.bookId, chapter: reader.chapter)
     }
     func openInspector(_ tab: String, verse: Int? = nil) {
-        if tab == "crossrefs" {
-            app.focusCrossReferences(verse, in: tabId)
-        } else if let verse, verse != state.verse, !selection.contains(verse) {
-            writeLocalSelectionDestination(SelectionDestination(verse: verse, endVerse: nil))
+        if tab == "crossrefs" || tab == "notes" {
+            app.focusStudyVerse(verse, in: tabId)
+
         }
         mutate(recordHistory: false) {
+            #if os(macOS)
+            if tab == "notes", let layout = ScriptureLayout(rawValue: $0.scriptureLayout), !layout.showsNotes {
+                $0.scriptureLayout = ScriptureLayout.standard.rawValue
+            }
+            #endif
             $0.rightPanelOpen = true
             $0.rightPanelTab = tab
         }
@@ -929,6 +934,7 @@ extension ScriptureView {
             tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
             strongsTooltips: st.showStrongs ? strongsTooltips : [:],
             onStrongs: { showLexicon($0) },
+            onNotes: { openInspector("notes", verse: $0) },
             onVerseClick: { v, shift in verseClick(v, shift: shift) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) })
             .task(id: strongsIDs(in: rv, enabled: st.showStrongs)) {
