@@ -1,13 +1,23 @@
 import Foundation
 import BereanBible
 import BereanReference
+import BereanWorkspace
 
 /// Native reference understanding on top of the shared `Reference.parse` (which stays byte-identical to the existing
 /// parser and is golden-pinned):
 /// - a bare book name ("Obadiah", "Didache", "Recognitions 3") opens that book's first chapter, in whichever text has it;
 /// - in a single-chapter book, "Jude 5" / "Obadiah 3" means verse 5 / 3 of its only chapter (the usual convention);
 /// - a book not in the current text resolves to the first text that has it.
-struct ResolvedPassage: Equatable { var textId: String; var bookId: String; var chapter: Int; var verse: Int? }
+struct ResolvedPassage: Equatable {
+    var textId: String; var bookId: String; var chapter: Int; var verse: Int?
+
+    func isShown(in tab: Tab) -> Bool {
+        guard tab.tabType == .bible, tab.state["endChapter"]?.numberValue == nil else { return false }
+        let state = BibleState(tab.state)
+        return !state.compareMode && state.translation == textId && state.bookId == bookId
+            && state.chapter == chapter && state.verse == verse
+    }
+}
 
 extension AppModel {
     /// Every book of every listed text (loaded once, off the main thread).

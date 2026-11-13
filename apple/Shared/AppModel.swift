@@ -74,6 +74,14 @@ final class AppModel {
     var books: [String: [BookRow]] = [:]
     var libraryError: String?
     var commandPaletteShown = false
+    #if os(macOS)
+    var commandPaletteCreatesTab = false
+
+    func showCommandPalette(newTab: Bool = false) {
+        commandPaletteCreatesTab = newTab
+        commandPaletteShown = true
+    }
+    #endif
     /// Bumped by View ▸ Toggle Sidebar (the window's split view observes it).
     var sidebarToggleRequest = 0
     /// Every book of every text (passage navigator search, reference resolution).
@@ -486,33 +494,33 @@ final class AppModel {
                           textId: passage.textId, reuseTab: !newTab)
             recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse)
         } else if let id = StrongsId.normalize(query) {
-            if newTab { openLexicon(id) }
-            else {
-                recordHistory(type: "lexicon", title: id, strongsNum: id)
-                var state = JSObject()
-                state["strongsNum"] = .string(JSString(id))
-                openOrReuse(.lexicon, in: .lexicon, title: id, state: state)
-            }
-        } else if newTab {
-            var state = JSObject()
-            state["query"] = .string(JSString(query))
-            openTab(.search, in: .search, title: "Search: \(query)", state: state)
+            openLexicon(id, reuseTab: !newTab)
         } else {
-            openSearch(query, reuseTab: true)
+            openSearch(query, reuseTab: !newTab)
         }
     }
 
-    private func openOrReuse(_ type: TabType, in space: SpaceId, title: String, state: JSObject) {
-        let candidates = tabs(in: space).filter { $0.tabType == type && !$0.isPinned }
+    private func openOrReuse(_ type: TabType, in space: SpaceId, title: String, state: JSObject, origin: BereanWorkspace.Tab? = nil,
+                             canReplace: (BereanWorkspace.Tab) -> Bool = { _ in true },
+                             matches: ((BereanWorkspace.Tab) -> Bool)? = nil) {
+        let candidates = tabs(in: space).filter { $0.tabType == type }
         let currentId = activeTabId(in: space)
-        if let tab = candidates.first(where: { $0.id == currentId }) ?? candidates.first {
+        if let matches {
+            let exact = candidates.filter(matches)
+            if let tab = exact.first(where: { $0.id == currentId }) ?? exact.first {
+                select(tab.id, in: space)
+                return
+            }
+        }
+        let writable = candidates.filter { !$0.isPinned && canReplace($0) }
+        if let tab = writable.first(where: { $0.id == currentId }) ?? writable.first {
             update(tab.id) { tab in
                 for field in state.entries { tab.state[field.key.string] = field.value }
                 tab.title = title
             }
             select(tab.id, in: space)
         } else {
-            openTab(type, in: space, title: title, state: state)
+            openTab(type, in: space, title: title, state: state, origin: origin)
         }
     }
 
@@ -520,22 +528,41 @@ final class AppModel {
     func openSearch(_ query: String, reuseTab: Bool = false) {
         recordHistory(type: "search", title: "\"\(query)\"", query: query)
         var o = JSObject(); o["query"] = .string(JSString(query))
-        if reuseTab { openOrReuse(.search, in: .search, title: "Search: \(query)", state: o) }
-        else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
+        if reuseTab {
+            let isAllTextsSearch: (BereanWorkspace.Tab) -> Bool = { tab in
+                let state = tab.state
+                return state["scopeTexts"]?.arrayValue == nil
+                    && (state["wordMode"]?.stringValue?.string ?? "all") == "all"
+                    && (state["testament"]?.stringValue?.string ?? "all") == "all"
+                    && (state["bookIds"]?.arrayValue?.isEmpty ?? true)
+            }
+            openOrReuse(.search, in: .search, title: "Search: \(query)", state: o,
+                        canReplace: isAllTextsSearch,
+                        matches: { isAllTextsSearch($0) && $0.state["query"]?.stringValue?.string == query })
+        } else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
         SearchHistory.record(query)
     }
 
-    func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil) {
+    func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false) {
         recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
-        openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin)
+        if reuseTab {
+            openOrReuse(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin,
+                        canReplace: { $0.originTabId == origin?.id },
+                        matches: { $0.state["strongsNum"]?.stringValue?.string == strongs && $0.originTabId == origin?.id })
+        } else { openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin) }
     }
 
-    func openNote(_ id: String?) {
+    func openNote(_ id: String?, newTab: Bool = false) {
         if let id, let n = try? notes?.one(id) { recordHistory(type: "note", title: n.displayTitle, noteId: id) }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = id.flatMap { try? notes?.one($0)?.displayTitle } ?? "Notes"
-        if let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }), t.tabType == .note, activeSpace == .notes {
+        if !newTab, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
+            select(exact.id, in: .notes)
+            return
+        }
+        if !newTab, let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }),
+           t.tabType == .note, (!t.isPinned || id == nil), activeSpace == .notes {
             // Keep the Notes home location, so closing the note returns to the same folder.
             var title = title
             if let loc = t.state["listFolderId"] {
@@ -572,7 +599,10 @@ final class AppModel {
             location["translation"] = .string(JSString(st.translation))
             location["verse"] = verse.map { .number(Double($0)) } ?? .null
             location["endChapter"] = .null
-            openOrReuse(.bible, in: .scripture, title: title, state: location)
+            let passage = ResolvedPassage(textId: st.translation, bookId: bookId, chapter: chapter, verse: verse)
+            openOrReuse(.bible, in: .scripture, title: title, state: location,
+                        canReplace: { !BibleState($0.state).compareMode && $0.state["endChapter"]?.numberValue == nil },
+                        matches: passage.isShown(in:))
         } else {
             openTab(.bible, in: .scripture, title: title, state: st.object)
         }

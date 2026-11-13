@@ -106,10 +106,10 @@ struct HistoryView: View {
 
     func open(_ e: HistoryEntry) {
         switch e.type {
-        case "bible": if let b = e.bookId, let c = e.chapter { app.openScripture(bookId: b, chapter: c, verse: e.verse) }
+        case "bible": if let b = e.bookId, let c = e.chapter { app.openScripture(bookId: b, chapter: c, verse: e.verse, reuseTab: true) }
         case "note": if let n = e.noteId { app.openNote(n) }
-        case "lexicon": if let s = e.strongsNum { app.openLexicon(s) }
-        case "search": if let q = e.query { app.openSearch(q) }
+        case "lexicon": if let s = e.strongsNum { app.openLexicon(s, reuseTab: true) }
+        case "search": if let q = e.query { app.openSearch(q, reuseTab: true) }
         default: break
         }
     }

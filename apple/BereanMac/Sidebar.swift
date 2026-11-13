@@ -61,7 +61,7 @@ struct BereanSidebar: View {
     var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             workspaceSwitcher
-            Button { app.commandPaletteShown = true } label: {
+            Button { app.showCommandPalette() } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     Text(app.locationTitle.space).foregroundStyle(.secondary)
@@ -77,7 +77,7 @@ struct BereanSidebar: View {
             .buttonStyle(.plain)
             .help("Go to a passage, Strong's number, note or search (⌘K)")
             .accessibilityLabel("Location: \(app.locationTitle.space), \(app.locationTitle.title). Open reference or search")
-            Button { app.commandPaletteShown = true } label: {
+            Button { app.showCommandPalette(newTab: true) } label: {
                 Label("New Tab", systemImage: "plus").frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.vertical, 6).contentShape(.rect)
             }
             .buttonStyle(SidebarRowButtonStyle())

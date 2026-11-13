@@ -24,7 +24,7 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
-        .sheet(isPresented: $app.commandPaletteShown) { CommandPalette() }
+        .sheet(isPresented: $app.commandPaletteShown) { CommandPalette(newTab: app.commandPaletteCreatesTab) }
         .onChange(of: app.sidebarToggleRequest) { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
         .alert("Library", isPresented: Binding(get: { app.libraryError != nil }, set: { if !$0 { app.libraryError = nil } })) {
@@ -46,14 +46,6 @@ struct MacRootView: View {
             .disabled(!app.canGoBack).help("Back (⌘[)")
         Button { app.goForward() } label: { Label("Forward", systemImage: "chevron.forward") }
             .disabled(!app.canGoForward).help("Forward (⌘])")
-    }
-
-    func newTab(in space: SpaceId) {
-        switch space {
-        case .scripture: app.openScripture(bookId: "GEN", chapter: 1)
-        case .notes: app.openNote(nil)
-        default: app.activeSpace = space; app.commandPaletteShown = true
-        }
     }
 
     @ViewBuilder var detail: some View {

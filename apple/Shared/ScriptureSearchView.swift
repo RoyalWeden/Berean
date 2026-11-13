@@ -52,6 +52,7 @@ struct ScriptureSearchView: View {
         }
         .navigationTitle(query.isEmpty ? "Search" : "Search: \(query)")
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
+        .onChange(of: query) { _, newQuery in field = newQuery; focusText = nil }
         .task(id: "\(query)|\(targets)|\(mode.rawValue)|\(bookFilter)") { await runSearch() }
     }
 
@@ -154,7 +155,7 @@ struct ScriptureSearchView: View {
         guard !q.isEmpty else { return }
         // A plain reference in the search field goes to the passage, as everywhere else.
         if StrongsId.normalize(q) == nil, Reference.parse(q) != nil || app.resolvePassage(q) != nil, !q.hasPrefix("\"") {
-            app.openQuery(q, newTab: true); return
+            app.openQuery(q, newTab: false); return
         }
         SearchHistory.record(q)
         focusText = nil
@@ -264,11 +265,7 @@ struct ScriptureSearchView: View {
 
     func row(_ h: ScriptureHit) -> some View {
         Button {
-            #if os(iOS)
             app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId, reuseTab: true)
-            #else
-            app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId)
-            #endif
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

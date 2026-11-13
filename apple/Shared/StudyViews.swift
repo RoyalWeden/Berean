@@ -31,7 +31,7 @@ struct LexiconEntryView: View {
                     if !related.isEmpty {
                         section("Related") {
                             ForEach(related, id: \.strongsNum) { r in
-                                Button { app.openLexicon(r.strongsNum) } label: {
+                                Button { app.openLexicon(r.strongsNum, reuseTab: true) } label: {
                                     HStack { Text(r.strongsNum).monospaced(); Text(r.lemma); Text(r.gloss).foregroundStyle(.secondary).lineLimit(1) }
                                 }.buttonStyle(.borderless)
                             }
@@ -40,7 +40,7 @@ struct LexiconEntryView: View {
                     section("Occurrences (\(occurrences.count)\(occurrences.count >= 1000 ? "+" : ""))") {
                         LazyVStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(occurrences.prefix(compact ? 40 : 400).enumerated()), id: \.offset) { _, o in
-                                Button { app.openScripture(bookId: o.bookId, chapter: o.chapter, verse: o.verseNum, textId: o.textId) } label: {
+                                Button { app.openScripture(bookId: o.bookId, chapter: o.chapter, verse: o.verseNum, textId: o.textId, reuseTab: true) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("\(Reference.bookChapterVerseLabel(o.bookId, chapter: o.chapter, verse: o.verseNum))\(o.textId == "lxx" ? " LXX" : "")").font(.subheadline.weight(.semibold))
                                         Text(highlighted(o)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
@@ -123,7 +123,7 @@ struct CrossRefsView: View {
     }
 
     func refRow(_ b: String, _ c: Int, _ v: Int, _ end: Int?, _ text: String, detail: String?) -> some View {
-        Button { app.openScripture(bookId: b, chapter: c, verse: v) } label: {
+        Button { app.openScripture(bookId: b, chapter: c, verse: v, reuseTab: true) } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(Reference.bookChapterVerseLabel(b, chapter: c, verse: v) + (end.map { "-\($0)" } ?? "")).font(.subheadline.weight(.semibold))
@@ -225,10 +225,10 @@ struct TagResultsView: View {
                 ForEach(members) { m in
                     Section(m.label) {
                         ForEach(m.wholeChapters, id: \.bookId) { c in
-                            Button { app.openScripture(bookId: c.bookId, chapter: c.chapter) } label: { Label(Reference.bookChapterLabel(c.bookId, chapter: Double(c.chapter)), systemImage: "book") }
+                            Button { app.openScripture(bookId: c.bookId, chapter: c.chapter, reuseTab: true) } label: { Label(Reference.bookChapterLabel(c.bookId, chapter: Double(c.chapter)), systemImage: "book") }
                         }
                         ForEach(m.verses, id: \.verse) { v in
-                            Button { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verse) } label: {
+                            Button { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verse, reuseTab: true) } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verse)).font(.headline)
                                     Text(texts["\(v.bookId).\(v.chapter).\(v.verse)"] ?? "").foregroundStyle(.secondary).lineLimit(3)

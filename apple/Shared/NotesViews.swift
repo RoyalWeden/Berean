@@ -59,7 +59,7 @@ struct NoteDetailView: View {
                     if let ref = note.verseRef {
                         Button(verseLabel(ref, note.textId)) {
                             let p = ref.split(separator: ".").map(String.init)
-                            if p.count >= 2, let c = Int(p[1]) { app.openScripture(bookId: p[0], chapter: c, verse: p.count > 2 ? Int(p[2]) : nil, textId: note.textId) }
+                            if p.count >= 2, let c = Int(p[1]) { app.openScripture(bookId: p[0], chapter: c, verse: p.count > 2 ? Int(p[2]) : nil, textId: note.textId, reuseTab: true) }
                         }.buttonStyle(.borderless)
                     }
                     if showSource {
@@ -135,7 +135,7 @@ struct NoteDetailView: View {
     func openLink(_ url: URL) {
         if url.scheme == "berean-note" {
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
-            if let p = app.resolvePassage(title) { app.openScripture(bookId: p.bookId, chapter: p.chapter, verse: p.verse, textId: p.textId); return }
+            if let p = app.resolvePassage(title) { app.openScripture(bookId: p.bookId, chapter: p.chapter, verse: p.verse, textId: p.textId, reuseTab: true); return }
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
             return
         }
