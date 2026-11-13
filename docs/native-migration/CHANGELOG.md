@@ -416,3 +416,24 @@
   - Copy as Plain Text → no markup (bullets "•", tasks □ / ☑, "Note:");
   - Copy → plain + RTF + Markdown source flavours.
 - Checks: Swift 68 tests/26 suites PASS; golden drift 22/22 PASS; Mac + iOS builds PASS.
+
+### 2026-11-12 — Owner batch "continuous reconstruction" (cycle 1)
+- Fixed (owner reports):
+  - single-chapter books (chapter lists from real chapters, prologue 0, open directly, stepping, all-books test over 19 texts);
+  - verse-number click selects (⇧-click range, selection bar, ⌘C, Esc; iPhone tap);
+  - [sidebar ‹ ›] group in the sidebar title bar (same place when collapsed);
+  - multi-text search (All Texts default, scope menu, per-text counts, options popover, Strong's queries and bridge, phrase, history,
+    truncation notice; engine port + 6 tests).
+- Found and fixed (exploratory):
+  - bare book names and "Jude 5" did not resolve;
+  - same-verse-count passages kept the scroll position;
+  - Strong's bridge capped at 1000 rows;
+  - the New sheet stayed open on iPhone;
+  - the selection bar overlapped the iPhone bottom bar.
+- New:
+  - Notes home (folders home, folder view, trash, folder management, note status / move / duplicate);
+  - ⌘F find in chapter;
+  - ⌘K grouped results including notes and commands.
+- Records: FULL-FEATURE-PARITY.md (104 features × 2 platforms), UX-AND-FUNCTIONAL-ISSUES.md, SCREEN-INVENTORY.md.
+- Checks: Swift 78/30 PASS; Mac + iOS builds PASS; each fix exercised in the running Mac app; iPhone verified in the Simulator (verse
+  selection, search, New → Obadiah, Notes home).

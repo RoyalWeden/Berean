@@ -7,6 +7,8 @@ import BereanText
 struct NewSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    /// Closes the sheet through the presenter's binding (`dismiss()` alone left the sheet up after a navigation).
+    var close: (() -> Void)? = nil
     @State private var text = ""
     @FocusState private var focused: Bool
 
@@ -50,7 +52,7 @@ struct NewSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if let close { close() } else { dismiss() } } } }
         }
         .onAppear { focused = false }
     }
@@ -82,5 +84,5 @@ struct NewSheet: View {
     }
 
     func go() { guard !trimmed.isEmpty else { return }; let q = trimmed; finish { app.openQuery(q) } }
-    func finish(_ action: () -> Void) { action(); dismiss() }
+    func finish(_ action: () -> Void) { if let close { close() } else { dismiss() }; action() }
 }

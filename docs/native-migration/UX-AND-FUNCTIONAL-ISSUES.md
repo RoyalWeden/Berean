@@ -12,12 +12,9 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 
 | ID | Issue | Plat | Sev | Feature | Status |
 |---|---|---|---|---|---|
-| MAC-FUNC-003 | ⌘K finds passages, Strong's and words but not **notes** (typing a note title runs a Scripture search). Expected: grouped results Go to · Verses · Lexicon · Notes · Commands (unifiedSearch.ts). Repro: ⌘K "Rich editor test". | Mac+iOS | P1 | Q09/Q05 | OPEN |
-| MAC-FUNC-004 | No find-in-chapter (⌘F). Original has a find bar with match navigation. | Mac | P1 | S15 | OPEN |
 | MAC-FUNC-005 | Cannot create a highlight from a partial text selection; only whole verses (stored char ranges do render). | Mac | P1 | H02 | OPEN |
 | SHARED-FUNC-006 | Study Trail missing entirely. | both | P1 | U14 | OPEN |
 | SHARED-DATA-001 | No native sync; native libraries are isolated dev copies (by design until the M4 gates). | both | P1 | A01 | OPEN (gated, OD-5) |
-| MAC-FUNC-007 | Notes home is a filtered list only: no recent notes, folder browser, sort, previews, status/icons, folder create/rename/move UI. | both | P1 | N11 | IN PROGRESS |
 | IOS-FUNC-001 | iPhone reader: no swipe or edge-tap chapter change (original pager); chapter change needs the pill or More. | iOS | P1 | S02 | OPEN |
 | IOS-FUNC-002 | iPhone reader: no cross-verse text selection (per-verse rows). | iOS | P2 | S07 | OPEN |
 | MAC-UI-008 | Strong's search results do not highlight the matched words (the occurrence word indices are available). | both | P3 | Q03 | OPEN |
@@ -32,6 +29,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-FUNC-017 | Single window only: no floating tabs, presenter or secondary windows. | Mac | P2 | U07 | OPEN |
 | SHARED-FUNC-018 | PDFs, YouTube, Read Aloud, Ask Berean not ported. | both | P2 | U17/M01/M05/G01 | OPEN |
 | SHARED-FUNC-019 | Deep links (`berean://`) not handled natively. | both | P2 | A06 | OPEN |
+| IOS-FUNC-004 | iPhone New sheet has no notes results (Mac ⌘K does). | iOS | P2 | Q09 | OPEN |
 | SHARED-UI-020 | Accessibility: no full VoiceOver pass; dark mode checked only on the reader, search and sidebar. | both | P2 | A14 | OPEN |
 
 ## Fixed
@@ -52,3 +50,8 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-UI-026 | **Back / Forward not in the sidebar** (owner report). | Mac | P2 | [sidebar ‹ ›] group in the sidebar title bar, same place when collapsed; verified both states; PR #23 |
 | SHARED-SEARCH-001 | **Search limited to one text, no scope control, no Strong's queries, weak options** (owner report). | both | P1 | ScriptureSearchView + ScriptureSearch engine: All Texts default, scope menu, per-text counts, options, Strong's, phrase, history; verified "watchers" (22 results, 4 texts) and G5485 (284); 6 engine tests; PR #23 (d3e9342) |
 | SHARED-SEARCH-002 | Strong's bridge and Strong's search missed most occurrences of common numbers (the 1000-row, book-id-ordered cap also exists in the original). | both | P2 | Search uses uncapped occurrences; tests (Ps 23:1 via Yehovah; Gen 1:1 for H7225 + H430) |
+| MAC-FUNC-003 | ⌘K did not find notes. | Mac | P1 | Grouped palette: Recent · Go to · Lexicon · Search · Notes · Commands, with ↑/↓ and Return; verified "grace" listing 2 notes; PR #23. (The iPhone uses New, which has no notes group yet; tracked below as IOS-FUNC-004.) |
+| MAC-FUNC-004 | No find in chapter. | Mac | P1 | ⌘F find bar with match count and next/previous, ⌘G; verified "world" (5 matches) in John 3; PR #23 |
+| MAC-FUNC-007 | Notes home was a filtered list only. | both | P1 | Folders home (All Notes, system folders, folder tree with counts, Trash, Recently Edited) · folder view (subfolders, Pinned, recency sections, sort, group by status / folder / type) · previews · row menu (pin, move, status, duplicate, export, trash) · folder menu (new subfolder, rename, move, delete keeping or trashing notes) · Trash (restore, delete permanently, empty). Services tested. Verified on the Mac (create folder, move note, open folder, note → back to its folder) and on the iPhone (home renders); PR #23 (9b69814) |
+| IOS-FUNC-005 | New sheet stayed open after Return (`dismiss()` ineffective after navigation). | iOS | P1 | Closes through the presenter's binding; verified "obadiah" → Obadiah 1 with the sheet closed (Simulator); PR #23 |
+| IOS-UI-006 | The verse selection bar overlapped the bottom bar. | iOS | P2 | Raised 72 pt on iPhone; PR #23 |

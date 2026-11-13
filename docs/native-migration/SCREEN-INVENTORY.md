@@ -11,7 +11,7 @@ Nav = navigation makes sense · Visual = visual quality reviewed · Test = autom
 |---|---|---|---|---|---|---|---|---|
 | Main window (sidebar + reader + inspector) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ADR-0010/0012 |
 | Sidebar: workspace menu, location, New Tab, tabs, archive | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | |
-| Command palette ⌘K | ✅ (Floating Search) | 🟡 | ✅ | ✅ | ✅ | 🟡 | — | no notes / commands (MAC-FUNC-003) |
+| Command palette ⌘K | ✅ (Floating Search) | ✅ | ✅ | ✅ | ✅ | ✅ | — | grouped incl. notes, commands |
 | Scripture reader | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (light/dark) | catalog + display tests | |
 | Passage navigator popover | ✅ (picker) | ✅ | ✅ | ✅ | ✅ | ✅ | catalog test | |
 | Verse selection bar | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | |
@@ -23,12 +23,12 @@ Nav = navigation makes sense · Visual = visual quality reviewed · Test = autom
 | Options popover (search) | ✅ (advanced) | ✅ | ✅ | ✅ | ✅ | 🟡 | — | |
 | #tag results | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | verse-tags golden | |
 | Tag picker sheet | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | — | |
-| Notes home | ✅ | 🟡 | ✅ | ✅ | 🟡 | 🟡 | notes golden | MAC-FUNC-007 |
+| Notes home (folders, folder view, trash) | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | folder/trash tests | |
 | Note editor | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | spans tests | ADR-0014 |
 | Version history sheet | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | notes golden | |
 | Export / import panels | ✅ | ✅ | ✅ | ✅ | ✅ | — | ui smoke | |
 | Settings window | ✅ | 🟡 | ✅ | ✅ | ✅ | 🟡 | settings test | SHARED-FUNC-014 |
-| Find bar ⌘F | ✅ | ❌ | — | — | — | — | — | MAC-FUNC-004 |
+| Find bar ⌘F | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | AppKit find bar |
 | History tab | ✅ | ❌ | — | — | — | — | — | SHARED-FUNC-012 |
 | Calendar / daily | ✅ | ❌ | — | — | — | — | — | MAC-FUNC-013 |
 | Tag manager / graph | ✅ | ❌ | | | | | | |
@@ -44,10 +44,10 @@ Nav = navigation makes sense · Visual = visual quality reviewed · Test = autom
 | Tab sheet + Workspaces page | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | — | |
 | More menu | ✅ (caret) | ✅ | ✅ | ✅ | ✅ | 🟡 | — | |
 | Passage navigator sheet | ✅ | 🟡 | ✅ | ❓ | ✅ | ❓ | — | compact layout untapped |
-| Verse selection + selection bar | ✅ (verse sheet) | 🟡 | ✅ | ❓ | 🟡 | ❓ | — | needs Simulator pass |
+| Verse selection + selection bar | ✅ (verse sheet) | ✅ | ✅ | ✅ (Simulator) | ✅ | 🟡 | — | tap number selects |
 | Study inspector sheet | ✅ (verse sheet tabs) | 🟡 | ✅ | ❓ | 🟡 | ❓ | — | |
-| Search | ✅ | 🟡 | ✅ | ❓ | ✅ | ❓ | — | same view as Mac |
-| Notes home / editor | ✅ | 🟡 | ✅ | ✅ (New Note) | 🟡 | 🟡 | — | |
+| Search | ✅ | ✅ | ✅ | ✅ (Simulator) | ✅ | ✅ | engine tests | All Texts default |
+| Notes home / editor | ✅ | ✅ | ✅ | ✅ (Simulator) | ✅ | 🟡 | — | |
 | Settings sheet | ✅ | 🟡 | ✅ | ❓ | ✅ | ❓ | — | |
 | Verse sheet (low detent) with Strong's / refs / notes | ✅ | ❌ | | | | | | iPhone uses the inspector instead |
 | History, Calendar, Study Trail, Tags, PDFs, YouTube, Read Aloud, Ask Berean, Share Extension, widget | ✅ | ❌ | | | | | | |

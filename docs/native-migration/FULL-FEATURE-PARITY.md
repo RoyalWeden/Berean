@@ -32,7 +32,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
 | S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Compare columns aligned by verse; missing per-column navigation, verse compare view from verse menu |
 | S14 | Very long chapter performance | implemented (partly measured) | 🟡 | ❓ | P2 | Mac TextKit renders whole chapter (Ps 119 untested for latency); iPhone LazyVStack |
-| S15 | Find in chapter | implemented | ❌ | ❌ | P1 | Find in chapter (⌘F) missing — NSTextView find bar can be enabled |
+| S15 | Find in chapter | implemented | ✅ | ❌ | P2 | Find in chapter (⌘F) missing — NSTextView find bar can be enabled |
 | S16 | Word replacer (display rules for divine names and search expansion) | implemented | ✅ | ✅ | — | Word replacer display + search variants + Strong's bridge |
 | Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Native multi-text search (All Texts default, scope menu, per-text counts, options popover). iPhone uses same view (not tap-verified) |
 | Q02 | Reference search | implemented | ✅ | ✅ | — | References in ⌘K/New/search field go to passage |
@@ -42,7 +42,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | Q06 | Indexing | implemented (FTS), partial (others) | ✅ | ✅ | — | FTS5 per text; deterministic ordering (ADR-0008) |
 | Q07 | Filtering and ranking | implemented / partial ranking | ✅ | 🟡 | — | Testament, books, match mode, scripture/relevance order, grouping by text/book/none |
 | Q08 | Semantic search and embeddings | partial (Mac dev only; not shipped) | — | — | — | Dev-only in original |
-| Q09 | Floating search / unified Search Berean / command palette | implemented | 🟡 | 🟡 | P1 | ⌘K palette: references, Strong's, word search. Missing unified grouped results (Go to · Verses · Lexicon · Notes · Commands) |
+| Q09 | Floating search / unified Search Berean / command palette | implemented | ✅ | 🟡 | P2 | ⌘K palette: references, Strong's, word search. Missing unified grouped results (Go to · Verses · Lexicon · Notes · Commands) |
 | Q10 | YouTube transcript search | implemented (see M04) | ❌ | ❌ | P3 | Depends on YouTube (M01) |
 | N01 | General, verse and daily notes | implemented | 🟡 | 🟡 | P1 | General + verse notes create/edit; Today's Note (daily) on iPhone New sheet; Mac lacks daily-note command (⌘⇧D) and calendar |
 | N02 | Markdown model and ProseMirror structure | implemented | 🟡 | 🟡 | P1 | Live-preview editor over verbatim Markdown (ADR-0014) — no data loss by construction; structures shown simplified |
@@ -54,7 +54,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet, restore with pre-restore snapshot (golden); undo via text system |
 | N09 | Export, import, print | implemented | ✅ | 🟡 | — | Export (save panel) / import / copy; iPhone document picker untapped; no print |
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
-| N11 | Folders, trash, pin, status, icons, board, list views | implemented | 🟡 | 🟡 | P1 | Notes list with type filters/folder picker/pin/trash/restore. Missing: real Notes home (recent, folders browser, sort, previews, status/icons, board view), folder management UI |
+| N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes list with type filters/folder picker/pin/trash/restore. Missing: real Notes home (recent, folders browser, sort, previews, status/icons, board view), folder management UI |
 | N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Today's note (iPhone New sheet); no calendar / sunrise day boundary |
 | N13 | Idiom / reference-book editor | implemented, niche | ❌ | ❌ | P3 | Idiom editor not ported |
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
