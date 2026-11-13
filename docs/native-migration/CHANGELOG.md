@@ -519,3 +519,7 @@
 - Preserve a reference’s LXX suffix unless the link names a text explicitly.
 - Save pending note edits before routing internal deep links.
 - Native conformance, both Dev builds and the updated focused parser suite passed.
+
+### 2026-11-13 — Independent Compare passages
+
+- Mac and iPhone can change one Compare column's chapter or edition and open its exact destination in the reader. Saved columns retain their individual destinations and legacy metadata. Mixed passages use labeled sections.

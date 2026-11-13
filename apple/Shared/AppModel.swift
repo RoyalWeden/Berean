@@ -430,6 +430,13 @@ final class AppModel {
             guard let idx = sessions[sessionIndex].tabs[sp]?.firstIndex(where: { $0.id == tabId }) else { continue }
             let before = sessions[sessionIndex].tabs[sp]![idx]
             change(&sessions[sessionIndex].tabs[sp]![idx])
+            if before.tabType == .bible {
+                let updated = sessions[sessionIndex].tabs[sp]![idx].state
+                if let columns = updated["compareColumns"], columns == before.state["compareColumns"] {
+                    let moved = CompareColumn.followPassageChange(columns, from: BibleState(before.state), to: BibleState(updated))
+                    if moved != columns { sessions[sessionIndex].tabs[sp]![idx].state["compareColumns"] = moved }
+                }
+            }
             let after = sessions[sessionIndex].tabs[sp]![idx]
             if recordHistory, Self.location(before) != Self.location(after) {
                 backStack[tabId, default: []].append((before.title, before.state))

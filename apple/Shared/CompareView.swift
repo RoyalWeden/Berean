@@ -4,33 +4,96 @@ import BereanBible
 import BereanText
 import BereanReference
 
-/// Parallel Scripture (Compare mode): one column per text, rows aligned by verse number. Columns follow the
-/// tab's passage (LXX Psalm/Jeremiah numbering mapped with ChapterMap) and are stored in the synced
-/// `compareColumns` field, so compare tabs round-trip with the existing apps.
+/// A persisted Compare column. Keep the raw object so older clients retain their metadata.
+struct CompareColumn: Identifiable {
+    let id: Int
+    let record: JSObject
+    let text: String
+    let book: String
+    let chapter: Int
+
+    init?(id: Int, record: JSObject, anchor: BibleState) {
+        guard let text = record["textId"]?.stringValue?.string else { return nil }
+        self.id = id
+        self.record = record
+        self.text = text.lowercased()
+        book = record["bookId"]?.stringValue?.string ?? anchor.bookId
+        chapter = record["chapter"]?.numberValue.flatMap(Int.init(exactly:))
+            ?? ChapterMap.mapChapter(anchor.bookId, anchor.chapter, from: anchor.translation, to: self.text)
+    }
+
+    init(id: Int, text: String, anchor: BibleState) {
+        var record = JSObject()
+        record["textId"] = .string(JSString(text))
+        record["bookId"] = .string(JSString(anchor.bookId))
+        record["chapter"] = .number(Double(ChapterMap.mapChapter(anchor.bookId, anchor.chapter, from: anchor.translation, to: text)))
+        self.id = id
+        self.record = record
+        self.text = text
+        book = anchor.bookId
+        chapter = ChapterMap.mapChapter(book, anchor.chapter, from: anchor.translation, to: text)
+    }
+
+    func follows(_ anchor: BibleState) -> Bool {
+        book == anchor.bookId && chapter == ChapterMap.mapChapter(book, anchor.chapter, from: anchor.translation, to: text)
+    }
+
+    static func followPassageChange(_ value: JSValue?, from old: BibleState, to new: BibleState) -> JSValue? {
+        guard old.compareMode, new.compareMode,
+              old.bookId != new.bookId || old.chapter != new.chapter || old.translation != new.translation,
+              let records = value?.arrayValue else { return value }
+        return .array(records.enumerated().map { index, value in
+            guard var record = value.objectValue,
+                  let column = CompareColumn(id: index, record: record, anchor: old),
+                  column.follows(old) else { return value }
+            let chapter = ChapterMap.mapChapter(new.bookId, new.chapter, from: new.translation, to: column.text)
+            if column.book != new.bookId || column.chapter != chapter {
+                record["bookId"] = .string(JSString(new.bookId))
+                record["chapter"] = .number(Double(chapter))
+                record.remove("scrollPos")
+            }
+            return .object(record)
+        })
+    }
+
+    var label: String {
+        "\(Reference.readerChapterLabel(book, chapter, textId: text)) · \(textInfo(text).short)"
+    }
+}
+
 struct CompareView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
-    @State private var rows: [Int: [String: ChapterVerseRow]] = [:]
+    @State private var rows: [Int: [Int: ChapterVerseRow]] = [:]
+    @State private var independentRows: [Int: [ChapterVerseRow]] = [:]
     @State private var loadedPassage: String?
     @State private var localVerseSelection: Int?
+    @State private var editingColumn: CompareColumn?
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
-    var columns: [String] {
-        let cols = app.findTab(tabId)?.state["compareColumns"]?.arrayValue?.compactMap { $0["textId"]?.stringValue?.string } ?? []
-        var seen = Set<String>()
-        let installed = Set(availableTexts.map(\.id))
-        let valid = cols.filter { installed.contains($0) && seen.insert($0).inserted }
-        return valid.isEmpty ? [state.translation, state.translation == "lxx" ? "kjva" : "lxx"] : valid
+    var columns: [CompareColumn] {
+        let saved = app.findTab(tabId)?.state["compareColumns"]?.arrayValue ?? []
+        let anchor = state
+        let valid = saved.enumerated().compactMap { index, value in
+            value.objectValue.flatMap { CompareColumn(id: index, record: $0, anchor: anchor) }
+        }
+        if !valid.isEmpty { return valid }
+        return [
+            CompareColumn(id: 0, text: anchor.translation, anchor: anchor),
+            CompareColumn(id: 1, text: anchor.translation == "lxx" ? "kjva" : "lxx", anchor: anchor)
+        ]
     }
 
     var body: some View {
         let st = state, cols = columns
-        let passage = "\(st.translation)|\(st.bookId)|\(st.chapter)|\(cols.joined(separator: ","))"
+        let passage = "\(st.translation)|\(st.bookId)|\(st.chapter)|\(cols.map { "\($0.id):\($0.text):\($0.book):\($0.chapter)" }.joined(separator: ","))"
         ScrollViewReader { proxy in
             ScrollView {
                 if loadedPassage != passage {
                     ProgressView().frame(maxWidth: .infinity).padding()
+                } else if !cols.allSatisfy({ $0.follows(st) }) {
+                    independentComparison(cols)
                 } else if rows.isEmpty {
                     ContentUnavailableView("No Text in This Passage", systemImage: "book.closed")
                 } else {
@@ -69,14 +132,19 @@ struct CompareView: View {
             ToolbarItem {
                 Menu {
                     Menu("Add Translation", systemImage: "plus") {
-                        ForEach(availableTexts.filter { !cols.contains($0.id) }) { text in
-                            Button(text.name) { setColumns(cols + [text.id]) }
+                        ForEach(availableTexts.filter { text in !cols.contains { $0.text == text.id && $0.follows(st) } }) { text in
+                            Button(text.name) { setColumns(cols + [CompareColumn(id: (cols.last?.id ?? -1) + 1, text: text.id, anchor: st)]) }
                         }
                     }
                     .disabled(cols.count >= 4)
+                    Menu("Change Column Passage", systemImage: "book") {
+                        ForEach(cols) { column in
+                            Button(column.label) { editingColumn = column }
+                        }
+                    }
                     Section("Open in Reader") {
-                        ForEach(cols, id: \.self) { text in
-                            Button(textInfo(text).name) { setColumns([text]) }
+                        ForEach(cols) { column in
+                            Button(column.label) { setColumns([column]) }
                         }
                     }
                 } label: {
@@ -85,16 +153,33 @@ struct CompareView: View {
                 .help("Add a translation or open one in the reader")
             }
         }
+        .sheet(item: $editingColumn) { column in
+            NavigationStack {
+                PassagePicker(textId: column.text, currentBook: column.book, currentChapter: column.chapter, onPick: { text, book, chapter, _, _ in
+                    changePassage(for: column.id, text: text, book: book, chapter: chapter)
+                    editingColumn = nil
+                }, compact: true)
+                .navigationTitle("Choose Column Chapter")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { editingColumn = nil }
+                    }
+                }
+            }
+            #if os(macOS)
+            .frame(minWidth: 460, minHeight: 520)
+            #endif
+        }
         .task(id: passage) { await load(st, cols, passage: passage) }
     }
 
-    private func comparisonGrid(_ st: BibleState, _ cols: [String]) -> some View {
+    private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
         Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 10) {
             GridRow {
                 if showVerseNumbers { Text("").gridColumnAlignment(.trailing) }
-                ForEach(cols, id: \.self) { c in
+                ForEach(cols) { c in
                     HStack {
-                        Text(textInfo(c).name).font(.headline)
+                        Text(textInfo(c.text).name).font(.headline)
                         Spacer()
                         closeTranslation(c, columns: cols)
                     }
@@ -107,7 +192,7 @@ struct CompareView: View {
                     if showVerseNumbers {
                         verseButton(v, state: st)
                     }
-                    ForEach(cols, id: \.self) { c in
+                    ForEach(cols) { c in
                         comparisonText(v, text: c, state: st)
                     }
                 }
@@ -117,11 +202,11 @@ struct CompareView: View {
         .padding(24)
     }
 
-    private func stackedComparison(_ state: BibleState, _ columns: [String]) -> some View {
+    private func stackedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
         LazyVStack(alignment: .leading, spacing: 14) {
-            ForEach(columns, id: \.self) { text in
+            ForEach(columns) { text in
                 HStack {
-                    Text(textInfo(text).name).font(.subheadline.weight(.semibold))
+                    Text(textInfo(text.text).name).font(.subheadline.weight(.semibold))
                     Spacer()
                     closeTranslation(text, columns: columns)
                 }
@@ -130,9 +215,9 @@ struct CompareView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
                     if showVerseNumbers { verseButton(verse, state: state) }
-                    ForEach(columns, id: \.self) { text in
+                    ForEach(columns) { text in
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(textInfo(text).short)
+                            Text(textInfo(text.text).short)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                             comparisonText(verse, text: text, state: state)
@@ -145,8 +230,41 @@ struct CompareView: View {
         .padding(16)
     }
 
-    @ViewBuilder private func comparisonText(_ verse: Int, text: String, state: BibleState) -> some View {
-        if let row = rows[verse]?[text] {
+    private func independentComparison(_ columns: [CompareColumn]) -> some View {
+        LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
+            ForEach(columns) { column in
+                Section {
+                    if let verses = independentRows[column.id], !verses.isEmpty {
+                        ForEach(verses, id: \.verseNum) { row in
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                if showVerseNumbers {
+                                    Text("\(row.verseNum)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                }
+                                VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
+                                             fontSize: app.fontSize, lineSpacing: app.lineSpacing,
+                                             replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                            }
+                        }
+                    } else {
+                        Text("No Text in This Passage").foregroundStyle(.secondary)
+                    }
+                } header: {
+                    HStack {
+                        Text(column.label).font(.headline)
+                        Spacer()
+                        closeTranslation(column, columns: columns)
+                    }
+                    .padding(.horizontal, 8)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 10))
+                }
+            }
+        }
+        .padding(16)
+    }
+
+    @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState) -> some View {
+        let text = column.text
+        if let row = rows[verse]?[column.id] {
             VStack(alignment: .leading, spacing: 3) {
                 if row.verseNum != verse || row.chapter != ChapterMap.mapChapter(state.bookId, state.chapter, from: state.translation, to: text) {
                     Text("\(row.chapter):\(row.verseNum)")
@@ -169,16 +287,16 @@ struct CompareView: View {
         #endif
     }
 
-    private func closeTranslation(_ text: String, columns: [String]) -> some View {
-        Button { setColumns(columns.filter { $0 != text }) } label: {
-            Label("Close \(textInfo(text).name)", systemImage: "xmark.circle")
+    private func closeTranslation(_ text: CompareColumn, columns: [CompareColumn]) -> some View {
+        Button { setColumns(columns.filter { $0.id != text.id }) } label: {
+            Label("Close \(textInfo(text.text).name)", systemImage: "xmark.circle")
                 .labelStyle(.iconOnly)
                 .foregroundStyle(.secondary)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
-        .help("Close \(textInfo(text).name)")
+        .help("Close \(textInfo(text.text).name)")
     }
 
     private func verseButton(_ verse: Int, state: BibleState) -> some View {
@@ -207,9 +325,16 @@ struct CompareView: View {
         return verse >= first && verse <= max(first, state.endVerse ?? first)
     }
 
-    func load(_ st: BibleState, _ cols: [String], passage: String) async {
-        var out: [Int: [String: ChapterVerseRow]] = [:]
-        for c in cols {
+    func load(_ st: BibleState, _ cols: [CompareColumn], passage: String) async {
+        var out: [Int: [Int: ChapterVerseRow]] = [:]
+        var independent: [Int: [ChapterVerseRow]] = [:]
+        if !cols.allSatisfy({ $0.follows(st) }) {
+            for column in cols {
+                independent[column.id] = await app.bible.queryChapter(column.book, column.chapter, textId: column.text)
+            }
+        }
+        for column in cols where independent.isEmpty {
+            let c = column.text
             // The tab's chapter is in its own text's numbering; map it for the column's text.
             let ch = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: c)
             let chapters = st.bookId == "JON" && st.chapter == 2
@@ -224,28 +349,48 @@ struct CompareView: View {
                     } else if chapter != ch {
                         continue
                     }
-                    out[mapped?.verse ?? row.verseNum, default: [:]][c] = row
+                    out[mapped?.verse ?? row.verseNum, default: [:]][column.id] = row
                 }
             }
             if st.bookId == "JON", st.chapter == 1, ChapterMap.isKjv(st.translation), ChapterMap.isLxx(c),
                let opening = await app.bible.queryChapter(st.bookId, 2, textId: c).first(where: { $0.verseNum == 1 }) {
-                out[17, default: [:]][c] = opening
+                out[17, default: [:]][column.id] = opening
             }
         }
         guard !Task.isCancelled else { return }
         rows = out
+        independentRows = independent
         loadedPassage = passage
     }
 
-    func setColumns(_ cols: [String]) {
+    private func changePassage(for id: Int, text: String, book: String, chapter: Int) {
+        let anchor = state
+        let updated = columns.compactMap { column -> CompareColumn? in
+            guard column.id == id else { return column }
+            var record = column.record
+            record["textId"] = .string(JSString(text))
+            record["bookId"] = .string(JSString(book))
+            record["chapter"] = .number(Double(chapter))
+            record.remove("scrollPos")
+            return CompareColumn(id: id, record: record, anchor: anchor)
+        }
+        setColumns(updated)
+    }
+
+    func setColumns(_ cols: [CompareColumn]) {
         let st = state
         app.update(tabId) { t in
             if cols.count < 2 {
                 var reader = st
                 reader.compareMode = false
-                if let remaining = cols.first {
-                    reader.chapter = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: remaining)
-                    if st.bookId == "JON", let verse = st.verse {
+                if let column = cols.first {
+                    let remaining = column.text
+                    reader.bookId = column.book
+                    reader.chapter = column.chapter
+                    if !column.follows(st) {
+                        reader.verse = nil
+                        reader.endVerse = nil
+                    } else if st.bookId == "JON", let verse = st.verse {
                         let start = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: verse, from: st.translation, to: remaining)
                             ?? (chapter: reader.chapter, verse: verse)
                         reader.chapter = start.chapter
@@ -263,12 +408,7 @@ struct CompareView: View {
                 t.title = Reference.readerChapterLabel(reader.bookId, reader.chapter, textId: reader.translation)
                 return
             }
-            t.state["compareColumns"] = .array(cols.map { c in
-                var o = JSObject()
-                o["textId"] = .string(JSString(c)); o["bookId"] = .string(JSString(st.bookId))
-                o["chapter"] = .number(Double(ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: c)))
-                return .object(o)
-            })
+            t.state["compareColumns"] = .array(cols.map { .object($0.record) })
         }
     }
 }
