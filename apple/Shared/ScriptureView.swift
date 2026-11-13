@@ -94,15 +94,30 @@ struct ScriptureView: View {
 
     @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
         let chapter = chapterKey(st)
-        Group {
-            if loadedChapter == chapter {
-                #if os(macOS)
-                macReader(st)
-                #else
-                iosReader(st)
-                #endif
-            } else {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        GeometryReader { geometry in
+            let showActions = loadedChapter == chapter && !selection.isEmpty
+            let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
+            // The iPhone's root dock sits over the representable's proposed viewport.
+            let dockSpace = showActions ? ReaderFloatingControls.dockOffset : 0
+            VStack(spacing: 0) {
+                Group {
+                    if loadedChapter == chapter {
+                        #if os(macOS)
+                        macReader(st)
+                        #else
+                        iosReader(st)
+                        #endif
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace - dockSpace))
+                .clipped()
+                if showActions {
+                    selectionBar(st)
+                        .frame(width: geometry.size.width, height: actionSpace, alignment: .bottom)
+                        .background(.background)
+                }
             }
         }
         .onChange(of: SelectionDestination(st)) { _, destination in
@@ -131,13 +146,6 @@ struct ScriptureView: View {
             verses = loaded
             applyPassageSelection(destination)
             loadedChapter = chapter
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if loadedChapter == chapter, !selection.isEmpty {
-                selectionBar(st)
-                    .frame(maxWidth: .infinity)
-                    .background(.background)
-            }
         }
         .overlay { if loadedChapter == chapter, verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
     }
@@ -291,50 +299,54 @@ struct ScriptureView: View {
 
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
         if !selection.isEmpty {
-            ViewThatFits(in: .horizontal) {
-                verseActionRow(st)
-                HStack(spacing: 2) {
-                    selectionCopyButton(.verses, state: st)
-                    highlightMenu(st)
-                    compactVerseMenu(st)
-                    clearSelectionButton
-                }
-                .fixedSize(horizontal: true, vertical: false)
-                HStack(spacing: 2) {
-                    Menu {
-                        selectionCopyButton(.verses, state: st)
-                        highlightMenu(st, iconOnly: false)
-                        additionalVerseActions(st)
-                    } label: {
-                        verseMenuLabel("Verse Actions", symbol: "ellipsis")
+            adaptiveVerseActions(st)
+                .labelStyle(.iconOnly)
+                .buttonStyle(VerseActionButtonStyle())
+                .padding(.horizontal, 5)
+                .padding(.vertical, ReaderFloatingControls.surfacePadding)
+                .glassEffectCompat(interactive: true)
+                .padding(.horizontal, 8)
+                .padding(.bottom, ReaderFloatingControls.bottomPadding)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Selected \(selectionLabel(st))")
+                .task(id: copyFeedbackID) {
+                    guard copiedAction != nil else { return }
+                    do {
+                        try await Task.sleep(for: .seconds(1))
+                        if !Task.isCancelled { copiedAction = nil }
+                    } catch is CancellationError {
+                        // A newer copy restarts the confirmation.
+                    } catch {
+                        copiedAction = nil
                     }
-                    .menuIndicator(.hidden)
-                    clearSelectionButton
                 }
-                .fixedSize(horizontal: true, vertical: false)
+                .onChange(of: selection) { copiedAction = nil }
+                .onDisappear { copiedAction = nil }
+        }
+    }
+
+    @ViewBuilder private func adaptiveVerseActions(_ st: BibleState) -> some View {
+        ViewThatFits(in: .horizontal) {
+            verseActionRow(st)
+            HStack(spacing: 2) {
+                selectionCopyButton(.verses, state: st)
+                highlightMenu(st)
+                compactVerseMenu(st)
+                clearSelectionButton
             }
-            .labelStyle(.iconOnly)
-            .buttonStyle(VerseActionButtonStyle())
-            .padding(.horizontal, 5)
-            .padding(.vertical, ReaderFloatingControls.surfacePadding)
-            .glassEffectCompat(interactive: true)
-            .padding(.horizontal, 8)
-            .padding(.bottom, ReaderFloatingControls.bottomPadding)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Selected \(selectionLabel(st))")
-            .task(id: copyFeedbackID) {
-                guard copiedAction != nil else { return }
-                do {
-                    try await Task.sleep(for: .seconds(1))
-                    if !Task.isCancelled { copiedAction = nil }
-                } catch is CancellationError {
-                    // A newer copy restarts the confirmation.
-                } catch {
-                    copiedAction = nil
+            .fixedSize(horizontal: true, vertical: false)
+            HStack(spacing: 2) {
+                Menu {
+                    selectionCopyButton(.verses, state: st)
+                    highlightMenu(st, iconOnly: false)
+                    additionalVerseActions(st)
+                } label: {
+                    verseMenuLabel("Verse Actions", symbol: "ellipsis")
                 }
+                .menuIndicator(.hidden)
+                clearSelectionButton
             }
-            .onChange(of: selection) { copiedAction = nil }
-            .onDisappear { copiedAction = nil }
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 
@@ -1019,6 +1031,7 @@ enum ReaderFloatingControls {
 
     static let surfacePadding: CGFloat = 3
     static let bottomPadding: CGFloat = 8
+    static var selectionHeight: CGFloat { actionHeight + 2 * surfacePadding + bottomPadding }
 }
 
 private struct VerseActionButtonStyle: ButtonStyle {
