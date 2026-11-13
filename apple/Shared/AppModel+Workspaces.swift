@@ -13,7 +13,11 @@ struct WorkspaceItem: Identifiable, Hashable {
     var tabCount: Int
     var icon: String?
     var tabTitles: [String]
-    var preview: String? { tabTitles.first(where: { !$0.isEmpty }) }
+    var preview: String? {
+        var seen = Set<String>()
+        let labels = tabTitles.filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(2)
+        return labels.isEmpty ? nil : labels.joined(separator: " · ")
+    }
 
     func matches(_ query: String) -> Bool {
         query.isEmpty || name.localizedCaseInsensitiveContains(query)
@@ -29,17 +33,18 @@ extension AppModel {
         let live = sessions.map { session in
             let tabs = session.allTabs
             let activeIds = Set(session.activeTabId.values.compactMap { $0 })
-            let titles = tabs.filter { activeIds.contains($0.id) }.map(\.title)
-                + tabs.filter { !activeIds.contains($0.id) }.map(\.title)
+            let ordered = tabs.filter { activeIds.contains($0.id) }
+                + tabs.filter { !activeIds.contains($0.id) }
+            let titles = ordered.map(\.workspacePreviewLabel)
             return WorkspaceItem(kind: .live(session.id), name: session.name, tabCount: tabs.count,
                                  icon: session.icon, tabTitles: titles)
         }
         let saved = savedWorkspaces.filter { !isWorkspaceOpen($0.id) }.map { workspace in
             let snapshot = WorkspaceSnapshot.parse(workspace.stateJSON)
             let tabs = WorkspaceSnapshot.spaces.flatMap { snapshot.tabs(in: $0) }
-            let titles = tabs.compactMap { $0["title"]?.stringValue?.string }
+            let titles = tabs.compactMap(Tab.init(jsObject:)).map(\.workspacePreviewLabel)
             return WorkspaceItem(kind: .saved(workspace.id), name: workspace.name,
-                                 tabCount: snapshot.displayOrder.count, icon: nil, tabTitles: titles)
+                                 tabCount: tabs.count, icon: nil, tabTitles: titles)
         }
         return live + saved
     }
@@ -148,5 +153,12 @@ extension AppModel {
         } catch {
             userMessage = "Could not open the daily note: \(error)"
         }
+    }
+}
+
+private extension Tab {
+    var workspacePreviewLabel: String {
+        guard let edition = scriptureEditionLabel else { return navigationLabel }
+        return "\(navigationLabel) (\(edition))"
     }
 }
