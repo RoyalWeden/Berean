@@ -116,7 +116,7 @@ extension AppModel {
     func archiveAllTabs() { archive(orderedTabs.map(\.id)) }
 
     func archivedTabs(_ g: ArchivedGroup) -> [BereanWorkspace.Tab] {
-        ((try? JSON.parse(g.tabsJSON))?.arrayValue ?? []).compactMap { $0.objectValue.flatMap { BereanWorkspace.Tab(jsObject: $0) } }
+        g.tabs
     }
 
     /// Append restored tabs in archive order and keep the current reading position.
@@ -143,10 +143,7 @@ extension AppModel {
     /// Restore one archived tab while retaining the original records for the rest of the group.
     func restoreArchivedTab(_ tabID: String, from groupID: String) {
         guard let index = archivedGroups.firstIndex(where: { $0.id == groupID }),
-              var records = (try? JSON.parse(archivedGroups[index].tabsJSON))?.arrayValue,
-              let recordIndex = records.firstIndex(where: { $0["id"]?.stringValue?.string == tabID }),
-              let record = records[recordIndex].objectValue,
-              let tab = BereanWorkspace.Tab(jsObject: record) else { return }
+              let tab = archivedGroups[index].tabs.first(where: { $0.id == tabID }) else { return }
 
         if let workspace = sessions.first(where: { $0.allTabs.contains(where: { $0.id == tabID }) }),
            let liveTab = workspace.allTabs.first(where: { $0.id == tabID }) {
@@ -156,15 +153,10 @@ extension AppModel {
         } else {
             sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
             insertInDisplayOrder(tab.id, after: nil)
-            records.remove(at: recordIndex)
-            if records.isEmpty {
-                archivedGroups.remove(at: index)
+            if let remaining = archivedGroups[index].afterRestoring(tabID: tabID) {
+                archivedGroups[index] = remaining
             } else {
-                archivedGroups[index].tabsJSON = JSON.stringifyString(.array(records))
-                let remaining = archivedTabs(archivedGroups[index])
-                if let first = remaining.first {
-                    archivedGroups[index].label = remaining.count == 1 ? first.title : "\(first.title) and \(remaining.count - 1) more"
-                }
+                archivedGroups.remove(at: index)
             }
         }
         select(tab.id, in: tab.spaceId)

@@ -260,3 +260,21 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         #expect(WorkspaceSnapshot.sessionId("abc") == "ws:abc")
     }
 }
+
+@Test func restoringOneArchivedTabPreservesOtherRecords() throws {
+    let first = Tab(id: "first", spaceId: .scripture, type: "bible", title: "Jonah 1")
+    let last = Tab(id: "last", spaceId: .notes, type: "note", title: "Study note")
+    let future = try JSON.parse(#"{"id":"future","spaceId":"futureSpace","payload":{"newField":true}}"#)
+    let records: [JSValue] = [.object(first.jsObject), future, .object(last.jsObject)]
+    let group = ArchivedGroup(id: "group", label: "Jonah 1 and 2 more", archivedAt: 42,
+                              tabsJSON: JSON.stringifyString(.array(records)))
+    let remaining = try #require(group.afterRestoring(tabID: first.id))
+    #expect(remaining.id == group.id)
+    #expect(remaining.archivedAt == group.archivedAt)
+    #expect(try JSON.parse(remaining.tabsJSON) == .array([future, .object(last.jsObject)]))
+    #expect(remaining.afterRestoring(tabID: "missing") == remaining)
+
+    let single = ArchivedGroup(id: "single", label: last.title, archivedAt: 42,
+                               tabsJSON: JSON.stringifyString(.array([.object(last.jsObject)])))
+    #expect(single.afterRestoring(tabID: last.id) == nil)
+}
