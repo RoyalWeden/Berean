@@ -13,6 +13,7 @@ struct BereanSidebar: View {
     @State private var renaming: WorkspaceItem?
     @State private var deleting: WorkspaceItem?
     @State private var savingSnapshot = false
+    @State private var showTabCleanup = false
     @State private var name = ""
 
     var body: some View {
@@ -36,8 +37,10 @@ struct BereanSidebar: View {
         }
         .contextMenu {
             Toggle("Group Tabs by Space", isOn: $groupBySpace)
+            Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
             Button("Archive All Tabs") { app.archiveAllTabs() }.disabled(app.orderedTabs.isEmpty)
         }
+        .sheet(isPresented: $showTabCleanup) { TabCleanupView().frame(minWidth: 360, minHeight: 420) }
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
             Button("Rename") { if let r = renaming { app.rename(r, to: name) }; renaming = nil }
@@ -90,7 +93,7 @@ struct BereanSidebar: View {
         Menu {
             ForEach(app.workspaceItems) { w in
                 Toggle(isOn: Binding(get: { app.isCurrent(w) }, set: { if $0 { app.open(w) } })) {
-                    Text(w.name)
+                    Text(w.name + (w.preview.map { " · \($0)" } ?? ""))
                     Text(w.isSaved ? "Saved · \(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")" : "\(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")")
                 }
             }

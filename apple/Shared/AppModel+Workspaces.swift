@@ -11,6 +11,13 @@ struct WorkspaceItem: Identifiable, Hashable {
     var name: String
     var tabCount: Int
     var icon: String?
+    var tabTitles: [String]
+    var preview: String? { tabTitles.first(where: { !$0.isEmpty }) }
+
+    func matches(_ query: String) -> Bool {
+        query.isEmpty || name.localizedCaseInsensitiveContains(query)
+            || tabTitles.contains { $0.localizedCaseInsensitiveContains(query) }
+    }
     var id: String { switch kind { case .live(let s): "live:\(s)"; case .saved(let w): "saved:\(w)" } }
     var isSaved: Bool { if case .saved = kind { true } else { false } }
 }
@@ -18,9 +25,20 @@ struct WorkspaceItem: Identifiable, Hashable {
 extension AppModel {
     /// Live workspaces in session order, then saved ones that are not open.
     var workspaceItems: [WorkspaceItem] {
-        let live = sessions.map { WorkspaceItem(kind: .live($0.id), name: $0.name, tabCount: $0.allTabs.count, icon: $0.icon) }
-        let saved = savedWorkspaces.filter { !isWorkspaceOpen($0.id) }.map { w in
-            WorkspaceItem(kind: .saved(w.id), name: w.name, tabCount: WorkspaceSnapshot.parse(w.stateJSON).displayOrder.count, icon: nil)
+        let live = sessions.map { session in
+            let tabs = session.allTabs
+            let activeIds = Set(session.activeTabId.values.compactMap { $0 })
+            let titles = tabs.filter { activeIds.contains($0.id) }.map(\.title)
+                + tabs.filter { !activeIds.contains($0.id) }.map(\.title)
+            return WorkspaceItem(kind: .live(session.id), name: session.name, tabCount: tabs.count,
+                                 icon: session.icon, tabTitles: titles)
+        }
+        let saved = savedWorkspaces.filter { !isWorkspaceOpen($0.id) }.map { workspace in
+            let snapshot = WorkspaceSnapshot.parse(workspace.stateJSON)
+            let tabs = WorkspaceSnapshot.spaces.flatMap { snapshot.tabs(in: $0) }
+            let titles = tabs.compactMap { $0["title"]?.stringValue?.string }
+            return WorkspaceItem(kind: .saved(workspace.id), name: workspace.name,
+                                 tabCount: snapshot.displayOrder.count, icon: nil, tabTitles: titles)
         }
         return live + saved
     }

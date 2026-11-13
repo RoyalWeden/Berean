@@ -65,6 +65,16 @@ extension AppModel {
         scheduleSave()
     }
 
+    var inactiveTabs: [BereanWorkspace.Tab] {
+        let selected = Set(session.activeTabId.values.compactMap { $0 })
+        return orderedTabs.filter { !$0.isPinned && !selected.contains($0.id) }
+    }
+
+    func archiveInactiveTabs(_ ids: [String]) {
+        let requested = Set(ids)
+        archive(inactiveTabs.filter { requested.contains($0.id) }.map(\.id))
+    }
+
     func archiveAllTabs() { archive(orderedTabs.map(\.id)) }
 
     func archivedTabs(_ g: ArchivedGroup) -> [BereanWorkspace.Tab] {

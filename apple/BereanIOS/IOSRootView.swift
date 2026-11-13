@@ -153,6 +153,7 @@ struct TabCardsSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    @State private var showTabCleanup = false
 
     var shown: [BereanWorkspace.Tab] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -180,12 +181,16 @@ struct TabCardsSheet: View {
                 }
                 Section {
                     Button { dismiss(); app.commandPaletteShown = true } label: { Label("New Tab", systemImage: "plus") }
+                    if !app.inactiveTabs.isEmpty {
+                        Button { showTabCleanup = true } label: { Label("Archive Inactive Tabs…", systemImage: "archivebox") }
+                    }
                     if !app.archivedGroups.isEmpty {
                         NavigationLink { ArchivedTabsPage() } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search tabs")
+            .sheet(isPresented: $showTabCleanup) { TabCleanupView() }
             .navigationTitle("Tabs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -236,16 +241,18 @@ struct SessionsPage: View {
     @State private var deleting: WorkspaceItem?
     @State private var name = ""
     @State private var saving = false
+    @State private var query = ""
 
     var body: some View {
         List {
             Section {
-                ForEach(app.workspaceItems) { w in
+                ForEach(app.workspaceItems.filter { $0.matches(query.trimmingCharacters(in: .whitespacesAndNewlines)) }) { w in
                     Button { app.open(w); dismiss() } label: {
                         HStack {
                             Image(systemName: w.isSaved ? "square.stack.3d.up" : "square.stack").foregroundStyle(.secondary).frame(width: 24)
                             VStack(alignment: .leading) {
                                 Text(w.name).foregroundStyle(.primary)
+                                if let preview = w.preview { Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
                                 Text(w.isSaved ? "Saved · \(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")" : "\(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
@@ -268,6 +275,7 @@ struct SessionsPage: View {
             } footer: { Text("A workspace is a set of tabs you study with. Switching workspaces swaps the tabs you see. Touch and hold a workspace for more.") }
         }
         .navigationTitle("Workspaces")
+        .searchable(text: $query, prompt: "Workspace or tab title")
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
             Button("Rename") { if let r = renaming { app.rename(r, to: name) }; renaming = nil }

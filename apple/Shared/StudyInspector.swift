@@ -68,6 +68,13 @@ struct CommandPalette: View {
         for n in noteHits.prefix(6) {
             out.append(Item(id: "note-\(n.id)", group: "Notes", title: n.displayTitle, detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text") { app.openNote(n.id) })
         }
+        if !trimmed.isEmpty {
+            for workspace in app.workspaceItems.filter({ $0.matches(trimmed) }).prefix(6) {
+                let detail = workspace.tabTitles.first { $0.localizedCaseInsensitiveContains(trimmed) } ?? workspace.preview ?? ""
+                out.append(Item(id: workspace.id, group: "Workspaces", title: workspace.name, detail: detail,
+                                symbol: "square.stack") { app.open(workspace) })
+            }
+        }
         let commands: [(String, String, () -> Void)] = [
             ("New Note", "square.and.pencil", { app.newNote() }),
             ("Today's Note", "calendar", { app.openTodayDailyNote() }),
