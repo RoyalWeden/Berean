@@ -116,7 +116,7 @@ struct ScriptureView: View {
             Color.clear.frame(height: 0)
                 .overlay(alignment: .bottom) {
                     #if os(iOS)
-                    if loadedChapter == chapter { selectionBar(st).padding(.bottom, 58) }
+                    if loadedChapter == chapter { selectionBar(st).padding(.bottom, ReaderFloatingControls.dockOffset) }
                     #else
                     if loadedChapter == chapter { selectionBar(st) }
                     #endif
@@ -255,10 +255,10 @@ struct ScriptureView: View {
             .labelStyle(.iconOnly)
             .buttonStyle(VerseActionButtonStyle())
             .padding(.horizontal, 5)
-            .padding(.vertical, 3)
+            .padding(.vertical, ReaderFloatingControls.surfacePadding)
             .glassEffectCompat(interactive: true)
             .padding(.horizontal, 8)
-            .padding(.bottom, 8)
+            .padding(.bottom, ReaderFloatingControls.bottomPadding)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Selected \(selectionLabel(st))")
         }
@@ -819,14 +819,32 @@ private extension View {
     }
 }
 
+enum ReaderFloatingControls {
+    #if os(macOS)
+    static let actionHeight: CGFloat = 32
+    static let dockOffset: CGFloat = 0
+    static let readingGap: CGFloat = 2
+    #else
+    static let actionHeight: CGFloat = 44
+    static let dockOffset: CGFloat = 58
+    static let readingGap: CGFloat = 2
+    #endif
+
+    static let surfacePadding: CGFloat = 3
+    static let bottomPadding: CGFloat = 8
+    static var scrollClearance: CGFloat {
+        dockOffset + actionHeight + 2 * surfacePadding + bottomPadding + readingGap
+    }
+}
+
 private struct VerseActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .medium))
             #if os(macOS)
-            .frame(width: 38, height: 32)
+            .frame(width: 38, height: ReaderFloatingControls.actionHeight)
             #else
-            .frame(width: 44, height: 44)
+            .frame(width: 44, height: ReaderFloatingControls.actionHeight)
             #endif
             .contentShape(.rect)
             #if os(macOS)

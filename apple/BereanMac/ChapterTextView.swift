@@ -59,9 +59,9 @@ struct ChapterTextView: NSViewRepresentable {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
-        scroll.contentInsets.bottom = selectedVerses.isEmpty ? 0 : 48
+        scroll.contentInsets.bottom = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses, tooltips: strongsTooltips)
-        if key != c.lastKey {
+        if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
             let origin = scroll.contentView.bounds.origin
             let sel = tv.selectedRanges
@@ -76,11 +76,19 @@ struct ChapterTextView: NSViewRepresentable {
             c.lastKey = key
             if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
         }
-        if let t = scrollTarget, t != c.scrolledTo, let r = c.verseRanges[t] {
-            c.scrolledTo = t
-            DispatchQueue.main.async {
-                tv.layoutManager?.ensureLayout(for: tv.textContainer!)
-                if let rect = tv.firstRect(forVerseRange: r) { scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, rect.minY - 12))); scroll.reflectScrolledClipView(scroll.contentView) }
+        if scrollTarget == nil { c.scrolledTo = nil }
+        if let target = scrollTarget, target != c.scrolledTo, c.verseRanges[target] != nil {
+            c.scrolledTo = target
+            let destination = passageId
+            DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
+                guard let tv, let scroll, let c,
+                      c.parent.passageId == destination, c.parent.scrollTarget == target,
+                      let range = c.verseRanges[target], let container = tv.textContainer else { return }
+                tv.layoutManager?.ensureLayout(for: container)
+                if let rect = tv.firstRect(forVerseRange: range) {
+                    scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, rect.minY - 12)))
+                    scroll.reflectScrolledClipView(scroll.contentView)
+                }
             }
         }
     }

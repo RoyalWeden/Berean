@@ -66,7 +66,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
                       verses: verses, style: style, selected: selectedVerses, dark: colorScheme == .dark)
-        view.contentInset.bottom = selectedVerses.isEmpty ? 0 : 118
+        view.contentInset.bottom = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
         let samePassage = coordinator.passageId == passageId
         if key != coordinator.key || !samePassage {
             let offset = view.contentOffset
