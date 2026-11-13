@@ -81,19 +81,24 @@ extension AppModel {
         ((try? JSON.parse(g.tabsJSON))?.arrayValue ?? []).compactMap { $0.objectValue.flatMap { BereanWorkspace.Tab(jsObject: $0) } }
     }
 
-    /// Re-adds each archived tab to its space in the current session (skipping ids already open) and removes the group.
+    /// Append restored tabs in archive order and keep the current reading position.
     func restoreArchived(_ groupId: String) {
-        guard let g = archivedGroups.first(where: { $0.id == groupId }) else { return }
-        let open = Set(session.allTabs.map(\.id))
-        var last: BereanWorkspace.Tab?
-        for t in archivedTabs(g) where !open.contains(t.id) {
-            sessions[sessionIndex].tabs[t.spaceId, default: []].append(t)
-            sessions[sessionIndex].activeTabId[t.spaceId] = t.id
-            insertInDisplayOrder(t.id, after: nil)
-            last = t
+        guard let group = archivedGroups.first(where: { $0.id == groupId }) else { return }
+        // Tab IDs are unique in SQLite across all workspaces. An archived copy may
+        // already be open elsewhere after a restore on another device.
+        var openIds = Set(sessions.flatMap { $0.allTabs.map(\.id) })
+        let hadActiveTab = activeTab != nil
+        var firstRestoredSpace: SpaceId?
+        for tab in archivedTabs(group) where openIds.insert(tab.id).inserted {
+            sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
+            if activeTabId(in: tab.spaceId) == nil {
+                sessions[sessionIndex].activeTabId[tab.spaceId] = tab.id
+            }
+            insertInDisplayOrder(tab.id, after: nil)
+            if firstRestoredSpace == nil { firstRestoredSpace = tab.spaceId }
         }
         archivedGroups.removeAll { $0.id == groupId }
-        if let last { activeSpace = last.spaceId }
+        if !hadActiveTab, let firstRestoredSpace { activeSpace = firstRestoredSpace }
         scheduleSave()
     }
 

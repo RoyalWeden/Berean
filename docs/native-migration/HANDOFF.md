@@ -45,3 +45,5 @@ PR #24 also includes the icon-only iPhone dock, one-row passage toolbar, direct 
 - Simulator verified Find in Chapter by moving from match 1 to 2 of 12 for “Lord” in Jonah 1. Go returned and opened the existing daily note by title. Exact iPhone note tab reuse was added after that run.
 - Mac Dev verified ⌘K and ⌘L reuse, ⌘T explicit creation, opening a passage already in another workspace, and repeated Scripture searches and Strong’s lookups without extra tabs. Pinned and filtered-search safeguards need separate runtime coverage.
 - Next acceptance work includes physical iPhone text handles and swipes, archive/restore across duplicate workspace names, and Study Trail service parity.
+
+- Archive restore now keeps the active tab and skips IDs already open in any workspace. Mac and iOS Simulator builds passed. Runtime restore checks are pending.
