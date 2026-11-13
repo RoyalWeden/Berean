@@ -30,8 +30,7 @@ extension Color {
     }
 }
 
-/// One note: rendered Markdown, or (Edit) the Markdown source with autosave. The native rich editor
-/// (TextKit, ProseMirror-compatible Markdown) replaces the source mode in M7.
+/// One note with a native rich editor, Markdown source, and read-only preview.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app
     let noteId: String
@@ -45,6 +44,7 @@ struct NoteDetailView: View {
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
     @State private var showingHistory = false
+    @State private var showingPreview = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -93,6 +93,7 @@ struct NoteDetailView: View {
                 Toggle(isOn: $showSource) { Label("Show Markdown Source", systemImage: "chevron.left.forwardslash.chevron.right") }
                     .keyboardShortcut("m", modifiers: [.command, .shift]).help("Show the note's Markdown source (⇧⌘M)")
                 if let note {
+                    Button("Preview Note", systemImage: "eye") { showingPreview = true }
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
@@ -106,6 +107,31 @@ struct NoteDetailView: View {
                     Button(role: .destructive) { try? app.notes?.delete(note.id); app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
+        }
+        .sheet(isPresented: $showingPreview) {
+            NavigationStack {
+                ScrollView {
+                    MarkdownText(content)
+                        .textSelection(.enabled)
+                        .padding(24)
+                        .frame(maxWidth: 760)
+                        .frame(maxWidth: .infinity)
+                }
+                .navigationTitle(title.isEmpty ? "Untitled" : title)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingPreview = false }
+                    }
+                }
+            }
+            .environment(\.openURL, OpenURLAction { url in
+                showingPreview = false
+                openLink(url)
+                return .handled
+            })
+            #if os(macOS)
+            .frame(minWidth: 580, minHeight: 400)
+            #endif
         }
         .sheet(isPresented: $showingHistory) {
             NoteVersionHistoryView(noteId: noteId, currentTitle: title, currentContent: content) { restored in
@@ -191,10 +217,51 @@ struct MarkdownText: View {
     init(_ s: String) { source = s }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(source.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in block(line) }
+            ForEach(Array(NotePreviewBlock.parse(source).enumerated()), id: \.offset) { _, previewBlock in
+                switch previewBlock {
+                case .line(let line): block(line)
+                case .code(let lines):
+                    Text(verbatim: lines.joined(separator: "\n"))
+                        .font(.body.monospaced())
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.quaternary, in: .rect(cornerRadius: 6))
+                case .table(let table): tableView(table)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+    private func tableView(_ table: NotePreviewTable) -> some View {
+        ScrollView(.horizontal) {
+            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+                ForEach(table.rows.indices, id: \.self) { row in
+                    GridRow {
+                        ForEach(table.alignments.indices, id: \.self) { column in
+                            let cell = inline(table.rows[row][column])
+                            cell
+                                .fontWeight(row == 0 ? .semibold : .regular)
+                                .multilineTextAlignment(table.alignments[column].text)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .frame(minWidth: 88, maxWidth: 240, alignment: table.alignments[column].frame)
+                                .gridColumnAlignment(table.alignments[column].frame.horizontal)
+                                .accessibilityAddTraits(row == 0 ? .isHeader : [])
+                        }
+                    }
+                    .background(row == 0 ? Color.secondary.opacity(0.10) : .clear)
+                    if row != table.rows.indices.last {
+                        Divider().gridCellUnsizedAxes(.horizontal)
+                    }
+                }
+            }
+            .background(.background)
+            .clipShape(.rect(cornerRadius: 8))
+            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary) }
+        }
+        .accessibilityLabel("Table")
+    }
+
     func inline(_ s: String) -> Text {
         Text((try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(s))
     }
@@ -208,6 +275,111 @@ struct MarkdownText: View {
         else if t == "---" || t == "***" { Divider() }
         else if t.isEmpty { Spacer().frame(height: 2) }
         else { inline(line) }
+    }
+}
+
+private struct NotePreviewTable {
+    enum Alignment {
+        case leading, center, trailing
+
+        var frame: SwiftUI.Alignment {
+            switch self {
+            case .leading: .leading
+            case .center: .center
+            case .trailing: .trailing
+            }
+        }
+
+        var text: TextAlignment {
+            switch self {
+            case .leading: .leading
+            case .center: .center
+            case .trailing: .trailing
+            }
+        }
+    }
+
+    var rows: [[String]]
+    let alignments: [Alignment]
+
+    /// Reads the pipe-delimited rows emitted by the legacy editor. Markdown escapes stay
+    /// intact for inline rendering and an escaped pipe never starts a new cell.
+    static func cells(_ line: String) -> [String]? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|"), trimmed.hasSuffix("|"), trimmed.count >= 2 else { return nil }
+
+        var cells: [String] = []
+        var cell = ""
+        var escaped = false
+        for character in trimmed.dropFirst() {
+            if character == "|" && !escaped {
+                cells.append(cell.trimmingCharacters(in: .whitespaces))
+                cell = ""
+            } else {
+                cell.append(character)
+            }
+            escaped = character == "\\" && !escaped
+        }
+        return cell.isEmpty && !cells.isEmpty ? cells : nil
+    }
+
+    static func alignment(_ separator: String) -> Alignment? {
+        guard separator.range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil else { return nil }
+        if separator.hasSuffix(":") { return separator.hasPrefix(":") ? .center : .trailing }
+        return .leading
+    }
+}
+
+private enum NotePreviewBlock {
+    case line(String)
+    case code([String])
+    case table(NotePreviewTable)
+
+    static func parse(_ source: String) -> [Self] {
+        let lines = source.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        var blocks: [Self] = []
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let mark = trimmed.first, mark == "`" || mark == "~" {
+                let length = trimmed.prefix { $0 == mark }.count
+                if length >= 3 {
+                    index += 1
+                    var code: [String] = []
+                    while index < lines.count {
+                        let candidate = lines[index].trimmingCharacters(in: .whitespaces)
+                        if candidate.count >= length, candidate.allSatisfy({ $0 == mark }) {
+                            index += 1
+                            break
+                        }
+                        code.append(lines[index])
+                        index += 1
+                    }
+                    blocks.append(.code(code))
+                    continue
+                }
+            }
+            if index + 1 < lines.count,
+               let header = NotePreviewTable.cells(line),
+               let separator = NotePreviewTable.cells(lines[index + 1]),
+               header.count == separator.count {
+                let alignments = separator.compactMap(NotePreviewTable.alignment)
+                if alignments.count == header.count {
+                    var table = NotePreviewTable(rows: [header], alignments: alignments)
+                    index += 2
+                    while index < lines.count, let row = NotePreviewTable.cells(lines[index]), row.count == header.count {
+                        table.rows.append(row)
+                        index += 1
+                    }
+                    blocks.append(.table(table))
+                    continue
+                }
+            }
+            blocks.append(.line(line))
+            index += 1
+        }
+        return blocks
     }
 }
 
