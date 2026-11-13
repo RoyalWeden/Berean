@@ -439,15 +439,22 @@ struct SidebarTabRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: tab.symbol).font(.system(size: 13, weight: .medium)).foregroundStyle(tab.tint).frame(width: 18)
-            Text(tab.title.isEmpty ? "Untitled" : tab.title)
+            Text(tab.navigationLabel)
                 .font(.system(size: 13, weight: isActive ? .medium : .regular))
                 .foregroundStyle(isActive ? .primary : .secondary)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if let edition = tab.scriptureEditionLabel {
+                Text(edition)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
             if hovering {
                 Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 18, height: 18) }
                     .buttonStyle(SidebarCloseButtonStyle())
-                    .help("Close Tab (⌘W)").accessibilityLabel("Close \(tab.title)")
+                    .help("Close Tab (⌘W)").accessibilityLabel("Close \(tab.navigationLabel)")
             } else if tab.isPinned {
                 Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.tertiary)
             }
@@ -463,11 +470,12 @@ struct SidebarTabRow: View {
         .contentShape(.rect)
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
+        .pointerStyle(.link)
         .animation(.easeOut(duration: 0.12), value: hovering)
         .animation(.easeOut(duration: 0.15), value: isActive)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
-        .accessibilityLabel("\(tab.title.isEmpty ? "Untitled" : tab.title), \(tab.spaceId.title)\(tab.isPinned ? ", pinned" : "")")
+        .accessibilityLabel("\(tab.navigationLabel), \(tab.navigationDetail)\(tab.isPinned ? ", pinned" : "")")
         .accessibilityAction { onSelect() }
     }
 }

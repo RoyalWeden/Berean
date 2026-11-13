@@ -50,11 +50,16 @@ extension BereanWorkspace.Tab {
                                chapter: reader.chapter, verse: verse, endVerse: reader.endVerse).label
     }
 
-    var navigationDetail: String {
-        guard tabType == .bible else { return spaceId.title }
+    var scriptureEditionLabel: String? {
+        guard tabType == .bible else { return nil }
         let reader = BibleState(state)
         let edition = textInfo(reader.translation).short
-        return reader.compareMode ? "\(spaceId.title) · \(edition) · Compare" : "\(spaceId.title) · \(edition)"
+        return reader.compareMode ? "\(edition) · Compare" : edition
+    }
+
+    var navigationDetail: String {
+        guard let edition = scriptureEditionLabel else { return spaceId.title }
+        return "\(spaceId.title) · \(edition)"
     }
 
     var navigationSearchText: String {
