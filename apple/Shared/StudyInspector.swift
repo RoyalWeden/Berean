@@ -73,6 +73,7 @@ struct CommandPalette: View {
             ("Today's Note", "calendar", { app.openTodayDailyNote() }),
             ("Notes Home", "tray.full", { app.openNote(nil) }),
             ("History", "clock", { app.openHistory() }),
+            ("Tags", "tag", { app.openTags() }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
         ]
         for (t, sym, run) in commands where trimmed.isEmpty || t.localizedCaseInsensitiveContains(trimmed) {

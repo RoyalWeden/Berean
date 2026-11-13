@@ -437,3 +437,12 @@
 - Records: FULL-FEATURE-PARITY.md (104 features × 2 platforms), UX-AND-FUNCTIONAL-ISSUES.md, SCREEN-INVENTORY.md.
 - Checks: Swift 78/30 PASS; Mac + iOS builds PASS; each fix exercised in the running Mac app; iPhone verified in the Simulator (verse
   selection, search, New → Obadiah, Notes home).
+
+### 2026-11-12 — cycle 2
+- Partial-selection highlight (Mac) with offset mapping (verified the stored range = the shown words).
+- iPhone swipe chapter change (verified in the Simulator).
+- ⌘⇧D Today's Note; Copy Reference and Compare This Verse.
+- Exploratory fixes: single-digit verse numbers unclickable; reader swallowed app shortcuts.
+- History (service port + tests, History tab, ⌘Y).
+- Tag Manager.
+- Checks: Swift 79/31 PASS; Mac + iOS builds PASS.

@@ -29,9 +29,9 @@ Nav = navigation makes sense · Visual = visual quality reviewed · Test = autom
 | Export / import panels | ✅ | ✅ | ✅ | ✅ | ✅ | — | ui smoke | |
 | Settings window | ✅ | 🟡 | ✅ | ✅ | ✅ | 🟡 | settings test | SHARED-FUNC-014 |
 | Find bar ⌘F | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | AppKit find bar |
-| History tab | ✅ | ❌ | — | — | — | — | — | SHARED-FUNC-012 |
+| History tab | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | history test | ⌘Y |
 | Calendar / daily | ✅ | ❌ | — | — | — | — | — | MAC-FUNC-013 |
-| Tag manager / graph | ✅ | ❌ | | | | | | |
+| Tag manager | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | verse-tags golden | graph still missing |
 | Study Trail (window + map) | ✅ | ❌ | | | | | | |
 | PDF viewer, YouTube, Read Aloud player, Ask Berean, presenter, floating windows, onboarding, tasks | ✅ | ❌ | | | | | | |
 

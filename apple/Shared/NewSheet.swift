@@ -38,6 +38,7 @@ struct NewSheet: View {
                     row("Today's Note", "calendar", .orange, "Your daily note for today") { app.openTodayDailyNote() }
                     row("Notes", "note.text", .orange, "All notes, folders and filters") { app.openNote(nil) }
                     row("History", "clock", .secondary, "Everything you opened recently") { app.openHistory() }
+                    row("Tags", "tag", .secondary, "Your verse tags") { app.openTags() }
                 }
                 if !recents.isEmpty {
                     Section("Recent") {

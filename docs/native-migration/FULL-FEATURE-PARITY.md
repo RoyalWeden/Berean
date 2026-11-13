@@ -80,7 +80,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | U13 | Onboarding and hints | partial | ❌ | ❌ | P3 | Onboarding not ported |
 | U14 | Study Trail | implemented | ❌ | ❌ | P1 | Study Trail not ported (1223-line service) |
 | U15 | Tasks panel and first steps | implemented (Mac only) | ❌ | — | P3 | Tasks panel not ported |
-| U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P2 | Verse tags (golden), chips, picker, #tag search. Missing tag manager / tag graph |
+| U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search. Missing tag manager / tag graph |
 | U17 | PDFs | partial | ❌ | ❌ | P2 | PDFs not ported |
 | U18 | Berean Chat (notes-style chat) | implemented | ❌ | ❌ | P3 | Berean Chat not ported |
 | M01 | YouTube browsing and playback | implemented | ❌ | ❌ | P2 | YouTube not ported |

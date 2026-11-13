@@ -288,6 +288,11 @@ final class AppModel {
         openTab(.history, in: .search, title: "History", state: JSObject())   // the existing apps group History with Search
     }
 
+    func openTags() {
+        if let t = session.allTabs.first(where: { $0.tabType == .tags }) { select(t.id, in: t.spaceId); return }
+        openTab(.tags, in: .notes, title: "Tags", state: JSObject())   // the existing apps keep the Tags tab in Notes
+    }
+
     // MARK: saved workspaces (same rows and state_json v2 as src/lib/workspaceSnapshot.ts)
 
     /// The existing desktop app restores this mosaic tree on load; the native reader keeps its

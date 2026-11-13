@@ -55,6 +55,8 @@ struct IOSRootView: View {
                 if let id = tab.state["noteId"]?.stringValue?.string { NoteDetailView(noteId: id).id(tab.id + id) } else { NotesHomeView(tabId: tab.id).id(tab.id) }
             case .history:
                 HistoryView().id(tab.id)
+            case .tags:
+                TagManagerView().id(tab.id)
             default:
                 ContentUnavailableView(tab.title, systemImage: "square.dashed", description: Text("This kind of tab arrives in a later native build."))
             }

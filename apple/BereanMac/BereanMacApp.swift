@@ -35,6 +35,7 @@ struct BereanMacApp: App {
             }
             CommandMenu("Go") {
                 Button("History") { app.openHistory() }.keyboardShortcut("y")
+                Button("Tags") { app.openTags() }
                 Divider()
                 Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)
                 Button("Forward") { app.goForward() }.keyboardShortcut("]").disabled(!app.canGoForward)

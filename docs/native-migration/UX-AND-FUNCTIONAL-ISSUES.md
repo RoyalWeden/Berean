@@ -22,7 +22,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-FUNC-013 | No calendar on Mac (⌘⇧D Today's Note now exists). | Mac | P2 | N12 | OPEN (partly fixed) |
 | SHARED-FUNC-014 | Settings missing sections: Texts, Shortcuts, About, Notes, Hermas translation, verse-number and red-letter toggles. | both | P2 | U12/S11 | OPEN |
 | MAC-UI-015 | Sidebar drag: no drop line and no auto-scroll near the edges; no pinned-tab grid; no density setting. | Mac | P2 | U02 | OPEN |
-| SHARED-FUNC-016 | Tag manager / tag graph missing (tags can be created, applied, searched and removed per member). | both | P2 | U16 | OPEN |
+| SHARED-FUNC-016 | Tag graph (visual relationships) missing; the Tag Manager now exists. | both | P3 | U16 | OPEN (graph only) |
 | MAC-FUNC-017 | Single window only: no floating tabs, presenter or secondary windows. | Mac | P2 | U07 | OPEN |
 | SHARED-FUNC-018 | PDFs, YouTube, Read Aloud, Ask Berean not ported. | both | P2 | U17/M01/M05/G01 | OPEN |
 | SHARED-FUNC-019 | Deep links (`berean://`) not handled natively. | both | P2 | A06 | OPEN |
@@ -57,3 +57,4 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-FUNC-027 | Found by exploratory testing: single-digit verse numbers were nearly impossible to click — the tap landed on the gutter tab before the right-aligned number. | Mac | P1 | The whole gutter (both tabs and the number) is the verse-number target; verified that a click on "3" selects it and ⌘C copies "John 3:3 …"; PR #23 |
 | MAC-FUNC-028 | Found by exploratory testing: app shortcuts such as ⌘⇧D did nothing while the reader had focus (NSTextView swallowed them). | Mac | P1 | The reader passes unhandled key equivalents to the menus; verified ⌘⇧D → today's note `daily-2026-11-12` (the existing app's id format); PR #23 |
 | SHARED-FUNC-012 | No History screen. | both | P2 | `HistoryService` port (shared `history` table, device-local; 5-minute duplicate rule; cap 5000; tested). Records passages, notes, Strong's and searches. History tab (Search space, as in the original): by day, filter, type picker, reopen, remove, clear, Show Older. ⌘Y, ⌘K Commands, iPhone New sheet. Verified on the Mac (Romans 8 + "grace" listed); PR #23 |
+| SHARED-FUNC-029 | No Tag Manager. | both | P2 | Tags tab (Notes space, as in the original): filter, coverage per tag, open verses, rename, colour slot, merge into, delete (asks again when notes mention #tag), new tag. Go ▸ Tags, ⌘K, iPhone New. Verified on the Mac (#Gospel listed); PR #23 |
