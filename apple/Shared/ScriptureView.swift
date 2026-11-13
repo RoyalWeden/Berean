@@ -133,14 +133,11 @@ struct ScriptureView: View {
             loadedChapter = chapter
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: 0)
-                .overlay(alignment: .bottom) {
-                    #if os(iOS)
-                    if loadedChapter == chapter { selectionBar(st).padding(.bottom, ReaderFloatingControls.dockOffset) }
-                    #else
-                    if loadedChapter == chapter { selectionBar(st) }
-                    #endif
-                }
+            if loadedChapter == chapter, !selection.isEmpty {
+                selectionBar(st)
+                    .frame(maxWidth: .infinity)
+                    .background(.background)
+            }
         }
         .overlay { if loadedChapter == chapter, verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
     }
@@ -1022,9 +1019,6 @@ enum ReaderFloatingControls {
 
     static let surfacePadding: CGFloat = 3
     static let bottomPadding: CGFloat = 8
-    static var scrollClearance: CGFloat {
-        dockOffset + actionHeight + 2 * surfacePadding + bottomPadding + readingGap
-    }
 }
 
 private struct VerseActionButtonStyle: ButtonStyle {

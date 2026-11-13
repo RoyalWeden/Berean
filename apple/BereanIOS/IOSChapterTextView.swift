@@ -69,14 +69,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         let samePassage = coordinator.passageId == passageId
         let previousSelection = coordinator.renderedSelection
         let revealVerse = samePassage ? selectedVerses.subtracting(previousSelection).max() : nil
-        let clearance = selectedVerses.isEmpty ? ReaderFloatingControls.dockOffset : ReaderFloatingControls.scrollClearance
         let previousOffset = view.contentOffset
-        let previousInset = view.adjustedContentInset
-        let previousBottom = max(-previousInset.top, view.contentSize.height + previousInset.bottom - view.bounds.height)
-        let keepChapterEndVisible = samePassage && clearance != view.contentInset.bottom
-            && previousBottom > -previousInset.top && previousOffset.y >= previousBottom - 2
-        view.contentInset.bottom = clearance
-        view.verticalScrollIndicatorInsets.bottom = clearance
         if key != coordinator.key || !samePassage {
             let selection = view.selectedRange
             let oldText = view.text
@@ -103,13 +96,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             coordinator.renderedSelection = selectedVerses
             (view as? ReaderTextView)?.updateVerseOutline()
         }
-        if keepChapterEndVisible {
-            view.layoutIfNeeded()
-            let inset = view.adjustedContentInset
-            let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
-            view.setContentOffset(CGPoint(x: previousOffset.x, y: bottom), animated: false)
-        }
-        if !keepChapterEndVisible, let revealVerse, let range = coordinator.bodyRanges[revealVerse],
+        if let revealVerse, let range = coordinator.bodyRanges[revealVerse],
            range.length > 0,
            let position = view.position(from: view.beginningOfDocument, offset: NSMaxRange(range) - 1) {
             view.layoutIfNeeded()

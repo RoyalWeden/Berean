@@ -64,15 +64,8 @@ struct ChapterTextView: NSViewRepresentable {
         guard let tv = c.textView else { return }
         let clip = scroll.contentView
         let previousBounds = clip.bounds
-        var endBounds = previousBounds
-        endBounds.origin.y = max(previousBounds.minY, tv.frame.maxY) + previousBounds.height
-        let previousEnd = clip.constrainBoundsRect(endBounds).minY
         let revealVerse = c.lastPassage == passageId
             ? selectedVerses.subtracting(c.renderedSelection).max() : nil
-        let clearance = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
-        let keepChapterEndVisible = c.lastPassage == passageId && clearance != scroll.contentInsets.bottom
-            && tv.frame.height > previousBounds.height && previousBounds.minY >= previousEnd - 2
-        scroll.contentInsets.bottom = clearance
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
         if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
@@ -96,20 +89,12 @@ struct ChapterTextView: NSViewRepresentable {
             c.renderedSelection = selectedVerses
             tv.needsDisplay = true
         }
-        if keepChapterEndVisible, let container = tv.textContainer {
-            tv.layoutManager?.ensureLayout(for: container)
-            scroll.layoutSubtreeIfNeeded()
-            var proposed = clip.bounds
-            proposed.origin.y = max(proposed.minY, tv.frame.maxY) + proposed.height
-            clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
-            scroll.reflectScrolledClipView(clip)
-        }
-        if !keepChapterEndVisible, let revealVerse, let range = c.verseRanges[revealVerse],
+        if let revealVerse, let range = c.verseRanges[revealVerse],
            range.length > 0, let container = tv.textContainer {
             tv.layoutManager?.ensureLayout(for: container)
             let lastCharacter = NSRange(location: NSMaxRange(range) - 1, length: 1)
             if let rect = tv.firstRect(forVerseRange: lastCharacter) {
-                let visibleBottom = clip.bounds.maxY - clearance
+                let visibleBottom = clip.bounds.maxY
                 let overlap = rect.maxY + ReaderFloatingControls.readingGap - visibleBottom
                 if overlap > 0 {
                     var proposed = clip.bounds
