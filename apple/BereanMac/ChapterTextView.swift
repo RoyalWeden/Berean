@@ -68,12 +68,12 @@ struct ChapterTextView: NSViewRepresentable {
         endBounds.origin.y = max(previousBounds.minY, tv.frame.maxY) + previousBounds.height
         let previousEnd = clip.constrainBoundsRect(endBounds).minY
         let revealVerse = c.lastPassage == passageId
-            ? c.lastKey.flatMap { selectedVerses.subtracting($0.selected).max() } : nil
+            ? selectedVerses.subtracting(c.renderedSelection).max() : nil
         let clearance = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
         let keepChapterEndVisible = c.lastPassage == passageId && clearance != scroll.contentInsets.bottom
             && tv.frame.height > previousBounds.height && previousBounds.minY >= previousEnd - 2
         scroll.contentInsets.bottom = clearance
-        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses, tooltips: strongsTooltips)
+        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
         if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
             let origin = previousBounds.origin
@@ -88,6 +88,13 @@ struct ChapterTextView: NSViewRepresentable {
             }
             c.lastKey = key
             if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
+        }
+        if c.renderedSelection != selectedVerses {
+            if let storage = tv.textStorage {
+                c.updateMarkerColors(in: storage, changed: c.renderedSelection.symmetricDifference(selectedVerses))
+            }
+            c.renderedSelection = selectedVerses
+            tv.needsDisplay = true
         }
         if keepChapterEndVisible, let container = tv.textContainer {
             tv.layoutManager?.ensureLayout(for: container)
@@ -133,7 +140,7 @@ struct ChapterTextView: NSViewRepresentable {
     }
 
     struct Key: Equatable {
-        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var selected: Set<Int>; var tooltips: [String: String]
+        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var tooltips: [String: String]
     }
 
     // MARK: - Coordinator: builds the text, routes clicks, copies
@@ -145,6 +152,23 @@ struct ChapterTextView: NSViewRepresentable {
         var lastPassage = ""
         var scrolledTo: Int?
         /// verse → range of its paragraph (number + text) in the text storage.
+        var renderedSelection: Set<Int> = []
+        private var markerRanges: [Int: NSRange] = [:]
+
+        func updateMarkerColors(in storage: NSTextStorage, changed: Set<Int>) {
+            storage.beginEditing()
+            for verse in changed {
+                guard let range = markerRanges[verse] else { continue }
+                storage.addAttribute(.foregroundColor, value: markerColor(verse, parent), range: range)
+            }
+            storage.endEditing()
+        }
+
+        private func markerColor(_ verse: Int, _ reader: ChapterTextView) -> NSColor {
+            guard reader.style.showVerseNumbers else { return .clear }
+            return reader.selectedVerses.contains(verse) ? .controlAccentColor : .secondaryLabelColor
+        }
+
         var verseRanges: [Int: NSRange] = [:]
         /// verse → storage index where its words start (after the gutter).
         var verseTextStarts: [Int: Int] = [:]
@@ -170,6 +194,7 @@ struct ChapterTextView: NSViewRepresentable {
         func build(_ p: ChapterTextView) -> NSAttributedString {
             let out = NSMutableAttributedString()
             verseRanges = [:]; verseTextStarts = [:]
+            markerRanges.removeAll(keepingCapacity: true)
             let size = p.style.fontSize
             let para = NSMutableParagraphStyle()
             para.lineSpacing = p.style.lineSpacing
@@ -196,18 +221,19 @@ struct ChapterTextView: NSViewRepresentable {
                     out.append(NSAttributedString(string: "\t\t" + title + "\n", attributes: base.merging([.font: font(size * 0.85, italic: true), .foregroundColor: NSColor.secondaryLabelColor, Self.skipKey: true]) { $1 }))
                 }
                 // Gutter: right-aligned verse number (a link → verse actions), note dot.
-                let selected = p.selectedVerses.contains(v.verse)
                 let numAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: selected ? .bold : .medium),
-                    .foregroundColor: selected ? NSColor.controlAccentColor : (p.style.showVerseNumbers ? NSColor.secondaryLabelColor : NSColor.clear),
+                    .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
+                    .foregroundColor: markerColor(v.verse, p),
                     .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
                     .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                 ]
                 // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
                 let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
+                let markerStart = out.length
                 out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                 out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
                 out.append(NSAttributedString(string: "\t", attributes: gutterTab))
+                markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
                 let textStart = out.length
                 verseTextStarts[v.verse] = textStart
                 // Words with italics / red letters / character highlights; Strong's numbers as superscript links.
