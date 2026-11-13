@@ -614,6 +614,20 @@ final class AppModel {
         }
     }
 
+    /// Global Notes navigation leaves existing editors and their folder return paths intact.
+    func openNotesHome(newTab: Bool = false) {
+        if !newTab {
+            let homeTabs = tabs(in: .notes).filter {
+                $0.tabType == .note && $0.state["noteId"]?.stringValue == nil
+            }
+            if let existing = homeTabs.first(where: { $0.id == activeTabId(in: .notes) }) ?? homeTabs.first {
+                select(existing.id, in: .notes)
+                return
+            }
+        }
+        openNote(nil, newTab: true)
+    }
+
     func openNote(_ id: String?, newTab: Bool = false) {
         let note = id.flatMap { try? notes?.one($0) }
         if let note {

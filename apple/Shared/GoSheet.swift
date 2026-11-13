@@ -59,7 +59,7 @@ struct GoSheet: View {
             row("Scripture", "book", .blue) { app.openScripture(bookId: lastPassage.bookId, chapter: lastPassage.chapter, verse: lastPassage.verse, endVerse: lastPassage.endVerse, textId: lastPassage.textId, reuseTab: !newTab) }
             row("New Note", "square.and.pencil", .orange) { app.newNote() }
             row("Today's Note", "calendar", .orange) { app.openTodayDailyNote() }
-            row("Notes", "note.text", .orange) { app.openNote(nil) }
+            row("Notes", "note.text", .orange) { app.openNotesHome(newTab: newTab) }
             row("History", "clock", .secondary) { app.openHistory() }
             row("Tags", "tag", .secondary) { app.openTags() }
         }

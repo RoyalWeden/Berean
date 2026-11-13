@@ -89,7 +89,7 @@ struct CommandPalette: View {
             ("New Note", "square.and.pencil", { app.newNote() }),
             ("Today's Note", "calendar", { app.openTodayDailyNote() }),
             ("Calendar", "calendar", { app.openCalendar() }),
-            ("Notes Home", "tray.full", { app.openNote(nil, newTab: newTab) }),
+            ("Notes Home", "tray.full", { app.openNotesHome(newTab: newTab) }),
             ("History", "clock", { app.openHistory() }),
             ("Tags", "tag", { app.openTags() }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
