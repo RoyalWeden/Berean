@@ -15,6 +15,9 @@ struct BereanSidebar: View {
     @State private var savingSnapshot = false
     @State private var showTabCleanup = false
     @State private var name = ""
+    @State private var showsWorkspaceSearch = false
+    @State private var workspaceQuery = ""
+    @FocusState private var workspaceSearchFocused: Bool
     @State private var showsTabFilter = false
     @State private var tabQuery = ""
     @FocusState private var tabFilterFocused: Bool
@@ -47,6 +50,7 @@ struct BereanSidebar: View {
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
             Button("Archive All Tabs") { app.archiveAllTabs() }.disabled(app.orderedTabs.isEmpty)
         }
+        .sheet(isPresented: $showsWorkspaceSearch) { workspaceTabSearch }
         .sheet(isPresented: $showTabCleanup) { TabCleanupView().frame(minWidth: 360, minHeight: 420) }
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
@@ -125,9 +129,68 @@ struct BereanSidebar: View {
         .background(WindowDragArea())   // below the title bar only, so the toolbar's own buttons keep their clicks
     }
 
+    private var workspaceTabSearch: some View {
+        let matches = app.matchingWorkspaceTabs(workspaceQuery)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Tab title, Space or workspace", text: $workspaceQuery)
+                    .textFieldStyle(.plain)
+                    .focused($workspaceSearchFocused)
+                    .onSubmit {
+                        if let first = matches.first { openWorkspaceTab(first) }
+                    }
+                Button("Cancel") { showsWorkspaceSearch = false }
+                    .keyboardShortcut(.cancelAction)
+            }
+            Divider()
+            if matches.isEmpty {
+                Text(workspaceQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? "Search open tabs across workspaces." : "No matching open tabs.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(matches) { match in
+                    Button {
+                        openWorkspaceTab(match)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: match.tab.symbol).foregroundStyle(match.tab.tint)
+                            VStack(alignment: .leading) {
+                                Text(match.tab.title.isEmpty ? "Untitled" : match.tab.title)
+                                Text(match.workspaceName + " · " + match.tab.spaceId.title)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.interactivePlain)
+                }
+                .listStyle(.plain)
+            }
+        }
+        .padding(16)
+        .frame(width: 440, height: 350)
+        .onAppear { workspaceSearchFocused = true }
+    }
+
+    private func openWorkspaceTab(_ match: AppModel.WorkspaceTabMatch) {
+        app.openWorkspaceTab(match)
+        showsWorkspaceSearch = false
+    }
+
     /// One Workspace control: the current workspace; its menu lists every workspace (live and saved) and the actions.
     var workspaceSwitcher: some View {
         Menu {
+            Button("Find Open Tab…", systemImage: "magnifyingglass") {
+                workspaceQuery = ""
+                showsWorkspaceSearch = true
+            }
+            Divider()
             ForEach(app.workspaceItems) { w in
                 Toggle(isOn: Binding(get: { app.isCurrent(w) }, set: { if $0 { app.open(w) } })) {
                     Text(w.name + (w.preview.map { " · \($0)" } ?? ""))
