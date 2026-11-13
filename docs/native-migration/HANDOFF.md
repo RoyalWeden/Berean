@@ -242,3 +242,5 @@ Snapshot origin remapping now uses the stored origin Space when duplicate legacy
 New native workspace snapshots record the current Space when it has tabs. First opening the snapshot activates that Space and its saved tab; older snapshots use the existing fallback. The optional field leaves the legacy v2 shape readable. The focused snapshot tests and both Dev builds passed. Live opening of a snapshot saved from Notes or Lexicon remains to verify.
 
 Live workspaces now remember their last active Space per device and restore it when switching back or relaunching. The selected tab still comes from the existing per-Space workspace state. Snapshot preferred Space takes priority on its first open. Deleted workspace preferences are removed. Both Dev builds passed. Live Notes-to-Scripture workspace switching and relaunch remain to verify.
+
+Mac Dev verified live workspace Space persistence. Selected Daily Notes in Study, switched to the Scripture-only Workspace 6, then returned to Study and confirmed Daily Notes was selected. Quitting and reopening Mac Dev restored the same Notes tab in Study. The iPhone equivalent and saved snapshot first-open check remain pending.
