@@ -234,9 +234,12 @@ final class AppModel {
         guard id != currentSessionId, let destination = sessions.first(where: { $0.id == id }) else { return }
         rememberActiveTab()
         currentSessionId = id
-        if activeTab == nil, let tab = destination.allTabs.first {
-            select(tab.id, in: tab.spaceId, rememberPrevious: false)
-            return
+        if activeTab == nil {
+            let ordered = destination.workspacePreviewTabs
+            if let tab = ordered.first(where: { $0.spaceId == activeSpace }) ?? ordered.first {
+                select(tab.id, in: tab.spaceId, rememberPrevious: false)
+                return
+            }
         }
         scheduleSave()
     }

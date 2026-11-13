@@ -50,18 +50,17 @@ extension AppModel {
     /// Live workspaces in session order, then saved ones that are not open.
     var workspaceItems: [WorkspaceItem] {
         let live = sessions.map { session in
-            let tabs = session.allTabs
-            let activeIds = Set(session.activeTabId.values.compactMap { $0 })
-            let ordered = tabs.filter { activeIds.contains($0.id) }
-                + tabs.filter { !activeIds.contains($0.id) }
-            let titles = ordered.map(\.workspacePreviewLabel)
+            let tabs = session.workspacePreviewTabs
             return WorkspaceItem(kind: .live(session.id), name: session.name, tabCount: tabs.count,
-                                 icon: session.icon, tabTitles: titles)
+                                 icon: session.icon, tabTitles: tabs.map(\.workspacePreviewLabel))
         }
         let saved = savedWorkspaces.filter { !isWorkspaceOpen($0.id) }.map { workspace in
             let snapshot = WorkspaceSnapshot.parse(workspace.stateJSON)
             let tabs = WorkspaceSnapshot.spaces.flatMap { snapshot.tabs(in: $0) }
-            let titles = tabs.compactMap(Tab.init(jsObject:)).map(\.workspacePreviewLabel)
+            let decoded = tabs.compactMap(Tab.init(jsObject:))
+            let activeIDs = Set(snapshot.activeTabId.values.compactMap { $0 })
+            let ordered = decoded.filter { activeIDs.contains($0.id) } + decoded.filter { !activeIDs.contains($0.id) }
+            let titles = ordered.map(\.workspacePreviewLabel)
             return WorkspaceItem(kind: .saved(workspace.id), name: workspace.name,
                                  tabCount: tabs.count, icon: nil, tabTitles: titles)
         }
@@ -179,5 +178,14 @@ private extension Tab {
     var workspacePreviewLabel: String {
         guard let edition = scriptureEditionLabel else { return navigationLabel }
         return "\(navigationLabel) (\(edition))"
+    }
+}
+
+extension Session {
+    /// Active tabs appear first in workspace previews and are preferred when switching Spaces.
+    var workspacePreviewTabs: [Tab] {
+        let activeIDs = Set(activeTabId.values.compactMap { $0 })
+        let tabs = allTabs
+        return tabs.filter { activeIDs.contains($0.id) } + tabs.filter { !activeIDs.contains($0.id) }
     }
 }
