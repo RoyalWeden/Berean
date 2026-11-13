@@ -88,10 +88,10 @@ struct CommandPalette: View {
         let commands: [(String, String, () -> Void)] = [
             ("New Note", "square.and.pencil", { app.newNote() }),
             ("Today's Note", "calendar", { app.openTodayDailyNote() }),
-            ("Calendar", "calendar", { app.openCalendar() }),
+            ("Calendar", "calendar", { app.openCalendar(newTab: newTab) }),
             ("Notes Home", "tray.full", { app.openNotesHome(newTab: newTab) }),
-            ("History", "clock", { app.openHistory() }),
-            ("Tags", "tag", { app.openTags() }),
+            ("History", "clock", { app.openHistory(newTab: newTab) }),
+            ("Tags", "tag", { app.openTags(newTab: newTab) }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
         ]
         for (t, sym, run) in commands where trimmed.isEmpty || t.localizedCaseInsensitiveContains(trimmed) {

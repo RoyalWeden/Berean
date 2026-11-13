@@ -332,14 +332,23 @@ final class AppModel {
         if (try? historyService?.add(e, maxEntries: 5000)) == true { historyRevision += 1 }
     }
 
-    func openHistory() {
-        if let t = session.allTabs.first(where: { $0.tabType == .history }) { select(t.id, in: t.spaceId); return }
-        openTab(.history, in: .search, title: "History", state: JSObject())   // the existing apps group History with Search
+    func openHistory(newTab: Bool = false) {
+        openUtilityTab(.history, in: .search, title: "History", newTab: newTab)
     }
 
-    func openTags() {
-        if let t = session.allTabs.first(where: { $0.tabType == .tags }) { select(t.id, in: t.spaceId); return }
-        openTab(.tags, in: .notes, title: "Tags", state: JSObject())   // the existing apps keep the Tags tab in Notes
+    func openTags(newTab: Bool = false) {
+        openUtilityTab(.tags, in: .notes, title: "Tags", newTab: newTab)
+    }
+
+    func openUtilityTab(_ type: TabType, in space: SpaceId, title: String, newTab: Bool) {
+        if !newTab {
+            let matching = session.allTabs.filter { $0.tabType == type }
+            if let tab = matching.first(where: { activeTabId(in: $0.spaceId) == $0.id }) ?? matching.first {
+                select(tab.id, in: tab.spaceId)
+                return
+            }
+        }
+        openTab(type, in: space, title: title, state: JSObject())
     }
 
     // MARK: saved workspaces (same rows and state_json v2 as src/lib/workspaceSnapshot.ts)

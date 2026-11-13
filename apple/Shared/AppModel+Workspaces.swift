@@ -146,12 +146,8 @@ extension AppModel {
 }
 
 extension AppModel {
-    func openCalendar() {
-        if let tab = session.allTabs.first(where: { $0.tabType == .calendar }) {
-            select(tab.id, in: tab.spaceId)
-        } else {
-            openTab(.calendar, in: .notes, title: "Calendar", state: JSObject())
-        }
+    func openCalendar(newTab: Bool = false) {
+        openUtilityTab(.calendar, in: .notes, title: "Calendar", newTab: newTab)
     }
 
     func openTodayDailyNote() { openDailyNote(DailyNoteDay.dateKey(DailyNotePreferences.today())) }

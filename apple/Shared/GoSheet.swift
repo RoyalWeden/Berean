@@ -60,8 +60,8 @@ struct GoSheet: View {
             row("New Note", "square.and.pencil", .orange) { app.newNote() }
             row("Today's Note", "calendar", .orange) { app.openTodayDailyNote() }
             row("Notes", "note.text", .orange) { app.openNotesHome(newTab: newTab) }
-            row("History", "clock", .secondary) { app.openHistory() }
-            row("Tags", "tag", .secondary) { app.openTags() }
+            row("History", "clock", .secondary) { app.openHistory(newTab: newTab) }
+            row("Tags", "tag", .secondary) { app.openTags(newTab: newTab) }
         }
         if !recents.isEmpty {
             Section("Recent") {
