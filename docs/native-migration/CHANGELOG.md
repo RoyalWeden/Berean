@@ -463,3 +463,11 @@
 - Tapping an iPhone verse number highlights the verse and opens its actions directly. Long press still opens text selection. Notes and cross-references receive the verse with the inspector request.
 - Closing a comparison column returns to the reader when fewer than two remain. The remaining translation and its chapter numbering carry over. Previously saved single-column comparisons can also be closed.
 - Xcode 27.2 Dev builds passed for Mac and iPhone Simulator. On iPhone 18 Pro, tapping Jonah 1:2 opened its actions, Copy Verse closed the sheet, a saved one-column comparison could be closed, and closing KJV in a fresh two-column comparison kept Jonah 1 in the Septuagint reader.
+
+### 2026-11-12 — Floating reader controls and navigation parity
+
+- The iPhone Scripture header and dock use Liquid Glass where available. The passage button has no dropdown caret.
+- Tap verse numbers to add and remove whole verses. The floating panel copies, highlights or tags the selected verses. Single-verse details and native text selection remain available.
+- iPhone Go groups passage, lexicon, notes and Scripture search destinations. More includes native Find in Chapter.
+- Mac routine navigation reuses eligible tabs. The command palette offers exact open passages in other workspaces, and New Tab remains explicit.
+- The implementation backlog compares the native apps with Electron and Capacitor workflows and records acceptance checks.

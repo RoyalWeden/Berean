@@ -35,3 +35,11 @@
 ## Scripture follow-up
 
 PR #24 also includes the icon-only iPhone dock, one-row passage toolbar, direct verse-number action sheet and automatic exit from Compare when closing the final extra column. Xcode 27.2 Dev builds passed for both platforms. iPhone 18 Pro Simulator verified verse tint and action presentation, Copy Verse dismissal, recovery from a saved single-column comparison, and preserving the Septuagint when closing KJV in a two-column Jonah comparison. Clipboard contents, Mac runtime, and physical iPhone are still pending for this follow-up.
+
+## Floating Scripture controls and legacy comparison
+
+- See [Implementation backlog](IMPLEMENTATION-BACKLOG.md) for prioritized Electron and Capacitor features and acceptance scenarios.
+- iPhone Scripture now uses a floating passage control and glass dock. Tap verse numbers to toggle several verses and use the selection panel above the dock. Tap the panel ellipsis for single-verse actions.
+- iPhone 18 Pro Simulator showed Jonah 1:2 and 1:4 selected together. Simulator clipboard contained exactly those two verses and the nonconsecutive LXX reference. Applying yellow highlighted both verses, and Tag opened with the correct two-verse reference.
+- The Swift run passed 80 Swift Testing tests and 4 XCTest cases. Both native Dev builds passed. The iPhone Simulator build also passed after adding UIKit Find in Chapter.
+- Next acceptance work includes physical iPhone text handles and swipes, archive/restore across duplicate workspace names, and Study Trail service parity.

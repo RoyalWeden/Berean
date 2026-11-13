@@ -199,3 +199,5 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 | U14 Study Trail | shared service, then Mac/iPhone UI | Port the legacy service with deterministic golden fixtures first. |
 | SHARED-FUNC-017 | Mac and iPhone | Port legacy sunrise calculation and fallback semantics before connecting any location provider. |
 | SHARED-FUNC-014 / M4 | both | Remaining Settings sections, then sync through OD-5 gates. |
+
+See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source references and acceptance scenarios across the legacy Electron and Capacitor apps.
