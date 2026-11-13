@@ -18,6 +18,24 @@ extension LexiconEntry {
     let svc = LexiconService(lexiconPath: { dataFile($0 == "H" ? "strongs_hebrew" : "strongs_greek") }, textPath: { dataFile($0) })
     init() throws { g = try Golden.load("lexicon") }
 
+    @Test func adjacentEntriesFollowNumericOrderAndStopAtBoundaries() async {
+        let first = await svc.adjacentEntries(" g1 ")
+        #expect(first.previous == nil)
+        #expect(first.next == "G2")
+
+        let middle = await svc.adjacentEntries("H10")
+        #expect(middle.previous == "H9")
+        #expect(middle.next == "H11")
+
+        let last = await svc.adjacentEntries("G5624")
+        #expect(last.previous == "G5623")
+        #expect(last.next == nil)
+
+        let invalid = await svc.adjacentEntries("X10")
+        #expect(invalid.previous == nil)
+        #expect(invalid.next == nil)
+    }
+
     @Test func everyEntry() async {
         var failures: [String] = []
         for b in g.arr("entryBlocks") {
