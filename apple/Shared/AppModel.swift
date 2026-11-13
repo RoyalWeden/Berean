@@ -439,6 +439,7 @@ final class AppModel {
             }
             let after = sessions[sessionIndex].tabs[sp]![idx]
             if recordHistory, Self.location(before) != Self.location(after) {
+                sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
                 backStack[tabId, default: []].append((before.title, before.state))
                 if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
                 forwardStack[tabId] = []

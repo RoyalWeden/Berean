@@ -150,7 +150,18 @@ struct ScriptureView: View {
             return
         }
         let last = max(first, state.endVerse ?? first)
-        selection = Set(verses.lazy.map(\.verseNum).filter { (first...last).contains($0) })
+        let chapterVerses = Set(verses.map(\.verseNum))
+        let saved = app.findTab(tabId)?.state["nativeSelectedVerses"]
+        let savedVerses = saved?["passage"]?.stringValue?.string == chapterKey(state)
+            && saved?["activeVerse"]?.numberValue == Double(first)
+            ? saved?["verses"]?.arrayValue : nil
+        let restored = Set((savedVerses ?? []).compactMap { $0.numberValue.flatMap(Int.init(exactly:)) })
+            .intersection(chapterVerses)
+        if state.endVerse == nil, restored.contains(first) {
+            selection = restored
+        } else {
+            selection = Set(chapterVerses.filter { (first...last).contains($0) })
+        }
     }
 
     func verseClick(_ v: Int, shift: Bool) {
@@ -172,13 +183,28 @@ struct ScriptureView: View {
             // Legacy destinations represent one verse or a continuous range.
             destination = SelectionDestination(verse: selectedVerse, endVerse: nil)
         }
-        writeLocalSelectionDestination(destination)
+        let disjoint = destination.endVerse == nil && selection.count > 1 ? selection.sorted() : []
+        writeLocalSelectionDestination(destination, disjoint: disjoint)
     }
 
-    private func writeLocalSelectionDestination(_ destination: SelectionDestination) {
-        guard SelectionDestination(state) != destination else { return }
-        pendingSelectionDestination = destination
-        mutate(recordHistory: false) { $0.verse = destination.verse; $0.endVerse = destination.endVerse }
+    private func writeLocalSelectionDestination(_ destination: SelectionDestination, disjoint: [Int] = []) {
+        let changed = SelectionDestination(state) != destination
+        if changed { pendingSelectionDestination = destination }
+        app.update(tabId, recordHistory: false) { tab in
+            var reader = BibleState(tab.state)
+            reader.verse = destination.verse
+            reader.endVerse = destination.endVerse
+            tab.state = reader.merged(into: tab.state)
+            if disjoint.isEmpty || destination.verse == nil {
+                tab.state.remove("nativeSelectedVerses")
+            } else {
+                var saved = JSObject()
+                saved["passage"] = .string(JSString(chapterKey(reader)))
+                saved["activeVerse"] = destination.verse.map { .number(Double($0)) }
+                saved["verses"] = .array(disjoint.map { .number(Double($0)) })
+                tab.state["nativeSelectedVerses"] = .object(saved)
+            }
+        }
     }
 
     var selectedRows: [ChapterVerseRow] { verses.filter { selection.contains($0.verseNum) } }

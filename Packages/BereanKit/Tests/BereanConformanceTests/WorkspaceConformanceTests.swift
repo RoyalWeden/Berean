@@ -42,6 +42,17 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     let g: JSObject
     init() throws { g = try Golden.load("tabs") }
 
+    @Test func disjointVerseSelectionStaysOnThisDevice() {
+        var state = JSObject()
+        state["verse"] = .number(3)
+        state["nativeSelectedVerses"] = .array([.number(1), .number(3)])
+        let split = TabFields.split(type: .bible, state: state)
+        #expect(split.sync["verse"] == .number(3))
+        #expect(split.sync["nativeSelectedVerses"] == nil)
+        #expect(split.local["nativeSelectedVerses"] == state["nativeSelectedVerses"])
+        #expect(TabFields.merge(type: .bible, sync: split.sync, local: split.local) == state)
+    }
+
     @Test func splitMergeStable() {
         for c in g.arr("split") {
             let type = TabType(rawValue: c["type"]!.str)!
