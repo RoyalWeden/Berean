@@ -156,6 +156,31 @@ public final class NotesService: @unchecked Sendable {
         return Array(rows.prefix(limit))
     }
 
+    /// Match Notes home filters against the full result set without loading note content a second time.
+    public func matchingNoteIDs(_ query: String, mode: NotesWordMode = .all) throws -> Set<String> {
+        let words = Self.cleanWords(query)
+        guard !words.isEmpty else { return [] }
+        // Like `search`, issue one query per prefix in Any Word mode.
+        let expressions = mode == .any
+            ? words.map { Self.ftsQuery($0, phrase: false) }
+            : [Self.ftsQuery(query, phrase: mode == .phrase)]
+        let sql = """
+            SELECT n.id FROM notes_fts
+            JOIN notes n ON n.rowid = notes_fts.rowid
+            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
+            """
+        var ids = Set<String>()
+        for expression in expressions {
+            let rows = try db.query(sql, [.text(expression)])
+            ids.formUnion(rows.compactMap { $0["id"]?.string })
+        }
+        if words.contains(where: { $0.lowercased() == "untitled" }) {
+            let untitled = try db.query("SELECT id FROM notes WHERE (title = '' OR title IS NULL) AND deleted_at IS NULL")
+            ids.formUnion(untitled.compactMap { $0["id"]?.string })
+        }
+        return ids
+    }
+
     // MARK: verse / chapter (KJV and LXX cross-linked)
 
     static func tidClause(_ t: String) -> String { t == "kjva" ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'" }

@@ -70,6 +70,31 @@ func noteJSON(_ n: Note) -> JSValue {
         }
     }
 
+    @Test func notesHomeMatchIDsCoverAllResultsAndRefreshAfterEdits() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        let older = try notes.create(.init(id: "z", title: "Olive branch")).note
+        for i in 0..<201 {
+            _ = try notes.create(.init(id: "a-\(i)", title: "Olive orchard branch"))
+        }
+        _ = try notes.create(.init(id: "untitled", content: "sycamore"))
+        #expect(try !notes.search("olive", limit: 200).contains { $0.id == older.id })
+        #expect(try notes.matchingNoteIDs("oliv branch").count == 202)
+        #expect(try notes.matchingNoteIDs("olive branch", mode: .phrase) == [older.id])
+        #expect(try notes.matchingNoteIDs("oliv sycam", mode: .any).count == 203)
+        #expect(try notes.matchingNoteIDs("untitled") == ["untitled"])
+        #expect(try notes.matchingNoteIDs("  !?\n").isEmpty)
+
+        _ = try notes.update(older.id, .init(title: "Fig tree"))
+        #expect(try notes.matchingNoteIDs("olive branch", mode: .phrase).isEmpty)
+        #expect(try notes.matchingNoteIDs("fig") == [older.id])
+        try notes.delete(older.id)
+        #expect(try notes.matchingNoteIDs("fig").isEmpty)
+        _ = try notes.restore(older.id)
+        #expect(try notes.matchingNoteIDs("fig") == [older.id])
+    }
+
     @Test func verseAndChapter() throws {
         for c in g.arr("byVerse") {
             #expect(try svc.byVerse(c["ref"]!.str, textId: c["textId"]!.str).map(\.id) == c["ids"]!.array.map(\.str), "\(c["ref"]!.str) \(c["textId"]!.str)")
