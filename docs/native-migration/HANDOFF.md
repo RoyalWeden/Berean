@@ -1,120 +1,33 @@
-# Berean Native Migration — Last Resumable Session State
+# Berean Native Migration — Resumable Session State
 
-> LIVE RECOVERY CAPSULE — overwrite on each checkpoint, after a merge, and immediately before context compaction.
+## 2026-11-12 checkpoint
 
-## Mandatory start-of-session recovery
-1. Read `CLAUDE.md` and `docs/native-migration/EXECUTION-PLAYBOOK.md`.
-2. Read `STATUS.md`, `TASKS.md`, `DECISIONS.md`, this file, latest `CHANGELOG.md` entries.
-3. Verify exact Git state, compare recorded completion to code/tests, then resume next ready task.
+- Isolated clone: `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`; implementation through `87fd228`. The existing `/Users/roywe/Berean-native` worktree was left in place.
+- Review stack at the time of work: #22 (`26a3835`) → main, green; #23 (`670f5b6`) → `native/m7-export`, native CI green and legacy CI running when checked. This branch is based on #23. Recheck GitHub before acting. Owner merges #22, waits for #23 to target main, then reviews/merges #23 when green. Apply the same retarget check before merging the follow-up. ADR-0007 requires a local Mac build check with Xcode 27.
+- No production store, iCloud, signing, schema, bundle IDs or legacy source modified. Only explicit immutable corpora linked into this checkout. Native Dev libraries used for UI checks.
 
-## Recovery state
-- Updated: 2026-11-08 08:40 PST (session ended at the usage limit)
-- `main` = `origin/main` = `d86a6fe` (PRs #13–#18 merged)
-- Active worktree: `/Users/roywe/Berean-native`, branch `native/m6-shell` → PR #19 (open): WorkspacesService, tab history, Compare mode,
-  renderTokens fix. Merge after CI green + local `npm run native:build:mac` (ADR-0007; comment on the PR).
-- Tests last run: `swift test -c release` all suites; drift guard 20/20; Mac + iOS builds OK.
-- Next exact tasks: (1) merge PR #19; (2) [done on native/m6-layouts — PR #20, awaiting Michael's merge: auto-merge was blocked by the permission classifier]; (3) [note versions + Markdown files done on native/m7-markdown — PR stacked on #20]; (3b) note version history +
-  vault Markdown goldens (M7-01, src/lib/noteMarkdownFile.ts); (4) verse tags + Study Trail services; (5) M4 sync engine port
-  (src/platform/sync/merge.ts, engine.ts) then the Dev container (OD-5); (6) iPhone verse sheet + gestures.
-- Visual QA: move window to {100,60}, `screencapture -R100,60,1200,760` only; sidebar clicks with `cliclick dd:x,y du:x,y`.
-- Owner decisions held: OD-1…OD-5. Optional: self-hosted runner with Xcode 27. Dangerous operations pending: none.
+## Delivered
 
-## Important constraints
-Never reset/delete an unknown dirty worktree, access production data without authorization, or assume a merged PR means
-functional parity. No `--force` (worktree remove, push), no `branch -D`, no `reset --hard`. Keep log and task state in Git.
+| Commit | Change |
+|---|---|
+| `793a525` | Full catalog in both native app bundles, including 14 previously missing corpora. |
+| `22da4aa` | Calendar on both apps, using legacy month/date state and existing daily-note identity. |
+| `83c2e96` | Continuous selectable iPhone chapter with inline Strong’s and verse actions, cleaned copy, and mapped character highlights. |
+| `65c96d5` | Both Notes homes gain scope, type/status, match modes, snippets and revision-aware refresh. |
+| `4946b16`, `5ca6b6f` | Compact iPhone Tabs / Go / More dock, no Scripture link underlines, compatible-tab reuse and explicit New Tab. Inline note title chrome. |
+| `87fd228` | Workspace previews and title/contained-tab search, plus selectable bulk archive of inactive unpinned tabs. |
 
-## Merge requirements (2026-11-08)
-- `gh pr merge` by Claude is blocked by the auto-mode classifier ("Merge Without Review"); Michael merges native PRs.
-- Merge in the order listed; for stacked PRs merge the lower one first and **wait until GitHub retargets the next PR to main before
-  merging it** — #21 was merged into its already-merged base branch and missed main (re-landed via `native/m7-export`).
-- Before merging: CI green (both jobs) + the local Mac check comment (ADR-0007: `npm run native:build:mac`, Xcode 27).
+## Verification
 
-## Session end 2026-11-08 (afternoon) — state
-- **Open PRs, merge in this order:**
-  1. **#22** `native/m7-export` → main: re-lands #21 (note Markdown + version history, missed main) + the Export fix.
-  2. **#23** `native/m6-navigation` (stacked on #22), containing:
-     - the ADR-0010 sidebar, sessions and workspaces redesign, tab archive, passage pill and history toolbar;
-     - ⌃Tab over the unified list;
-     - the iPhone tab sheet and Sessions page;
-     - verse tags;
-     - verse-number actions.
-     After #22 merges, wait for GitHub to retarget #23 to main, then merge.
-- Checks at 8eec766:
-  - `swift test -c release`: 62 tests / 25 suites PASS;
-  - golden drift guard: 22/22 PASS;
-  - `npm run native:build:mac` and `native:build:ios`: PASS;
-  - `npm run native:ui:smoke`: PASS (at 26a3835).
-- UI evidence: `VISUAL-UX-PARITY.md` verification log and CHANGELOG entries for today.
-- Next executable tasks:
-  1. Study Trail: port `src/platform/services/studyTrailService.ts` (1223 lines) with goldens, then the trail map UI.
-  2. Tab multi-select (⌘/⇧-click) with bulk archive/move/close; session icons.
-  3. Unified grouped search (`unifiedSearch.ts`).
-  4. iPhone verse sheet and verse-number actions on iOS (the verse menu exists; check touch).
-  5. M4 sync engine port.
-- Visual QA harness notes:
-  - Context menus opened with synthetic clicks can leave the app in a menu-tracking loop (it looks hung; `sample` shows
-    NSMenuTrackingSession). Prefer keyboard navigation + Return, and `pkill` if it sticks.
-  - `ccusage` is blocked by the permission classifier, so the usage window cannot be checked from here.
+- Xcode 27.2: `npm run native:check` at `5ca6b6f` passed, including Swift Testing 80 tests / 31 suites plus 4 XCTest cases, and Mac and iOS Simulator Debug builds with Dev identity assertions.
+- At `87fd228`, `npm run native:build:mac` and `npm run native:build:ios` passed with Dev identity assertions.
+- `vitest run tests/unit/goldenCorpus.test.ts`: 22 passed. Full legacy suite and physical iPhone install were outside this run.
+- Mac Dev UI: ⌘K → Didache rendered chapter text. ⌘K → Calendar → previous month → current month → existing Nov 12 daily note opened.
+- iPhone 18 Pro Simulator (iOS 27.0, D0CC2F4C…): inline Obadiah 1 H2377 opened Lexicon. Long press selected a word and displayed copy actions. Tabs, More, Notes search options, Calendar date-to-note creation and Go were exercised. Go → recent Jonah reused an existing reader and preserved the nine-tab count.
+- Still verify: cross-verse touch drag, copied contents, persisted partial highlights, swipe arbitration, iPhone hardware and accessibility. Run bulk archive → restore and lookup by contained title on both platforms using multiple same-named workspaces. Screenshot-based handle drag did not establish a cross-verse selection.
 
-## Session end 2026-11-08 (evening) — state
-- Branch `native/m6-navigation` (PR #23, stacked on #22). Neither PR is merged; neither branch is in main (checked by ancestry).
-- **Merge order (Michael):** #22 → wait until GitHub retargets #23 to main → #23. Both need green CI plus the local Mac check comment.
-- Done this session (see CHANGELOG 13:30 → 16:30): continuous TextKit reader; passage navigator; text list + lxx→Brenton fix; system
-  Scripture font; Back/Forward placement; Share caret; unified Workspaces (ADR-0011); Yab-style sidebar + live drag + window drag
-  (ADR-0012); iPhone New sheet + three-job bar (ADR-0013); physical iPhone deploy (`npm run native:ios:device`, installed on the iPhone 16e);
-  formatted notes editor + Copy as Plain Text (ADR-0014).
-- Checks at the last commit: Swift 68/26 PASS; golden drift 22/22 PASS; Mac + iOS builds PASS.
-- Next executable tasks:
-  1. iPhone reader: continuous selection (UITextView) and tappable Strong's / verse numbers (UI-03/11 iOS).
-  2. Sidebar: drop line and auto-scroll while dragging, pinned grid, density setting (UI-07/08 rest).
-  3. Unified grouped search (notes in ⌘K results — found during the editor test: ⌘K "Rich editor test" searched Scripture only).
-  4. Study Trail service port with goldens.
-  5. M4 sync engine.
+## Next executable task
 
-## Session end 2026-11-12 — state (read this first)
-- Worktree `/Users/roywe/Berean-native`, branch `native/m6-navigation` (PR #23, stacked on #22). Both PRs OPEN; neither branch is in
-  origin/main (checked with `git merge-base --is-ancestor`).
-- **Merge order (Michael):** #22 → wait for GitHub to retarget #23 to main → #23 CI green → merge #23.
-- Durable records:
-  - `FULL-FEATURE-PARITY.md`: 104 features; Mac ✅31 🟡24 ❌36 (−) before this session's later fixes;
-  - `UX-AND-FUNCTIONAL-ISSUES.md`: open P1s are Study Trail, sync, and iPhone swipe / edge chapter change;
-  - `SCREEN-INVENTORY.md`.
-- Verified this session (running Mac app; iPhone Simulator where noted):
-  - single-chapter books and prologues;
-  - verse-number selection (+ iPhone);
-  - sidebar nav group;
-  - multi-text search (+ iPhone);
-  - Notes home (+ iPhone);
-  - find bar;
-  - ⌘K with notes;
-  - partial-selection highlight;
-  - New sheet closes (iPhone).
-- Checks: Swift 78/30 PASS; Mac + iOS builds PASS.
-- **Next tasks in priority order:**
-  1. (done) IOS-FUNC-001 swipe chapter change.
-  2. IOS-FUNC-002 — iPhone continuous reader (UITextView port of ChapterTextView) for cross-verse selection, partial highlights and
-     tappable Strong's.
-  3. U14 — Study Trail: port `src/platform/services/studyTrailService.ts` with goldens (scripts/golden pattern), then the map UI.
-  4. (done) History screen, ⌘⇧D. Remaining: MAC-FUNC-013 calendar.
-  5. SHARED-FUNC-016 — Tag manager; SHARED-FUNC-014 — Settings sections.
-  6. M4 sync engine (OD-5 gates).
-- Harness notes:
-  - synthetic context-menu clicks can leave AppKit in menu tracking: use keyboard navigation, `pkill` if stuck;
-  - region captures beyond the app window can include other windows: keep captures inside the window;
-  - the iPhone Simulator Xcode MCP only drives iOS 27 runtimes (iPhone 18 Pro D0CC2F4C…).
-
-## Checkpoint 2026-11-12 (end of cycle 2) — exact state
-- Branch `native/m6-navigation` at the last pushed commit (see `git log -1`); PR #23 OPEN (stacked on #22, OPEN). Merge order unchanged.
-- Done since the earlier checkpoint:
-  - partial highlights (Mac);
-  - iPhone swipe chapters;
-  - ⌘⇧D Today's Note;
-  - Copy Reference and Compare This Verse;
-  - verse-number hit target;
-  - shortcut pass-through;
-  - History;
-  - Tag Manager.
-- Next (unchanged order): IOS-FUNC-002 iPhone continuous reader → U14 Study Trail service + goldens → MAC-FUNC-013 calendar →
-  SHARED-FUNC-014 settings sections → M4 sync.
-
-- Also done: Settings → Verse numbers / Words of Yeshua in red (device-local, same keys as the existing apps' prefs; verified red letters off), Keyboard Shortcuts list, About.
+1. Use isolated Dev fixtures with duplicate names such as “Session 8,” two similarly named passages, and pinned tabs. Verify Mac ⌘K and iPhone Workspaces search identify the workspace by a contained passage. Preview archive, exclude a tab, archive, reopen the workspace and restore the archive group. Check selection and pinned tabs.
+2. Continue reducing tab creation in routine Mac navigation while retaining explicit New Tab. Consider direct passage results across workspaces, exact-destination reuse and duplicate review. Use the owner’s screenshot as the reproduction shape: similarly named sessions and repeated Scripture tabs.
+3. Complete iPhone touch QA, then continue Study Trail U14 service/goldens, sunrise-aware Today, remaining Settings and gated M4.

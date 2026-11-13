@@ -189,3 +189,13 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 | UI-13 | Physical iPhone workflow | DONE | npm run native:ios:device; installed + launched on iPhone 16e |
 | UI-14 | iPhone navigation simplification + Plus fix + Workspaces wording | DONE (first pass) | ADR-0013; real-tap verified in Simulator |
 | UI-15 | Storage unification of sessions/workspaces | DEFERRED | until legacy clients retire (ADR-0011) |
+
+## 2026-11-12 follow-up queue
+
+| Task | Scope | Evidence / acceptance |
+|---|---|---|
+| SHARED-UX-020 — tame tabs and unnamed workspaces | Mac and iPhone | First pass implemented: search names and contained tab titles, preview a passage/title, archive selected inactive tabs and reuse iPhone destinations. Verify with duplicate default names and restore on both platforms. Next: routine Mac reuse and duplicate review. Keep pinned tabs, explicit New Tab, existing IDs and persisted state semantics. |
+| IOS-FUNC-002 verification | iPhone | Drag selection handles across verses, inspect copied text/reference, create/reopen a partial highlight and verify swipe arbitration. |
+| U14 Study Trail | shared service, then Mac/iPhone UI | Port the legacy service with deterministic golden fixtures first. |
+| SHARED-FUNC-017 | Mac and iPhone | Port legacy sunrise calculation and fallback semantics before connecting any location provider. |
+| SHARED-FUNC-014 / M4 | both | Remaining Settings sections, then sync through OD-5 gates. |

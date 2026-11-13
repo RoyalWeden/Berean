@@ -30,7 +30,7 @@ Nav = navigation makes sense · Visual = visual quality reviewed · Test = autom
 | Settings window | ✅ | 🟡 | ✅ | ✅ | ✅ | 🟡 | settings test | SHARED-FUNC-014 |
 | Find bar ⌘F | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | AppKit find bar |
 | History tab | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | history test | ⌘Y |
-| Calendar / daily | ✅ | ❌ | — | — | — | — | — | MAC-FUNC-013 |
+| Calendar / daily | ✅ | 🟡 | ✅ | 🟡 | ✅ | ✅ | Mac and iPhone Simulator day-to-note | Sunrise boundary pending |
 | Tag manager | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | verse-tags golden | graph still missing |
 | Study Trail (window + map) | ✅ | ❌ | | | | | | |
 | PDF viewer, YouTube, Read Aloud player, Ask Berean, presenter, floating windows, onboarding, tasks | ✅ | ❌ | | | | | | |

@@ -3,7 +3,14 @@
 > Initialized 2026-11-07 from verified Git, CI and test evidence. Every claim here was checked in the
 > session that wrote it; re-verify against live Git before relying on it after a gap.
 
-## Snapshot
+## Current review branch — 2026-11-12
+
+- Isolated clone: `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`, based on #23 at `670f5b6`. See HANDOFF for latest checks and merge order.
+- Implemented: full native Scripture bundles, iPhone continuous chapter reader, Notes search filters on both platforms, Mac and iPhone daily-note Calendar, and iPhone Tabs / Go / More with tab reuse.
+- User priority: SHARED-UX-020, reduce accumulation and improve finding unnamed workspaces and tabs on both platforms. See TASKS.
+- Supplied specification read from `/Users/roywe/Documents/ChatGPT/Berean/Berean Native Migration Master Specification.docx`.
+
+## Initial snapshot
 - Updated at: 2026-11-07 18:45 PST
 - Master specification: `/Users/roywe/Downloads/Berean Native Migration Master Specification.docx`
   (51,616 bytes, 2026-11-05 14:19, sha256 prefix `be647ccd4c941d69`). Text copy committed as

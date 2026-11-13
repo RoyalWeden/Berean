@@ -446,3 +446,13 @@
 - History (service port + tests, History tab, ⌘Y).
 - Tag Manager.
 - Checks: Swift 79/31 PASS; Mac + iOS builds PASS.
+
+### 2026-11-12 — Native reader, Notes search, Calendar and iPhone Go
+
+- `793a525` explicitly bundles the full Scripture catalog on both targets. No writable store in either resource list.
+- `22da4aa` opens daily notes through a native month grid on both platforms.
+- `83c2e96` replaces the iPhone per-verse rows with a continuous chapter text view, adds text actions and connects Strong’s links and character highlights to existing services.
+- `65c96d5` adds Notes match modes, folder scope, type/status filters, match previews and refresh. Regression covers more than 200 matches, edits, trash and restore.
+- `4946b16`, `5ca6b6f` add the compact labeled dock, remove Scripture link underlines, streamline the destination picker and reuse compatible tabs during normal iPhone navigation.
+- Verification and remaining touch checks are recorded in HANDOFF. No production database, signing, or sync work in this branch.
+- `87fd228` adds contained-tab lookup and preview for workspaces, and reviewable bulk archive that preserves pinned and selected tabs. Archive groups use the existing restore path.
