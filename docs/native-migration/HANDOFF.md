@@ -116,3 +116,5 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
   - Tag Manager.
 - Next (unchanged order): IOS-FUNC-002 iPhone continuous reader → U14 Study Trail service + goldens → MAC-FUNC-013 calendar →
   SHARED-FUNC-014 settings sections → M4 sync.
+
+- Also done: Settings → Verse numbers / Words of Yeshua in red (device-local, same keys as the existing apps' prefs; verified red letters off), Keyboard Shortcuts list, About.

@@ -25,6 +25,8 @@ struct ReaderStyle: Equatable {
     var lineSpacing: CGFloat
     var family: String
     var showStrongs: Bool
+    var showVerseNumbers = true
+    var redLetters = true
 }
 
 /// The Mac Scripture reader: ONE TextKit text view for the whole chapter, so a selection can run across verses
@@ -169,7 +171,7 @@ struct ChapterTextView: NSViewRepresentable {
                 // Gutter: right-aligned verse number (a link → verse actions), note dot.
                 let numAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
-                    .foregroundColor: p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor : NSColor.secondaryLabelColor,
+                    .foregroundColor: p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor : (p.style.showVerseNumbers ? NSColor.secondaryLabelColor : NSColor.clear),
                     .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
                     .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                 ]
@@ -196,7 +198,7 @@ struct ChapterTextView: NSViewRepresentable {
                         while j < units.count, v.marks.last(where: { $0.start <= pos + j && pos + j < $0.end })?.color == hit?.color { j += 1 }
                         var a = base
                         if w.italic { a[.font] = font(size, italic: true) }
-                        if w.red { a[.foregroundColor] = NSColor.systemRed }
+                        if w.red && p.style.redLetters { a[.foregroundColor] = NSColor.systemRed }
                         if let hit { a[.backgroundColor] = NSColor(Color.highlight(hit.color)).withAlphaComponent(0.35) }
                         out.append(NSAttributedString(string: String(decoding: units[k..<j], as: UTF16.self), attributes: a))
                         k = j

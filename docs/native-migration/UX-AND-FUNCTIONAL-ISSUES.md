@@ -20,7 +20,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | SHARED-FUNC-010 | Verse actions lack Play Audio From Here (Copy Reference and Compare This Verse added). | both | P3 | S08 | OPEN (waits for Read Aloud) |
 | SHARED-FUNC-011 | Notes editor: tables as source text, images as captions, columns/threads without chrome (ADR-0014 limits). | both | P2 | N04/N05 | OPEN |
 | MAC-FUNC-013 | No calendar on Mac (⌘⇧D Today's Note now exists). | Mac | P2 | N12 | OPEN (partly fixed) |
-| SHARED-FUNC-014 | Settings missing sections: Texts, Shortcuts, About, Notes, Hermas translation, verse-number and red-letter toggles. | both | P2 | U12/S11 | OPEN |
+| SHARED-FUNC-014 | Settings still missing: Texts (enable / reorder), Notes, Hermas translation choice, Read Aloud / AI / YouTube sections (verse-number and red-letter toggles, Shortcuts and About added). | both | P2 | U12/S11 | OPEN (partly fixed) |
 | MAC-UI-015 | Sidebar drag: no drop line and no auto-scroll near the edges; no pinned-tab grid; no density setting. | Mac | P2 | U02 | OPEN |
 | SHARED-FUNC-016 | Tag graph (visual relationships) missing; the Tag Manager now exists. | both | P3 | U16 | OPEN (graph only) |
 | MAC-FUNC-017 | Single window only: no floating tabs, presenter or secondary windows. | Mac | P2 | U07 | OPEN |

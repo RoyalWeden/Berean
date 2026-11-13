@@ -20,6 +20,8 @@ struct ScriptureView: View {
     @State private var noteCounts: [Int: Int] = [:]
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
+    @AppStorage("showVerseNumbers") private var showVerseNumbers = true
+    @AppStorage("showRedLetters") private var showRedLetters = true
     @State private var scrollTarget: Int?
     @State private var verseTags: [Int: [TagLite]] = [:]
     @State private var chapterTags: [TagLite] = []
@@ -397,7 +399,7 @@ struct VerseRowView: View {
                 while j < units.count, (ranges.last { $0.0 <= pos + j && pos + j < $0.1 })?.2 == hit?.2 { j += 1 }
                 var a = AttributedString(String(decoding: units[k..<j], as: UTF16.self))
                 if w.1 { a.font = ScriptureFont.font(family, size: fontSize).italic() }
-                if w.2 { a.foregroundColor = .red }
+                if w.2 && (UserDefaults.standard.object(forKey: "showRedLetters") as? Bool ?? true) { a.foregroundColor = .red }
                 if let hit { a.backgroundColor = Color.highlight(hit.2).opacity(0.35) }
                 out += a
                 k = j
@@ -479,7 +481,8 @@ extension ScriptureView {
         return ChapterTextView(
             passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
-            style: ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily, showStrongs: st.showStrongs),
+            style: ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily, showStrongs: st.showStrongs,
+                               showVerseNumbers: showVerseNumbers, redLetters: showRedLetters),
             selectedVerses: selection, scrollTarget: scrollTarget,
             reference: { Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: $0) + suffix },
             rangeReference: { a, b in "\(Reference.bookName(st.bookId)) \(Reference.displayChapterString(st.bookId, st.chapter)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
