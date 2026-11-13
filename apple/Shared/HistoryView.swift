@@ -1,6 +1,5 @@
 import SwiftUI
 import BereanNotes
-import BereanReference
 
 /// History (the existing History tab / sheet): everything you opened — passages, notes, Strong's numbers, searches — newest
 /// first, grouped by day, filterable; tap to reopen. Device-local (`history` table).
@@ -14,7 +13,7 @@ struct HistoryView: View {
 
     var shown: [HistoryEntry] {
         entries.filter { e in
-            (kind == "all" || e.type == kind) && (filter.isEmpty || e.title.localizedCaseInsensitiveContains(filter) || (e.query ?? "").localizedCaseInsensitiveContains(filter))
+            (kind == "all" || e.type == kind) && (filter.isEmpty || e.title.localizedCaseInsensitiveContains(filter) || (e.type == "search" && (e.query ?? "").localizedCaseInsensitiveContains(filter)))
         }
     }
 
@@ -106,7 +105,17 @@ struct HistoryView: View {
 
     func open(_ e: HistoryEntry) {
         switch e.type {
-        case "bible": if let b = e.bookId, let c = e.chapter { app.openScripture(bookId: b, chapter: c, verse: e.verse, reuseTab: true) }
+        case "bible":
+            guard let book = e.bookId, let chapter = e.chapter else { return }
+            if let payload = e.query,
+               let destination = try? JSONDecoder().decode(RecentPassage.self, from: Data(payload.utf8)),
+               destination.bookId == book, destination.chapter == chapter, destination.verse == e.verse,
+               availableTexts.contains(where: { $0.id == destination.textId }) {
+                app.openScripture(bookId: book, chapter: chapter, verse: e.verse, endVerse: destination.endVerse,
+                                  textId: destination.textId, reuseTab: true)
+            } else {
+                app.openScripture(bookId: book, chapter: chapter, verse: e.verse, reuseTab: true)
+            }
         case "note": if let n = e.noteId { app.openNote(n) }
         case "lexicon": if let s = e.strongsNum { app.openLexicon(s, reuseTab: true) }
         case "search": if let q = e.query { app.openSearch(q, reuseTab: true) }

@@ -41,7 +41,9 @@ extension AppModel {
         var list = recentPassages.filter { $0 != destination }
         list.insert(destination, at: 0)
         if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserDefaults.standard.set(data, forKey: Self.recentKey) }
-        recordHistory(type: "bible", title: destination.label, bookId: bookId, chapter: chapter, verse: verse)
+        let storedDestination = (try? JSONEncoder().encode(destination)).flatMap { String(data: $0, encoding: .utf8) }
+        recordHistory(type: "bible", title: destination.label, bookId: bookId, chapter: chapter, verse: verse,
+                      query: storedDestination)
     }
 
     /// Every book of every listed text, in list order.
