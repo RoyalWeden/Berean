@@ -327,3 +327,13 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     #expect(result.session.tabs(in: .notes).first?.id == "note-copy")
     #expect(result.session.tabs(in: .lexicon).first?.originTabId == "note-copy")
 }
+
+@Test func snapshotRemembersPreferredSpaceWhenItHasTabs() {
+    let note = Tab(id: "note", spaceId: .notes, type: "note", title: "Study note")
+    let session = Session(id: "source", name: "Study", tabs: [.notes: [note]])
+    let saved = WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil, preferredSpace: .notes)
+    #expect(WorkspaceSnapshot.parse(saved).preferredSpace == .notes)
+    let emptySpace = WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil, preferredSpace: .scripture)
+    #expect(WorkspaceSnapshot.parse(emptySpace).preferredSpace == nil)
+    #expect(WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil)).preferredSpace == nil)
+}

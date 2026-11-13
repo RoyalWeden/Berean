@@ -230,10 +230,13 @@ final class AppModel {
     var sessionIndex: Int { sessions.firstIndex { $0.id == currentSessionId } ?? 0 }
     var session: Session { sessions.isEmpty ? Session(id: "", name: "") : sessions[sessionIndex] }
 
-    func switchSession(_ id: String) {
+    func switchSession(_ id: String, preferredSpace: SpaceId? = nil) {
         guard id != currentSessionId, let destination = sessions.first(where: { $0.id == id }) else { return }
         rememberActiveTab()
         currentSessionId = id
+        if let preferredSpace, !destination.tabs(in: preferredSpace).isEmpty {
+            activeSpace = preferredSpace
+        }
         if activeTab == nil {
             let ordered = destination.workspacePreviewTabs
             if let tab = ordered.first(where: { $0.spaceId == activeSpace }) ?? ordered.first {
@@ -331,7 +334,7 @@ final class AppModel {
     func saveWorkspace(named name: String) -> Bool {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, let workspaces else { return false }
-        let state = WorkspaceSnapshot.stateJSON(for: session, displayOrder: displayOrders[currentSessionId])
+        let state = WorkspaceSnapshot.stateJSON(for: session, displayOrder: displayOrders[currentSessionId], preferredSpace: activeSpace)
         guard (try? workspaces.save(name: name, layoutJSON: Self.legacyDefaultPanelLayout, stateJSON: state)) != nil else { return false }
         refreshWorkspaces(); return true
     }
@@ -348,7 +351,7 @@ final class AppModel {
                                              makeID: Self.newId)
         sessions.append(restored.session)
         displayOrders[sid] = restored.displayOrder
-        switchSession(sid)
+        switchSession(sid, preferredSpace: parsed.preferredSpace)
     }
 
     func renameWorkspace(_ id: String, to name: String) {

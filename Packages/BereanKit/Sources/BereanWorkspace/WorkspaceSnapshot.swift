@@ -15,6 +15,7 @@ public enum WorkspaceSnapshot {
         public var activeTabId: [SpaceId: String?]
         public var displayOrder: [String]
         public var icon: String?
+        public var preferredSpace: SpaceId? = nil
         /// 0 = empty / unreadable, 1 = v1 (or any non-v2 object), 2 = v2.
         public var version: Int
 
@@ -71,14 +72,18 @@ public enum WorkspaceSnapshot {
     }
 
     /// Builds the v2 state JSON for a native session (what the Mac/iPhone "Save Workspace" writes).
-    public static func stateJSON(for session: Session, displayOrder: [String]?) -> String {
+    public static func stateJSON(for session: Session, displayOrder: [String]?, preferredSpace: SpaceId? = nil) -> String {
         var input: [SpaceId: [JSValue]] = [:]
         var active = JSObject()
         for sp in spaces {
             input[sp] = session.tabs(in: sp).map { .object($0.jsObject) }
             active[sp.rawValue] = ((session.activeTabId[sp] ?? nil).map { .string(JSString($0)) }) ?? .null
         }
-        return JSON.stringifyString(build(tabs: input, activeTabId: active, displayOrder: displayOrder, icon: session.icon))
+        let snapshot = build(tabs: input, activeTabId: active, displayOrder: displayOrder, icon: session.icon)
+        guard let preferredSpace, !session.tabs(in: preferredSpace).isEmpty,
+              var state = snapshot.objectValue else { return JSON.stringifyString(snapshot) }
+        state["nativePreferredSpace"] = .string(JSString(preferredSpace.rawValue))
+        return JSON.stringifyString(.object(state))
     }
 
     /// `parseWorkspaceState` — never throws.
@@ -108,7 +113,8 @@ public enum WorkspaceSnapshot {
         let stored = (r["displayOrder"]?.arrayValue ?? []).compactMap { $0.stringValue?.string }
         let order = unifiedOrder(tabs, stored: stored)
         let version = r["v"]?.numberValue == 2 ? 2 : 1
-        return Parsed(tabs: tabs, activeTabId: activeTabId, displayOrder: order, icon: r["icon"]?.stringValue?.string, version: version)
+        return Parsed(tabs: tabs, activeTabId: activeTabId, displayOrder: order, icon: r["icon"]?.stringValue?.string,
+                      preferredSpace: r["nativePreferredSpace"]?.stringValue.flatMap { SpaceId(rawValue: $0.string) }, version: version)
     }
 
     /// The session id a saved workspace opens as (stable, so re-opening switches rather than duplicates).
