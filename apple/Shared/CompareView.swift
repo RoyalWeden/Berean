@@ -232,23 +232,22 @@ struct CompareView: View {
                 reader.compareMode = false
                 if let remaining = cols.first {
                     reader.chapter = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: remaining)
-                    if st.bookId == "JON", let verse = st.verse,
-                       let mapped = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: verse, from: st.translation, to: remaining) {
-                        reader.chapter = mapped.chapter
-                        reader.verse = mapped.verse
-                        if let end = st.endVerse,
-                           let mappedEnd = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: end, from: st.translation, to: remaining),
-                           mappedEnd.chapter == mapped.chapter {
-                            reader.endVerse = mappedEnd.verse
-                        } else {
-                            reader.endVerse = nil
+                    if st.bookId == "JON", let verse = st.verse {
+                        let start = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: verse, from: st.translation, to: remaining)
+                            ?? (chapter: reader.chapter, verse: verse)
+                        reader.chapter = start.chapter
+                        reader.verse = start.verse
+                        reader.endVerse = st.endVerse.flatMap { end in
+                            let mapped = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: end, from: st.translation, to: remaining)
+                                ?? (chapter: st.chapter, verse: end)
+                            return mapped.chapter == start.chapter && mapped.verse > start.verse ? mapped.verse : nil
                         }
                     }
                     reader.translation = remaining
                 }
                 t.state = reader.merged(into: t.state)
                 t.state.remove("compareColumns")
-                t.title = Reference.bookChapterLabel(reader.bookId, chapter: Double(reader.chapter))
+                t.title = Reference.readerChapterLabel(reader.bookId, reader.chapter, textId: reader.translation)
                 return
             }
             t.state["compareColumns"] = .array(cols.map { c in
