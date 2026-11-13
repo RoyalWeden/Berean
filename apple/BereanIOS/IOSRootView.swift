@@ -125,6 +125,12 @@ struct IOSRootView: View {
                     }
                     Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" } } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }
                     Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" } } label: { Label("Notes for This Chapter", systemImage: "note.text") }
+                    let reference = Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)
+                    let shareReference = reference + (st.translation == "lxx" ? " LXX" : "")
+                    Button("Copy Chapter Reference", systemImage: "doc.on.doc") { Clipboard.copy(shareReference) }
+                    ShareLink(item: shareReference) {
+                        Label("Share Chapter…", systemImage: "square.and.arrow.up")
+                    }
                     Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                     Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
                 }

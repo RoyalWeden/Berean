@@ -188,13 +188,15 @@ struct ScriptureView: View {
     }
 
     func copySelection(_ st: BibleState, plain: Bool) {
+        if let text = selectionText(st, plain: plain) { Clipboard.copy(text) }
+    }
+
+    private func selectionText(_ state: BibleState, plain: Bool = false) -> String? {
         let rows = selectedRows
-        guard !rows.isEmpty else { return }
-        let text = { (v: ChapterVerseRow) in clipboardVerseText(v, st) }
-        let suffix = st.translation == "lxx" ? " LXX" : ""
-        if plain { Clipboard.copy(rows.map(text).joined(separator: " ")); return }
-        let head = selectionLabel(st) + suffix
-        Clipboard.copy(([head] + rows.map { "\($0.verseNum) \(text($0))" }).joined(separator: "\n"))
+        guard !rows.isEmpty else { return nil }
+        if plain { return rows.map { clipboardVerseText($0, state) }.joined(separator: " ") }
+        let reference = selectionLabel(state) + (state.translation == "lxx" ? " LXX" : "")
+        return ([reference] + rows.map { "\($0.verseNum) \(clipboardVerseText($0, state))" }).joined(separator: "\n")
     }
 
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
@@ -225,6 +227,9 @@ struct ScriptureView: View {
                     }
                 } else {
                     Menu {
+                        if let text = selectionText(st) {
+                            ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
+                        }
                         if let verse = selectedVerse, let row = selectedRows.first(where: { $0.verseNum == verse }) {
                             Button("Add Note", systemImage: "square.and.pencil") {
                                 app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: st.translation)
