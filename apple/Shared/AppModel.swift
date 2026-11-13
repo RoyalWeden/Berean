@@ -608,6 +608,18 @@ final class AppModel {
         SearchHistory.record(query)
     }
 
+    func inspectStrongs(_ id: String, in tabId: String, bookId: String, chapter: Int, verse: Int? = nil) {
+        guard !id.isEmpty else { return }
+        recordHistory(type: "strongs-click", title: id, bookId: bookId, chapter: chapter, verse: verse, strongsNum: id)
+        update(tabId, recordHistory: false) { tab in
+            var reader = BibleState(tab.state)
+            reader.rightPanelOpen = true
+            reader.rightPanelTab = "lexicon"
+            reader.rightPanelLexiconEntry = id
+            tab.state = reader.merged(into: tab.state)
+        }
+    }
+
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false) {
         recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))

@@ -256,3 +256,5 @@ History category and Study Only now use the existing per-tab state fields shared
 History now searches the full native retention window of 5,000 entries and displays matches in batches of 300. Category and text filters reset the visible limit, and an empty library has a different message from an unsuccessful search. Both Dev builds passed. Live search against a Dev history with more than 300 entries and filter performance near the retention limit remain to verify.
 
 Scripture Strong's links now record device-local History entries on both platforms. History reopens existing Strong's click rows in Lexicon and displays entries without a supported destination without a button or Open command. Both Dev builds passed. Live Strong's click → History → Lexicon and Compare history recording remain open.
+
+Compare Strong's links now use the same inspector and History action as the reader. Each Compare entry records the clicked column's actual book, chapter, and verse, including shifted versification, while preserving the selected row and Back history. Both Dev builds passed. Live Compare Strong's → History remains open.

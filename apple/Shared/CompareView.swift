@@ -116,17 +116,6 @@ struct CompareView: View {
                 alignedComparison(st, cols)
             }
         }
-        .environment(\.openURL, OpenURLAction { url in
-            guard url.scheme == "strongs" else { return .systemAction }
-            app.update(tabId) { tab in
-                var state = BibleState(tab.state)
-                state.rightPanelOpen = true
-                state.rightPanelTab = "lexicon"
-                state.rightPanelLexiconEntry = String(url.absoluteString.dropFirst("strongs:".count))
-                tab.state = state.merged(into: tab.state)
-            }
-            return .handled
-        })
         .toolbar {
             ToolbarItem {
                 Menu {
@@ -351,6 +340,7 @@ struct CompareView: View {
                     VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
                                  fontSize: app.fontSize, lineSpacing: app.lineSpacing,
                                  replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                    .environment(\.openURL, strongsAction(for: row))
                 }
             }
         } else {
@@ -384,9 +374,19 @@ struct CompareView: View {
                 }
                 VerseRowView(row: row, textId: text, showStrongs: state.showStrongs, fontSize: app.fontSize,
                              lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                    .environment(\.openURL, strongsAction(for: row))
             }
         } else {
             Text("—").foregroundStyle(.tertiary)
+        }
+    }
+
+    private func strongsAction(for row: ChapterVerseRow) -> OpenURLAction {
+        OpenURLAction { url in
+            guard url.scheme == "strongs" else { return .systemAction }
+            let id = String(url.absoluteString.dropFirst("strongs:".count))
+            app.inspectStrongs(id, in: tabId, bookId: row.bookId, chapter: row.chapter, verse: row.verseNum)
+            return .handled
         }
     }
 
