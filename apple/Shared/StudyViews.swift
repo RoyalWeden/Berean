@@ -151,7 +151,7 @@ struct SearchResultsView: View {
     var body: some View {
         if query.hasPrefix("#"), query.count > 1 {
             TagResultsView(tagName: String(query.dropFirst()).trimmingCharacters(in: .whitespaces)).navigationTitle(query)
-        } else { wordResults }
+        } else { ScriptureSearchView(tabId: tabId) }
     }
 
     var wordResults: some View {
