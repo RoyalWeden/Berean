@@ -23,13 +23,21 @@ struct CompareView: View {
     var body: some View {
         let st = state, cols = columns
         let passage = "\(st.translation)|\(st.bookId)|\(st.chapter)|\(cols.joined(separator: ","))"
-        ScrollView {
-            if loadedPassage != passage {
-                ProgressView().frame(maxWidth: .infinity).padding()
-            } else if rows.isEmpty {
-                ContentUnavailableView("No Text in This Passage", systemImage: "book.closed")
-            } else {
-                comparisonGrid(st, cols)
+        ScrollViewReader { proxy in
+            ScrollView {
+                if loadedPassage != passage {
+                    ProgressView().frame(maxWidth: .infinity).padding()
+                } else if rows.isEmpty {
+                    ContentUnavailableView("No Text in This Passage", systemImage: "book.closed")
+                } else {
+                    comparisonGrid(st, cols)
+                }
+            }
+            .onChange(of: loadedPassage) {
+                if loadedPassage == passage, let verse = st.verse { proxy.scrollTo(verse, anchor: .top) }
+            }
+            .onChange(of: st.verse) {
+                if loadedPassage == passage, let verse = st.verse { proxy.scrollTo(verse, anchor: .top) }
             }
         }
         .environment(\.openURL, OpenURLAction { url in
@@ -80,7 +88,23 @@ struct CompareView: View {
             ForEach(rows.keys.sorted(), id: \.self) { v in
                 GridRow(alignment: .firstTextBaseline) {
                     if showVerseNumbers {
-                        Text("\(v)").font(.system(.caption, design: .rounded).weight(.semibold)).foregroundStyle(.secondary)
+                        Button {
+                            app.update(tabId, recordHistory: false) { tab in
+                                var state = BibleState(tab.state)
+                                state.verse = v
+                                state.endVerse = nil
+                                tab.state = state.merged(into: tab.state)
+                            }
+                        } label: {
+                            Text("\(v)")
+                                .font(.system(.caption, design: .rounded).weight(.semibold))
+                                .foregroundStyle(isSelected(v, st) ? Color.accentColor : Color.secondary)
+                                .frame(minWidth: 28, minHeight: 28)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .accessibilityLabel("Verse \(v)")
+                        .accessibilityAddTraits(isSelected(v, st) ? .isSelected : [])
                     }
                     ForEach(cols, id: \.self) { c in
                         if let row = rows[v]?[c] {
@@ -89,9 +113,15 @@ struct CompareView: View {
                         } else { Text("—").foregroundStyle(.tertiary) }
                     }
                 }
+                .id(v)
             }
         }
         .padding(24)
+    }
+
+    private func isSelected(_ verse: Int, _ state: BibleState) -> Bool {
+        guard let first = state.verse else { return false }
+        return verse >= first && verse <= max(first, state.endVerse ?? first)
     }
 
     func load(_ st: BibleState, _ cols: [String], passage: String) async {
