@@ -173,9 +173,11 @@ struct ChapterTextView: NSViewRepresentable {
                     .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
                     .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                 ]
-                out.append(NSAttributedString(string: "\t", attributes: base))
+                // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
+                let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
+                out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                 out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
-                out.append(NSAttributedString(string: "\t", attributes: base.merging([Self.skipKey: true]) { $1 }))
+                out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                 let textStart = out.length
                 verseTextStarts[v.verse] = textStart
                 // Words with italics / red letters / character highlights; Strong's numbers as superscript links.
@@ -443,7 +445,7 @@ final class ReaderTextView: NSTextView {
             if mods == [.command] { copy(nil); return true }
             if mods == [.command, .shift] { copyPlain(nil); return true }
         }
-        return super.performKeyEquivalent(with: event)
+        return false   // everything else goes to the menus (⌘⇧D, ⌘K…); NSTextView's own handling swallowed some app shortcuts
     }
 }
 
@@ -470,5 +472,6 @@ final class ClosureMenuItem: NSMenuItem {
     required init(coder: NSCoder) { fatalError() }
     @objc private func run() { handler() }
 }
+
 
 

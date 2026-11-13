@@ -292,6 +292,7 @@ struct ScriptureView: View {
     /// The verse actions (the existing app's verse action popover): verse-number menu and row context menu.
     @ViewBuilder func verseActions(_ v: ChapterVerseRow, _ st: BibleState) -> some View {
         Button("Copy Verse") { copy(v, st) }
+        Button("Copy Reference") { Clipboard.copy(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum) + (st.translation == "lxx" ? " LXX" : "")) }
         Menu("Highlight") {
             ForEach(highlightColors, id: \.self) { c in
                 Button { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } label: { Label(c.capitalized, systemImage: "circle.fill") }
@@ -309,6 +310,7 @@ struct ScriptureView: View {
         Button("Add Note") { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) }
         Button("Verse Notes") { selectedVerse = v.verseNum; openInspector("notes") }
         Button("Cross References") { selectedVerse = v.verseNum; openInspector("crossrefs") }
+        Button("Compare This Verse") { mutate { $0.verse = v.verseNum; $0.compareMode = true } }
         Button("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) }
     }
 
@@ -509,6 +511,7 @@ extension ScriptureView {
         }
         m.addItem(ClosureMenuItem(selection.contains(n) ? "Deselect Verse" : "Select Verse", image: "checkmark.circle") { verseClick(n, shift: false) })
         m.addItem(ClosureMenuItem("Copy Verse", image: "doc.on.doc") { copy(v, st) })
+        m.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy(label + (st.translation == "lxx" ? " LXX" : "")) })
         let hl = NSMenuItem(title: "Highlight", action: nil, keyEquivalent: ""); hl.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
         let sub = NSMenu()
         for c in highlightColors { sub.addItem(ClosureMenuItem(c.capitalized) { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) }) }
@@ -526,6 +529,7 @@ extension ScriptureView {
         m.addItem(ClosureMenuItem("Verse Notes") { selectedVerse = v.verseNum; openInspector("notes") })
         m.addItem(ClosureMenuItem("Cross References", image: "arrow.triangle.branch") { selectedVerse = v.verseNum; openInspector("crossrefs") })
         m.addItem(.separator())
+        m.addItem(ClosureMenuItem("Compare This Verse", image: "rectangle.split.2x1") { selection = [v.verseNum]; anchor = v.verseNum; mutate { $0.verse = v.verseNum; $0.compareMode = true } })
         m.addItem(ClosureMenuItem("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })
         return m
     }

@@ -17,10 +17,10 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | IOS-FUNC-002 | iPhone reader: no cross-verse text selection (per-verse rows). | iOS | P2 | S07 | OPEN |
 | MAC-UI-008 | Strong's search results do not highlight the matched words (the occurrence word indices are available). | both | P3 | Q03 | OPEN |
 | MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | OPEN |
-| SHARED-FUNC-010 | Verse actions lack Copy Reference, Compare This Verse, Play Audio From Here. | both | P2 | S08 | OPEN |
+| SHARED-FUNC-010 | Verse actions lack Play Audio From Here (Copy Reference and Compare This Verse added). | both | P3 | S08 | OPEN (waits for Read Aloud) |
 | SHARED-FUNC-011 | Notes editor: tables as source text, images as captions, columns/threads without chrome (ADR-0014 limits). | both | P2 | N04/N05 | OPEN |
 | SHARED-FUNC-012 | No global History screen (original History tab/sheet). | both | P2 | S10 | OPEN |
-| MAC-FUNC-013 | No Daily Note command (⌘⇧D) or calendar on Mac (iPhone has Today's Note). | Mac | P2 | N12 | OPEN |
+| MAC-FUNC-013 | No calendar on Mac (⌘⇧D Today's Note now exists). | Mac | P2 | N12 | OPEN (partly fixed) |
 | SHARED-FUNC-014 | Settings missing sections: Texts, Shortcuts, About, Notes, Hermas translation, verse-number and red-letter toggles. | both | P2 | U12/S11 | OPEN |
 | MAC-UI-015 | Sidebar drag: no drop line and no auto-scroll near the edges; no pinned-tab grid; no density setting. | Mac | P2 | U02 | OPEN |
 | SHARED-FUNC-016 | Tag manager / tag graph missing (tags can be created, applied, searched and removed per member). | both | P2 | U16 | OPEN |
@@ -55,3 +55,5 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | IOS-UI-006 | The verse selection bar overlapped the bottom bar. | iOS | P2 | Raised 72 pt on iPhone; PR #23 |
 | MAC-FUNC-005 | No highlight from a partial text selection. | Mac | P1 | Context menu → Highlight Selection ▸ colour; selection split per verse, display offsets → stored offsets (OffsetMap) → character highlight. Verified John 3:16: stored 50–69 = "begotten Son, that", the shown words; PR #23. (iPhone partial selection waits for IOS-FUNC-002.) |
 | IOS-FUNC-001 | iPhone reader had no swipe chapter change. | iOS | P1 | Horizontal swipe (> 90 pt, mostly horizontal, not from the very edge) → next / previous chapter over real chapters and books. Verified in the Simulator: Obadiah 1 → Jonah 1 → Obadiah 1, and vertical scroll unaffected; PR #23. Edge-tap paging not added (the system back gesture owns the edge). |
+| MAC-FUNC-027 | Found by exploratory testing: single-digit verse numbers were nearly impossible to click — the tap landed on the gutter tab before the right-aligned number. | Mac | P1 | The whole gutter (both tabs and the number) is the verse-number target; verified that a click on "3" selects it and ⌘C copies "John 3:3 …"; PR #23 |
+| MAC-FUNC-028 | Found by exploratory testing: app shortcuts such as ⌘⇧D did nothing while the reader had focus (NSTextView swallowed them). | Mac | P1 | The reader passes unhandled key equivalents to the menus; verified ⌘⇧D → today's note `daily-2026-11-12` (the existing app's id format); PR #23 |

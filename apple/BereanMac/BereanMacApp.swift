@@ -22,6 +22,7 @@ struct BereanMacApp: App {
                 Button("Go to Reference…") { app.commandPaletteShown = true }.keyboardShortcut("l")
                 Button("Close Tab") { app.closeActiveTab() }.keyboardShortcut("w")
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
+                Button("Today's Note") { app.openTodayDailyNote() }.keyboardShortcut("d", modifiers: [.command, .shift])
                 Button("New Workspace") { app.newWorkspace() }.keyboardShortcut("0", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .importExport) {
