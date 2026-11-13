@@ -42,6 +42,10 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.accessibilityLabel = "Scripture text"
         view.delegate = context.coordinator
 
+        let gutterTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapVerseGutter(_:)))
+        gutterTap.delegate = context.coordinator
+        view.addGestureRecognizer(gutterTap)
+
         for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
             let swipe = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swipe(_:)))
             swipe.direction = direction
@@ -348,8 +352,34 @@ struct IOSChapterTextView: UIViewRepresentable {
             return result
         }
 
+        private func verseInGutter(_ point: CGPoint, in view: UITextView) -> Int? {
+            let bodyEdge = view.textContainerInset.left + view.textContainer.lineFragmentPadding + CGFloat(parent.style.fontSize) * 1.8
+            guard parent.style.showVerseNumbers, point.x >= 0, point.x < bodyEdge,
+                  let position = view.closestPosition(to: CGPoint(x: bodyEdge + 2, y: point.y)) else { return nil }
+            let offset = view.offset(from: view.beginningOfDocument, to: position)
+            guard let verse = verseRanges.first(where: { NSLocationInRange(offset, $0.value) })?.key,
+                  let start = bodyRanges[verse]?.location,
+                  let body = view.position(from: view.beginningOfDocument, offset: start) else { return nil }
+            let caret = view.caretRect(for: body)
+            guard point.x < caret.minX, point.y >= caret.minY - 3, point.y <= caret.maxY + 3 else { return nil }
+            return verse
+        }
+
+        @objc func tapVerseGutter(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view as? UITextView,
+                  let verse = verseInGutter(gesture.location(in: view), in: view) else { return }
+            view.selectedTextRange = nil
+            parent.onVerseTap(verse)
+        }
+
+        func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard gesture is UITapGestureRecognizer, let view = gesture.view as? UITextView else { return true }
+            return verseInGutter(touch.location(in: view), in: view) != nil
+        }
+
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
             guard let view = gesture.view as? UITextView else { return false }
+            if gesture is UITapGestureRecognizer { return true }
             let x = gesture.location(in: view).x - view.bounds.minX
             return x > 24 && x < view.bounds.width - 24 && view.selectedRange.length == 0
         }
