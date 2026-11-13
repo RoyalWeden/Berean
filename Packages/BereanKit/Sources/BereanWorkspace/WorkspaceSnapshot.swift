@@ -143,6 +143,7 @@ extension WorkspaceSnapshot.Parsed {
                                makeID: () -> String) -> (session: Session, displayOrder: [String]) {
         var usedIDs = reservedIDs
         var firstIDByOriginal: [String: String] = [:]
+        var idsBySpace: [SpaceId: [String: String]] = [:]
         var restoredTabs: [SpaceId: [Tab]] = [:]
         var active: [SpaceId: String?] = [:]
         for space in WorkspaceSnapshot.spaces {
@@ -154,10 +155,14 @@ extension WorkspaceSnapshot.Parsed {
                 if firstIDInSpace[original.id] == nil { firstIDInSpace[original.id] = tab.id }
                 return tab
             }
+            idsBySpace[space] = firstIDInSpace
             active[space] = (activeTabId[space] ?? nil).flatMap { firstIDInSpace[$0] } ?? restoredTabs[space]?.first?.id
         }
         restoredTabs = restoredTabs.mapValues { list in
-            list.map { $0.remappingOrigin(using: firstIDByOriginal) }
+            list.map { tab in
+                let origins = tab.originSpaceId.map { idsBySpace[$0] ?? [:] } ?? firstIDByOriginal
+                return tab.remappingOrigin(using: origins)
+            }
         }
         let session = Session(id: id, name: name, icon: icon, tabs: restoredTabs, activeTabId: active)
         let preferred = displayOrder.compactMap { firstIDByOriginal[$0] }

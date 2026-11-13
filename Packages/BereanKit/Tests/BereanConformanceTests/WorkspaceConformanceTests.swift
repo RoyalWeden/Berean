@@ -312,3 +312,18 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     #expect(restored.session.tabs(in: .lexicon).first?.originTabId == "reader-copy")
     #expect(restored.displayOrder == ["lexicon", "reader-copy", "duplicate-copy"])
 }
+
+@Test func restoredSnapshotUsesOriginSpaceWhenIDsAreAmbiguous() {
+    let scripture = Tab(id: "shared", spaceId: .scripture, type: "bible", title: "Jonah 1")
+    let note = Tab(id: "shared", spaceId: .notes, type: "note", title: "Study note")
+    let lookup = Tab(id: "lookup", spaceId: .lexicon, type: "lexicon", title: "H3068",
+                     originTabId: note.id, originSpaceId: .notes)
+    let session = Session(id: "source", name: "Study", tabs: [
+        .scripture: [scripture], .notes: [note], .lexicon: [lookup]
+    ])
+    let parsed = WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil))
+    let result = parsed.restoreSession(id: "copy", name: "Study", reservedIDs: []) { "note-copy" }
+    #expect(result.session.tabs(in: .scripture).first?.id == "shared")
+    #expect(result.session.tabs(in: .notes).first?.id == "note-copy")
+    #expect(result.session.tabs(in: .lexicon).first?.originTabId == "note-copy")
+}
