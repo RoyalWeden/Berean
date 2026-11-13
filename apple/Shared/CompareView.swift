@@ -56,6 +56,8 @@ struct CompareColumn: Identifiable {
         })
     }
 
+    var destinationKey: String { "\(text):\(book):\(chapter)" }
+
     var label: String {
         "\(Reference.readerChapterLabel(book, chapter, textId: text)) · \(textInfo(text).short)"
     }
@@ -87,34 +89,22 @@ struct CompareView: View {
 
     var body: some View {
         let st = state, cols = columns
-        let passage = "\(st.translation)|\(st.bookId)|\(st.chapter)|\(cols.map { "\($0.id):\($0.text):\($0.book):\($0.chapter)" }.joined(separator: ","))"
-        ScrollViewReader { proxy in
-            ScrollView {
-                if loadedPassage != passage {
-                    ProgressView().frame(maxWidth: .infinity).padding()
-                } else if !cols.allSatisfy({ $0.follows(st) }) {
-                    independentComparison(cols)
-                } else if rows.isEmpty {
-                    ContentUnavailableView("No Text in This Passage", systemImage: "book.closed")
+        let passage = "\(st.translation)|\(st.bookId)|\(st.chapter)|\(cols.map { "\($0.id):\($0.destinationKey)" }.joined(separator: ","))"
+        GeometryReader { geometry in
+            if loadedPassage != passage {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if !cols.allSatisfy({ $0.follows(st) }) {
+                if geometry.size.width >= CGFloat(cols.count) * 260 {
+                    independentPanes(cols)
                 } else {
-                    ViewThatFits(in: .horizontal) {
-                        comparisonGrid(st, cols)
-                        stackedComparison(st, cols)
-                    }
+                    ScrollView { independentComparison(cols) }
+                        .contentMargins(.bottom, dockClearance, for: .scrollContent)
                 }
-            }
-            #if os(iOS)
-            .contentMargins(.bottom, ReaderFloatingControls.dockOffset, for: .scrollContent)
-            #endif
-            .onChange(of: loadedPassage) {
-                if loadedPassage == passage, let verse = st.verse { proxy.scrollTo(verse, anchor: .top) }
-            }
-            .onChange(of: st.verse) {
-                let selectedHere = localVerseSelection != nil && localVerseSelection == st.verse
-                localVerseSelection = nil
-                if !selectedHere, loadedPassage == passage, let verse = st.verse {
-                    proxy.scrollTo(verse, anchor: .top)
-                }
+            } else if rows.isEmpty {
+                ContentUnavailableView("No Text in This Passage", systemImage: "book.closed")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                alignedComparison(st, cols)
             }
         }
         .environment(\.openURL, OpenURLAction { url in
@@ -230,36 +220,130 @@ struct CompareView: View {
         .padding(16)
     }
 
+    private var dockClearance: CGFloat {
+        #if os(iOS)
+        ReaderFloatingControls.dockOffset
+        #else
+        0
+        #endif
+    }
+
+    private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                ViewThatFits(in: .horizontal) {
+                    comparisonGrid(state, columns)
+                    stackedComparison(state, columns)
+                }
+            }
+            .contentMargins(.bottom, dockClearance, for: .scrollContent)
+            .onChange(of: state.verse, initial: true) {
+                let selectedHere = localVerseSelection != nil && localVerseSelection == state.verse
+                localVerseSelection = nil
+                if !selectedHere, let verse = state.verse {
+                    proxy.scrollTo(verse, anchor: .top)
+                }
+            }
+        }
+    }
+
+    private func independentPanes(_ columns: [CompareColumn]) -> some View {
+        HStack(spacing: 0) {
+            ForEach(columns) { column in
+                if column.id != columns.first?.id { Divider() }
+                VStack(spacing: 0) {
+                    independentHeader(column, columns: columns)
+                        .padding(.horizontal, 12)
+                    Divider()
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            independentVerses(column)
+                        }
+                        .padding(16)
+                    }
+                    .contentMargins(.bottom, dockClearance, for: .scrollContent)
+                    .id(column.label)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
     private func independentComparison(_ columns: [CompareColumn]) -> some View {
         LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
             ForEach(columns) { column in
                 Section {
-                    if let verses = independentRows[column.id], !verses.isEmpty {
-                        ForEach(verses, id: \.verseNum) { row in
-                            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                if showVerseNumbers {
-                                    Text("\(row.verseNum)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                                }
-                                VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
-                                             fontSize: app.fontSize, lineSpacing: app.lineSpacing,
-                                             replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
-                            }
-                        }
-                    } else {
-                        Text("No Text in This Passage").foregroundStyle(.secondary)
-                    }
+                    independentVerses(column)
                 } header: {
-                    HStack {
-                        Text(column.label).font(.headline)
-                        Spacer()
-                        closeTranslation(column, columns: columns)
-                    }
-                    .padding(.horizontal, 8)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 10))
+                    independentHeader(column, columns: columns)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 10))
                 }
             }
         }
         .padding(16)
+    }
+
+    private func independentHeader(_ column: CompareColumn, columns: [CompareColumn]) -> some View {
+        HStack {
+            Button {
+                editingColumn = column
+            } label: {
+                Label(column.label, systemImage: "book")
+                    .font(.headline)
+                    .lineLimit(1)
+                    .frame(minHeight: controlSize)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .accessibilityLabel("Change passage for \(column.label)")
+            .help("Change column passage")
+            Spacer()
+            closeTranslation(column, columns: columns)
+        }
+        .padding(.horizontal, 8)
+    }
+
+    @ViewBuilder private func independentVerses(_ column: CompareColumn) -> some View {
+        if let verses = independentRows[column.id], !verses.isEmpty {
+            ForEach(verses, id: \.verseNum) { row in
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    if showVerseNumbers {
+                        Button {
+                            openReader(column, verse: row.verseNum)
+                        } label: {
+                            Text("\(row.verseNum)")
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .frame(minWidth: controlSize, minHeight: controlSize)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .accessibilityLabel("Open verse \(row.verseNum) in Reader")
+                        .help("Open verse \(row.verseNum) in Reader")
+                    }
+                    VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
+                                 fontSize: app.fontSize, lineSpacing: app.lineSpacing,
+                                 replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                }
+            }
+        } else {
+            Text("No Text in This Passage").foregroundStyle(.secondary)
+        }
+    }
+
+    private func openReader(_ column: CompareColumn, verse: Int) {
+        app.update(tabId) { tab in
+            var reader = BibleState(tab.state)
+            reader.compareMode = false
+            reader.bookId = column.book
+            reader.chapter = column.chapter
+            reader.translation = column.text
+            reader.verse = verse
+            reader.endVerse = nil
+            tab.state = reader.merged(into: tab.state)
+            tab.state.remove("compareColumns")
+            tab.title = Reference.readerChapterLabel(column.book, column.chapter, textId: column.text)
+        }
     }
 
     @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState) -> some View {

@@ -30,7 +30,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward history + picker History (recent passages). Missing: global History tab/sheet, scroll-position memory per tab |
 | S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size, line spacing, Scripture font, word replacer, theme. Missing: verse-number visibility, red-letter toggle, paragraph mode, per-text options (Hermas translation etc.) |
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
-| S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages render as separate sections. Independent scroll positions and presenter integration remain open. |
+| S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open. |
 | S14 | Very long chapter performance | implemented (partly measured) | 🟡 | ❓ | P2 | Mac TextKit renders whole chapter (Ps 119 untested for latency); iPhone LazyVStack |
 | S15 | Find in chapter | implemented | ✅ | ❌ | P2 | Find in chapter (⌘F) missing — NSTextView find bar can be enabled |
 | S16 | Word replacer (display rules for divine names and search expansion) | implemented | ✅ | ✅ | — | Word replacer display + search variants + Strong's bridge |
@@ -238,7 +238,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Mac side-by-side; iPhone interleaved; CLAUDE.md "unlock a cell" independent navigation is not found (grep `unlock` only matched unrelated UI strings; UNVERIFIED but likely absent).
 - **Original files:** `src/components/bible/CompareView.tsx` (802), `src/mobile/reader/{ComparePage,compareState,compareInteraction}.tsx`, `src/components/viewer/ViewerCompare.tsx`, `src/platform/services/researchService.ts` (comparison payloads for AI), `src/lib/research/compareWords.ts`.
 - **Known original defects:** Persistence of compare state fixed per memory note ("compare persistence").
-- **Native Mac / iPhone:** 🟡 / 🟡 — Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages render as separate sections. Independent scroll positions and presenter integration remain open.
+- **Native Mac / iPhone:** 🟡 / 🟡 — Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open.
 - **Native files:** CompareView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

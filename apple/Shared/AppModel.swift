@@ -430,7 +430,7 @@ final class AppModel {
             guard let idx = sessions[sessionIndex].tabs[sp]?.firstIndex(where: { $0.id == tabId }) else { continue }
             let before = sessions[sessionIndex].tabs[sp]![idx]
             change(&sessions[sessionIndex].tabs[sp]![idx])
-            if before.tabType == .bible {
+            if recordHistory, before.tabType == .bible {
                 let updated = sessions[sessionIndex].tabs[sp]![idx].state
                 if let columns = updated["compareColumns"], columns == before.state["compareColumns"] {
                     let moved = CompareColumn.followPassageChange(columns, from: BibleState(before.state), to: BibleState(updated))
@@ -461,7 +461,14 @@ final class AppModel {
         case .search: keys = ["query"]
         default: keys = []
         }
-        return keys.map { k in t.state[k].flatMap { $0 == .null ? nil : JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
+        let base = keys.map { k in t.state[k].flatMap { $0 == .null ? nil : JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
+        guard t.tabType == .bible else { return base }
+        let anchor = BibleState(t.state)
+        guard anchor.compareMode else { return base }
+        let columns = (t.state["compareColumns"]?.arrayValue ?? []).enumerated().compactMap { index, value in
+            value.objectValue.flatMap { CompareColumn(id: index, record: $0, anchor: anchor) }?.destinationKey
+        }
+        return base + "|compare|" + columns.joined(separator: ",")
     }
 
     var canGoBack: Bool { activeTab.map { !(backStack[$0.id] ?? []).isEmpty } ?? false }
