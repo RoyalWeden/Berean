@@ -30,7 +30,10 @@ struct CompareView: View {
                 } else if rows.isEmpty {
                     ContentUnavailableView("No Text in This Passage", systemImage: "book.closed")
                 } else {
-                    comparisonGrid(st, cols)
+                    ViewThatFits(in: .horizontal) {
+                        comparisonGrid(st, cols)
+                        stackedComparison(st, cols)
+                    }
                 }
             }
             .onChange(of: loadedPassage) {
@@ -72,51 +75,94 @@ struct CompareView: View {
                     HStack {
                         Text(textInfo(c).name).font(.headline)
                         Spacer()
-                        Button { setColumns(cols.filter { $0 != c }) } label: {
-                            Label("Close \(textInfo(c).name)", systemImage: "xmark.circle")
-                                .labelStyle(.iconOnly)
-                                .foregroundStyle(.secondary)
-                                .frame(minWidth: 28, minHeight: 28)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.interactivePlain)
-                        .help("Close \(textInfo(c).name)")
+                        closeTranslation(c, columns: cols)
                     }
+                    .frame(minWidth: 180)
                 }
             }
             Divider().gridCellUnsizedAxes(.horizontal)
             ForEach(rows.keys.sorted(), id: \.self) { v in
                 GridRow(alignment: .firstTextBaseline) {
                     if showVerseNumbers {
-                        Button {
-                            app.update(tabId, recordHistory: false) { tab in
-                                var state = BibleState(tab.state)
-                                state.verse = v
-                                state.endVerse = nil
-                                tab.state = state.merged(into: tab.state)
-                            }
-                        } label: {
-                            Text("\(v)")
-                                .font(.system(.caption, design: .rounded).weight(.semibold))
-                                .foregroundStyle(isSelected(v, st) ? Color.accentColor : Color.secondary)
-                                .frame(minWidth: 28, minHeight: 28)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.interactivePlain)
-                        .accessibilityLabel("Verse \(v)")
-                        .accessibilityAddTraits(isSelected(v, st) ? .isSelected : [])
+                        verseButton(v, state: st)
                     }
                     ForEach(cols, id: \.self) { c in
-                        if let row = rows[v]?[c] {
-                            VerseRowView(row: row, textId: c, showStrongs: st.showStrongs, fontSize: app.fontSize, lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled,
-                                         family: app.scriptureFontFamily)
-                        } else { Text("—").foregroundStyle(.tertiary) }
+                        comparisonText(v, text: c, state: st)
                     }
                 }
                 .id(v)
             }
         }
         .padding(24)
+    }
+
+    private func stackedComparison(_ state: BibleState, _ columns: [String]) -> some View {
+        LazyVStack(alignment: .leading, spacing: 14) {
+            ForEach(columns, id: \.self) { text in
+                HStack {
+                    Text(textInfo(text).name).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    closeTranslation(text, columns: columns)
+                }
+            }
+            ForEach(rows.keys.sorted(), id: \.self) { verse in
+                VStack(alignment: .leading, spacing: 8) {
+                    Divider()
+                    if showVerseNumbers { verseButton(verse, state: state) }
+                    ForEach(columns, id: \.self) { text in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(textInfo(text).short)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            comparisonText(verse, text: text, state: state)
+                        }
+                    }
+                }
+                .id(verse)
+            }
+        }
+        .padding(16)
+    }
+
+    @ViewBuilder private func comparisonText(_ verse: Int, text: String, state: BibleState) -> some View {
+        if let row = rows[verse]?[text] {
+            VerseRowView(row: row, textId: text, showStrongs: state.showStrongs, fontSize: app.fontSize,
+                         lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+        } else {
+            Text("—").foregroundStyle(.tertiary)
+        }
+    }
+
+    private func closeTranslation(_ text: String, columns: [String]) -> some View {
+        Button { setColumns(columns.filter { $0 != text }) } label: {
+            Label("Close \(textInfo(text).name)", systemImage: "xmark.circle")
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 32, minHeight: 32)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .help("Close \(textInfo(text).name)")
+    }
+
+    private func verseButton(_ verse: Int, state: BibleState) -> some View {
+        Button {
+            app.update(tabId, recordHistory: false) { tab in
+                var target = BibleState(tab.state)
+                target.verse = verse
+                target.endVerse = nil
+                tab.state = target.merged(into: tab.state)
+            }
+        } label: {
+            Text("\(verse)")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(isSelected(verse, state) ? Color.accentColor : Color.secondary)
+                .frame(minWidth: 32, minHeight: 32)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel("Verse \(verse)")
+        .accessibilityAddTraits(isSelected(verse, state) ? .isSelected : [])
     }
 
     private func isSelected(_ verse: Int, _ state: BibleState) -> Bool {
