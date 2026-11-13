@@ -15,8 +15,10 @@ struct ScriptureView: View {
     #if os(iOS)
     var findRequest: Int = 0
     #endif
+    @State private var loadedChapter: String?
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
+    @State private var applyingLocalSelection = false
     /// Verses selected by clicking verse numbers (⇧-click extends from `anchor`), as in the existing reader.
     @State private var selection: Set<Int> = []
     @State private var anchor: Int?
@@ -65,19 +67,29 @@ struct ScriptureView: View {
         .toolbar { toolbar(st) }
     }
 
+    private func chapterKey(_ state: BibleState) -> String {
+        "\(state.translation)|\(state.bookId)|\(state.chapter)"
+    }
+
     @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
+        let chapter = chapterKey(st)
         Group {
-            #if os(macOS)
-            macReader(st)
-            #else
-            iosReader(st)
-            #endif
+            if loadedChapter == chapter {
+                #if os(macOS)
+                macReader(st)
+                #else
+                iosReader(st)
+                #endif
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
-        #if os(macOS)
-        .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v; $0.endVerse = nil } } }
-        #endif
         .onChange(of: [st.verse, st.endVerse]) {
-            guard st.verse != selectedVerse || st.endVerse != nil else { return }
+            if applyingLocalSelection {
+                applyingLocalSelection = false
+                if st.verse == selectedVerse, st.endVerse == nil { return }
+            }
+            guard loadedChapter == chapter else { return }
             applyPassageSelection(st)
         }
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
@@ -92,23 +104,25 @@ struct ScriptureView: View {
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
             highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
         }
-        .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)") {
+        .task(id: chapter) {
             let loaded = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
-            guard !Task.isCancelled else { return }
+            let destination = state
+            guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
             verses = loaded
-            applyPassageSelection(st)
+            applyPassageSelection(destination)
+            loadedChapter = chapter
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 0)
                 .overlay(alignment: .bottom) {
                     #if os(iOS)
-                    selectionBar(st).padding(.bottom, 58)
+                    if loadedChapter == chapter { selectionBar(st).padding(.bottom, 58) }
                     #else
-                    selectionBar(st)
+                    if loadedChapter == chapter { selectionBar(st) }
                     #endif
                 }
         }
-        .overlay { if verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
+        .overlay { if loadedChapter == chapter, verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
     }
 
     // MARK: verse selection (click / ⇧-click verse numbers)
@@ -133,9 +147,17 @@ struct ScriptureView: View {
             anchor = selection.contains(v) ? v : selection.min()
         }
         selectedVerse = selection.contains(v) ? v : selection.min()
-        if state.endVerse != nil {
-            mutate { $0.verse = selectedVerse; $0.endVerse = nil }
-        }
+        persistLocalSelection()
+    }
+
+    private func persistLocalSelection() {
+        let current = state
+        #if os(iOS)
+        guard current.endVerse != nil else { return }
+        #endif
+        guard current.verse != selectedVerse || current.endVerse != nil else { return }
+        applyingLocalSelection = true
+        mutate(recordHistory: false) { $0.verse = selectedVerse; $0.endVerse = nil }
     }
 
     var selectedRows: [ChapterVerseRow] { verses.filter { selection.contains($0.verseNum) } }
@@ -241,7 +263,7 @@ struct ScriptureView: View {
         selection = []
         anchor = nil
         selectedVerse = nil
-        if state.endVerse != nil { mutate { $0.verse = nil; $0.endVerse = nil } }
+        persistLocalSelection()
     }
 
     private func highlightMenu(_ st: BibleState) -> some View {
@@ -416,9 +438,9 @@ struct ScriptureView: View {
         }, compact: compact)
     }
 
-    func mutate(_ f: (inout BibleState) -> Void) {
+    func mutate(recordHistory: Bool = true, _ f: (inout BibleState) -> Void) {
         var visited: BibleState?
-        app.update(tabId) { t in
+        app.update(tabId, recordHistory: recordHistory) { t in
             let before = BibleState(t.state)
             var s = before; f(&s)
             t.state = s.merged(into: t.state)
@@ -490,7 +512,7 @@ struct ScriptureView: View {
 
     func showLexicon(_ id: String) { mutate { $0.rightPanelOpen = true; $0.rightPanelTab = "lexicon"; $0.rightPanelLexiconEntry = id } }
     func openInspector(_ tab: String, verse: Int? = nil) {
-        mutate {
+        mutate(recordHistory: false) {
             if let verse { $0.verse = verse }
             $0.rightPanelOpen = true
             $0.rightPanelTab = tab

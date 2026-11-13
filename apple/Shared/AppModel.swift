@@ -448,13 +448,13 @@ final class AppModel {
     static func location(_ t: BereanWorkspace.Tab) -> String {
         let keys: [String]
         switch t.tabType {
-        case .bible: keys = ["bookId", "chapter", "translation"]
+        case .bible: keys = ["bookId", "chapter", "translation", "verse", "endVerse"]
         case .note: keys = ["noteId"]
         case .lexicon: keys = ["strongsNum"]
         case .search: keys = ["query"]
         default: keys = []
         }
-        return keys.map { k in t.state[k].map { JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
+        return keys.map { k in t.state[k].flatMap { $0 == .null ? nil : JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
     }
 
     var canGoBack: Bool { activeTab.map { !(backStack[$0.id] ?? []).isEmpty } ?? false }
