@@ -17,8 +17,10 @@ struct IOSChapterTextView: UIViewRepresentable {
     var style: ReaderStyle
     var selectedVerses: Set<Int>
     var scrollTarget: Int?
+    var findRequest: Int
     var reference: (Int, Int) -> String
     var onStrongs: (String) -> Void
+    var onVerseTap: (Int) -> Void
     var onVerseActions: (Int) -> Void
     var onTagClick: (String, Int?) -> Void
     var onHighlight: (Piece, String) -> Void
@@ -32,6 +34,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.reader = context.coordinator
         view.isEditable = false
         view.isSelectable = true
+        view.isFindInteractionEnabled = true
         view.backgroundColor = .clear
         view.textContainerInset = UIEdgeInsets(top: 16, left: 20, bottom: 24, right: 20)
         view.linkTextAttributes = [.underlineStyle: NSUnderlineStyle([]).rawValue]
@@ -50,7 +53,13 @@ struct IOSChapterTextView: UIViewRepresentable {
 
     func updateUIView(_ view: UITextView, context: Context) {
         let coordinator = context.coordinator
+        let shouldFind = coordinator.parent.findRequest != findRequest
         coordinator.parent = self
+        if shouldFind {
+            DispatchQueue.main.async { [weak view] in
+                view?.findInteraction?.presentFindNavigator(showingReplace: false)
+            }
+        }
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
                       verses: verses, style: style, selected: selectedVerses, dark: colorScheme == .dark)
         let samePassage = coordinator.passageId == passageId
@@ -252,7 +261,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             switch url.scheme {
             case "berean-verse":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
-                return UIAction { [weak self] _ in self?.parent.onVerseActions(verse) }
+                return UIAction { [weak self, weak textView] _ in
+                    textView?.selectedTextRange = nil
+                    self?.parent.onVerseTap(verse)
+                }
             case "strongs":
                 let id = String(url.absoluteString.dropFirst("strongs:".count))
                 return UIAction { [weak self] _ in self?.parent.onStrongs(id) }

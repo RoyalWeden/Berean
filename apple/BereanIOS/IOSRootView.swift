@@ -12,6 +12,7 @@ struct IOSRootView: View {
     @State private var showGo = false
     @State private var explicitNewTab = false
     @State private var showSettings = false
+    @State private var findRequest = 0
 
     var body: some View {
         @Bindable var app = app
@@ -43,8 +44,7 @@ struct IOSRootView: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
-        .background(.regularMaterial, in: .capsule)
-        .overlay { Capsule().strokeBorder(.primary.opacity(0.09)) }
+        .glassEffectCompat()
         .frame(maxWidth: 260)
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
@@ -79,7 +79,7 @@ struct IOSRootView: View {
             switch tab.tabType {
             case .bible:
                 let st = BibleState(tab.state)
-                ScriptureView(tabId: tab.id).id(tab.id)
+                ScriptureView(tabId: tab.id, findRequest: findRequest).id(tab.id)
                     .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { v in
                         app.update(tab.id) { t in var s = BibleState(t.state); s.rightPanelOpen = v; t.state = s.merged(into: t.state) }
                     })) { StudyInspector(tabId: tab.id).presentationDetents([.medium, .large]) }
@@ -119,6 +119,9 @@ struct IOSRootView: View {
             if let tab = app.activeTab, tab.tabType == .bible {
                 let st = BibleState(tab.state)
                 Section {
+                    if !st.compareMode {
+                        Button("Find in Chapter", systemImage: "magnifyingglass") { findRequest += 1 }
+                    }
                     Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" } } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }
                     Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" } } label: { Label("Notes for This Chapter", systemImage: "note.text") }
                     Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
