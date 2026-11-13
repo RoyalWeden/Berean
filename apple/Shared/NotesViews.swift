@@ -323,9 +323,28 @@ struct MarkdownText: View {
     func inline(_ s: String) -> Text {
         Text((try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(s))
     }
+    private func standaloneScriptureLink(_ line: String) -> (label: String, url: URL)? {
+        guard let parsed = try? AttributedString(markdown: line, options: .init(interpretedSyntax: .inlineOnly)),
+              let url = parsed.runs.first?.link,
+              parsed.runs.allSatisfy({ $0.link == url }),
+              case .verse? = DeepLink.parse(url.absoluteString) else { return nil }
+        return (String(parsed.characters), url)
+    }
+
     @ViewBuilder func block(_ line: String) -> some View {
         let t = line.trimmingCharacters(in: .whitespaces)
-        if t.hasPrefix("### ") { inline(String(t.dropFirst(4))).font(.title3.bold()) }
+        if let passage = standaloneScriptureLink(t) {
+            Link(destination: passage.url) {
+                Label(passage.label, systemImage: "book")
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.vertical, 4)
+                    .contentShape(.rect)
+            }
+            #if os(macOS)
+            .pointerStyle(.link)
+            #endif
+            .accessibilityLabel("Open \(passage.label) in Scripture")
+        } else if t.hasPrefix("### ") { inline(String(t.dropFirst(4))).font(.title3.bold()) }
         else if t.hasPrefix("## ") { inline(String(t.dropFirst(3))).font(.title2.bold()) }
         else if t.hasPrefix("# ") { inline(String(t.dropFirst(2))).font(.title.bold()) }
         else if t.hasPrefix(">") { HStack(spacing: 8) { RoundedRectangle(cornerRadius: 1).fill(.secondary).frame(width: 3); inline(String(t.drop { $0 == ">" || $0 == " " })).foregroundStyle(.secondary) } }
