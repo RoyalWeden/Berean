@@ -213,11 +213,15 @@ struct IOSChapterTextView: UIViewRepresentable {
         var renderedSelection: Set<Int> = []
         private var markerRanges: [Int: NSRange] = [:]
 
+        private func markerColor(_ verse: Int) -> UIColor {
+            parent.selectedVerses.contains(verse) ? .tintColor : .tintColor.withAlphaComponent(0.82)
+        }
+
         func updateMarkerColors(in storage: NSTextStorage, changed: Set<Int>) {
             storage.beginEditing()
             for verse in changed {
                 guard let range = markerRanges[verse] else { continue }
-                let color = parent.selectedVerses.contains(verse) ? UIColor.tintColor : UIColor.secondaryLabel
+                let color = markerColor(verse)
                 storage.addAttribute(.foregroundColor, value: color, range: range)
             }
             storage.endEditing()
@@ -261,10 +265,9 @@ struct IOSChapterTextView: UIViewRepresentable {
                     ]) { _, new in new }))
                 }
                 if parent.style.showVerseNumbers {
-                    let selected = parent.selectedVerses.contains(verse.verse)
                     let number = base.merging([
                         .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: .semibold),
-                        .foregroundColor: selected ? UIColor.tintColor : UIColor.secondaryLabel,
+                        .foregroundColor: markerColor(verse.verse),
                         .link: URL(string: "berean-verse:\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }
                     let markerStart = out.length

@@ -162,7 +162,7 @@ struct ChapterTextView: NSViewRepresentable {
 
         private func markerColor(_ verse: Int, _ reader: ChapterTextView) -> NSColor {
             guard reader.style.showVerseNumbers else { return .clear }
-            return reader.selectedVerses.contains(verse) ? .controlAccentColor : .secondaryLabelColor
+            return reader.selectedVerses.contains(verse) ? .controlAccentColor : NSColor.controlAccentColor.withAlphaComponent(0.82)
         }
 
         var verseRanges: [Int: NSRange] = [:]
@@ -259,7 +259,7 @@ struct ChapterTextView: NSViewRepresentable {
                             let id = n.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
                             out.append(NSAttributedString(string: "\u{2009}" + id, attributes: [
                                 .font: NSFont.monospacedDigitSystemFont(ofSize: max(9, size * 0.58), weight: .medium),
-                                .foregroundColor: NSColor.secondaryLabelColor, .baselineOffset: size * 0.38,
+                                .foregroundColor: NSColor.controlAccentColor, .baselineOffset: size * 0.38,
                                 .link: URL(string: "strongs:\(id)")!, .paragraphStyle: para, Self.skipKey: true,
                                 .toolTip: p.strongsTooltips[id] ?? "Strong's \(id) — open in the lexicon",
                             ]))

@@ -154,12 +154,18 @@ struct CrossRefsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(Reference.bookChapterVerseLabel(b, chapter: c, verse: v > 0 ? v : nil) + (end.map { "–\($0)" } ?? "")).font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
                     Spacer()
                     if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                    Image(systemName: "chevron.forward")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
                 Text(VerseDisplay.text(text, tagged: nil, textId: "kjva", replacerEnabled: true, rules: WordReplacer.defaultRules))
                     .font(.callout).foregroundStyle(.secondary).lineLimit(3)
             }
+            .contentShape(.rect)
         }.buttonStyle(.interactivePlain)
     }
 }
