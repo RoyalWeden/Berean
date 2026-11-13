@@ -15,6 +15,12 @@ struct ScriptureView: View {
     #if os(iOS)
     var findRequest: Int = 0
     #endif
+    private enum CopyAction {
+        case verses, reference
+    }
+
+    @State private var copiedAction: CopyAction?
+    @State private var copyFeedbackID = UUID()
     @State private var loadedChapter: String?
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
@@ -250,9 +256,20 @@ struct ScriptureView: View {
         selectionLabel(state) + (state.translation == "lxx" ? " LXX" : "")
     }
 
-    private func copyReferenceButton(_ state: BibleState) -> some View {
-        Button("Copy Reference", systemImage: "number") {
-            Clipboard.copy(selectionReference(state))
+    private func selectionCopyButton(_ action: CopyAction, state: BibleState) -> some View {
+        let copied = copiedAction == action
+        let title = action == .verses ? "Copy Verses" : "Copy Reference"
+        let symbol = action == .verses ? "doc.on.doc" : "number"
+        return Button {
+            let text = action == .verses ? selectionText(state) : selectionReference(state)
+            guard let text, !text.isEmpty else { return }
+            Clipboard.copy(text)
+            copiedAction = action
+            copyFeedbackID = UUID()
+            AccessibilityNotification.Announcement(action == .verses ? "Verses copied" : "Reference copied").post()
+        } label: {
+            Label(title, systemImage: copied ? "checkmark" : symbol)
+                .foregroundStyle(copied ? Color.accentColor : Color.primary)
         }
     }
 
@@ -261,7 +278,7 @@ struct ScriptureView: View {
             ViewThatFits(in: .horizontal) {
                 verseActionRow(st)
                 HStack(spacing: 2) {
-                    Button("Copy Verses", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
+                    selectionCopyButton(.verses, state: st)
                     highlightMenu(st)
                     compactVerseMenu(st)
                     clearSelectionButton
@@ -269,7 +286,7 @@ struct ScriptureView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 HStack(spacing: 2) {
                     Menu {
-                        Button("Copy Verses", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
+                        selectionCopyButton(.verses, state: st)
                         highlightMenu(st, iconOnly: false)
                         additionalVerseActions(st)
                     } label: {
@@ -289,12 +306,25 @@ struct ScriptureView: View {
             .padding(.bottom, ReaderFloatingControls.bottomPadding)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Selected \(selectionLabel(st))")
+            .task(id: copyFeedbackID) {
+                guard copiedAction != nil else { return }
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                    if !Task.isCancelled { copiedAction = nil }
+                } catch is CancellationError {
+                    // A newer copy restarts the confirmation.
+                } catch {
+                    copiedAction = nil
+                }
+            }
+            .onChange(of: selection) { copiedAction = nil }
+            .onDisappear { copiedAction = nil }
         }
     }
 
     private func verseActionRow(_ st: BibleState) -> some View {
         HStack(spacing: 2) {
-            Button("Copy Verses", systemImage: "doc.on.doc") { copySelection(st, plain: false) }
+            selectionCopyButton(.verses, state: st)
                 .verseActionHelp("Copy with reference (⌘C)")
             highlightMenu(st).verseActionHelp("Highlight")
             Button("Tag Verses", systemImage: "tag") {
@@ -302,7 +332,7 @@ struct ScriptureView: View {
             }
             .verseActionHelp("Tag verses")
             #if os(macOS)
-            copyReferenceButton(st).help("Copy selected verse reference")
+            selectionCopyButton(.reference, state: st).help("Copy selected verse reference")
             Button("Add Note", systemImage: "square.and.pencil") {
                 if let verse = selectedRows.first(where: { $0.verseNum == selectedVerse }) {
                     app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
@@ -327,7 +357,7 @@ struct ScriptureView: View {
                 }
             } else {
                 Menu {
-                    copyReferenceButton(st)
+                    selectionCopyButton(.reference, state: st)
                     if let text = selectionText(st) {
                         ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
                     }
@@ -361,7 +391,7 @@ struct ScriptureView: View {
     }
 
     @ViewBuilder private func additionalVerseActions(_ st: BibleState) -> some View {
-        copyReferenceButton(st)
+        selectionCopyButton(.reference, state: st)
         #if os(iOS)
         if selectedRows.count == 1, let row = selectedRows.first {
             Button("All Verse Actions", systemImage: "list.bullet") {
