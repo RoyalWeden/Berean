@@ -475,6 +475,13 @@ final class AppModel {
         }
     }
 
+    /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
+    func openSearch(_ query: String) {
+        var o = JSObject(); o["query"] = .string(JSString(query))
+        openTab(.search, in: .search, title: "Search: \(query)", state: o)
+        SearchHistory.record(query)
+    }
+
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil) {
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
         openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin)
