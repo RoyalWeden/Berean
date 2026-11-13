@@ -81,7 +81,7 @@ struct BereanSidebar: View {
                 .background(.quaternary.opacity(0.55), in: .rect(cornerRadius: 9))
                 .contentShape(.rect)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.interactivePlain)
             .help("Go to a passage, Strong's number, note or search (⌘K)")
             .accessibilityLabel("Location: \(app.locationTitle.space), \(app.locationTitle.title). Open reference or search")
             HStack(spacing: 2) {
@@ -244,7 +244,7 @@ struct BereanSidebar: View {
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).rotationEffect(.degrees(archiveExpanded ? 90 : 0))
                 }.padding(.horizontal, 10).padding(.vertical, 4).contentShape(.rect)
-            }.buttonStyle(.plain)
+            }.buttonStyle(.interactivePlain)
             if archiveExpanded {
                 ForEach(app.archivedGroups) { g in
                     Button { app.restoreArchived(g.id) } label: {

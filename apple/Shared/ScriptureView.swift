@@ -322,7 +322,7 @@ struct ScriptureView: View {
                 .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
             #else
             HStack(spacing: 4) { passageControls(st) }
-                .buttonStyle(.plain)
+                .buttonStyle(.interactivePlain)
                 .padding(.horizontal, 8)
                 .glassEffectCompat()
                 .sheet(isPresented: $pickerShown) {
@@ -776,4 +776,23 @@ func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [N
         previous = verse
     }
     return runs
+}
+
+/// Feedback for controls whose layout already supplies the visible button shape.
+struct InteractivePlainButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(isEnabled ? (configuration.isPressed ? 0.65 : 1) : 0.45)
+            #if os(macOS)
+            .pointerStyle(isEnabled ? .link : .default)
+            #else
+            .hoverEffect(.highlight, isEnabled: isEnabled)
+            #endif
+    }
+}
+
+extension ButtonStyle where Self == InteractivePlainButtonStyle {
+    static var interactivePlain: Self { Self() }
 }

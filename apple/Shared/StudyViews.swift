@@ -45,7 +45,7 @@ struct LexiconEntryView: View {
                                         Text("\(Reference.bookChapterVerseLabel(o.bookId, chapter: o.chapter, verse: o.verseNum))\(o.textId == "lxx" ? " LXX" : "")").font(.subheadline.weight(.semibold))
                                         Text(highlighted(o)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
                                     }
-                                }.buttonStyle(.plain)
+                                }.buttonStyle(.interactivePlain)
                             }
                         }
                     }
@@ -133,7 +133,7 @@ struct CrossRefsView: View {
                 Text(VerseDisplay.text(text, tagged: nil, textId: "kjva", replacerEnabled: true, rules: WordReplacer.defaultRules))
                     .font(.callout).foregroundStyle(.secondary).lineLimit(3)
             }
-        }.buttonStyle(.plain)
+        }.buttonStyle(.interactivePlain)
     }
 }
 
@@ -174,7 +174,7 @@ struct SearchResultsView: View {
                                 Text(VerseDisplay.text(r.text, tagged: r.textTagged, textId: textId, replacerEnabled: true, rules: WordReplacer.defaultRules))
                                     .font(.callout).foregroundStyle(.secondary).lineLimit(3)
                             }
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(.interactivePlain)
                     }
                 }
             }
@@ -233,7 +233,7 @@ struct TagResultsView: View {
                                     Text(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verse)).font(.headline)
                                     Text(texts["\(v.bookId).\(v.chapter).\(v.verse)"] ?? "").foregroundStyle(.secondary).lineLimit(3)
                                 }
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(.interactivePlain)
                         }
                     }
                 }

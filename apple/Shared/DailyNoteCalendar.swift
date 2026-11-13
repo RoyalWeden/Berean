@@ -116,7 +116,7 @@ struct DailyNoteCalendar: View {
             .background(selected ? Color.accentColor.opacity(0.16) : Color.clear, in: .rect(cornerRadius: 8))
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
         .accessibilityValue([today ? "Today" : nil, notes[key] == nil ? "No note" : "Daily note"].compactMap { $0 }.joined(separator: ", "))
         .accessibilityAddTraits(selected ? .isSelected : [])

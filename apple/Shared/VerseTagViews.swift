@@ -85,7 +85,7 @@ struct TagPickerView: View {
                             Text("\(t.verseCount + t.chapterCount)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
                             Image(systemName: chosen.contains(t.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(chosen.contains(t.id) ? Color.accentColor : .secondary)
                         }.contentShape(.rect)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.interactivePlain)
                 }
                 if tags.isEmpty && trimmed.isEmpty { Text("No tags yet. Type a name to create one.").foregroundStyle(.secondary) }
             }

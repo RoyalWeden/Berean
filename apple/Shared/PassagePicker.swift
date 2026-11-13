@@ -131,7 +131,7 @@ struct PassagePicker: View {
                                 Text(textInfo(p.textId).short).font(.caption).foregroundStyle(.secondary)
                             }.contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.interactivePlain)
                     }
                 }
                 if !bookMatches.isEmpty {
@@ -143,7 +143,7 @@ struct PassagePicker: View {
                                     Spacer()
                                     Text(textInfo(m.textId).short).font(.caption).foregroundStyle(.secondary)
                                 }.contentShape(.rect)
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(.interactivePlain)
                         }
                     }
                 }
@@ -159,7 +159,7 @@ struct PassagePicker: View {
                                     Spacer()
                                     if r.textId != "kjva" { Text(textInfo(r.textId).short).font(.caption).foregroundStyle(.secondary) }
                                 }.contentShape(.rect)
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(.interactivePlain)
                         }
                     }
                 }
@@ -219,7 +219,7 @@ struct PassagePicker: View {
                                     .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 6))
                                     .foregroundStyle(current ? .white : .primary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.interactivePlain)
                             .accessibilityLabel(c == 0 ? "\(b.name) prologue" : chapterLabel)
                             .help(c == 0 ? "Prologue" : chapterLabel)
                         }
@@ -239,7 +239,7 @@ struct PassagePicker: View {
                                         Text(b.chaptersCount == 1 ? "" : "\(b.chaptersCount)").font(.caption).foregroundStyle(.tertiary).monospacedDigit()
                                     }.contentShape(.rect)
                                 }
-                                .buttonStyle(.plain).id(b.id)
+                                .buttonStyle(.interactivePlain).id(b.id)
                             }
                         }
                     }
@@ -277,7 +277,7 @@ struct PassagePicker: View {
                                 if t.id == text { Image(systemName: "checkmark").foregroundStyle(.tint) }
                             }.contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.interactivePlain)
                         .accessibilityAddTraits(t.id == text ? .isSelected : [])
                     }
                 }

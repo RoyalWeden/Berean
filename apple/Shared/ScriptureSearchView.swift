@@ -70,7 +70,7 @@ struct ScriptureSearchView: View {
                         .autocorrectionDisabled()
                     if !field.isEmpty {
                         Button { field = ""; fieldFocused = true } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
-                            .buttonStyle(.plain).accessibilityLabel("Clear search")
+                            .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
                     }
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7)
@@ -224,7 +224,7 @@ struct ScriptureSearchView: View {
                                 .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(focusText == id ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.12), in: .capsule)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.interactivePlain)
                         .help(focusText == id ? "Show all texts again" : "Show only \(textInfo(id).name)")
                     }
                 }
@@ -291,7 +291,7 @@ struct ScriptureSearchView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .contextMenu {
             Button("Open in New Tab") { app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId) }
             Button("Copy Verse") { Clipboard.copy("\(Reference.bookChapterVerseLabel(h.bookId, chapter: h.chapter, verse: h.verseNum)) \(displayText(h))") }
@@ -351,7 +351,7 @@ struct ScriptureSearchView: View {
                 Section("Recent searches") {
                     ForEach(recent, id: \.self) { q in
                         Button { field = q; submit() } label: { Label(q, systemImage: "clock.arrow.circlepath").frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.interactivePlain)
                     }
                     Button("Clear Recent Searches", role: .destructive) { SearchHistory.clear(); field = field + "" }
                 }
@@ -397,7 +397,7 @@ struct BookFilterField: View {
                         Button { onChange(selected.filter { $0 != id }) } label: {
                             Label(Reference.bookName(id), systemImage: "xmark").font(.caption).labelStyle(.titleAndIcon)
                                 .padding(.horizontal, 7).padding(.vertical, 3).background(Color.accentColor.opacity(0.18), in: .capsule)
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(.interactivePlain)
                     }
                 }
             }
@@ -406,7 +406,7 @@ struct BookFilterField: View {
                 .onSubmit { if let f = matches.first { onChange(selected + [f]); text = "" } }
             ForEach(matches, id: \.self) { id in
                 Button { onChange(selected + [id]); text = "" } label: { Text(Reference.bookName(id)).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect) }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.interactivePlain)
             }
         }
     }

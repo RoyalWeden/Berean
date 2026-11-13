@@ -151,7 +151,7 @@ struct CommandPalette: View {
                                 .background(i == index ? Color.accentColor : .clear, in: .rect(cornerRadius: 7))
                                 .contentShape(.rect)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.interactivePlain)
                             .id(it.id)
                         }
                         if list.isEmpty { Text("No matches").foregroundStyle(.secondary).padding(10) }

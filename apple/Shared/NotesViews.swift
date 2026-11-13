@@ -393,7 +393,7 @@ struct VerseNotesView: View {
         Group {
             if let verse {
                 List {
-                    ForEach(notes) { n in Button { app.openNote(n.id) } label: { NoteRowView(note: n) }.buttonStyle(.plain) }
+                    ForEach(notes) { n in Button { app.openNote(n.id) } label: { NoteRowView(note: n) }.buttonStyle(.interactivePlain) }
                     Button { app.newNote(verseRef: "\(bookId).\(chapter).\(verse)", textId: textId) } label: {
                         Label("New Note for \(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse))", systemImage: "plus")
                     }

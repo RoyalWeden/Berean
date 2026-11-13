@@ -408,10 +408,11 @@ final class ReaderTextView: NSTextView {
         super.mouseMoved(with: event)
         guard let lm = layoutManager, let ts = textStorage else { return }
         var newRange: NSRange?
-        if let i = charIndex(at: event), i < ts.length {
+        if let i = charIndex(at: event, includeVerseGutter: true), i < ts.length {
             var r = NSRange()
             if ts.attribute(.link, at: i, effectiveRange: &r) != nil { newRange = r }
         }
+        if newRange != nil { NSCursor.pointingHand.set() }
         if newRange != hovered {
             if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.underlineStyle, forCharacterRange: h) }
             if let n = newRange { lm.addTemporaryAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, forCharacterRange: n) }

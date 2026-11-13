@@ -37,7 +37,7 @@ struct TagManagerView: View {
                             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                         }.contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.interactivePlain)
                     .contextMenu { menu(t) }
                     #if os(iOS)
                     .swipeActions { Button("Delete", role: .destructive) { attemptDelete(t) } }

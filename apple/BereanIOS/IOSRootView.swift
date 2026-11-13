@@ -42,7 +42,7 @@ struct IOSRootView: View {
                 .accessibilityLabel("Go to a passage or search")
             menu
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
         .glassEffectCompat()

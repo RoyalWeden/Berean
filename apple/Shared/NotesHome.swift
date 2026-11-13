@@ -185,7 +185,7 @@ struct NotesHomeView: View {
                 .accessibilityIdentifier("notesSearchField")
             if !query.isEmpty {
                 Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
-                    .buttonStyle(.plain).accessibilityLabel("Clear search")
+                    .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
             }
             Menu {
                 if hasFolderScope {
@@ -282,7 +282,7 @@ struct NotesHomeView: View {
             Section {
                 ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, depth in folderRow(f, depth: depth) }
                 if folders.isEmpty {
-                    Button { folderName = ""; newFolderParent = .some(nil) } label: { Label("New Folder…", systemImage: "folder.badge.plus") }.buttonStyle(.plain).foregroundStyle(.secondary)
+                    Button { folderName = ""; newFolderParent = .some(nil) } label: { Label("New Folder…", systemImage: "folder.badge.plus") }.buttonStyle(.interactivePlain).foregroundStyle(.secondary)
                 }
             } header: { Text("My Folders") }
             Section { locationRow("trash", "Trash", "trash", trash.count) }
@@ -301,7 +301,7 @@ struct NotesHomeView: View {
             HStack { Label(name, systemImage: symbol); Spacer(); Text("\(n)").foregroundStyle(.secondary).monospacedDigit(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .accessibilityLabel("\(name), \(n) notes")
     }
 
@@ -314,7 +314,7 @@ struct NotesHomeView: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
             }.contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .contextMenu {
             Button("New Note Here") { if let id = app.newNote() { try? app.notes?.setFolder(id, f.id) } }
             Button("New Subfolder…") { folderName = ""; newFolderParent = .some(f.id) }
@@ -456,7 +456,7 @@ struct NotesHomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .contextMenu { noteMenu(n) }
         #if os(iOS)
         .swipeActions(edge: .leading) { Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }.tint(.orange) }

@@ -94,7 +94,7 @@ struct HistoryView: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .contextMenu {
             Button("Open") { open(e) }
             Button("Remove from History", role: .destructive) { try? app.historyService?.delete(e.id); load() }

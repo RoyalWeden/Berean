@@ -71,7 +71,7 @@ struct CompareView: View {
                                 .frame(minWidth: 28, minHeight: 28)
                                 .contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.interactivePlain)
                         .help("Close \(textInfo(c).name)")
                     }
                 }
