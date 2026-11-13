@@ -11,6 +11,7 @@ struct BereanSidebar: View {
     @AppStorage("sidebarArchiveExpanded") private var archiveExpanded = false
     @State private var showsArchiveSearch = false
     @State private var archiveQuery = ""
+    @FocusState private var archiveSearchFocused: Bool
     @State private var dragging: String?
     @State private var renaming: WorkspaceItem?
     @State private var deleting: WorkspaceItem?
@@ -304,19 +305,23 @@ struct BereanSidebar: View {
 
     private var archiveSearch: some View {
         let terms = archiveQuery.split(whereSeparator: \.isWhitespace)
+        let groups = app.archivedGroups.map { group in
+            (group, group.tabs.filter { tab in
+                let title = tab.title.isEmpty ? "Untitled" : tab.title
+                return terms.allSatisfy { "\(title) \(tab.spaceId.title)".localizedStandardContains(String($0)) }
+            })
+        }.filter { !$0.1.isEmpty }
         return VStack(spacing: 12) {
             HStack {
-                Text("Archived Tabs").font(.headline)
-                Spacer()
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search archived tabs", text: $archiveQuery)
+                    .textFieldStyle(.plain)
+                    .focused($archiveSearchFocused)
                 Button("Done") { showsArchiveSearch = false }
                     .keyboardShortcut(.cancelAction)
             }
             List {
-                ForEach(app.archivedGroups) { group in
-                    let tabs = group.tabs.filter { tab in
-                        let title = tab.title.isEmpty ? "Untitled" : tab.title
-                        return terms.allSatisfy { "\(title) \(tab.spaceId.title)".localizedStandardContains(String($0)) }
-                    }
+                ForEach(groups, id: \.0.id) { group, tabs in
                     if !tabs.isEmpty {
                         Section(group.label.isEmpty ? "Archived tabs" : group.label) {
                             ForEach(tabs) { tab in
@@ -339,10 +344,19 @@ struct BereanSidebar: View {
                     }
                 }
             }
-            .searchable(text: $archiveQuery, prompt: "Search archived tabs")
+            .overlay {
+                if groups.isEmpty {
+                    if terms.isEmpty {
+                        ContentUnavailableView("No Restorable Tabs", systemImage: "archivebox")
+                    } else {
+                        ContentUnavailableView.search(text: archiveQuery)
+                    }
+                }
+            }
         }
         .padding(16)
         .frame(width: 440, height: 350)
+        .onAppear { archiveSearchFocused = true }
     }
 
     var archive: some View {

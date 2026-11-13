@@ -202,3 +202,5 @@ Single-tab archive restoration now uses a tested BereanWorkspace operation for r
 Restore All now removes only archive records for tabs it successfully reopened. Unrecognized records and already-open tabs keep their archive copies. The regression test verifies that a bulk restore retains an unknown Space record even if its ID is passed in the removal set. Both Dev builds passed. Live mixed-group restoration and relaunch still need verification.
 
 The Mac Archived sidebar section now offers Browse Archived Tabs. The sheet searches archived tab titles and Space names, shows the matching tabs under their original group, and restores one tab on click. The Mac Dev build passed. Live search, restore and relaunch still need verification.
+
+Mac Archive search now has an explicit, keyboard-focused field in its sheet and separate empty states for no restorable tabs and no search matches. The Mac Dev build passed. In the running Dev app, the Archive Inactive Tabs sheet exposed the selectable candidates and Escape left the workspace at 26 tabs. Individual archive search, restore, and relaunch still need a live check using disposable tabs.
