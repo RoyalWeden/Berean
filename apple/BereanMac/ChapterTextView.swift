@@ -117,6 +117,17 @@ struct ChapterTextView: NSViewRepresentable {
                     let clip = scroll.contentView
                     var proposed = clip.bounds
                     proposed.origin.y = rect.minY - 12
+                    if let lastVerse = c.parent.selectedVerses.max(),
+                       lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
+                       lastRange.length > 0 {
+                        let lastCharacter = NSRange(location: NSMaxRange(lastRange) - 1, length: 1)
+                        if let end = tv.firstRect(forVerseRange: lastCharacter) {
+                            let lastLine = end.maxY + ReaderFloatingControls.readingGap
+                            if lastLine - rect.minY <= proposed.height {
+                                proposed.origin.y = max(proposed.origin.y, lastLine - proposed.height)
+                            }
+                        }
+                    }
                     clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
                     scroll.reflectScrolledClipView(clip)
                 }
