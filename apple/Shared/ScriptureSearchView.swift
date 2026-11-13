@@ -275,16 +275,25 @@ struct ScriptureSearchView: View {
     }
 
     func row(_ h: ScriptureHit) -> some View {
-        Button {
-            app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId, reuseTab: true)
+        let passage = ResolvedPassage(textId: h.textId, bookId: h.bookId, chapter: h.chapter, verse: h.verseNum)
+        let edition = textInfo(h.textId)
+        return Button {
+            openResult(passage, reuseTab: true)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(Reference.bookChapterVerseLabel(h.bookId, chapter: h.chapter, verse: h.verseNum)).font(.subheadline.weight(.semibold))
+                    Text(passage.label)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
                     if grouping != "text" || scope == nil {
-                        Text(textInfo(h.textId).short).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                        Text(edition.short).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
                             .padding(.horizontal, 5).padding(.vertical, 1).background(Color.secondary.opacity(0.12), in: .capsule)
                     }
+                    Spacer()
+                    Image(systemName: "chevron.forward")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
                 Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(4)
             }
@@ -293,9 +302,16 @@ struct ScriptureSearchView: View {
         }
         .buttonStyle(.interactivePlain)
         .contextMenu {
-            Button("Open in New Tab") { app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId) }
-            Button("Copy Verse") { Clipboard.copy("\(Reference.bookChapterVerseLabel(h.bookId, chapter: h.chapter, verse: h.verseNum)) \(displayText(h))") }
+            Button("Open in New Tab", systemImage: "plus.square") { openResult(passage, reuseTab: false) }
+            Button("Copy Verse", systemImage: "doc.on.doc") { Clipboard.copy("\(passage.label) \(edition.short) \(displayText(h))") }
+            Button("Copy Reference", systemImage: "number") { Clipboard.copy("\(passage.label) \(edition.short)") }
         }
+    }
+
+    private func openResult(_ passage: ResolvedPassage, reuseTab: Bool) {
+        app.openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
+                          textId: passage.textId, reuseTab: reuseTab)
+        app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse)
     }
 
     func displayText(_ h: ScriptureHit) -> String {
