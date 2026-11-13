@@ -495,7 +495,7 @@ final class AppModel {
         let query = q.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
         if let passage = resolvePassage(query, preferring: activeTab.flatMap({ $0.tabType == .bible ? BibleState($0.state).translation : nil })) {
-            openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
+            openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, endVerse: passage.endVerse,
                           textId: passage.textId, reuseTab: !newTab)
             recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse)
         } else if let id = StrongsId.normalize(query) {

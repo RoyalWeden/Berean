@@ -411,8 +411,8 @@ struct ScriptureView: View {
     }
 
     func picker(_ st: BibleState, compact: Bool) -> some View {
-        PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter, onPick: { t, b, c, v in
-            mutate { $0.translation = t; $0.bookId = b; $0.chapter = c; $0.verse = v; $0.endVerse = nil }; pickerShown = false
+        PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter, onPick: { t, b, c, v, end in
+            mutate { $0.translation = t; $0.bookId = b; $0.chapter = c; $0.verse = v; $0.endVerse = end }; pickerShown = false
         }, compact: compact)
     }
 
@@ -421,9 +421,6 @@ struct ScriptureView: View {
         app.update(tabId) { t in
             let before = BibleState(t.state)
             var s = before; f(&s)
-            if s.bookId != before.bookId || s.chapter != before.chapter || s.translation != before.translation {
-                s.endVerse = nil
-            }
             t.state = s.merged(into: t.state)
             t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation)
             if s.bookId != before.bookId || s.chapter != before.chapter || s.translation != before.translation { visited = s }
@@ -438,14 +435,14 @@ struct ScriptureView: View {
             let st = state
             let chapters = await app.bible.chapterNumbers(st.bookId, textId: st.translation)
             if let i = chapters.firstIndex(of: st.chapter), chapters.indices.contains(i + delta) {
-                let c = chapters[i + delta]; mutate { $0.chapter = c; $0.verse = nil }; return
+                let c = chapters[i + delta]; mutate { $0.chapter = c; $0.verse = nil; $0.endVerse = nil }; return
             }
             let books = await app.books(for: st.translation)
             guard let bi = books.firstIndex(where: { $0.id == st.bookId }), books.indices.contains(bi + delta) else { return }
             let nb = books[bi + delta]
             let list = await app.bible.chapterNumbers(nb.id, textId: st.translation)
             guard let c = delta > 0 ? list.first : list.last else { return }
-            mutate { $0.bookId = nb.id; $0.chapter = c; $0.verse = nil }
+            mutate { $0.bookId = nb.id; $0.chapter = c; $0.verse = nil; $0.endVerse = nil }
         }
     }
 

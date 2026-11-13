@@ -13,7 +13,9 @@ struct ResolvedPassage: Equatable {
     var endVerse: Int? = nil
 
     var label: String {
-        Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+        let start = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+        guard let verse, let endVerse, endVerse > verse else { return start }
+        return "\(start)–\(endVerse)"
     }
 
     func isShown(in tab: Tab) -> Bool {
@@ -43,7 +45,7 @@ extension AppModel {
             return bookCatalog.first { $0.book.id == bookId }?.textId ?? pref
         }
         if let ref = Reference.parse(q, hermas: edition) {
-            return ResolvedPassage(textId: textFor(ref.bookId, forced: ref.forcedTranslation == "LXX" ? "lxx" : nil), bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse)
+            return ResolvedPassage(textId: textFor(ref.bookId, forced: ref.forcedTranslation == "LXX" ? "lxx" : nil), bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse)
         }
         // "<book>" or "<book> N" where the book name matches a catalog entry.
         let lower = q.lowercased()

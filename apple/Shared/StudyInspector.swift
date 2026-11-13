@@ -101,7 +101,7 @@ struct CommandPalette: View {
     }
 
     private func open(_ ref: ResolvedPassage) {
-        app.openScripture(bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, textId: ref.textId, reuseTab: !newTab)
+        app.openScripture(bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse, textId: ref.textId, reuseTab: !newTab)
         app.recordRecent(textId: ref.textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse)
     }
 

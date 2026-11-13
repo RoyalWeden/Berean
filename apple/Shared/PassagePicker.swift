@@ -51,7 +51,7 @@ struct PassagePicker: View {
     let currentBook: String
     let currentChapter: Int
     /// (textId, bookId, chapter, verse)
-    let onPick: (String, String, Int, Int?) -> Void
+    let onPick: (String, String, Int, Int?, Int?) -> Void
     var compact = false
 
     @State private var text: String = ""
@@ -124,7 +124,7 @@ struct PassagePicker: View {
             List {
                 if let p = resolved {
                     Section("Go to") {
-                        Button { onPick(p.textId, p.bookId, p.chapter, p.verse) } label: {
+                        Button { onPick(p.textId, p.bookId, p.chapter, p.verse, p.endVerse) } label: {
                             HStack {
                                 Label(p.label, systemImage: "arrow.right.circle")
                                 Spacer()
@@ -152,7 +152,7 @@ struct PassagePicker: View {
                         let recents = app.recentPassages
                         if recents.isEmpty { Text("Passages you open appear here.").foregroundStyle(.secondary) }
                         ForEach(recents.prefix(25)) { r in
-                            Button { onPick(r.textId, r.bookId, r.chapter, r.verse) } label: {
+                            Button { onPick(r.textId, r.bookId, r.chapter, r.verse, nil) } label: {
                                 HStack {
                                     Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary)
                                     Text(r.label)
@@ -174,7 +174,7 @@ struct PassagePicker: View {
     }
 
     func submit() {
-        if let p = resolved { onPick(p.textId, p.bookId, p.chapter, p.verse) } else if let first = bookMatches.first { choose(first) }
+        if let p = resolved { onPick(p.textId, p.bookId, p.chapter, p.verse, p.endVerse) } else if let first = bookMatches.first { choose(first) }
     }
 
     func choose(_ m: CatalogBook) {
@@ -187,7 +187,7 @@ struct PassagePicker: View {
     func open(_ b: BookRow, in textId: String) {
         Task {
             let list = await app.bible.chapterNumbers(b.id, textId: textId)
-            if list.count <= 1 { onPick(textId, b.id, list.first ?? 1, nil); return }
+            if list.count <= 1 { onPick(textId, b.id, list.first ?? 1, nil, nil); return }
             chapters = list
             openBook = b
         }
@@ -214,7 +214,7 @@ struct PassagePicker: View {
                                 ? Reference.readerChapterLabel(b.id, c, textId: text)
                                 : "\(b.name) chapter \(Reference.displayChapterString(b.id, c))"
                             let current = b.id == currentBook && c == currentChapter && text == textId
-                            Button { onPick(text, b.id, c, nil) } label: {
+                            Button { onPick(text, b.id, c, nil, nil) } label: {
                                 Text(c == 0 ? "Prol." : Reference.displayChapterString(b.id, c)).font(c == 0 ? .caption : .body).monospacedDigit().frame(width: 42, height: 30)
                                     .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 6))
                                     .foregroundStyle(current ? .white : .primary)
