@@ -76,6 +76,8 @@ final class AppModel {
     var commandPaletteShown = false
     /// Bumped by View ▸ Toggle Sidebar (the window's split view observes it).
     var sidebarToggleRequest = 0
+    /// Every book of every text (passage navigator search, reference resolution).
+    var bookCatalog: [CatalogBook] = []
     /// One-line result shown in an alert after a user action (export/import outcome, errors).
     var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.
@@ -106,7 +108,7 @@ final class AppModel {
     private var keys = TabPersistence.OrderKeyMaps()
     private var saveTask: Task<Void, Never>?
 
-    init() { openLibrary() }
+    init() { openLibrary(); loadBookCatalog() }
 
     // MARK: library
 
@@ -457,14 +459,14 @@ final class AppModel {
     func openQuery(_ q: String, newTab: Bool = true) {
         let query = q.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
-        if let ref = Reference.parse(query) {
-            var st = BibleState(bookId: ref.bookId, chapter: ref.chapter)
-            st.verse = ref.verse
-            st.translation = defaultText
-            if let forced = ref.forcedTranslation, forced == "LXX" { st.translation = "lxx" }
-            let title = Reference.bookChapterLabel(ref.bookId, chapter: Double(ref.chapter))
+        if let p = resolvePassage(query, preferring: activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }) {
+            var st = BibleState(bookId: p.bookId, chapter: p.chapter)
+            st.verse = p.verse
+            st.translation = p.textId
+            let title = Reference.bookChapterLabel(p.bookId, chapter: Double(p.chapter))
             if !newTab, let t = activeTab, t.tabType == .bible { update(t.id) { $0.state = st.merged(into: $0.state); $0.title = title } }
             else { openTab(.bible, in: .scripture, title: title, state: st.object) }
+            recordRecent(textId: p.textId, bookId: p.bookId, chapter: p.chapter, verse: p.verse)
         } else if let id = StrongsId.normalize(query) {
             openLexicon(id)
         } else {

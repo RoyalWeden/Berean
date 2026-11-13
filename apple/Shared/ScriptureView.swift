@@ -180,15 +180,21 @@ struct ScriptureView: View {
         if let v = visited { app.recordRecent(textId: v.translation, bookId: v.bookId, chapter: v.chapter, verse: v.verse) }
     }
 
+    /// Previous / next chapter by the chapters the book really has (prologue chapter 0, gaps, Hermas numbering), then the
+    /// neighbouring book — like bibleNav.ts getPrev/NextChapterRef, generalised from the actual chapter list.
     func step(_ delta: Int) {
         Task {
             let st = state
+            let chapters = await app.bible.chapterNumbers(st.bookId, textId: st.translation)
+            if let i = chapters.firstIndex(of: st.chapter), chapters.indices.contains(i + delta) {
+                let c = chapters[i + delta]; mutate { $0.chapter = c; $0.verse = nil }; return
+            }
             let books = await app.books(for: st.translation)
-            guard let i = books.firstIndex(where: { $0.id == st.bookId }) else { return }
-            let next = st.chapter + delta
-            if next >= 1 && next <= books[i].chaptersCount { mutate { $0.chapter = next; $0.verse = nil } }
-            else if delta > 0, i + 1 < books.count { mutate { $0.bookId = books[i + 1].id; $0.chapter = 1; $0.verse = nil } }
-            else if delta < 0, i > 0 { mutate { $0.bookId = books[i - 1].id; $0.chapter = books[i - 1].chaptersCount; $0.verse = nil } }
+            guard let bi = books.firstIndex(where: { $0.id == st.bookId }), books.indices.contains(bi + delta) else { return }
+            let nb = books[bi + delta]
+            let list = await app.bible.chapterNumbers(nb.id, textId: st.translation)
+            guard let c = delta > 0 ? list.first : list.last else { return }
+            mutate { $0.bookId = nb.id; $0.chapter = c; $0.verse = nil }
         }
     }
 
@@ -373,6 +379,7 @@ extension ScriptureView {
         let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
         let suffix = st.translation == "lxx" ? " LXX" : ""
         return ChapterTextView(
+            passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily, showStrongs: st.showStrongs),
             selectedVerse: selectedVerse, scrollTarget: scrollTarget,

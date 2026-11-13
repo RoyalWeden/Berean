@@ -126,3 +126,33 @@ func digest(_ rows: [JSValue]) -> JSObject {
         #expect(options.contains("ENABLE_FTS5"))
     }
 }
+
+/// Every book of every shipped text is navigable: it has chapters, each chapter has verses, and single-chapter books
+/// and prologue chapters (0) are listed (owner report 2026-11-12: single-chapter books showed no chapter to pick).
+@Suite("book and chapter catalog", .enabled(if: bibleDataPresent)) struct BookCatalogTests {
+    static let texts = ["kjva", "kjv", "lxx_brenton", "enoch", "jubilees", "apoc_elijah", "recog_clement", "hermas", "hermas_taylor", "asc_isaiah",
+                        "ep_barnabas", "t12p", "gad", "t_job", "1clement", "apoc_abraham", "didache_hoole", "t_jacob", "2baruch"]
+
+    @Test(arguments: texts) func everyBookHasNavigableChapters(_ textId: String) async {
+        let svc = BibleService(resolvePath: { dataFile($0) })
+        guard dataFile(textId) != nil else { return }
+        let books = await svc.getBooks(textId)
+        #expect(!books.isEmpty, "\(textId) has no books")
+        for b in books {
+            let chapters = await svc.chapterNumbers(b.id, textId: textId)
+            #expect(!chapters.isEmpty, "\(textId) \(b.id) has no chapters")
+            #expect(b.chaptersCount >= 1, "\(textId) \(b.id) chapter count \(b.chaptersCount)")
+            for c in [chapters.first!, chapters.last!] {
+                let rows = await svc.queryChapter(b.id, c, textId: textId)
+                #expect(!rows.isEmpty, "\(textId) \(b.id) \(c) empty")
+            }
+        }
+    }
+
+    @Test func singleChapterAndPrologueBooks() async {
+        let svc = BibleService(resolvePath: { dataFile($0) })
+        for id in ["OBA", "PHM", "2JN", "3JN", "JUD", "PRA", "SUS", "BEL", "PRM"] { let c = await svc.chapterNumbers(id, textId: "kjva"); #expect(c == [1], "\(id)") }
+        let sir = await svc.chapterNumbers("SIR", textId: "kjva"), cl = await svc.chapterNumbers("1CL", textId: "1clement"), ob = await svc.chapterNumbers("OBA", textId: "lxx_brenton")
+        #expect(sir.first == 0); #expect(cl.first == 0); #expect(ob == [1])
+    }
+}

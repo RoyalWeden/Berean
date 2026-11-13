@@ -32,6 +32,7 @@ struct ReaderStyle: Equatable {
 /// a pointing-hand cursor and a hover underline; right-click gives the verse actions; ⌘C copies like the existing
 /// app (several verses → "Book c:v1-v2" + numbered lines; ⌘⇧C → plain text on one line).
 struct ChapterTextView: NSViewRepresentable {
+    var passageId = ""                       // text|book|chapter — scroll position is kept only within one passage
     var header: [String] = []                       // versification note, etc.
     var chapterTags: [(name: String, color: String?, slot: Int?)] = []
     var verses: [ReaderVerse]
@@ -74,7 +75,7 @@ struct ChapterTextView: NSViewRepresentable {
         guard let tv = c.textView else { return }
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerse)
         if key != c.lastKey {
-            let keepScroll = c.lastKey?.verses.first?.verse == verses.first?.verse && c.lastKey?.verses.count == verses.count
+            let keepScroll = c.lastPassage == passageId
             let origin = scroll.contentView.bounds.origin
             let sel = tv.selectedRanges
             tv.textStorage?.setAttributedString(c.build(self))
@@ -85,6 +86,7 @@ struct ChapterTextView: NSViewRepresentable {
                 scroll.contentView.scroll(to: origin)
             }
             c.lastKey = key
+            if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
         }
         if let t = scrollTarget, t != c.scrolledTo, let r = c.verseRanges[t] {
             c.scrolledTo = t
@@ -105,6 +107,7 @@ struct ChapterTextView: NSViewRepresentable {
         var parent: ChapterTextView!
         weak var textView: ReaderTextView?
         var lastKey: Key?
+        var lastPassage = ""
         var scrolledTo: Int?
         /// verse → range of its paragraph (number + text) in the text storage.
         var verseRanges: [Int: NSRange] = [:]

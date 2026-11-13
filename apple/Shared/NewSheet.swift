@@ -59,8 +59,8 @@ struct NewSheet: View {
     var lastPassage: RecentPassage { app.recentPassages.first ?? RecentPassage(textId: app.defaultText, bookId: "GEN", chapter: 1) }
 
     @ViewBuilder var suggestion: some View {
-        if let ref = Reference.parse(trimmed) {
-            Label("Open \(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))", systemImage: "book")
+        if let ref = app.resolvePassage(trimmed) {
+            Label("Open \(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))\(ref.textId == app.defaultText ? "" : " · " + textInfo(ref.textId).short)", systemImage: "book")
         } else if let id = StrongsId.normalize(trimmed) {
             Label("Look up \(id)", systemImage: "character.book.closed")
         } else {

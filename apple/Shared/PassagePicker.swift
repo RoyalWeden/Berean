@@ -58,6 +58,7 @@ struct PassagePicker: View {
     @State private var books: [BookRow] = []
     @State private var catalog: [CatalogBook] = []
     @State private var openBook: BookRow?
+    @State private var chapters: [Int] = []
     @FocusState private var searchFocused: Bool
 
     var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
@@ -71,7 +72,7 @@ struct PassagePicker: View {
         return Array(hits.sorted { rank($0) < rank($1) }.prefix(40))
     }
 
-    var parsedRef: ParsedRef? { trimmed.isEmpty ? nil : Reference.parse(trimmed) }
+    var resolved: ResolvedPassage? { trimmed.isEmpty ? nil : app.resolvePassage(trimmed, preferring: text) }
 
     var body: some View {
         Group {
@@ -91,14 +92,17 @@ struct PassagePicker: View {
         .task {
             text = textId
             books = await app.books(for: text)
-            openBook = books.first { $0.id == currentBook }
+            if let b = books.first(where: { $0.id == currentBook }) {
+                let list = await app.bible.chapterNumbers(b.id, textId: text)
+                if list.count > 1 { chapters = list; openBook = b }
+            }
             searchFocused = true
-            catalog = await app.catalog()
+            catalog = app.bookCatalog.isEmpty ? await app.catalog() : app.bookCatalog
         }
         .onChange(of: text) { _, t in
             Task {
                 books = await app.books(for: t)
-                if let b = openBook { openBook = books.first { $0.id == b.id } }
+                if let b = openBook { openBook = books.first { $0.id == b.id }; chapters = await app.bible.chapterNumbers(b.id, textId: t) }
             }
         }
     }
@@ -114,10 +118,16 @@ struct PassagePicker: View {
                 .padding(10)
                 .accessibilityLabel("Search books and references in every text")
             List {
-                if let ref = parsedRef {
+                if let p = resolved {
                     Section("Go to") {
-                        Button { go(ref) } label: { Label(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse), systemImage: "arrow.right.circle") }
-                            .buttonStyle(.plain)
+                        Button { onPick(p.textId, p.bookId, p.chapter, p.verse) } label: {
+                            HStack {
+                                Label(Reference.bookChapterVerseLabel(p.bookId, chapter: p.chapter, verse: p.verse), systemImage: "arrow.right.circle")
+                                Spacer()
+                                Text(textInfo(p.textId).short).font(.caption).foregroundStyle(.secondary)
+                            }.contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 if !bookMatches.isEmpty {
@@ -133,7 +143,7 @@ struct PassagePicker: View {
                         }
                     }
                 }
-                if trimmed.isEmpty || (parsedRef == nil && bookMatches.isEmpty) {
+                if trimmed.isEmpty || (resolved == nil && bookMatches.isEmpty) {
                     Section("History") {
                         let recents = app.recentPassages
                         if recents.isEmpty { Text("Passages you open appear here.").foregroundStyle(.secondary) }
@@ -160,25 +170,23 @@ struct PassagePicker: View {
     }
 
     func submit() {
-        if let ref = parsedRef { go(ref) } else if let first = bookMatches.first { choose(first) }
-    }
-
-    /// A parsed reference stays in the current text when it has the book, else opens the first text that does.
-    func go(_ ref: ParsedRef) {
-        let t = ref.forcedTranslation == "LXX" ? "lxx" : textFor(bookId: ref.bookId)
-        onPick(t, ref.bookId, ref.chapter, ref.verse)
-    }
-
-    func textFor(bookId: String) -> String {
-        if books.contains(where: { $0.id == bookId }) { return text }
-        return catalog.first { $0.book.id == bookId }?.textId ?? text
+        if let p = resolved { onPick(p.textId, p.bookId, p.chapter, p.verse) } else if let first = bookMatches.first { choose(first) }
     }
 
     func choose(_ m: CatalogBook) {
-        if m.book.chaptersCount <= 1 { onPick(m.textId, m.book.id, 1, nil); return }
         if m.textId != text { text = m.textId }
-        openBook = m.book
+        open(m.book, in: m.textId)
         query = ""
+    }
+
+    /// Shows a book's chapters — or, when it has only one, opens it straight away (no one-button grid).
+    func open(_ b: BookRow, in textId: String) {
+        Task {
+            let list = await app.bible.chapterNumbers(b.id, textId: textId)
+            if list.count <= 1 { onPick(textId, b.id, list.first ?? 1, nil); return }
+            chapters = list
+            openBook = b
+        }
     }
 
     // MARK: middle — books, then chapters (with an internal Back)
@@ -197,15 +205,16 @@ struct PassagePicker: View {
                 Divider()
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 42, maximum: 48), spacing: 6)], spacing: 6) {
-                        ForEach(1...max(1, b.chaptersCount), id: \.self) { c in
+                        ForEach(chapters.isEmpty ? Array(1...max(1, b.chaptersCount)) : chapters, id: \.self) { c in
                             let current = b.id == currentBook && c == currentChapter && text == textId
                             Button { onPick(text, b.id, c, nil) } label: {
-                                Text(Reference.displayChapterString(b.id, c)).monospacedDigit().frame(width: 42, height: 30)
+                                Text(c == 0 ? "Prol." : Reference.displayChapterString(b.id, c)).font(c == 0 ? .caption : .body).monospacedDigit().frame(width: 42, height: 30)
                                     .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 6))
                                     .foregroundStyle(current ? .white : .primary)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("\(b.name) chapter \(c)")
+                            .accessibilityLabel(c == 0 ? "\(b.name) prologue" : "\(b.name) chapter \(c)")
+                            .help(c == 0 ? "Prologue" : "Chapter \(Reference.displayChapterString(b.id, c))")
                         }
                     }.padding(12)
                 }
@@ -216,11 +225,11 @@ struct PassagePicker: View {
                     ForEach(sections, id: \.0) { s in
                         Section(s.0) {
                             ForEach(s.1, id: \.id) { b in
-                                Button { openBook = b } label: {
+                                Button { open(b, in: text) } label: {
                                     HStack {
                                         Text(b.name).fontWeight(b.id == currentBook ? .semibold : .regular)
                                         Spacer()
-                                        Text("\(b.chaptersCount)").font(.caption).foregroundStyle(.tertiary).monospacedDigit()
+                                        Text(b.chaptersCount == 1 ? "" : "\(b.chaptersCount)").font(.caption).foregroundStyle(.tertiary).monospacedDigit()
                                     }.contentShape(.rect)
                                 }
                                 .buttonStyle(.plain).id(b.id)

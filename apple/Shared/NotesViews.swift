@@ -202,7 +202,7 @@ struct NoteDetailView: View {
     func openLink(_ url: URL) {
         if url.scheme == "berean-note" {
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
-            if let ref = Reference.parse(title) { app.openScripture(bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse); return }
+            if let p = app.resolvePassage(title) { app.openScripture(bookId: p.bookId, chapter: p.chapter, verse: p.verse, textId: p.textId); return }
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
             return
         }

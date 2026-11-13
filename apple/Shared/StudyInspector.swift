@@ -52,8 +52,8 @@ struct CommandPalette: View {
                 .onSubmit { go() }
             Divider()
             Group {
-                if let ref = Reference.parse(text) {
-                    Label("Open \(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))", systemImage: "book")
+                if let ref = app.resolvePassage(text) {
+                    Label("Open \(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))\(ref.textId == app.defaultText ? "" : " · " + textInfo(ref.textId).short)", systemImage: "book")
                 } else if let id = StrongsId.normalize(text) {
                     Label("Look up \(id)", systemImage: "character.book.closed")
                 } else if !text.trimmingCharacters(in: .whitespaces).isEmpty {
