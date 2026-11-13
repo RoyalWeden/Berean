@@ -70,6 +70,19 @@ public enum ChapterMap {
         return [mapChapter(bookId, chapter, from: from, to: to)]
     }
 
+    /// Exact verse correspondences for editions whose Jonah chapter boundary differs.
+    public static func jonahCounterpart(chapter: Int, verse: Int, from: String, to: String) -> (chapter: Int, verse: Int)? {
+        if isKjv(from), isLxx(to) {
+            if chapter == 1, verse == 17 { return (2, 1) }
+            if chapter == 2, (1...10).contains(verse) { return (2, verse + 1) }
+        }
+        if isLxx(from), isKjv(to), chapter == 2 {
+            if verse == 1 { return (1, 17) }
+            if (2...11).contains(verse) { return (2, verse - 1) }
+        }
+        return nil
+    }
+
     /// `versificationNote` — the explanatory note for an LXX chapter whose numbering differs.
     public static func versificationNote(_ bookId: String, _ chapter: Int, textId: String) -> String? {
         let book = bookId.uppercased()

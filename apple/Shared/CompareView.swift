@@ -134,8 +134,15 @@ struct CompareView: View {
 
     @ViewBuilder private func comparisonText(_ verse: Int, text: String, state: BibleState) -> some View {
         if let row = rows[verse]?[text] {
-            VerseRowView(row: row, textId: text, showStrongs: state.showStrongs, fontSize: app.fontSize,
-                         lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+            VStack(alignment: .leading, spacing: 3) {
+                if row.verseNum != verse || row.chapter != ChapterMap.mapChapter(state.bookId, state.chapter, from: state.translation, to: text) {
+                    Text("\(row.chapter):\(row.verseNum)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                VerseRowView(row: row, textId: text, showStrongs: state.showStrongs, fontSize: app.fontSize,
+                             lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+            }
         } else {
             Text("—").foregroundStyle(.tertiary)
         }
@@ -192,7 +199,25 @@ struct CompareView: View {
         for c in cols {
             // The tab's chapter is in its own text's numbering; map it for the column's text.
             let ch = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: c)
-            for r in await app.bible.queryChapter(st.bookId, ch, textId: c) { out[r.verseNum, default: [:]][c] = r }
+            let chapters = st.bookId == "JON" && st.chapter == 2
+                && ChapterMap.isLxx(st.translation) && ChapterMap.isKjv(c) ? [1, ch] : [ch]
+            for chapter in chapters {
+                for row in await app.bible.queryChapter(st.bookId, chapter, textId: c) {
+                    let mapped = st.bookId == "JON"
+                        ? ChapterMap.jonahCounterpart(chapter: chapter, verse: row.verseNum, from: c, to: st.translation)
+                        : nil
+                    if let mapped {
+                        guard mapped.chapter == st.chapter else { continue }
+                    } else if chapter != ch {
+                        continue
+                    }
+                    out[mapped?.verse ?? row.verseNum, default: [:]][c] = row
+                }
+            }
+            if st.bookId == "JON", st.chapter == 1, ChapterMap.isKjv(st.translation), ChapterMap.isLxx(c),
+               let opening = await app.bible.queryChapter(st.bookId, 2, textId: c).first(where: { $0.verseNum == 1 }) {
+                out[17, default: [:]][c] = opening
+            }
         }
         guard !Task.isCancelled else { return }
         rows = out
@@ -207,6 +232,18 @@ struct CompareView: View {
                 reader.compareMode = false
                 if let remaining = cols.first {
                     reader.chapter = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: remaining)
+                    if st.bookId == "JON", let verse = st.verse,
+                       let mapped = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: verse, from: st.translation, to: remaining) {
+                        reader.chapter = mapped.chapter
+                        reader.verse = mapped.verse
+                        if let end = st.endVerse,
+                           let mappedEnd = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: end, from: st.translation, to: remaining),
+                           mappedEnd.chapter == mapped.chapter {
+                            reader.endVerse = mappedEnd.verse
+                        } else {
+                            reader.endVerse = nil
+                        }
+                    }
                     reader.translation = remaining
                 }
                 t.state = reader.merged(into: t.state)
