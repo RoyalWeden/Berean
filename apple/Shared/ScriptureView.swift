@@ -27,6 +27,21 @@ struct ScriptureView: View {
     @State private var chapterTags: [TagLite] = []
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
 
+    #if os(iOS)
+    private struct TappedTag: Identifiable {
+        let tag: TagLite
+        let verse: Int?
+        var id: String { tag.id }
+    }
+    private struct TappedVerse: Identifiable {
+        let row: ChapterVerseRow
+        var id: Int { row.verseNum }
+    }
+    @State private var tappedTag: TappedTag?
+    @State private var tappedVerse: TappedVerse?
+    @State private var afterVerseSheet: (() -> Void)?
+    #endif
+
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
 
     var body: some View {
@@ -40,34 +55,33 @@ struct ScriptureView: View {
     }
 
     @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
-        ScrollViewReader { proxy in
-            Group {
-                #if os(macOS)
-                macReader(st)
-                #else
-                rowsScroll(st)
-                #endif
-            }
-            .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v } } }
-            .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
-                noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
-            }
-            .task(id: "\(st.bookId)|\(st.chapter)|\(app.tagsRevision)") {
-                if let r = try? app.verseTags?.forChapter(st.bookId, st.chapter) { verseTags = r.verseTags; chapterTags = r.chapterTags } else { verseTags = [:]; chapterTags = [] }
-            }
-            .sheet(isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
-                if let t = tagging { TagPickerView(ranges: t.ranges, label: t.label, kind: t.kind) }
-            }
-            .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
-                highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
-            }
-            .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)") {
-                verses = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
-                selectedVerse = st.verse
-                selection = st.verse.map { [$0] } ?? []; anchor = st.verse
-                if let v = st.verse { try? await Task.sleep(for: .milliseconds(50)); proxy.scrollTo(v, anchor: .top) }
-                scrollTarget = st.verse
-            }
+        Group {
+            #if os(macOS)
+            macReader(st)
+            #else
+            iosReader(st)
+            #endif
+        }
+        .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v } } }
+        .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
+            noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
+        }
+        .task(id: "\(st.bookId)|\(st.chapter)|\(app.tagsRevision)") {
+            if let r = try? app.verseTags?.forChapter(st.bookId, st.chapter) { verseTags = r.verseTags; chapterTags = r.chapterTags } else { verseTags = [:]; chapterTags = [] }
+        }
+        .sheet(isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
+            if let t = tagging { TagPickerView(ranges: t.ranges, label: t.label, kind: t.kind) }
+        }
+        .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
+            highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
+        }
+        .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)") {
+            let loaded = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
+            guard !Task.isCancelled else { return }
+            verses = loaded
+            selectedVerse = st.verse
+            selection = st.verse.map { [$0] } ?? []; anchor = st.verse
+            scrollTarget = st.verse
         }
         .overlay(alignment: .bottom) { selectionBar(st).animation(.snappy(duration: 0.2), value: selection) }
         .overlay { if verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
@@ -134,6 +148,16 @@ struct ScriptureView: View {
                 Button { tagging = (selectionRanges(st), selectionLabel(st), "verses") } label: { Label("Tag", systemImage: "tag") }.help("Tag these verses")
                 Button { if let v = selectedRows.first { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } } label: { Label("Note", systemImage: "square.and.pencil") }.help("New note on \(selectionLabel(st))")
                 Button { openInspector("crossrefs") } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }.help("Cross references")
+                #if os(iOS)
+                if selectedRows.count == 1, let verse = selectedRows.first {
+                    Menu {
+                        verseActions(verse, st)
+                    } label: {
+                        Label("More Verse Actions", systemImage: "ellipsis")
+                    }
+                    .fixedSize()
+                }
+                #endif
                 Divider().frame(height: 18)
                 Button { selection = []; anchor = nil; selectedVerse = nil } label: { Label("Clear Selection", systemImage: "xmark") }
                     .keyboardShortcut(.cancelAction).help("Clear selection (Esc)")
@@ -153,65 +177,67 @@ struct ScriptureView: View {
         }
     }
 
-    /// iPhone reader: one row per verse (tap a verse number for its actions).
-    func rowsScroll(_ st: BibleState) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
-                if let note = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation) {
-                    Text(note).font(.callout).foregroundStyle(.secondary).padding(.bottom, 6)
+    #if os(iOS)
+    func iosReader(_ st: BibleState) -> some View {
+        let rv = readerVerses(st)
+        return IOSChapterTextView(
+            passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
+            header: ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation),
+            chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) },
+            verses: rv,
+            style: readerStyle(st),
+            selectedVerses: selection,
+            scrollTarget: scrollTarget,
+            reference: { first, last in
+                let suffix = st.translation == "lxx" ? " LXX" : ""
+                let label = Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: first)
+                return label + (first == last ? "" : "-\(last)") + suffix
+            },
+            onStrongs: { showLexicon($0) },
+            onVerseClick: { verseClick($0, shift: false) },
+            onVerseActions: { n in
+                if let row = verses.first(where: { $0.verseNum == n }) {
+                    tappedVerse = TappedVerse(row: row)
                 }
-                if !chapterTags.isEmpty {
-                    FlowChips(tags: chapterTags) { t in removeMenu(t, bookId: st.bookId, chapter: st.chapter, verse: nil) }
-                        .padding(.horizontal, 8).padding(.bottom, 4)
-                        .accessibilityLabel("Chapter tags")
+            },
+            onTagClick: { name, verse in
+                let tags = verse.map { verseTags[$0] ?? [] } ?? chapterTags
+                if let tag = tags.first(where: { $0.name == name }) {
+                    tappedTag = TappedTag(tag: tag, verse: verse)
                 }
-                ForEach(verses, id: \.verseNum) { v in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Button { verseClick(v.verseNum, shift: false) } label: {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(v.verseNum)").font(.system(.caption, design: .rounded).weight(.semibold))
-                                    .foregroundStyle(selection.contains(v.verseNum) ? Color.accentColor : .secondary)
-                                if let n = noteCounts[v.verseNum] {
-                                    Text(n > 1 ? "●\(n)" : "●").font(.system(size: 8)).foregroundStyle(.tint)
-                                }
-                            }
-                            .frame(minWidth: 28, minHeight: 28, alignment: .topTrailing)
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Verse \(v.verseNum)\(selection.contains(v.verseNum) ? ", selected" : "")")
-                        .accessibilityHint("Tap to select. Touch and hold the verse for highlight, tag, note and more.")
-                        VStack(alignment: .leading, spacing: 2) {
-                            VerseRowView(row: v, textId: st.translation, showStrongs: st.showStrongs, highlights: (highlights[v.verseNum] ?? []).filter { $0.startChar != nil },
-                                         fontSize: app.fontSize, lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
-                            if let tags = verseTags[v.verseNum], !tags.isEmpty {
-                                FlowChips(tags: tags) { t in removeMenu(t, bookId: v.bookId, chapter: v.chapter, verse: v.verseNum) }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.vertical, 3).padding(.horizontal, 8)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(rowTint(v.verseNum)))
-                    .id(v.verseNum)
-                    .contextMenu { verseActions(v, st) }
+            },
+            onHighlight: { piece, color in highlightRange(piece.verse, piece.start, piece.end, color, st, rv) },
+            onStep: { step($0) }
+        )
+        .sheet(item: $tappedVerse, onDismiss: {
+            let action = afterVerseSheet
+            afterVerseSheet = nil
+            action?()
+        }) { item in
+            NavigationStack {
+                List {
+                    verseActions(item.row, st, perform: { action in
+                        afterVerseSheet = action
+                        tappedVerse = nil
+                    })
                 }
+                    .navigationTitle(Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: item.row.verseNum))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } } }
             }
-            .frame(maxWidth: 760)
-            .padding(.horizontal, 24).padding(.vertical, 16)
-            .frame(maxWidth: .infinity)
+            .presentationDetents([.medium, .large])
         }
-        // iPhone: swipe left / right for the next / previous chapter (the original reader's pager). Mostly-horizontal
-        // drags only, so vertical scrolling and the system back-swipe from the very edge are unaffected.
-        .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { g in
-            let dx = g.translation.width, dy = g.translation.height
-            guard abs(dx) > 90, abs(dx) > abs(dy) * 2.2, g.startLocation.x > 24 else { return }
-            step(dx < 0 ? 1 : -1)
-        })
-        .environment(\.openURL, OpenURLAction { url in
-            if url.scheme == "strongs" { showLexicon(url.absoluteString.replacingOccurrences(of: "strongs:", with: "")); return .handled }
-            return .systemAction
-        })
+        .sheet(item: $tappedTag) { item in
+            NavigationStack {
+                List { removeMenu(item.tag, bookId: st.bookId, chapter: st.chapter, verse: item.verse) }
+                    .navigationTitle("#\(item.tag.name)")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedTag = nil } } }
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
+    #endif
 
     @ToolbarContentBuilder
     func toolbar(_ st: BibleState) -> some ToolbarContent {
@@ -254,13 +280,6 @@ struct ScriptureView: View {
         }, compact: compact)
     }
 
-    /// Selection tint, else the colour of a whole-verse highlight (word-range highlights tint the row too, faintly).
-    func rowTint(_ verse: Int) -> Color {
-        if selection.contains(verse) { return Color.accentColor.opacity(0.16) }
-        if let h = highlights[verse]?.last(where: { $0.startChar == nil }) { return Color.highlight(h.color).opacity(h.startWord == nil ? 0.28 : 0.12) }
-        return .clear
-    }
-
     func mutate(_ f: (inout BibleState) -> Void) {
         var visited: BibleState?
         app.update(tabId) { t in
@@ -292,28 +311,33 @@ struct ScriptureView: View {
     }
 
     /// The verse actions (the existing app's verse action popover): verse-number menu and row context menu.
-    @ViewBuilder func verseActions(_ v: ChapterVerseRow, _ st: BibleState) -> some View {
-        Button("Copy Verse") { copy(v, st) }
-        Button("Copy Reference") { Clipboard.copy(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum) + (st.translation == "lxx" ? " LXX" : "")) }
+    @ViewBuilder func verseActions(_ v: ChapterVerseRow, _ st: BibleState,
+                                    perform: @escaping (@escaping () -> Void) -> Void = { $0() }) -> some View {
+        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum)
+        Button("Copy Verse") { perform { copy(v, st) } }
+        Button("Copy Reference") { perform { Clipboard.copy(label + (st.translation == "lxx" ? " LXX" : "")) } }
         Menu("Highlight") {
             ForEach(highlightColors, id: \.self) { c in
-                Button { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } label: { Label(c.capitalized, systemImage: "circle.fill") }
+                Button { perform { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } } label: { Label(c.capitalized, systemImage: "circle.fill") }
             }
             Divider()
-            Button("Remove Highlights") { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) }
+            Button("Remove Highlights") { perform { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
         }
         Button("Tag Verse…") {
-            tagging = ([TagRange(bookId: v.bookId, chapter: Double(v.chapter), spans: [(Double(v.verseNum), Double(v.verseNum))])],
-                       Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum), "verses")
+            perform {
+                tagging = ([TagRange(bookId: v.bookId, chapter: Double(v.chapter), spans: [(Double(v.verseNum), Double(v.verseNum))])], label, "verses")
+            }
         }
         Button("Tag Chapter…") {
-            tagging = ([TagRange(bookId: v.bookId, chapter: Double(v.chapter), whole: true)], Reference.bookChapterLabel(v.bookId, chapter: Double(v.chapter)), "chapter")
+            perform {
+                tagging = ([TagRange(bookId: v.bookId, chapter: Double(v.chapter), whole: true)], Reference.bookChapterLabel(v.bookId, chapter: Double(v.chapter)), "chapter")
+            }
         }
-        Button("Add Note") { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) }
-        Button("Verse Notes") { selectedVerse = v.verseNum; openInspector("notes") }
-        Button("Cross References") { selectedVerse = v.verseNum; openInspector("crossrefs") }
-        Button("Compare This Verse") { mutate { $0.verse = v.verseNum; $0.compareMode = true } }
-        Button("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) }
+        Button("Add Note") { perform { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } }
+        Button("Verse Notes") { perform { selectedVerse = v.verseNum; openInspector("notes") } }
+        Button("Cross References") { perform { selectedVerse = v.verseNum; openInspector("crossrefs") } }
+        Button("Compare This Verse") { perform { mutate { $0.verse = v.verseNum; $0.compareMode = true } } }
+        Button("Open in New Tab") { perform { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
     }
 
     /// A chip's menu: remove the tag group(s) that cover this verse (or chapter).
@@ -448,14 +472,10 @@ enum Clipboard {
     }
 }
 
-#if os(macOS)
-import AppKit
-
 extension ScriptureView {
-    /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
-    func macReader(_ st: BibleState) -> some View {
+    func readerVerses(_ st: BibleState) -> [ReaderVerse] {
         let rules = app.wordReplacerEnabled ? WordReplacer.defaultRules : []
-        let rv: [ReaderVerse] = verses.map { v in
+        return verses.map { v in
             var words: [ReaderVerse.Word]
             if let tagged = v.textTagged, !tagged.isEmpty, st.translation == "kjva" || st.translation == "lxx" {
                 words = VerseDisplay.renderTokens(v.text, tagged: tagged, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules).map { t in
@@ -476,21 +496,11 @@ extension ScriptureView {
             return ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
         }
-        let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
-        let suffix = st.translation == "lxx" ? " LXX" : ""
-        return ChapterTextView(
-            passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
-            header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
-            style: ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily, showStrongs: st.showStrongs,
-                               showVerseNumbers: showVerseNumbers, redLetters: showRedLetters),
-            selectedVerses: selection, scrollTarget: scrollTarget,
-            reference: { Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: $0) + suffix },
-            rangeReference: { a, b in "\(Reference.bookName(st.bookId)) \(Reference.displayChapterString(st.bookId, st.chapter)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
-            verseMenu: { verseNSMenu($0, st) },
-            tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
-            onStrongs: { showLexicon($0) },
-            onVerseClick: { v, shift in verseClick(v, shift: shift) },
-            onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) })
+    }
+
+    func readerStyle(_ st: BibleState) -> ReaderStyle {
+        ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily,
+                    showStrongs: st.showStrongs, showVerseNumbers: showVerseNumbers, redLetters: showRedLetters)
     }
 
     /// Partial highlight: shown-word offsets → offsets into the stored verse text (OffsetMap), saved as a character highlight.
@@ -499,6 +509,31 @@ extension ScriptureView {
         let o = OffsetMap.displayToOriginal(display: shown, original: row.text, offsets: [a, b])
         guard o.count == 2, o[1] > o[0] else { return }
         _ = try? app.highlights?.toggle(bookId: row.bookId, chapter: row.chapter, verse: verse, color: color, textId: st.translation, startChar: o[0], endChar: o[1])
+    }
+
+}
+
+#if os(macOS)
+import AppKit
+
+extension ScriptureView {
+    /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
+    func macReader(_ st: BibleState) -> some View {
+        let rv = readerVerses(st)
+        let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
+        let suffix = st.translation == "lxx" ? " LXX" : ""
+        return ChapterTextView(
+            passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
+            header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
+            style: readerStyle(st),
+            selectedVerses: selection, scrollTarget: scrollTarget,
+            reference: { Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: $0) + suffix },
+            rangeReference: { a, b in "\(Reference.bookName(st.bookId)) \(Reference.displayChapterString(st.bookId, st.chapter)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
+            verseMenu: { verseNSMenu($0, st) },
+            tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
+            onStrongs: { showLexicon($0) },
+            onVerseClick: { v, shift in verseClick(v, shift: shift) },
+            onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) })
     }
 
     func verseNSMenu(_ n: Int, _ st: BibleState) -> NSMenu {
