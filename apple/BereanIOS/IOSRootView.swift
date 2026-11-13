@@ -235,8 +235,8 @@ struct TabCardsSheet: View {
             HStack {
                 Image(systemName: tab.symbol).foregroundStyle(tab.tint).frame(width: 24)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(tab.title.isEmpty ? "Untitled" : tab.title).foregroundStyle(.primary)
-                    Text(tab.spaceId.title).font(.caption).foregroundStyle(.secondary)
+                    Text(tab.navigationLabel).foregroundStyle(.primary)
+                    Text(tab.navigationDetail).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if tab.isPinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(.secondary) }
@@ -280,8 +280,8 @@ private struct WorkspaceTabResults: View {
                     } label: {
                         Label {
                             VStack(alignment: .leading) {
-                                Text(match.tab.title.isEmpty ? "Untitled" : match.tab.title)
-                                Text(match.workspaceName + " · " + match.tab.spaceId.title)
+                                Text(match.tab.navigationLabel)
+                                Text(match.workspaceName + " · " + match.tab.navigationDetail)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

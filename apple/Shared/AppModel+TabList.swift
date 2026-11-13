@@ -25,11 +25,10 @@ extension AppModel {
     }
 
     func matchingOpenTabs(_ query: String, space: SpaceId? = nil) -> [BereanWorkspace.Tab] {
-        let terms = query.split(whereSeparator: \.isWhitespace)
+        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         return orderedTabs.filter { tab in
             guard space == nil || tab.spaceId == space else { return false }
-            let title = tab.title.isEmpty ? "Untitled" : tab.title
-            let searchableText = "\(title) \(tab.spaceId.title)"
+            let searchableText = tab.navigationSearchText
             return terms.allSatisfy { searchableText.localizedStandardContains(String($0)) }
         }
     }
@@ -53,14 +52,13 @@ extension AppModel {
     }
 
     func matchingWorkspaceTabs(_ query: String) -> [WorkspaceTabMatch] {
-        let terms = query.split(whereSeparator: \.isWhitespace)
+        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         guard !terms.isEmpty else { return [] }
         return sessions.flatMap { workspace in
             let tabsByID = Dictionary(uniqueKeysWithValues: workspace.allTabs.map { ($0.id, $0) })
             return displayOrder(for: workspace.id).compactMap { id -> WorkspaceTabMatch? in
                 guard let tab = tabsByID[id] else { return nil }
-                let title = tab.title.isEmpty ? "Untitled" : tab.title
-                let searchable = "\(title) \(tab.spaceId.title) \(workspace.name)"
+                let searchable = "\(tab.navigationSearchText) \(workspace.name)"
                 guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { return nil }
                 return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: workspace.name, tab: tab)
             }

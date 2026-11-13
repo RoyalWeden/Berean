@@ -161,8 +161,8 @@ struct BereanSidebar: View {
                         HStack(spacing: 10) {
                             Image(systemName: match.tab.symbol).foregroundStyle(match.tab.tint)
                             VStack(alignment: .leading) {
-                                Text(match.tab.title.isEmpty ? "Untitled" : match.tab.title)
-                                Text(match.workspaceName + " · " + match.tab.spaceId.title)
+                                Text(match.tab.navigationLabel)
+                                Text(match.workspaceName + " · " + match.tab.navigationDetail)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
