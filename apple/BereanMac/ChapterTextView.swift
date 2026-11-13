@@ -31,7 +31,12 @@ struct ChapterTextView: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
-        let tv = ReaderTextView(usingTextLayoutManager: false)
+        let storage = NSTextStorage()
+        let layout = NSLayoutManager()
+        let container = NSTextContainer()
+        storage.addLayoutManager(layout)
+        layout.addTextContainer(container)
+        let tv = ReaderTextView(frame: .zero, textContainer: container)
         tv.isEditable = false
         tv.isSelectable = true
         tv.drawsBackground = false
@@ -54,12 +59,14 @@ struct ChapterTextView: NSViewRepresentable {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
+        scroll.contentInsets.bottom = selectedVerses.isEmpty ? 0 : 48
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses, tooltips: strongsTooltips)
         if key != c.lastKey {
             let keepScroll = c.lastPassage == passageId
             let origin = scroll.contentView.bounds.origin
             let sel = tv.selectedRanges
             tv.textStorage?.setAttributedString(c.build(self))
+            tv.needsDisplay = true
             if keepScroll {
                 // Restore the selection only where it still fits; AppKit throws on an empty selection array.
                 let kept = sel.filter { $0.rangeValue.upperBound <= tv.string.utf16.count }
@@ -321,6 +328,28 @@ final class ReaderTextView: NSTextView {
     }
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let c = coordinator, let layout = layoutManager, let container = textContainer else { return }
+        let origin = textContainerOrigin
+        for range in selectedVerseRanges(c.parent.selectedVerses, in: c.verseRanges) where range.length > 1 {
+            let text = NSRange(location: range.location, length: range.length - 1)
+            let glyphs = layout.glyphRange(forCharacterRange: text, actualCharacterRange: nil)
+            guard glyphs.length > 0 else { continue }
+            let first = layout.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+            let last = layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+            let rect = NSRect(x: origin.x, y: first.minY + origin.y - 3,
+                              width: container.containerSize.width,
+                              height: last.maxY - first.minY + 6)
+            guard dirtyRect.intersects(rect) else { continue }
+            let path = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+            path.lineWidth = 1
+            path.setLineDash([4, 3], count: 2, phase: 0)
+            NSColor.controlAccentColor.withAlphaComponent(0.7).setStroke()
+            path.stroke()
+        }
+    }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)

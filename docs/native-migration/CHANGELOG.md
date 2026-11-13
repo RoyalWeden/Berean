@@ -502,3 +502,9 @@
 - Added a read-only preview that renders Markdown tables and code in current notes and version history.
 - Ported legacy deep-link parsing to Swift, with 37 fixtures. Registration and routing remain open.
 - Both Dev builds and Swift conformance passed. The iPhone Simulator clipboard verified exact nonconsecutive verse copy.
+
+### 2026-11-13 — Dashed verse range outlines
+- Draw one rounded dashed outline around each consecutive selection in the native readers.
+- Float verse actions over the reader with extra scroll clearance for the chapter ending.
+- Add pointing-device cues to Mac sidebar controls and the native verse action row.
+- Both Dev builds passed. Verified grouped and separated ranges and end scrolling on the iPhone Simulator. Verified the Mac outline and adjacent selection.

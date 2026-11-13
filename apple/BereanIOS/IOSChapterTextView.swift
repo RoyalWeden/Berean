@@ -30,7 +30,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextView {
-        let view = ReaderTextView(usingTextLayoutManager: true)
+        let view = ReaderTextView(frame: .zero, textContainer: nil)
         view.reader = context.coordinator
         view.isEditable = false
         view.isSelectable = true
@@ -66,12 +66,17 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
                       verses: verses, style: style, selected: selectedVerses, dark: colorScheme == .dark)
+        view.contentInset.bottom = selectedVerses.isEmpty ? 0 : 118
         let samePassage = coordinator.passageId == passageId
         if key != coordinator.key || !samePassage {
             let offset = view.contentOffset
             let selection = view.selectedRange
             let oldText = view.text
             view.attributedText = coordinator.render(key.dark)
+            view.setNeedsLayout()
+            DispatchQueue.main.async { [weak view] in
+                (view as? ReaderTextView)?.updateVerseOutline()
+            }
             if samePassage {
                 if view.text == oldText, NSMaxRange(selection) <= view.textStorage.length {
                     view.selectedRange = selection
@@ -120,6 +125,46 @@ struct IOSChapterTextView: UIViewRepresentable {
     final class ReaderTextView: UITextView {
         weak var reader: Coordinator?
 
+        private let verseOutline = CAShapeLayer()
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            updateVerseOutline()
+        }
+
+        func updateVerseOutline() {
+            guard let reader else { return }
+            if verseOutline.superlayer == nil {
+                verseOutline.fillColor = nil
+                verseOutline.lineWidth = 1
+                verseOutline.zPosition = 100
+                verseOutline.lineDashPattern = [4, 3]
+                layer.addSublayer(verseOutline)
+            }
+            let path = UIBezierPath()
+            for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.bodyRanges) where range.length > 0 {
+                func characterRect(at offset: Int) -> CGRect? {
+                    guard let start = position(from: beginningOfDocument, offset: offset),
+                          let end = position(from: start, offset: 1),
+                          let range = textRange(from: start, to: end) else { return nil }
+                    return firstRect(for: range)
+                }
+                guard let first = characterRect(at: range.location),
+                      let last = characterRect(at: NSMaxRange(range) - 1) else { continue }
+                let rect = CGRect(x: textContainerInset.left - 4, y: first.minY - 3,
+                                  width: bounds.width - textContainerInset.left - textContainerInset.right + 8,
+                                  height: last.maxY - first.minY + 6)
+                guard !rect.isEmpty, rect.height.isFinite, rect.minY.isFinite else { continue }
+                path.append(UIBezierPath(roundedRect: rect, cornerRadius: 9))
+            }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            verseOutline.frame = CGRect(origin: .zero, size: CGSize(width: bounds.width, height: max(bounds.height, contentSize.height)))
+            verseOutline.strokeColor = UIColor.tintColor.withAlphaComponent(0.7).cgColor
+            verseOutline.path = path.cgPath
+            CATransaction.commit()
+        }
+
         override func copy(_ sender: Any?) {
             if let copy = reader?.plainSelection(in: self) {
                 Clipboard.copy(copy)
@@ -136,7 +181,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         var passageId: String?
         var lastTarget: Int?
         var verseRanges: [Int: NSRange] = [:]
-        private var bodyRanges: [Int: NSRange] = [:]
+        fileprivate var bodyRanges: [Int: NSRange] = [:]
 
         init(_ parent: IOSChapterTextView) { self.parent = parent }
 

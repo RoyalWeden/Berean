@@ -335,6 +335,7 @@ struct SidebarRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.10 : hovering ? 0.06 : 0)))
+            .pointerStyle(.link)
             .onHover { hovering = $0 }
     }
 }
@@ -345,6 +346,7 @@ struct SidebarCloseButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(.secondary)
             .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovering ? 0.09 : 0)))
+            .pointerStyle(.link)
             .onHover { hovering = $0 }
     }
 }

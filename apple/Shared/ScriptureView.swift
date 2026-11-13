@@ -103,15 +103,16 @@ struct ScriptureView: View {
             selection = st.verse.map { [$0] } ?? []; anchor = st.verse
             scrollTarget = st.verse
         }
-        #if os(macOS)
-        .safeAreaInset(edge: .bottom, spacing: 0) { selectionBar(st) }
-        #else
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !selection.isEmpty {
-                selectionBar(st).padding(.bottom, 58)
-            }
+            Color.clear.frame(height: 0)
+                .overlay(alignment: .bottom) {
+                    #if os(iOS)
+                    selectionBar(st).padding(.bottom, 58)
+                    #else
+                    selectionBar(st)
+                    #endif
+                }
         }
-        #endif
         .overlay { if verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
     }
 
@@ -206,7 +207,7 @@ struct ScriptureView: View {
             .padding(.vertical, 3)
             .glassEffectCompat()
             .padding(.horizontal, 8)
-            .padding(.bottom, 6)
+            .padding(.bottom, 8)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Selected \(selectionLabel(st))")
         }
@@ -751,6 +752,28 @@ private struct VerseActionButtonStyle: ButtonStyle {
             .frame(width: 44, height: 44)
             #endif
             .contentShape(.rect)
+            #if os(macOS)
+            .pointerStyle(.link)
+            #else
+            .hoverEffect(.highlight)
+            #endif
             .opacity(configuration.isPressed ? 0.55 : 1)
     }
+}
+
+
+// Group consecutive verse numbers so a continuous selection draws a single outline.
+func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [NSRange] {
+    var runs: [NSRange] = []
+    var previous: Int?
+    for verse in selection.sorted() {
+        guard let range = ranges[verse] else { continue }
+        if previous == verse - 1, let last = runs.popLast() {
+            runs.append(NSUnionRange(last, range))
+        } else {
+            runs.append(range)
+        }
+        previous = verse
+    }
+    return runs
 }
