@@ -188,7 +188,7 @@ struct TabCardsSheet: View {
                         Button { showTabCleanup = true } label: { Label("Archive Inactive Tabs…", systemImage: "archivebox") }
                     }
                     if !app.archivedGroups.isEmpty {
-                        NavigationLink { ArchivedTabsPage() } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
+                        NavigationLink { ArchivedTabsPage(onOpen: { dismiss() }) } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
                 }
                 let otherMatches = app.matchingWorkspaceTabs(query).filter {
@@ -350,23 +350,49 @@ struct SessionsPage: View {
     }
 }
 
-/// Archived tab groups: tap to restore into this session, swipe to remove.
+/// Browse archived tabs and restore a group or an individual tab.
 struct ArchivedTabsPage: View {
     @Environment(AppModel.self) private var app
+    let onOpen: () -> Void
+    @State private var query = ""
+
     var body: some View {
         List {
-            ForEach(app.archivedGroups) { g in
-                Button { app.restoreArchived(g.id) } label: {
-                    VStack(alignment: .leading) {
-                        Text(g.label.isEmpty ? "Archived tabs" : g.label).foregroundStyle(.primary)
-                        Text("\(app.archivedTabs(g).count) tab(s) · \(Date(timeIntervalSince1970: Double(g.archivedAt) / 1000).formatted(date: .abbreviated, time: .shortened))")
-                            .font(.caption).foregroundStyle(.secondary)
+            ForEach(app.archivedGroups) { group in
+                let tabs = app.archivedTabs(group)
+                let matches = tabs.filter { tab in
+                    query.split(whereSeparator: \.isWhitespace).allSatisfy {
+                        "\(tab.title) \(tab.spaceId.title)".localizedStandardContains(String($0))
                     }
                 }
-                .swipeActions { Button("Remove", role: .destructive) { app.dismissArchived(g.id) } }
+                if !matches.isEmpty || (tabs.isEmpty && query.isEmpty) {
+                    Section(group.label.isEmpty ? "Archived tabs" : group.label) {
+                        ForEach(matches) { tab in
+                            Button {
+                                app.restoreArchivedTab(tab.id, from: group.id)
+                                onOpen()
+                            } label: {
+                                Label(tab.title.isEmpty ? "Untitled" : tab.title, systemImage: tab.symbol)
+                            }
+                        }
+                        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Menu("Group Actions", systemImage: "ellipsis.circle") {
+                                if tabs.count > 1 {
+                                    Button("Restore All \(tabs.count) Tabs", systemImage: "archivebox") {
+                                        app.restoreArchived(group.id)
+                                    }
+                                }
+                                Button("Remove from Archive", systemImage: "trash", role: .destructive) {
+                                    app.dismissArchived(group.id)
+                                }
+                            }
+                        }
+                    }
+                }
             }
             if app.archivedGroups.isEmpty { Text("No archived tabs.").foregroundStyle(.secondary) }
         }
         .navigationTitle("Archived Tabs")
+        .searchable(text: $query, prompt: "Search archived tabs")
     }
 }

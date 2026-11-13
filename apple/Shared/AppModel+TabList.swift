@@ -140,6 +140,33 @@ extension AppModel {
         scheduleSave()
     }
 
+    /// Restore one archived tab while retaining the original records for the rest of the group.
+    func restoreArchivedTab(_ tabID: String, from groupID: String) {
+        guard let index = archivedGroups.firstIndex(where: { $0.id == groupID }),
+              var records = (try? JSON.parse(archivedGroups[index].tabsJSON))?.arrayValue,
+              let recordIndex = records.firstIndex(where: { $0["id"]?.stringValue?.string == tabID }),
+              let record = records[recordIndex].objectValue,
+              let tab = BereanWorkspace.Tab(jsObject: record) else { return }
+
+        if let workspace = sessions.first(where: { $0.allTabs.contains(where: { $0.id == tabID }) }) {
+            switchSession(workspace.id)
+        } else {
+            sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
+            insertInDisplayOrder(tab.id, after: nil)
+            records.remove(at: recordIndex)
+            if records.isEmpty {
+                archivedGroups.remove(at: index)
+            } else {
+                archivedGroups[index].tabsJSON = JSON.stringifyString(.array(records))
+                let remaining = archivedTabs(archivedGroups[index])
+                if let first = remaining.first {
+                    archivedGroups[index].label = remaining.count == 1 ? first.title : "\(first.title) and \(remaining.count - 1) more"
+                }
+            }
+        }
+        select(tab.id, in: tab.spaceId)
+    }
+
     func dismissArchived(_ groupId: String) { archivedGroups.removeAll { $0.id == groupId }; scheduleSave() }
 
     /// The saved workspace whose session is open (`ws:<id>`), if any.

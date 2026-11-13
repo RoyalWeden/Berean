@@ -317,7 +317,14 @@ struct BereanSidebar: View {
                     .buttonStyle(SidebarRowButtonStyle())
                     .help("Restore \(app.archivedTabs(g).count) tab(s)")
                     .contextMenu {
-                        Button("Restore") { app.restoreArchived(g.id) }
+                        Button("Restore All") { app.restoreArchived(g.id) }
+                        Menu("Restore One Tab") {
+                            ForEach(app.archivedTabs(g)) { tab in
+                                Button(tab.title.isEmpty ? "Untitled" : tab.title, systemImage: tab.symbol) {
+                                    app.restoreArchivedTab(tab.id, from: g.id)
+                                }
+                            }
+                        }
                         Button("Remove from Archive", role: .destructive) { app.dismissArchived(g.id) }
                     }
                 }
