@@ -67,6 +67,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
                       verses: verses, style: style, selected: selectedVerses, dark: colorScheme == .dark)
         let samePassage = coordinator.passageId == passageId
+        let revealVerse = samePassage && coordinator.key?.selected.isEmpty == true
+            ? selectedVerses.max() : nil
         let clearance = selectedVerses.isEmpty ? ReaderFloatingControls.dockOffset : ReaderFloatingControls.scrollClearance
         let previousOffset = view.contentOffset
         let previousInset = view.adjustedContentInset
@@ -101,6 +103,19 @@ struct IOSChapterTextView: UIViewRepresentable {
             let inset = view.adjustedContentInset
             let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
             view.setContentOffset(CGPoint(x: previousOffset.x, y: bottom), animated: false)
+        }
+        if !keepChapterEndVisible, let revealVerse, let range = coordinator.bodyRanges[revealVerse],
+           range.length > 0,
+           let position = view.position(from: view.beginningOfDocument, offset: NSMaxRange(range) - 1) {
+            view.layoutIfNeeded()
+            let inset = view.adjustedContentInset
+            let visibleBottom = view.bounds.maxY - inset.bottom
+            let overlap = view.caretRect(for: position).maxY + ReaderFloatingControls.readingGap - visibleBottom
+            if overlap > 0 {
+                let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+                let y = min(view.contentOffset.y + overlap, bottom)
+                view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
+            }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
         if let target = scrollTarget, target != coordinator.lastTarget, let range = coordinator.verseRanges[target] {
