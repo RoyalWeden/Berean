@@ -69,7 +69,7 @@ final class AppModel {
     var sessions: [Session] = []
     var currentSessionId = ""
     var activeSpace: SpaceId = .scripture
-    var recentTabIDs: [String] = []
+    private(set) var recentTabIDs = Array((UserDefaults.standard.stringArray(forKey: "nativeRecentTabIDs") ?? []).prefix(20))
     var displayOrders: [String: [String]] = [:]
     var archivedGroups: [ArchivedGroup] = []
     var books: [String: [BookRow]] = [:]
@@ -231,14 +231,18 @@ final class AppModel {
     var session: Session { sessions.isEmpty ? Session(id: "", name: "") : sessions[sessionIndex] }
 
     func switchSession(_ id: String) {
-        guard id != currentSessionId else { return }
+        guard id != currentSessionId, let destination = sessions.first(where: { $0.id == id }) else { return }
         rememberActiveTab()
         currentSessionId = id
+        if activeTab == nil, let tab = destination.allTabs.first {
+            select(tab.id, in: tab.spaceId, rememberPrevious: false)
+            return
+        }
         scheduleSave()
     }
     func newSession(named name: String = "New Session") {
         let s = Session(id: Self.newId(), name: name)
-        sessions.append(s); currentSessionId = s.id
+        sessions.append(s); switchSession(s.id)
         openTab(.bible, in: .scripture, title: "Genesis 1", state: BibleState(bookId: "GEN", chapter: 1).object)
     }
     func renameSession(_ id: String, to name: String) {
@@ -350,9 +354,7 @@ final class AppModel {
         }
         sessions.append(Session(id: sid, name: ws.name, icon: parsed.icon, tabs: tabs, activeTabId: active))
         displayOrders[sid] = parsed.displayOrder.map { idMap[$0] ?? $0 }
-        currentSessionId = sid
-        if let sp = WorkspaceSnapshot.spaces.first(where: { !(tabs[$0] ?? []).isEmpty }), tabs[activeSpace]?.isEmpty ?? true { activeSpace = sp }
-        scheduleSave()
+        switchSession(sid)
     }
 
     func renameWorkspace(_ id: String, to name: String) {
@@ -374,6 +376,7 @@ final class AppModel {
         recentTabIDs.removeAll { $0 == id }
         recentTabIDs.insert(id, at: 0)
         if recentTabIDs.count > 20 { recentTabIDs.removeLast() }
+        UserDefaults.standard.set(recentTabIDs, forKey: "nativeRecentTabIDs")
     }
 
     func select(_ tabId: String, in space: SpaceId, rememberPrevious: Bool = true) {
