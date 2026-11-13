@@ -12,6 +12,7 @@ struct CompareView: View {
     let tabId: String
     @State private var rows: [Int: [String: ChapterVerseRow]] = [:]
     @State private var loadedPassage: String?
+    @State private var localVerseSelection: Int?
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
@@ -40,7 +41,11 @@ struct CompareView: View {
                 if loadedPassage == passage, let verse = st.verse { proxy.scrollTo(verse, anchor: .top) }
             }
             .onChange(of: st.verse) {
-                if loadedPassage == passage, let verse = st.verse { proxy.scrollTo(verse, anchor: .top) }
+                let selectedHere = localVerseSelection != nil && localVerseSelection == st.verse
+                localVerseSelection = nil
+                if !selectedHere, loadedPassage == passage, let verse = st.verse {
+                    proxy.scrollTo(verse, anchor: .top)
+                }
             }
         }
         .environment(\.openURL, OpenURLAction { url in
@@ -133,12 +138,20 @@ struct CompareView: View {
         }
     }
 
+    private var controlSize: CGFloat {
+        #if os(iOS)
+        44
+        #else
+        32
+        #endif
+    }
+
     private func closeTranslation(_ text: String, columns: [String]) -> some View {
         Button { setColumns(columns.filter { $0 != text }) } label: {
             Label("Close \(textInfo(text).name)", systemImage: "xmark.circle")
                 .labelStyle(.iconOnly)
                 .foregroundStyle(.secondary)
-                .frame(minWidth: 32, minHeight: 32)
+                .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
@@ -147,6 +160,7 @@ struct CompareView: View {
 
     private func verseButton(_ verse: Int, state: BibleState) -> some View {
         Button {
+            if state.verse != verse { localVerseSelection = verse }
             app.update(tabId, recordHistory: false) { tab in
                 var target = BibleState(tab.state)
                 target.verse = verse
@@ -157,7 +171,7 @@ struct CompareView: View {
             Text("\(verse)")
                 .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundStyle(isSelected(verse, state) ? Color.accentColor : Color.secondary)
-                .frame(minWidth: 32, minHeight: 32)
+                .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
