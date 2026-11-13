@@ -59,7 +59,7 @@ struct StudyPanel: View {
             case .lexicon:
                 if let id = st.rightPanelLexiconEntry { LexiconEntryView(strongsId: id, compact: true) }
                 else { ContentUnavailableView("No word selected", systemImage: "character.book.closed", description: Text("Click a Strong's number.")) }
-            case .crossrefs: CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: st.verse, textId: st.translation)
+            case .crossrefs: CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.crossReferenceVerse(in: tabId, state: st), textId: st.translation)
             }
         }
         .frame(minWidth: 220, minHeight: 160)

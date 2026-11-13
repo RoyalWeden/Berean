@@ -92,6 +92,7 @@ struct CrossRefsView: View {
     @Environment(AppModel.self) private var app
     let bookId: String, chapter: Int, verse: Int?, textId: String
     @AppStorage("crossrefSource") private var source = "tske"
+    @State private var loadedReference: String?
     @State private var classic: [CrossRef] = []
     @State private var tske: [TskeGroup] = []
 
@@ -100,33 +101,59 @@ struct CrossRefsView: View {
             Picker("Source", selection: $source) { Text("TSKe").tag("tske"); Text("Classic").tag("classic") }
                 .pickerStyle(.segmented).padding(8)
             if let verse {
-                List {
-                    if source == "classic" {
-                        ForEach(Array(classic.enumerated()), id: \.offset) { _, r in refRow(r.bookId, r.chapter, r.verse, r.endVerse, r.text, detail: r.votes > 0 ? "\(r.votes)" : nil) }
+                let reference = "\(bookId)|\(chapter)|\(verse)|\(textId)"
+                Text(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)))
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                Group {
+                    if loadedReference == reference {
+                        results
                     } else {
-                        ForEach(Array(tske.enumerated()), id: \.offset) { _, g in
-                            Section(g.isReciprocal ? "Reciprocal" : (g.heading ?? "")) {
-                                ForEach(Array(g.refs.enumerated()), id: \.offset) { _, r in refRow(r.bookId, r.chapter, r.verse, r.endVerse, r.text, detail: r.context) }
-                            }
+                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .task(id: reference) {
+                    async let classicResult = app.crossrefs.forVerse(bookId, chapter, verse, textId: textId)
+                    async let tskeResult = app.crossrefs.tskeForVerse(bookId, chapter, verse, textId: textId)
+                    let (newClassic, newTSKe) = await (classicResult, tskeResult)
+                    guard !Task.isCancelled else { return }
+                    classic = newClassic.refs
+                    tske = newTSKe.groups
+                    loadedReference = reference
+                }
+            } else {
+                ContentUnavailableView("Select a verse", systemImage: "hand.tap", description: Text("Select a verse to see its cross references."))
+            }
+        }
+    }
+
+    @ViewBuilder private var results: some View {
+        if (source == "classic" ? classic.isEmpty : tske.isEmpty) {
+            ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch")
+        } else {
+            List {
+                if source == "classic" {
+                    ForEach(Array(classic.enumerated()), id: \.offset) { _, r in refRow(r.bookId, r.chapter, r.verse, r.endVerse, r.text, detail: r.votes > 0 ? "\(r.votes)" : nil) }
+                } else {
+                    ForEach(Array(tske.enumerated()), id: \.offset) { _, g in
+                        Section(g.isReciprocal ? "Reciprocal" : (g.heading ?? "")) {
+                            ForEach(Array(g.refs.enumerated()), id: \.offset) { _, r in refRow(r.bookId, r.chapter, r.verse, r.endVerse, r.text, detail: r.context) }
                         }
                     }
                 }
-                .overlay { if (source == "classic" ? classic.isEmpty : tske.isEmpty) { ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch") } }
-                .task(id: "\(bookId)|\(chapter)|\(verse)|\(textId)") {
-                    classic = await app.crossrefs.forVerse(bookId, chapter, verse, textId: textId).refs
-                    tske = await app.crossrefs.tskeForVerse(bookId, chapter, verse, textId: textId).groups
-                }
-            } else {
-                ContentUnavailableView("Select a verse", systemImage: "hand.tap", description: Text("Click a verse to see its cross references."))
             }
         }
     }
 
     func refRow(_ b: String, _ c: Int, _ v: Int, _ end: Int?, _ text: String, detail: String?) -> some View {
-        Button { app.openScripture(bookId: b, chapter: c, verse: v, reuseTab: true) } label: {
+        Button {
+            app.openScripture(bookId: b, chapter: c, verse: v > 0 ? v : nil, endVerse: end, textId: "kjva", reuseTab: true)
+        } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
-                    Text(Reference.bookChapterVerseLabel(b, chapter: c, verse: v) + (end.map { "-\($0)" } ?? "")).font(.subheadline.weight(.semibold))
+                    Text(Reference.bookChapterVerseLabel(b, chapter: c, verse: v > 0 ? v : nil) + (end.map { "–\($0)" } ?? "")).font(.subheadline.weight(.semibold))
                     Spacer()
                     if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                 }

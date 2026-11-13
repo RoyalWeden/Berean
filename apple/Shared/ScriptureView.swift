@@ -191,6 +191,7 @@ struct ScriptureView: View {
         }
         let disjoint = destination.endVerse == nil && selection.count > 1 ? selection.sorted() : []
         writeLocalSelectionDestination(destination, disjoint: disjoint)
+        app.focusCrossReferences(selectedVerse, in: tabId)
     }
 
     private func writeLocalSelectionDestination(_ destination: SelectionDestination, disjoint: [Int] = []) {
@@ -356,7 +357,7 @@ struct ScriptureView: View {
             }
             .help("Add note")
             Button("Cross References", systemImage: "arrow.triangle.branch") {
-                openInspector("crossrefs", verse: state.verse ?? selection.min())
+                openInspector("crossrefs", verse: selectedVerse ?? selection.min())
             }
                 .help("Cross references")
             if let text = selectionText(st) {
@@ -380,7 +381,7 @@ struct ScriptureView: View {
                     if !selectedRows.isEmpty {
                         Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
                         Button("Cross References", systemImage: "arrow.triangle.branch") {
-                            openInspector("crossrefs", verse: state.verse ?? selection.min())
+                            openInspector("crossrefs", verse: selectedVerse ?? selection.min())
                         }
                     }
                 } label: {
@@ -419,7 +420,7 @@ struct ScriptureView: View {
         if !selectedRows.isEmpty {
             Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
             Button("Cross References", systemImage: "arrow.triangle.branch") {
-                openInspector("crossrefs", verse: state.verse ?? selection.min())
+                openInspector("crossrefs", verse: selectedVerse ?? selection.min())
             }
         }
         if let text = selectionText(st) {
@@ -712,7 +713,9 @@ struct ScriptureView: View {
         app.inspectStrongs(id, in: tabId, bookId: reader.bookId, chapter: reader.chapter)
     }
     func openInspector(_ tab: String, verse: Int? = nil) {
-        if let verse, verse != state.verse, !selection.contains(verse) {
+        if tab == "crossrefs" {
+            app.focusCrossReferences(verse, in: tabId)
+        } else if let verse, verse != state.verse, !selection.contains(verse) {
             writeLocalSelectionDestination(SelectionDestination(verse: verse, endVerse: nil))
         }
         mutate(recordHistory: false) {
