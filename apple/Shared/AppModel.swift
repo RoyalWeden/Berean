@@ -477,31 +477,51 @@ final class AppModel {
         return b
     }
 
-    /// The Cmd+T / Cmd+K command: a reference opens Scripture, a Strong's number the lexicon, anything else a search.
+    /// A reference opens Scripture, a Strong's number opens the lexicon, and words open search.
     func openQuery(_ q: String, newTab: Bool = true) {
         let query = q.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
-        if let p = resolvePassage(query, preferring: activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }) {
-            var st = BibleState(bookId: p.bookId, chapter: p.chapter)
-            st.verse = p.verse
-            st.translation = p.textId
-            let title = Reference.bookChapterLabel(p.bookId, chapter: Double(p.chapter))
-            if !newTab, let t = activeTab, t.tabType == .bible { update(t.id) { $0.state = st.merged(into: $0.state); $0.title = title } }
-            else { openTab(.bible, in: .scripture, title: title, state: st.object) }
-            recordRecent(textId: p.textId, bookId: p.bookId, chapter: p.chapter, verse: p.verse)
+        if let passage = resolvePassage(query, preferring: activeTab.flatMap({ $0.tabType == .bible ? BibleState($0.state).translation : nil })) {
+            openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
+                          textId: passage.textId, reuseTab: !newTab)
+            recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse)
         } else if let id = StrongsId.normalize(query) {
-            openLexicon(id)
+            if newTab { openLexicon(id) }
+            else {
+                recordHistory(type: "lexicon", title: id, strongsNum: id)
+                var state = JSObject()
+                state["strongsNum"] = .string(JSString(id))
+                openOrReuse(.lexicon, in: .lexicon, title: id, state: state)
+            }
+        } else if newTab {
+            var state = JSObject()
+            state["query"] = .string(JSString(query))
+            openTab(.search, in: .search, title: "Search: \(query)", state: state)
         } else {
-            var o = JSObject(); o["query"] = .string(JSString(query))
-            openTab(.search, in: .search, title: "Search: \(query)", state: o)
+            openSearch(query, reuseTab: true)
+        }
+    }
+
+    private func openOrReuse(_ type: TabType, in space: SpaceId, title: String, state: JSObject) {
+        let candidates = tabs(in: space).filter { $0.tabType == type && !$0.isPinned }
+        let currentId = activeTabId(in: space)
+        if let tab = candidates.first(where: { $0.id == currentId }) ?? candidates.first {
+            update(tab.id) { tab in
+                for field in state.entries { tab.state[field.key.string] = field.value }
+                tab.title = title
+            }
+            select(tab.id, in: space)
+        } else {
+            openTab(type, in: space, title: title, state: state)
         }
     }
 
     /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
-    func openSearch(_ query: String) {
+    func openSearch(_ query: String, reuseTab: Bool = false) {
         recordHistory(type: "search", title: "\"\(query)\"", query: query)
         var o = JSObject(); o["query"] = .string(JSString(query))
-        openTab(.search, in: .search, title: "Search: \(query)", state: o)
+        if reuseTab { openOrReuse(.search, in: .search, title: "Search: \(query)", state: o) }
+        else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
         SearchHistory.record(query)
     }
 
@@ -542,9 +562,20 @@ final class AppModel {
         } catch { libraryError = "Could not create the note: \(error)"; return nil }
     }
 
-    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String? = nil) {
+    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String? = nil, reuseTab: Bool = false) {
         var st = BibleState(bookId: bookId, chapter: chapter); st.verse = verse; st.translation = textId ?? defaultText
-        openTab(.bible, in: .scripture, title: Reference.bookChapterLabel(bookId, chapter: Double(chapter)), state: st.object)
+        let title = Reference.bookChapterLabel(bookId, chapter: Double(chapter))
+        if reuseTab {
+            var location = JSObject()
+            location["bookId"] = .string(JSString(bookId))
+            location["chapter"] = .number(Double(chapter))
+            location["translation"] = .string(JSString(st.translation))
+            location["verse"] = verse.map { .number(Double($0)) } ?? .null
+            location["endChapter"] = .null
+            openOrReuse(.bible, in: .scripture, title: title, state: location)
+        } else {
+            openTab(.bible, in: .scripture, title: title, state: st.object)
+        }
     }
 }
 

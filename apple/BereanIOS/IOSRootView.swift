@@ -4,12 +4,13 @@ import BereanWorkspace
 import BereanReference
 
 /// The native iPhone shell, following the existing iPhone navigation (docs/mobile/mobile-navigation.md):
-/// bottom-left tabs, bottom-centre New (reference / Strong's / search), bottom-right More with the
+/// bottom-left tabs, bottom-centre Go (reference / Strong's / search), bottom-right More with the
 /// current tab's commands. Content views are shared with the Mac app.
 struct IOSRootView: View {
     @Environment(AppModel.self) private var app
     @State private var showTabs = false
-    @State private var showNew = false
+    @State private var showGo = false
+    @State private var explicitNewTab = false
     @State private var showSettings = false
 
     var body: some View {
@@ -20,18 +21,23 @@ struct IOSRootView: View {
         }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
-        .sheet(isPresented: $showNew) { NewSheet(close: { showNew = false }).presentationDetents([.large]) }
+        .sheet(isPresented: $showGo) { GoSheet(newTab: explicitNewTab, close: { showGo = false }).presentationDetents([.large]) }
         // ⌘T / ⌘K (hardware keyboard) and in-app "new tab" requests open the same sheet.
-        .onChange(of: app.commandPaletteShown) { _, v in if v { app.commandPaletteShown = false; showNew = true } }
+        .onChange(of: app.commandPaletteShown) { _, v in if v { app.commandPaletteShown = false; openGo(newTab: true) } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
+    }
+
+    private func openGo(newTab: Bool = false) {
+        explicitNewTab = newTab
+        showGo = true
     }
 
     private var bottomBar: some View {
         HStack(spacing: 8) {
             Button { showTabs = true } label: { bottomItem("Tabs", symbol: "square.on.square", badge: app.tabCount(app.currentSessionId)) }
                 .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
-            Button { showNew = true } label: { bottomItem("New", symbol: "plus", prominent: true) }
-                .accessibilityLabel("New: open a passage, note or search")
+            Button { openGo() } label: { bottomItem("Go", symbol: "magnifyingglass", prominent: true) }
+                .accessibilityLabel("Go to a passage or search")
             menu
         }
         .buttonStyle(.plain)
@@ -99,7 +105,7 @@ struct IOSRootView: View {
             ContentUnavailableView {
                 Label("No tab open", systemImage: "book")
             } description: { Text("Open a passage, a note or a search.") } actions: {
-                Button("New…") { showNew = true }.buttonStyle(.borderedProminent)
+                Button("Go…") { openGo() }.buttonStyle(.borderedProminent)
             }
         }
     }

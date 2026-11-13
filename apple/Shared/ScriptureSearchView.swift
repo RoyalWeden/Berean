@@ -263,7 +263,13 @@ struct ScriptureSearchView: View {
     }
 
     func row(_ h: ScriptureHit) -> some View {
-        Button { app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId) } label: {
+        Button {
+            #if os(iOS)
+            app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId, reuseTab: true)
+            #else
+            app.openScripture(bookId: h.bookId, chapter: h.chapter, verse: h.verseNum, textId: h.textId)
+            #endif
+        } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(Reference.bookChapterVerseLabel(h.bookId, chapter: h.chapter, verse: h.verseNum)).font(.subheadline.weight(.semibold))

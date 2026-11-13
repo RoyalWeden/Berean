@@ -83,6 +83,9 @@ struct NoteDetailView: View {
             }
         }
         .navigationTitle(title.isEmpty ? "Untitled" : title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItemGroup {
                 Button { saveNow(); app.openNote(nil) } label: { Label("All Notes", systemImage: "chevron.backward") }

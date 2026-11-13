@@ -73,6 +73,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             coordinator.key = key
             coordinator.passageId = passageId
         }
+        if scrollTarget == nil { coordinator.lastTarget = nil }
         if let target = scrollTarget, target != coordinator.lastTarget, let range = coordinator.verseRanges[target] {
             coordinator.lastTarget = target
             let currentPassage = passageId

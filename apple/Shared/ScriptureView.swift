@@ -63,6 +63,13 @@ struct ScriptureView: View {
             #endif
         }
         .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v } } }
+        .onChange(of: st.verse) { _, verse in
+            guard verse != selectedVerse else { return }
+            selectedVerse = verse
+            selection = verse.map { [$0] } ?? []
+            anchor = verse
+            scrollTarget = verse
+        }
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
             noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
         }
