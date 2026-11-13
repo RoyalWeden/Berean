@@ -1,4 +1,5 @@
 import SwiftUI
+import BereanNotes
 import BereanReference
 import BereanText
 
@@ -10,6 +11,8 @@ struct GoSheet: View {
     let newTab: Bool
     var close: (() -> Void)? = nil
     @State private var text = ""
+    @State private var notes: [Note] = []
+    @State private var notesQuery = ""
     @FocusState private var focused: Bool
 
     var trimmed: String { text.trimmingCharacters(in: .whitespaces) }
@@ -18,7 +21,7 @@ struct GoSheet: View {
         NavigationStack {
             List {
                 Section {
-                    TextField("Reference, Strong's number or words", text: $text)
+                    TextField("Passage, Strong's number, note or words", text: $text)
                         .focused($focused)
                         .submitLabel(.go)
                         .onSubmit { go() }
@@ -26,14 +29,13 @@ struct GoSheet: View {
                     #if os(iOS)
                         .textInputAutocapitalization(.never)
                     #endif
-                    if !trimmed.isEmpty {
-                        Button { go() } label: { suggestion }
-                    }
                 } footer: {
                     if trimmed.isEmpty { Text("For example: John 3:16 · Ps 23 · Isaiah 53 LXX · H3068 · grace") }
                 }
                 if trimmed.isEmpty {
                     shortcuts
+                } else {
+                    results
                 }
             }
             .navigationTitle(newTab ? "New Tab" : "Go")
@@ -42,7 +44,14 @@ struct GoSheet: View {
             #endif
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if let close { close() } else { dismiss() } } } }
         }
-        .onAppear { focused = false }
+        .task(id: trimmed) {
+            let query = trimmed
+            guard query.count >= 2 else { return }
+            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+            guard !Task.isCancelled, query == trimmed else { return }
+            notes = (try? app.notes?.search(query, limit: 6)) ?? []
+            notesQuery = query
+        }
     }
 
     @ViewBuilder private var shortcuts: some View {
@@ -68,13 +77,42 @@ struct GoSheet: View {
     var recents: [RecentPassage] { Array(app.recentPassages.prefix(5)) }
     var lastPassage: RecentPassage { app.recentPassages.first ?? RecentPassage(textId: app.defaultText, bookId: "GEN", chapter: 1) }
 
-    @ViewBuilder var suggestion: some View {
-        if let ref = app.resolvePassage(trimmed) {
-            Label("Open \(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))\(ref.textId == app.defaultText ? "" : " · " + textInfo(ref.textId).short)", systemImage: "book")
+    @ViewBuilder private var results: some View {
+        let preferredText = app.activeTab.flatMap {
+            $0.tabType == .bible ? BibleState($0.state).translation : nil
+        }
+        if let ref = app.resolvePassage(trimmed, preferring: preferredText) {
+            Section("Passage") {
+                Button { go() } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))
+                            Text(textInfo(ref.textId).name).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } icon: { Image(systemName: "book") }
+                }
+            }
         } else if let id = StrongsId.normalize(trimmed) {
-            Label("Look up \(id)", systemImage: "character.book.closed")
-        } else {
-            Label("Search Scripture for “\(trimmed)”", systemImage: "magnifyingglass")
+            Section("Lexicon") {
+                Button { go() } label: { Label("Look up \(id)", systemImage: "character.book.closed") }
+            }
+        }
+        if notesQuery == trimmed && !notes.isEmpty {
+            Section("Notes") {
+                ForEach(notes) { note in
+                    Button { finish { app.openNote(note.id, newTab: newTab) } } label: {
+                        Label(note.displayTitle, systemImage: "note.text")
+                    }
+                }
+            }
+        }
+        Section("Scripture") {
+            Button {
+                let query = trimmed
+                finish { app.openSearch(query, reuseTab: !newTab) }
+            } label: {
+                Label("Search for “\(trimmed)”", systemImage: "magnifyingglass")
+            }
         }
     }
 
