@@ -60,7 +60,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
 | N15 | e-Sword import | implemented (Mac only) | ❌ | — | P3 | e-Sword import not ported |
 | H01 | Storage | implemented | ✅ | ✅ | — | Highlights service golden-verified |
-| H02 | Verse, word and selection highlights; offsets and anchoring | implemented | 🟡 | 🟡 | P1 | Whole-verse highlight + rendering of stored char ranges; cannot create partial-selection highlights yet |
+| H02 | Verse, word and selection highlights; offsets and anchoring | implemented | ✅ | 🟡 | P2 | Whole-verse highlight + rendering of stored char ranges; cannot create partial-selection highlights yet |
 | H03 | Colours and categories | partial | ✅ | ✅ | — | 5 colours |
 | H04 | Note and tag indicators on verses | implemented | ✅ | 🟡 | — | Note dots + tag chips (Mac); iPhone note dots, tag chips in rows |
 | H05 | Cross-translation highlights | absent (documented in CLAUDE.md §15 as a setting) — deferred | — | — | — | Deferred in original |

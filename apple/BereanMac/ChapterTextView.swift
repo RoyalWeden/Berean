@@ -46,6 +46,8 @@ struct ChapterTextView: NSViewRepresentable {
     var onStrongs: (String) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
+    /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
+    var onHighlightRange: (Int, Int, Int, String) -> Void = { _, _, _, _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -115,6 +117,8 @@ struct ChapterTextView: NSViewRepresentable {
         var scrolledTo: Int?
         /// verse → range of its paragraph (number + text) in the text storage.
         var verseRanges: [Int: NSRange] = [:]
+        /// verse → storage index where its words start (after the gutter).
+        var verseTextStarts: [Int: Int] = [:]
 
         static let verseKey = NSAttributedString.Key("bereanVerse")       // Int on every character of a verse paragraph
         static let skipKey = NSAttributedString.Key("bereanSkip")         // gutter number, Strong's, chips: not copied as text
@@ -136,7 +140,7 @@ struct ChapterTextView: NSViewRepresentable {
 
         func build(_ p: ChapterTextView) -> NSAttributedString {
             let out = NSMutableAttributedString()
-            verseRanges = [:]
+            verseRanges = [:]; verseTextStarts = [:]
             let size = p.style.fontSize
             let para = NSMutableParagraphStyle()
             para.lineSpacing = p.style.lineSpacing
@@ -173,6 +177,7 @@ struct ChapterTextView: NSViewRepresentable {
                 out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
                 out.append(NSAttributedString(string: "\t", attributes: base.merging([Self.skipKey: true]) { $1 }))
                 let textStart = out.length
+                verseTextStarts[v.verse] = textStart
                 // Words with italics / red letters / character highlights; Strong's numbers as superscript links.
                 var pos = 0
                 for (i, w) in v.words.enumerated() {
@@ -281,6 +286,26 @@ struct ChapterTextView: NSViewRepresentable {
                 .replacingOccurrences(of: "\n", with: " ")
         }
 
+        /// Display offset within a verse's shown words for a storage index (skipped runs — Strong's, chips, dots — not counted).
+        func displayOffset(verse: Int, at index: Int) -> Int? {
+            guard let ts = textView?.textStorage, let start = verseTextStarts[verse], let r = verseRanges[verse] else { return nil }
+            let end = min(max(index, start), NSMaxRange(r) - 1)
+            var n = 0
+            ts.enumerateAttribute(Self.skipKey, in: NSRange(location: start, length: end - start)) { skip, sub, _ in if skip == nil { n += sub.length } }
+            return n
+        }
+
+        /// The selection split per verse into display ranges (empty pieces dropped).
+        func selectedPieces() -> [(verse: Int, start: Int, end: Int)] {
+            guard let r = textView?.selectedRange(), r.length > 0 else { return [] }
+            return verses(in: r).compactMap { v in
+                guard let vr = verseRanges[v], let ts = verseTextStarts[v] else { return nil }
+                let lo = max(r.location, ts), hi = min(NSMaxRange(r), NSMaxRange(vr) - 1)
+                guard hi > lo, let a = displayOffset(verse: v, at: lo), let b = displayOffset(verse: v, at: hi), b > a else { return nil }
+                return (v, a, b)
+            }
+        }
+
         /// Verses touched by a selection, in order.
         func verses(in range: NSRange) -> [Int] {
             parent.verses.map(\.verse).filter { v in verseRanges[v].map { NSIntersectionRange($0, range).length > 0 } ?? false }
@@ -374,6 +399,17 @@ final class ReaderTextView: NSTextView {
         guard let c = coordinator, let i = charIndex(at: event), let v = c.verse(at: i) else { return super.menu(for: event) }
         let menu = c.parent.verseMenu(v)
         if selectedRange().length > 0 {
+            let pieces = c.selectedPieces()
+            if !pieces.isEmpty {
+                let hl = NSMenuItem(title: "Highlight Selection", action: nil, keyEquivalent: "")
+                hl.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
+                let sub = NSMenu()
+                for color in ["yellow", "red", "green", "blue", "purple"] {
+                    sub.addItem(ClosureMenuItem(color.capitalized) { for p in pieces { c.parent.onHighlightRange(p.verse, p.start, p.end, color) } })
+                }
+                hl.submenu = sub
+                menu.insertItem(hl, at: 0)
+            }
             menu.insertItem(.separator(), at: 0)
             menu.insertItem(ClosureMenuItem("Copy as Plain Text", key: "C", modifiers: [.command, .shift]) { [weak self] in self?.copyPlain(nil) }, at: 0)
             menu.insertItem(ClosureMenuItem("Copy", key: "c") { [weak self] in self?.copy(nil) }, at: 0)

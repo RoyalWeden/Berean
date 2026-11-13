@@ -70,3 +70,35 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
   3. Unified grouped search (notes in ⌘K results — found during the editor test: ⌘K "Rich editor test" searched Scripture only).
   4. Study Trail service port with goldens.
   5. M4 sync engine.
+
+## Session end 2026-11-12 — state (read this first)
+- Worktree `/Users/roywe/Berean-native`, branch `native/m6-navigation` (PR #23, stacked on #22). Both PRs OPEN; neither branch is in
+  origin/main (checked with `git merge-base --is-ancestor`).
+- **Merge order (Michael):** #22 → wait for GitHub to retarget #23 to main → #23 CI green → merge #23.
+- Durable records:
+  - `FULL-FEATURE-PARITY.md`: 104 features; Mac ✅31 🟡24 ❌36 (−) before this session's later fixes;
+  - `UX-AND-FUNCTIONAL-ISSUES.md`: open P1s are Study Trail, sync, and iPhone swipe / edge chapter change;
+  - `SCREEN-INVENTORY.md`.
+- Verified this session (running Mac app; iPhone Simulator where noted):
+  - single-chapter books and prologues;
+  - verse-number selection (+ iPhone);
+  - sidebar nav group;
+  - multi-text search (+ iPhone);
+  - Notes home (+ iPhone);
+  - find bar;
+  - ⌘K with notes;
+  - partial-selection highlight;
+  - New sheet closes (iPhone).
+- Checks: Swift 78/30 PASS; Mac + iOS builds PASS.
+- **Next tasks in priority order:**
+  1. IOS-FUNC-001 — iPhone swipe / edge-tap chapter change (ScriptureView rowsScroll, DragGesture + step()).
+  2. IOS-FUNC-002 — iPhone continuous reader (UITextView port of ChapterTextView) for cross-verse selection, partial highlights and
+     tappable Strong's.
+  3. U14 — Study Trail: port `src/platform/services/studyTrailService.ts` with goldens (scripts/golden pattern), then the map UI.
+  4. SHARED-FUNC-012 — History screen; MAC-FUNC-013 — Daily Note command + calendar.
+  5. SHARED-FUNC-016 — Tag manager; SHARED-FUNC-014 — Settings sections.
+  6. M4 sync engine (OD-5 gates).
+- Harness notes:
+  - synthetic context-menu clicks can leave AppKit in menu tracking: use keyboard navigation, `pkill` if stuck;
+  - region captures beyond the app window can include other windows: keep captures inside the window;
+  - the iPhone Simulator Xcode MCP only drives iOS 27 runtimes (iPhone 18 Pro D0CC2F4C…).

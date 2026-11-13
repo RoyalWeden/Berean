@@ -477,7 +477,16 @@ extension ScriptureView {
             verseMenu: { verseNSMenu($0, st) },
             tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
             onStrongs: { showLexicon($0) },
-            onVerseClick: { v, shift in verseClick(v, shift: shift) })
+            onVerseClick: { v, shift in verseClick(v, shift: shift) },
+            onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) })
+    }
+
+    /// Partial highlight: shown-word offsets → offsets into the stored verse text (OffsetMap), saved as a character highlight.
+    func highlightRange(_ verse: Int, _ a: Int, _ b: Int, _ color: String, _ st: BibleState, _ rv: [ReaderVerse]) {
+        guard let row = verses.first(where: { $0.verseNum == verse }), let shown = rv.first(where: { $0.verse == verse })?.displayText else { return }
+        let o = OffsetMap.displayToOriginal(display: shown, original: row.text, offsets: [a, b])
+        guard o.count == 2, o[1] > o[0] else { return }
+        _ = try? app.highlights?.toggle(bookId: row.bookId, chapter: row.chapter, verse: verse, color: color, textId: st.translation, startChar: o[0], endChar: o[1])
     }
 
     func verseNSMenu(_ n: Int, _ st: BibleState) -> NSMenu {

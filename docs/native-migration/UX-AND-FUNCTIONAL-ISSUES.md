@@ -12,7 +12,6 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 
 | ID | Issue | Plat | Sev | Feature | Status |
 |---|---|---|---|---|---|
-| MAC-FUNC-005 | Cannot create a highlight from a partial text selection; only whole verses (stored char ranges do render). | Mac | P1 | H02 | OPEN |
 | SHARED-FUNC-006 | Study Trail missing entirely. | both | P1 | U14 | OPEN |
 | SHARED-DATA-001 | No native sync; native libraries are isolated dev copies (by design until the M4 gates). | both | P1 | A01 | OPEN (gated, OD-5) |
 | IOS-FUNC-001 | iPhone reader: no swipe or edge-tap chapter change (original pager); chapter change needs the pill or More. | iOS | P1 | S02 | OPEN |
@@ -55,3 +54,4 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-FUNC-007 | Notes home was a filtered list only. | both | P1 | Folders home (All Notes, system folders, folder tree with counts, Trash, Recently Edited) · folder view (subfolders, Pinned, recency sections, sort, group by status / folder / type) · previews · row menu (pin, move, status, duplicate, export, trash) · folder menu (new subfolder, rename, move, delete keeping or trashing notes) · Trash (restore, delete permanently, empty). Services tested. Verified on the Mac (create folder, move note, open folder, note → back to its folder) and on the iPhone (home renders); PR #23 (9b69814) |
 | IOS-FUNC-005 | New sheet stayed open after Return (`dismiss()` ineffective after navigation). | iOS | P1 | Closes through the presenter's binding; verified "obadiah" → Obadiah 1 with the sheet closed (Simulator); PR #23 |
 | IOS-UI-006 | The verse selection bar overlapped the bottom bar. | iOS | P2 | Raised 72 pt on iPhone; PR #23 |
+| MAC-FUNC-005 | No highlight from a partial text selection. | Mac | P1 | Context menu → Highlight Selection ▸ colour; selection split per verse, display offsets → stored offsets (OffsetMap) → character highlight. Verified John 3:16: stored 50–69 = "begotten Son, that", the shown words; PR #23. (iPhone partial selection waits for IOS-FUNC-002.) |
