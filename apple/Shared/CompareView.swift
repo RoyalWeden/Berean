@@ -37,6 +37,9 @@ struct CompareView: View {
                     }
                 }
             }
+            #if os(iOS)
+            .contentMargins(.bottom, ReaderFloatingControls.dockOffset, for: .scrollContent)
+            #endif
             .onChange(of: loadedPassage) {
                 if loadedPassage == passage, let verse = st.verse { proxy.scrollTo(verse, anchor: .top) }
             }
