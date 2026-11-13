@@ -10,6 +10,7 @@ import BereanWorkspace
 /// - a book not in the current text resolves to the first text that has it.
 struct ResolvedPassage: Equatable {
     var textId: String; var bookId: String; var chapter: Int; var verse: Int?
+    var endVerse: Int? = nil
 
     var label: String {
         Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
@@ -19,7 +20,7 @@ struct ResolvedPassage: Equatable {
         guard tab.tabType == .bible, tab.state["endChapter"]?.numberValue == nil else { return false }
         let state = BibleState(tab.state)
         return !state.compareMode && state.translation == textId && state.bookId == bookId
-            && state.chapter == chapter && state.verse == verse
+            && state.chapter == chapter && state.verse == verse && state.endVerse == endVerse
     }
 }
 

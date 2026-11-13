@@ -8,6 +8,8 @@ struct DeepLinkTests {
         ("berean://verse/Exo/20", .verse(bookId: "EXO", chapter: 20)),
         ("berean://open?ref=Rev%2022%3A1-5", .verse(bookId: "REV", chapter: 22, verse: 1, endVerse: 5)),
         ("berean://open?ref=Psa+23&play=1", .verse(bookId: "PSA", chapter: 23, play: true)),
+        ("berean://open?ref=Isaiah+53+LXX", .verse(bookId: "ISA", chapter: 53, textId: "lxx")),
+        ("berean://open?ref=Isaiah+53+LXX&text=kjva", .verse(bookId: "ISA", chapter: 53, textId: "kjva")),
         ("berean://note/abc-123", .note(id: "abc-123")),
         ("berean://note/n%2F1%20%3F", .note(id: "n/1 ?")),
         ("berean://lexicon/h7225", .lexicon(strongsNum: "H7225")),

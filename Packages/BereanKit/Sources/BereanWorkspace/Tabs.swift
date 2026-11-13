@@ -36,7 +36,7 @@ public struct Tab: Equatable, Sendable, Identifiable {
 /// (allow-lists: a field not listed is dropped from storage, so nothing leaks to other devices by accident).
 public enum TabFields {
     static let sync: [TabType: [String]] = [
-        .bible: ["bookId", "chapter", "endChapter", "verse", "translation", "showStrongs", "compareMode", "compareColumns",
+        .bible: ["bookId", "chapter", "endChapter", "verse", "endVerse", "translation", "showStrongs", "compareMode", "compareColumns",
                  "compareSyncScroll", "hiddenAnnotations", "rightPanelTab", "rightPanelNoteId", "rightPanelLexiconEntry",
                  "rightPanelVerseFilter", "rightPanelSlotBTabs", "rightPanelSlotB", "rightPanelNoteIdB", "rightPanelLexiconEntryB",
                  "rightPanelVerseFilterB", "searchMode", "scriptureSearchQuery", "scriptureLayout", "searchTextId", "searchWordMode",

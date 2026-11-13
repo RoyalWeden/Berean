@@ -74,14 +74,11 @@ struct ScriptureView: View {
             #endif
         }
         #if os(macOS)
-        .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v } } }
+        .onChange(of: selectedVerse) { _, v in if v != state.verse { mutate { $0.verse = v; $0.endVerse = nil } } }
         #endif
-        .onChange(of: st.verse) { _, verse in
-            guard verse != selectedVerse else { return }
-            selectedVerse = verse
-            selection = verse.map { [$0] } ?? []
-            anchor = verse
-            scrollTarget = verse
+        .onChange(of: [st.verse, st.endVerse]) {
+            guard st.verse != selectedVerse || st.endVerse != nil else { return }
+            applyPassageSelection(st)
         }
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.notesRevision)") {
             noteCounts = (try? app.notes?.chapterCounts(st.bookId, st.chapter, textId: st.translation)) ?? [:]
@@ -99,9 +96,7 @@ struct ScriptureView: View {
             let loaded = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
             guard !Task.isCancelled else { return }
             verses = loaded
-            selectedVerse = st.verse
-            selection = st.verse.map { [$0] } ?? []; anchor = st.verse
-            scrollTarget = st.verse
+            applyPassageSelection(st)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 0)
@@ -118,6 +113,18 @@ struct ScriptureView: View {
 
     // MARK: verse selection (click / ⇧-click verse numbers)
 
+    private func applyPassageSelection(_ state: BibleState) {
+        selectedVerse = state.verse
+        anchor = state.verse
+        scrollTarget = state.verse
+        guard let first = state.verse else {
+            selection = []
+            return
+        }
+        let last = max(first, state.endVerse ?? first)
+        selection = Set(verses.lazy.map(\.verseNum).filter { (first...last).contains($0) })
+    }
+
     func verseClick(_ v: Int, shift: Bool) {
         if shift, let a = anchor {
             selection = Set(min(a, v)...max(a, v)).intersection(verses.map(\.verseNum))
@@ -126,6 +133,9 @@ struct ScriptureView: View {
             anchor = selection.contains(v) ? v : selection.min()
         }
         selectedVerse = selection.contains(v) ? v : selection.min()
+        if state.endVerse != nil {
+            mutate { $0.verse = selectedVerse; $0.endVerse = nil }
+        }
     }
 
     var selectedRows: [ChapterVerseRow] { verses.filter { selection.contains($0.verseNum) } }
@@ -231,6 +241,7 @@ struct ScriptureView: View {
         selection = []
         anchor = nil
         selectedVerse = nil
+        if state.endVerse != nil { mutate { $0.verse = nil; $0.endVerse = nil } }
     }
 
     private func highlightMenu(_ st: BibleState) -> some View {
@@ -401,7 +412,7 @@ struct ScriptureView: View {
 
     func picker(_ st: BibleState, compact: Bool) -> some View {
         PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter, onPick: { t, b, c, v in
-            mutate { $0.translation = t; $0.bookId = b; $0.chapter = c; $0.verse = v }; pickerShown = false
+            mutate { $0.translation = t; $0.bookId = b; $0.chapter = c; $0.verse = v; $0.endVerse = nil }; pickerShown = false
         }, compact: compact)
     }
 
@@ -410,6 +421,9 @@ struct ScriptureView: View {
         app.update(tabId) { t in
             let before = BibleState(t.state)
             var s = before; f(&s)
+            if s.bookId != before.bookId || s.chapter != before.chapter || s.translation != before.translation {
+                s.endVerse = nil
+            }
             t.state = s.merged(into: t.state)
             t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation)
             if s.bookId != before.bookId || s.chapter != before.chapter || s.translation != before.translation { visited = s }

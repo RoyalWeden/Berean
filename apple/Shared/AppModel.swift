@@ -594,8 +594,11 @@ final class AppModel {
         } catch { libraryError = "Could not create the note: \(error)"; return nil }
     }
 
-    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String? = nil, reuseTab: Bool = false) {
-        var st = BibleState(bookId: bookId, chapter: chapter); st.verse = verse; st.translation = textId ?? defaultText
+    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false) {
+        var st = BibleState(bookId: bookId, chapter: chapter)
+        st.verse = verse
+        if let verse, let endVerse, endVerse > verse { st.endVerse = endVerse }
+        st.translation = textId ?? defaultText
         let title = Reference.readerChapterLabel(bookId, chapter, textId: st.translation)
         if reuseTab {
             var location = JSObject()
@@ -603,8 +606,9 @@ final class AppModel {
             location["chapter"] = .number(Double(chapter))
             location["translation"] = .string(JSString(st.translation))
             location["verse"] = verse.map { .number(Double($0)) } ?? .null
+            location["endVerse"] = st.endVerse.map { .number(Double($0)) } ?? .null
             location["endChapter"] = .null
-            let passage = ResolvedPassage(textId: st.translation, bookId: bookId, chapter: chapter, verse: verse)
+            let passage = ResolvedPassage(textId: st.translation, bookId: bookId, chapter: chapter, verse: verse, endVerse: st.endVerse)
             openOrReuse(.bible, in: .scripture, title: title, state: location,
                         canReplace: { !BibleState($0.state).compareMode && $0.state["endChapter"]?.numberValue == nil },
                         matches: passage.isShown(in:))
@@ -619,6 +623,7 @@ struct BibleState: Equatable {
     var bookId: String
     var chapter: Int
     var verse: Int? = nil
+    var endVerse: Int? = nil
     var translation = "kjva"
     var showStrongs = false
     var rightPanelOpen = false
@@ -633,6 +638,7 @@ struct BibleState: Equatable {
         bookId = o["bookId"]?.stringValue?.string ?? "GEN"
         chapter = o["chapter"]?.numberValue.map { Int($0) } ?? 1
         verse = o["verse"]?.numberValue.map { Int($0) }
+        endVerse = o["endVerse"]?.numberValue.flatMap { Int(exactly: $0) }
         translation = o["translation"]?.stringValue?.string ?? "kjva"
         showStrongs = o["showStrongs"]?.boolValue ?? false
         rightPanelOpen = o["rightPanelOpen"]?.boolValue ?? false
@@ -648,6 +654,7 @@ struct BibleState: Equatable {
         var o = base
         o["bookId"] = .string(JSString(bookId)); o["chapter"] = .number(Double(chapter))
         if let verse { o["verse"] = .number(Double(verse)) } else { o.remove("verse") }
+        if let endVerse { o["endVerse"] = .number(Double(endVerse)) } else { o.remove("endVerse") }
         o["translation"] = .string(JSString(translation)); o["showStrongs"] = .bool(showStrongs)
         if o["scrollPosition"] == nil { o["scrollPosition"] = .number(0) }
         o["rightPanelOpen"] = .bool(rightPanelOpen); o["rightPanelTab"] = .string(JSString(rightPanelTab))

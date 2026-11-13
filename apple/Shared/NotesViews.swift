@@ -165,8 +165,11 @@ struct NoteDetailView: View {
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
             return
         }
-        if ["berean", "berean-dev"].contains(url.scheme?.lowercased() ?? "") {
-            openBereanLink(url)
+        let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
+        let internalSchemes = ["berean", "berean-dev", "berean-pdf", "berean-dev-pdf"]
+        if route != nil || internalSchemes.contains(url.scheme?.lowercased() ?? "") {
+            saveNow()
+            openBereanLink(route)
             return
         }
         #if os(macOS)
@@ -176,9 +179,9 @@ struct NoteDetailView: View {
         #endif
     }
 
-    private func openBereanLink(_ url: URL) {
-        switch DeepLink.parse(url.absoluteString, hermas: app.hermasEdition) {
-        case .verse(let book, let chapter, let verse, _, let text, _):
+    private func openBereanLink(_ route: DeepLinkRoute?) {
+        switch route {
+        case .verse(let book, let chapter, let verse, let endVerse, let text, _):
             if let text, !availableTexts.contains(where: { $0.id == text }) {
                 app.userMessage = "This Scripture text is unavailable."
                 return
@@ -186,10 +189,11 @@ struct NoteDetailView: View {
             let textId = text ?? app.bookCatalog.first {
                 $0.book.id == book && $0.textId == app.defaultText
             }?.textId ?? app.bookCatalog.first { $0.book.id == book }?.textId
+                ?? Reference.translation(forBook: book, hermas: app.hermasEdition)
             if let edition = HermasText(rawValue: text ?? app.hermasEdition.rawValue), Reference.isHermasBook(book) {
-                app.openScripture(bookId: book, chapter: chapter, verse: verse, textId: edition.rawValue, reuseTab: true)
+                app.openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: edition.rawValue, reuseTab: true)
             } else {
-                app.openScripture(bookId: book, chapter: chapter, verse: verse, textId: textId, reuseTab: true)
+                app.openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: textId, reuseTab: true)
             }
         case .note(let id):
             guard (try? app.notes?.one(id)) != nil else {
@@ -243,7 +247,10 @@ struct NoteDetailView: View {
         guard let note, title != note.title || content != note.content else { return }
         try? app.notes?.update(note.id, .init(title: title, content: content))
         self.note = try? app.notes?.one(noteId)
-        app.update(app.activeTab?.id ?? "") { if $0.tabType == .note { $0.title = title.isEmpty ? "Untitled" : title } }
+        app.update(app.activeTab?.id ?? "") { tab in
+            guard tab.tabType == .note, tab.state["noteId"]?.stringValue?.string == note.id else { return }
+            tab.title = title.isEmpty ? "Untitled" : title
+        }
     }
 }
 

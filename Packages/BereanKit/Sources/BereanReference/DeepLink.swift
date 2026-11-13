@@ -57,10 +57,10 @@ public enum DeepLink {
             guard let item = queryItems.first(where: { decodeQuery($0.name) == name }) else { return nil }
             return decodeQuery(item.value ?? "")
         }
-        func verseRoute(bookId: String, chapter: Int, verse: Int?, endVerse: Int?) -> DeepLinkRoute {
+        func verseRoute(bookId: String, chapter: Int, verse: Int?, endVerse: Int?, fallbackText: String? = nil) -> DeepLinkRoute {
             let text = query("text")
             return .verse(bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse,
-                          textId: text == "" ? nil : text, play: query("play") == "1")
+                          textId: text.flatMap { $0.isEmpty ? nil : $0 } ?? fallbackText, play: query("play") == "1")
         }
 
         switch head.lowercased() {
@@ -71,11 +71,13 @@ public enum DeepLink {
             return verseRoute(bookId: book, chapter: chapter,
                               verse: match?[1].flatMap(Int.init), endVerse: match?[2].flatMap(Int.init))
         case "open":
-            guard let reference = Reference.parse(query("ref") ?? parts.joined(separator: " "), hermas: hermas) else {
+            let edition = query("text").flatMap(HermasText.init(rawValue:)) ?? hermas
+            guard let reference = Reference.parse(query("ref") ?? parts.joined(separator: " "), hermas: edition) else {
                 return nil
             }
             return verseRoute(bookId: reference.bookId, chapter: reference.chapter,
-                              verse: reference.verse, endVerse: reference.endVerse)
+                              verse: reference.verse, endVerse: reference.endVerse,
+                              fallbackText: reference.forcedTranslation?.lowercased())
         case "note":
             return parts.first.map { .note(id: $0) }
         case "lexicon":

@@ -84,3 +84,9 @@ The iPhone verse toolbar keeps More available for a multi-verse selection. Its n
 Copy Verse from the Mac context menu and iPhone verse sheet now honors the Word Replacer setting, matching the whole-verse toolbar copy. Single-verse LXX copies identify the translation in the reference. Both Dev builds passed. Check clipboard output from each entry point with Word Replacer on and off, using a KJV verse containing LORD and an LXX verse.
 
 Native note links using the legacy Berean schemes now route to Scripture, Notes, Lexicon, Search and Today inside both Dev apps. The dispatch uses the existing parser and tab reuse. Both Dev builds passed. Exercise linked destinations from a synthetic note on both platforms. External launch, verse ranges and playback, and the other parsed destination types remain open.
+
+## Linked verse ranges
+
+Native Notes now passes both endpoints into Scripture, where a linked range selects the existing verses and uses the reader’s grouped dashed outline. Range state follows the legacy `endVerse` key. Typed link references preserve an LXX suffix and honor an explicit text override. Notes flushes edits before internal deep-link navigation and only updates the matching note tab title.
+
+`npm run native:check` passed with 87 Swift Testing tests, four XCTest cases and both Dev builds. The updated focused DeepLink suite also passed all 39 argument cases. Runtime acceptance remains open. In a Dev note, click a Markdown link to `berean://verse/Jonah/1/1-2?text=lxx`, verify the grouped outline and copied reference, toggle a verse, navigate Back, and reopen the range on Mac and iPhone. Also check an explicit translation override, a missing note, and an ordinary web link. External URL registration and playback remain separate parity gaps.

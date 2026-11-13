@@ -513,3 +513,9 @@
 - Keep iPhone More visible for multi-verse selections and target the active verse for notes and cross references.
 - Keep the range anchor on a selected verse and add hover feedback to the iPhone dock menu.
 - Both native Dev builds passed.
+
+### 2026-11-13 — Verse ranges in linked Scripture
+- Open linked verse ranges as a selection in both native readers and retain the legacy range key in tab state.
+- Preserve a reference’s LXX suffix unless the link names a text explicitly.
+- Save pending note edits before routing internal deep links.
+- Native conformance, both Dev builds and the updated focused parser suite passed.
