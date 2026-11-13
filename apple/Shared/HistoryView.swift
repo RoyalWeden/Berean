@@ -5,15 +5,50 @@ import BereanNotes
 /// first, grouped by day, filterable; tap to reopen. Device-local (`history` table).
 struct HistoryView: View {
     @Environment(AppModel.self) private var app
+    let tabId: String
     @State private var entries: [HistoryEntry] = []
     @State private var filter = ""
-    @State private var kind = "all"
+    private enum Category: String, CaseIterable, Identifiable {
+        case all, scripture, notes, lexicon, youtube, search, imports
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .all: "All"
+            case .scripture: "Scripture"
+            case .notes: "Notes"
+            case .lexicon: "Lexicon"
+            case .youtube: "YouTube"
+            case .search: "Search"
+            case .imports: "Imports"
+            }
+        }
+
+        func includes(_ type: String) -> Bool {
+            switch self {
+            case .all: true
+            case .scripture: type == "bible" || type == "compare"
+            case .notes: type == "note"
+            case .lexicon: type == "lexicon" || type == "strongs-click"
+            case .youtube: type == "youtube"
+            case .search: type == "search"
+            case .imports: type == "import"
+            }
+        }
+    }
+
+    private var category: Category {
+        app.findTab(tabId)?.state["category"]?.stringValue.flatMap { Category(rawValue: $0.string) } ?? .all
+    }
+
+    private var studyOnly: Bool { app.findTab(tabId)?.state["studyOnly"]?.boolValue ?? false }
     @State private var confirmClear = false
     @State private var hasMore = false
 
     var shown: [HistoryEntry] {
         entries.filter { e in
-            (kind == "all" || e.type == kind) && (filter.isEmpty || e.title.localizedCaseInsensitiveContains(filter) || (e.type == "search" && (e.query ?? "").localizedCaseInsensitiveContains(filter)))
+            category.includes(e.type)
+                && !(category == .scripture && studyOnly && e.type == "bible" && (e.verse ?? 0) == 0)
+                && (filter.isEmpty || e.title.localizedCaseInsensitiveContains(filter) || (e.type == "search" && (e.query ?? "").localizedCaseInsensitiveContains(filter)))
         }
     }
 
@@ -36,9 +71,21 @@ struct HistoryView: View {
                     TextField("Filter history", text: $filter).textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7).background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
-                Picker("Show", selection: $kind) {
-                    Text("All").tag("all"); Text("Passages").tag("bible"); Text("Notes").tag("note"); Text("Lexicon").tag("lexicon"); Text("Searches").tag("search")
+                Picker("Show", selection: Binding(get: { category }, set: { value in
+                    app.update(tabId, recordHistory: false) { $0.state["category"] = .string(.init(value.rawValue)) }
+                })) {
+                    ForEach(Category.allCases) { Text($0.label).tag($0) }
                 }.fixedSize()
+                if category == .scripture {
+                    Toggle(isOn: Binding(get: { studyOnly }, set: { value in
+                        app.update(tabId, recordHistory: false) { $0.state["studyOnly"] = .bool(value) }
+                    })) {
+                        Label("Study Only", systemImage: "line.3.horizontal.decrease")
+                    }
+                    .toggleStyle(.button)
+                    .labelStyle(.iconOnly)
+                    .help("Hide chapter-only reading visits")
+                }
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             Divider()
@@ -49,7 +96,7 @@ struct HistoryView: View {
                         ForEach(items) { e in row(e) }
                     }
                 }
-                if hasMore && filter.isEmpty && kind == "all" {
+                if hasMore {
                     Button("Show Older") { loadMore() }.frame(maxWidth: .infinity)
                 }
             }

@@ -93,7 +93,7 @@ struct IOSRootView: View {
             case .calendar:
                 DailyNoteCalendar(tabId: tab.id).id(tab.id)
             case .history:
-                HistoryView().id(tab.id)
+                HistoryView(tabId: tab.id).id(tab.id)
             case .tags:
                 TagManagerView().id(tab.id)
             default:
