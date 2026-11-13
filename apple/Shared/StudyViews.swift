@@ -327,6 +327,7 @@ struct LexiconEntryView: View {
 /// Cross references for a verse: Classic (votes) or TSKe (grouped by heading), switchable as in the existing app.
 struct CrossRefsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
     @AppStorage("crossrefSource") private var source = "tske"
     @State private var loadedReference: String?
@@ -440,6 +441,9 @@ struct CrossRefsView: View {
     func refRow(_ b: String, _ c: Int, _ v: Int, _ end: Int?, _ text: String, detail: String?) -> some View {
         let passage = ResolvedPassage(textId: "kjva", bookId: b, chapter: c, verse: v > 0 ? v : nil, endVerse: end)
         return Button {
+            #if os(iOS)
+            dismiss()
+            #endif
             app.visitScripture(passage)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
