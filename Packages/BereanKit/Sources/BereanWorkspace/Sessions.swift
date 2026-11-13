@@ -36,8 +36,15 @@ public struct ArchivedGroup: Equatable, Sendable, Identifiable {
 
     /// Remove only the restored record, preserving records this version cannot decode.
     public func afterRestoring(tabID: String) -> ArchivedGroup? {
+        afterRestoring(tabIDs: [tabID])
+    }
+
+    public func afterRestoring(tabIDs: Set<String>) -> ArchivedGroup? {
         let original = records
-        let remaining = original.filter { $0["id"]?.stringValue?.string != tabID }
+        let remaining = original.filter { value in
+            guard let object = value.objectValue, let tab = Tab(jsObject: object) else { return true }
+            return !tabIDs.contains(tab.id)
+        }
         guard remaining.count != original.count else { return self }
         guard !remaining.isEmpty else { return nil }
         var group = self
@@ -45,6 +52,8 @@ public struct ArchivedGroup: Equatable, Sendable, Identifiable {
         if let first = group.tabs.first {
             let title = first.title.isEmpty ? "Untitled" : first.title
             group.label = remaining.count == 1 ? title : "\(title) and \(remaining.count - 1) more"
+        } else {
+            group.label = "Archived tabs"
         }
         return group
     }

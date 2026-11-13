@@ -198,3 +198,5 @@ Archived groups now support restoring one tab. iPhone lists searchable archived 
 iPhone Archive search now shows the Space under each result and distinguishes an empty archive from a search with no matches. Restoring an archived tab that is already open now selects the live tab's current Space. Both Dev builds passed. Live archive restore and relaunch remain open.
 
 Single-tab archive restoration now uses a tested BereanWorkspace operation for removing the restored record. The regression test verifies that the group's identity and date remain intact, untouched records including an unrecognized future Space survive in order, a missing ID changes nothing, and restoring the last tab removes the group. Both Dev builds passed. Live restoration and relaunch remain to verify.
+
+Restore All now removes only archive records for tabs it successfully reopened. Unrecognized records and already-open tabs keep their archive copies. The regression test verifies that a bulk restore retains an unknown Space record even if its ID is passed in the removal set. Both Dev builds passed. Live mixed-group restoration and relaunch still need verification.

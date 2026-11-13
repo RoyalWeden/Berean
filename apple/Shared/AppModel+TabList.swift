@@ -121,13 +121,16 @@ extension AppModel {
 
     /// Append restored tabs in archive order and keep the current reading position.
     func restoreArchived(_ groupId: String) {
-        guard let group = archivedGroups.first(where: { $0.id == groupId }) else { return }
+        guard let index = archivedGroups.firstIndex(where: { $0.id == groupId }) else { return }
+        let group = archivedGroups[index]
         // Tab IDs are unique in SQLite across all workspaces. An archived copy may
         // already be open elsewhere after a restore on another device.
         var openIds = Set(sessions.flatMap { $0.allTabs.map(\.id) })
         let hadActiveTab = activeTab != nil
         var firstRestoredSpace: SpaceId?
+        var restoredIDs = Set<String>()
         for tab in archivedTabs(group) where openIds.insert(tab.id).inserted {
+            restoredIDs.insert(tab.id)
             sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
             if activeTabId(in: tab.spaceId) == nil {
                 sessions[sessionIndex].activeTabId[tab.spaceId] = tab.id
@@ -135,7 +138,12 @@ extension AppModel {
             insertInDisplayOrder(tab.id, after: nil)
             if firstRestoredSpace == nil { firstRestoredSpace = tab.spaceId }
         }
-        archivedGroups.removeAll { $0.id == groupId }
+        guard !restoredIDs.isEmpty else { return }
+        if let remaining = group.afterRestoring(tabIDs: restoredIDs) {
+            archivedGroups[index] = remaining
+        } else {
+            archivedGroups.remove(at: index)
+        }
         if !hadActiveTab, let firstRestoredSpace { activeSpace = firstRestoredSpace }
         scheduleSave()
     }

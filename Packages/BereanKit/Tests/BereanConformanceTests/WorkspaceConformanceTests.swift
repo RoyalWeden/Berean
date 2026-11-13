@@ -274,6 +274,11 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     #expect(try JSON.parse(remaining.tabsJSON) == .array([future, .object(last.jsObject)]))
     #expect(remaining.afterRestoring(tabID: "missing") == remaining)
 
+    let afterBulk = try #require(group.afterRestoring(tabIDs: [first.id, last.id, "future"]))
+    #expect(try JSON.parse(afterBulk.tabsJSON) == .array([future]))
+    #expect(afterBulk.tabs.isEmpty)
+    #expect(afterBulk.label == "Archived tabs")
+
     let single = ArchivedGroup(id: "single", label: last.title, archivedAt: 42,
                                tabsJSON: JSON.stringifyString(.array([.object(last.jsObject)])))
     #expect(single.afterRestoring(tabID: last.id) == nil)
