@@ -78,7 +78,10 @@ struct LexiconEntryView: View {
                             .pickerStyle(.menu)
                         }
                         let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
-                        let indexed = scoped.enumerated().map { ($0.offset, $0.element, renderingWords($0.element)) }
+                        let indexed = scoped.enumerated().map { index, occurrence in
+                            let preview = occurrencePreview(occurrence)
+                            return (index, occurrence, renderingWords(preview), preview)
+                        }
                         let forms = indexed.reduce(into: [String: Int]()) { counts, row in
                             for word in row.2 { counts[word, default: 0] += 1 }
                         }
@@ -118,7 +121,7 @@ struct LexiconEntryView: View {
                                 .foregroundStyle(.secondary)
                         }
                         LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(matches.prefix(visibleOccurrences)), id: \.0) { _, o, _ in
+                            ForEach(Array(matches.prefix(visibleOccurrences)), id: \.0) { _, o, _, preview in
                                 let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
                                 Button { app.visitScripture(passage) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -133,7 +136,7 @@ struct LexiconEntryView: View {
                                                 .foregroundStyle(.secondary)
                                                 .accessibilityHidden(true)
                                         }
-                                        Text(highlighted(o)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                                        Text(highlighted(preview)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .contentShape(.rect)
@@ -177,6 +180,7 @@ struct LexiconEntryView: View {
             selectedRenderings = []
             visibleOccurrences = 40
         }
+        .onChange(of: app.wordReplacerEnabled) { selectedRenderings = [] }
         .onChange(of: selectedRenderings) { visibleOccurrences = 40 }
         .onChange(of: sortByMatches) { visibleOccurrences = 40 }
         .task(id: strongsId) {
@@ -205,27 +209,38 @@ struct LexiconEntryView: View {
         }
     }
 
-    private func occurrenceWords(_ occurrence: LexiconOccurrence) -> [Substring] {
-        occurrence.text.split(whereSeparator: \.isWhitespace)
+    private struct OccurrencePreview {
+        let words: [Substring]
+        let matches: Set<Int>
     }
 
-    private func renderingWords(_ occurrence: LexiconOccurrence) -> Set<String> {
-        let words = occurrenceWords(occurrence)
-        return Set(occurrence.matchWordIndices.compactMap { index in
-            guard words.indices.contains(index) else { return nil }
-            let word = words[index].filter { $0.isLetter || $0 == "'" || $0 == "’" }.lowercased()
+    private func occurrencePreview(_ occurrence: LexiconOccurrence) -> OccurrencePreview {
+        let hit = ScriptureHit(textId: occurrence.textId, bookId: occurrence.bookId, chapter: occurrence.chapter,
+                               verseNum: occurrence.verseNum, text: occurrence.text, textTagged: occurrence.textTagged,
+                               matchWordIndices: occurrence.matchWordIndices, matchedStrongs: [strongsId.uppercased()])
+        let snippet = hit.strongsSnippet(replacerEnabled: app.wordReplacerEnabled)
+        return OccurrencePreview(words: (snippet?.text ?? occurrence.text).split(whereSeparator: \.isWhitespace),
+                                 matches: Set(snippet?.indices ?? occurrence.matchWordIndices))
+    }
+
+    private func renderingWords(_ preview: OccurrencePreview) -> Set<String> {
+        Set(preview.matches.compactMap { index in
+            guard preview.words.indices.contains(index) else { return nil }
+            let word = preview.words[index].filter { $0.isLetter || $0 == "'" || $0 == "’" }.lowercased()
             return word.isEmpty ? nil : word
         })
     }
 
-    func highlighted(_ o: LexiconOccurrence) -> AttributedString {
-        let words = occurrenceWords(o)
+    private func highlighted(_ preview: OccurrencePreview) -> AttributedString {
         var out = AttributedString()
-        for (i, w) in words.enumerated() {
-            if i > 0 { out += AttributedString(" ") }
-            var a = AttributedString(String(w))
-            if o.matchWordIndices.contains(i) { a.font = .callout.bold(); a.foregroundColor = .primary }
-            out += a
+        for (index, word) in preview.words.enumerated() {
+            if index > 0 { out += AttributedString(" ") }
+            var text = AttributedString(String(word))
+            if preview.matches.contains(index) {
+                text.font = .callout.bold()
+                text.foregroundColor = .primary
+            }
+            out += text
         }
         return out
     }
