@@ -33,12 +33,12 @@ struct NewSheet: View {
                     if trimmed.isEmpty { Text("For example: John 3:16 · Ps 23 · Isaiah 53 LXX · H3068 · grace") }
                 }
                 Section("Open") {
-                    row("Scripture", "book", .blue, "Continue reading in a new tab") { app.openScripture(bookId: lastPassage.bookId, chapter: lastPassage.chapter, textId: lastPassage.textId) }
-                    row("New Note", "square.and.pencil", .orange, "A blank note") { app.newNote() }
-                    row("Today's Note", "calendar", .orange, "Your daily note for today") { app.openTodayDailyNote() }
-                    row("Notes", "note.text", .orange, "All notes, folders and filters") { app.openNote(nil) }
-                    row("History", "clock", .secondary, "Everything you opened recently") { app.openHistory() }
-                    row("Tags", "tag", .secondary, "Your verse tags") { app.openTags() }
+                    row("Scripture", "book", .blue) { app.openScripture(bookId: lastPassage.bookId, chapter: lastPassage.chapter, textId: lastPassage.textId) }
+                    row("New Note", "square.and.pencil", .orange) { app.newNote() }
+                    row("Today's Note", "calendar", .orange) { app.openTodayDailyNote() }
+                    row("Notes", "note.text", .orange) { app.openNote(nil) }
+                    row("History", "clock", .secondary) { app.openHistory() }
+                    row("Tags", "tag", .secondary) { app.openTags() }
                 }
                 if !recents.isEmpty {
                     Section("Recent") {
@@ -72,17 +72,14 @@ struct NewSheet: View {
         }
     }
 
-    func row(_ title: String, _ symbol: String, _ tint: Color, _ detail: String, action: @escaping () -> Void) -> some View {
+    func row(_ title: String, _ symbol: String, _ tint: Color, action: @escaping () -> Void) -> some View {
         Button { finish(action) } label: {
-            HStack(spacing: 12) {
-                Image(systemName: symbol).font(.title3).foregroundStyle(tint).frame(width: 30)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title).foregroundStyle(.primary)
-                    Text(detail).font(.caption).foregroundStyle(.secondary)
-                }
+            Label {
+                Text(title).foregroundStyle(.primary)
+            } icon: {
+                Image(systemName: symbol).foregroundStyle(tint)
             }
         }
-        .accessibilityHint(detail)
     }
 
     func go() { guard !trimmed.isEmpty else { return }; let q = trimmed; finish { app.openQuery(q) } }

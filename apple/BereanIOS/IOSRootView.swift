@@ -4,7 +4,7 @@ import BereanWorkspace
 import BereanReference
 
 /// The native iPhone shell, following the existing iPhone navigation (docs/mobile/mobile-navigation.md):
-/// bottom-left tab cards, bottom-centre plus (reference / Strong's / search), bottom-right caret with the
+/// bottom-left tabs, bottom-centre New (reference / Strong's / search), bottom-right More with the
 /// current tab's commands. Content views are shared with the Mac app.
 struct IOSRootView: View {
     @Environment(AppModel.self) private var app
@@ -16,26 +16,59 @@ struct IOSRootView: View {
         @Bindable var app = app
         NavigationStack {
             content
-                .toolbar {
-                    // Three jobs, always in the same place (ADR-0013): your tabs · open something new · this tab's commands.
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        Button { showTabs = true } label: { Label("Tabs", systemImage: "square.on.square") }
-                            .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
-                        Spacer()
-                        Button { showNew = true } label: { Label("New", systemImage: "plus") }
-                            .buttonStyle(.borderedProminent).buttonBorderShape(.circle)
-                            .accessibilityLabel("New: open a passage, note or search")
-                        Spacer()
-                        menu
-                    }
-                }
+                .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
-        .sheet(isPresented: $showNew) { NewSheet(close: { showNew = false }).presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $showNew) { NewSheet(close: { showNew = false }).presentationDetents([.large]) }
         // ⌘T / ⌘K (hardware keyboard) and in-app "new tab" requests open the same sheet.
         .onChange(of: app.commandPaletteShown) { _, v in if v { app.commandPaletteShown = false; showNew = true } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
+    }
+
+    private var bottomBar: some View {
+        HStack(spacing: 8) {
+            Button { showTabs = true } label: { bottomItem("Tabs", symbol: "square.on.square", badge: app.tabCount(app.currentSessionId)) }
+                .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
+            Button { showNew = true } label: { bottomItem("New", symbol: "plus", prominent: true) }
+                .accessibilityLabel("New: open a passage, note or search")
+            menu
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 3)
+        .background(.regularMaterial, in: .capsule)
+        .overlay { Capsule().strokeBorder(.primary.opacity(0.09)) }
+        .frame(maxWidth: 360)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func bottomItem(_ title: String, symbol: String, prominent: Bool = false, badge: Int? = nil) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 46, height: 30)
+                .foregroundStyle(prominent ? Color.white : Color.primary)
+                .background {
+                    if prominent { Capsule().fill(Color.accentColor) }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if let badge, badge > 0 {
+                        Text(badge > 99 ? "99+" : String(badge))
+                            .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(.thinMaterial, in: .capsule)
+                            .offset(x: 6, y: -1)
+                            .accessibilityHidden(true)
+                    }
+                }
+            Text(title).font(.caption2.weight(.semibold)).foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .contentShape(.rect)
     }
 
     @ViewBuilder var content: some View {
@@ -99,7 +132,7 @@ struct IOSRootView: View {
                 Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }
-        } label: { Label("More", systemImage: "ellipsis.circle") }
+        } label: { bottomItem("More", symbol: "ellipsis") }
         .accessibilityLabel("More: commands for this tab")
     }
 

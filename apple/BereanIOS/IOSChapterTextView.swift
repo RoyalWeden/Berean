@@ -34,8 +34,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.isEditable = false
         view.isSelectable = true
         view.backgroundColor = .clear
-        view.textContainerInset = UIEdgeInsets(top: 16, left: 20, bottom: 100, right: 20)
-        view.linkTextAttributes = [.underlineStyle: NSUnderlineStyle.single.rawValue]
+        view.textContainerInset = UIEdgeInsets(top: 16, left: 20, bottom: 24, right: 20)
+        view.linkTextAttributes = [.underlineStyle: NSUnderlineStyle([]).rawValue]
         view.alwaysBounceVertical = true
         view.accessibilityLabel = "Scripture text"
         view.delegate = context.coordinator

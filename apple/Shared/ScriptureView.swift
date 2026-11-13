@@ -166,11 +166,7 @@ struct ScriptureView: View {
             .buttonStyle(.borderless)
             .padding(.horizontal, 8).padding(.vertical, 6)
             .glassEffectCompat()
-            #if os(iOS)
-            .padding(.bottom, 72)          // above the bottom bar (Tabs · New · More)
-            #else
             .padding(.bottom, 14)
-            #endif
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Selected \(selectionLabel(st))")
