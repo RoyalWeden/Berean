@@ -466,7 +466,7 @@ final class AppModel {
         let anchor = BibleState(t.state)
         guard anchor.compareMode else { return base }
         let columns = (t.state["compareColumns"]?.arrayValue ?? []).enumerated().compactMap { index, value in
-            value.objectValue.flatMap { CompareColumn(id: index, record: $0, anchor: anchor) }?.destinationKey
+            value.objectValue.flatMap { CompareColumn(id: index, record: $0, anchor: anchor) }?.historyKey
         }
         return base + "|compare|" + columns.joined(separator: ",")
     }

@@ -38,6 +38,8 @@ struct CompareColumn: Identifiable {
         book == anchor.bookId && chapter == ChapterMap.mapChapter(book, anchor.chapter, from: anchor.translation, to: text)
     }
 
+    var isPinned: Bool { record["nativePinnedPassage"]?.boolValue == true }
+
     static func followPassageChange(_ value: JSValue?, from old: BibleState, to new: BibleState) -> JSValue? {
         guard old.compareMode, new.compareMode,
               old.bookId != new.bookId || old.chapter != new.chapter || old.translation != new.translation,
@@ -45,7 +47,12 @@ struct CompareColumn: Identifiable {
         return .array(records.enumerated().map { index, value in
             guard var record = value.objectValue,
                   let column = CompareColumn(id: index, record: record, anchor: old),
-                  column.follows(old) else { return value }
+                  !column.isPinned else { return value }
+            guard column.follows(old) else {
+                // Legacy records imply independence when they differ from the anchor.
+                record["nativePinnedPassage"] = .bool(true)
+                return .object(record)
+            }
             let chapter = ChapterMap.mapChapter(new.bookId, new.chapter, from: new.translation, to: column.text)
             if column.book != new.bookId || column.chapter != chapter {
                 record["bookId"] = .string(JSString(new.bookId))
@@ -55,6 +62,8 @@ struct CompareColumn: Identifiable {
             return .object(record)
         })
     }
+
+    var historyKey: String { destinationKey + (isPinned ? ":pinned" : "") }
 
     var destinationKey: String { "\(text):\(book):\(chapter)" }
 
@@ -130,6 +139,17 @@ struct CompareView: View {
                     Menu("Change Column Passage", systemImage: "book") {
                         ForEach(cols) { column in
                             Button(column.label) { editingColumn = column }
+                        }
+                    }
+                    Menu("Column Navigation", systemImage: "pin") {
+                        ForEach(cols) { column in
+                            let pinned = column.isPinned || !column.follows(st)
+                            Button {
+                                setPinned(!pinned, for: column)
+                            } label: {
+                                Label(pinned ? "Follow Main Passage · \(column.label)" : "Pin \(column.label)",
+                                      systemImage: pinned ? "pin.slash" : "pin")
+                            }
                         }
                     }
                     Section("Open in Reader") {
@@ -447,6 +467,21 @@ struct CompareView: View {
         loadedPassage = passage
     }
 
+    private func setPinned(_ pinned: Bool, for column: CompareColumn) {
+        let anchor = state
+        var record = column.record
+        if pinned {
+            record["nativePinnedPassage"] = .bool(true)
+        } else {
+            record.remove("nativePinnedPassage")
+            record["bookId"] = .string(JSString(anchor.bookId))
+            record["chapter"] = .number(Double(ChapterMap.mapChapter(anchor.bookId, anchor.chapter, from: anchor.translation, to: column.text)))
+            if !column.follows(anchor) { record.remove("scrollPos") }
+        }
+        guard let updated = CompareColumn(id: column.id, record: record, anchor: anchor) else { return }
+        setColumns(columns.map { $0.id == column.id ? updated : $0 })
+    }
+
     private func changePassage(for id: Int, text: String, book: String, chapter: Int) {
         let anchor = state
         let updated = columns.compactMap { column -> CompareColumn? in
@@ -455,7 +490,12 @@ struct CompareView: View {
             record["textId"] = .string(JSString(text))
             record["bookId"] = .string(JSString(book))
             record["chapter"] = .number(Double(chapter))
-            record.remove("scrollPos")
+            if book != column.book || chapter != column.chapter || text != column.text {
+                record.remove("scrollPos")
+                if book != anchor.bookId || chapter != ChapterMap.mapChapter(book, anchor.chapter, from: anchor.translation, to: text) {
+                    record["nativePinnedPassage"] = .bool(true)
+                }
+            }
             return CompareColumn(id: id, record: record, anchor: anchor)
         }
         setColumns(updated)
