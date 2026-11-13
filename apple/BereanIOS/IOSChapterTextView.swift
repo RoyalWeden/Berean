@@ -66,10 +66,15 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
                       verses: verses, style: style, selected: selectedVerses, dark: colorScheme == .dark)
-        view.contentInset.bottom = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
         let samePassage = coordinator.passageId == passageId
+        let clearance = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
+        let previousOffset = view.contentOffset
+        let previousInset = view.adjustedContentInset
+        let previousBottom = max(-previousInset.top, view.contentSize.height + previousInset.bottom - view.bounds.height)
+        let keepChapterEndVisible = samePassage && clearance != view.contentInset.bottom
+            && previousBottom > -previousInset.top && previousOffset.y >= previousBottom - 2
+        view.contentInset.bottom = clearance
         if key != coordinator.key || !samePassage {
-            let offset = view.contentOffset
             let selection = view.selectedRange
             let oldText = view.text
             view.attributedText = coordinator.render(key.dark)
@@ -81,7 +86,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 if view.text == oldText, NSMaxRange(selection) <= view.textStorage.length {
                     view.selectedRange = selection
                 }
-                view.setContentOffset(offset, animated: false)
+                view.setContentOffset(previousOffset, animated: false)
             } else {
                 view.selectedRange = NSRange(location: 0, length: 0)
                 view.setContentOffset(CGPoint(x: 0, y: -view.adjustedContentInset.top), animated: false)
@@ -89,6 +94,12 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
             coordinator.key = key
             coordinator.passageId = passageId
+        }
+        if keepChapterEndVisible {
+            view.layoutIfNeeded()
+            let inset = view.adjustedContentInset
+            let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+            view.setContentOffset(CGPoint(x: previousOffset.x, y: bottom), animated: false)
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
         if let target = scrollTarget, target != coordinator.lastTarget, let range = coordinator.verseRanges[target] {
