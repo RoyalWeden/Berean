@@ -85,7 +85,16 @@ struct HistoryView: View {
             HStack(spacing: 10) {
                 Image(systemName: Self.symbol(e.type)).frame(width: 20).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(e.title).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(e.title).lineLimit(1)
+                        if let passage = scriptureDestination(e) {
+                            let text = textInfo(passage.textId)
+                            Text(text.short)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel(text.name)
+                        }
+                    }
                     if let s = e.sessionName, s != app.session.name { Text(s).font(.caption2).foregroundStyle(.tertiary) }
                 }
                 Spacer()
@@ -103,14 +112,19 @@ struct HistoryView: View {
         #endif
     }
 
+    private func scriptureDestination(_ entry: HistoryEntry) -> RecentPassage? {
+        guard entry.type == "bible", let payload = entry.query,
+              let passage = try? JSONDecoder().decode(RecentPassage.self, from: Data(payload.utf8)),
+              passage.bookId == entry.bookId, passage.chapter == entry.chapter, passage.verse == entry.verse,
+              availableTexts.contains(where: { $0.id == passage.textId }) else { return nil }
+        return passage
+    }
+
     func open(_ e: HistoryEntry) {
         switch e.type {
         case "bible":
             guard let book = e.bookId, let chapter = e.chapter else { return }
-            if let payload = e.query,
-               let destination = try? JSONDecoder().decode(RecentPassage.self, from: Data(payload.utf8)),
-               destination.bookId == book, destination.chapter == chapter, destination.verse == e.verse,
-               availableTexts.contains(where: { $0.id == destination.textId }) {
+            if let destination = scriptureDestination(e) {
                 app.openScripture(bookId: book, chapter: chapter, verse: e.verse, endVerse: destination.endVerse,
                                   textId: destination.textId, reuseTab: true)
             } else {
