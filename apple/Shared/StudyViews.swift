@@ -18,6 +18,8 @@ struct LexiconEntryView: View {
     @State private var occurrenceEdition: String?
     @State private var occurrenceBook: String?
     @State private var visibleOccurrences = 40
+    @State private var selectedRenderings: Set<String> = []
+    @State private var sortByMatches = false
 
     private var editions: [String] {
         Array(Set(occurrences.map(\.textId))).sorted()
@@ -75,14 +77,48 @@ struct LexiconEntryView: View {
                             }
                             .pickerStyle(.menu)
                         }
-                        let matches = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
-                        if !matches.isEmpty {
+                        let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
+                        let indexed = scoped.enumerated().map { ($0.offset, $0.element, renderingWords($0.element)) }
+                        let forms = indexed.reduce(into: [String: Int]()) { counts, row in
+                            for word in row.2 { counts[word, default: 0] += 1 }
+                        }
+                        if forms.count > 1 {
+                            Menu {
+                                ForEach(forms.keys.sorted { (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1) }, id: \.self) { word in
+                                    Toggle("\(word) (\(forms[word] ?? 0))", isOn: Binding(
+                                        get: { selectedRenderings.contains(word) },
+                                        set: { included in
+                                            if included { selectedRenderings.insert(word) }
+                                            else { selectedRenderings.remove(word) }
+                                        }
+                                    ))
+                                }
+                                if !selectedRenderings.isEmpty {
+                                    Button("Clear Word Filter") { selectedRenderings = [] }
+                                }
+                            } label: {
+                                Label(selectedRenderings.isEmpty ? "Translated Words" : "Translated Words (\(selectedRenderings.count))",
+                                      systemImage: "text.magnifyingglass")
+                            }
+                        }
+                        if scoped.count > 1 {
+                            Picker("Sort Occurrences", selection: $sortByMatches) {
+                                Text("Default Order").tag(false)
+                                Text("Most Matches").tag(true)
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        let filtered = indexed.filter { selectedRenderings.isEmpty || !$0.2.isDisjoint(with: selectedRenderings) }
+                        let matches = sortByMatches ? filtered.sorted {
+                            (-$0.1.matchWordIndices.count, $0.0) < (-$1.1.matchWordIndices.count, $1.0)
+                        } : filtered
+                        if !scoped.isEmpty {
                             Text("\(matches.count) loaded occurrences")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(matches.prefix(visibleOccurrences).enumerated()), id: \.offset) { _, o in
+                            ForEach(Array(matches.prefix(visibleOccurrences)), id: \.0) { _, o, _ in
                                 let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
                                 Button { app.visitScripture(passage) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -134,9 +170,15 @@ struct LexiconEntryView: View {
         }
         .onChange(of: occurrenceEdition) {
             occurrenceBook = nil
+            selectedRenderings = []
             visibleOccurrences = 40
         }
-        .onChange(of: occurrenceBook) { visibleOccurrences = 40 }
+        .onChange(of: occurrenceBook) {
+            selectedRenderings = []
+            visibleOccurrences = 40
+        }
+        .onChange(of: selectedRenderings) { visibleOccurrences = 40 }
+        .onChange(of: sortByMatches) { visibleOccurrences = 40 }
         .task(id: strongsId) {
             loaded = false
             entry = nil
@@ -144,6 +186,8 @@ struct LexiconEntryView: View {
             occurrences = []
             occurrenceEdition = nil
             occurrenceBook = nil
+            selectedRenderings = []
+            sortByMatches = false
             visibleOccurrences = 40
             occurrencesLoading = true
             let newEntry = await app.lexicon.entry(strongsId)
@@ -161,12 +205,25 @@ struct LexiconEntryView: View {
         }
     }
 
+    private func occurrenceWords(_ occurrence: LexiconOccurrence) -> [Substring] {
+        occurrence.text.split(whereSeparator: \.isWhitespace)
+    }
+
+    private func renderingWords(_ occurrence: LexiconOccurrence) -> Set<String> {
+        let words = occurrenceWords(occurrence)
+        return Set(occurrence.matchWordIndices.compactMap { index in
+            guard words.indices.contains(index) else { return nil }
+            let word = words[index].filter { $0.isLetter || $0 == "'" || $0 == "’" }.lowercased()
+            return word.isEmpty ? nil : word
+        })
+    }
+
     func highlighted(_ o: LexiconOccurrence) -> AttributedString {
-        let words = o.text.split(separator: " ").map(String.init)
+        let words = occurrenceWords(o)
         var out = AttributedString()
         for (i, w) in words.enumerated() {
             if i > 0 { out += AttributedString(" ") }
-            var a = AttributedString(w)
+            var a = AttributedString(String(w))
             if o.matchWordIndices.contains(i) { a.font = .callout.bold(); a.foregroundColor = .primary }
             out += a
         }
