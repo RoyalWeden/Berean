@@ -173,7 +173,7 @@ struct TabCardsSheet: View {
         NavigationStack {
             List {
                 Section {
-                    NavigationLink { SessionsPage() } label: {
+                    NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
                         LabeledContent {
                             Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
                         } label: {
@@ -258,7 +258,7 @@ struct TabCardsSheet: View {
 /// delete; "Save Snapshot" is a secondary action on the current workspace.
 struct SessionsPage: View {
     @Environment(AppModel.self) private var app
-    @Environment(\.dismiss) private var dismiss
+    let closeTabs: () -> Void
     @State private var renaming: WorkspaceItem?
     @State private var deleting: WorkspaceItem?
     @State private var name = ""
@@ -267,9 +267,31 @@ struct SessionsPage: View {
 
     var body: some View {
         List {
+            let matches = app.matchingWorkspaceTabs(query)
+            if !matches.isEmpty {
+                Section("Open Tabs") {
+                    ForEach(matches) { match in
+                        Button {
+                            app.openWorkspaceTab(match)
+                            closeTabs()
+                        } label: {
+                            Label {
+                                VStack(alignment: .leading) {
+                                    Text(match.tab.title.isEmpty ? "Untitled" : match.tab.title)
+                                    Text(match.workspaceName + " · " + match.tab.spaceId.title)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: match.tab.symbol).foregroundStyle(match.tab.tint)
+                            }
+                        }
+                    }
+                }
+            }
             Section {
                 ForEach(app.workspaceItems.filter { $0.matches(query.trimmingCharacters(in: .whitespacesAndNewlines)) }) { w in
-                    Button { app.open(w); dismiss() } label: {
+                    Button { app.open(w); closeTabs() } label: {
                         HStack {
                             Image(systemName: w.isSaved ? "square.stack.3d.up" : "square.stack").foregroundStyle(.secondary).frame(width: 24)
                             VStack(alignment: .leading) {
@@ -293,7 +315,7 @@ struct SessionsPage: View {
                         if app.canDelete(w) { Button("Delete…", systemImage: "trash", role: .destructive) { deleting = w } }
                     }
                 }
-                Button { app.newWorkspace(); dismiss() } label: { Label("New Workspace", systemImage: "plus") }
+                Button { app.newWorkspace(); closeTabs() } label: { Label("New Workspace", systemImage: "plus") }
             } footer: { Text("A workspace is a set of tabs you study with. Switching workspaces swaps the tabs you see. Touch and hold a workspace for more.") }
         }
         .navigationTitle("Workspaces")

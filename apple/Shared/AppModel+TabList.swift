@@ -34,6 +34,34 @@ extension AppModel {
         }
     }
 
+    struct WorkspaceTabMatch: Identifiable {
+        let workspaceID: String
+        let workspaceName: String
+        let tab: BereanWorkspace.Tab
+        var id: String { "\(workspaceID)/\(tab.id)" }
+    }
+
+    func matchingWorkspaceTabs(_ query: String) -> [WorkspaceTabMatch] {
+        let terms = query.split(whereSeparator: \.isWhitespace)
+        guard !terms.isEmpty else { return [] }
+        return sessions.flatMap { workspace in
+            let tabsByID = Dictionary(uniqueKeysWithValues: workspace.allTabs.map { ($0.id, $0) })
+            return displayOrder(for: workspace.id).compactMap { id -> WorkspaceTabMatch? in
+                guard let tab = tabsByID[id] else { return nil }
+                let title = tab.title.isEmpty ? "Untitled" : tab.title
+                let searchable = "\(title) \(tab.spaceId.title) \(workspace.name)"
+                guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { return nil }
+                return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: workspace.name, tab: tab)
+            }
+        }
+    }
+
+    func openWorkspaceTab(_ match: WorkspaceTabMatch) {
+        guard sessions.first(where: { $0.id == match.workspaceID })?.allTabs.contains(where: { $0.id == match.tab.id }) == true else { return }
+        switchSession(match.workspaceID)
+        select(match.tab.id, in: match.tab.spaceId)
+    }
+
     func insertInDisplayOrder(_ id: String, after anchor: String?) {
         guard !currentSessionId.isEmpty else { return }
         var order = displayOrder(for: currentSessionId).filter { $0 != id }
