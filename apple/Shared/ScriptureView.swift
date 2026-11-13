@@ -481,6 +481,9 @@ struct ScriptureView: View {
                                     perform: @escaping (@escaping () -> Void) -> Void = { $0() }) -> some View {
         let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum, hermas: HermasText(textId: st.translation))
         Button("Copy Verse") { perform { copy(v, st) } }
+        ShareLink(item: verseWithReference(v, st)) {
+            Label("Share Verse…", systemImage: "square.and.arrow.up")
+        }
         Button("Copy Reference") { perform { Clipboard.copy(label + (st.translation == "lxx" ? " LXX" : "")) } }
         Menu("Highlight") {
             ForEach(highlightColors, id: \.self) { c in
@@ -532,11 +535,15 @@ struct ScriptureView: View {
                           replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
     }
 
-    func copy(_ verse: ChapterVerseRow, _ state: BibleState) {
+    private func verseWithReference(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
         let label = Reference.bookChapterVerseLabel(verse.bookId, chapter: verse.chapter,
                                                     verse: verse.verseNum, hermas: HermasText(textId: state.translation))
         let suffix = state.translation == "lxx" ? " LXX" : ""
-        Clipboard.copy("\(label)\(suffix) \(clipboardVerseText(verse, state))")
+        return "\(label)\(suffix) \(clipboardVerseText(verse, state))"
+    }
+
+    func copy(_ verse: ChapterVerseRow, _ state: BibleState) {
+        Clipboard.copy(verseWithReference(verse, state))
     }
 }
 
