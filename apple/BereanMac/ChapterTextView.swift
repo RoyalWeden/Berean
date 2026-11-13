@@ -67,8 +67,8 @@ struct ChapterTextView: NSViewRepresentable {
         var endBounds = previousBounds
         endBounds.origin.y = max(previousBounds.minY, tv.frame.maxY) + previousBounds.height
         let previousEnd = clip.constrainBoundsRect(endBounds).minY
-        let revealVerse = c.lastPassage == passageId && c.lastKey?.selected.isEmpty == true
-            ? selectedVerses.max() : nil
+        let revealVerse = c.lastPassage == passageId
+            ? c.lastKey.flatMap { selectedVerses.subtracting($0.selected).max() } : nil
         let clearance = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
         let keepChapterEndVisible = c.lastPassage == passageId && clearance != scroll.contentInsets.bottom
             && tv.frame.height > previousBounds.height && previousBounds.minY >= previousEnd - 2
@@ -122,8 +122,11 @@ struct ChapterTextView: NSViewRepresentable {
                       let range = c.verseRanges[target], let container = tv.textContainer else { return }
                 tv.layoutManager?.ensureLayout(for: container)
                 if let rect = tv.firstRect(forVerseRange: range) {
-                    scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, rect.minY - 12)))
-                    scroll.reflectScrolledClipView(scroll.contentView)
+                    let clip = scroll.contentView
+                    var proposed = clip.bounds
+                    proposed.origin.y = rect.minY - 12
+                    clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+                    scroll.reflectScrolledClipView(clip)
                 }
             }
         }
