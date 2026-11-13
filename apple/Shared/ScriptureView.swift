@@ -242,8 +242,18 @@ struct ScriptureView: View {
         let rows = selectedRows
         guard !rows.isEmpty else { return nil }
         if plain { return rows.map { clipboardVerseText($0, state) }.joined(separator: " ") }
-        let reference = selectionLabel(state) + (state.translation == "lxx" ? " LXX" : "")
+        let reference = selectionReference(state)
         return ([reference] + rows.map { "\($0.verseNum) \(clipboardVerseText($0, state))" }).joined(separator: "\n")
+    }
+
+    private func selectionReference(_ state: BibleState) -> String {
+        selectionLabel(state) + (state.translation == "lxx" ? " LXX" : "")
+    }
+
+    private func copyReferenceButton(_ state: BibleState) -> some View {
+        Button("Copy Reference", systemImage: "number") {
+            Clipboard.copy(selectionReference(state))
+        }
     }
 
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
@@ -292,6 +302,7 @@ struct ScriptureView: View {
             }
             .verseActionHelp("Tag verses")
             #if os(macOS)
+            copyReferenceButton(st).help("Copy selected verse reference")
             Button("Add Note", systemImage: "square.and.pencil") {
                 if let verse = selectedRows.first(where: { $0.verseNum == selectedVerse }) {
                     app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
@@ -316,6 +327,7 @@ struct ScriptureView: View {
                 }
             } else {
                 Menu {
+                    copyReferenceButton(st)
                     if let text = selectionText(st) {
                         ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
                     }
@@ -349,6 +361,7 @@ struct ScriptureView: View {
     }
 
     @ViewBuilder private func additionalVerseActions(_ st: BibleState) -> some View {
+        copyReferenceButton(st)
         #if os(iOS)
         if selectedRows.count == 1, let row = selectedRows.first {
             Button("All Verse Actions", systemImage: "list.bullet") {
@@ -893,6 +906,7 @@ extension ScriptureView {
         m.addItem(header)
         if selection.count > 1, selection.contains(n) {
             m.addItem(ClosureMenuItem("Copy \(selectionLabel(st))", image: "doc.on.doc") { copySelection(st, plain: false) })
+            m.addItem(ClosureMenuItem("Copy Selection Reference", image: "number") { Clipboard.copy(selectionReference(st)) })
             m.addItem(ClosureMenuItem("Tag \(selectionLabel(st))…", image: "tag") { tagging = (selectionRanges(st), selectionLabel(st), "verses") })
             m.addItem(.separator())
         }
