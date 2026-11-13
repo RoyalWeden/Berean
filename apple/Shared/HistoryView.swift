@@ -42,19 +42,20 @@ struct HistoryView: View {
 
     private var studyOnly: Bool { app.findTab(tabId)?.state["studyOnly"]?.boolValue ?? false }
     @State private var confirmClear = false
-    @State private var hasMore = false
+    @State private var visibleLimit = 300
 
     var shown: [HistoryEntry] {
-        entries.filter { e in
+        let query = filter.trimmingCharacters(in: .whitespacesAndNewlines)
+        return entries.filter { e in
             category.includes(e.type)
                 && !(category == .scripture && studyOnly && e.type == "bible" && (e.verse ?? 0) == 0)
-                && (filter.isEmpty || e.title.localizedCaseInsensitiveContains(filter) || (e.type == "search" && (e.query ?? "").localizedCaseInsensitiveContains(filter)))
+                && (query.isEmpty || e.title.localizedStandardContains(query) || (e.type == "search" && (e.query ?? "").localizedStandardContains(query)))
         }
     }
 
     var days: [(String, [HistoryEntry])] {
         var order: [String] = [], map: [String: [HistoryEntry]] = [:]
-        for e in shown {
+        for e in shown.prefix(visibleLimit) {
             let d = Date(timeIntervalSince1970: Double(e.timestamp) / 1000)
             let label = Calendar.current.isDateInToday(d) ? "Today" : Calendar.current.isDateInYesterday(d) ? "Yesterday" : d.formatted(date: .complete, time: .omitted)
             if map[label] == nil { order.append(label) }
@@ -90,14 +91,20 @@ struct HistoryView: View {
             .padding(.horizontal, 16).padding(.vertical, 10)
             Divider()
             List {
-                if shown.isEmpty { ContentUnavailableView("No history", systemImage: "clock", description: Text("Passages, notes, Strong's numbers and searches you open appear here.")) }
+                if entries.isEmpty {
+                    ContentUnavailableView("No History", systemImage: "clock",
+                                           description: Text("Passages, notes, Strong's numbers and searches you open appear here."))
+                } else if shown.isEmpty {
+                    ContentUnavailableView("No Matching History", systemImage: "magnifyingglass",
+                                           description: Text("Try another category or search term."))
+                }
                 ForEach(days, id: \.0) { day, items in
                     Section(day) {
                         ForEach(items) { e in row(e) }
                     }
                 }
-                if hasMore {
-                    Button("Show Older") { loadMore() }.frame(maxWidth: .infinity)
+                if shown.count > visibleLimit {
+                    Button("Show Older") { visibleLimit += 300 }.frame(maxWidth: .infinity)
                 }
             }
         }
@@ -109,18 +116,13 @@ struct HistoryView: View {
             Button("Clear History", role: .destructive) { try? app.historyService?.clear(); load() }
         } message: { Text("Your notes, highlights and tabs are not affected.") }
         .task(id: app.historyRevision) { load() }
+        .onChange(of: filter) { visibleLimit = 300 }
+        .onChange(of: category) { visibleLimit = 300 }
+        .onChange(of: studyOnly) { visibleLimit = 300 }
     }
 
     func load() {
-        entries = (try? app.historyService?.all(limit: 300)) ?? []
-        hasMore = entries.count >= 300
-    }
-
-    func loadMore() {
-        guard let last = entries.last else { return }
-        let more = (try? app.historyService?.page(before: last.timestamp, limit: 300)) ?? []
-        entries += more
-        hasMore = more.count >= 300
+        entries = (try? app.historyService?.all(limit: AppModel.historyEntryLimit)) ?? []
     }
 
     static func symbol(_ type: String) -> String {

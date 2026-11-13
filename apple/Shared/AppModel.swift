@@ -325,11 +325,13 @@ final class AppModel {
 
     // MARK: history (device-local `history` table, as the existing apps)
 
+    static let historyEntryLimit = 5_000
+
     func recordHistory(type: String, title: String, bookId: String? = nil, chapter: Int? = nil, verse: Int? = nil, noteId: String? = nil, strongsNum: String? = nil, query: String? = nil) {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let e = HistoryEntry(id: "hist-\(now)-\(Self.newId().prefix(8))", type: type, title: title, timestamp: now, sessionId: currentSessionId, sessionName: session.name,
                              bookId: bookId, chapter: chapter, verse: verse, noteId: noteId, strongsNum: strongsNum, query: query)
-        if (try? historyService?.add(e, maxEntries: 5000)) == true { historyRevision += 1 }
+        if (try? historyService?.add(e, maxEntries: Self.historyEntryLimit)) == true { historyRevision += 1 }
     }
 
     func openHistory(newTab: Bool = false) {
