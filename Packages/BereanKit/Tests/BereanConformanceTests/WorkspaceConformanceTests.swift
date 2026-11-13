@@ -283,3 +283,12 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
                                tabsJSON: JSON.stringifyString(.array([.object(last.jsObject)])))
     #expect(single.afterRestoring(tabID: last.id) == nil)
 }
+
+@Test func copiedTabsRedirectOnlyOriginsIncludedInTheCopy() {
+    let tab = Tab(id: "copied-lexicon", spaceId: .lexicon, type: "lexicon", title: "H3068",
+                  originTabId: "reader", originSpaceId: .scripture)
+    var expected = tab
+    expected.originTabId = "copied-reader"
+    #expect(tab.remappingOrigin(using: ["reader": "copied-reader"]) == expected)
+    #expect(tab.remappingOrigin(using: ["other": "copied-other"]) == tab)
+}

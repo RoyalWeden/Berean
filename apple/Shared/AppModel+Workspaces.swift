@@ -120,11 +120,11 @@ extension AppModel {
         }
         var active: [SpaceId: String?] = [:]
         for sp in SpaceId.allCases { active[sp] = (source.activeTabId[sp] ?? nil).flatMap { idMap[$0] } }
+        tabs = tabs.mapValues { list in list.map { $0.remappingOrigin(using: idMap) } }
         let copy = Session(id: Self.newId(), name: "\(item.name) Copy", icon: source.icon, tabs: tabs, activeTabId: active)
         sessions.append(copy)
         displayOrders[copy.id] = order.compactMap { idMap[$0] }
-        currentSessionId = copy.id
-        scheduleSave()
+        switchSession(copy.id)
     }
 
     /// Deletes the workspace: a live one's session (its linked saved copy too), or a saved snapshot.

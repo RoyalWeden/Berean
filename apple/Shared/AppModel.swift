@@ -355,6 +355,7 @@ final class AppModel {
             }
             active[sp] = ((parsed.activeTabId[sp] ?? nil).map { idMap[$0] ?? $0 }) ?? tabs[sp]?.first?.id
         }
+        tabs = tabs.mapValues { list in list.map { $0.remappingOrigin(using: idMap) } }
         sessions.append(Session(id: sid, name: ws.name, icon: parsed.icon, tabs: tabs, activeTabId: active))
         displayOrders[sid] = parsed.displayOrder.map { idMap[$0] ?? $0 }
         switchSession(sid)

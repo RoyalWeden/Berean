@@ -30,6 +30,14 @@ public struct Tab: Equatable, Sendable, Identifiable {
     }
 
     public var tabType: TabType? { TabType(rawValue: type) }
+
+    /// Redirect a copied tab to its copied origin when both belong to the workspace.
+    public func remappingOrigin(using copiedIDs: [String: String]) -> Tab {
+        guard let originTabId, let replacement = copiedIDs[originTabId] else { return self }
+        var tab = self
+        tab.originTabId = replacement
+        return tab
+    }
 }
 
 /// Which tab-state fields synchronise and which stay on this device — port of src/platform/sync/tabFields.ts
