@@ -27,7 +27,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-FUNC-017 | Single window only: no floating tabs, presenter or secondary windows. | Mac | P2 | U07 | OPEN |
 | SHARED-FUNC-018 | PDFs, YouTube, Read Aloud, Ask Berean not ported. | both | P2 | U17/M01/M05/G01 | OPEN |
 | SHARED-FUNC-019 | Deep links (`berean://`) not handled natively. | both | P2 | A06 | OPEN |
-| IOS-FUNC-004 | Verify iPhone Go opens a note by unique title and body match. | iOS | P2 | Q09 | Implemented with grouped Notes results, runtime acceptance pending |
+| IOS-FUNC-004 | Verify iPhone Go opens a note by title and body match. | iOS | P2 | Q09 | Title lookup and opening verified in Simulator. Body match QA pending |
 | SHARED-UI-020 | Accessibility: no full VoiceOver pass; dark mode checked only on the reader, search and sidebar. | both | P2 | A14 | OPEN |
 
 ## Fixed
