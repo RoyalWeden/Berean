@@ -445,9 +445,12 @@ struct ScriptureView: View {
             var s = before; f(&s)
             t.state = s.merged(into: t.state)
             t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation)
-            if s.bookId != before.bookId || s.chapter != before.chapter || s.translation != before.translation { visited = s }
+            if recordHistory, s.bookId != before.bookId || s.chapter != before.chapter
+                || s.translation != before.translation || s.verse != before.verse || s.endVerse != before.endVerse {
+                visited = s
+            }
         }
-        if let v = visited { app.recordRecent(textId: v.translation, bookId: v.bookId, chapter: v.chapter, verse: v.verse) }
+        if let v = visited { app.recordRecent(textId: v.translation, bookId: v.bookId, chapter: v.chapter, verse: v.verse, endVerse: v.endVerse) }
     }
 
     /// Previous / next chapter by the chapters the book really has (prologue chapter 0, gaps, Hermas numbering), then the

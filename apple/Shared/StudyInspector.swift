@@ -58,7 +58,7 @@ struct CommandPalette: View {
         if trimmed.isEmpty {
             for r in app.recentPassages.prefix(5) {
                 out.append(Item(id: "recent-\(r.id)", group: "Recent", title: r.label, detail: textInfo(r.textId).short, symbol: "clock.arrow.circlepath") {
-                    open(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse))
+                    open(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse))
                 })
             }
         }
@@ -102,7 +102,7 @@ struct CommandPalette: View {
 
     private func open(_ ref: ResolvedPassage) {
         app.openScripture(bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse, textId: ref.textId, reuseTab: !newTab)
-        app.recordRecent(textId: ref.textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse)
+        app.recordRecent(textId: ref.textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse)
     }
 
     private func openTabs(for ref: ResolvedPassage) -> [Item] {
@@ -114,7 +114,7 @@ struct CommandPalette: View {
                         title: workspace.name, detail: tab.title, symbol: "book") {
                 app.switchSession(workspace.id)
                 app.select(tab.id, in: .scripture)
-                app.recordRecent(textId: ref.textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse)
+                app.recordRecent(textId: ref.textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse)
             }
         }
         return Array(matches.prefix(6))

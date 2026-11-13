@@ -96,3 +96,7 @@ Typed verse ranges now reach the same native reader selection from Mac Go, iPhon
 ## Same-chapter verse navigation
 
 Mac Dev Go verified `Jonah 1:1–2 LXX` → `Jonah 1:1 LXX` → Back restores 1–2 → Forward restores 1. The reader keeps the latest destination when a chapter query finishes and hides the old passage and its actions while the new chapter loads. Local selection changes and opening the study inspector do not create navigation history entries. Both Dev builds passed. Repeat the Go and Back sequence in the iPhone Simulator and verify the Notes-link entry point on both platforms.
+
+The iOS 27 iPhone Simulator verified Go → Jonah 1:1–2 LXX → Go → Jonah 1:1 LXX → dock More → Back. The reader restored one dashed outline around both verses. The selection More menu offered Cross References and Add Note. Copy after Back produced the exact range reference and both verses. This pass also found that Recent saved only the first verse.
+
+Recent now stores the range endpoints and distinguishes chapter, single-verse, and range destinations in the same chapter. Mac Go, iPhone Go, and the passage picker reopen the recorded destination. Both Dev builds passed. Runtime acceptance for this change remains open. Check that old saved recents still appear, open a range and its first verse, and reopen each from Recent after relaunch. Notes-link runtime and the broader legacy parity audit are still open.

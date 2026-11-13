@@ -56,7 +56,7 @@ struct GoSheet: View {
 
     @ViewBuilder private var shortcuts: some View {
         Section("Open") {
-            row("Scripture", "book", .blue) { app.openScripture(bookId: lastPassage.bookId, chapter: lastPassage.chapter, verse: lastPassage.verse, textId: lastPassage.textId, reuseTab: !newTab) }
+            row("Scripture", "book", .blue) { app.openScripture(bookId: lastPassage.bookId, chapter: lastPassage.chapter, verse: lastPassage.verse, endVerse: lastPassage.endVerse, textId: lastPassage.textId, reuseTab: !newTab) }
             row("New Note", "square.and.pencil", .orange) { app.newNote() }
             row("Today's Note", "calendar", .orange) { app.openTodayDailyNote() }
             row("Notes", "note.text", .orange) { app.openNote(nil) }
@@ -66,7 +66,7 @@ struct GoSheet: View {
         if !recents.isEmpty {
             Section("Recent") {
                 ForEach(recents) { r in
-                    Button { finish { app.openScripture(bookId: r.bookId, chapter: r.chapter, verse: r.verse, textId: r.textId, reuseTab: !newTab) } } label: {
+                    Button { finish { app.openScripture(bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, textId: r.textId, reuseTab: !newTab) } } label: {
                         Label(r.label + (r.textId == "kjva" ? "" : " · \(textInfo(r.textId).short)"), systemImage: "clock.arrow.circlepath")
                     }
                 }

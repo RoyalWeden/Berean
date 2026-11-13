@@ -8,8 +8,15 @@ struct RecentPassage: Codable, Hashable, Identifiable {
     var bookId: String
     var chapter: Int
     var verse: Int?
-    var id: String { "\(textId)|\(bookId)|\(chapter)" }
-    var label: String { Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)) }
+    var endVerse: Int? = nil
+
+    var id: String {
+        "\(textId)|\(bookId)|\(chapter)|\(verse.map(String.init) ?? "")|\(endVerse.map(String.init) ?? "")"
+    }
+
+    var label: String {
+        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse).label
+    }
 }
 
 /// A book in some text (the picker searches every bundled text, not just the current one).
@@ -28,12 +35,13 @@ extension AppModel {
         (UserDefaults.standard.data(forKey: Self.recentKey)).flatMap { try? JSONDecoder().decode([RecentPassage].self, from: $0) } ?? []
     }
 
-    /// Records a visited passage (dedup by text + book + chapter, newest first, 40 kept).
-    func recordRecent(textId: String, bookId: String, chapter: Int, verse: Int?) {
-        var list = recentPassages.filter { !($0.textId == textId && $0.bookId == bookId && $0.chapter == chapter) }
-        list.insert(RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse), at: 0)
+    /// Records a visited destination, newest first, with up to 40 entries.
+    func recordRecent(textId: String, bookId: String, chapter: Int, verse: Int?, endVerse: Int? = nil) {
+        let destination = RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse)
+        var list = recentPassages.filter { $0 != destination }
+        list.insert(destination, at: 0)
         if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserDefaults.standard.set(data, forKey: Self.recentKey) }
-        recordHistory(type: "bible", title: Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)), bookId: bookId, chapter: chapter, verse: verse)
+        recordHistory(type: "bible", title: destination.label, bookId: bookId, chapter: chapter, verse: verse)
     }
 
     /// Every book of every listed text, in list order.
@@ -152,7 +160,7 @@ struct PassagePicker: View {
                         let recents = app.recentPassages
                         if recents.isEmpty { Text("Passages you open appear here.").foregroundStyle(.secondary) }
                         ForEach(recents.prefix(25)) { r in
-                            Button { onPick(r.textId, r.bookId, r.chapter, r.verse, nil) } label: {
+                            Button { onPick(r.textId, r.bookId, r.chapter, r.verse, r.endVerse) } label: {
                                 HStack {
                                     Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary)
                                     Text(r.label)
