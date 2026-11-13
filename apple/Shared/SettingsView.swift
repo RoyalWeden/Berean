@@ -4,6 +4,9 @@ import BereanWorkspace
 /// Native Settings (Mac Settings window / iPhone sheet): reading preferences stored in the settings table.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
+    // Device-local reading preferences (the existing apps keep these per device too).
+    @AppStorage("showVerseNumbers") private var showVerseNumbers = true
+    @AppStorage("showRedLetters") private var showRedLetters = true
 
     var body: some View {
         @Bindable var app = app
@@ -13,13 +16,23 @@ struct SettingsView: View {
                 LabeledContent("Text size") {
                     HStack { Slider(value: $app.fontSize, in: 12...30, step: 1).frame(minWidth: 160); Text("\(Int(app.fontSize)) pt").monospacedDigit().frame(width: 48, alignment: .trailing) }
                 }
+                Picker("Scripture font", selection: $app.scriptureFontFamily) { ForEach(ScriptureFont.options, id: \.id) { Text($0.label).tag($0.id) } }
                 Picker("Line spacing", selection: $app.lineHeight) { Text("Compact").tag("compact"); Text("Comfortable").tag("comfortable"); Text("Spacious").tag("spacious") }
                 Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
+                Toggle("Verse numbers", isOn: $showVerseNumbers)
+                Toggle("Words of Yeshua in red", isOn: $showRedLetters)
             }
             Section("Appearance") {
                 Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
             }
             WorkspacesSettingsSection()
+            Section("Keyboard Shortcuts") {
+                ForEach(Self.shortcuts, id: \.0) { k, v in LabeledContent(v) { Text(k).font(.body.monospaced()).foregroundStyle(.secondary) } }
+            }
+            Section("About") {
+                LabeledContent("Version", value: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–") + " (native development build)")
+                LabeledContent("Texts", value: "\(availableTexts.count) installed")
+            }
             Section("Library") {
                 LabeledContent("Location", value: UserLibrary.directory.path).textSelection(.enabled)
                 Text("Development build — this library is separate from your Berean data and does not sync yet.").font(.caption).foregroundStyle(.secondary)
@@ -68,6 +81,16 @@ struct WorkspacesSettingsSection: View {
             Button("Delete Workspace", role: .destructive) { if let w = deleting { app.deleteWorkspace(w.id) }; deleting = nil }
         } message: { Text("Open sessions are not affected.") }
     }
+}
+
+extension SettingsView {
+    static let shortcuts: [(String, String)] = [
+        ("⌘T / ⌘K", "New tab · search Berean"), ("⌘L", "Go to passage"), ("⌘W", "Close tab"), ("⌘[  ⌘]", "Back · Forward"),
+        ("⌥⌘←  ⌥⌘→", "Previous · next chapter"), ("⌘F  ⌘G", "Find in chapter · next match"), ("⌘C  ⇧⌘C", "Copy with reference · plain text"),
+        ("⌥⌘C", "Compare texts"), ("⌥⌘I", "Study panel"), ("⇧⌘N", "New note"), ("⇧⌘D", "Today's note"), ("⌘Y", "History"),
+        ("⇧⌘0", "New workspace"), ("⌃⌘S", "Show / hide sidebar"), ("⌘1 … ⌘5", "Spaces"), ("⌃Tab", "Next tab"),
+        ("⌘B  ⌘I  ⌘U", "Bold · italic · underline (notes)"), ("⌥⇧⌘C", "Copy note text without formatting"), ("⇧⌘M", "Show Markdown source"),
+    ]
 }
 
 extension AppModel {

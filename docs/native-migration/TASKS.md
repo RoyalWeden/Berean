@@ -31,7 +31,7 @@
 | M5-02 | iPhone Scripture reader and gestures | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
 | M5-03 | Lexicons/crossrefs/compare | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
 | M5-04 | Unified search surfaces | M4 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M5; add exact tests/PR. |
-| M6-01 | Mac app shell/navigation/windows | M5 gate or independently safe | IN_PROGRESS | Sidebar Spaces + vertical tabs + sessions + command palette + menus, persisted via synced tables (manually driven + relaunch verified). TODO: tab history, multi-window, layouts, settings. |
+| M6-01 | Mac app shell/navigation/windows | M5 gate or independently safe | IN_PROGRESS | ADR-0010 sidebar (session switcher, location, New Tab, unified ordered tabs, pinned, workspaces, archive) + toolbar (history, passage pill/picker), tab history, layouts, settings — UI-verified (VISUAL-UX-PARITY.md). TODO: tab multi-select, session icons, calendar + tool rail, multi-window, ⌃Tab over unified order. |
 | M6-02 | Mac resizable pane system | M5 gate or independently safe | DONE (Mac) | Study inspector (resizable), Compare mode, the 16 scripture layout presets (legacy ids, per tab, HSplit/VSplit study panels), saved workspaces (state_json v2 golden-verified; save/open/rename/delete). Follow-up: iPhone workspace UI (M8). |
 | M6-03 | iPhone 3-control tabs/Quick Open | M5 gate or independently safe | IN_PROGRESS | Bottom tab cards / plus / caret, tab cards sheet with sessions (simulator launch verified). TODO: verse sheet, gestures, Quick Open parity. |
 | M6-04 | Themes, commands, access | M5 gate or independently safe | IN_PROGRESS | Settings window/sheet (text, size, spacing, word replacer, theme), menu commands and shortcuts. TODO: full settings sections, accessibility pass, shortcut parity table. |
@@ -170,3 +170,22 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 - Next ready: M1-02 remainder, M1-03 reference goldens, M2-01 BereanReference
 - Gate: G1 (native Mac+iOS compile/launch in dev identity, golden pipeline repeatable, no production write surfaces)
 - Blocking decision: none for M1–M3
+
+## Owner UI batch 2026-11-08 (explicit tasks)
+| ID | Task | Status | Evidence / next |
+|---|---|---|---|
+| UI-01 | Share caret removed | DONE | menuIndicator(.hidden) |
+| UI-02 | Modern Scripture typography (system font, setting) | DONE | screenshot, CHANGELOG 13:30 |
+| UI-03 | Verse numbers / Strong's visibly clickable | DONE (Mac) | hover underline + pointer + click verified; iPhone rows TODO |
+| UI-04 | Back/Forward beside sidebar button, visible when collapsed | DONE | verified |
+| UI-05 | Window drag from empty sidebar | DONE | verified (position changed) |
+| UI-06 | No "Sessions" wording; unified Workspaces | DONE (Mac) | ADR-0011; iPhone in UI-14 |
+| UI-07 | Yab-style rows + active highlight | DONE (first pass) | ADR-0012; pinned grid, density, edge reveal TODO |
+| UI-08 | Smooth drag reordering | DONE (live reorder) | auto-scroll near edges and drop line TODO |
+| UI-09 | Passage navigator: history, internal back, all-text search, texts column | DONE | Enoch search → 1 Enoch 6 verified |
+| UI-10 | Consolidated texts (one KJV, one LXX) + lxx→Brenton mapping fix | DONE | CHANGELOG 13:30 |
+| UI-11 | Continuous cross-verse selection + copy formats | DONE (Mac) | Lev 8:2-4 copy verified; iPhone TODO |
+| UI-12 | Rich-text note editor (no visible Markdown), Copy as Plain Text | DONE (live preview, ADR-0014) | Mac verified; iPhone builds (not yet tapped); table grid / image preview / columns chrome TODO (M7-02) |
+| UI-13 | Physical iPhone workflow | DONE | npm run native:ios:device; installed + launched on iPhone 16e |
+| UI-14 | iPhone navigation simplification + Plus fix + Workspaces wording | DONE (first pass) | ADR-0013; real-tap verified in Simulator |
+| UI-15 | Storage unification of sessions/workspaces | DEFERRED | until legacy clients retire (ADR-0011) |

@@ -36,9 +36,21 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		BE7EA0000000000000000005 /* BereanMac */ = {isa = PBXFileSystemSynchronizedRootGroup; path = BereanMac; sourceTree = "<group>"; };
-		BE7EA0000000000000000006 /* BereanIOS */ = {isa = PBXFileSystemSynchronizedRootGroup; path = BereanIOS; sourceTree = "<group>"; };
-		BE7EA0000000000000000007 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; };
+		BE7EA0000000000000000005 /* BereanMac */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BereanMac;
+			sourceTree = "<group>";
+		};
+		BE7EA0000000000000000006 /* BereanIOS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BereanIOS;
+			sourceTree = "<group>";
+		};
+		BE7EA0000000000000000007 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +100,15 @@
 			);
 			sourceTree = "<group>";
 		};
+		BE7EA0000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BE7EA0000000000000000008 /* BereanMac.app */,
+				BE7EA0000000000000000009 /* BereanIOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		BE7EA0000000000000000004 /* Config */ = {
 			isa = PBXGroup;
 			children = (
@@ -96,15 +117,6 @@
 				BE7EA000000000000000000C /* BereanIOS.xcconfig */,
 			);
 			path = Config;
-			sourceTree = "<group>";
-		};
-		BE7EA0000000000000000003 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				BE7EA0000000000000000008 /* BereanMac.app */,
-				BE7EA0000000000000000009 /* BereanIOS.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -234,23 +246,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXSourcesBuildPhase section */
-		BE7EA0000000000000000012 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		BE7EA0000000000000000019 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXSourcesBuildPhase section */
-
 /* Begin PBXShellScriptBuildPhase section */
 		BE7EA000000000000000001F /* Bundle corpora */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -330,6 +325,23 @@
 		};
 /* End PBXShellScriptBuildPhase section */
 
+/* Begin PBXSourcesBuildPhase section */
+		BE7EA0000000000000000012 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE7EA0000000000000000019 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
 /* Begin XCBuildConfiguration section */
 		BE7EA000000000000000000F /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -387,8 +399,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BE7EA000000000000000000C /* BereanIOS.xcconfig */;
 			buildSettings = {
-				VALIDATE_PRODUCT = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};

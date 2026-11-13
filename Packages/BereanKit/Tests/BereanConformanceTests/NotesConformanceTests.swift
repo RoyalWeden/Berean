@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import BereanCore
 import BereanSQLite
@@ -212,5 +213,204 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(other != id)
         guard case .created(let plain) = try w.importMarkdown("", fileName: "Empty file.markdown") else { return }
         #expect(try w.one(plain)!.title == "Empty file")
+    }
+}
+
+@Suite("verse tags golden") struct VerseTagsConformanceTests {
+    static func ranges(_ v: JSValue) -> [TagRange] { v.array.compactMap(TagRange.init) }
+    static func verses(_ list: [TaggedVerse]) -> JSValue {
+        .array(list.map { var o = JSObject(); o["bookId"] = js($0.bookId); o["chapter"] = .number(Double($0.chapter)); o["verse"] = .number(Double($0.verse)); return .object(o) })
+    }
+    static func summary(_ l: [VerseTagSummary]) -> JSValue {
+        .array(l.map { t in
+            var o = JSObject()
+            o["id"] = js(t.id); o["name"] = js(t.name); o["color"] = t.color.map(js) ?? .null; o["createdAt"] = .number(Double(t.createdAt))
+            o["colorSlot"] = t.colorSlot.map { .number(Double($0)) } ?? .null; o["graphX"] = t.graphX.map { .number($0) } ?? .null
+            o["graphY"] = t.graphY.map { .number($0) } ?? .null; o["graphPinned"] = .bool(t.graphPinned)
+            o["memberCount"] = .number(Double(t.memberCount)); o["verseCount"] = .number(Double(t.verseCount)); o["chapterCount"] = .number(Double(t.chapterCount))
+            return .object(o)
+        })
+    }
+    static func lite(_ t: TagLite) -> JSValue {
+        var o = JSObject(); o["id"] = js(t.id); o["name"] = js(t.name); o["color"] = t.color.map(js) ?? .null; o["colorSlot"] = t.colorSlot.map { .number(Double($0)) } ?? .null; return .object(o)
+    }
+    static func chapter(_ r: (verseTags: [Int: [TagLite]], chapterTags: [TagLite])) -> JSValue {
+        var vt = JSObject()
+        for k in r.verseTags.keys.sorted() { vt[String(k)] = .array(r.verseTags[k]!.map(lite)) }
+        var o = JSObject(); o["verseTags"] = .object(vt); o["chapterTags"] = .array(r.chapterTags.map(lite)); return .object(o)
+    }
+    static func members(_ l: [TagMemberDetail]) -> JSValue {
+        .array(l.map { m in
+            var o = JSObject()
+            o["memberId"] = js(m.memberId); o["tagId"] = js(m.tagId); o["tagName"] = js(m.tagName); o["tagColor"] = m.tagColor.map(js) ?? .null
+            o["tagColorSlot"] = m.tagColorSlot.map { .number(Double($0)) } ?? .null; o["kind"] = js(m.kind); o["label"] = js(m.label); o["ranges"] = m.ranges
+            o["verses"] = verses(m.verses)
+            o["wholeChapters"] = .array(m.wholeChapters.map { var w = JSObject(); w["bookId"] = js($0.bookId); w["chapter"] = .number(Double($0.chapter)); return .object(w) })
+            return .object(o)
+        })
+    }
+    static func del(_ r: TagDeleteResult) -> JSValue {
+        var o = JSObject()
+        switch r {
+        case .deleted(let l): o["deleted"] = .bool(true); o["list"] = summary(l)
+        case .blocked(let n, let name): o["deleted"] = .bool(false); o["blocked"] = .bool(true); o["noteRefCount"] = .number(Double(n)); o["name"] = js(name)
+        case .notFound: o["deleted"] = .bool(false); o["notFound"] = .bool(true)
+        }
+        return .object(o)
+    }
+
+    @Test func expand() throws {
+        let g = try Golden.load("verse-tags")
+        for (i, c) in g.arr("expandCases").enumerated() { #expect(Self.verses(VerseTagsService.expand(Self.ranges(c))) == g.arr("expanded")[i], "case \(i)") }
+    }
+
+    @Test func script() throws {
+        let g = try Golden.load("verse-tags")
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try db.exec("PRAGMA foreign_keys = ON")   // as UserDatabase and the TS test adapter (members cascade on tag delete)
+        try Migrator.migrate(db)
+        let clock = FakeClock(); clock.t = 70_000
+        let ids = FakeClock(); ids.t = 0
+        let log = EventLog()
+        let svc = VerseTagsService(db: db, now: { clock.t }, uuid: { ids.t += 1; return "t\(ids.t)" }, pick: { _ in 0 },
+                                   onChange: { e, id, op in log.items.append(DataChange(entity: e, id: id ?? "", op: op)) })
+        var steps: [JSValue] = []
+        func r(_ b: String, _ c: Double, _ s: Double, _ e: Double) -> TagRange { TagRange(bookId: b, chapter: c, spans: [(s, e)]) }
+        steps.append(Self.summary(try svc.create("Sabbath")))
+        clock.t += 10; steps.append(Self.summary(try svc.create("sabbath")))
+        clock.t += 10; steps.append(Self.summary(try svc.create("Feasts", color: "#ff0000")))
+        clock.t += 10; steps.append(Self.summary(try svc.addMembers(tagIds: ["t1"], newTagNames: ["Covenant", "Feasts"], ranges: [r("EXO", 20, 8, 11)], label: "Exodus 20:8-11")))
+        clock.t += 10; steps.append(Self.summary(try svc.addMembers(tagIds: ["t1"], ranges: [TagRange(bookId: "GEN", chapter: 2, whole: true)], label: "Genesis 2", kind: "chapter")))
+        clock.t += 10; steps.append(Self.summary(try svc.rename("t3", to: "Appointed Times")))
+        steps.append(Self.summary(try svc.setColor("t1", "#00aa00")))
+        steps.append(Self.summary(try svc.setColorSlot("t1", 15)))
+        steps.append(Self.summary(try svc.reorder(["t3", "t1"])))
+        steps.append(Self.chapter(try svc.forChapter("EXO", 20))); steps.append(Self.chapter(try svc.forChapter("GEN", 2))); steps.append(Self.chapter(try svc.forChapter("JHN", 3)))
+        steps.append(Self.members(try svc.members(["t1", "t3"]))); steps.append(Self.members(try svc.members([])))
+        let first = try db.query("SELECT id FROM verse_tag_members WHERE label = 'Exodus 20:8-11' AND tag_id = 't1'").first!["id"]!.string!
+        clock.t += 10; steps.append(Self.summary(try svc.updateMemberRanges(first, ranges: [r("EXO", 20, 8, 8)], label: "Exodus 20:8")))
+        steps.append(Self.summary(try svc.updateMemberRanges(first, ranges: [TagRange(bookId: "EXO", chapter: 20, whole: true)], label: "Exodus 20", kind: "chapter")))
+        steps.append(Self.summary(try svc.updateMemberRanges("nope", ranges: [], label: "x")))
+        steps.append(Self.summary(try svc.merge("t4", into: "t1")))
+        try db.run("INSERT INTO notes (id, type, title, content, created_at, updated_at) VALUES ('n1', 'general', 'x', 'see #Appointed Times', 1, 1)")
+        steps.append(Self.del(try svc.delete("t3"))); steps.append(Self.del(try svc.delete("t3", force: true))); steps.append(Self.del(try svc.delete("missing")))
+        steps.append(Self.summary(try svc.removeMember(first)))
+        let want = g.arr("steps")
+        #expect(steps.count == want.count)
+        for (i, s) in steps.enumerated() where i < want.count { #expect(s == want[i], "step \(i)") }
+        #expect(log.items.map { "\($0.entity)/\($0.id)/\($0.op)" } == g.arr("events").map { "\($0["entity"]!.str)/\($0["id"]?.optionalString ?? "")/\($0["op"]!.str)" })
+        let tables = g["tables"]!.object
+        for t in ["verse_tags", "verse_tag_members", "verse_tag_verse", "tag_edges"] {
+            #expect(rowsJSON(try db.query("SELECT * FROM \(t) ORDER BY rowid")) == tables[t]!, "table \(t)")
+        }
+    }
+}
+
+@Suite("markdown live preview spans") struct MarkdownLiveSpansTests {
+    func plain(_ s: String) -> String { MarkdownLiveSpans.plainText(s) }
+
+    @Test func inlineMarkupIsHidden() {
+        #expect(plain("A **bold** and *italic* and ~~gone~~ and ==hi== word") == "A bold and italic and gone and hi word")
+        #expect(plain("<u>under</u> <mark class=\"hl-red\">red</mark> `code *not italic*`") == "under red code *not italic*")
+        #expect(plain("See [Exodus](https://x.y/z) and [[Gen 1:1]] and [[Note title|alias]]") == "See Exodus and Gen 1:1 and alias")
+        #expect(plain("**bold with *italic* inside**") == "bold with italic inside")
+        #expect(plain("2 * 3 * 4 and snake_case_name") == "2 * 3 * 4 and snake_case_name")
+    }
+
+    @Test func blocks() {
+        #expect(plain("## Heading\nBody") == "Heading\nBody")
+        #expect(plain("- one\n- two\n  - nested") == "• one\n• two\n  • nested")
+        #expect(plain("1. first\n2. second") == "1. first\n2. second")
+        #expect(plain("- [ ] todo\n- [x] done") == "• □ todo\n• ☑ done")
+        #expect(plain("> quoted **text**") == "quoted text")
+        #expect(plain("> [!note] Remember") == "Note: Remember")
+        #expect(plain("![Diagram|w300](data:image/png;base64,AAAA)") == "Diagram")
+    }
+
+    @Test func structuresKeptButHidden() {
+        let md = "<!-- berean:columns -->\n<!-- berean:col -->\nLeft\n<!-- /berean:col -->\n<!-- /berean:columns -->"
+        #expect(plain(md).trimmingCharacters(in: .whitespacesAndNewlines) == "Left")
+        let spans = MarkdownLiveSpans.spans(md)
+        #expect(spans.filter { $0.kind == .structure }.count == 4)
+    }
+
+    @Test func codeFenceContentsAreLiteral() {
+        let md = "```swift\nlet x = **y**\n```"
+        let spans = MarkdownLiveSpans.spans(md)
+        #expect(!spans.contains { $0.kind == .bold })
+        #expect(spans.filter { $0.kind == .codeBlock }.count == 3)
+    }
+
+    @Test func tables() {
+        let spans = MarkdownLiveSpans.spans("| a | b |\n| --- | :---: |\n| 1 | 2 |")
+        #expect(spans.filter { $0.kind == .tableRow }.count == 2)
+        #expect(spans.filter { $0.kind == .tableRule }.count == 1)
+    }
+
+    @Test func rangesStayInsideTheString() throws {
+        let g = try Golden.load("note-markdown")
+        for n in g.arr("notes") {
+            let s = n["content"]?.str ?? ""
+            let len = (s as NSString).length
+            for sp in MarkdownLiveSpans.spans(s) { #expect(sp.range.location >= 0 && NSMaxRange(sp.range) <= len, "\(s)") }
+        }
+    }
+}
+
+@Suite("note folders and trash") struct NoteFolderTrashTests {
+    @Test func folderOperations() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try db.exec("PRAGMA foreign_keys = ON")
+        try Migrator.migrate(db)
+        let w = NotesService(db: db)
+        let a = try w.createFolder("A"), b = try w.createFolder("B", parentId: a), c = try w.createFolder("C", parentId: b)
+        #expect(try w.setFolderParent(a, c) == false)            // cycle refused
+        let n1 = try w.create(.init(title: "in B", content: "x", folderId: b)).note.id
+        let n2 = try w.create(.init(title: "in C", content: "y", folderId: c)).note.id
+        try w.deleteFolder(b)                                       // C moves up to A, n1 to root
+        #expect(try w.one(n1)!.folderId == nil)
+        #expect(try w.folders().first { $0.id == c }?.parentId == a)
+        let trashed = try w.deleteFolderDeep(a)                    // A and C removed, n2 trashed
+        #expect(trashed == [n2])
+        #expect(try w.folders().isEmpty)
+        #expect(try w.trash().map(\.id) == [n2])
+        #expect(try w.purgeTrashItem(n1) == false)                 // not in trash
+        try w.delete(n1)
+        #expect(try w.emptyTrash().sorted() == [n1, n2].sorted())
+        #expect(try w.trash().isEmpty && w.one(n1) == nil)
+    }
+
+    @Test func systemFolders() {
+        func n(_ type: String, _ title: String, ref: String? = nil, tags: [String] = []) -> Note {
+            Note(id: "x", type: type, title: title, content: "", verseRef: ref, color: "blue", icon: nil, status: nil, createdAt: 0, updatedAt: 0, tags: tags,
+                 importedAt: nil, folderId: nil, textId: "kjva", idiomTerm: nil, idiomMeaning: nil, idiomAliases: nil, idiomAutoVariants: false, idiomData: nil,
+                 deletedAt: nil, pinned: false, aiExcluded: false)
+        }
+        #expect(NotesService.systemFolder(n("daily", "Daily — 2026-11-12")) == "daily")
+        #expect(NotesService.systemFolder(n("general", "Daily — 2026-01-01")) == "daily")
+        #expect(NotesService.systemFolder(n("verse", "x", ref: "JHN.3.16")) == "verse")
+        #expect(NotesService.systemFolder(n("general", "x", tags: ["esword"])) == "esword")
+        #expect(NotesService.systemFolder(n("general", "Topic")) == nil)
+    }
+}
+
+@Suite("navigation history") struct HistoryServiceTests {
+    @Test func addDedupPageDeleteClear() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let h = HistoryService(db: db)
+        func e(_ id: String, _ ts: Int64, ch: Int = 3) -> HistoryEntry { HistoryEntry(id: id, type: "bible", title: "John \(ch)", timestamp: ts, bookId: "JHN", chapter: ch) }
+        #expect(try h.add(e("a", 1_000)))
+        #expect(try h.add(e("b", 1_000 + 60_000)) == false)            // same place within 5 minutes
+        #expect(try h.add(e("c", 1_000 + 6 * 60_000)))                  // same place later
+        #expect(try h.add(e("d", 1_000 + 7 * 60_000, ch: 4)))
+        #expect(try h.all().map(\.id) == ["d", "c", "a"])
+        #expect(try h.page(before: 1_000 + 6 * 60_000).map(\.id) == ["a"])
+        _ = try h.add(HistoryEntry(id: "s", type: "search", title: "\"grace\"", timestamp: 9_999_999, query: "grace"), maxEntries: 2)
+        #expect(try h.all().map(\.id) == ["s", "d"])                   // capped to 2
+        try h.delete("s")
+        #expect(try h.all().map(\.id) == ["d"])
+        try h.clear()
+        #expect(try h.all().isEmpty)
     }
 }

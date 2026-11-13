@@ -20,6 +20,7 @@
     "native:test:ios": "scripts/native/build.sh ios-test",
     "native:build:mac": "scripts/native/build.sh mac",
     "native:build:ios": "scripts/native/build.sh ios",
+    "native:ios:device": "scripts/native/ios-device.sh",
     "native:ui:smoke": "scripts/native/ui/notes-markdown-smoke.sh",
     "native:check": "scripts/native/build.sh all",
     "rebuild": "electron-rebuild -f -w better-sqlite3",

@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 import Observation
 import CoreGraphics
@@ -9,12 +10,34 @@ import BereanBible
 import BereanReference
 import BereanNotes
 
-/// The texts the native app offers, in compare/picker order.
-struct TextInfo: Identifiable, Hashable { let id: String; let name: String }
+/// The texts the reader offers — the existing app's TRANSLATIONS list (src/lib/bibleTexts.ts): one KJV entry (KJV +
+/// Apocrypha includes the KJV) and one Septuagint (Brenton; `lxx` is served from lxx_brenton.db, electron/db/bible.ts).
+/// `kjv` is not listed but still opens for saved tabs and links.
+struct TextInfo: Identifiable, Hashable { let id: String; let name: String; let short: String; var section = "Other writings" }
 let availableTexts: [TextInfo] = [
-    .init(id: "kjva", name: "KJV + Apocrypha"), .init(id: "kjv", name: "KJV"), .init(id: "lxx", name: "Septuagint (LXX)"),
-    .init(id: "lxx_brenton", name: "Brenton LXX"), .init(id: "enoch", name: "1 Enoch"), .init(id: "jubilees", name: "Jubilees"),
+    .init(id: "kjva", name: "KJV + Apocrypha", short: "KJVA", section: "Bible"),
+    .init(id: "lxx", name: "Septuagint (Brenton)", short: "LXX", section: "Bible"),
+    .init(id: "enoch", name: "1 Enoch", short: "1 Enoch"),
+    .init(id: "jubilees", name: "Jubilees", short: "Jubilees"),
+    .init(id: "apoc_elijah", name: "Apocalypse of Elijah", short: "Apoc. Elijah"),
+    .init(id: "recog_clement", name: "Recognitions of Clement", short: "Recog. Clement"),
+    .init(id: "hermas", name: "Shepherd of Hermas", short: "Hermas"),
+    .init(id: "hermas_taylor", name: "Shepherd of Hermas (Taylor)", short: "Hermas (Taylor)"),
+    .init(id: "asc_isaiah", name: "Ascension of Isaiah", short: "Asc. Isaiah"),
+    .init(id: "ep_barnabas", name: "Epistle of Barnabas", short: "Ep. Barnabas"),
+    .init(id: "t12p", name: "Testaments of the Twelve Patriarchs", short: "T12 Patriarchs"),
+    .init(id: "gad", name: "Words of Gad the Seer", short: "Gad the Seer"),
+    .init(id: "t_job", name: "Testament of Job", short: "T. Job"),
+    .init(id: "1clement", name: "First Epistle of Clement", short: "1 Clement"),
+    .init(id: "apoc_abraham", name: "Apocalypse of Abraham", short: "Apoc. Abraham"),
+    .init(id: "didache_hoole", name: "Didache", short: "Didache"),
+    .init(id: "t_jacob", name: "Testament of Jacob", short: "T. Jacob"),
+    .init(id: "2baruch", name: "2 Baruch", short: "2 Baruch"),
 ]
+/// Display info for any text id, including unlisted ones that saved tabs may still use.
+func textInfo(_ id: String) -> TextInfo {
+    availableTexts.first { $0.id == id } ?? (id == "kjv" ? TextInfo(id: "kjv", name: "KJV", short: "KJV", section: "Bible") : TextInfo(id: id, name: id, short: id))
+}
 
 /// Prevents two copies of the app opening the same library (DECISIONS OD-5: no simultaneous database access).
 final class SingleInstanceLock {
@@ -51,6 +74,10 @@ final class AppModel {
     var books: [String: [BookRow]] = [:]
     var libraryError: String?
     var commandPaletteShown = false
+    /// Bumped by View ▸ Toggle Sidebar (the window's split view observes it).
+    var sidebarToggleRequest = 0
+    /// Every book of every text (passage navigator search, reference resolution).
+    var bookCatalog: [CatalogBook] = []
     /// One-line result shown in an alert after a user action (export/import outcome, errors).
     var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.
@@ -60,6 +87,11 @@ final class AppModel {
     var highlightsRevision = 0
     private(set) var settingsService: SettingsService?
     private(set) var workspaces: WorkspacesService?
+    private(set) var verseTags: VerseTagsService?
+    private(set) var historyService: HistoryService?
+    var historyRevision = 0
+    /// Bumped on every verse-tag write so chips and tag lists refresh.
+    var tagsRevision = 0
     /// Saved workspaces (newest first), shared with the existing apps' Settings → Layout list.
     var savedWorkspaces: [SavedWorkspace] = []
     /// Reading preferences (settings table keys shared with the existing apps where they exist).
@@ -68,6 +100,8 @@ final class AppModel {
     var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
+    /// The existing apps' `scriptureFontFamily` setting ('system' = the platform UI font).
+    var scriptureFontFamily = "system" { didSet { saveSetting("scriptureFontFamily", .string(JSString(scriptureFontFamily))) } }
     private var loadingSettings = false
 
     private var database: UserDatabase?
@@ -76,7 +110,7 @@ final class AppModel {
     private var keys = TabPersistence.OrderKeyMaps()
     private var saveTask: Task<Void, Never>?
 
-    init() { openLibrary() }
+    init() { openLibrary(); loadBookCatalog() }
 
     // MARK: library
 
@@ -96,6 +130,8 @@ final class AppModel {
             settingsService = SettingsService(db: db.connection)
             workspaces = WorkspacesService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) }, uuid: { Self.newId() }, onChange: { _ in })
             savedWorkspaces = (try? workspaces?.list()) ?? []
+            historyService = HistoryService(db: db.connection)
+            verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
             loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
             let rows = try svc.allRows()
@@ -139,6 +175,7 @@ final class AppModel {
         if let v = all["defaultText"]?.stringValue?.string { defaultText = v }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["theme"]?.stringValue?.string { theme = v }
+        if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
         loadingSettings = false
     }
 
@@ -237,6 +274,25 @@ final class AppModel {
         }
     }
 
+    // MARK: history (device-local `history` table, as the existing apps)
+
+    func recordHistory(type: String, title: String, bookId: String? = nil, chapter: Int? = nil, verse: Int? = nil, noteId: String? = nil, strongsNum: String? = nil, query: String? = nil) {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let e = HistoryEntry(id: "hist-\(now)-\(Self.newId().prefix(8))", type: type, title: title, timestamp: now, sessionId: currentSessionId, sessionName: session.name,
+                             bookId: bookId, chapter: chapter, verse: verse, noteId: noteId, strongsNum: strongsNum, query: query)
+        if (try? historyService?.add(e, maxEntries: 5000)) == true { historyRevision += 1 }
+    }
+
+    func openHistory() {
+        if let t = session.allTabs.first(where: { $0.tabType == .history }) { select(t.id, in: t.spaceId); return }
+        openTab(.history, in: .search, title: "History", state: JSObject())   // the existing apps group History with Search
+    }
+
+    func openTags() {
+        if let t = session.allTabs.first(where: { $0.tabType == .tags }) { select(t.id, in: t.spaceId); return }
+        openTab(.tags, in: .notes, title: "Tags", state: JSObject())   // the existing apps keep the Tags tab in Notes
+    }
+
     // MARK: saved workspaces (same rows and state_json v2 as src/lib/workspaceSnapshot.ts)
 
     /// The existing desktop app restores this mosaic tree on load; the native reader keeps its
@@ -305,6 +361,7 @@ final class AppModel {
         let id = Self.newId()
         let tab = BereanWorkspace.Tab(id: id, spaceId: space, type: type.rawValue, title: title, state: state, originTabId: origin?.id, originSpaceId: origin?.spaceId)
         if sessions.isEmpty { seedDefault() }
+        insertInDisplayOrder(id, after: activeTab?.id)
         var list = sessions[sessionIndex].tabs[space] ?? []
         if let cur = activeTabId(in: space), let idx = list.firstIndex(where: { $0.id == cur }) { list.insert(tab, at: idx + 1) } else { list.append(tab) }
         sessions[sessionIndex].tabs[space] = list
@@ -313,6 +370,13 @@ final class AppModel {
     }
 
     func close(_ tabId: String) {
+        // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
+        let wasActive = activeTab?.id == tabId
+        let ordered = orderedTabs
+        let neighbour: BereanWorkspace.Tab? = ordered.firstIndex { $0.id == tabId }.flatMap { i in
+            i + 1 < ordered.count ? ordered[i + 1] : (i > 0 ? ordered[i - 1] : nil)
+        }
+        defer { if wasActive, let n = neighbour, findTab(n.id) != nil { select(n.id, in: n.spaceId) } }
         for sp in SpaceId.allCases {
             guard var list = sessions[sessionIndex].tabs[sp], let idx = list.firstIndex(where: { $0.id == tabId }) else { continue }
             list.remove(at: idx)
@@ -395,11 +459,13 @@ final class AppModel {
         update(t.id, recordHistory: false) { $0.title = next.0; $0.state = next.1 }
     }
 
+    /// ⌃Tab / ⌃⇧Tab: the next / previous tab in the sidebar list (all tab types, the user's order).
     func selectNextTab(_ delta: Int) {
-        let list = tabs(in: activeSpace)
+        let list = orderedTabs
         guard !list.isEmpty else { return }
-        let cur = list.firstIndex { $0.id == activeTabId(in: activeSpace) } ?? 0
-        select(list[(cur + delta + list.count) % list.count].id, in: activeSpace)
+        let cur = list.firstIndex { $0.id == activeTab?.id } ?? 0
+        let t = list[(cur + delta + list.count) % list.count]
+        select(t.id, in: t.spaceId)
     }
 
     // MARK: opening content
@@ -415,14 +481,14 @@ final class AppModel {
     func openQuery(_ q: String, newTab: Bool = true) {
         let query = q.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
-        if let ref = Reference.parse(query) {
-            var st = BibleState(bookId: ref.bookId, chapter: ref.chapter)
-            st.verse = ref.verse
-            st.translation = defaultText
-            if let forced = ref.forcedTranslation, forced == "LXX" { st.translation = "lxx" }
-            let title = Reference.bookChapterLabel(ref.bookId, chapter: Double(ref.chapter))
+        if let p = resolvePassage(query, preferring: activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }) {
+            var st = BibleState(bookId: p.bookId, chapter: p.chapter)
+            st.verse = p.verse
+            st.translation = p.textId
+            let title = Reference.bookChapterLabel(p.bookId, chapter: Double(p.chapter))
             if !newTab, let t = activeTab, t.tabType == .bible { update(t.id) { $0.state = st.merged(into: $0.state); $0.title = title } }
             else { openTab(.bible, in: .scripture, title: title, state: st.object) }
+            recordRecent(textId: p.textId, bookId: p.bookId, chapter: p.chapter, verse: p.verse)
         } else if let id = StrongsId.normalize(query) {
             openLexicon(id)
         } else {
@@ -431,15 +497,31 @@ final class AppModel {
         }
     }
 
+    /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
+    func openSearch(_ query: String) {
+        recordHistory(type: "search", title: "\"\(query)\"", query: query)
+        var o = JSObject(); o["query"] = .string(JSString(query))
+        openTab(.search, in: .search, title: "Search: \(query)", state: o)
+        SearchHistory.record(query)
+    }
+
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil) {
+        recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
         openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin)
     }
 
     func openNote(_ id: String?) {
+        if let id, let n = try? notes?.one(id) { recordHistory(type: "note", title: n.displayTitle, noteId: id) }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = id.flatMap { try? notes?.one($0)?.displayTitle } ?? "Notes"
         if let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }), t.tabType == .note, activeSpace == .notes {
+            // Keep the Notes home location, so closing the note returns to the same folder.
+            var title = title
+            if let loc = t.state["listFolderId"] {
+                o["listFolderId"] = loc
+                if id == nil { title = NotesHomeView.title(loc.stringValue?.string, (try? notes?.folders()) ?? []) }
+            }
             update(t.id) { $0.state = o; $0.title = title }
         } else { openTab(.note, in: .notes, title: title, state: o) }
     }
@@ -507,5 +589,24 @@ struct BibleState: Equatable {
         if compareMode { o["compareMode"] = .bool(true) } else { o.remove("compareMode") }
         o["scriptureLayout"] = .string(JSString(scriptureLayout))
         return o
+    }
+}
+
+
+/// Scripture font choices — the existing app's FONT_FAMILY_OPTIONS keys; web fonts the platform lacks map to the
+/// nearest system face (system design for sans, New York for book serifs).
+enum ScriptureFont {
+    static let options: [(id: String, label: String)] = [
+        ("system", "System (San Francisco)"), ("serif", "Serif (Georgia)"), ("palatino", "Palatino"), ("sourceserif", "Book serif (New York)"),
+        ("sansserif", "Sans-serif"), ("mono", "Monospace"),
+    ]
+    static func font(_ family: String, size: Double) -> Font {
+        switch family {
+        case "serif": return .custom("Georgia", size: size)
+        case "palatino": return .custom("Palatino", size: size)
+        case "garamond", "crimson", "lora", "merriweather", "sourceserif": return .system(size: size, design: .serif)
+        case "mono": return .system(size: size, design: .monospaced)
+        default: return .system(size: size)
+        }
     }
 }

@@ -274,3 +274,175 @@
   could not be exported. You don't have permission…". Regression: `npm run native:ui:smoke` (System Events, local only) — PASS.
 - PR #21 had merged into `native/m6-layouts` after #20 was already merged, so its commit never reached main. Re-landed by cherry-pick on
   `native/m7-export` (tree identical to #21) together with this fix.
+
+### 2026-11-08 09:30 PST — Native Mac navigation redesign from a real side-by-side comparison (ADR-0010)
+- Captured the existing app (`BEREAN_CDP_PORT=9222 npm run dev`, Berean Dev profile) and the native app at 1300×800, then compared:
+  sidebar, session popover, tab context menu, toolbar. Tracker: `VISUAL-UX-PARITY.md` (17 areas).
+- Sidebar: session switcher (sessions with tab counts and a checkmark, New Session ⌘⇧0, Rename, Close, Saved Workspaces, Save Session
+  as Workspace…) · location field "Space › Title" (opens ⌘K) · New Tab · one tab list in display order (pinned first, type-coloured
+  symbols, × on hover/active, drag reorder persisted to display_order) · Workspaces section (open, "Open" badge, rename/delete, + save) ·
+  Archived section (restore / remove). Sidebar context menu: Group Tabs by Space, Archive All Tabs.
+- Tabs: Archive Tab (archived_groups, tabs_json = JS tab objects); closing the active tab selects its list neighbour; new tabs are placed
+  after the active tab in the display order.
+- Scripture toolbar: history ← → (were missing; ⌘[ ⌘] only) + passage pill ‹ Psalm 23 › with a book/chapter picker popover (book list
+  by section with filter, chapter grid, current chapter marked); text button shows the short name (KJVA); duplicate "Go to reference"
+  field removed (⌘L / ⌘K open the location search); window title kept for the Window menu but not drawn in the toolbar.
+- UI-complete gate added to the playbook.
+- Verified in the running app: session switch, archive → restore, drag reorder kept across relaunch, picker → Psalm 24 → Back → Psalm 23.
+  Swift suite 60 tests/24 suites PASS; Mac + iOS builds PASS.
+
+### 2026-11-08 10:15 PST — iPhone tab sheet, sessions and saved workspaces
+- The native iPhone tab sheet follows the existing iPhone TabCardsSheet list view:
+  - a session row with its tab count, opening the Sessions page;
+  - tab search;
+  - the session's tabs in the user's order, pinned first, with type colours and the Space shown under the title;
+  - swipe actions: Close, Archive, Pin;
+  - context menu: Duplicate, Pin, Move to Session, Archive, Close;
+  - Edit to reorder;
+  - New Tab;
+  - Archived Tabs page (restore, remove).
+- Sessions page:
+  - lists sessions with tab counts; tap switches;
+  - New Session; Rename, Archive All and Close from the context menu or swipe;
+  - **Saved Workspaces** section (open, "Open" badge, rename/delete, "Save This Session as a Workspace…"), with a one-line
+    explanation under each section.
+- Verified with real taps on the iPhone 18 Pro Simulator (Xcode MCP): tab sheet → Sessions → Save "Study Phone" → open it → the sheet
+  shows the session "Study Phone" with its tab.
+- Naming: the native iPhone uses "Sessions" (as the existing tab sheet does) and "Saved Workspaces" (the existing iPhone More page calls
+  these "Saved snapshots") so the Mac and iPhone native apps use one vocabulary.
+
+### 2026-11-08 11:30 PST — Verse tags (service + reader UI) and the verse-actions bug
+- `BereanNotes.VerseTagsService` is a port of verseTagsService.ts: expand, list, create (case-insensitive find-or-create, least-used colour
+  slot), rename, setColor, setColorSlot, reorder, merge, delete (refuses while a note says "#name" unless forced), addMembers,
+  removeMember, updateMemberRanges, forChapter, members.
+  - Golden `verse-tags.json`: 4 expansion cases (dedup, whole chapter, 400-verse cap, fractional spans) and a 22-step script.
+  - Results, events and all four tables (`verse_tags`, `verse_tag_members`, `verse_tag_verse`, `tag_edges`) are reproduced exactly.
+  - `Math.random` is pinned in the golden; Swift takes an injected `pick`.
+- Reader:
+  - "#name" chips under tagged verses, in palette or literal colours; whole-chapter tags above the passage.
+  - Verse menu: Tag Verse… / Tag Chapter…, opening a picker that filters and creates (Return creates, or applies the single match).
+  - Chip menu: Remove “label” from #tag, and Search #tag.
+  - Search tab: "#name" lists the tag's members with verse text.
+- BUG FIXED: right-clicking verse TEXT showed the system text-editing menu (the text is selectable), so the verse actions (Copy,
+  Highlight, Tag, Note, Cross References…) were reachable only from the margin. The verse number now opens the verse actions menu, as the
+  existing app's verse popover does (CLAUDE.md §6); the row context menu shares the same items.
+- Verified in the running Mac app:
+  - verse number 16 → menu → Tag Verse… → typed "Gospel" → Create → chip shown;
+  - verse 17 → Tag Verse… → "Gospel" + Return → chip shown;
+  - chip → Search #Gospel → results with John 3:16 text.
+- Checks: Swift 62 tests/25 suites PASS; golden drift guard 22/22 PASS; Mac + iOS builds PASS.
+- Found while testing: Return in `.searchable` inside a macOS sheet does nothing (`onSubmit(of: .search)` never fires), and the field
+  was not focused, so typing went nowhere. Replaced with a focused TextField.
+
+### 2026-11-08 13:30 PST — Continuous reader, passage navigator, texts, typography, toolbar (owner batch "UI refinement")
+- **Continuous Mac reader** (`apple/BereanMac/ChapterTextView.swift`): one TextKit text view per chapter, so a selection can cross verses.
+  - Verse numbers, Strong's numbers and tag chips are links: pointing-hand cursor, hover underline, tooltip.
+  - Clicking a verse number opens the verse actions (Copy, Highlight ▸, Tag Verse/Chapter, Add Note, Verse Notes, Cross References,
+    Open in New Tab); clicking a Strong's number opens the lexicon; clicking a tag chip opens remove/search.
+  - Right-clicking text gives the verse actions plus Copy / Copy as Plain Text.
+  - Copy follows the existing app (ChapterView.tsx):
+    - within one verse → the selected words;
+    - across verses → "Book c:v1-v2" + numbered lines;
+    - ⌘⇧C → plain text on one line.
+  - Gutter numbers, Strong's numbers and chips are never copied as text.
+  - Highlights (whole verse and character ranges), red letters, italics, note dots and verse tags are kept.
+  - Verified: shift-click selection Lev 8:2→4 copied as "Leviticus 8:2-4" + 3 lines; ⌘⇧C plain; a partial selection inside a verse copied
+    only those words; a Strong's click opened H3068; a verse-number click opened the menu.
+  - Two AppKit-in-SwiftUI issues worked around (verified by file logging): SwiftUI's Edit ▸ Copy never reaches a hosted NSTextView, so ⌘C
+    and ⌘⇧C are handled in the reader's performKeyEquivalent; the built-in link-click delegate did not fire, so single clicks on links
+    are dispatched in mouseDown.
+  - iPhone keeps per-verse rows for now.
+- **Passage navigator** (replaces the book/chapter popover):
+  - Left: one search field over every book of every text plus references ("Go to"), and History of recently opened passages
+    (deduped by text + book + chapter, 40, per device).
+  - Middle: books → chapters, with an internal ‹ Books back button (⌘←).
+  - Right: the text list.
+  - A book found in another text switches text; a reference stays in the current text when that text has the book.
+  - The iPhone uses it as a sheet (compact layout with a text picker).
+- **Texts:** the native list is now the existing app's TRANSLATIONS (one KJV + Apocrypha, one Septuagint, and every extra-biblical text).
+  `kjv` is hidden but still opens.
+  - **Data-parity BUG FIXED:** the native app served textId `lxx` from `lxx.db`; the existing app serves it from `lxx_brenton.db`
+    (electron/db/bible.ts). `Corpora` now maps it the same way.
+  - All 19 text databases are bundled. The separate toolbar text menu was removed; the pill shows "Leviticus 8 KJVA".
+- **Typography:** Scripture defaults to the system font (the existing `scriptureFontFamily` setting, 'system'); Settings → Scripture font
+  (System, Georgia, Palatino, New York, Sans-serif, Monospace).
+- **Toolbar:** Back / Forward (the active tab's history) sit beside the sidebar button for every tab type and stay put when the sidebar is
+  collapsed; the chapter pill keeps ‹ ›.
+- **Note Share:** the dropdown caret is hidden (`menuIndicator(.hidden)`), with a VoiceOver label.
+
+### 2026-11-08 14:45 PST — Unified Workspaces (ADR-0011), Yab-style sidebar (ADR-0012), window drag, sidebar toggle
+- Workspace switcher with no "Sessions" wording: one list (live, then saved-not-open), each with a tab count and a checkmark; New, Rename,
+  Duplicate, Save Snapshot…, Delete (with confirm), Manage Saved ▸. ⌘⇧0 = New Workspace. Tab menu: "Move to Workspace".
+- `BereanSidebar` replaces the List sidebar: raised active-tab card, hover fill, close on hover, live drag reordering (drop into Pinned to pin).
+- Verified in the running app:
+  - drag "Untitled" from 5th to 1st → order changed, the active tab and the window position unchanged;
+  - dragging empty space below the tabs moved the window (100,60 → 200,100);
+  - Duplicate → "Study Copy" with the same 9 tabs, order and active tab; Delete → confirm → back to "Study";
+  - the sidebar button hides and shows the sidebar, and Back / Forward stay beside it.
+- BUG FOUND + FIXED: a full-height drag area swallowed clicks on the title-bar sidebar button; it is now limited to below the title bar.
+
+### 2026-11-08 15:20 PST — iPhone: working New (Plus) sheet, simpler bottom bar, Workspaces page (ADR-0013)
+- BUG FIXED: Plus opened `CommandPalette` (a fixed 520-pt-wide view in a 220-pt sheet). On a 402-pt iPhone it was clipped on both sides
+  and had no buttons. It is replaced by `NewSheet` (full width, field + Open rows + Recent).
+- Bottom bar: Tabs · New · More. More holds Back/Forward, the reader commands, tab actions and Settings.
+- The Workspaces page is one list (live + saved), with switch, new, rename, duplicate, delete, save snapshot and archive all. The tab
+  sheet's workspace row says Workspaces; the tab menu says "Move to Workspace".
+- Verified with real taps on the iPhone 18 Pro Simulator:
+  - Plus → New sheet → New Note → note open for typing;
+  - Plus → "John 3:16" + Return → John 3 with v16 selected;
+  - Tabs → workspace row → Workspaces list (Study 1 tab, Study Phone 3 tabs ✓);
+  - More → menu with Cross References / Notes / Strong's / Compare / Duplicate / Close / Settings.
+
+### 2026-11-08 15:40 PST — Physical iPhone deployment (UI-13)
+- `npm run native:ios:device [UDID]` (scripts/native/ios-device.sh):
+  - finds the connected iPhone;
+  - creates the gitignored `apple/Config/Signing.xcconfig` with ONLY the team id (copied from ios/App/Signing.xcconfig; never its bundle
+    id, iCloud container or App Group);
+  - builds with automatic development signing;
+  - refuses to install unless the bundle id is `com.berean.native.ios.dev` and there are no iCloud / App Group entitlements;
+  - installs and launches with devicectl.
+- Done on Michael's iPhone 16e. The device now lists Berean (com.berean.app 0.8.1 (7)), Berean Dev (com.berean.app.dev) and Berean Native
+  Dev (com.berean.native.ios.dev) side by side; production was not touched.
+
+### 2026-11-08 16:30 PST — Formatted notes editor (Mac + iPhone), Copy as Plain Text (ADR-0014)
+- `MarkdownLiveSpans` (BereanNotes) + 6 tests: inline markup hidden; nested bold/italic; snake_case and "2 * 3" left alone; lists, tasks,
+  quotes, callouts, images (width suffix hidden), structure comments, code fences literal, tables, ranges always inside the string.
+- Mac `RichNoteEditor` (NSTextView, TextKit 1 null glyphs + per-glyph substitution) and iPhone `RichNoteEditorIOS` (UITextView, same
+  model, Format ▸ in the edit menu, Copy as Plain Text). The old monospace TextEditor is now only View ▸ Show Markdown Source.
+- Verified in the running Mac app on a seeded note: the heading, bold, italic, wikilink, bullets, highlight, □/☑ tasks, underline,
+  "Note:" callout, table, inline code and link all rendered without markup;
+  - typing saved into the Markdown at the caret;
+  - double-click "Code" + ⌘B → shown bold, saved as `**Code**`;
+  - Copy as Plain Text → no markup (bullets "•", tasks □ / ☑, "Note:");
+  - Copy → plain + RTF + Markdown source flavours.
+- Checks: Swift 68 tests/26 suites PASS; golden drift 22/22 PASS; Mac + iOS builds PASS.
+
+### 2026-11-12 — Owner batch "continuous reconstruction" (cycle 1)
+- Fixed (owner reports):
+  - single-chapter books (chapter lists from real chapters, prologue 0, open directly, stepping, all-books test over 19 texts);
+  - verse-number click selects (⇧-click range, selection bar, ⌘C, Esc; iPhone tap);
+  - [sidebar ‹ ›] group in the sidebar title bar (same place when collapsed);
+  - multi-text search (All Texts default, scope menu, per-text counts, options popover, Strong's queries and bridge, phrase, history,
+    truncation notice; engine port + 6 tests).
+- Found and fixed (exploratory):
+  - bare book names and "Jude 5" did not resolve;
+  - same-verse-count passages kept the scroll position;
+  - Strong's bridge capped at 1000 rows;
+  - the New sheet stayed open on iPhone;
+  - the selection bar overlapped the iPhone bottom bar.
+- New:
+  - Notes home (folders home, folder view, trash, folder management, note status / move / duplicate);
+  - ⌘F find in chapter;
+  - ⌘K grouped results including notes and commands.
+- Records: FULL-FEATURE-PARITY.md (104 features × 2 platforms), UX-AND-FUNCTIONAL-ISSUES.md, SCREEN-INVENTORY.md.
+- Checks: Swift 78/30 PASS; Mac + iOS builds PASS; each fix exercised in the running Mac app; iPhone verified in the Simulator (verse
+  selection, search, New → Obadiah, Notes home).
+
+### 2026-11-12 — cycle 2
+- Partial-selection highlight (Mac) with offset mapping (verified the stored range = the shown words).
+- iPhone swipe chapter change (verified in the Simulator).
+- ⌘⇧D Today's Note; Copy Reference and Compare This Verse.
+- Exploratory fixes: single-digit verse numbers unclickable; reader swallowed app shortcuts.
+- History (service port + tests, History tab, ⌘Y).
+- Tag Manager.
+- Checks: Swift 79/31 PASS; Mac + iOS builds PASS.

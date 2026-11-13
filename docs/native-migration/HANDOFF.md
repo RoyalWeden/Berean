@@ -28,3 +28,93 @@ functional parity. No `--force` (worktree remove, push), no `branch -D`, no `res
 - Merge in the order listed; for stacked PRs merge the lower one first and **wait until GitHub retargets the next PR to main before
   merging it** — #21 was merged into its already-merged base branch and missed main (re-landed via `native/m7-export`).
 - Before merging: CI green (both jobs) + the local Mac check comment (ADR-0007: `npm run native:build:mac`, Xcode 27).
+
+## Session end 2026-11-08 (afternoon) — state
+- **Open PRs, merge in this order:**
+  1. **#22** `native/m7-export` → main: re-lands #21 (note Markdown + version history, missed main) + the Export fix.
+  2. **#23** `native/m6-navigation` (stacked on #22), containing:
+     - the ADR-0010 sidebar, sessions and workspaces redesign, tab archive, passage pill and history toolbar;
+     - ⌃Tab over the unified list;
+     - the iPhone tab sheet and Sessions page;
+     - verse tags;
+     - verse-number actions.
+     After #22 merges, wait for GitHub to retarget #23 to main, then merge.
+- Checks at 8eec766:
+  - `swift test -c release`: 62 tests / 25 suites PASS;
+  - golden drift guard: 22/22 PASS;
+  - `npm run native:build:mac` and `native:build:ios`: PASS;
+  - `npm run native:ui:smoke`: PASS (at 26a3835).
+- UI evidence: `VISUAL-UX-PARITY.md` verification log and CHANGELOG entries for today.
+- Next executable tasks:
+  1. Study Trail: port `src/platform/services/studyTrailService.ts` (1223 lines) with goldens, then the trail map UI.
+  2. Tab multi-select (⌘/⇧-click) with bulk archive/move/close; session icons.
+  3. Unified grouped search (`unifiedSearch.ts`).
+  4. iPhone verse sheet and verse-number actions on iOS (the verse menu exists; check touch).
+  5. M4 sync engine port.
+- Visual QA harness notes:
+  - Context menus opened with synthetic clicks can leave the app in a menu-tracking loop (it looks hung; `sample` shows
+    NSMenuTrackingSession). Prefer keyboard navigation + Return, and `pkill` if it sticks.
+  - `ccusage` is blocked by the permission classifier, so the usage window cannot be checked from here.
+
+## Session end 2026-11-08 (evening) — state
+- Branch `native/m6-navigation` (PR #23, stacked on #22). Neither PR is merged; neither branch is in main (checked by ancestry).
+- **Merge order (Michael):** #22 → wait until GitHub retargets #23 to main → #23. Both need green CI plus the local Mac check comment.
+- Done this session (see CHANGELOG 13:30 → 16:30): continuous TextKit reader; passage navigator; text list + lxx→Brenton fix; system
+  Scripture font; Back/Forward placement; Share caret; unified Workspaces (ADR-0011); Yab-style sidebar + live drag + window drag
+  (ADR-0012); iPhone New sheet + three-job bar (ADR-0013); physical iPhone deploy (`npm run native:ios:device`, installed on the iPhone 16e);
+  formatted notes editor + Copy as Plain Text (ADR-0014).
+- Checks at the last commit: Swift 68/26 PASS; golden drift 22/22 PASS; Mac + iOS builds PASS.
+- Next executable tasks:
+  1. iPhone reader: continuous selection (UITextView) and tappable Strong's / verse numbers (UI-03/11 iOS).
+  2. Sidebar: drop line and auto-scroll while dragging, pinned grid, density setting (UI-07/08 rest).
+  3. Unified grouped search (notes in ⌘K results — found during the editor test: ⌘K "Rich editor test" searched Scripture only).
+  4. Study Trail service port with goldens.
+  5. M4 sync engine.
+
+## Session end 2026-11-12 — state (read this first)
+- Worktree `/Users/roywe/Berean-native`, branch `native/m6-navigation` (PR #23, stacked on #22). Both PRs OPEN; neither branch is in
+  origin/main (checked with `git merge-base --is-ancestor`).
+- **Merge order (Michael):** #22 → wait for GitHub to retarget #23 to main → #23 CI green → merge #23.
+- Durable records:
+  - `FULL-FEATURE-PARITY.md`: 104 features; Mac ✅31 🟡24 ❌36 (−) before this session's later fixes;
+  - `UX-AND-FUNCTIONAL-ISSUES.md`: open P1s are Study Trail, sync, and iPhone swipe / edge chapter change;
+  - `SCREEN-INVENTORY.md`.
+- Verified this session (running Mac app; iPhone Simulator where noted):
+  - single-chapter books and prologues;
+  - verse-number selection (+ iPhone);
+  - sidebar nav group;
+  - multi-text search (+ iPhone);
+  - Notes home (+ iPhone);
+  - find bar;
+  - ⌘K with notes;
+  - partial-selection highlight;
+  - New sheet closes (iPhone).
+- Checks: Swift 78/30 PASS; Mac + iOS builds PASS.
+- **Next tasks in priority order:**
+  1. (done) IOS-FUNC-001 swipe chapter change.
+  2. IOS-FUNC-002 — iPhone continuous reader (UITextView port of ChapterTextView) for cross-verse selection, partial highlights and
+     tappable Strong's.
+  3. U14 — Study Trail: port `src/platform/services/studyTrailService.ts` with goldens (scripts/golden pattern), then the map UI.
+  4. (done) History screen, ⌘⇧D. Remaining: MAC-FUNC-013 calendar.
+  5. SHARED-FUNC-016 — Tag manager; SHARED-FUNC-014 — Settings sections.
+  6. M4 sync engine (OD-5 gates).
+- Harness notes:
+  - synthetic context-menu clicks can leave AppKit in menu tracking: use keyboard navigation, `pkill` if stuck;
+  - region captures beyond the app window can include other windows: keep captures inside the window;
+  - the iPhone Simulator Xcode MCP only drives iOS 27 runtimes (iPhone 18 Pro D0CC2F4C…).
+
+## Checkpoint 2026-11-12 (end of cycle 2) — exact state
+- Branch `native/m6-navigation` at the last pushed commit (see `git log -1`); PR #23 OPEN (stacked on #22, OPEN). Merge order unchanged.
+- Done since the earlier checkpoint:
+  - partial highlights (Mac);
+  - iPhone swipe chapters;
+  - ⌘⇧D Today's Note;
+  - Copy Reference and Compare This Verse;
+  - verse-number hit target;
+  - shortcut pass-through;
+  - History;
+  - Tag Manager.
+- Next (unchanged order): IOS-FUNC-002 iPhone continuous reader → U14 Study Trail service + goldens → MAC-FUNC-013 calendar →
+  SHARED-FUNC-014 settings sections → M4 sync.
+
+- Also done: Settings → Verse numbers / Words of Yeshua in red (device-local, same keys as the existing apps' prefs; verified red letters off), Keyboard Shortcuts list, About.

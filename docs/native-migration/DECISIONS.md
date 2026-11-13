@@ -208,3 +208,109 @@ regular tens, so "twenty" is never expanded to "20" and "20" expands to "score".
 same 65 rows but order equal-rank ties differently (verified with the raw SQL in both). Electron's better-sqlite3 has its
 own SQLite build, so the desktop order is already version-dependent. Conformance tests therefore require exact order
 except within equal-rank ties, where the identical row set is required and reported. RESOLVED by OD-4 / ADR-0008.
+
+### ADR-0010 — Native Mac navigation keeps the existing sidebar model (2026-11-08)
+**Context.** The owner's review found that the native sidebar had stopped resembling Berean. Tabs were grouped
+under Space headers, sessions sat in a small menu, and workspaces could only be found in Settings. A side-by-side
+capture against the existing app (VISUAL-UX-PARITY.md) confirmed that the existing sidebar is a different model:
+a session control in the header, a location field, "+ New Tab", and **one tab list in the user's own order**
+(`sessionDisplayOrders` ⇄ synced `display_order_key`).
+
+**Decision.**
+- The native sidebar follows that model, built from native components: a `Menu` session switcher with tab counts
+  and saved workspaces, a location field that opens ⌘K, New Tab, pinned tabs first and then the display order,
+  type-coloured symbols, close on hover, and drag reorder that writes the display order.
+- Saved workspaces get a sidebar section of their own; Settings keeps a management list.
+- Archived tab groups are shown and restorable (`archived_groups`, tabs_json in the JS tab shape).
+- Grouping by Space remains a per-viewer option (`@AppStorage`), off by default.
+- The Scripture toolbar uses history ← → plus the passage pill (‹ book chapter ›, with a book/chapter popover),
+  matching the existing toolbar.
+
+**Rejected.**
+- A horizontal tab strip: it wastes reading width and loses the user's order and the type cues.
+- Spaces as top-level sidebar sections: the existing app dropped those in favour of the unified list.
+
+**Compatibility.** No stored structure changed. The display order, pins, archived groups and workspace v2 JSON
+use the existing columns and shapes.
+
+### ADR-0011 — One user-facing "Workspace" over the existing sessions + saved workspaces (2026-11-08, owner request)
+**Decision.** The UI shows one list of **Workspaces**. A live workspace is a `sessions` row; a saved workspace that is not open is a
+`workspaces` row (a frozen v2 snapshot). Opening a saved one creates its session `ws:<id>`. From then on only the live entry is listed,
+so nothing appears twice.
+
+**Actions:**
+- New: a session named "Workspace N".
+- Rename: the session, plus its linked snapshot.
+- Duplicate: a new session with fresh tab ids, the same states and order.
+- Delete: the session plus its linked snapshot, or a snapshot that is not open. The last live workspace cannot be deleted.
+- Save Snapshot… (secondary): writes a `workspaces` row.
+
+**Compatibility.** No table is merged, rewritten or deleted. Old clients still see their sessions and Settings → Workspaces rows. The
+storage unification is deferred until legacy clients retire (recorded in TASKS).
+
+### ADR-0012 — Mac sidebar rows in the Arc/Yab style (2026-11-08, owner request)
+**Reference.** The Yab manual (sidebar: window buttons, back/forward, pinned, tabs; density; edge resize). Yab was inspected installed
+locally. Its manual does not describe the active-tab look; the owner's reference is the familiar Arc/Yab treatment: a raised, rounded,
+near-white card on the translucent sidebar (light) or a lighter translucent card (dark), a soft hover fill, and a close × on hover.
+
+**Decision.**
+- A custom row (`SidebarTabRow`) replaces `List` selection: corner radius 10 (continuous), height 34, 13-pt text, type-coloured symbol,
+  shadow 1.5.
+- Live drag reordering: the row moves as the pointer enters a target (snappy 0.18 s); dropping into the pinned group pins the tab, and
+  dropping outside it unpins.
+- Empty sidebar space moves the window (AppKit `performDrag`; double-click zooms). The drag area stops at the title bar so the toolbar's
+  sidebar button keeps its clicks.
+- Back / Forward sit beside the system sidebar button and stay there when the sidebar is collapsed; ⌃⌘S toggles the sidebar.
+
+**Not yet matched.** Pinned tabs as a grid of squares, edge-hover reveal of a hidden sidebar, density setting, hover preview cards.
+
+### ADR-0013 — iPhone navigation: three fixed jobs (2026-11-08, owner request §17)
+**Problem.** The existing iPhone app spread actions over the plus sheet (destinations, experiences, recent places, search), the caret
+(commands plus go-to), tab cards (sessions, archive, sort, select) and More pages. The native Plus opened a clipped 520-pt palette with
+no visible actions, so it looked broken.
+
+**Decision.** The bottom bar has exactly three buttons, each with one job, in the same place on every screen:
+- **Tabs** (left): this workspace's tabs, the Workspaces page and archived tabs.
+- **New** (centre, prominent): one field (reference / Strong's / words), plus Scripture (continue reading), New Note, Today's Note, Notes,
+  and Recent passages.
+- **More** (right): the current tab's commands (Back / Forward, Cross References, chapter notes, Strong's, Compare), then Duplicate /
+  Close Tab, then Settings (always last).
+
+The passage pill in the top bar opens the passage navigator (book / chapter / text / history). The old plus sheet's "experiences"
+(History, Calendar, Study Trail, Tags…) arrive as those features land, under New.
+
+**Workflow comparison (taps, from the reader):**
+
+| Task | Existing iPhone app | Native |
+|---|---|---|
+| Open a book and chapter | title → picker → book → chapter (4) | pill → book → chapter (3) |
+| Search Scripture | plus → type → Return (2 + typing) | New → type → Return (2 + typing) |
+| New note | plus → New Note (2) | New → New Note (2) |
+| Switch tab | tab cards → card (2) | Tabs → row (2) |
+| Change workspace | tab cards → Workspaces chip → row (3) | Tabs → workspace row → workspace (3) |
+| Cross references | verse → sheet → Refs (3) | More → Cross References (2) |
+| Highlight / tag a verse | verse → sheet → action (3) | verse number → action (2) |
+| Previous passage | caret → ‹ (2) | More → Back (2) |
+
+### ADR-0014 — Notes editor: live preview over the verbatim Markdown source (2026-11-08, owner request §4)
+**Problem.** The owner wants a formatted editor with no visible Markdown. Notes must keep the ProseMirror dialect exactly: callouts,
+columns, threads, Study Trail embeds, tables, coloured highlights, images and wikilinks. A native rich-text model that re-serializes on
+save risks rewriting or dropping constructs it does not fully understand.
+
+**Decision.** The editor's text storage is the note's Markdown, unchanged. `BereanNotes.MarkdownLiveSpans` computes styling spans:
+- markup characters become null glyphs (no width, no caret stops — the caret skips them);
+- list markers draw as "•", task boxes as □ / ☑, and callout markers as their label ("Note:");
+- headings, bold, italic, underline, strike, code, highlights, links and wikilinks get native fonts and colours;
+- tables use monospace with faint pipes, and berean:* structure comment lines are hidden but kept.
+
+Edits change only what the user typed, so saving cannot rewrite anything else. Formatting commands insert the dialect's own markup
+(⌘B `**`, ⌘I `*`, ⌘U `<u>`, ⇧⌘X `~~`, ⇧⌘H `==`, ⌥⌘1–3 headings, ⇧⌘8 bullets). View ▸ Show Markdown Source (⇧⌘M) remains an explicit
+advanced action.
+
+**Clipboard.**
+- Copy: RTF (formatted) + plain text + `com.berean.note-markdown` (the source, used when pasting back into a note).
+- Copy as Plain Text (⌥⇧⌘C, and in the context / edit menu): readable text only.
+- Paste: the note type when present, otherwise plain text.
+
+**Limitations (tracked).** Tables are styled source, not a grid editor; images show their alt text, not the picture; columns and threads
+show their content without the side-by-side or thread chrome. A full structured editor remains M7-02.

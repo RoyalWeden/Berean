@@ -17,6 +17,7 @@ import { buildNotesGolden } from '../../scripts/golden/notes'
 import { buildHighlightsGolden } from '../../scripts/golden/highlights'
 import { buildWorkspacesGolden } from '../../scripts/golden/workspaces'
 import { buildNoteMarkdownGolden } from '../../scripts/golden/noteMarkdown'
+import { buildVerseTagsGolden } from '../../scripts/golden/verseTags'
 
 describe('golden corpus', () => {
   for (const f of buildGoldenCorpus()) {
@@ -92,6 +93,11 @@ describe('golden corpus', () => {
   it('note-markdown.json matches the TypeScript note file format', () => {
     const path = join(GOLDEN_DIR, 'note-markdown.json')
     expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(buildNoteMarkdownGolden()), 'note-markdown.json is stale — run npm run golden:export').toBe(true)
+  })
+
+  it('verse-tags.json matches the TypeScript verse tags service', async () => {
+    const path = join(GOLDEN_DIR, 'verse-tags.json')
+    expect(existsSync(path) && readFileSync(path, 'utf8') === serializeGolden(await buildVerseTagsGolden()), 'verse-tags.json is stale — run npm run golden:export').toBe(true)
   })
 
   it('workspaces.json matches the TypeScript workspaces service', async () => {

@@ -48,6 +48,14 @@ public actor BibleService {
         return books
     }
 
+    /// The chapter numbers a book actually has in a text, ascending (includes prologue chapter 0, e.g. Sirach, 1 Clement).
+    /// Native helper for the passage navigator; book metadata (`chapters_count`) is 0 in some databases and does not
+    /// describe prologues.
+    public func chapterNumbers(_ bookId: String, textId: String = "kjva") -> [Int] {
+        guard let db = db(textId) else { return [] }
+        return ((try? db.query("SELECT DISTINCT chapter FROM verses WHERE book_id = ? ORDER BY chapter", [.text(bookId)])) ?? []).compactMap { $0.values[0].int }
+    }
+
     private func maxChapters(_ db: SQLiteConnection, _ textId: String) -> [String: Int] {
         if let c = maxChaptersCache[textId] { return c }
         var m: [String: Int] = [:]

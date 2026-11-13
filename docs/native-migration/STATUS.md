@@ -79,3 +79,12 @@
 ## Rollback / known test exceptions
 - Native work is additive (`apple/`, `Packages/`, `scripts/golden`, `scripts/native`); reverting the PR removes it.
 - No known test exceptions.
+
+## 2026-11-08 snapshot
+- Native Mac:
+  - sidebar, sessions and workspaces redesigned against the existing app (ADR-0010);
+  - Scripture toolbar parity (history + passage picker);
+  - notes export/import working;
+  - verse tags working.
+- Native iPhone: tab sheet, Sessions and saved workspaces (real-tap verified).
+- Open PRs: #22, then #23 (see HANDOFF for merge order).

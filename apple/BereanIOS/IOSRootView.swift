@@ -9,6 +9,7 @@ import BereanReference
 struct IOSRootView: View {
     @Environment(AppModel.self) private var app
     @State private var showTabs = false
+    @State private var showNew = false
     @State private var showSettings = false
 
     var body: some View {
@@ -16,18 +17,24 @@ struct IOSRootView: View {
         NavigationStack {
             content
                 .toolbar {
+                    // Three jobs, always in the same place (ADR-0013): your tabs · open something new · this tab's commands.
                     ToolbarItemGroup(placement: .bottomBar) {
                         Button { showTabs = true } label: { Label("Tabs", systemImage: "square.on.square") }
+                            .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
                         Spacer()
-                        Button { app.commandPaletteShown = true } label: { Label("New", systemImage: "plus.circle.fill").font(.title2) }
+                        Button { showNew = true } label: { Label("New", systemImage: "plus") }
+                            .buttonStyle(.borderedProminent).buttonBorderShape(.circle)
+                            .accessibilityLabel("New: open a passage, note or search")
                         Spacer()
-                        caretMenu
+                        menu
                     }
                 }
         }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
-        .sheet(isPresented: $app.commandPaletteShown) { CommandPalette().presentationDetents([.height(220)]) }
+        .sheet(isPresented: $showNew) { NewSheet(close: { showNew = false }).presentationDetents([.medium, .large]) }
+        // ⌘T / ⌘K (hardware keyboard) and in-app "new tab" requests open the same sheet.
+        .onChange(of: app.commandPaletteShown) { _, v in if v { app.commandPaletteShown = false; showNew = true } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
     }
 
@@ -45,30 +52,52 @@ struct IOSRootView: View {
             case .search:
                 SearchResultsView(tabId: tab.id).id(tab.id)
             case .note:
-                if let id = tab.state["noteId"]?.stringValue?.string { NoteDetailView(noteId: id).id(tab.id + id) } else { NotesHomeView().id(tab.id) }
+                if let id = tab.state["noteId"]?.stringValue?.string { NoteDetailView(noteId: id).id(tab.id + id) } else { NotesHomeView(tabId: tab.id).id(tab.id) }
+            case .history:
+                HistoryView().id(tab.id)
+            case .tags:
+                TagManagerView().id(tab.id)
             default:
                 ContentUnavailableView(tab.title, systemImage: "square.dashed", description: Text("This kind of tab arrives in a later native build."))
             }
         } else {
-            ContentUnavailableView("No tab open", systemImage: "book", description: Text("Tap + to open a passage or search."))
+            ContentUnavailableView {
+                Label("No tab open", systemImage: "book")
+            } description: { Text("Open a passage, a note or a search.") } actions: {
+                Button("New…") { showNew = true }.buttonStyle(.borderedProminent)
+            }
         }
     }
 
-    var caretMenu: some View {
+    /// Commands for what is on screen, then the app-level items (always last, always the same).
+    var menu: some View {
         Menu {
-            if let tab = app.activeTab, tab.tabType == .bible {
-                let st = BibleState(tab.state)
-                Button(st.showStrongs ? "Hide Strong's Numbers" : "Show Strong's Numbers") { mutate(tab.id) { $0.showStrongs.toggle() } }
-                Button("Study Panel") { mutate(tab.id) { $0.rightPanelOpen = true } }
-                Picker("Text", selection: Binding(get: { st.translation }, set: { v in mutate(tab.id) { $0.translation = v } })) {
-                    ForEach(availableTexts) { Text($0.name).tag($0.id) }
+            if app.canGoBack || app.canGoForward {
+                ControlGroup {
+                    Button { app.goBack() } label: { Label("Back", systemImage: "chevron.backward") }.disabled(!app.canGoBack)
+                    Button { app.goForward() } label: { Label("Forward", systemImage: "chevron.forward") }.disabled(!app.canGoForward)
                 }
             }
-            if app.canGoBack { Button("Back") { app.goBack() } }
-            if app.canGoForward { Button("Forward") { app.goForward() } }
-            Button("Settings") { showSettings = true }
-            if let tab = app.activeTab { Button("Close Tab", role: .destructive) { app.close(tab.id) } }
-        } label: { Label("Commands", systemImage: "chevron.up.circle") }
+            if let tab = app.activeTab, tab.tabType == .bible {
+                let st = BibleState(tab.state)
+                Section {
+                    Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" } } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }
+                    Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" } } label: { Label("Notes for This Chapter", systemImage: "note.text") }
+                    Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
+                    Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
+                }
+            }
+            if let tab = app.activeTab {
+                Section {
+                    Button { app.duplicate(tab.id) } label: { Label("Duplicate Tab", systemImage: "plus.square.on.square") }
+                    Button(role: .destructive) { app.close(tab.id) } label: { Label("Close Tab", systemImage: "xmark") }
+                }
+            }
+            Section {
+                Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
+            }
+        } label: { Label("More", systemImage: "ellipsis.circle") }
+        .accessibilityLabel("More: commands for this tab")
     }
 
     func mutate(_ id: String, _ f: (inout BibleState) -> Void) {
@@ -76,43 +105,160 @@ struct IOSRootView: View {
     }
 }
 
-/// All tabs of the session as cards, grouped by Space; tap to switch, swipe or ✕ to close.
+/// The tab sheet (the existing iPhone TabCardsSheet, list view): the session row, a tab search, every tab of
+/// the session in the user's order (pinned first), swipe / long-press actions, reorder, New Tab and Archived.
 struct TabCardsSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    var shown: [BereanWorkspace.Tab] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return q.isEmpty ? app.orderedTabs : app.orderedTabs.filter { $0.title.localizedCaseInsensitiveContains(q) }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(SpaceId.allCases) { space in
-                    let tabs = app.tabs(in: space)
-                    if !tabs.isEmpty {
-                        Section(space.rawValue.capitalized) {
-                            ForEach(tabs) { tab in
-                                Button { app.select(tab.id, in: space); dismiss() } label: {
-                                    HStack {
-                                        Text(tab.title.isEmpty ? "Untitled" : tab.title)
-                                        Spacer()
-                                        if tab.id == app.activeTabId(in: space) { Image(systemName: "checkmark").foregroundStyle(.tint) }
-                                    }
-                                }
-                                .swipeActions { Button("Close", role: .destructive) { app.close(tab.id) } }
-                            }
-                            .onMove { app.move(in: space, from: $0, to: $1) }
+                Section {
+                    NavigationLink { SessionsPage() } label: {
+                        LabeledContent {
+                            Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
+                        } label: {
+                            Label(app.session.name, systemImage: "square.stack").fontWeight(.semibold)
                         }
                     }
+                    .accessibilityHint("Switch, create or manage workspaces")
                 }
-            }
-            .navigationTitle(app.session.name)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu("Sessions") {
-                        ForEach(app.sessions) { s in Button(s.name) { app.switchSession(s.id) } }
-                        Button("New Session") { app.newSession() }
+                Section {
+                    let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
+                    ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
+                    ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
+                    if shown.isEmpty { Text(query.isEmpty ? "No open tabs in this session." : "No open tab matches “\(query)”.").foregroundStyle(.secondary) }
+                }
+                Section {
+                    Button { dismiss(); app.commandPaletteShown = true } label: { Label("New Tab", systemImage: "plus") }
+                    if !app.archivedGroups.isEmpty {
+                        NavigationLink { ArchivedTabsPage() } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) { EditButton() }
+            }
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search tabs")
+            .navigationTitle("Tabs")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { EditButton() }
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
         }
+    }
+
+    func row(_ tab: BereanWorkspace.Tab) -> some View {
+        Button { app.select(tab.id, in: tab.spaceId); dismiss() } label: {
+            HStack {
+                Image(systemName: tab.symbol).foregroundStyle(tab.tint).frame(width: 24)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(tab.title.isEmpty ? "Untitled" : tab.title).foregroundStyle(.primary)
+                    Text(tab.spaceId.title).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if tab.isPinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(.secondary) }
+                if tab.id == app.activeTab?.id { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current tab") }
+            }
+        }
+        .swipeActions(edge: .trailing) {
+            Button("Close", role: .destructive) { app.close(tab.id) }
+            Button("Archive") { app.archive([tab.id]) }.tint(.indigo)
+        }
+        .swipeActions(edge: .leading) { Button(tab.isPinned ? "Unpin" : "Pin") { app.togglePin(tab.id) }.tint(.orange) }
+        .contextMenu {
+            Button("Duplicate Tab", systemImage: "plus.square.on.square") { app.duplicate(tab.id) }
+            Button(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: "pin") { app.togglePin(tab.id) }
+            if app.sessions.count > 1 {
+                Menu("Move to Workspace", systemImage: "square.stack") {
+                    ForEach(app.sessions.filter { $0.id != app.currentSessionId }) { s in Button(s.name) { app.moveTab(tab.id, toSession: s.id) } }
+                }
+            }
+            Button("Archive Tab", systemImage: "archivebox") { app.archive([tab.id]) }
+            Button("Close Tab", systemImage: "xmark", role: .destructive) { app.close(tab.id) }
+        }
+    }
+}
+
+/// Workspaces (ADR-0011): one list — live workspaces, then saved ones not open — with switch, new, rename, duplicate,
+/// delete; "Save Snapshot" is a secondary action on the current workspace.
+struct SessionsPage: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var renaming: WorkspaceItem?
+    @State private var deleting: WorkspaceItem?
+    @State private var name = ""
+    @State private var saving = false
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(app.workspaceItems) { w in
+                    Button { app.open(w); dismiss() } label: {
+                        HStack {
+                            Image(systemName: w.isSaved ? "square.stack.3d.up" : "square.stack").foregroundStyle(.secondary).frame(width: 24)
+                            VStack(alignment: .leading) {
+                                Text(w.name).foregroundStyle(.primary)
+                                Text(w.isSaved ? "Saved · \(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")" : "\(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if app.isCurrent(w) { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current workspace") }
+                        }
+                    }
+                    .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
+                    .contextMenu {
+                        Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
+                        Button("Duplicate", systemImage: "plus.square.on.square") { app.duplicate(w) }
+                        if app.isCurrent(w) {
+                            Button("Save Snapshot…", systemImage: "square.and.arrow.down.on.square") { name = w.name; saving = true }
+                            Button("Archive All Tabs", systemImage: "archivebox") { app.archiveAllTabs() }
+                        }
+                        if app.canDelete(w) { Button("Delete…", systemImage: "trash", role: .destructive) { deleting = w } }
+                    }
+                }
+                Button { app.newWorkspace(); dismiss() } label: { Label("New Workspace", systemImage: "plus") }
+            } footer: { Text("A workspace is a set of tabs you study with. Switching workspaces swaps the tabs you see. Touch and hold a workspace for more.") }
+        }
+        .navigationTitle("Workspaces")
+        .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("Name", text: $name)
+            Button("Rename") { if let r = renaming { app.rename(r, to: name) }; renaming = nil }
+            Button("Cancel", role: .cancel) { renaming = nil }
+        }
+        .alert("Save a Snapshot", isPresented: $saving) {
+            TextField("Name", text: $name)
+            Button("Save") { app.saveWorkspace(named: name) }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Keeps a frozen copy of these tabs that you can reopen later.") }
+        .confirmationDialog("Delete “\(deleting?.name ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+            Button("Delete Workspace", role: .destructive) { if let d = deleting { app.delete(d) }; deleting = nil }
+        } message: { Text("Its tabs are closed. This cannot be undone.") }
+    }
+}
+
+/// Archived tab groups: tap to restore into this session, swipe to remove.
+struct ArchivedTabsPage: View {
+    @Environment(AppModel.self) private var app
+    var body: some View {
+        List {
+            ForEach(app.archivedGroups) { g in
+                Button { app.restoreArchived(g.id) } label: {
+                    VStack(alignment: .leading) {
+                        Text(g.label.isEmpty ? "Archived tabs" : g.label).foregroundStyle(.primary)
+                        Text("\(app.archivedTabs(g).count) tab(s) · \(Date(timeIntervalSince1970: Double(g.archivedAt) / 1000).formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .swipeActions { Button("Remove", role: .destructive) { app.dismissArchived(g.id) } }
+            }
+            if app.archivedGroups.isEmpty { Text("No archived tabs.").foregroundStyle(.secondary) }
+        }
+        .navigationTitle("Archived Tabs")
     }
 }

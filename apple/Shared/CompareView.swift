@@ -26,7 +26,7 @@ struct CompareView: View {
                     Text("").gridColumnAlignment(.trailing)
                     ForEach(cols, id: \.self) { c in
                         HStack {
-                            Text(availableTexts.first { $0.id == c }?.name ?? c).font(.headline)
+                            Text(textInfo(c).name).font(.headline)
                             Spacer()
                             if cols.count > 1 { Button { setColumns(cols.filter { $0 != c }) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.buttonStyle(.plain).help("Remove column") }
                         }
