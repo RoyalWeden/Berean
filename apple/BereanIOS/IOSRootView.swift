@@ -356,26 +356,38 @@ struct ArchivedTabsPage: View {
     let onOpen: () -> Void
     @State private var query = ""
 
+    private var searchTerms: [Substring] { query.split(whereSeparator: \.isWhitespace) }
+
+    private func matches(_ tab: BereanWorkspace.Tab) -> Bool {
+        let title = tab.title.isEmpty ? "Untitled" : tab.title
+        let text = "\(title) \(tab.spaceId.title)"
+        return searchTerms.allSatisfy { text.localizedStandardContains(String($0)) }
+    }
+
     var body: some View {
         List {
             ForEach(app.archivedGroups) { group in
                 let tabs = app.archivedTabs(group)
-                let matches = tabs.filter { tab in
-                    query.split(whereSeparator: \.isWhitespace).allSatisfy {
-                        "\(tab.title) \(tab.spaceId.title)".localizedStandardContains(String($0))
-                    }
-                }
-                if !matches.isEmpty || (tabs.isEmpty && query.isEmpty) {
+                let matches = tabs.filter { self.matches($0) }
+                if !matches.isEmpty || (tabs.isEmpty && searchTerms.isEmpty) {
                     Section(group.label.isEmpty ? "Archived tabs" : group.label) {
                         ForEach(matches) { tab in
                             Button {
                                 app.restoreArchivedTab(tab.id, from: group.id)
                                 onOpen()
                             } label: {
-                                Label(tab.title.isEmpty ? "Untitled" : tab.title, systemImage: tab.symbol)
+                                Label {
+                                    VStack(alignment: .leading) {
+                                        Text(tab.title.isEmpty ? "Untitled" : tab.title)
+                                        Text(tab.spaceId.title).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: tab.symbol).foregroundStyle(tab.tint)
+                                }
+                                .accessibilityHint("Restore and open this tab")
                             }
                         }
-                        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if searchTerms.isEmpty {
                             Menu("Group Actions", systemImage: "ellipsis.circle") {
                                 if tabs.count > 1 {
                                     Button("Restore All \(tabs.count) Tabs", systemImage: "archivebox") {
@@ -390,7 +402,11 @@ struct ArchivedTabsPage: View {
                     }
                 }
             }
-            if app.archivedGroups.isEmpty { Text("No archived tabs.").foregroundStyle(.secondary) }
+            if app.archivedGroups.isEmpty {
+                ContentUnavailableView("No Archived Tabs", systemImage: "archivebox")
+            } else if !searchTerms.isEmpty && !app.archivedGroups.contains(where: { app.archivedTabs($0).contains(where: matches) }) {
+                ContentUnavailableView.search(text: query)
+            }
         }
         .navigationTitle("Archived Tabs")
         .searchable(text: $query, prompt: "Search archived tabs")

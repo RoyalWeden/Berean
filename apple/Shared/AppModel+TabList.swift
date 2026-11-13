@@ -148,8 +148,11 @@ extension AppModel {
               let record = records[recordIndex].objectValue,
               let tab = BereanWorkspace.Tab(jsObject: record) else { return }
 
-        if let workspace = sessions.first(where: { $0.allTabs.contains(where: { $0.id == tabID }) }) {
+        if let workspace = sessions.first(where: { $0.allTabs.contains(where: { $0.id == tabID }) }),
+           let liveTab = workspace.allTabs.first(where: { $0.id == tabID }) {
             switchSession(workspace.id)
+            select(liveTab.id, in: liveTab.spaceId)
+            return
         } else {
             sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
             insertInDisplayOrder(tab.id, after: nil)
