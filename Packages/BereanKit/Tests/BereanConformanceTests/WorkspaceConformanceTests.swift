@@ -292,3 +292,23 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     #expect(tab.remappingOrigin(using: ["reader": "copied-reader"]) == expected)
     #expect(tab.remappingOrigin(using: ["other": "copied-other"]) == tab)
 }
+
+@Test func restoredSnapshotKeepsUniqueTabsAndLocalRelationships() {
+    let reader = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "Jonah 1")
+    let duplicate = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "Jonah 2")
+    let lexicon = Tab(id: "lexicon", spaceId: .lexicon, type: "lexicon", title: "H3068",
+                      originTabId: reader.id, originSpaceId: .scripture)
+    let source = Session(id: "source", name: "Study",
+                         tabs: [.scripture: [reader, duplicate], .lexicon: [lexicon]],
+                         activeTabId: [.scripture: reader.id, .lexicon: lexicon.id])
+    let parsed = WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: source, displayOrder: ["lexicon", "reader"]))
+    var generated = ["reserved", "reader-copy", "duplicate-copy"].makeIterator()
+    let restored = parsed.restoreSession(id: "snapshot", name: "Study", reservedIDs: ["reader", "reserved"]) {
+        generated.next()!
+    }
+
+    #expect(restored.session.tabs(in: .scripture).map(\.id) == ["reader-copy", "duplicate-copy"])
+    #expect(restored.session.activeTabId[.scripture] == "reader-copy")
+    #expect(restored.session.tabs(in: .lexicon).first?.originTabId == "reader-copy")
+    #expect(restored.displayOrder == ["lexicon", "reader-copy", "duplicate-copy"])
+}

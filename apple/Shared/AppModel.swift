@@ -343,21 +343,11 @@ final class AppModel {
         if sessions.contains(where: { $0.id == sid }) { switchSession(sid); return }
         guard let ws = try? workspaces?.load(id) else { return }
         let parsed = WorkspaceSnapshot.parse(ws.stateJSON)
-        let open = Set(sessions.flatMap { $0.allTabs.map(\.id) })
-        var idMap: [String: String] = [:]
-        var tabs: [SpaceId: [BereanWorkspace.Tab]] = [:]
-        var active: [SpaceId: String?] = [:]
-        for sp in WorkspaceSnapshot.spaces {
-            tabs[sp] = parsed.tabs(in: sp).compactMap { BereanWorkspace.Tab(jsObject: $0) }.map { t in
-                guard open.contains(t.id) || idMap[t.id] != nil else { return t }
-                var c = t; c.id = "\(t.type)-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(8))"
-                idMap[t.id] = c.id; return c
-            }
-            active[sp] = ((parsed.activeTabId[sp] ?? nil).map { idMap[$0] ?? $0 }) ?? tabs[sp]?.first?.id
-        }
-        tabs = tabs.mapValues { list in list.map { $0.remappingOrigin(using: idMap) } }
-        sessions.append(Session(id: sid, name: ws.name, icon: parsed.icon, tabs: tabs, activeTabId: active))
-        displayOrders[sid] = parsed.displayOrder.map { idMap[$0] ?? $0 }
+        let restored = parsed.restoreSession(id: sid, name: ws.name,
+                                             reservedIDs: Set(sessions.flatMap { $0.allTabs.map(\.id) }),
+                                             makeID: Self.newId)
+        sessions.append(restored.session)
+        displayOrders[sid] = restored.displayOrder
         switchSession(sid)
     }
 

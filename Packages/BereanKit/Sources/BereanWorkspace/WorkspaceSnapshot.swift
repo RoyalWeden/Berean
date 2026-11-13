@@ -136,3 +136,33 @@ public extension Tab {
                   originSpaceId: o["originSpaceId"]?.stringValue.flatMap { SpaceId(rawValue: $0.string) })
     }
 }
+
+extension WorkspaceSnapshot.Parsed {
+    /// Open a snapshot alongside live workspaces without sharing tab identities.
+    public func restoreSession(id: String, name: String, reservedIDs: Set<String>,
+                               makeID: () -> String) -> (session: Session, displayOrder: [String]) {
+        var usedIDs = reservedIDs
+        var firstIDByOriginal: [String: String] = [:]
+        var restoredTabs: [SpaceId: [Tab]] = [:]
+        var active: [SpaceId: String?] = [:]
+        for space in WorkspaceSnapshot.spaces {
+            var firstIDInSpace: [String: String] = [:]
+            restoredTabs[space] = tabs(in: space).compactMap(Tab.init(jsObject:)).map { original in
+                var tab = original
+                while !usedIDs.insert(tab.id).inserted { tab.id = makeID() }
+                if firstIDByOriginal[original.id] == nil { firstIDByOriginal[original.id] = tab.id }
+                if firstIDInSpace[original.id] == nil { firstIDInSpace[original.id] = tab.id }
+                return tab
+            }
+            active[space] = (activeTabId[space] ?? nil).flatMap { firstIDInSpace[$0] } ?? restoredTabs[space]?.first?.id
+        }
+        restoredTabs = restoredTabs.mapValues { list in
+            list.map { $0.remappingOrigin(using: firstIDByOriginal) }
+        }
+        let session = Session(id: id, name: name, icon: icon, tabs: restoredTabs, activeTabId: active)
+        let preferred = displayOrder.compactMap { firstIDByOriginal[$0] }
+        var orderedIDs = Set<String>()
+        let order = (preferred + session.allTabs.map(\.id)).filter { orderedIDs.insert($0).inserted }
+        return (session, order)
+    }
+}
