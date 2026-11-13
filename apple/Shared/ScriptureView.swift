@@ -357,14 +357,8 @@ struct ScriptureView: View {
             ForEach(highlightColors, id: \.self) { color in
                 Button(color.capitalized, systemImage: "circle.fill") {
                     for row in selectedRows {
-                        #if os(iOS)
-                        let existing = highlights[row.verseNum] ?? []
-                        guard !existing.contains(where: {
-                            $0.startChar == nil && $0.startWord == nil && $0.color == color
-                        }) else { continue }
-                        #endif
-                        try? app.highlights?.toggle(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
-                                                    color: color, textId: st.translation)
+                        try? app.highlights?.setVerseColor(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                                          color: color, textId: st.translation)
                     }
                 }
             }
@@ -577,7 +571,7 @@ struct ScriptureView: View {
         Button("Copy Reference") { perform { Clipboard.copy(label + (st.translation == "lxx" ? " LXX" : "")) } }
         Menu("Highlight") {
             ForEach(highlightColors, id: \.self) { c in
-                Button { perform { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } } label: { Label(c.capitalized, systemImage: "circle.fill") }
+                Button { perform { try? app.highlights?.setVerseColor(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } } label: { Label(c.capitalized, systemImage: "circle.fill") }
             }
             Divider()
             Button("Remove Highlights") { perform { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
@@ -858,7 +852,7 @@ extension ScriptureView {
         m.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy(label + (st.translation == "lxx" ? " LXX" : "")) })
         let hl = NSMenuItem(title: "Highlight", action: nil, keyEquivalent: ""); hl.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
         let sub = NSMenu()
-        for c in highlightColors { sub.addItem(ClosureMenuItem(c.capitalized) { try? app.highlights?.toggle(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) }) }
+        for c in highlightColors { sub.addItem(ClosureMenuItem(c.capitalized) { try? app.highlights?.setVerseColor(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) }) }
         sub.addItem(.separator())
         sub.addItem(ClosureMenuItem("Remove Highlights") { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })
         hl.submenu = sub; m.addItem(hl)
