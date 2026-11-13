@@ -81,7 +81,7 @@ struct LexiconEntryView: View {
                         let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
                         let indexed = scoped.enumerated().map { index, occurrence in
                             let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
-                            return (index, occurrence, preview.renderings, preview)
+                            return (index, occurrence, preview.renderings, preview, OccurrenceKey(occurrence))
                         }
                         let forms = indexed.reduce(into: [String: Int]()) { counts, row in
                             for word in row.2 { counts[word, default: 0] += 1 }
@@ -121,8 +121,20 @@ struct LexiconEntryView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        if !occurrences.isEmpty {
+                            Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
+                                app.openSearch(e.strongsNum, reuseTab: true)
+                            }
+                            .buttonStyle(.interactivePlain)
+                        }
+                        if compact, !occurrences.isEmpty {
+                            Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
+                                app.openLexicon(strongsId, reuseTab: true)
+                            }
+                            .buttonStyle(.interactivePlain)
+                        }
                         LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(matches.prefix(visibleOccurrences)), id: \.0) { _, o, _, preview in
+                            ForEach(Array(matches.prefix(visibleOccurrences)), id: \.4) { _, o, _, preview, _ in
                                 let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
                                 Button { app.visitScripture(passage) } label: {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -147,18 +159,6 @@ struct LexiconEntryView: View {
                         if matches.count > visibleOccurrences {
                             Button("Show More Occurrences", systemImage: "chevron.down") {
                                 visibleOccurrences += 40
-                            }
-                            .buttonStyle(.interactivePlain)
-                        }
-                        if !occurrences.isEmpty {
-                            Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
-                                app.openSearch(e.strongsNum, reuseTab: true)
-                            }
-                            .buttonStyle(.interactivePlain)
-                        }
-                        if compact, !occurrences.isEmpty {
-                            Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
-                                app.openLexicon(strongsId, reuseTab: true)
                             }
                             .buttonStyle(.interactivePlain)
                         }
