@@ -174,7 +174,7 @@ struct BereanSidebar: View {
 
     private var matchingTabs: [BereanWorkspace.Tab] {
         let query = tabQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        return app.orderedTabs.filter { query.isEmpty || $0.title.localizedStandardContains(query) }
+        return app.matchingOpenTabs(query)
     }
 
     @ViewBuilder var orderedTabs: some View {

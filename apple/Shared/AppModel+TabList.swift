@@ -24,6 +24,16 @@ extension AppModel {
         return list.filter(\.isPinned) + list.filter { !$0.isPinned }
     }
 
+    func matchingOpenTabs(_ query: String, space: SpaceId? = nil) -> [BereanWorkspace.Tab] {
+        let terms = query.split(whereSeparator: \.isWhitespace)
+        return orderedTabs.filter { tab in
+            guard space == nil || tab.spaceId == space else { return false }
+            let title = tab.title.isEmpty ? "Untitled" : tab.title
+            let searchableText = "\(title) \(tab.spaceId.title)"
+            return terms.allSatisfy { searchableText.localizedStandardContains(String($0)) }
+        }
+    }
+
     func insertInDisplayOrder(_ id: String, after anchor: String?) {
         guard !currentSessionId.isEmpty else { return }
         var order = displayOrder(for: currentSessionId).filter { $0 != id }

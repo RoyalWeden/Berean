@@ -163,9 +163,10 @@ struct TabCardsSheet: View {
     @State private var query = ""
     @State private var showTabCleanup = false
 
+    @State private var spaceFilter: SpaceId?
+
     var shown: [BereanWorkspace.Tab] {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        return q.isEmpty ? app.orderedTabs : app.orderedTabs.filter { $0.title.localizedCaseInsensitiveContains(q) }
+        app.matchingOpenTabs(query, space: spaceFilter)
     }
 
     var body: some View {
@@ -194,7 +195,7 @@ struct TabCardsSheet: View {
                     let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
                     ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
                     ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
-                    if shown.isEmpty { Text(query.isEmpty ? "No open tabs in this session." : "No open tab matches “\(query)”.").foregroundStyle(.secondary) }
+                    if shown.isEmpty { Text(query.isEmpty && spaceFilter == nil ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search tabs")
@@ -203,6 +204,19 @@ struct TabCardsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { EditButton() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Tab Space", selection: $spaceFilter) {
+                            Text("All Tabs").tag(nil as SpaceId?)
+                            ForEach(SpaceId.allCases) { space in
+                                Text(space.title).tag(Optional(space))
+                            }
+                        }
+                    } label: {
+                        Label("Filter Tabs", systemImage: spaceFilter == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                    }
+                    .accessibilityValue(spaceFilter?.title ?? "All Tabs")
+                }
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
         }
