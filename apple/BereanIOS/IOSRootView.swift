@@ -45,7 +45,7 @@ struct IOSRootView: View {
         .buttonStyle(.interactivePlain)
         .padding(.horizontal, 12)
         .padding(.vertical, 3)
-        .glassEffectCompat()
+        .glassEffectCompat(interactive: true)
         .frame(maxWidth: 260)
         .padding(.horizontal, 14)
         .padding(.vertical, 4)

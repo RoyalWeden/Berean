@@ -256,7 +256,7 @@ struct ScriptureView: View {
             .buttonStyle(VerseActionButtonStyle())
             .padding(.horizontal, 5)
             .padding(.vertical, 3)
-            .glassEffectCompat()
+            .glassEffectCompat(interactive: true)
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
             .accessibilityElement(children: .contain)
@@ -298,6 +298,11 @@ struct ScriptureView: View {
             Label("Highlight", systemImage: "highlighter")
         }
         .menuIndicator(.hidden)
+        #if os(macOS)
+        .pointerStyle(.link)
+        #else
+        .hoverEffect(.highlight)
+        #endif
     }
 
     #if os(iOS)
@@ -376,7 +381,7 @@ struct ScriptureView: View {
             HStack(spacing: 4) { passageControls(st) }
                 .buttonStyle(.interactivePlain)
                 .padding(.horizontal, 8)
-                .glassEffectCompat()
+                .glassEffectCompat(interactive: true)
                 .sheet(isPresented: $pickerShown) {
                     NavigationStack {
                         picker(st, compact: true)
@@ -633,8 +638,12 @@ struct VerseRowView: View {
 
 extension View {
     /// Liquid Glass capsule on current systems.
-    @ViewBuilder func glassEffectCompat() -> some View {
-        if #available(iOS 26, macOS 26, *) { self.glassEffect(.regular, in: .capsule) } else { self.background(.regularMaterial, in: .capsule) }
+    @ViewBuilder func glassEffectCompat(interactive: Bool = false) -> some View {
+        if #available(iOS 26, macOS 26, *) {
+            glassEffect(.regular.interactive(interactive), in: .capsule)
+        } else {
+            background(.regularMaterial, in: .capsule)
+        }
     }
 
     /// macOS: the passage pill and text button already say where the reader is, so the window title is kept for the

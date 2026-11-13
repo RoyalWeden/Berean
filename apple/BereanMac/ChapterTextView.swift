@@ -465,9 +465,12 @@ final class ReaderTextView: NSTextView {
             let item = NSMenuItem(); item.tag = NSTextFinder.Action.showFindInterface.rawValue
             performFindPanelAction(item); return true
         }
-        if mods == [.command], event.charactersIgnoringModifiers?.lowercased() == "g" {
-            let item = NSMenuItem(); item.tag = NSTextFinder.Action.nextMatch.rawValue
-            performFindPanelAction(item); return true
+        if event.charactersIgnoringModifiers?.lowercased() == "g",
+           mods == [.command] || mods == [.command, .shift] {
+            let item = NSMenuItem()
+            item.tag = (mods.contains(.shift) ? NSTextFinder.Action.previousMatch : .nextMatch).rawValue
+            performFindPanelAction(item)
+            return true
         }
         if window?.firstResponder === self, selectedRange().length > 0 || !(coordinator?.parent.selectedVerses.isEmpty ?? true), event.charactersIgnoringModifiers?.lowercased() == "c" {
             if mods == [.command] { copy(nil); return true }
