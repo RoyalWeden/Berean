@@ -3,26 +3,55 @@ import SwiftUI
 struct TabCleanupView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    @State private var excluded: Set<String> = []
+    @State private var included: Set<String> = []
+    @State private var query = ""
 
     var body: some View {
         let tabs = app.inactiveTabs
-        let selected = tabs.filter { !excluded.contains($0.id) }
+        let selected = tabs.filter { included.contains($0.id) }
+        let terms = query.split(whereSeparator: \.isWhitespace)
+        let matches = tabs.filter { tab in
+            let title = tab.title.isEmpty ? "Untitled" : tab.title
+            return terms.allSatisfy { "\(title) \(tab.spaceId.title)".localizedStandardContains(String($0)) }
+        }
         NavigationStack {
             List {
                 Section {
-                    ForEach(tabs) { tab in
+                    HStack {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("Filter inactive tabs", text: $query)
+                            .textFieldStyle(.plain)
+                    }
+                    Button(terms.isEmpty ? "Select All" : "Select Matches", systemImage: "checkmark.circle") {
+                        included.formUnion(matches.map(\.id))
+                    }
+                    .disabled(matches.allSatisfy { included.contains($0.id) })
+                    Button("Clear Selection", systemImage: "xmark.circle") { included.removeAll() }
+                        .disabled(selected.isEmpty)
+                }
+                Section {
+                    if matches.isEmpty {
+                        Text(tabs.isEmpty ? "No inactive tabs" : "No matching tabs").foregroundStyle(.secondary)
+                    }
+                    ForEach(matches) { tab in
                         Toggle(isOn: Binding(
-                            get: { !excluded.contains(tab.id) },
+                            get: { included.contains(tab.id) },
                             set: { include in
-                                if include { excluded.remove(tab.id) } else { excluded.insert(tab.id) }
+                                if include { included.insert(tab.id) } else { included.remove(tab.id) }
                             }
                         )) {
-                            Label(tab.title.isEmpty ? "Untitled" : tab.title, systemImage: tab.symbol)
+                            Label {
+                                VStack(alignment: .leading) {
+                                    Text(tab.title.isEmpty ? "Untitled" : tab.title)
+                                    Text(tab.spaceId.title).font(.caption).foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: tab.symbol).foregroundStyle(tab.tint)
+                            }
                         }
                     }
                 } header: {
-                    Text("Choose tabs to archive")
+                    Text("Choose tabs to archive · \(selected.count) selected")
                 } footer: {
                     Text("Pinned and selected tabs stay open. You can restore these tabs together from Archived Tabs.")
                 }
