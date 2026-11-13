@@ -328,7 +328,7 @@ struct ScriptureView: View {
                         }
                     }
                 } label: {
-                    Label("More Verse Actions", systemImage: "ellipsis")
+                    verseMenuLabel("More Verse Actions", symbol: "ellipsis")
                 }
                 .menuIndicator(.hidden)
             }

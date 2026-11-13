@@ -67,13 +67,14 @@ struct IOSChapterTextView: UIViewRepresentable {
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
                       verses: verses, style: style, selected: selectedVerses, dark: colorScheme == .dark)
         let samePassage = coordinator.passageId == passageId
-        let clearance = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
+        let clearance = selectedVerses.isEmpty ? ReaderFloatingControls.dockOffset : ReaderFloatingControls.scrollClearance
         let previousOffset = view.contentOffset
         let previousInset = view.adjustedContentInset
         let previousBottom = max(-previousInset.top, view.contentSize.height + previousInset.bottom - view.bounds.height)
         let keepChapterEndVisible = samePassage && clearance != view.contentInset.bottom
             && previousBottom > -previousInset.top && previousOffset.y >= previousBottom - 2
         view.contentInset.bottom = clearance
+        view.verticalScrollIndicatorInsets.bottom = clearance
         if key != coordinator.key || !samePassage {
             let selection = view.selectedRange
             let oldText = view.text
