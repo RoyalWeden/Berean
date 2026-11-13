@@ -595,7 +595,7 @@ final class AppModel {
 
     /// New note (optionally attached to a verse, e.g. "GEN.1.1" in `textId`), opened in the Notes space.
     @discardableResult
-    func newNote(verseRef: String? = nil, textId: String = "kjva", title: String? = nil) -> String? {
+    func newNote(verseRef: String? = nil, textId: String = "kjva", title: String? = nil, content: String = "") -> String? {
         guard let notes else { libraryError = "The library is not open."; return nil }
         do {
             let label = verseRef.flatMap { r -> String? in
@@ -603,7 +603,7 @@ final class AppModel {
                 guard p.count == 3, let c = Int(p[1]), let v = Int(p[2]) else { return nil }
                 return Reference.bookChapterVerseLabel(p[0], chapter: c, verse: v)
             }
-            let n = try notes.create(.init(type: verseRef == nil ? "general" : "verse", title: title ?? label ?? "", verseRef: verseRef, textId: textId)).note
+            let n = try notes.create(.init(type: verseRef == nil ? "general" : "verse", title: title ?? label ?? "", content: content, verseRef: verseRef, textId: textId)).note
             openNote(n.id)
             return n.id
         } catch { libraryError = "Could not create the note: \(error)"; return nil }

@@ -254,8 +254,20 @@ struct ScriptureView: View {
 
     private func addNoteForSelection(_ state: BibleState) {
         guard let first = selectedRows.first else { return }
+        let links: [String] = selection.count > 1 ? selectionRanges(state).flatMap { range in
+            (range.spans ?? []).compactMap { start, end in
+                let firstVerse = Int(start)
+                let lastVerse = Int(end)
+                let numbers = firstVerse == lastVerse ? "\(firstVerse)" : "\(firstVerse)-\(lastVerse)"
+                let label = "\(referenceChapterLabel(state)):\(numbers)"
+                let destination = "berean://verse/\(range.bookId)/\(Int(range.chapter))/\(numbers)?text=\(state.translation)"
+                guard DeepLink.parse(destination) != nil,
+                      availableTexts.contains(where: { $0.id == state.translation }) else { return nil }
+                return "[\(label)](\(destination))"
+            }
+        } : []
         app.newNote(verseRef: "\(first.bookId).\(first.chapter).\(first.verseNum)",
-                    textId: state.translation, title: selectionLabel(state))
+                    textId: state.translation, title: selectionLabel(state), content: links.joined(separator: "\n\n"))
     }
 
     private func selectionReference(_ state: BibleState) -> String {
