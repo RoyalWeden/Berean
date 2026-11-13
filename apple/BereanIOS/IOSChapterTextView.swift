@@ -369,7 +369,29 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
         }
 
+        private func isVerseMarkerSelection(_ range: NSRange, in view: UITextView) -> Bool {
+            guard range.location != NSNotFound, range.length > 0,
+                  NSMaxRange(range) <= view.textStorage.length else { return false }
+            var isMarker = true
+            view.textStorage.enumerateAttribute(.link, in: range) { value, _, stop in
+                if (value as? URL)?.scheme != "berean-verse" {
+                    isMarker = false
+                    stop.pointee = true
+                }
+            }
+            return isMarker
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            // A quick second tap can invoke UIKit's word selection before the gutter tap wins.
+            // A verse marker is a control. Body selections may still span across markers.
+            if isVerseMarkerSelection(textView.selectedRange, in: textView) {
+                textView.selectedTextRange = nil
+            }
+        }
+
         func textView(_ view: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+            if isVerseMarkerSelection(range, in: view) { return UIMenu(children: []) }
             let portions = portions(in: range, storage: view.textStorage)
             guard let first = portions.first, let last = portions.last else { return nil }
             let text = plainText(portions)
