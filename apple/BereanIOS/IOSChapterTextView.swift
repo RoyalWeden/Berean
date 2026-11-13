@@ -119,7 +119,18 @@ struct IOSChapterTextView: UIViewRepresentable {
                       let position = view.position(from: view.beginningOfDocument, offset: range.location) else { return }
                 view.layoutIfNeeded()
                 let inset = view.adjustedContentInset
-                let y = view.caretRect(for: position).minY - inset.top - 12
+                let top = view.caretRect(for: position).minY
+                var y = top - inset.top - 12
+                if let lastVerse = coordinator.parent.selectedVerses.max(),
+                   lastVerse >= target, let lastRange = coordinator.bodyRanges[lastVerse],
+                   lastRange.length > 0,
+                   let end = view.position(from: view.beginningOfDocument, offset: NSMaxRange(lastRange) - 1) {
+                    let lastLine = view.caretRect(for: end).maxY + ReaderFloatingControls.readingGap
+                    let readingHeight = view.bounds.height - inset.top - inset.bottom
+                    if lastLine - top <= readingHeight {
+                        y = max(y, lastLine - view.bounds.height + inset.bottom)
+                    }
+                }
                 let bottom = view.contentSize.height + inset.bottom - view.bounds.height
                 view.setContentOffset(CGPoint(x: 0, y: max(-inset.top, min(y, bottom))), animated: false)
             }

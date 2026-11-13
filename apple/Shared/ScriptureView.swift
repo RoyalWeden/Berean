@@ -98,7 +98,7 @@ struct ScriptureView: View {
             let showActions = loadedChapter == chapter && !selection.isEmpty
             let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
             // The iPhone's root dock sits over the representable's proposed viewport.
-            let dockSpace = showActions ? ReaderFloatingControls.dockOffset : 0
+            let dockSpace = ReaderFloatingControls.dockOffset
             VStack(spacing: 0) {
                 Group {
                     if loadedChapter == chapter {
