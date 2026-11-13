@@ -123,7 +123,7 @@ struct ScriptureView: View {
             selection = Set(min(a, v)...max(a, v)).intersection(verses.map(\.verseNum))
         } else {
             if selection.contains(v) { selection.remove(v) } else { selection.insert(v) }
-            anchor = v
+            anchor = selection.contains(v) ? v : selection.min()
         }
         selectedVerse = selection.contains(v) ? v : selection.min()
     }
@@ -177,7 +177,7 @@ struct ScriptureView: View {
                 .verseActionHelp("Tag verses")
                 #if os(macOS)
                 Button("Add Note", systemImage: "square.and.pencil") {
-                    if let verse = selectedRows.first {
+                    if let verse = selectedRows.first(where: { $0.verseNum == selectedVerse }) {
                         app.newNote(verseRef: "\(verse.bookId).\(verse.chapter).\(verse.verseNum)", textId: st.translation)
                     }
                 }
@@ -191,6 +191,20 @@ struct ScriptureView: View {
                     Button("More Verse Actions", systemImage: "ellipsis") {
                         tappedVerse = TappedVerse(row: row)
                     }
+                } else {
+                    Menu {
+                        if let verse = selectedVerse, let row = selectedRows.first(where: { $0.verseNum == verse }) {
+                            Button("Add Note", systemImage: "square.and.pencil") {
+                                app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: st.translation)
+                            }
+                            Button("Cross References", systemImage: "arrow.triangle.branch") {
+                                openInspector("crossrefs", verse: verse)
+                            }
+                        }
+                    } label: {
+                        Label("More Verse Actions", systemImage: "ellipsis")
+                    }
+                    .menuIndicator(.hidden)
                 }
                 #endif
                 Divider().frame(height: 16).padding(.horizontal, 3)

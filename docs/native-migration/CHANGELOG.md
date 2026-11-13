@@ -508,3 +508,8 @@
 - Float verse actions over the reader with extra scroll clearance for the chapter ending.
 - Add pointing-device cues to Mac sidebar controls and the native verse action row.
 - Both Dev builds passed. Verified grouped and separated ranges and end scrolling on the iPhone Simulator. Verified the Mac outline and adjacent selection.
+
+### 2026-11-13 — Verse actions for multiple selections
+- Keep iPhone More visible for multi-verse selections and target the active verse for notes and cross references.
+- Keep the range anchor on a selected verse and add hover feedback to the iPhone dock menu.
+- Both native Dev builds passed.

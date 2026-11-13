@@ -140,12 +140,12 @@ struct IOSRootView: View {
                 Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }
-        } label: { bottomItem(symbol: "ellipsis") }
+        } label: { bottomItem(symbol: "ellipsis").hoverEffect(.highlight) }
         .accessibilityLabel("More: commands for this tab")
     }
 
     func mutate(_ id: String, _ f: (inout BibleState) -> Void) {
-        app.update(id) { t in var s = BibleState(t.state); f(&s); t.state = s.merged(into: t.state); t.title = Reference.bookChapterLabel(s.bookId, chapter: Double(s.chapter)) }
+        app.update(id) { t in var s = BibleState(t.state); f(&s); t.state = s.merged(into: t.state); t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation) }
     }
 }
 
