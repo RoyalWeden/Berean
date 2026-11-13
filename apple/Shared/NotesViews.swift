@@ -165,11 +165,47 @@ struct NoteDetailView: View {
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
             return
         }
+        if ["berean", "berean-dev"].contains(url.scheme?.lowercased() ?? "") {
+            openBereanLink(url)
+            return
+        }
         #if os(macOS)
         NSWorkspace.shared.open(url)
         #else
         UIApplication.shared.open(url)
         #endif
+    }
+
+    private func openBereanLink(_ url: URL) {
+        switch DeepLink.parse(url.absoluteString, hermas: app.hermasEdition) {
+        case .verse(let book, let chapter, let verse, _, let text, _):
+            if let text, !availableTexts.contains(where: { $0.id == text }) {
+                app.userMessage = "This Scripture text is unavailable."
+                return
+            }
+            let textId = text ?? app.bookCatalog.first {
+                $0.book.id == book && $0.textId == app.defaultText
+            }?.textId ?? app.bookCatalog.first { $0.book.id == book }?.textId
+            if let edition = HermasText(rawValue: text ?? app.hermasEdition.rawValue), Reference.isHermasBook(book) {
+                app.openScripture(bookId: book, chapter: chapter, verse: verse, textId: edition.rawValue, reuseTab: true)
+            } else {
+                app.openScripture(bookId: book, chapter: chapter, verse: verse, textId: textId, reuseTab: true)
+            }
+        case .note(let id):
+            guard (try? app.notes?.one(id)) != nil else {
+                app.userMessage = "This note is unavailable."
+                return
+            }
+            app.openNote(id)
+        case .lexicon(let id):
+            app.openLexicon(id, reuseTab: true)
+        case .search(let query):
+            app.openSearch(query, reuseTab: true)
+        case .daily:
+            app.openTodayDailyNote()
+        default:
+            app.userMessage = "This Berean link can’t be opened here."
+        }
     }
 
     func copyMarkdown() {
