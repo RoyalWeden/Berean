@@ -228,3 +228,5 @@ Mac sidebar Scripture rows now show the selected verse or range and a compact ed
 Mac Scripture sidebar rows use a split icon for Compare, cap edition label width, and reserve the close/pin slot so hovering does not move the passage label. The tooltip exposes the full passage and edition. Both Dev builds passed. Narrow-width clipping, tooltips and drag behavior still need live checks.
 
 Workspace switchers now preview up to two distinct tab labels, with Scripture ranges and editions, for live workspaces and saved snapshots. Live previews prioritize active tabs and keep the stored workspace name. Snapshot counts use stored tab records. Both Dev builds passed. Narrow iPhone preview truncation and saved-snapshot labels still need live checks.
+
+iPhone Workspace search now matches combined terms from the workspace name and a contained tab, including saved snapshots and hyphen/en-dash verse ranges. Matching tab previews appear on separate lines so a long first preview cannot consume the second preview's line. Both Dev builds passed. Live saved snapshot search and narrow-width previews remain to verify.

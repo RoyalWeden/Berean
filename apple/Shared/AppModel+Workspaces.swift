@@ -14,15 +14,34 @@ struct WorkspaceItem: Identifiable, Hashable {
     var icon: String?
     var tabTitles: [String]
     var preview: String? {
-        var seen = Set<String>()
-        let labels = tabTitles.filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(2)
+        let labels = previewLabels()
         return labels.isEmpty ? nil : labels.joined(separator: " · ")
     }
 
-    func matches(_ query: String) -> Bool {
-        query.isEmpty || name.localizedCaseInsensitiveContains(query)
-            || tabTitles.contains { $0.localizedCaseInsensitiveContains(query) }
+    func previewLabels(matching query: String = "") -> [String] {
+        let unmatched = termsOutsideName(query)
+        let matchingTitles = tabTitles.filter { title in
+            unmatched.allSatisfy { normalized(title).localizedStandardContains(String($0)) }
+        }
+        var seen = Set<String>()
+        return Array(matchingTitles.filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(2))
     }
+
+    func matches(_ query: String) -> Bool {
+        termsOutsideName(query).isEmpty || !previewLabels(matching: query).isEmpty
+    }
+
+    private func termsOutsideName(_ query: String) -> [Substring] {
+        let workspaceName = normalized(name)
+        return normalized(query).split(whereSeparator: \.isWhitespace).filter {
+            !workspaceName.localizedStandardContains(String($0))
+        }
+    }
+
+    private func normalized(_ text: String) -> String {
+        text.replacingOccurrences(of: "–", with: "-")
+    }
+
     var id: String { switch kind { case .live(let s): "live:\(s)"; case .saved(let w): "saved:\(w)" } }
     var isSaved: Bool { if case .saved = kind { true } else { false } }
 }

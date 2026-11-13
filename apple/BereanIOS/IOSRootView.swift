@@ -314,7 +314,9 @@ struct SessionsPage: View {
                             Image(systemName: w.isSaved ? "square.stack.3d.up" : "square.stack").foregroundStyle(.secondary).frame(width: 24)
                             VStack(alignment: .leading) {
                                 Text(w.name).foregroundStyle(.primary)
-                                if let preview = w.preview { Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
+                                ForEach(w.previewLabels(matching: query), id: \.self) { preview in
+                                    Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                                }
                                 Text(w.isSaved ? "Saved · \(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")" : "\(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
