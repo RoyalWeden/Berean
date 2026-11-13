@@ -95,6 +95,17 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(try notes.matchingNoteIDs("fig") == [older.id])
     }
 
+    @Test func verseInspectorIncludesRangeAttachments() throws {
+        let range = try svc.create(.init(type: "verse", title: "Range", verseRef: "JHN.3.14-16", textId: "kjva")).note
+        let chapter = try svc.create(.init(type: "verse", title: "Chapter", verseRef: "JHN.3", textId: "kjva")).note
+        let first = try svc.coveringVerse("JHN", 3, 14, textId: "kjva").map(\.id)
+        let last = try svc.coveringVerse("JHN", 3, 16, textId: "kjva").map(\.id)
+        #expect(first.contains(range.id))
+        #expect(last.contains(range.id))
+        #expect(!last.contains(chapter.id))
+        #expect(!(try svc.coveringVerse("JHN", 3, 17, textId: "kjva")).contains { $0.id == range.id })
+    }
+
     @Test func verseAndChapter() throws {
         for c in g.arr("byVerse") {
             #expect(try svc.byVerse(c["ref"]!.str, textId: c["textId"]!.str).map(\.id) == c["ids"]!.array.map(\.str), "\(c["ref"]!.str) \(c["textId"]!.str)")

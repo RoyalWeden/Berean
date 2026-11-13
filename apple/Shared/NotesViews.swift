@@ -524,7 +524,7 @@ struct VerseNotesView: View {
         }
         .task(id: "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(textId)|\(app.notesRevision)") {
             if let verse {
-                notes = (try? app.notes?.byVerse("\(bookId).\(chapter).\(verse)", textId: textId)) ?? []
+                notes = (try? app.notes?.coveringVerse(bookId, chapter, verse, textId: textId)) ?? []
             } else {
                 notes = (try? app.notes?.byChapter(bookId, chapter, textId: textId)) ?? []
             }

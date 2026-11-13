@@ -227,6 +227,19 @@ public final class NotesService: @unchecked Sendable {
         return Self.stableSort(own + others, Self.refLess)
     }
 
+    /// Notes attached to this verse or to a range that contains it. Chapter notes
+    /// remain available in the chapter view.
+    public func coveringVerse(_ bookId: String, _ chapter: Int, _ verse: Int, textId: String) throws -> [Note] {
+        let candidates = try byChapter(bookId, chapter, textId: textId)
+        let matching = candidates.filter { note in
+            guard let ref = note.verseRef, let attachment = Reference.parseNoteAttachment(ref),
+                  attachment.bookId == bookId, let start = attachment.verse else { return false }
+            // byChapter has already matched the attachment chapter for the note's edition.
+            return verse >= start && verse <= (attachment.endVerse ?? start)
+        }
+        return Self.stableSort(matching) { $0.createdAt < $1.createdAt }
+    }
+
     func verseRefs(_ bookId: String, _ chapter: Int, tid: String, param: String? = nil) throws -> [String] {
         let prefix = "\(bookId).\(chapter)."
         var params: [SQLiteValue] = [.text(prefix + "%"), .text(prefix + "%.%")]
