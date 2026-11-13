@@ -99,6 +99,7 @@ struct BereanSidebar: View {
             }
             Divider()
             Button("New Workspace") { app.newWorkspace() }
+            Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
             if let cur = app.currentWorkspace {
                 Button("Rename “\(cur.name)”…") { name = cur.name; renaming = cur }
                 Button("Duplicate “\(cur.name)”") { app.duplicate(cur) }

@@ -24,6 +24,7 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
+        .studyTrailSheet(app: app)
         .sheet(isPresented: $app.commandPaletteShown) { CommandPalette(newTab: app.commandPaletteCreatesTab) }
         .onChange(of: app.sidebarToggleRequest) { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }

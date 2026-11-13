@@ -20,6 +20,7 @@ struct IOSRootView: View {
             content
                 .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         }
+        .studyTrailSheet(app: app)
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
         .sheet(isPresented: $showGo) { GoSheet(newTab: explicitNewTab, close: { showGo = false }).presentationDetents([.large]) }
@@ -135,6 +136,7 @@ struct IOSRootView: View {
                 }
             }
             Section {
+                Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
                 Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }
@@ -174,12 +176,6 @@ struct TabCardsSheet: View {
                     .accessibilityHint("Switch, create or manage workspaces")
                 }
                 Section {
-                    let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
-                    ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
-                    ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
-                    if shown.isEmpty { Text(query.isEmpty ? "No open tabs in this session." : "No open tab matches “\(query)”.").foregroundStyle(.secondary) }
-                }
-                Section {
                     Button { dismiss(); app.commandPaletteShown = true } label: { Label("New Tab", systemImage: "plus") }
                     if !app.inactiveTabs.isEmpty {
                         Button { showTabCleanup = true } label: { Label("Archive Inactive Tabs…", systemImage: "archivebox") }
@@ -187,6 +183,12 @@ struct TabCardsSheet: View {
                     if !app.archivedGroups.isEmpty {
                         NavigationLink { ArchivedTabsPage() } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
+                }
+                Section {
+                    let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
+                    ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
+                    ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
+                    if shown.isEmpty { Text(query.isEmpty ? "No open tabs in this session." : "No open tab matches “\(query)”.").foregroundStyle(.secondary) }
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search tabs")

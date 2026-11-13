@@ -12,7 +12,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 
 | ID | Issue | Plat | Sev | Feature | Status |
 |---|---|---|---|---|---|
-| SHARED-FUNC-006 | Study Trail missing entirely. | both | P1 | U14 | OPEN |
+| SHARED-FUNC-006 | Study Trail map, connections, and recording lifecycle missing. | both | P1 | U14 | Read-only trail and stop browser implemented |
 | SHARED-DATA-001 | No native sync; native libraries are isolated dev copies (by design until the M4 gates). | both | P1 | A01 | OPEN (gated, OD-5) |
 | IOS-FUNC-002 | Verify cross-verse touch handles, copy output, highlight/reopen and swipe arbitration on device. | iOS | P2 | S07/H02 | IN PROGRESS: single TextKit document shipped on review branch; word selection, Strong’s, nonconsecutive whole-verse Copy and Highlight verified on iPhone 18 Pro Simulator. |
 | MAC-UI-008 | Strong's search results do not highlight the matched words (the occurrence word indices are available). | both | P3 | Q03 | OPEN |

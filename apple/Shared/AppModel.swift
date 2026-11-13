@@ -96,6 +96,8 @@ final class AppModel {
     private(set) var settingsService: SettingsService?
     private(set) var workspaces: WorkspacesService?
     private(set) var verseTags: VerseTagsService?
+    var showStudyTrail = false
+    private(set) var studyTrailReader: StudyTrailReader?
     private(set) var historyService: HistoryService?
     var historyRevision = 0
     /// Bumped on every verse-tag write so chips and tag lists refresh.
@@ -139,6 +141,7 @@ final class AppModel {
             workspaces = WorkspacesService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) }, uuid: { Self.newId() }, onChange: { _ in })
             savedWorkspaces = (try? workspaces?.list()) ?? []
             historyService = HistoryService(db: db.connection)
+            studyTrailReader = StudyTrailReader(db: db.connection)
             verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
             loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })

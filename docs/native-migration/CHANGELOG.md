@@ -471,3 +471,8 @@
 - iPhone Go groups passage, lexicon, notes and Scripture search destinations. More includes native Find in Chapter.
 - Mac routine navigation reuses eligible tabs. The command palette offers exact open passages in other workspaces, and New Tab remains explicit.
 - The implementation backlog compares the native apps with Electron and Capacitor workflows and records acceptance checks.
+
+### 2026-11-12 — Archive access and Study Trail browsing
+
+- Mac Workspace and the top of iPhone Tabs expose the archive controls. Mac Dev verified excluding one tab, archiving two, and restoring both while keeping the active passage.
+- Mac Go and iPhone More open saved Study Trails with their recaps and ordered Scripture stops. The reader uses legacy tables and preserves saved translations. The migrated fixture checks legacy ordering and excludes the implicit loose-stops bucket. The Mac entry and empty state were checked in the running app.

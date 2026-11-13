@@ -35,6 +35,7 @@ struct BereanMacApp: App {
             }
             CommandMenu("Go") {
                 Button("History") { app.openHistory() }.keyboardShortcut("y")
+                Button("Study Trail") { app.showStudyTrail = true }
                 Button("Calendar") { app.openCalendar() }
                 Button("Tags") { app.openTags() }
                 Divider()
