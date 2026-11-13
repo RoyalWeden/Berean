@@ -1,5 +1,6 @@
 import Foundation
 import BereanCore
+import BereanNotes
 import BereanWorkspace
 
 /// One user-facing "Workspace" (ADR-0011). Storage is unchanged: a live workspace is a `sessions` row (with its
@@ -130,7 +131,7 @@ extension AppModel {
         }
     }
 
-    func openTodayDailyNote() { openDailyNote(DailyNoteCalendar.dateKey(Date())) }
+    func openTodayDailyNote() { openDailyNote(DailyNoteDay.dateKey(DailyNotePreferences.today())) }
 
     func openDailyNote(_ key: String) {
         guard let notes else {
