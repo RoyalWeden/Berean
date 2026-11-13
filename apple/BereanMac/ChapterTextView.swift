@@ -41,6 +41,9 @@ struct ChapterTextView: NSViewRepresentable {
         tv.isSelectable = true
         tv.drawsBackground = false
         tv.isRichText = true
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.autoresizingMask = [.width]
         tv.textContainer?.widthTracksTextView = true
         tv.linkTextAttributes = [.cursor: NSCursor.pointingHand]
@@ -59,11 +62,19 @@ struct ChapterTextView: NSViewRepresentable {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
-        scroll.contentInsets.bottom = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
+        let clip = scroll.contentView
+        let previousBounds = clip.bounds
+        var endBounds = previousBounds
+        endBounds.origin.y = max(previousBounds.minY, tv.frame.maxY) + previousBounds.height
+        let previousEnd = clip.constrainBoundsRect(endBounds).minY
+        let clearance = selectedVerses.isEmpty ? 0 : ReaderFloatingControls.scrollClearance
+        let keepChapterEndVisible = c.lastPassage == passageId && clearance != scroll.contentInsets.bottom
+            && tv.frame.height > previousBounds.height && previousBounds.minY >= previousEnd - 2
+        scroll.contentInsets.bottom = clearance
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses, tooltips: strongsTooltips)
         if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
-            let origin = scroll.contentView.bounds.origin
+            let origin = previousBounds.origin
             let sel = tv.selectedRanges
             tv.textStorage?.setAttributedString(c.build(self))
             tv.needsDisplay = true
@@ -75,6 +86,14 @@ struct ChapterTextView: NSViewRepresentable {
             }
             c.lastKey = key
             if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
+        }
+        if keepChapterEndVisible, let container = tv.textContainer {
+            tv.layoutManager?.ensureLayout(for: container)
+            scroll.layoutSubtreeIfNeeded()
+            var proposed = clip.bounds
+            proposed.origin.y = max(proposed.minY, tv.frame.maxY) + proposed.height
+            clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+            scroll.reflectScrolledClipView(clip)
         }
         if scrollTarget == nil { c.scrolledTo = nil }
         if let target = scrollTarget, target != c.scrolledTo, c.verseRanges[target] != nil {
