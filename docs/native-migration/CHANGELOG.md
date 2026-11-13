@@ -496,3 +496,9 @@
 - Added Mac Strong’s gloss tooltips and shared Strong’s search snippets with match positions. Added the Hermas edition preference and edition-aware reference labels.
 - Added local sunrise settings for Today and Calendar with tests for the DST boundary, missing coordinates, and polar fallback.
 - Mac Dev verified tab filtering, Shift-click range selection and opening Cross References. See HANDOFF for remaining runtime checks.
+
+### 2026-11-13 — iPhone verse targets, note previews, and deep-link grammar
+- Expanded iPhone verse tap targets into the gutter, keeping body text available for normal selection.
+- Added a read-only preview that renders Markdown tables and code in current notes and version history.
+- Ported legacy deep-link parsing to Swift, with 37 fixtures. Registration and routing remain open.
+- Both Dev builds and Swift conformance passed. The iPhone Simulator clipboard verified exact nonconsecutive verse copy.
