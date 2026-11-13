@@ -14,7 +14,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 |---|---|---|---|---|---|
 | SHARED-FUNC-006 | Study Trail missing entirely. | both | P1 | U14 | OPEN |
 | SHARED-DATA-001 | No native sync; native libraries are isolated dev copies (by design until the M4 gates). | both | P1 | A01 | OPEN (gated, OD-5) |
-| IOS-FUNC-002 | Verify cross-verse touch handles, copy output, highlight/reopen and swipe arbitration on device. | iOS | P2 | S07/H02 | IN PROGRESS: single TextKit document shipped on review branch; word selection and Strong’s tap seen on iPhone 18 Pro Simulator. |
+| IOS-FUNC-002 | Verify cross-verse touch handles, copy output, highlight/reopen and swipe arbitration on device. | iOS | P2 | S07/H02 | IN PROGRESS: single TextKit document shipped on review branch; word selection, Strong’s, nonconsecutive whole-verse Copy and Highlight verified on iPhone 18 Pro Simulator. |
 | MAC-UI-008 | Strong's search results do not highlight the matched words (the occurrence word indices are available). | both | P3 | Q03 | OPEN |
 | MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | OPEN |
 | SHARED-FUNC-010 | Verse actions lack Play Audio From Here (Copy Reference and Compare This Verse added). | both | P3 | S08 | OPEN (waits for Read Aloud) |
@@ -27,7 +27,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-FUNC-017 | Single window only: no floating tabs, presenter or secondary windows. | Mac | P2 | U07 | OPEN |
 | SHARED-FUNC-018 | PDFs, YouTube, Read Aloud, Ask Berean not ported. | both | P2 | U17/M01/M05/G01 | OPEN |
 | SHARED-FUNC-019 | Deep links (`berean://`) not handled natively. | both | P2 | A06 | OPEN |
-| IOS-FUNC-004 | iPhone New sheet has no notes results (Mac ⌘K does). | iOS | P2 | Q09 | OPEN |
+| IOS-FUNC-004 | Verify iPhone Go opens a note by unique title and body match. | iOS | P2 | Q09 | Implemented with grouped Notes results, runtime acceptance pending |
 | SHARED-UI-020 | Accessibility: no full VoiceOver pass; dark mode checked only on the reader, search and sidebar. | both | P2 | A14 | OPEN |
 
 ## Fixed
