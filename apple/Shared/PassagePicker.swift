@@ -9,7 +9,7 @@ struct RecentPassage: Codable, Hashable, Identifiable {
     var chapter: Int
     var verse: Int?
     var id: String { "\(textId)|\(bookId)|\(chapter)" }
-    var label: String { Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse) }
+    var label: String { Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)) }
 }
 
 /// A book in some text (the picker searches every bundled text, not just the current one).
@@ -33,7 +33,7 @@ extension AppModel {
         var list = recentPassages.filter { !($0.textId == textId && $0.bookId == bookId && $0.chapter == chapter) }
         list.insert(RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse), at: 0)
         if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserDefaults.standard.set(data, forKey: Self.recentKey) }
-        recordHistory(type: "bible", title: Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse), bookId: bookId, chapter: chapter, verse: verse)
+        recordHistory(type: "bible", title: Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)), bookId: bookId, chapter: chapter, verse: verse)
     }
 
     /// Every book of every listed text, in list order.
@@ -69,7 +69,10 @@ struct PassagePicker: View {
         guard !trimmed.isEmpty else { return [] }
         let q = trimmed.lowercased()
         let hits = catalog.filter { $0.book.name.lowercased().contains(q) || $0.book.shortName.lowercased().hasPrefix(q) || $0.book.id.lowercased().hasPrefix(q) }
-        func rank(_ c: CatalogBook) -> (Int, Int) { (c.textId == text ? 0 : 1, c.book.name.lowercased().hasPrefix(q) ? 0 : 1) }
+        func rank(_ c: CatalogBook) -> (Int, Int, Int) {
+            (c.textId == text ? 0 : 1, c.book.name.lowercased().hasPrefix(q) ? 0 : 1,
+             c.textId == app.hermasEdition.rawValue ? 0 : 1)
+        }
         return Array(hits.sorted { rank($0) < rank($1) }.prefix(40))
     }
 
@@ -123,7 +126,7 @@ struct PassagePicker: View {
                     Section("Go to") {
                         Button { onPick(p.textId, p.bookId, p.chapter, p.verse) } label: {
                             HStack {
-                                Label(Reference.bookChapterVerseLabel(p.bookId, chapter: p.chapter, verse: p.verse), systemImage: "arrow.right.circle")
+                                Label(p.label, systemImage: "arrow.right.circle")
                                 Spacer()
                                 Text(textInfo(p.textId).short).font(.caption).foregroundStyle(.secondary)
                             }.contentShape(.rect)
@@ -207,6 +210,9 @@ struct PassagePicker: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 42, maximum: 48), spacing: 6)], spacing: 6) {
                         ForEach(chapters.isEmpty ? Array(1...max(1, b.chaptersCount)) : chapters, id: \.self) { c in
+                            let chapterLabel = Reference.isHermasBook(b.id)
+                                ? Reference.readerChapterLabel(b.id, c, textId: text)
+                                : "\(b.name) chapter \(Reference.displayChapterString(b.id, c))"
                             let current = b.id == currentBook && c == currentChapter && text == textId
                             Button { onPick(text, b.id, c, nil) } label: {
                                 Text(c == 0 ? "Prol." : Reference.displayChapterString(b.id, c)).font(c == 0 ? .caption : .body).monospacedDigit().frame(width: 42, height: 30)
@@ -214,8 +220,8 @@ struct PassagePicker: View {
                                     .foregroundStyle(current ? .white : .primary)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(c == 0 ? "\(b.name) prologue" : "\(b.name) chapter \(c)")
-                            .help(c == 0 ? "Prologue" : "Chapter \(Reference.displayChapterString(b.id, c))")
+                            .accessibilityLabel(c == 0 ? "\(b.name) prologue" : chapterLabel)
+                            .help(c == 0 ? "Prologue" : chapterLabel)
                         }
                     }.padding(12)
                 }
@@ -282,6 +288,13 @@ struct PassagePicker: View {
 }
 
 extension Reference {
+    static func readerChapterLabel(_ bookId: String, _ chapter: Int, textId: String) -> String {
+        if isHermasBook(bookId) {
+            return bookChapterVerseLabel(bookId, chapter: chapter, hermas: HermasText(textId: textId))
+        }
+        return bookChapterLabel(bookId, chapter: Double(chapter))
+    }
+
     /// The chapter number as shown to readers (custom-numbered books such as Recognitions 3 differ from storage).
     static func displayChapterString(_ bookId: String, _ stored: Int) -> String {
         let d = displayChapter(bookId, Double(stored))

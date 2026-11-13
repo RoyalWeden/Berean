@@ -17,6 +17,7 @@ struct ChapterTextView: NSViewRepresentable {
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
+    var strongsTooltips: [String: String] = [:]
     var onStrongs: (String) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
@@ -53,7 +54,7 @@ struct ChapterTextView: NSViewRepresentable {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
-        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses)
+        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses, tooltips: strongsTooltips)
         if key != c.lastKey {
             let keepScroll = c.lastPassage == passageId
             let origin = scroll.contentView.bounds.origin
@@ -78,7 +79,7 @@ struct ChapterTextView: NSViewRepresentable {
     }
 
     struct Key: Equatable {
-        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var selected: Set<Int>
+        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var selected: Set<Int>; var tooltips: [String: String]
     }
 
     // MARK: - Coordinator: builds the text, routes clicks, copies
@@ -184,7 +185,7 @@ struct ChapterTextView: NSViewRepresentable {
                                 .font: NSFont.monospacedDigitSystemFont(ofSize: max(9, size * 0.58), weight: .medium),
                                 .foregroundColor: NSColor.secondaryLabelColor, .baselineOffset: size * 0.38,
                                 .link: URL(string: "strongs:\(id)")!, .paragraphStyle: para, Self.skipKey: true,
-                                .toolTip: "Strong's \(id) — open in the lexicon",
+                                .toolTip: p.strongsTooltips[id] ?? "Strong's \(id) — open in the lexicon",
                             ]))
                         }
                     }
@@ -325,13 +326,20 @@ final class ReaderTextView: NSTextView {
         window?.makeFirstResponder(self)
         // A single click on a link (verse number, Strong's number, tag chip) acts like a button; anything else is text
         // selection. (The built-in link handling did not fire for these custom-scheme links inside SwiftUI.)
-        if event.clickCount == 1, let i = charIndex(at: event), let ts = textStorage, i < ts.length,
-           let link = ts.attribute(.link, at: i, effectiveRange: nil), let c = coordinator {
-            if let url = link as? URL, url.scheme == "berean-verse" {
+        if event.clickCount == 1, let c = coordinator, let ts = textStorage {
+            if let i = charIndex(at: event, includeVerseGutter: true),
+               let url = ts.attribute(.link, at: i, effectiveRange: nil) as? URL,
+               url.scheme == "berean-verse",
+               let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) {
                 setSelectedRange(NSRange(location: i, length: 0))
+                c.parent.onVerseClick(verse, event.modifierFlags.contains(.shift))
+                return
             }
-            _ = c.textView(self, clickedOnLink: link, at: i)
-            return
+            if let i = charIndex(at: event),
+               let link = ts.attribute(.link, at: i, effectiveRange: nil),
+               c.textView(self, clickedOnLink: link, at: i) {
+                return
+            }
         }
         super.mouseDown(with: event)
     }
@@ -343,7 +351,7 @@ final class ReaderTextView: NSTextView {
         addTrackingArea(t); tracking = t
     }
 
-    func charIndex(at event: NSEvent) -> Int? {
+    func charIndex(at event: NSEvent, includeVerseGutter: Bool = false) -> Int? {
         let p = convert(event.locationInWindow, from: nil)
         guard let lm = layoutManager, let tc = textContainer else { return nil }
         guard lm.numberOfGlyphs > 0 else { return nil }
@@ -352,8 +360,19 @@ final class ReaderTextView: NSTextView {
         let g = lm.glyphIndex(for: pt, in: tc, fractionOfDistanceThroughGlyph: &fraction)
         guard g < lm.numberOfGlyphs else { return nil }
         let rect = lm.boundingRect(forGlyphRange: NSRange(location: g, length: 1), in: tc)
-        guard rect.insetBy(dx: -2, dy: -2).contains(pt) else { return nil }
-        return lm.characterIndexForGlyph(at: g)
+        let index = lm.characterIndexForGlyph(at: g)
+        if rect.insetBy(dx: -2, dy: -2).contains(pt) { return index }
+        if includeVerseGutter, let storage = textStorage, let c = coordinator,
+           index < storage.length, let verse = c.verse(at: index),
+           let start = c.verseTextStarts[verse], start > 0, start < storage.length {
+            let firstWord = lm.glyphIndexForCharacter(at: start)
+            let line = lm.lineFragmentRect(forGlyphAt: firstWord, effectiveRange: nil)
+            let word = lm.boundingRect(forGlyphRange: NSRange(location: firstWord, length: 1), in: tc)
+            if pt.x >= 0, pt.x < word.minX, pt.y >= line.minY, pt.y < line.maxY {
+                return start - 1
+            }
+        }
+        return nil
     }
 
     override func mouseMoved(with event: NSEvent) {

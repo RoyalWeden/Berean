@@ -64,7 +64,7 @@ struct CommandPalette: View {
         }
         let currentText = app.activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }
         if let ref = app.resolvePassage(trimmed, preferring: currentText) {
-            out.append(Item(id: "go", group: "Go to", title: Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse),
+            out.append(Item(id: "go", group: "Go to", title: ref.label,
                             detail: textInfo(ref.textId).name, symbol: "book") { open(ref) })
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
         }

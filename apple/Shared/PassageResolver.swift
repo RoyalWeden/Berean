@@ -11,6 +11,10 @@ import BereanWorkspace
 struct ResolvedPassage: Equatable {
     var textId: String; var bookId: String; var chapter: Int; var verse: Int?
 
+    var label: String {
+        Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+    }
+
     func isShown(in tab: Tab) -> Bool {
         guard tab.tabType == .bible, tab.state["endChapter"]?.numberValue == nil else { return false }
         let state = BibleState(tab.state)
@@ -30,12 +34,14 @@ extension AppModel {
         let q = raw.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return nil }
         let pref = current ?? defaultText
+        let edition = HermasText(rawValue: pref) ?? hermasEdition
         func textFor(_ bookId: String, forced: String? = nil) -> String {
+            if Reference.isHermasBook(bookId) { return edition.rawValue }
             if let forced { return forced }
             if bookCatalog.isEmpty || bookCatalog.contains(where: { $0.textId == pref && $0.book.id == bookId }) { return pref }
             return bookCatalog.first { $0.book.id == bookId }?.textId ?? pref
         }
-        if let ref = Reference.parse(q) {
+        if let ref = Reference.parse(q, hermas: edition) {
             return ResolvedPassage(textId: textFor(ref.bookId, forced: ref.forcedTranslation == "LXX" ? "lxx" : nil), bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse)
         }
         // "<book>" or "<book> N" where the book name matches a catalog entry.
@@ -49,11 +55,16 @@ extension AppModel {
             return n == name || s == name || b.id.lowercased() == name || n.replacingOccurrences(of: "'", with: "") == name
         }
         let hits = bookCatalog.filter { matches($0.book) }
-        guard let hit = hits.first(where: { $0.textId == pref }) ?? hits.first else {
+        let preferredHit = hits.first {
+            $0.textId == (Reference.isHermasBook($0.book.id) ? edition.rawValue : pref)
+        }
+        guard let hit = preferredHit ?? hits.first else {
             // A text's own name ("didache", "enoch", "jubilees") opens its first book.
-            if number == nil, let t = availableTexts.first(where: { $0.name.lowercased() == name || $0.short.lowercased() == name || $0.id == name }),
-               let first = bookCatalog.first(where: { $0.textId == t.id }) {
-                return ResolvedPassage(textId: t.id, bookId: first.book.id, chapter: max(1, first.book.chaptersCount > 0 ? 1 : 1), verse: nil)
+            if number == nil, let t = availableTexts.first(where: { $0.name.lowercased() == name || $0.short.lowercased() == name || $0.id == name }) {
+                let textId = t.id == HermasText.robertsDonaldson.rawValue ? edition.rawValue : t.id
+                if let first = bookCatalog.first(where: { $0.textId == textId }) {
+                    return ResolvedPassage(textId: textId, bookId: first.book.id, chapter: 1, verse: nil)
+                }
             }
             return nil
         }

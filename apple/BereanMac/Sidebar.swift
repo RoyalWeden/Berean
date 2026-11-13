@@ -15,6 +15,9 @@ struct BereanSidebar: View {
     @State private var savingSnapshot = false
     @State private var showTabCleanup = false
     @State private var name = ""
+    @State private var showsTabFilter = false
+    @State private var tabQuery = ""
+    @FocusState private var tabFilterFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,7 +26,10 @@ struct BereanSidebar: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         if groupBySpace { groupedTabs } else { orderedTabs }
-                        if !app.archivedGroups.isEmpty { archive.padding(.top, 14) }
+                        if isFilteringTabs && matchingTabs.isEmpty {
+                            Text("No matching tabs").font(.callout).foregroundStyle(.secondary).padding(10)
+                        }
+                        if !isFilteringTabs && !app.archivedGroups.isEmpty { archive.padding(.top, 14) }
                     }
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
@@ -35,6 +41,7 @@ struct BereanSidebar: View {
                 .scrollIndicators(.never)
             }
         }
+        .onChange(of: app.currentSessionId) { _, _ in tabQuery = "" }
         .contextMenu {
             Toggle("Group Tabs by Space", isOn: $groupBySpace)
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
@@ -77,12 +84,42 @@ struct BereanSidebar: View {
             .buttonStyle(.plain)
             .help("Go to a passage, Strong's number, note or search (⌘K)")
             .accessibilityLabel("Location: \(app.locationTitle.space), \(app.locationTitle.title). Open reference or search")
-            Button { app.showCommandPalette(newTab: true) } label: {
-                Label("New Tab", systemImage: "plus").frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.vertical, 6).contentShape(.rect)
+            HStack(spacing: 2) {
+                Button { app.showCommandPalette(newTab: true) } label: {
+                    Label("New Tab", systemImage: "plus")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(SidebarRowButtonStyle())
+                .help("New tab (⌘T)")
+
+                Button {
+                    showsTabFilter.toggle()
+                    tabFilterFocused = showsTabFilter
+                    if !showsTabFilter { tabQuery = "" }
+                } label: {
+                    Label(showsTabFilter ? "Hide Tab Filter" : "Filter Tabs",
+                          systemImage: "line.3.horizontal.decrease")
+                        .labelStyle(.iconOnly)
+                        .frame(width: 30, height: 26)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(SidebarRowButtonStyle())
+                .help(showsTabFilter ? "Hide tab filter" : "Filter tabs in this workspace")
             }
-            .buttonStyle(SidebarRowButtonStyle())
             .foregroundStyle(.secondary)
-            .help("New tab (⌘T)")
+
+            if showsTabFilter {
+                TextField("Filter tabs", text: $tabQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($tabFilterFocused)
+                    .onExitCommand {
+                        tabQuery = ""
+                        showsTabFilter = false
+                    }
+            }
         }
         .padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 8)
         .background(WindowDragArea())   // below the title bar only, so the toolbar's own buttons keep their clicks
@@ -131,22 +168,31 @@ struct BereanSidebar: View {
 
     // MARK: tabs
 
+    private var isFilteringTabs: Bool {
+        !tabQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var matchingTabs: [BereanWorkspace.Tab] {
+        let query = tabQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return app.orderedTabs.filter { query.isEmpty || $0.title.localizedStandardContains(query) }
+    }
+
     @ViewBuilder var orderedTabs: some View {
-        let pinned = app.orderedTabs.filter(\.isPinned), others = app.orderedTabs.filter { !$0.isPinned }
+        let pinned = matchingTabs.filter(\.isPinned), others = matchingTabs.filter { !$0.isPinned }
         if !pinned.isEmpty {
             sectionLabel("Pinned")
             ForEach(pinned) { row($0) }
             Divider().padding(.vertical, 6).padding(.horizontal, 6)
         }
         ForEach(others) { row($0) }
-        if app.orderedTabs.isEmpty {
+        if !isFilteringTabs && app.orderedTabs.isEmpty {
             Text("No tabs. Press ⌘T to open a passage, a Strong's number or a search.").font(.callout).foregroundStyle(.secondary).padding(10)
         }
     }
 
     @ViewBuilder var groupedTabs: some View {
         ForEach(SpaceId.allCases) { space in
-            let tabs = app.tabs(in: space)
+            let tabs = matchingTabs.filter { $0.spaceId == space }
             if !tabs.isEmpty {
                 sectionLabel(space.title)
                 ForEach(tabs) { row($0) }
@@ -159,17 +205,21 @@ struct BereanSidebar: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    func row(_ tab: BereanWorkspace.Tab) -> some View {
-        SidebarTabRow(tab: tab, isActive: app.activeTab?.id == tab.id, isDragging: dragging == tab.id,
-                      onSelect: { app.select(tab.id, in: tab.spaceId) }, onClose: { app.close(tab.id) })
+    @ViewBuilder func row(_ tab: BereanWorkspace.Tab) -> some View {
+        let row = SidebarTabRow(tab: tab, isActive: app.activeTab?.id == tab.id, isDragging: dragging == tab.id,
+                               onSelect: { app.select(tab.id, in: tab.spaceId) }, onClose: { app.close(tab.id) })
             .contextMenu { tabMenu(tab) }
-            .onDrag {
+        if isFilteringTabs {
+            row
+        } else {
+            row.onDrag {
                 dragging = tab.id
                 return NSItemProvider(object: tab.id as NSString)
             } preview: {
                 SidebarTabRow(tab: tab, isActive: true, isDragging: false, onSelect: {}, onClose: {}).frame(width: 220)
             }
             .onDrop(of: [.text], delegate: TabDropDelegate(target: tab, app: app, dragging: $dragging))
+        }
     }
 
     @ViewBuilder func tabMenu(_ tab: BereanWorkspace.Tab) -> some View {

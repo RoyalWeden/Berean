@@ -108,6 +108,7 @@ final class AppModel {
     var fontSize: Double = 16 { didSet { saveSetting("fontSize", .number(fontSize)) } }
     var lineHeight = "comfortable" { didSet { saveSetting("lineHeight", .string(JSString(lineHeight))) } }
     var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
+    var hermasEdition = HermasText.taylor { didSet { saveSetting("hermasTranslation", .string(JSString(hermasEdition.rawValue))) } }
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
     /// The existing apps' `scriptureFontFamily` setting ('system' = the platform UI font).
@@ -184,6 +185,7 @@ final class AppModel {
         if let v = all["fontSize"]?.numberValue { fontSize = v }
         if let v = all["lineHeight"]?.stringValue?.string { lineHeight = v }
         if let v = all["defaultText"]?.stringValue?.string { defaultText = v }
+        if let v = all["hermasTranslation"]?.stringValue?.string, let edition = HermasText(rawValue: v) { hermasEdition = edition }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["theme"]?.stringValue?.string { theme = v }
         if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
@@ -594,7 +596,7 @@ final class AppModel {
 
     func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String? = nil, reuseTab: Bool = false) {
         var st = BibleState(bookId: bookId, chapter: chapter); st.verse = verse; st.translation = textId ?? defaultText
-        let title = Reference.bookChapterLabel(bookId, chapter: Double(chapter))
+        let title = Reference.readerChapterLabel(bookId, chapter, textId: st.translation)
         if reuseTab {
             var location = JSObject()
             location["bookId"] = .string(JSString(bookId))

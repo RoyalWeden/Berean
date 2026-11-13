@@ -1,5 +1,6 @@
 import SwiftUI
 import BereanWorkspace
+import BereanReference
 
 /// Native Settings (Mac Settings window / iPhone sheet): reading preferences stored in the settings table.
 struct SettingsView: View {
@@ -13,6 +14,10 @@ struct SettingsView: View {
         Form {
             Section("Reading") {
                 Picker("Default text", selection: $app.defaultText) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
+                Picker("Shepherd of Hermas edition", selection: $app.hermasEdition) {
+                    Text("Charles Taylor (1903)").tag(HermasText.taylor)
+                    Text("Roberts–Donaldson").tag(HermasText.robertsDonaldson)
+                }
                 LabeledContent("Text size") {
                     HStack { Slider(value: $app.fontSize, in: 12...30, step: 1).frame(minWidth: 160); Text("\(Int(app.fontSize)) pt").monospacedDigit().frame(width: 48, alignment: .trailing) }
                 }

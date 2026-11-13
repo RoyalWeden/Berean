@@ -86,7 +86,7 @@ struct GoSheet: View {
                 Button { go() } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(Reference.bookChapterVerseLabel(ref.bookId, chapter: ref.chapter, verse: ref.verse))
+                            Text(ref.label)
                             Text(textInfo(ref.textId).name).font(.caption).foregroundStyle(.secondary)
                         }
                     } icon: { Image(systemName: "book") }
