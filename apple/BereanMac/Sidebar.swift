@@ -9,6 +9,8 @@ struct BereanSidebar: View {
     @Environment(AppModel.self) private var app
     @AppStorage("sidebarGroupBySpace") private var groupBySpace = false
     @AppStorage("sidebarArchiveExpanded") private var archiveExpanded = false
+    @State private var showsArchiveSearch = false
+    @State private var archiveQuery = ""
     @State private var dragging: String?
     @State private var renaming: WorkspaceItem?
     @State private var deleting: WorkspaceItem?
@@ -50,6 +52,7 @@ struct BereanSidebar: View {
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
             Button("Archive All Tabs") { app.archiveAllTabs() }.disabled(app.orderedTabs.isEmpty)
         }
+        .sheet(isPresented: $showsArchiveSearch) { archiveSearch }
         .sheet(isPresented: $showsWorkspaceSearch) { workspaceTabSearch }
         .sheet(isPresented: $showTabCleanup) { TabCleanupView().frame(minWidth: 360, minHeight: 420) }
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
@@ -299,6 +302,49 @@ struct BereanSidebar: View {
 
     // MARK: archive
 
+    private var archiveSearch: some View {
+        let terms = archiveQuery.split(whereSeparator: \.isWhitespace)
+        return VStack(spacing: 12) {
+            HStack {
+                Text("Archived Tabs").font(.headline)
+                Spacer()
+                Button("Done") { showsArchiveSearch = false }
+                    .keyboardShortcut(.cancelAction)
+            }
+            List {
+                ForEach(app.archivedGroups) { group in
+                    let tabs = group.tabs.filter { tab in
+                        let title = tab.title.isEmpty ? "Untitled" : tab.title
+                        return terms.allSatisfy { "\(title) \(tab.spaceId.title)".localizedStandardContains(String($0)) }
+                    }
+                    if !tabs.isEmpty {
+                        Section(group.label.isEmpty ? "Archived tabs" : group.label) {
+                            ForEach(tabs) { tab in
+                                Button {
+                                    app.restoreArchivedTab(tab.id, from: group.id)
+                                    showsArchiveSearch = false
+                                } label: {
+                                    HStack {
+                                        Label(tab.title.isEmpty ? "Untitled" : tab.title, systemImage: tab.symbol)
+                                        Spacer()
+                                        Text(tab.spaceId.title).foregroundStyle(.secondary)
+                                    }
+                                    .padding(.vertical, 4)
+                                    .contentShape(.rect)
+                                }
+                                .buttonStyle(.interactivePlain)
+                                .help("Restore and open this tab")
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $archiveQuery, prompt: "Search archived tabs")
+        }
+        .padding(16)
+        .frame(width: 440, height: 350)
+    }
+
     var archive: some View {
         VStack(alignment: .leading, spacing: 2) {
             Button { withAnimation(.snappy(duration: 0.18)) { archiveExpanded.toggle() } } label: {
@@ -309,6 +355,14 @@ struct BereanSidebar: View {
                 }.padding(.horizontal, 10).padding(.vertical, 4).contentShape(.rect)
             }.buttonStyle(.interactivePlain)
             if archiveExpanded {
+                Button {
+                    archiveQuery = ""
+                    showsArchiveSearch = true
+                } label: {
+                    Label("Browse Archived Tabs…", systemImage: "magnifyingglass")
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                }
+                .buttonStyle(.interactivePlain)
                 ForEach(app.archivedGroups) { g in
                     Button { app.restoreArchived(g.id) } label: {
                         Label(g.label.isEmpty ? "Archived tabs" : g.label, systemImage: "archivebox").lineLimit(1)

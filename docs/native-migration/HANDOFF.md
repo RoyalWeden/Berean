@@ -200,3 +200,5 @@ iPhone Archive search now shows the Space under each result and distinguishes an
 Single-tab archive restoration now uses a tested BereanWorkspace operation for removing the restored record. The regression test verifies that the group's identity and date remain intact, untouched records including an unrecognized future Space survive in order, a missing ID changes nothing, and restoring the last tab removes the group. Both Dev builds passed. Live restoration and relaunch remain to verify.
 
 Restore All now removes only archive records for tabs it successfully reopened. Unrecognized records and already-open tabs keep their archive copies. The regression test verifies that a bulk restore retains an unknown Space record even if its ID is passed in the removal set. Both Dev builds passed. Live mixed-group restoration and relaunch still need verification.
+
+The Mac Archived sidebar section now offers Browse Archived Tabs. The sheet searches archived tab titles and Space names, shows the matching tabs under their original group, and restores one tab on click. The Mac Dev build passed. Live search, restore and relaunch still need verification.
