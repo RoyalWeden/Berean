@@ -213,6 +213,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
         private static let skip = NSAttributedString.Key("bereanSkip")
+        private let selectionFeedback = UISelectionFeedbackGenerator()
         var parent: IOSChapterTextView
         var key: Key?
         var passageId: String?
@@ -366,9 +367,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             switch url.scheme {
             case "berean-verse":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
-                return UIAction { [weak self, weak textView] _ in
-                    textView?.selectedTextRange = nil
-                    self?.parent.onVerseTap(verse)
+                let title = parent.selectedVerses.contains(verse) ? "Deselect Verse \(verse)" : "Select Verse \(verse)"
+                return UIAction(title: title) { [weak self, weak textView] _ in
+                    guard let textView else { return }
+                    self?.toggleVerse(verse, in: textView)
                 }
             case "berean-verse-notes":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) else { return nil }
@@ -492,8 +494,13 @@ struct IOSChapterTextView: UIViewRepresentable {
         @objc func tapVerseGutter(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? UITextView,
                   let verse = verseInGutter(gesture.location(in: view), in: view) else { return }
+            toggleVerse(verse, in: view)
+        }
+
+        private func toggleVerse(_ verse: Int, in view: UITextView) {
             view.selectedTextRange = nil
             parent.onVerseTap(verse)
+            selectionFeedback.selectionChanged()
         }
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {

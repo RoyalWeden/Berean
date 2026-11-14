@@ -537,3 +537,7 @@
 ### 2026-11-14 — Descriptive move destinations — BUILT
 - Mac and iPhone Move to Workspace menus include destination tab previews. Destination IDs and move persistence use the existing path.
 - Both Dev identity builds and diff check passed. Same-named destination fixture remains to exercise in the UI.
+
+### 2026-11-14 — iPhone adjacent verse outline and selection feedback
+- Verified a joint outline and unobscured final verse for Obadiah 1:20–21 LXX on iOS 27 Simulator.
+- Added haptic feedback and explicit verse toggle action names. The tab-search clear button now uses the shared pressed and hover feedback. iOS Dev build and identity check passed.

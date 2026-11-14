@@ -284,7 +284,7 @@ private struct TabSearchField: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.interactivePlain)
                     .accessibilityLabel("Clear search")
                 }
             }
