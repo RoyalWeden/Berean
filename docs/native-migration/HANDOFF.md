@@ -342,3 +342,5 @@ iPhone Share Chapter now exports the full chapter in the active edition with the
 Mac Scripture now has a Chapter Export toolbar menu with Copy Chapter Reference and Share Chapter. Mac and iPhone use the same export actions and edition-aware chapter formatter. Both Dev builds passed. Live Mac verification confirmed the toolbar menu and both commands appear. The Mac system share destinations and exported chapter contents on both platforms remain to verify.
 
 Copy Chapter is now available alongside Copy Chapter Reference and Share Chapter in the Mac and iPhone Scripture commands. It uses the same edition-aware export formatter, announces success for assistive technology, and reports an empty chapter without replacing the clipboard. Both Dev builds passed. Runtime clipboard verification remains open.
+
+Mac Dev verified Chapter Export → Copy Chapter with John 7 KJV + Apocrypha. The clipboard contained the John 7 heading and all 53 numbered verses in order, while the reader retained its existing John 7:47–50 selection. The clipboard was left with the copied Dev chapter. iPhone Copy Chapter and Mac Share Chapter output remain to verify live.
