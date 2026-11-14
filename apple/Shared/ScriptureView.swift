@@ -14,6 +14,10 @@ private struct SharedVerseSelection: Transferable {
     let textId: String
     let replacerEnabled: Bool
 
+    var fileName: String {
+        reference.replacingOccurrences(of: ":", with: " ") + ".txt"
+    }
+
     var formattedText: String {
         ([reference] + rows.map { row in
             let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: textId,
@@ -24,7 +28,7 @@ private struct SharedVerseSelection: Transferable {
 
     static var transferRepresentation: some TransferRepresentation {
         ProxyRepresentation(exporting: { (selection: Self) in selection.formattedText })
-            .suggestedFileName { $0.reference.replacingOccurrences(of: ":", with: " ") + ".txt" }
+            .suggestedFileName { $0.fileName }
     }
 }
 
@@ -351,10 +355,18 @@ struct ScriptureView: View {
                              replacerEnabled: app.wordReplacerEnabled)
     }
 
-    @ViewBuilder private func shareSelectedVerses(_ state: BibleState) -> some View {
+    @ViewBuilder private func selectedVerseExportActions(_ state: BibleState) -> some View {
         let rows = selectedRows
         if !rows.isEmpty {
             let selection = shareSelection(state, rows: rows)
+            Button("Save Verses as Text…", systemImage: "doc.badge.arrow.down") {
+                NoteFileTransfer.export(selection.formattedText, suggestedName: selection.fileName,
+                                        title: "Save Verses as Text", type: .plainText) { outcome in
+                    if case .failed(let message) = outcome {
+                        app.userMessage = "Could not save the verses. \(message)"
+                    }
+                }
+            }
             ShareLink(item: selection, preview: SharePreview(selection.reference)) {
                 Label("Share Verses…", systemImage: "square.and.arrow.up")
             }
@@ -478,9 +490,15 @@ struct ScriptureView: View {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min())
             }
                 .help("Cross references")
-            shareSelectedVerses(st)
-                .help("Share selected verses")
-                .pointerStyle(.link)
+            if !selectedRows.isEmpty {
+                Menu {
+                    selectedVerseExportActions(st)
+                } label: {
+                    verseMenuLabel("Export Selected Verses", symbol: "square.and.arrow.up")
+                }
+                .menuIndicator(.hidden)
+                .help("Save or share selected verses")
+            }
             #else
             compactVerseMenu(st, includesTag: false)
             #endif
@@ -519,7 +537,7 @@ struct ScriptureView: View {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min())
             }
         }
-        shareSelectedVerses(st)
+        selectedVerseExportActions(st)
     }
 
     private func verseMenuLabel(_ title: String, symbol: String) -> some View {
