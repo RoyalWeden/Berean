@@ -75,6 +75,7 @@ struct PassagePicker: View {
     }
     @State private var loadedRequest: BrowseRequest?
     @State private var bookChoice: CatalogBook?
+    @State private var didPick = false
     @State private var query = ""
     @State private var books: [BookRow] = []
     @State private var catalog: [CatalogBook] = []
@@ -119,8 +120,10 @@ struct PassagePicker: View {
             catalog = app.bookCatalog.isEmpty ? await app.catalog() : app.bookCatalog
         }
         .task(id: BrowseRequest(text: text, choice: bookChoice)) {
-            let requestedText = text
-            let choice = bookChoice
+            let request = BrowseRequest(text: text, choice: bookChoice)
+            guard request != loadedRequest, !didPick else { return }
+            let requestedText = request.text
+            let choice = request.choice
             let initial = loadedRequest == nil
             let bookID = choice?.textId == requestedText ? choice?.book.id : (openBook?.id ?? (initial ? currentBook : nil))
             let newBooks = await app.books(for: requestedText)
@@ -131,13 +134,13 @@ struct PassagePicker: View {
             } else {
                 newChapters = []
             }
-            guard !Task.isCancelled, requestedText == text, choice == bookChoice else { return }
+            guard !Task.isCancelled, !didPick, requestedText == text, choice == bookChoice else { return }
             books = newBooks
             chapters = newChapters
             openBook = newChapters.isEmpty || (initial && choice == nil && newChapters.count == 1) ? nil : book
-            loadedRequest = BrowseRequest(text: requestedText, choice: choice)
+            loadedRequest = request
             if choice?.textId == requestedText, let book, newChapters.count == 1, let chapter = newChapters.first {
-                onPick(ResolvedPassage(textId: requestedText, bookId: book.id, chapter: chapter, verse: nil))
+                pick(ResolvedPassage(textId: requestedText, bookId: book.id, chapter: chapter, verse: nil))
             }
         }
         .task(id: sourceEdition) {
@@ -171,7 +174,7 @@ struct PassagePicker: View {
                 if trimmed.isEmpty, let target = alternateEdition, target == sourceEdition.counterpart {
                     Section("Same Passage") {
                         Button {
-                            onPick(ResolvedPassage(textId: target.text, bookId: target.book, chapter: target.chapter, verse: nil))
+                            pick(ResolvedPassage(textId: target.text, bookId: target.book, chapter: target.chapter, verse: nil))
                         } label: {
                             HStack {
                                 Label(Reference.readerChapterLabel(target.book, target.chapter, textId: target.text),
@@ -186,7 +189,7 @@ struct PassagePicker: View {
                 }
                 if let p = resolved {
                     Section("Go to") {
-                        Button { onPick(p) } label: {
+                        Button { pick(p) } label: {
                             HStack {
                                 Label(p.label, systemImage: "arrow.right.circle")
                                 Spacer()
@@ -214,7 +217,7 @@ struct PassagePicker: View {
                         let recents = app.recentPassages
                         if recents.isEmpty { Text("Passages you open appear here.").foregroundStyle(.secondary) }
                         ForEach(recents.prefix(25)) { r in
-                            Button { onPick(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? [])) } label: {
+                            Button { pick(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? [])) } label: {
                                 HStack {
                                     Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary)
                                     Text(r.label)
@@ -235,8 +238,21 @@ struct PassagePicker: View {
         }
     }
 
+    private func pick(_ passage: ResolvedPassage) {
+        guard !didPick else { return }
+        didPick = true
+        onPick(passage)
+    }
+
+    private func showBooks() {
+        openBook = nil
+        chapters = []
+        bookChoice = nil
+        loadedRequest = BrowseRequest(text: text, choice: nil)
+    }
+
     func submit() {
-        if let p = resolved { onPick(p) } else if let first = bookMatches.first { choose(first) }
+        if let p = resolved { pick(p) } else if let first = bookMatches.first { choose(first) }
     }
 
     func choose(_ match: CatalogBook) {
@@ -257,8 +273,8 @@ struct PassagePicker: View {
         } else if let b = openBook {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Button { openBook = nil; bookChoice = nil } label: { Label("Books", systemImage: "chevron.backward") }
-                        .buttonStyle(.borderless)
+                    Button(action: showBooks) { Label("Books", systemImage: "chevron.backward") }
+                        .buttonStyle(.interactivePlain)
                         .keyboardShortcut(.leftArrow, modifiers: [.command])
                         .help("Back to the book list (⌘←)")
                     Spacer()
@@ -272,7 +288,7 @@ struct PassagePicker: View {
                                 ? Reference.readerChapterLabel(b.id, c, textId: text)
                                 : "\(b.name) chapter \(Reference.displayChapterString(b.id, c))"
                             let current = b.id == currentBook && c == currentChapter && text == textId
-                            Button { onPick(ResolvedPassage(textId: text, bookId: b.id, chapter: c, verse: nil)) } label: {
+                            Button { pick(ResolvedPassage(textId: text, bookId: b.id, chapter: c, verse: nil)) } label: {
                                 Text(c == 0 ? "Prol." : Reference.displayChapterString(b.id, c)).font(c == 0 ? .caption : .body).monospacedDigit().frame(width: 42, height: 30)
                                     .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 6))
                                     .foregroundStyle(current ? .white : .primary)

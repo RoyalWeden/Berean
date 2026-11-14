@@ -729,3 +729,7 @@
 ### 2026-11-14 — Passage picker edition switching
 - Bound edition and chapter loading to the current browse request on Mac and iPhone.
 - Both Dev builds passed. Rapid-switch running-app QA remains open.
+
+### 2026-11-14 — Passage picker Back and dismissal
+- Restored the cached book list immediately on Back and prevented a late lookup from submitting a second destination.
+- Both Dev builds passed.
