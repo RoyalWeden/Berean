@@ -518,3 +518,5 @@ Scripture chapter arrows now disable Previous and Next at the ends of the instal
 iPhone Tabs → New Tab now waits for the Tabs sheet to finish dismissing before presenting Go in new-tab mode. The dock Go button still uses normal reuse behavior. iPhone Dev build passed. Verify the sheet transition and tab counts for Cancel, explicit New Tab and ordinary Go.
 
 iOS 27 Simulator verified Tabs → New Tab dismissed the tab list and opened Go. Cancel returned to the reader with four tabs. Ordinary dock Go → recent John 7:51–53 retained the selected range and stayed at four tabs. Explicit New Tab submission and its tab-count increment remain to exercise.
+
+iOS 27 Simulator follow-up verified explicit Tabs → New Tab → recent John 7:51–53 created exactly one tab (four to five) and retained the full selection. The extra tab is in the isolated Simulator Dev workspace.
