@@ -337,3 +337,20 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     #expect(WorkspaceSnapshot.parse(emptySpace).preferredSpace == nil)
     #expect(WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil)).preferredSpace == nil)
 }
+
+@Test func archivedTabsRestoreInEitherOrder() {
+    let original = ["a", "b", "c", "d", "e"]
+    for restoration in [["b", "d"], ["d", "b"]] {
+        let restored = restoration.reduce(["a", "c", "e", "new"]) { order, id in
+            TabPersistence.restoredDisplayOrder(tabID: id, current: order, archived: original)
+        }
+        #expect(restored == original + ["new"])
+    }
+}
+
+@Test func archivedTabsRestoreWithMissingNeighbors() {
+    #expect(TabPersistence.restoredDisplayOrder(tabID: "b", current: ["a", "new"], archived: ["a", "b", "c"])
+            == ["a", "b", "new"])
+    #expect(TabPersistence.restoredDisplayOrder(tabID: "b", current: ["new", "b"], archived: [])
+            == ["new", "b"])
+}

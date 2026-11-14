@@ -133,23 +133,10 @@ extension AppModel {
     }
 
     private func placeRestoredTab(_ id: String, using placement: ArchivePlacement?) {
-        guard let placement, placement.workspace == currentSessionId,
-              let index = placement.order.firstIndex(of: id) else {
-            insertInDisplayOrder(id, after: nil)
-            return
-        }
-        var order = displayOrder(for: currentSessionId).filter { $0 != id }
-        let present = Set(order)
-        if let next = placement.order.dropFirst(index + 1).first(where: present.contains),
-           let position = order.firstIndex(of: next) {
-            order.insert(id, at: position)
-        } else if let previous = placement.order.prefix(index).last(where: present.contains),
-                  let position = order.firstIndex(of: previous) {
-            order.insert(id, at: position + 1)
-        } else {
-            order.append(id)
-        }
-        displayOrders[currentSessionId] = order
+        let savedOrder = placement?.workspace == currentSessionId ? placement?.order : nil
+        displayOrders[currentSessionId] = TabPersistence.restoredDisplayOrder(
+            tabID: id, current: displayOrder(for: currentSessionId), archived: savedOrder ?? []
+        )
     }
 
     var inactiveTabs: [BereanWorkspace.Tab] {

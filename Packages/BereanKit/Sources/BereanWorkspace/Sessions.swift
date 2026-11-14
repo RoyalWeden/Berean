@@ -68,6 +68,18 @@ public enum TabPersistence {
         public init() {}
     }
 
+    /// Insert a restored tab beside a surviving neighbor without reordering open tabs.
+    public static func restoredDisplayOrder(tabID: String, current: [String], archived: [String]) -> [String] {
+        var order = current.filter { $0 != tabID }
+        guard let index = archived.firstIndex(of: tabID) else { return order + [tabID] }
+        let positions = Dictionary(order.enumerated().map { ($0.element, $0.offset) },
+                                   uniquingKeysWith: { first, _ in first })
+        let next = archived.dropFirst(index + 1).lazy.compactMap { positions[$0] }.first
+        let previous = archived.prefix(index).reversed().lazy.compactMap { positions[$0] }.first
+        order.insert(tabID, at: next ?? previous.map { $0 + 1 } ?? order.endIndex)
+        return order
+    }
+
     /// `assignOrderKeys` — keep existing keys where they still increase; new keys only for moved ids.
     public static func assignOrderKeys(_ ids: [String], existing: [String: String]) -> [(String, String)] {
         func lt(_ a: String, _ b: String) -> Bool { jsCompare(a, b) < 0 }
