@@ -35,135 +35,152 @@ struct LexiconEntryView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if let e = entry, e.strongsNum == strongsId.uppercased() {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if compact {
-                            HStack {
-                                Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
-                                Spacer()
-                                entryNavigation
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let e = entry, e.strongsNum == strongsId.uppercased() {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if compact {
+                                HStack {
+                                    Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                    Spacer()
+                                    entryNavigation
+                                }
                             }
+                            Text(e.lemma).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
+                            Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
                         }
-                        Text(e.lemma).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
-                        Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
-                    }
-                    if !e.gloss.isEmpty { Text(e.gloss).font(.headline) }
-                    if !e.definition.isEmpty { section("Definition") { Text(e.definition).textSelection(.enabled) } }
-                    if !e.derivation.isEmpty { section("Derivation") { Text(e.derivation).textSelection(.enabled) } }
-                    if !e.extendedDef.isEmpty, !compact { section("Extended") { Text(e.extendedDef).textSelection(.enabled) } }
-                    if !related.isEmpty {
-                        section("Related") {
-                            ForEach(related, id: \.strongsNum) { r in
-                                Button { app.navigateLexicon(r.strongsNum, in: tabId) } label: {
-                                    HStack(spacing: 8) {
-                                        Text(r.strongsNum).monospaced().foregroundStyle(Color.accentColor)
-                                        Text(r.lemma)
-                                        Text(r.gloss).foregroundStyle(.secondary).lineLimit(1)
-                                        Spacer(minLength: 0)
-                                        Image(systemName: "chevron.forward")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                            .accessibilityHidden(true)
-                                    }
-                                    .frame(minHeight: entryControlHeight)
-                                    .contentShape(.rect)
-                                }.buttonStyle(.interactivePlain)
-                            }
-                        }
-                    }
-                    section("Occurrences") {
-                        if occurrencesLoading {
-                            ProgressView().accessibilityLabel("Loading occurrences")
-                        } else if occurrences.isEmpty {
-                            Text("No occurrences found").foregroundStyle(.secondary)
-                        }
-                        let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
-                        let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
-                        let indexed = scoped.enumerated().map { index, occurrence in
-                            let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
-                            return (index, occurrence, preview.renderings, preview, OccurrenceKey(occurrence))
-                        }
-                        let forms = indexed.reduce(into: [String: Int]()) { counts, row in
-                            for word in row.2 { counts[word, default: 0] += 1 }
-                        }
-                        let filtered = indexed.filter { selectedRenderings.isEmpty || !$0.2.isDisjoint(with: selectedRenderings) }
-                        let matches = sortByMatches ? filtered.sorted {
-                            (-$0.1.matchWordIndices.count, $0.0) < (-$1.1.matchWordIndices.count, $1.0)
-                        } : filtered
-                        if !occurrences.isEmpty {
-                            HStack {
-                                Text("\(matches.count) loaded occurrences")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                Spacer(minLength: 4)
-                                occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1)
-                            }
-                            let activeFilters = [
-                                occurrenceEdition.map { textInfo($0).short },
-                                occurrenceBook.map { Reference.bookName($0) },
-                                selectedRenderings.isEmpty ? nil : "\(selectedRenderings.count) translated words"
-                            ].compactMap { $0 }
-                            if !activeFilters.isEmpty {
-                                Text(activeFilters.joined(separator: " · "))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        if !occurrences.isEmpty {
-                            Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
-                                leaveInspector()
-                                app.openSearch(e.strongsNum, reuseTab: true, returningTo: tabId)
-                            }
-                            .buttonStyle(.interactivePlain)
-                        }
-                        if compact, !occurrences.isEmpty {
-                            Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
-                                leaveInspector()
-                                app.openLexicon(strongsId, reuseTab: true)
-                            }
-                            .buttonStyle(.interactivePlain)
-                        }
-                        LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(matches.prefix(visibleOccurrences)), id: \.4) { _, o, _, preview, _ in
-                                let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
-                                Button { leaveInspector(); app.visitScripture(passage) } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        HStack {
-                                            Text(passage.label).font(.subheadline.weight(.semibold))
-                                                .foregroundStyle(Color.accentColor)
-                                            Text(textInfo(passage.textId).short)
-                                                .font(.caption).foregroundStyle(.secondary)
-                                            Spacer()
+                        if !e.gloss.isEmpty { Text(e.gloss).font(.headline) }
+                        if !e.definition.isEmpty { section("Definition") { Text(e.definition).textSelection(.enabled) } }
+                        if !e.derivation.isEmpty { section("Derivation") { Text(e.derivation).textSelection(.enabled) } }
+                        if !e.extendedDef.isEmpty, !compact { section("Extended") { Text(e.extendedDef).textSelection(.enabled) } }
+                        if !related.isEmpty {
+                            section("Related") {
+                                ForEach(related, id: \.strongsNum) { r in
+                                    Button { app.navigateLexicon(r.strongsNum, in: tabId) } label: {
+                                        HStack(spacing: 8) {
+                                            Text(r.strongsNum).monospaced().foregroundStyle(Color.accentColor)
+                                            Text(r.lemma)
+                                            Text(r.gloss).foregroundStyle(.secondary).lineLimit(1)
+                                            Spacer(minLength: 0)
                                             Image(systemName: "chevron.forward")
                                                 .font(.caption2.weight(.semibold))
                                                 .foregroundStyle(.secondary)
                                                 .accessibilityHidden(true)
                                         }
-                                        Text(highlighted(preview)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
-                                    }
-                                    .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
-                                    .padding(.vertical, 4)
-                                    .contentShape(.rect)
-                                }.buttonStyle(.interactivePlain)
+                                        .frame(minHeight: entryControlHeight)
+                                        .contentShape(.rect)
+                                    }.buttonStyle(.interactivePlain)
+                                }
                             }
                         }
-                        if matches.count > visibleOccurrences {
-                            Button("Show More Occurrences", systemImage: "chevron.down") {
-                                visibleOccurrences += 40
+                        section("Occurrences") {
+                            if occurrencesLoading {
+                                ProgressView().accessibilityLabel("Loading occurrences")
+                            } else if occurrences.isEmpty {
+                                Text("No occurrences found").foregroundStyle(.secondary)
                             }
-                            .buttonStyle(.interactivePlain)
+                            let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
+                            let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
+                            let indexed = scoped.enumerated().map { index, occurrence in
+                                let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
+                                return (index, occurrence, preview.renderings, preview, OccurrenceKey(occurrence))
+                            }
+                            let forms = indexed.reduce(into: [String: Int]()) { counts, row in
+                                for word in row.2 { counts[word, default: 0] += 1 }
+                            }
+                            let filtered = indexed.filter { selectedRenderings.isEmpty || !$0.2.isDisjoint(with: selectedRenderings) }
+                            let matches = sortByMatches ? filtered.sorted {
+                                (-$0.1.matchWordIndices.count, $0.0) < (-$1.1.matchWordIndices.count, $1.0)
+                            } : filtered
+                            if !occurrences.isEmpty {
+                                HStack {
+                                    Text("\(matches.count) loaded occurrences")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Spacer(minLength: 4)
+                                    occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1)
+                                }
+                                let activeFilters = [
+                                    occurrenceEdition.map { textInfo($0).short },
+                                    occurrenceBook.map { Reference.bookName($0) },
+                                    selectedRenderings.isEmpty ? nil : "\(selectedRenderings.count) translated words"
+                                ].compactMap { $0 }
+                                if !activeFilters.isEmpty {
+                                    Text(activeFilters.joined(separator: " · "))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            if !occurrences.isEmpty {
+                                Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
+                                    leaveInspector()
+                                    app.openSearch(e.strongsNum, reuseTab: true, returningTo: tabId)
+                                }
+                                .buttonStyle(.interactivePlain)
+                            }
+                            if compact, !occurrences.isEmpty {
+                                Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
+                                    leaveInspector()
+                                    app.openLexicon(strongsId, reuseTab: true)
+                                }
+                                .buttonStyle(.interactivePlain)
+                            }
+                            LazyVStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(matches.prefix(visibleOccurrences)), id: \.4) { _, o, _, preview, key in
+                                    let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
+                                    Button {
+                                        if !compact, let index = indexed.firstIndex(where: { $0.4 == key }) {
+                                            app.lexiconOccurrenceReturns[tabId, default: [:]][strongsId] = (key, index + 1)
+                                        }
+                                        leaveInspector()
+                                        app.visitScripture(passage, returningTo: tabId)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            HStack {
+                                                Text(passage.label).font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(Color.accentColor)
+                                                Text(textInfo(passage.textId).short)
+                                                    .font(.caption).foregroundStyle(.secondary)
+                                                Spacer()
+                                                Image(systemName: "chevron.forward")
+                                                    .font(.caption2.weight(.semibold))
+                                                    .foregroundStyle(.secondary)
+                                                    .accessibilityHidden(true)
+                                            }
+                                            Text(highlighted(preview)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                                        }
+                                        .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
+                                        .padding(.vertical, 4)
+                                        .contentShape(.rect)
+                                    }.buttonStyle(.interactivePlain).id(key)
+                                }
+                            }
+                            if matches.count > visibleOccurrences {
+                                Button("Show More Occurrences", systemImage: "chevron.down") {
+                                    visibleOccurrences += 40
+                                }
+                                .buttonStyle(.interactivePlain)
+                            }
                         }
+                    } else if loaded && entry == nil {
+                        ContentUnavailableView("No entry for \(strongsId)", systemImage: "character.book.closed")
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity)
                     }
-                } else if loaded && entry == nil {
-                    ContentUnavailableView("No entry for \(strongsId)", systemImage: "character.book.closed")
-                } else {
-                    ProgressView().frame(maxWidth: .infinity)
                 }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .task(id: occurrencesLoading) {
+                guard !compact, !occurrencesLoading, !occurrences.isEmpty,
+                      let (key, count) = app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId),
+                      let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) else { return }
+                visibleOccurrences = max(visibleOccurrences, count, index + 1)
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                proxy.scrollTo(key, anchor: .center)
+            }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if !compact {
@@ -328,7 +345,7 @@ struct LexiconEntryView: View {
         .help(destination.map { "\(title), \($0)" } ?? title)
     }
 
-    private struct OccurrenceKey: Hashable {
+    struct OccurrenceKey: Hashable {
         let text: String
         let book: String
         let chapter: Int
