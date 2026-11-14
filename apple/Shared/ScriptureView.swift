@@ -26,6 +26,24 @@ private struct SharedVerseSelection: Transferable {
     }
 }
 
+struct SharedScriptureChapter: Transferable {
+    let reference: String
+    let bookId: String
+    let chapter: Int
+    let textId: String
+    let replacerEnabled: Bool
+    let bible: BibleService
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation(exporting: { (chapter: Self) async throws -> String in
+            let rows = await chapter.bible.queryChapter(chapter.bookId, chapter.chapter, textId: chapter.textId)
+            guard !rows.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
+            return SharedVerseSelection(reference: chapter.reference, rows: rows, textId: chapter.textId,
+                                        replacerEnabled: chapter.replacerEnabled).formattedText
+        })
+    }
+}
+
 /// A Scripture tab: chapter text with KJV italics and red letter, the word replacer's restorations (Yehovah,
 /// Yeshua, …) on by default as in the existing app, optional Strong's numbers that open the lexicon, and a
 /// selectable verse that drives the study inspector.
