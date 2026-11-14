@@ -26,6 +26,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onTagClick: (String, Int?) -> Void
     var onHighlight: (Piece, String) -> Void
     var onStep: (Int) -> Void
+    var onPinchPreview: (Double?) -> Void
+    var onPinchCommit: (Double) -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -53,9 +55,14 @@ struct IOSChapterTextView: UIViewRepresentable {
         gutterTap.delegate = context.coordinator
         view.addGestureRecognizer(gutterTap)
 
+        let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.resizeText(_:)))
+        pinch.delegate = context.coordinator
+        view.addGestureRecognizer(pinch)
+
         for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
             let swipe = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swipe(_:)))
             swipe.direction = direction
+            swipe.numberOfTouchesRequired = 1
             swipe.delegate = context.coordinator
             view.addGestureRecognizer(swipe)
         }
@@ -264,6 +271,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         private static let skip = NSAttributedString.Key("bereanSkip")
+        private var pinchStartSize: Double?
+        private var pinchPreviewSize: Double?
         private let selectionFeedback = UISelectionFeedbackGenerator()
         var parent: IOSChapterTextView
         var key: Key?
@@ -564,12 +573,37 @@ struct IOSChapterTextView: UIViewRepresentable {
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
             guard let view = gesture.view as? UITextView else { return false }
             if gesture is UITapGestureRecognizer { return true }
+            if gesture is UIPinchGestureRecognizer { return view.selectedRange.length == 0 }
             let x = gesture.location(in: view).x - view.bounds.minX
             return x > 24 && x < view.bounds.width - 24 && view.selectedRange.length == 0
         }
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            other === (gesture.view as? UITextView)?.panGestureRecognizer
+            !(gesture is UIPinchGestureRecognizer) && other === (gesture.view as? UITextView)?.panGestureRecognizer
+        }
+
+        @objc func resizeText(_ gesture: UIPinchGestureRecognizer) {
+            switch gesture.state {
+            case .began:
+                pinchStartSize = parent.style.fontSize
+            case .changed:
+                guard let start = pinchStartSize, gesture.scale.isFinite else { return }
+                let range = ScriptureDisplayOptions.fontSizeRange
+                let size = min(range.upperBound, max(range.lowerBound, (start * gesture.scale).rounded()))
+                guard size != (pinchPreviewSize ?? start) else { return }
+                pinchPreviewSize = size
+                parent.onPinchPreview(size)
+            case .ended:
+                if let size = pinchPreviewSize { parent.onPinchCommit(size) }
+                pinchStartSize = nil
+                pinchPreviewSize = nil
+            case .cancelled, .failed:
+                if pinchPreviewSize != nil { parent.onPinchPreview(nil) }
+                pinchStartSize = nil
+                pinchPreviewSize = nil
+            default:
+                break
+            }
         }
 
         @objc func swipe(_ gesture: UISwipeGestureRecognizer) {

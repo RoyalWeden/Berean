@@ -488,3 +488,7 @@ iPhone automatic reveal now uses the bottom of the last rendered verse line, inc
 Mac automatic reveal now measures the last rendered TextKit line using the same paragraph boundary as the dashed frame. Both direct selection and passage jumps use it, matching the iPhone reveal. Mac Dev build and identity check passed. Live test remains open for a wrapped final line or annotation at the viewport edge with the floating bar visible.
 
 The verse action capsule now applies icon-only styling to the visible button faces instead of the entire hierarchy, so overflow commands can retain their system menu labels. The compact row also exposes Mac help for Copy, Highlight and More. Both Dev builds passed. Verify the compact and minimum-width variants in the running apps, including menu labels and keyboard access.
+
+### iPhone pinch-to-resize Scripture
+
+The existing Scripture text-size setting can now be adjusted with a two-finger pinch. The reader previews whole-point sizes from the same range as Settings, shows a size badge and saves only when the gesture completes. Cancellation clears the preview. Active character selection takes priority, and the chapter swipe remains one-finger. Both Dev builds passed. Use a physical device or Simulator multitouch to verify bounds, cancellation, range and scroll retention, and gesture arbitration. Compare mode has its own view and still needs equivalent coverage.

@@ -708,3 +708,7 @@
 ### 2026-11-14 — Compact selection controls
 - Scoped icon-only styling to direct controls and added Mac help to compact actions.
 - Both native Dev builds passed. Narrow-window and overflow-menu UI checks remain open.
+
+### 2026-11-14 — iPhone Scripture pinch-to-resize
+- Brought the legacy Scripture pinch interaction to the native iPhone reader with a live point-size badge and one settings write on completion.
+- Both native Dev builds passed. Multitouch runtime verification remains open.

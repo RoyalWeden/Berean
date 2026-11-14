@@ -300,6 +300,21 @@ struct ScriptureView: View {
                 }
                 .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace - dockSpace))
                 .clipped()
+                #if os(iOS)
+                .overlay(alignment: .topTrailing) {
+                    if let pinchFontSize {
+                        Text("\(Int(pinchFontSize)) pt")
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.regularMaterial, in: .capsule)
+                            .padding(.trailing, 14)
+                            .padding(.top, 10)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                #endif
                 if showActions {
                     selectionBar(st)
                         .frame(width: geometry.size.width, height: actionSpace, alignment: .bottom)
@@ -708,14 +723,18 @@ struct ScriptureView: View {
     }
 
     #if os(iOS)
+    @State private var pinchFontSize: Double?
+
     func iosReader(_ st: BibleState) -> some View {
         let rv = readerVerses(st)
+        var style = readerStyle(st)
+        style.fontSize = pinchFontSize ?? style.fontSize
         return IOSChapterTextView(
             passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
             header: ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation),
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) },
             verses: rv,
-            style: readerStyle(st),
+            style: style,
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
             scrollTarget: scrollTarget,
             findRequest: findRequest,
@@ -739,7 +758,12 @@ struct ScriptureView: View {
                 }
             },
             onHighlight: { piece, color in highlightRange(piece.verse, piece.start, piece.end, color, st, rv) },
-            onStep: { step($0) }
+            onStep: { step($0) },
+            onPinchPreview: { pinchFontSize = $0 },
+            onPinchCommit: { size in
+                if app.fontSize != size { app.fontSize = size }
+                pinchFontSize = nil
+            }
         )
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet
