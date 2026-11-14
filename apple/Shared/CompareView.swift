@@ -516,20 +516,27 @@ struct CompareView: View {
     }
 
     private func openReader(_ row: ChapterVerseRow, in column: CompareColumn) {
+        openReader(ResolvedPassage(textId: column.text, bookId: row.bookId,
+                                  chapter: row.chapter, verse: row.verseNum))
+    }
+
+    private func openReader(_ passage: ResolvedPassage) {
         app.update(tabId) { tab in
             var reader = BibleState(tab.state)
             reader.compareMode = false
-            reader.bookId = row.bookId
-            reader.chapter = row.chapter
-            reader.translation = column.text
-            reader.verse = row.verseNum
-            reader.endVerse = nil
+            reader.bookId = passage.bookId
+            reader.chapter = passage.chapter
+            reader.translation = passage.textId
+            reader.verse = passage.verse
+            reader.endVerse = passage.endVerse
             tab.state = reader.merged(into: tab.state)
             tab.state.remove("compareColumns")
             tab.state.remove("endChapter")
-            tab.title = Reference.readerChapterLabel(row.bookId, row.chapter, textId: column.text)
+            tab.state["nativeSelectedVerses"] = passage.savedSelection
+            tab.title = Reference.readerChapterLabel(passage.bookId, passage.chapter, textId: passage.textId)
         }
-        app.recordRecent(textId: column.text, bookId: row.bookId, chapter: row.chapter, verse: row.verseNum)
+        app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
+                         verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
     }
 
     @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState) -> some View {
@@ -726,29 +733,19 @@ struct CompareView: View {
     }
 
     func setColumns(_ cols: [CompareColumn]) {
-        let st = state
-        let passage = cols.count == 1 ? cols.first.map { readerPassage(for: $0, source: st) } : nil
-        app.update(tabId) { t in
-            if cols.count < 2 {
-                var reader = st
-                reader.compareMode = false
-                if let passage {
-                    reader.bookId = passage.bookId
-                    reader.chapter = passage.chapter
-                    reader.translation = passage.textId
-                    reader.verse = passage.verse
-                    reader.endVerse = passage.endVerse
-                }
-                t.state = reader.merged(into: t.state)
-                t.state.remove("compareColumns")
-                if let passage {
-                    t.state.remove("endChapter")
-                    t.state["nativeSelectedVerses"] = passage.savedSelection
-                }
-                t.title = Reference.readerChapterLabel(reader.bookId, reader.chapter, textId: reader.translation)
-                return
+        if cols.isEmpty {
+            app.update(tabId) {
+                $0.state.remove("compareMode")
+                $0.state.remove("compareColumns")
             }
-            t.state["compareColumns"] = .array(cols.map { .object($0.record) })
+            return
+        }
+        if cols.count == 1, let column = cols.first {
+            openReader(readerPassage(for: column, source: state))
+            return
+        }
+        app.update(tabId) { tab in
+            tab.state["compareColumns"] = .array(cols.map { .object($0.record) })
         }
     }
 }

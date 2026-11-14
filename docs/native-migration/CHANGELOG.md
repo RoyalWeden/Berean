@@ -829,3 +829,7 @@
 ### 2026-11-14 — iPhone Compare control capsule
 - Grouped Manage Translations with Exit Compare and removed the menu’s caret on iPhone.
 - Both Dev builds passed. Live capsule checks remain open.
+
+### 2026-11-14 — Compare reader destinations in Recents
+- Recorded same-tab Compare column destinations and their mapped verse selections in Recents.
+- Cleared stale multi-verse selection when opening an individual verse. Both Dev builds passed.
