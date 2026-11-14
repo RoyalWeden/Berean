@@ -45,10 +45,13 @@ struct HistoryView: View {
     @State private var entries: [HistoryEntry] = []
     @State private var options = BrowseOptions()
     @State private var restoreEntryID: String?
+    @State private var visibleEntries: Set<String> = []
+    @State private var restoredOnLoad = false
 
     struct BrowseOptions {
         var filter = ""
         var visibleLimit = 300
+        var visibleEntryID: String?
     }
     private enum Category: String, CaseIterable, Identifiable {
         case all, scripture, notes, lexicon, youtube, search, imports
@@ -147,7 +150,13 @@ struct HistoryView: View {
                     }
                     ForEach(days, id: \.0) { day, items in
                         Section(day) {
-                            ForEach(items) { e in row(e).id(e.id) }
+                            ForEach(items) { e in
+                                row(e).id(e.id)
+                                    .onScrollVisibilityChange(threshold: 0.5) { isVisible in
+                                        if isVisible { visibleEntries.insert(e.id) }
+                                        else { visibleEntries.remove(e.id) }
+                                    }
+                            }
                         }
                     }
                     if shown.count > options.visibleLimit {
@@ -158,9 +167,16 @@ struct HistoryView: View {
                         .frame(maxWidth: .infinity)
                     }
                 }
+                .onScrollPhaseChange { old, new in
+                    guard old != .idle, new == .idle, app.activeTab?.id == tabId,
+                          let first = shown.prefix(options.visibleLimit).first(where: { visibleEntries.contains($0.id) })
+                    else { return }
+                    options.visibleEntryID = first.id
+                    app.historyBrowseOptions[tabId] = options
+                }
                 .task(id: restoreEntryID) {
                     guard !Task.isCancelled, let id = restoreEntryID else { return }
-                    proxy.scrollTo(id, anchor: .center)
+                    proxy.scrollTo(id, anchor: options.visibleEntryID == id ? .top : .center)
                     restoreEntryID = nil
                 }
             }
@@ -174,11 +190,18 @@ struct HistoryView: View {
         } message: { Text("Your notes, highlights and tabs are not affected.") }
         .task(id: app.historyRevision) {
             load()
+            guard !restoredOnLoad else { return }
+            restoredOnLoad = true
             options = app.historyBrowseOptions[tabId] ?? BrowseOptions()
             if let id = app.historyReturnRows.removeValue(forKey: tabId),
                let index = shown.firstIndex(where: { $0.id == id }) {
                 options.visibleLimit = max(options.visibleLimit, index + 1)
+                options.visibleEntryID = nil
                 app.historyBrowseOptions[tabId] = options
+                restoreEntryID = id
+            } else if let id = options.visibleEntryID,
+                      let index = shown.firstIndex(where: { $0.id == id }) {
+                options.visibleLimit = max(options.visibleLimit, index + 1)
                 restoreEntryID = id
             }
         }
@@ -188,6 +211,7 @@ struct HistoryView: View {
 
     private func resetPageLimit() {
         options.visibleLimit = 300
+        options.visibleEntryID = nil
         app.historyBrowseOptions[tabId] = options
     }
 
