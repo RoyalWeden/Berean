@@ -228,9 +228,17 @@ struct TabCardsSheet: View {
     @State private var showTabCleanup = false
 
     @State private var spaceFilter: SpaceId?
+    @State private var typeFilter: TabType?
+
+    private var isFiltering: Bool { spaceFilter != nil || typeFilter != nil }
+
+    private func matchesFilters(_ tab: BereanWorkspace.Tab) -> Bool {
+        (spaceFilter == nil || tab.spaceId == spaceFilter)
+            && (typeFilter == nil || tab.tabType == typeFilter)
+    }
 
     var shown: [BereanWorkspace.Tab] {
-        app.matchingOpenTabs(query, space: spaceFilter)
+        app.matchingOpenTabs(query, space: spaceFilter).filter(matchesFilters)
     }
 
     var body: some View {
@@ -256,18 +264,18 @@ struct TabCardsSheet: View {
                         NavigationLink { ArchivedTabsPage(onOpen: { dismiss() }) } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
                 }
-                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, spaceFilter == nil {
+                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !isFiltering {
                     WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
                                         onOpen: { dismiss() })
                 }
                 let otherMatches = app.matchingWorkspaceTabs(query).filter {
-                    $0.workspaceID != app.currentSessionId && (spaceFilter == nil || $0.tab.spaceId == spaceFilter)
+                    $0.workspaceID != app.currentSessionId && matchesFilters($0.tab)
                 }
                 Section {
                     let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
                     ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
                     ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
-                    if shown.isEmpty && otherMatches.isEmpty { Text(query.isEmpty && spaceFilter == nil ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
+                    if shown.isEmpty && otherMatches.isEmpty { Text(query.isEmpty && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
                 WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() })
             }
@@ -280,15 +288,27 @@ struct TabCardsSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Tab Space", selection: $spaceFilter) {
-                            Text("All Tabs").tag(nil as SpaceId?)
+                            Text("All Spaces").tag(nil as SpaceId?)
                             ForEach(SpaceId.allCases) { space in
                                 Text(space.title).tag(Optional(space))
                             }
                         }
+                        Picker("Tab Type", selection: $typeFilter) {
+                            Text("All Types").tag(nil as TabType?)
+                            ForEach(TabType.allCases, id: \.self) { type in
+                                Text(type == .bible ? "Scripture" : type.rawValue.capitalized).tag(Optional(type))
+                            }
+                        }
+                        if isFiltering {
+                            Button("Clear Filters", systemImage: "xmark") {
+                                spaceFilter = nil
+                                typeFilter = nil
+                            }
+                        }
                     } label: {
-                        Label("Filter Tabs", systemImage: spaceFilter == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                        Label("Filter Tabs", systemImage: isFiltering ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                     }
-                    .accessibilityValue(spaceFilter?.title ?? "All Tabs")
+                    .accessibilityValue([spaceFilter?.title, typeFilter.map { $0 == .bible ? "Scripture" : $0.rawValue.capitalized }].compactMap { $0 }.joined(separator: ", "))
                 }
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }

@@ -1,5 +1,9 @@
 # Berean Native Migration — Resumable Session State
 
+## Resume this migration
+
+Use this handoff with `git status --short`, `git log -5 --oneline`, and the current draft PR head. The latest entries at the end supersede older checkpoints. Continue unfinished implementation and runtime checks from the current branch, and record what was actually verified before updating parity status.
+
 ## 2026-11-12 checkpoint
 
 - Isolated clone: `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`; implementation through `87fd228`. The existing `/Users/roywe/Berean-native` worktree was left in place.
@@ -601,3 +605,5 @@ Landscape QA on iOS 27 reproduced a portrait-width reader surface clipped inside
 - Advanced Search keeps its header at the top and puts options in a scrollable popover. The passage picker suppresses generic classification headings in other writings. Notes opens directly in the rich editor and retains Markdown export and version history.
 - Both Dev builds passed. Live UI checks remain for the above changes. Landscape clipping persisted with the flexible frame alone. The iPhone compact-height capsule now uses regular material as a candidate workaround, pending Simulator verification.
 - Next implementation areas are per-tab and per-history-entry scroll restoration, cross-space Search/Lexicon Back and Forward, Lexicon controls and occurrence layout, and Notes formatting and richer table/highlight editing. Also apply type filtering to iPhone Tabs and verify both platforms.
+
+iPhone Tabs now filters by tab type independently of space. The filters apply to this workspace and matches from other workspaces. Clear Filters restores both, and unfiltered Recents are hidden while a filter is active. The iPhone Dev build passed. Verify combined filtering, clearing, and cross-workspace matches in Simulator.

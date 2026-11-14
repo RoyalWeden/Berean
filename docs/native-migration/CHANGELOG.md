@@ -877,3 +877,7 @@
 ### 2026-11-14 — Reader and study UI feedback
 - Added selection fill, pointer feedback, Mac tab filtering and LXX state, simpler cross references, Search layout fixes, and Notes toolbar cleanup.
 - Both native Dev builds passed. Runtime checks and the compact-height rotation workaround remain open.
+
+### 2026-11-14 — iPhone tab type filtering
+- Added tab type alongside space and a single Clear Filters action.
+- iPhone Dev build passed. Live filtering checks remain open.
