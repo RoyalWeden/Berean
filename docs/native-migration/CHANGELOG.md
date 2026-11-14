@@ -633,3 +633,7 @@
 ### 2026-11-14 — Reachable iPhone archive confirmation
 - Keep archive and cancel controls in a persistent iPhone cleanup footer.
 - Verified archiving the unpinned copy, keeping the pinned original, and restoring the full verse selection in the iOS 27 Simulator.
+
+### 2026-11-14 — Restore archived tabs near their original positions
+- Save local sidebar ordering for recent archives and reuse it when restoring to the source workspace.
+- Both Dev builds passed. Existing archive records and sync schema are compatible.
