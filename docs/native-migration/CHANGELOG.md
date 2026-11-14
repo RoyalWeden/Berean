@@ -614,3 +614,7 @@
 ### 2026-11-14 — Cross-reference source control
 - The inspector's source menu displays the active source and gives the passage heading more room.
 - Both Dev builds passed. Verified Classic-to-TSKe switching with both verses of a disjoint selection on iOS 27 Simulator.
+
+### 2026-11-14 — Cross-reference scope restoration
+- Restore cross-reference scope from the saved Scripture selection when there is no live override.
+- Both Dev builds passed. On iOS 27 Simulator, an open cross-reference sheet restored both John 7:47 and 50 after relaunch.

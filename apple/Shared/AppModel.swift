@@ -650,7 +650,18 @@ final class AppModel {
     }
 
     func studySelectedVerses(in tabId: String, state: BibleState) -> [Int] {
-        studyFocus(in: tabId, state: state)?.selectedVerses ?? []
+        if let focus = studyFocus(in: tabId, state: state) { return focus.selectedVerses }
+        return readerSelectedVerses(in: tabId, state: state)
+    }
+
+    func readerSelectedVerses(in tabId: String, state: BibleState) -> [Int] {
+        guard !state.compareMode, let tab = findTab(tabId),
+              let first = state.verse, (1...999).contains(first) else { return [] }
+        if let last = state.endVerse, (first...999).contains(last),
+           tab.state["endChapter"]?.numberValue == nil {
+            return Array(first...last)
+        }
+        return ResolvedPassage.savedVerses(in: tab, reader: state).sorted()
     }
 
     func inspectStrongs(_ id: String, in tabId: String, bookId: String, chapter: Int, verse: Int? = nil) {
