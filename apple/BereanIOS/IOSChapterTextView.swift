@@ -18,8 +18,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     var baseFontSize: Double
     var selectedVerses: Set<Int>
     var scrollTarget: Int?
-    var restoreOffset: () -> CGFloat? = { nil }
-    var saveOffset: (CGFloat) -> Void = { _ in }
+    var restorePosition: () -> ScriptureReadingPosition? = { nil }
+    var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var findRequest: Int
     var reference: (Int, Int) -> String
     var onStrongs: (String) -> Void
@@ -74,7 +74,8 @@ struct IOSChapterTextView: UIViewRepresentable {
 
     static func dismantleUIView(_ view: UITextView, coordinator: Coordinator) {
         guard coordinator.passageId == coordinator.parent.passageId else { return }
-        coordinator.parent.saveOffset(max(0, view.contentOffset.y + view.adjustedContentInset.top))
+        let offset = max(0, view.contentOffset.y + view.adjustedContentInset.top)
+        coordinator.parent.savePosition(ScriptureReadingPosition(offset: offset, verse: coordinator.readingAnchor(in: view)?.verse))
     }
 
     func updateUIView(_ view: UITextView, context: Context) {
@@ -158,14 +159,17 @@ struct IOSChapterTextView: UIViewRepresentable {
                 }
             }
         }
-        if !samePassage, scrollTarget == nil, let offset = restoreOffset() {
+        if !samePassage, scrollTarget == nil {
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == passageId,
-                      coordinator.parent.scrollTarget == nil else { return }
+                      coordinator.parent.scrollTarget == nil, let position = coordinator.parent.restorePosition() else { return }
                 coordinator.layoutThroughEnd(of: NSRange(location: 0, length: view.textStorage.length), in: view)
                 let inset = view.adjustedContentInset
                 let maximum = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
-                view.setContentOffset(CGPoint(x: 0, y: min(offset - inset.top, maximum)), animated: false)
+                let verseTop = position.offset == 0 ? position.verse.flatMap { coordinator.verseRanges[$0] }
+                    .flatMap { view.position(from: view.beginningOfDocument, offset: $0.location) }
+                    .map { view.caretRect(for: $0).minY } : nil
+                view.setContentOffset(CGPoint(x: 0, y: min((verseTop ?? position.offset) - inset.top, maximum)), animated: false)
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }

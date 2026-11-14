@@ -8,6 +8,11 @@ import BereanReference
 import BereanWorkspace
 import BereanNotes
 
+struct ScriptureReadingPosition {
+    let offset: CGFloat
+    let verse: Int?
+}
+
 struct ChapterEdition: Equatable {
     let book: String
     let chapter: Int
@@ -24,6 +29,8 @@ struct ChapterEdition: Equatable {
         self.chapter = chapter
         self.text = text
     }
+
+    var key: String { "\(text)|\(book)|\(chapter)" }
 
     var counterpart: Self? {
         let other: String
@@ -45,6 +52,7 @@ extension AppModel {
         guard let tab = activeTab, tab.id == tabId, tab.tabType == .bible else { return }
         var reader = BibleState(tab.state)
         guard !reader.compareMode, ChapterEdition(reader) == source, source.counterpart == target else { return }
+        scriptureEditionSources[tabId] = (source, target)
         reader.translation = target.text
         reader.chapter = target.chapter
         reader.verse = nil
@@ -56,6 +64,22 @@ extension AppModel {
         }
         recordRecent(textId: target.text, bookId: target.book, chapter: target.chapter, verse: nil, endVerse: nil)
     }
+    func restoreScripturePosition(tabId: String, edition: ChapterEdition) -> ScriptureReadingPosition? {
+        if let transition = scriptureEditionSources[tabId], transition.target == edition {
+            scriptureEditionSources.removeValue(forKey: tabId)
+            guard let saved = scriptureReadingPositions[tabId]?[transition.source.key] else { return nil }
+            var verse = saved.verse
+            if edition.book == "JON", let number = verse,
+               let mapped = ChapterMap.jonahCounterpart(chapter: transition.source.chapter, verse: number,
+                                                        from: transition.source.text, to: edition.text) {
+                verse = mapped.chapter == edition.chapter ? mapped.verse : nil
+            }
+            return ScriptureReadingPosition(offset: 0, verse: verse)
+        }
+        scriptureEditionSources.removeValue(forKey: tabId)
+        return scriptureReadingPositions[tabId]?[edition.key]
+    }
+
 }
 
 struct ChapterTagTarget: Identifiable {
@@ -788,8 +812,8 @@ struct ScriptureView: View {
             baseFontSize: baseSize,
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
             scrollTarget: scrollTarget,
-            restoreOffset: { app.scriptureScrollOffsets[tabId]?[chapterKey(st)] },
-            saveOffset: { app.scriptureScrollOffsets[tabId, default: [:]][chapterKey(st)] = $0 },
+            restorePosition: { app.restoreScripturePosition(tabId: tabId, edition: ChapterEdition(st)) },
+            savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             findRequest: findRequest,
             reference: { first, last in
                 let suffix = st.translation == "lxx" ? " LXX" : ""
@@ -1319,8 +1343,8 @@ extension ScriptureView {
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: readerStyle(st),
             selectedVerses: selection, scrollTarget: scrollTarget,
-            restoreOffset: { app.scriptureScrollOffsets[tabId]?[chapterKey(st)] },
-            saveOffset: { app.scriptureScrollOffsets[tabId, default: [:]][chapterKey(st)] = $0 },
+            restorePosition: { app.restoreScripturePosition(tabId: tabId, edition: ChapterEdition(st)) },
+            savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
             rangeReference: { a, b in "\(referenceChapterLabel(st)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
             verseMenu: { verseNSMenu($0, st) },

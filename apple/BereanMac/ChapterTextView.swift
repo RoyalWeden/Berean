@@ -13,8 +13,8 @@ struct ChapterTextView: NSViewRepresentable {
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
-    var restoreOffset: () -> CGFloat? = { nil }
-    var saveOffset: (CGFloat) -> Void = { _ in }
+    var restorePosition: () -> ScriptureReadingPosition? = { nil }
+    var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
     var verseMenu: (Int) -> NSMenu
@@ -64,7 +64,9 @@ struct ChapterTextView: NSViewRepresentable {
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         guard let parent = coordinator.parent, coordinator.lastPassage == parent.passageId else { return }
-        parent.saveOffset(max(0, scroll.contentView.bounds.minY))
+        let top = scroll.contentView.bounds.minY
+        let verse = coordinator.textView.flatMap { coordinator.readingAnchor(at: top, in: $0)?.verse }
+        parent.savePosition(ScriptureReadingPosition(offset: max(0, top), verse: verse))
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -137,14 +139,17 @@ struct ChapterTextView: NSViewRepresentable {
                 }
             }
         }
-        if passageChanged, scrollTarget == nil, let offset = restoreOffset() {
+        if passageChanged, scrollTarget == nil {
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll, let c, c.lastPassage == passageId,
-                      c.parent?.scrollTarget == nil, let container = tv.textContainer else { return }
+                      c.parent?.scrollTarget == nil, let position = c.parent?.restorePosition(),
+                      let container = tv.textContainer else { return }
                 tv.layoutManager?.ensureLayout(for: container)
                 let clip = scroll.contentView
                 var bounds = clip.bounds
-                bounds.origin.y = offset
+                let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
+                    .flatMap { tv.firstRect(forVerseRange: $0)?.minY } : nil
+                bounds.origin.y = verseTop ?? position.offset
                 clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                 scroll.reflectScrolledClipView(clip)
             }
