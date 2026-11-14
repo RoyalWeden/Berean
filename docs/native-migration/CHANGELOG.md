@@ -618,3 +618,7 @@
 ### 2026-11-14 — Cross-reference scope restoration
 - Restore cross-reference scope from the saved Scripture selection when there is no live override.
 - Both Dev builds passed. On iOS 27 Simulator, an open cross-reference sheet restored both John 7:47 and 50 after relaunch.
+
+### 2026-11-14 — Empty results for selected cross-reference verses
+- Preserve rows for empty selected verses and keep successful results visible when another selected verse fails to load.
+- Both Dev builds passed. Verified per-verse empty results for Didache 1:1–2 in the iOS 27 Simulator.

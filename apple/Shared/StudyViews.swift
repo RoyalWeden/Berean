@@ -348,6 +348,7 @@ struct CrossRefsView: View {
         let verse: Int
         let heading: String?
         let rows: [ReferenceRow]
+        var unavailable = false
     }
 
     private struct ReferenceRow {
@@ -411,7 +412,10 @@ struct CrossRefsView: View {
             } else {
                 List {
                     ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                        if verse == nil || selectedVerses.count > 1 {
+                        if group.rows.isEmpty {
+                            LabeledContent("Verse \(group.verse)",
+                                           value: group.unavailable ? "Unavailable" : "No cross references")
+                        } else if verse == nil || selectedVerses.count > 1 {
                             DisclosureGroup(groupTitle(group)) { referenceRows(group.rows) }
                         } else if let heading = group.heading {
                             Section(heading) { referenceRows(group.rows) }
@@ -446,19 +450,27 @@ struct CrossRefsView: View {
             var hadError = false
             for selected in targets {
                 guard !Task.isCancelled else { return }
+                let groupsForVerse: [ReferenceGroup]
+                let unavailable: Bool
                 if classic {
                     let data = await app.crossrefs.forVerse(bookId, chapter, selected, textId: textId)
-                    if !data.refs.isEmpty {
-                        selectedGroups.append(ReferenceGroup(verse: selected, heading: nil, rows: data.refs.map(ReferenceRow.init)))
-                    }
-                    hadError = hadError || data.error
+                    groupsForVerse = data.refs.isEmpty ? [] : [
+                        ReferenceGroup(verse: selected, heading: nil, rows: data.refs.map(ReferenceRow.init))
+                    ]
+                    unavailable = data.error
                 } else {
                     let data = await app.crossrefs.tskeForVerse(bookId, chapter, selected, textId: textId)
-                    selectedGroups += tskeGroups(data.groups, verse: selected)
-                    hadError = hadError || data.error
+                    groupsForVerse = tskeGroups(data.groups, verse: selected)
+                    unavailable = data.error
                 }
+                if targets.count > 1, groupsForVerse.isEmpty {
+                    selectedGroups.append(ReferenceGroup(verse: selected, heading: nil, rows: [], unavailable: unavailable))
+                } else {
+                    selectedGroups += groupsForVerse
+                }
+                hadError = hadError || unavailable
             }
-            result = (selectedGroups, hadError)
+            result = (selectedGroups, targets.count == 1 && hadError)
         } else if classic {
             let data = await app.crossrefs.forChapter(bookId, chapter, textId: textId)
             result = (data.verseRefs.map { ReferenceGroup(verse: $0.verseNum, heading: nil, rows: $0.refs.map(ReferenceRow.init)) }, data.error)
