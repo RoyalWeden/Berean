@@ -516,3 +516,5 @@ iPhone chapter swipes are now suppressed while a whole-verse selection or pinch 
 Scripture chapter arrows now disable Previous and Next at the ends of the installed edition on Mac and iPhone. Single-book editions use their actual first and last chapter numbers, including prologues. Both Dev builds passed. Live checks remain for Jude in KJVA (cross-book arrows stay available), a single-book text and the end of an edition.
 
 iPhone Tabs → New Tab now waits for the Tabs sheet to finish dismissing before presenting Go in new-tab mode. The dock Go button still uses normal reuse behavior. iPhone Dev build passed. Verify the sheet transition and tab counts for Cancel, explicit New Tab and ordinary Go.
+
+iOS 27 Simulator verified Tabs → New Tab dismissed the tab list and opened Go. Cancel returned to the reader with four tabs. Ordinary dock Go → recent John 7:51–53 retained the selected range and stayed at four tabs. Explicit New Tab submission and its tab-count increment remain to exercise.
