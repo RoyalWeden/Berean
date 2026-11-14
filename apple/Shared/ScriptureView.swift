@@ -34,12 +34,16 @@ private struct SharedScriptureChapter: Transferable {
     let replacerEnabled: Bool
     let bible: BibleService
 
+    func formattedText() async throws -> String {
+        let rows = await bible.queryChapter(bookId, chapter, textId: textId)
+        guard !rows.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
+        return SharedVerseSelection(reference: reference, rows: rows, textId: textId,
+                                    replacerEnabled: replacerEnabled).formattedText
+    }
+
     static var transferRepresentation: some TransferRepresentation {
         ProxyRepresentation(exporting: { (chapter: Self) async throws -> String in
-            let rows = await chapter.bible.queryChapter(chapter.bookId, chapter.chapter, textId: chapter.textId)
-            guard !rows.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
-            return SharedVerseSelection(reference: chapter.reference, rows: rows, textId: chapter.textId,
-                                        replacerEnabled: chapter.replacerEnabled).formattedText
+            try await chapter.formattedText()
         })
     }
 }
@@ -54,7 +58,17 @@ struct ChapterExportActions: View {
         let chapter = SharedScriptureChapter(reference: reference, bookId: state.bookId, chapter: state.chapter,
                                             textId: state.translation, replacerEnabled: app.wordReplacerEnabled,
                                             bible: app.bible)
-        Button("Copy Chapter Reference", systemImage: "doc.on.doc") { Clipboard.copy(reference) }
+        Button("Copy Chapter", systemImage: "doc.on.doc") {
+            Task {
+                do {
+                    Clipboard.copy(try await chapter.formattedText())
+                    AccessibilityNotification.Announcement("Chapter copied").post()
+                } catch {
+                    app.userMessage = "This chapter has no text to copy."
+                }
+            }
+        }
+        Button("Copy Chapter Reference", systemImage: "number") { Clipboard.copy(reference) }
         ShareLink(item: chapter, preview: SharePreview(reference)) {
             Label("Share Chapter…", systemImage: "square.and.arrow.up")
         }
@@ -657,7 +671,7 @@ struct ScriptureView: View {
             }
             .menuIndicator(.hidden)
             .pointerStyle(.link)
-            .help("Copy the chapter reference or share the chapter")
+            .help("Copy or share the chapter")
         }
         #endif
     }

@@ -340,3 +340,5 @@ Verified iOS 27 Simulator More → Share Verses for Obadiah 1:18–20 LXX. The s
 iPhone Share Chapter now exports the full chapter in the active edition with the same reference and numbered verse format as Share Verses. The chapter loads on demand for sharing. Copy Chapter Reference remains the shortcut for the reference alone. Both Dev builds passed. Live chapter export and Mac access to the chapter share command remain open.
 
 Mac Scripture now has a Chapter Export toolbar menu with Copy Chapter Reference and Share Chapter. Mac and iPhone use the same export actions and edition-aware chapter formatter. Both Dev builds passed. Live Mac verification confirmed the toolbar menu and both commands appear. The Mac system share destinations and exported chapter contents on both platforms remain to verify.
+
+Copy Chapter is now available alongside Copy Chapter Reference and Share Chapter in the Mac and iPhone Scripture commands. It uses the same edition-aware export formatter, announces success for assistive technology, and reports an empty chapter without replacing the clipboard. Both Dev builds passed. Runtime clipboard verification remains open.
