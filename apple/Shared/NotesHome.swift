@@ -31,6 +31,8 @@ struct NotesHomeView: View {
     @State private var deletingFolder: NoteFolder?
     @State private var folderName = ""
     @State private var confirmEmptyTrash = false
+    @State private var searchScroll = ScrollPosition()
+    @State private var restoredSearchPosition: SearchPosition?
     @State private var visibleFolderRow: String?
     @State private var loadedNotes = false
 
@@ -277,25 +279,48 @@ struct NotesHomeView: View {
             } else {
                 let position = SearchPosition(folder: location, options: browseOptions, sort: sort)
                 ScrollViewReader { proxy in
-                    List {
-                        if !matchingFolders.isEmpty {
-                            Section("Folders") { ForEach(matchingFolders) { f in folderRow(f, depth: 0) } }
-                        }
-                        if !matching.isEmpty {
-                            Section("\(matching.count) note\(matching.count == 1 ? "" : "s")") {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            if !matchingFolders.isEmpty {
+                                folderSectionHeading("Folders")
+                                ForEach(matchingFolders) { folder in
+                                    folderRow(folder, depth: 0).padding(.vertical, 6)
+                                }
+                            }
+                            if !matching.isEmpty {
+                                folderSectionHeading("\(matching.count) note\(matching.count == 1 ? "" : "s")")
                                 ForEach(matching) { note in
-                                    noteRow(note, searchPosition: position).id(note.id)
+                                    noteRow(note, searchPosition: position)
+                                        .padding(.vertical, 8)
+                                        .overlay(alignment: .bottom) { Divider() }
+                                        .id(note.id)
                                 }
                             }
                         }
+                        .padding(.horizontal, 16)
+                    }
+                    .scrollPosition($searchScroll)
+                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                        max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+                    } action: { _, offset in
+                        guard app.activeTab?.id == tabId, restoredSearchPosition == position else { return }
+                        app.notesSearchOffsets[tabId, default: [:]][position] = offset
                     }
                     .task(id: position) {
-                        guard !Task.isCancelled, app.activeTab?.id == tabId,
-                              let id = app.notesSearchReturnRows[tabId]?.removeValue(forKey: position),
-                              matching.contains(where: { $0.id == id }) else { return }
-                        proxy.scrollTo(id, anchor: .center)
+                        guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
+                        restoredSearchPosition = nil
+                        if let id = app.notesSearchReturnRows[tabId]?.removeValue(forKey: position),
+                           matching.contains(where: { $0.id == id }) {
+                            proxy.scrollTo(id, anchor: .center)
+                        } else if let offset = app.notesSearchOffsets[tabId]?[position] {
+                            searchScroll.scrollTo(y: offset)
+                        } else {
+                            searchScroll.scrollTo(edge: .top)
+                        }
+                        restoredSearchPosition = position
                     }
                 }
+                .id(position)
             }
         }
     }
