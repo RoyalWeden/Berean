@@ -508,3 +508,5 @@ Back to Books now restores the loaded book list immediately and clears the previ
 The chapter picker now scrolls to the current chapter when its grid appears, marks it as selected for accessibility, and uses full cell hit targets with 44-point height in compact presentations. Back to Books centers the current book when it exists in the edition. Both Dev builds passed. Verify long-book initial scroll, the compact hit area and keyboard focus in live pickers.
 
 Mac chapter navigation and the Compare, Strong’s Numbers and Study Panel toggles now use the pointing-hand style alongside the existing chapter controls. The Mac Dev build passed. Verify the cursor visually across toolbar items and its return to the I-beam over selectable Scripture.
+
+Shared dashed-outline ranges now trim newline-only verses at the ends of a selection while retaining one frame when such a verse falls between selected neighbors. Missing layout ranges and unselected verses still split frames. Both Dev builds and four focused Swift range assertions passed. Visual QA remains open with verse numbers hidden on a fixture containing an empty verse.

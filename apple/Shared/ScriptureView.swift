@@ -1374,13 +1374,17 @@ func consecutiveVerseRuns(_ verses: Set<Int>) -> [ClosedRange<Int>] {
     return runs
 }
 
-// A missing layout range must break the outline even if the selection contains that verse.
+// A missing layout range breaks the outline. A rendered blank verse can bridge a run,
+// but it should not extend the frame past the first or last visible line.
 func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [NSRange] {
     let available = Set(selection.filter { ranges[$0] != nil })
     return consecutiveVerseRuns(available).compactMap { run in
-        let spans = run.compactMap { ranges[$0] }
-        guard let first = spans.first else { return nil }
-        return spans.dropFirst().reduce(first, NSUnionRange)
+        let visible = run.compactMap { verse -> NSRange? in
+            guard let range = ranges[verse], range.length > 1 else { return nil }
+            return NSRange(location: range.location, length: range.length - 1)
+        }
+        guard let first = visible.first, let last = visible.last else { return nil }
+        return NSUnionRange(first, last)
     }
 }
 

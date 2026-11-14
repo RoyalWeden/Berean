@@ -741,3 +741,7 @@
 ### 2026-11-14 — Mac reader toolbar affordances
 - Applied pointing-hand style to chapter navigation and the Compare, Strong’s Numbers and Study Panel toggles.
 - Mac Dev build passed. Live pointer inspection remains open.
+
+### 2026-11-14 — Outline bounds for blank verses
+- Shared the visible-range calculation on Mac and iPhone, including blank verses and disjoint selections.
+- Both Dev builds and four focused range assertions passed.

@@ -450,9 +450,8 @@ final class ReaderTextView: NSTextView {
         super.draw(dirtyRect)
         guard let c = coordinator, let layout = layoutManager, let container = textContainer else { return }
         let origin = textContainerOrigin
-        for range in selectedVerseRanges(c.parent.selectedVerses, in: c.verseRanges) where range.length > 1 {
-            let text = NSRange(location: range.location, length: range.length - 1)
-            let glyphs = layout.glyphRange(forCharacterRange: text, actualCharacterRange: nil)
+        for range in selectedVerseRanges(c.parent.selectedVerses, in: c.verseRanges) {
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
             guard glyphs.length > 0 else { continue }
             let first = layout.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
             let last = layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
