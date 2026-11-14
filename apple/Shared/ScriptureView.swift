@@ -1118,6 +1118,21 @@ struct VerseRowView: View {
             .padding(.vertical, 2)
     }
 
+    private func markedText(_ shown: String, wholeTint: Color?) -> AttributedString {
+        var text = AttributedString(shown)
+        text.backgroundColor = wholeTint
+        for mark in highlights {
+            guard let start = mark.startChar, let end = mark.endChar else { continue }
+            let bounds = OffsetMap.originalToDisplay(display: shown, original: row.text, offsets: [start, end])
+            guard bounds[0] < bounds[1],
+                  let range = Range(NSRange(location: bounds[0], length: bounds[1] - bounds[0]), in: shown),
+                  let lower = AttributedString.Index(range.lowerBound, within: text),
+                  let upper = AttributedString.Index(range.upperBound, within: text) else { continue }
+            text[lower..<upper].backgroundColor = Color.highlight(mark.color).opacity(0.35)
+        }
+        return text
+    }
+
     var attributed: AttributedString {
         var out = AttributedString()
         if let title = row.title, !title.isEmpty {
@@ -1125,9 +1140,10 @@ struct VerseRowView: View {
             out = t + out
         }
         let rules = replacer ? WordReplacer.defaultRules : []
+        let wholeTint = highlights.last { $0.startChar == nil }.map { Color.highlight($0.color).opacity(0.22) }
         guard let tagged = row.textTagged, !tagged.isEmpty, textId == "kjva" || textId == "lxx" else {
-            out += AttributedString(VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: replacer, rules: rules))
-            return out
+            let shown = VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: replacer, rules: rules)
+            return out + markedText(shown, wholeTint: wholeTint)
         }
         let rendered = VerseDisplay.renderTokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules)
         let words: [(String, Bool, Bool, [String])] = rendered.map { t in
@@ -1143,7 +1159,12 @@ struct VerseRowView: View {
         }
         var pos = 0
         for (i, w) in words.enumerated() {
-            if i > 0 { var sp = AttributedString(" "); if ranges.contains(where: { $0.0 <= pos && pos < $0.1 }) { sp.backgroundColor = Color.highlight(ranges.first { $0.0 <= pos && pos < $0.1 }!.2).opacity(0.35) }; out += sp; pos += 1 }
+            if i > 0 {
+                var space = AttributedString(" ")
+                space.backgroundColor = ranges.last { $0.0 <= pos && pos < $0.1 }.map { Color.highlight($0.2).opacity(0.35) } ?? wholeTint
+                out += space
+                pos += 1
+            }
             let units = Array(w.0.utf16)
             var k = 0
             while k < units.count {
@@ -1154,7 +1175,7 @@ struct VerseRowView: View {
                 var a = AttributedString(String(decoding: units[k..<j], as: UTF16.self))
                 if w.1 { a.font = ScriptureFont.font(family, size: fontSize).italic() }
                 if w.2 && showRedLetters { a.foregroundColor = .red }
-                if let hit { a.backgroundColor = Color.highlight(hit.2).opacity(0.35) }
+                a.backgroundColor = hit.map { Color.highlight($0.2).opacity(0.35) } ?? wholeTint
                 out += a
                 k = j
             }

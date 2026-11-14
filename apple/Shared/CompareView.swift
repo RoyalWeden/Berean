@@ -3,6 +3,7 @@ import BereanCore
 import BereanBible
 import BereanText
 import BereanReference
+import BereanNotes
 
 /// A persisted Compare column. Keep the raw object so older clients retain their metadata.
 struct CompareColumn: Identifiable {
@@ -110,6 +111,19 @@ struct CompareView: View {
     }
     @State private var rows: [Int: [Int: ChapterVerseRow]] = [:]
     @State private var independentRows: [Int: [ChapterVerseRow]] = [:]
+    private struct HighlightChapter: Hashable {
+        let text: String
+        let book: String
+        let chapter: Int
+
+        init(_ row: ChapterVerseRow, text: String) {
+            self.text = text
+            book = row.bookId
+            chapter = row.chapter
+        }
+    }
+
+    @State private var chapterHighlights: [HighlightChapter: [Int: [Highlight]]] = [:]
     @State private var loadedPassage: String?
     @State private var localVerseSelection: Int?
     @State private var editingColumn: CompareColumn?
@@ -201,6 +215,22 @@ struct CompareView: View {
             #endif
         }
         .task(id: passage) { await load(st, cols, passage: passage) }
+        .task(id: "\(loadedPassage ?? "")|\(app.highlightsRevision)") {
+            var chapters: Set<HighlightChapter> = []
+            for column in cols {
+                for row in independentRows[column.id] ?? [] {
+                    chapters.insert(HighlightChapter(row, text: column.text))
+                }
+                for entries in rows.values {
+                    if let row = entries[column.id] {
+                        chapters.insert(HighlightChapter(row, text: column.text))
+                    }
+                }
+            }
+            chapterHighlights = Dictionary(uniqueKeysWithValues: chapters.map { key in
+                (key, (try? app.highlights?.chapter(key.book, key.chapter, textId: key.text)) ?? [:])
+            })
+        }
     }
 
     private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
@@ -400,6 +430,7 @@ struct CompareView: View {
     private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
+                         highlights: chapterHighlights[HighlightChapter(row, text: column.text)]?[row.verseNum] ?? [],
                          fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
                          replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
                 .environment(\.openURL, strongsAction(for: row))
@@ -558,6 +589,7 @@ struct CompareView: View {
             }
         }
         guard !Task.isCancelled else { return }
+        chapterHighlights = [:]
         rows = out
         independentRows = independent
         loadedPassage = passage

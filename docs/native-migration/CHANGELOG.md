@@ -777,3 +777,7 @@
 ### 2026-11-14 — Dynamic Type in iPhone Compare
 - Scaled verse text and switched to stacked layouts at accessibility sizes.
 - Both Dev builds passed. Accessibility-size runtime QA remains open.
+
+### 2026-11-14 — Saved highlights in Compare
+- Rendered chapter- and edition-specific verse highlights, including character ranges, in both native Compare layouts.
+- Both Dev builds passed after adding the missing highlight module import.
