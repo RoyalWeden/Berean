@@ -937,3 +937,7 @@
 ### 2026-11-14 — Native Notes table columns
 - Added Add Column After to the Notes Format menu on Mac and iPhone.
 - Both Dev builds and 19 focused table checks passed. Live interaction and undo remain open.
+
+### 2026-11-14 — Native Notes table deletion
+- Added Delete Row and Delete Column to native Notes.
+- Both Dev builds and 26 focused table checks passed. Live undo and persistence remain open.

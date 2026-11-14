@@ -39,6 +39,8 @@ struct NoteFormatRequest: Equatable {
         case insertTable
         case addTableRow
         case addTableColumn
+        case deleteTableRow
+        case deleteTableColumn
     }
 
     let action: Action
@@ -264,6 +266,56 @@ func noteTableColumnInsertion(in text: NSString, selection: NSRange)
     return (range, replacement as String, NSRange(location: caret, length: 0))
 }
 
+func noteTableDeletion(in text: NSString, selection: NSRange, columnOnly: Bool)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard let (block, row) = noteTableContext(in: text, selection: selection),
+          let first = block.first, let last = block.last else { return nil }
+    let rows = block.map { noteTableCells(in: text, range: $0.range) }
+    guard let column = rows[row].firstIndex(where: {
+        $0.location <= selection.location && selection.upperBound <= $0.upperBound
+    }) else { return nil }
+
+    if !columnOnly {
+        guard row > 1 else { return nil }
+        let range = text.lineRange(for: block[row].range)
+        let previous = rows[row == 2 ? 0 : row - 1]
+        guard !previous.isEmpty else { return nil }
+        let cell = previous[min(column, previous.count - 1)]
+        return (range, "", NSRange(location: noteTableCellCaret(in: text, cell: cell), length: 0))
+    }
+
+    let width = rows[0].count
+    guard width > 1, rows[1].count == width,
+          rows.allSatisfy({ !$0.isEmpty && $0.count <= width }) else { return nil }
+    let range = NSRange(location: first.range.location, length: last.range.upperBound - first.range.location)
+    let replacement = NSMutableString(string: text.substring(with: range))
+    var caret = 0
+    for index in rows.indices.reversed() {
+        let cells = rows[index]
+        guard cells.indices.contains(column) else { continue }
+        let cell = cells[column]
+        let offset = cell.location - range.location
+        if cells.count == 1 {
+            // A short body row still needs one empty cell after its only explicit cell is removed.
+            replacement.replaceCharacters(in: NSRange(location: offset, length: cell.length), with: "  ")
+        } else {
+            replacement.deleteCharacters(in: NSRange(location: offset, length: cell.length + 1))
+        }
+        if index == row {
+            if cells.count == 1 {
+                caret = cell.location + 1
+            } else if column + 1 < cells.count {
+                caret = noteTableCellCaret(in: text, cell: cells[column + 1]) - cell.length - 1
+            } else {
+                caret = noteTableCellCaret(in: text, cell: cells[column - 1])
+            }
+        } else if index < row {
+            caret += cells.count == 1 ? 2 - cell.length : -cell.length - 1
+        }
+    }
+    return (range, replacement as String, NSRange(location: caret, length: 0))
+}
+
 /// Navigate the cells of the pipe tables written by the Electron and native editors.
 func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: Bool) -> NSRange? {
     guard let (block, row) = noteTableContext(in: text, selection: selection) else { return nil }
@@ -283,14 +335,18 @@ func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: 
         guard let cell = backwards ? nextCells.last : nextCells.first else { return nil }
         target = cell
     }
-    var caret = target.location
-    while caret < target.upperBound {
+    return NSRange(location: noteTableCellCaret(in: text, cell: target), length: 0)
+}
+
+private func noteTableCellCaret(in text: NSString, cell: NSRange) -> Int {
+    var caret = cell.location
+    while caret < cell.upperBound {
         let character = text.character(at: caret)
         guard character == 9 || character == 32 else { break }
         caret += 1
     }
-    if caret == target.upperBound, caret > target.location { caret -= 1 }
-    return NSRange(location: caret, length: 0)
+    if caret == cell.upperBound, caret > cell.location { caret -= 1 }
+    return caret
 }
 
 /// A link on the visible checkbox routes activation through the native text editor.
@@ -440,6 +496,12 @@ struct NoteDetailView: View {
                         }
                         Button("Add Column After", systemImage: "rectangle.split.2x1") {
                             formatRequest = NoteFormatRequest(action: .addTableColumn)
+                        }
+                        Button("Delete Row", systemImage: "minus.rectangle") {
+                            formatRequest = NoteFormatRequest(action: .deleteTableRow)
+                        }
+                        Button("Delete Column", systemImage: "minus.rectangle.portrait") {
+                            formatRequest = NoteFormatRequest(action: .deleteTableColumn)
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")

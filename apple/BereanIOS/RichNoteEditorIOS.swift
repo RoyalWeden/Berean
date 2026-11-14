@@ -52,6 +52,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .insertTable: tv.insertTable()
                 case .addTableRow: tv.addTableRow()
                 case .addTableColumn: tv.addTableColumn()
+                case .deleteTableRow: tv.deleteTablePart(columnOnly: false)
+                case .deleteTableColumn: tv.deleteTablePart(columnOnly: true)
                 }
                 tv.becomeFirstResponder()
             }
@@ -270,6 +272,12 @@ final class NoteUITextView: UITextView {
     func toggleTask(_ url: URL) {
         guard let edit = NoteTaskLink.edit(for: url, in: (text ?? "") as NSString) else { return }
         applyFormatEdit((edit.range, edit.replacement, selectedRange))
+    }
+
+    func deleteTablePart(columnOnly: Bool) {
+        guard let edit = noteTableDeletion(in: (text ?? "") as NSString, selection: selectedRange,
+                                           columnOnly: columnOnly) else { return }
+        applyFormatEdit(edit)
     }
 
     func addTableColumn() {
