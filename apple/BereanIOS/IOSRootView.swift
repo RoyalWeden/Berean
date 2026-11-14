@@ -15,6 +15,7 @@ struct IOSRootView: View {
     @State private var showScriptureDisplay = false
     @State private var chapterTagTarget: ChapterTagTarget?
     @State private var findRequest = 0
+    @State private var pendingNewTab = false
     @State private var alternateEdition: ChapterEdition?
 
     private var readerEdition: ChapterEdition? {
@@ -54,10 +55,18 @@ struct IOSRootView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $showTabs, onDismiss: {
+            guard pendingNewTab else { return }
+            pendingNewTab = false
+            openGo(newTab: true)
+        }) {
+            TabCardsSheet(onNewTab: {
+                pendingNewTab = true
+                showTabs = false
+            })
+            .presentationDetents([.medium, .large])
+        }
         .sheet(isPresented: $showGo) { GoSheet(newTab: explicitNewTab, close: { showGo = false }).presentationDetents([.large]) }
-        // ⌘T / ⌘K (hardware keyboard) and in-app "new tab" requests open the same sheet.
-        .onChange(of: app.commandPaletteShown) { _, v in if v { app.commandPaletteShown = false; openGo(newTab: true) } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
     }
 
@@ -202,6 +211,7 @@ struct IOSRootView: View {
 /// The tab sheet (the existing iPhone TabCardsSheet, list view): the session row, a tab search, every tab of
 /// the session in the user's order (pinned first), swipe / long-press actions, reorder, New Tab and Archived.
 struct TabCardsSheet: View {
+    let onNewTab: () -> Void
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
@@ -228,7 +238,7 @@ struct TabCardsSheet: View {
                     .accessibilityHint("Switch, create or manage workspaces")
                 }
                 Section {
-                    Button { dismiss(); app.commandPaletteShown = true } label: { Label("New Tab", systemImage: "plus") }
+                    Button(action: onNewTab) { Label("New Tab", systemImage: "plus") }
                     if !app.inactiveTabs.isEmpty {
                         Button { showTabCleanup = true } label: { Label("Archive Inactive Tabs…", systemImage: "archivebox") }
                     }

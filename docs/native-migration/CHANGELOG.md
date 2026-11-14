@@ -753,3 +753,7 @@
 ### 2026-11-14 — Chapter navigation boundaries
 - Disabled unavailable chapter arrows at edition boundaries on both platforms.
 - Both Dev builds passed. Live boundary checks remain open.
+
+### 2026-11-14 — iPhone New Tab presentation
+- Sequenced Tabs dismissal and the explicit New Tab picker through the sheet’s dismissal callback.
+- iPhone Dev build passed. Simulator presentation and tab counts still need verification.
