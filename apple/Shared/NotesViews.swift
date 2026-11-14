@@ -37,6 +37,7 @@ struct NoteFormatRequest: Equatable {
         case heading(Int)
         case list(NoteListStyle)
         case insertTable
+        case addTableRow
     }
 
     let action: Action
@@ -177,8 +178,8 @@ func noteTableInsertion(in text: NSString, selection: NSRange)
             NSRange(location: offset + prefix.utf16.count + 2, length: 0))
 }
 
-/// Navigate the cells of the pipe tables written by the Electron and native editors.
-func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: Bool) -> NSRange? {
+private func noteTableContext(in text: NSString, selection: NSRange)
+    -> (block: [MarkdownLiveSpans.Span], row: Int)? {
     guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
     let selectedLine = text.lineRange(for: selection)
     guard selectedLine.length > 0, text.character(at: selectedLine.location) == 124 else { return nil }
@@ -197,22 +198,44 @@ func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: 
           let row = block.firstIndex(where: { $0.kind == .tableRow && $0.range.location == selectedLine.location }) else {
         return nil
     }
+    guard selection.upperBound <= block[row].range.upperBound else { return nil }
+    return (block, row)
+}
 
-    func cells(in range: NSRange) -> [NSRange] {
-        var pipes: [Int] = []
-        var escaped = false
-        for offset in range.location..<range.upperBound {
-            let character = text.character(at: offset)
-            if character == 124, !escaped { pipes.append(offset) }
-            escaped = character == 92 && !escaped
-        }
-        guard pipes.first == range.location, pipes.last == range.upperBound - 1 else { return [] }
-        return zip(pipes, pipes.dropFirst()).map { start, end in
-            NSRange(location: start + 1, length: end - start - 1)
-        }
+private func noteTableCells(in text: NSString, range: NSRange) -> [NSRange] {
+    var pipes: [Int] = []
+    var escaped = false
+    for offset in range.location..<range.upperBound {
+        let character = text.character(at: offset)
+        if character == 124, !escaped { pipes.append(offset) }
+        escaped = character == 92 && !escaped
     }
+    guard pipes.first == range.location, pipes.last == range.upperBound - 1 else { return [] }
+    return zip(pipes, pipes.dropFirst()).map { start, end in
+        NSRange(location: start + 1, length: end - start - 1)
+    }
+}
 
-    let current = cells(in: block[row].range)
+func noteTableRowInsertion(in text: NSString, selection: NSRange)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard let (block, row) = noteTableContext(in: text, selection: selection) else { return nil }
+    let columns = noteTableCells(in: text, range: block[0].range).count
+    guard columns > 0 else { return nil }
+    // A new body row goes below the alignment rule when the caret is in the header.
+    let anchor = block[row == 0 ? 1 : row].range
+    let rule = block[1].range
+    let ruleEnd = text.lineRange(for: rule).upperBound
+    let separator = text.substring(with: NSRange(location: rule.upperBound, length: ruleEnd - rule.upperBound))
+    let newline = separator.isEmpty ? "\n" : separator
+    let replacement = newline + "|" + String(repeating: "  |", count: columns)
+    return (NSRange(location: anchor.upperBound, length: 0), replacement,
+            NSRange(location: anchor.upperBound + newline.utf16.count + 2, length: 0))
+}
+
+/// Navigate the cells of the pipe tables written by the Electron and native editors.
+func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: Bool) -> NSRange? {
+    guard let (block, row) = noteTableContext(in: text, selection: selection) else { return nil }
+    let current = noteTableCells(in: text, range: block[row].range)
     guard let column = current.firstIndex(where: {
         $0.location <= selection.location && selection.upperBound <= $0.upperBound
     }) else { return nil }
@@ -224,7 +247,7 @@ func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: 
     } else {
         let nextRow = backwards ? (row == 2 ? 0 : row - 1) : (row == 0 ? 2 : row + 1)
         guard block.indices.contains(nextRow), block[nextRow].kind == .tableRow else { return nil }
-        let nextCells = cells(in: block[nextRow].range)
+        let nextCells = noteTableCells(in: text, range: block[nextRow].range)
         guard let cell = backwards ? nextCells.last : nextCells.first else { return nil }
         target = cell
     }
@@ -379,6 +402,9 @@ struct NoteDetailView: View {
                         }
                         Button("Insert Table", systemImage: "tablecells") {
                             formatRequest = NoteFormatRequest(action: .insertTable)
+                        }
+                        Button("Add Row Below", systemImage: "rectangle.split.1x2") {
+                            formatRequest = NoteFormatRequest(action: .addTableRow)
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")

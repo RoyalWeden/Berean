@@ -929,3 +929,7 @@
 ### 2026-11-14 — Native Notes table keyboard navigation
 - Tab and Shift–Tab move between table cells on Mac and with a hardware keyboard on iPhone.
 - Both Dev builds and six focused Swift checks passed. Live keyboard dispatch remains to verify.
+
+### 2026-11-14 — Native Notes table rows
+- Added Add Row Below to the Notes Format menu on Mac and iPhone.
+- Both Dev builds, six insertion checks and six table navigation regression checks passed. Live menu and undo checks remain open.
