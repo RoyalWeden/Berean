@@ -225,6 +225,29 @@ final class NoteUITextView: UITextView {
     weak var coordinator: RichNoteEditorIOS.Coordinator?
     static let markdownType = "com.berean.note-markdown"
 
+    override var keyCommands: [UIKeyCommand]? {
+        var commands = super.keyCommands ?? []
+        for backwards in [false, true] where tableCellDestination(backwards: backwards) != nil {
+            let command = UIKeyCommand(input: "\t", modifierFlags: backwards ? .shift : [],
+                                       action: #selector(moveTableCell(_:)))
+            command.wantsPriorityOverSystemBehavior = true
+            commands.append(command)
+        }
+        return commands
+    }
+
+    private func tableCellDestination(backwards: Bool) -> NSRange? {
+        guard markedTextRange == nil else { return nil }
+        return noteTableCellDestination(in: (text ?? "") as NSString, selection: selectedRange,
+                                        backwards: backwards)
+    }
+
+    @objc private func moveTableCell(_ command: UIKeyCommand) {
+        guard let destination = tableCellDestination(backwards: command.modifierFlags.contains(.shift)) else { return }
+        selectedRange = destination
+        scrollRangeToVisible(destination)
+    }
+
     override func insertText(_ text: String) {
         guard text == "\n", markedTextRange == nil,
               let edit = noteListReturnEdit(in: (self.text ?? "") as NSString, selection: selectedRange) else {

@@ -177,6 +177,67 @@ func noteTableInsertion(in text: NSString, selection: NSRange)
             NSRange(location: offset + prefix.utf16.count + 2, length: 0))
 }
 
+/// Navigate the cells of the pipe tables written by the Electron and native editors.
+func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: Bool) -> NSRange? {
+    guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+    let selectedLine = text.lineRange(for: selection)
+    guard selectedLine.length > 0, text.character(at: selectedLine.location) == 124 else { return nil }
+    let spans = MarkdownLiveSpans.spans(text as String).filter {
+        $0.kind == .tableRow || $0.kind == .tableRule
+    }
+    var block: [MarkdownLiveSpans.Span] = []
+    for span in spans {
+        if let last = block.last, text.lineRange(for: last.range).upperBound != span.range.location {
+            if block.contains(where: { $0.range.location == selectedLine.location }) { break }
+            block.removeAll(keepingCapacity: true)
+        }
+        block.append(span)
+    }
+    guard block.count >= 2, block[0].kind == .tableRow, block[1].kind == .tableRule,
+          let row = block.firstIndex(where: { $0.kind == .tableRow && $0.range.location == selectedLine.location }) else {
+        return nil
+    }
+
+    func cells(in range: NSRange) -> [NSRange] {
+        var pipes: [Int] = []
+        var escaped = false
+        for offset in range.location..<range.upperBound {
+            let character = text.character(at: offset)
+            if character == 124, !escaped { pipes.append(offset) }
+            escaped = character == 92 && !escaped
+        }
+        guard pipes.first == range.location, pipes.last == range.upperBound - 1 else { return [] }
+        return zip(pipes, pipes.dropFirst()).map { start, end in
+            NSRange(location: start + 1, length: end - start - 1)
+        }
+    }
+
+    let current = cells(in: block[row].range)
+    guard let column = current.firstIndex(where: {
+        $0.location <= selection.location && selection.upperBound <= $0.upperBound
+    }) else { return nil }
+
+    let nextColumn = column + (backwards ? -1 : 1)
+    let target: NSRange
+    if current.indices.contains(nextColumn) {
+        target = current[nextColumn]
+    } else {
+        let nextRow = backwards ? (row == 2 ? 0 : row - 1) : (row == 0 ? 2 : row + 1)
+        guard block.indices.contains(nextRow), block[nextRow].kind == .tableRow else { return nil }
+        let nextCells = cells(in: block[nextRow].range)
+        guard let cell = backwards ? nextCells.last : nextCells.first else { return nil }
+        target = cell
+    }
+    var caret = target.location
+    while caret < target.upperBound {
+        let character = text.character(at: caret)
+        guard character == 9 || character == 32 else { break }
+        caret += 1
+    }
+    if caret == target.upperBound, caret > target.location { caret -= 1 }
+    return NSRange(location: caret, length: 0)
+}
+
 /// A link on the visible checkbox routes activation through the native text editor.
 enum NoteTaskLink {
     static let scheme = "berean-note-task"

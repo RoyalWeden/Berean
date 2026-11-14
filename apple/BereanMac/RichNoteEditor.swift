@@ -240,6 +240,23 @@ final class NoteTextView: NSTextView {
         replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
+    override func insertTab(_ sender: Any?) {
+        if !moveTableCell(backwards: false) { super.insertTab(sender) }
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        if !moveTableCell(backwards: true) { super.insertBacktab(sender) }
+    }
+
+    private func moveTableCell(backwards: Bool) -> Bool {
+        guard !hasMarkedText(),
+              let destination = noteTableCellDestination(in: string as NSString, selection: selectedRange(),
+                                                         backwards: backwards) else { return false }
+        setSelectedRange(destination)
+        scrollRangeToVisible(destination)
+        return true
+    }
+
     func insertTable() {
         guard let edit = noteTableInsertion(in: string as NSString, selection: selectedRange()) else { return }
         replace(edit.range, with: edit.replacement, select: edit.selection)
