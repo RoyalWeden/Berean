@@ -121,6 +121,14 @@ private struct SharedScriptureChapter: Transferable {
     }
 }
 
+private func referenceForCopy(_ label: String, textId: String) -> String {
+    let text = textId.lowercased()
+    if ChapterMap.isKjv(text) || ChapterMap.isLxx(text) {
+        return "\(label) \(textInfo(text).short)"
+    }
+    return label
+}
+
 struct ChapterExportActions: View {
     @Environment(AppModel.self) private var app
     let state: BibleState
@@ -141,7 +149,10 @@ struct ChapterExportActions: View {
                 }
             }
         }
-        Button("Copy Chapter Reference", systemImage: "number") { Clipboard.copy(reference) }
+        Button("Copy Chapter Reference", systemImage: "number") {
+            Clipboard.copy(referenceForCopy(chapterLabel, textId: state.translation))
+            AccessibilityNotification.Announcement("Reference copied").post()
+        }
         Button("Save Chapter as Text…", systemImage: "doc.badge.arrow.down") {
             Task {
                 do {
@@ -427,7 +438,8 @@ struct ScriptureView: View {
     }
 
     private func shareSelection(_ state: BibleState, rows: [ChapterVerseRow]) -> SharedVerseSelection {
-        SharedVerseSelection(reference: selectionReference(state), rows: rows, textId: state.translation,
+        SharedVerseSelection(reference: selectionLabel(state) + (state.translation == "lxx" ? " LXX" : ""),
+                             rows: rows, textId: state.translation,
                              replacerEnabled: app.wordReplacerEnabled)
     }
 
@@ -474,8 +486,9 @@ struct ScriptureView: View {
     }
 
     private func selectionReference(_ state: BibleState) -> String {
-        selectionLabel(state) + (state.translation == "lxx" ? " LXX" : "")
+        referenceForCopy(selectionLabel(state), textId: state.translation)
     }
+
 
     private func selectionCopyButton(_ action: CopyAction, state: BibleState) -> some View {
         let copied = copiedAction == action
@@ -895,7 +908,9 @@ struct ScriptureView: View {
         ShareLink(item: verseWithReference(v, st)) {
             Label("Share Verse…", systemImage: "square.and.arrow.up")
         }
-        Button("Copy Reference") { perform { Clipboard.copy(label + (st.translation == "lxx" ? " LXX" : "")) } }
+        Button("Copy Reference", systemImage: "number") {
+            perform { Clipboard.copy(referenceForCopy(label, textId: st.translation)) }
+        }
         Menu("Highlight") {
             ForEach(highlightColors, id: \.self) { c in
                 Button { perform { try? app.highlights?.setVerseColor(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } } label: { Label(c.capitalized, systemImage: "circle.fill") }
@@ -1189,7 +1204,7 @@ extension ScriptureView {
         }
         m.addItem(ClosureMenuItem(selection.contains(n) ? "Deselect Verse" : "Select Verse", image: "checkmark.circle") { verseClick(n, shift: false) })
         m.addItem(ClosureMenuItem("Copy Verse", image: "doc.on.doc") { copy(v, st) })
-        m.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy(label + (st.translation == "lxx" ? " LXX" : "")) })
+        m.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy(referenceForCopy(label, textId: st.translation)) })
         let hl = NSMenuItem(title: "Highlight", action: nil, keyEquivalent: ""); hl.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
         let sub = NSMenu()
         for c in highlightColors { sub.addItem(ClosureMenuItem(c.capitalized) { try? app.highlights?.setVerseColor(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) }) }

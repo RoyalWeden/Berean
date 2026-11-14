@@ -582,3 +582,7 @@
 ### 2026-11-14 — Compare clipboard feedback
 - Added accessibility announcements for successful verse and reference copies.
 - Both Dev builds passed. Verified mapped LXX reference clipboard contents and retained comparison on iOS 27 Simulator.
+
+### 2026-11-14 — Edition-aware Scripture references
+- Copy Reference includes KJV and KJVA suffixes for verse selections, individual verses and chapters.
+- Both Dev builds passed. Verified the KJVA chapter reference round trip on iOS 27 Simulator.
