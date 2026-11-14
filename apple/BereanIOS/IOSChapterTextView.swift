@@ -480,11 +480,13 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         private func verseInGutter(_ point: CGPoint, in view: UITextView) -> Int? {
-            let bodyEdge = view.textContainerInset.left + view.textContainer.lineFragmentPadding + CGFloat(parent.style.fontSize) * 1.8
-            guard parent.style.showVerseNumbers, point.x >= 0, point.x < bodyEdge,
-                  let position = view.closestPosition(to: CGPoint(x: bodyEdge + 2, y: point.y)) else { return nil }
+            let gutterLimit = view.textContainerInset.left + view.textContainer.lineFragmentPadding + CGFloat(parent.style.fontSize) * 1.8
+            guard parent.style.showVerseNumbers, point.x >= 0, point.x < gutterLimit,
+                  let position = view.closestPosition(to: point) else { return nil }
             let offset = view.offset(from: view.beginningOfDocument, to: position)
-            guard let verse = verseRanges.first(where: { NSLocationInRange(offset, $0.value) })?.key,
+            guard let verse = markerRanges.first(where: {
+                offset >= $0.value.location && offset <= NSMaxRange($0.value)
+            })?.key,
                   let start = bodyRanges[verse]?.location,
                   let body = view.position(from: view.beginningOfDocument, offset: start) else { return nil }
             let caret = view.caretRect(for: body)

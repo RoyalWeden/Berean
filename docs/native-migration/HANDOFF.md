@@ -454,3 +454,5 @@ Live Mac keyboard QA found that activating an accessibility verse link changed t
 Mac keyboard copy for whole selected verses uses the same formatter as the floating toolbar. Character-range copy continues through TextKit. Mac Dev build passed. Retest byte-for-byte equality of the toolbar and keyboard clipboard contents in the running app.
 
 Mac and iPhone selection outlines share vertical padding and corner radius. The reader scroll clearance includes the outline padding plus five points, so revealing a verse aims to keep its dashed frame above the action toolbar as well as the text. Both Dev builds passed. Check direct verse taps near the viewport edge and re-run the chapter-end screenshots.
+
+iOS 27 Simulator verified activating the Didache verse 1 and 2 accessibility link actions in sequence selected both verses. A coordinate-based tap did not select a verse during that run. The gutter hit test now looks up the marker at the actual touch position and checks the first-line bounds. The updated iPhone Dev build passed. Direct pointer taps and chapter-end alignment still need a live check on this build.
