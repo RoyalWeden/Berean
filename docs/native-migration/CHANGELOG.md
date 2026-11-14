@@ -869,3 +869,7 @@
 ### 2026-11-14 — Corrected Scripture dock clearance
 - Restored continuous reader dock clearance after Simulator testing reproduced overlapping floating controls.
 - Verified the final verse, grouped outline, verse actions and dock were all visible in iPhone portrait.
+
+### 2026-11-14 — Flexible Scripture viewport
+- Removed explicit viewport dimensions after reproducing clipping on iPhone rotation.
+- Both Dev builds passed. The rebuilt rotation path still needs live verification.

@@ -312,47 +312,47 @@ struct ScriptureView: View {
 
     @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
         let chapter = chapterKey(st)
-        GeometryReader { geometry in
-            let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
-            let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
-            VStack(spacing: 0) {
-                Group {
-                    if loadedChapter != chapter {
-                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if verses.isEmpty {
-                        unavailablePassage(st)
-                    } else {
-                        #if os(macOS)
-                        macReader(st)
-                        #else
-                        iosReader(st)
-                        #endif
-                    }
-                }
-                .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace - ReaderFloatingControls.readerDockClearance))
-                .clipped()
-                #if os(iOS)
-                .overlay(alignment: .topTrailing) {
-                    if let pinchFontSize {
-                        Text("\(Int(pinchFontSize)) pt")
-                            .font(.caption.monospacedDigit().weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(.regularMaterial, in: .capsule)
-                            .padding(.trailing, 14)
-                            .padding(.top, 10)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-                    }
-                }
-                #endif
-                if showActions {
-                    selectionBar(st)
-                        .frame(width: geometry.size.width, height: actionSpace, alignment: .bottom)
-                        .background(.background)
+        let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
+        let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
+        VStack(spacing: 0) {
+            Group {
+                if loadedChapter != chapter {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if verses.isEmpty {
+                    unavailablePassage(st)
+                } else {
+                    #if os(macOS)
+                    macReader(st)
+                    #else
+                    iosReader(st)
+                    #endif
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            #if os(iOS)
+            .overlay(alignment: .topTrailing) {
+                if let pinchFontSize {
+                    Text("\(Int(pinchFontSize)) pt")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: .capsule)
+                        .padding(.trailing, 14)
+                        .padding(.top, 10)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            #endif
+            if showActions {
+                selectionBar(st)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: actionSpace, alignment: .bottom)
+                    .background(.background)
+            }
         }
+        .padding(.bottom, ReaderFloatingControls.readerDockClearance)
         .onChange(of: SelectionDestination(st)) { _, destination in
             let appliedLocally = pendingSelectionDestination == destination
             pendingSelectionDestination = nil
