@@ -147,9 +147,6 @@ struct CompareView: View {
                     ScrollView { independentComparison(cols) }
                         .contentMargins(.bottom, dockClearance, for: .scrollContent)
                 }
-            } else if rows.isEmpty {
-                ContentUnavailableView("No Text in This Passage", systemImage: "book.closed")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 alignedComparison(st, cols)
             }
@@ -247,13 +244,14 @@ struct CompareView: View {
     }
 
     private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
+        let available = availableColumnIDs
         let selected = selectedVerses(in: st)
         return Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 10) {
             GridRow {
                 if showVerseNumbers { Text("").gridColumnAlignment(.trailing) }
                 ForEach(cols) { c in
                     HStack {
-                        columnPassageButton(c, title: textInfo(c.text).name)
+                        alignedColumnHeading(c, available: available.contains(c.id))
                         columnActions(c, columns: cols)
                     }
                     .frame(minWidth: 180)
@@ -276,11 +274,12 @@ struct CompareView: View {
     }
 
     private func stackedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
+        let available = availableColumnIDs
         let selected = selectedVerses(in: state)
         return LazyVStack(alignment: .leading, spacing: 14) {
             ForEach(columns) { text in
                 HStack {
-                    columnPassageButton(text, title: textInfo(text.text).name)
+                    alignedColumnHeading(text, available: available.contains(text.id))
                     columnActions(text, columns: columns)
                 }
             }
@@ -288,7 +287,7 @@ struct CompareView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
                     if showVerseNumbers { verseButton(verse, state: state, selected: selected.contains(verse)) }
-                    ForEach(columns) { text in
+                    ForEach(columns.filter { available.contains($0.id) }) { text in
                         VStack(alignment: .leading, spacing: 3) {
                             Text(textInfo(text.text).short)
                                 .font(.caption.weight(.semibold))
@@ -301,6 +300,21 @@ struct CompareView: View {
             }
         }
         .padding(16)
+    }
+
+    private var availableColumnIDs: Set<Int> {
+        Set(rows.values.flatMap { $0.keys })
+    }
+
+    private func alignedColumnHeading(_ column: CompareColumn, available: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            columnPassageButton(column, title: textInfo(column.text).name)
+            if !available {
+                Text("Passage unavailable in this edition")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var dockClearance: CGFloat {
