@@ -370,7 +370,7 @@ struct CompareView: View {
     private func comparisonVerseReference(_ row: ChapterVerseRow, column: CompareColumn) -> String {
         let label = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
                                                     hermas: HermasText(textId: column.text))
-        return "\(label) \(textInfo(column.text).short)"
+        return referenceForCopy(label, textId: column.text)
     }
 
     private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState) -> some View {

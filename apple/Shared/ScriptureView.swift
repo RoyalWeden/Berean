@@ -121,12 +121,13 @@ private struct SharedScriptureChapter: Transferable {
     }
 }
 
-private func referenceForCopy(_ label: String, textId: String) -> String {
+func referenceForCopy(_ label: String, textId: String) -> String {
     let text = textId.lowercased()
     if ChapterMap.isKjv(text) || ChapterMap.isLxx(text) {
         return "\(label) \(textInfo(text).short)"
     }
-    return label
+    guard let edition = availableTexts.first(where: { $0.id == text }) else { return label }
+    return "\(label) [\(edition.short)]"
 }
 
 struct ChapterExportActions: View {

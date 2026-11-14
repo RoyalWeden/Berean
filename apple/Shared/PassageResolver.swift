@@ -68,23 +68,31 @@ extension AppModel {
     func resolvePassage(_ raw: String, preferring current: String? = nil) -> ResolvedPassage? {
         let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return nil }
-        let suffix = query.range(of: #"\s+(kjva|kjv)$"#, options: [.regularExpression, .caseInsensitive])
-        let requestedText = suffix.map { query[$0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        let suffix = query.range(of: #"\s+(kjva|kjv|\[[^\[\]]+\])$"#, options: [.regularExpression, .caseInsensitive])
+        let suffixLabel = suffix.map { query[$0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        let requestedText: String?
+        if let suffixLabel, suffixLabel.hasPrefix("[") {
+            let name = String(suffixLabel.dropFirst().dropLast())
+            guard let text = availableTexts.first(where: { $0.short.lowercased() == name }) else { return nil }
+            requestedText = text.id
+        } else {
+            requestedText = suffixLabel
+        }
         let q = suffix.map { String(query[..<$0.lowerBound]) } ?? query
         let pref = current ?? defaultText
-        let edition = HermasText(rawValue: pref) ?? hermasEdition
+        let edition = HermasText(rawValue: requestedText ?? pref) ?? hermasEdition
         let candidates = requestedText == "kjv"
             ? (explicitKJVBooks ?? []).map { CatalogBook(textId: "kjv", book: $0) }
             : bookCatalog
         func textFor(_ bookId: String, forced: String? = nil) -> String {
-            if Reference.isHermasBook(bookId) { return edition.rawValue }
             if let forced { return forced }
+            if Reference.isHermasBook(bookId) { return edition.rawValue }
             if bookCatalog.isEmpty || bookCatalog.contains(where: { $0.textId == pref && $0.book.id == bookId }) { return pref }
             return bookCatalog.first { $0.book.id == bookId }?.textId ?? pref
         }
         if let ref = Reference.parse(q, hermas: edition) {
             if let requestedText {
-                guard ref.forcedTranslation == nil, !Reference.isHermasBook(ref.bookId),
+                guard ref.forcedTranslation == nil,
                       candidates.contains(where: { $0.textId == requestedText && $0.book.id == ref.bookId })
                 else { return nil }
             }

@@ -586,3 +586,7 @@
 ### 2026-11-14 — Edition-aware Scripture references
 - Copy Reference includes KJV and KJVA suffixes for verse selections, individual verses and chapters.
 - Both Dev builds passed. Verified the KJVA chapter reference round trip on iOS 27 Simulator.
+
+### 2026-11-14 — Copied references for other installed writings
+- Native Copy Reference and Go share bracketed edition labels for other writings, including both Hermas editions.
+- Native tests and both Dev builds passed. Verified Taylor chapter reference copy/paste on iOS 27 Simulator.
