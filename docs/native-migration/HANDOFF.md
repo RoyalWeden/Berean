@@ -510,3 +510,5 @@ The chapter picker now scrolls to the current chapter when its grid appears, mar
 Mac chapter navigation and the Compare, Strong’s Numbers and Study Panel toggles now use the pointing-hand style alongside the existing chapter controls. The Mac Dev build passed. Verify the cursor visually across toolbar items and its return to the I-beam over selectable Scripture.
 
 Shared dashed-outline ranges now trim newline-only verses at the ends of a selection while retaining one frame when such a verse falls between selected neighbors. Missing layout ranges and unselected verses still split frames. Both Dev builds and four focused Swift range assertions passed. Visual QA remains open with verse numbers hidden on a fixture containing an empty verse.
+
+iPhone chapter swipes are now suppressed while a whole-verse selection or pinch resize is active. The chapter arrows remain available for deliberate navigation. iPhone Dev build passed. Live QA should cover swiping with and without a selection and lifting one finger during a pinch.

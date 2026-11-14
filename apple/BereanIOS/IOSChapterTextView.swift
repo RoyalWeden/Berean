@@ -581,6 +581,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             guard let view = gesture.view as? UITextView else { return false }
             if gesture is UITapGestureRecognizer { return true }
             if gesture is UIPinchGestureRecognizer { return view.selectedRange.length == 0 }
+            guard parent.selectedVerses.isEmpty, pinchStartSize == nil else { return false }
             let x = gesture.location(in: view).x - view.bounds.minX
             return x > 24 && x < view.bounds.width - 24 && view.selectedRange.length == 0
         }
@@ -613,6 +614,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         @objc func swipe(_ gesture: UISwipeGestureRecognizer) {
+            guard gesture.state == .recognized, parent.selectedVerses.isEmpty, pinchStartSize == nil else { return }
             parent.onStep(gesture.direction == .left ? 1 : -1)
         }
     }

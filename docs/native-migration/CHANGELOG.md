@@ -745,3 +745,7 @@
 ### 2026-11-14 — Outline bounds for blank verses
 - Shared the visible-range calculation on Mac and iPhone, including blank verses and disjoint selections.
 - Both Dev builds and four focused range assertions passed.
+
+### 2026-11-14 — iPhone chapter swipe arbitration
+- Suppressed chapter swipes while whole verses are selected or a pinch resize is in progress.
+- iPhone Dev build passed. Physical gesture verification remains open.
