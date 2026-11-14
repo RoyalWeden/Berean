@@ -522,3 +522,5 @@ iOS 27 Simulator verified Tabs → New Tab dismissed the tab list and opened Go.
 iOS 27 Simulator follow-up verified explicit Tabs → New Tab → recent John 7:51–53 created exactly one tab (four to five) and retained the full selection. The extra tab is in the isolated Simulator Dev workspace.
 
 Scripture tag-chip Search now uses normal search-tab reuse on both platforms. Exact existing searches are selected first, and pinned searches are protected from replacement. Both Dev builds passed. Live QA remains for tag-chip searches with exact, compatible and pinned-only Search tabs.
+
+Reused search tabs already retain query snapshots for Back and Forward. Tag Results now hides stale results when switching tags, discards cancelled preview loads, and refreshes previews when edition or word replacement changes. Rows with repeated verse or chapter numbers no longer share SwiftUI identities. Both Dev builds passed. Live QA: switch between tags in a reused tab, go Back and Forward, and verify same-number verses from different books render and open correctly.

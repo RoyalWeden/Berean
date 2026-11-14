@@ -761,3 +761,7 @@
 ### 2026-11-14 — Reuse Scripture tag search tabs
 - Moved the Mac tag menu and iPhone tag sheet to the shared Search tab reuse path.
 - Both Dev builds passed.
+
+### 2026-11-14 — Tag search result transitions
+- Isolated tag results and asynchronous previews across reused search destinations.
+- Both Dev builds passed. Running-app history and duplicate-number checks remain open.

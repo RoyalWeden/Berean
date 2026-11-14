@@ -614,23 +614,26 @@ extension VerseSearchRow: @retroactive Hashable {
 struct TagResultsView: View {
     @Environment(AppModel.self) private var app
     let tagName: String
+    @State private var loadedTagName: String?
     @State private var tag: VerseTagSummary?
     @State private var members: [TagMemberDetail] = []
     @State private var texts: [String: String] = [:]
 
     var body: some View {
         List {
-            if let tag {
+            if loadedTagName != tagName {
+                ProgressView()
+            } else if let tag {
                 Section {
                     HStack { TagChip(name: tag.name, color: tag.color, slot: tag.colorSlot); Spacer()
                         Text("\(tag.verseCount) verse\(tag.verseCount == 1 ? "" : "s") · \(tag.chapterCount) chapter\(tag.chapterCount == 1 ? "" : "s")").foregroundStyle(.secondary) }
                 }
                 ForEach(members) { m in
                     Section(m.label) {
-                        ForEach(m.wholeChapters, id: \.bookId) { c in
+                        ForEach(Array(m.wholeChapters.enumerated()), id: \.offset) { _, c in
                             Button { app.openScripture(bookId: c.bookId, chapter: c.chapter, reuseTab: true) } label: { Label(Reference.bookChapterLabel(c.bookId, chapter: Double(c.chapter)), systemImage: "book") }
                         }
-                        ForEach(m.verses, id: \.verse) { v in
+                        ForEach(Array(m.verses.enumerated()), id: \.offset) { _, v in
                             Button { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verse, reuseTab: true) } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verse)).font(.headline)
@@ -644,12 +647,17 @@ struct TagResultsView: View {
                 ContentUnavailableView("No tag named #\(tagName)", systemImage: "tag", description: Text("Tag verses from the verse menu (Tag Verse…)."))
             }
         }
-        .task(id: "\(tagName)|\(app.tagsRevision)") {
+        .task(id: "\(tagName)|\(app.tagsRevision)|\(app.defaultText)|\(app.wordReplacerEnabled)") {
+            let edition = app.defaultText
+            let replaceWords = app.wordReplacerEnabled
+            texts = [:]
             tag = (try? app.verseTags?.list())?.first { $0.name.caseInsensitiveCompare(tagName) == .orderedSame }
             members = tag.flatMap { try? app.verseTags?.members([$0.id]) } ?? []
+            loadedTagName = tagName
             let refs = members.flatMap { $0.verses.map { ($0.bookId, $0.chapter, $0.verse) } }
-            let rows = await app.bible.queryVerses(refs.map { (bookId: $0.0, chapter: $0.1, verse: $0.2) }, textId: app.defaultText)
-            texts = Dictionary(rows.map { ($0.key, VerseDisplay.text($0.value.text, tagged: nil, textId: app.defaultText, replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)) }, uniquingKeysWith: { a, _ in a })
+            let rows = await app.bible.queryVerses(refs.map { (bookId: $0.0, chapter: $0.1, verse: $0.2) }, textId: edition)
+            guard !Task.isCancelled else { return }
+            texts = Dictionary(rows.map { ($0.key, VerseDisplay.text($0.value.text, tagged: nil, textId: edition, replacerEnabled: replaceWords, rules: WordReplacer.defaultRules)) }, uniquingKeysWith: { a, _ in a })
         }
     }
 }
