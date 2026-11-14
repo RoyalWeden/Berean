@@ -531,6 +531,7 @@ final class AppModel {
     }
 
     @ObservationIgnored var searchResultAnchors: [String: [String: String]] = [:]
+    @ObservationIgnored var searchVisibleRows: [String: [String: String]] = [:]
     private var backStack: [String: [TabHistoryEntry]] = [:]
     private var forwardStack: [String: [TabHistoryEntry]] = [:]
 

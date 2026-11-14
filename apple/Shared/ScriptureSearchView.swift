@@ -15,6 +15,7 @@ struct ScriptureSearchView: View {
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
     @State private var showOptions = false
+    @State private var visibleRow: String?
     @FocusState private var fieldFocused: Bool
 
     private struct SearchRequest: Equatable {
@@ -283,19 +284,47 @@ struct ScriptureSearchView: View {
             }
         } else {
             ScrollViewReader { proxy in
-                List {
-                    if completedRequest == request && !result.truncatedTexts.isEmpty {
-                        Label("Showing the first \(ScriptureSearch.perTextLimit) matches in \(result.truncatedTexts.map { textInfo($0).short }.sorted().joined(separator: ", ")). Narrow the search with more words, a phrase, or a book filter.",
-                              systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if completedRequest == request && !result.truncatedTexts.isEmpty {
+                            Label("Showing the first \(ScriptureSearch.perTextLimit) matches in \(result.truncatedTexts.map { textInfo($0).short }.sorted().joined(separator: ", ")). Narrow the search with more words, a phrase, or a book filter.",
+                                  systemImage: "info.circle")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .padding(.horizontal, 16).padding(.vertical, 8)
+                        }
+                        ForEach(groups, id: \.title) { group in
+                            if grouping != "none" {
+                                Text("\(group.title) — \(group.hits.count)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 16).padding(.vertical, 8)
+                                    .accessibilityAddTraits(.isHeader)
+                            }
+                            ForEach(group.hits, id: \.self) { hit in
+                                row(hit)
+                                    .padding(.horizontal, 16).padding(.vertical, 6)
+                                    .overlay(alignment: .bottom) { Divider().padding(.leading, 16) }
+                                    .id(resultID(hit))
+                            }
+                        }
                     }
-                    ForEach(groups, id: \.title) { g in
-                        if grouping == "none" { ForEach(g.hits, id: \.self) { row($0).id(resultID($0)) } }
-                        else { Section("\(g.title) — \(g.hits.count)") { ForEach(g.hits, id: \.self) { row($0).id(resultID($0)) } } }
+                    .scrollTargetLayout()
+                }
+                .scrollPosition(id: $visibleRow, anchor: .top)
+                .task(id: restorationContext) {
+                    guard let context = restorationContext else { return }
+                    let clicked = app.searchResultAnchors[tabId]?.removeValue(forKey: context.query)
+                    let remembered = app.searchVisibleRows[tabId]?[context.query]
+                    if let clicked, shown.contains(where: { resultID($0) == clicked }) {
+                        proxy.scrollTo(clicked, anchor: .center)
+                    } else if let remembered, shown.contains(where: { resultID($0) == remembered }) {
+                        proxy.scrollTo(remembered, anchor: .top)
                     }
                 }
-                .task(id: resultAnchor) {
-                    guard let resultAnchor, shown.contains(where: { resultID($0) == resultAnchor }) else { return }
-                    proxy.scrollTo(resultAnchor, anchor: .center)
+                .onScrollPhaseChange { old, new in
+                    guard old != .idle, new == .idle, let visibleRow,
+                          let context = restorationContext else { return }
+                    app.searchVisibleRows[tabId, default: [:]][context.query] = visibleRow
                 }
             }
         }
@@ -318,10 +347,9 @@ struct ScriptureSearchView: View {
         }
     }
 
-    private var resultAnchor: String? {
-        guard app.activeTab?.id == tabId else { return nil }
-        let anchor = app.searchResultAnchors[tabId]?[query]
-        return shown.contains { resultID($0) == anchor } ? anchor : nil
+    private var restorationContext: SearchRequest? {
+        guard app.activeTab?.id == tabId, !searchPending, !shown.isEmpty else { return nil }
+        return request
     }
 
     private func resultID(_ hit: ScriptureHit) -> String {

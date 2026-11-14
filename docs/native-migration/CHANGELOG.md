@@ -966,3 +966,7 @@
 ### 2026-11-14 — Scripture Search result consistency
 - Hide stale results during a new search and restore the clicked row only in the active Search tab.
 - Both Dev builds passed. Live rapid-filter and Back/Forward checks remain open.
+
+### 2026-11-14 — Scripture Search scroll restoration
+- Remember the visible result when returning to a Search tab without opening a passage.
+- Both Dev builds passed. Live scrolling and history checks remain open.
