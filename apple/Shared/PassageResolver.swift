@@ -1,4 +1,5 @@
 import Foundation
+import BereanCore
 import BereanBible
 import BereanReference
 import BereanWorkspace
@@ -11,9 +12,26 @@ import BereanWorkspace
 struct ResolvedPassage: Equatable {
     var textId: String; var bookId: String; var chapter: Int; var verse: Int?
     var endVerse: Int? = nil
+    var verseGroups: [ClosedRange<Int>] = []
+
+    var savedSelection: JSValue {
+        guard !verseGroups.isEmpty, let verse else { return .null }
+        var object = JSObject()
+        object["passage"] = .string(JSString("\(textId)|\(bookId)|\(chapter)"))
+        object["activeVerse"] = .number(Double(verse))
+        object["verses"] = .array(Set(verseGroups.flatMap { $0 }).sorted().map { .number(Double($0)) })
+        return .object(object)
+    }
 
     var label: String {
         let start = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+        if let first = verseGroups.first {
+            let base = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: first.lowerBound, hermas: HermasText(textId: textId))
+            let suffix = first.lowerBound == first.upperBound ? "" : "–\(first.upperBound)"
+            return ([base + suffix] + verseGroups.dropFirst().map {
+                $0.lowerBound == $0.upperBound ? String($0.lowerBound) : "\($0.lowerBound)–\($0.upperBound)"
+            }).joined(separator: ", ")
+        }
         guard let verse, let endVerse, endVerse > verse else { return start }
         return "\(start)–\(endVerse)"
     }
@@ -23,6 +41,7 @@ struct ResolvedPassage: Equatable {
         let state = BibleState(tab.state)
         return !state.compareMode && state.translation == textId && state.bookId == bookId
             && state.chapter == chapter && state.verse == verse && state.endVerse == endVerse
+            && (tab.state["nativeSelectedVerses"] ?? .null) == savedSelection
     }
 }
 
@@ -45,7 +64,14 @@ extension AppModel {
             return bookCatalog.first { $0.book.id == bookId }?.textId ?? pref
         }
         if let ref = Reference.parse(q, hermas: edition) {
-            return ResolvedPassage(textId: textFor(ref.bookId, forced: ref.forcedTranslation == "LXX" ? "lxx" : nil), bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse)
+            let groups = (ref.verseGroups ?? []).compactMap { group -> ClosedRange<Int>? in
+                let end = group.endVerse ?? group.verse
+                guard group.verse > 0, end >= group.verse, end <= 999 else { return nil }
+                return group.verse...end
+            }
+            return ResolvedPassage(textId: textFor(ref.bookId, forced: ref.forcedTranslation == "LXX" ? "lxx" : nil),
+                                   bookId: ref.bookId, chapter: ref.chapter, verse: groups.first?.lowerBound ?? ref.verse,
+                                   endVerse: groups.isEmpty ? ref.endVerse : nil, verseGroups: groups)
         }
         // "<book>" or "<book> N" where the book name matches a catalog entry.
         let lower = q.lowercased()

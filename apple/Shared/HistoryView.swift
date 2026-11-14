@@ -253,7 +253,7 @@ struct HistoryView: View {
             guard let book = e.bookId, let chapter = e.chapter else { return }
             if let destination = scriptureDestination(e) {
                 app.openScripture(bookId: book, chapter: chapter, verse: e.verse, endVerse: destination.endVerse,
-                                  textId: destination.textId, reuseTab: true)
+                                  textId: destination.textId, reuseTab: true, verseGroups: destination.verseGroups ?? [])
             } else {
                 app.openScripture(bookId: book, chapter: chapter, verse: e.verse, reuseTab: true)
             }

@@ -165,8 +165,8 @@ struct CompareView: View {
         }
         .sheet(item: $editingColumn) { column in
             NavigationStack {
-                PassagePicker(textId: column.text, currentBook: column.book, currentChapter: column.chapter, onPick: { text, book, chapter, _, _ in
-                    changePassage(for: column.id, text: text, book: book, chapter: chapter)
+                PassagePicker(textId: column.text, currentBook: column.book, currentChapter: column.chapter, onPick: { passage in
+                    changePassage(for: column.id, text: passage.textId, book: passage.bookId, chapter: passage.chapter)
                     editingColumn = nil
                 }, compact: true)
                 .navigationTitle("Choose Column Chapter")

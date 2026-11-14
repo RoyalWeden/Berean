@@ -490,7 +490,9 @@ final class AppModel {
                 studyVerseFocus.removeValue(forKey: tabId)
             }
             if recordHistory, locationChanged {
-                sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
+                if after.state["nativeSelectedVerses"] == before.state["nativeSelectedVerses"] {
+                    sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
+                }
                 backStack[tabId, default: []].append((before.title, before.state))
                 if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
                 forwardStack[tabId] = []
@@ -516,7 +518,7 @@ final class AppModel {
     static func location(_ t: BereanWorkspace.Tab) -> String {
         let keys: [String]
         switch t.tabType {
-        case .bible: keys = ["bookId", "chapter", "translation", "verse", "endVerse"]
+        case .bible: keys = ["bookId", "chapter", "translation", "verse", "endVerse", "nativeSelectedVerses"]
         case .note: keys = ["noteId"]
         case .lexicon: keys = ["strongsNum"]
         case .search: keys = ["query"]
@@ -570,9 +572,7 @@ final class AppModel {
         let query = q.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
         if let passage = resolvePassage(query, preferring: activeTab.flatMap({ $0.tabType == .bible ? BibleState($0.state).translation : nil })) {
-            openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, endVerse: passage.endVerse,
-                          textId: passage.textId, reuseTab: !newTab)
-            recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, endVerse: passage.endVerse)
+            visitScripture(passage, reuseTab: !newTab)
         } else if let id = StrongsId.normalize(query) {
             openLexicon(id, reuseTab: !newTab)
         } else {
@@ -766,17 +766,19 @@ final class AppModel {
 
     func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true) {
         openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
-                      endVerse: passage.endVerse, textId: passage.textId, reuseTab: reuseTab)
+                      endVerse: passage.endVerse, textId: passage.textId, reuseTab: reuseTab, verseGroups: passage.verseGroups)
         recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
-                     verse: passage.verse, endVerse: passage.endVerse)
+                     verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
     }
 
-    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false) {
+    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false, verseGroups: [ClosedRange<Int>] = []) {
         var st = BibleState(bookId: bookId, chapter: chapter)
         st.verse = verse
         if let verse, let endVerse, endVerse > verse { st.endVerse = endVerse }
         st.translation = textId ?? defaultText
         let title = Reference.readerChapterLabel(bookId, chapter, textId: st.translation)
+        let passage = ResolvedPassage(textId: st.translation, bookId: bookId, chapter: chapter, verse: verse,
+                                      endVerse: st.endVerse, verseGroups: verseGroups)
         if reuseTab {
             var location = JSObject()
             location["bookId"] = .string(JSString(bookId))
@@ -785,12 +787,14 @@ final class AppModel {
             location["verse"] = verse.map { .number(Double($0)) } ?? .null
             location["endVerse"] = st.endVerse.map { .number(Double($0)) } ?? .null
             location["endChapter"] = .null
-            let passage = ResolvedPassage(textId: st.translation, bookId: bookId, chapter: chapter, verse: verse, endVerse: st.endVerse)
+            location["nativeSelectedVerses"] = passage.savedSelection
             openOrReuse(.bible, in: .scripture, title: title, state: location,
                         canReplace: { !BibleState($0.state).compareMode && $0.state["endChapter"]?.numberValue == nil },
                         matches: passage.isShown(in:))
         } else {
-            openTab(.bible, in: .scripture, title: title, state: st.object)
+            var state = st.object
+            if !verseGroups.isEmpty { state["nativeSelectedVerses"] = passage.savedSelection }
+            openTab(.bible, in: .scripture, title: title, state: state)
         }
     }
 }

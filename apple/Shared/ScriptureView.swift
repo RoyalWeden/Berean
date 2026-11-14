@@ -217,6 +217,10 @@ struct ScriptureView: View {
             guard loadedChapter == chapter else { return }
             applyPassageSelection(st)
         }
+        .onChange(of: app.findTab(tabId)?.state["nativeSelectedVerses"]) {
+            guard loadedChapter == chapter, pendingSelectionDestination == nil else { return }
+            applyPassageSelection(st, onlyIfChanged: true)
+        }
         .task(id: "\(chapter)|\(loadedChapter ?? "")|\(app.notesRevision)") {
             guard loadedChapter == chapter else { return }
             noteCounts = (try? app.notes?.coveringVerseCounts(st.bookId, st.chapter,
@@ -245,14 +249,17 @@ struct ScriptureView: View {
 
     // MARK: verse selection (click / ⇧-click verse numbers)
 
-    private func applyPassageSelection(_ state: BibleState) {
+    private func applyPassageSelection(_ state: BibleState, onlyIfChanged: Bool = false) {
+        let next = passageSelection(state)
+        if onlyIfChanged && next == selection { return }
         selectedVerse = state.verse
         anchor = state.verse
         scrollTarget = state.verse
-        guard let first = state.verse else {
-            selection = []
-            return
-        }
+        selection = next
+    }
+
+    private func passageSelection(_ state: BibleState) -> Set<Int> {
+        guard let first = state.verse else { return [] }
         let last = max(first, state.endVerse ?? first)
         let chapterVerses = Set(verses.map(\.verseNum))
         let saved = app.findTab(tabId)?.state["nativeSelectedVerses"]
@@ -262,10 +269,9 @@ struct ScriptureView: View {
         let restored = Set((savedVerses ?? []).compactMap { $0.numberValue.flatMap(Int.init(exactly:)) })
             .intersection(chapterVerses)
         if state.endVerse == nil, restored.contains(first) {
-            selection = restored
-        } else {
-            selection = Set(chapterVerses.filter { (first...last).contains($0) })
+            return restored
         }
+        return Set(chapterVerses.filter { (first...last).contains($0) })
     }
 
     func verseClick(_ v: Int, shift: Bool) {
@@ -746,24 +752,35 @@ struct ScriptureView: View {
     }
 
     func picker(_ st: BibleState, compact: Bool) -> some View {
-        PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter, onPick: { t, b, c, v, end in
-            mutate { $0.translation = t; $0.bookId = b; $0.chapter = c; $0.verse = v; $0.endVerse = end }; pickerShown = false
+        PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter, onPick: { passage in
+            mutate(passage: passage) {
+                $0.translation = passage.textId
+                $0.bookId = passage.bookId
+                $0.chapter = passage.chapter
+                $0.verse = passage.verse
+                $0.endVerse = passage.endVerse
+            }
+            pickerShown = false
         }, compact: compact)
     }
 
-    func mutate(recordHistory: Bool = true, _ f: (inout BibleState) -> Void) {
+    func mutate(recordHistory: Bool = true, passage: ResolvedPassage? = nil, _ f: (inout BibleState) -> Void) {
         var visited: BibleState?
         app.update(tabId, recordHistory: recordHistory) { t in
             let before = BibleState(t.state)
             var s = before; f(&s)
             t.state = s.merged(into: t.state)
+            if let passage { t.state["nativeSelectedVerses"] = passage.savedSelection }
             t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation)
             if recordHistory, s.bookId != before.bookId || s.chapter != before.chapter
                 || s.translation != before.translation || s.verse != before.verse || s.endVerse != before.endVerse {
                 visited = s
             }
         }
-        if let v = visited { app.recordRecent(textId: v.translation, bookId: v.bookId, chapter: v.chapter, verse: v.verse, endVerse: v.endVerse) }
+        if let passage {
+            app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
+                             verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
+        } else if let v = visited { app.recordRecent(textId: v.translation, bookId: v.bookId, chapter: v.chapter, verse: v.verse, endVerse: v.endVerse) }
     }
 
     /// Previous / next chapter by the chapters the book really has (prologue chapter 0, gaps, Hermas numbering), then the

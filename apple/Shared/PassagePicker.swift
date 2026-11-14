@@ -9,13 +9,14 @@ struct RecentPassage: Codable, Hashable, Identifiable {
     var chapter: Int
     var verse: Int?
     var endVerse: Int? = nil
+    var verseGroups: [ClosedRange<Int>]? = nil
 
     var id: String {
-        "\(textId)|\(bookId)|\(chapter)|\(verse.map(String.init) ?? "")|\(endVerse.map(String.init) ?? "")"
+        "\(textId)|\(bookId)|\(chapter)|\(verse.map(String.init) ?? "")|\(endVerse.map(String.init) ?? "")|\(verseGroups ?? [])"
     }
 
     var label: String {
-        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse).label
+        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse, verseGroups: verseGroups ?? []).label
     }
 }
 
@@ -36,8 +37,8 @@ extension AppModel {
     }
 
     /// Records a visited destination, newest first, with up to 40 entries.
-    func recordRecent(textId: String, bookId: String, chapter: Int, verse: Int?, endVerse: Int? = nil) {
-        let destination = RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse)
+    func recordRecent(textId: String, bookId: String, chapter: Int, verse: Int?, endVerse: Int? = nil, verseGroups: [ClosedRange<Int>] = []) {
+        let destination = RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse, verseGroups: verseGroups.isEmpty ? nil : verseGroups)
         var list = recentPassages.filter { $0 != destination }
         list.insert(destination, at: 0)
         if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserDefaults.standard.set(data, forKey: Self.recentKey) }
@@ -61,7 +62,7 @@ struct PassagePicker: View {
     let currentBook: String
     let currentChapter: Int
     /// (textId, bookId, chapter, verse)
-    let onPick: (String, String, Int, Int?, Int?) -> Void
+    let onPick: (ResolvedPassage) -> Void
     var compact = false
 
     @State private var text: String = ""
@@ -134,7 +135,7 @@ struct PassagePicker: View {
             List {
                 if let p = resolved {
                     Section("Go to") {
-                        Button { onPick(p.textId, p.bookId, p.chapter, p.verse, p.endVerse) } label: {
+                        Button { onPick(p) } label: {
                             HStack {
                                 Label(p.label, systemImage: "arrow.right.circle")
                                 Spacer()
@@ -162,7 +163,7 @@ struct PassagePicker: View {
                         let recents = app.recentPassages
                         if recents.isEmpty { Text("Passages you open appear here.").foregroundStyle(.secondary) }
                         ForEach(recents.prefix(25)) { r in
-                            Button { onPick(r.textId, r.bookId, r.chapter, r.verse, r.endVerse) } label: {
+                            Button { onPick(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? [])) } label: {
                                 HStack {
                                     Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary)
                                     Text(r.label)
@@ -184,7 +185,7 @@ struct PassagePicker: View {
     }
 
     func submit() {
-        if let p = resolved { onPick(p.textId, p.bookId, p.chapter, p.verse, p.endVerse) } else if let first = bookMatches.first { choose(first) }
+        if let p = resolved { onPick(p) } else if let first = bookMatches.first { choose(first) }
     }
 
     func choose(_ m: CatalogBook) {
@@ -197,7 +198,7 @@ struct PassagePicker: View {
     func open(_ b: BookRow, in textId: String) {
         Task {
             let list = await app.bible.chapterNumbers(b.id, textId: textId)
-            if list.count <= 1 { onPick(textId, b.id, list.first ?? 1, nil, nil); return }
+            if list.count <= 1 { onPick(ResolvedPassage(textId: textId, bookId: b.id, chapter: list.first ?? 1, verse: nil)); return }
             chapters = list
             openBook = b
         }
@@ -224,7 +225,7 @@ struct PassagePicker: View {
                                 ? Reference.readerChapterLabel(b.id, c, textId: text)
                                 : "\(b.name) chapter \(Reference.displayChapterString(b.id, c))"
                             let current = b.id == currentBook && c == currentChapter && text == textId
-                            Button { onPick(text, b.id, c, nil, nil) } label: {
+                            Button { onPick(ResolvedPassage(textId: text, bookId: b.id, chapter: c, verse: nil)) } label: {
                                 Text(c == 0 ? "Prol." : Reference.displayChapterString(b.id, c)).font(c == 0 ? .caption : .body).monospacedDigit().frame(width: 42, height: 30)
                                     .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 6))
                                     .foregroundStyle(current ? .white : .primary)
