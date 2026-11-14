@@ -188,13 +188,13 @@ final class NoteUITextView: UITextView {
     static let markdownType = "com.berean.note-markdown"
 
     func wrap(_ open: String, _ close: String) {
-        let r = selectedRange
-        let s = (text ?? "") as NSString
-        let inner = r.length > 0 ? s.substring(with: r) : ""
-        guard let start = position(from: beginningOfDocument, offset: r.location), let end = position(from: start, offset: r.length),
+        guard let edit = noteFormatEdit(in: (text ?? "") as NSString, selection: selectedRange,
+                                        opening: open, closing: close),
+              let start = position(from: beginningOfDocument, offset: edit.range.location),
+              let end = position(from: start, offset: edit.range.length),
               let range = textRange(from: start, to: end) else { return }
-        replace(range, withText: open + inner + close)
-        selectedRange = NSRange(location: r.location + open.utf16.count, length: inner.utf16.count)
+        replace(range, withText: edit.replacement)
+        selectedRange = edit.selection
     }
 
     func copyPlain() {

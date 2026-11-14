@@ -36,6 +36,27 @@ struct NoteFormatRequest: Equatable {
     let suffix: String
 }
 
+/// TextKit selections and Markdown delimiter positions both use UTF-16 offsets.
+func noteFormatEdit(in text: NSString, selection: NSRange, opening: String, closing: String)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+    let prefixLength = opening.utf16.count
+    let suffixLength = closing.utf16.count
+    let end = NSMaxRange(selection)
+    let inner = text.substring(with: selection)
+    if selection.location >= prefixLength, suffixLength <= text.length - end {
+        let start = selection.location - prefixLength
+        let prefix = text.substring(with: NSRange(location: start, length: prefixLength))
+        let suffix = text.substring(with: NSRange(location: end, length: suffixLength))
+        if prefix == opening, suffix == closing {
+            return (NSRange(location: start, length: prefixLength + selection.length + suffixLength),
+                    inner, NSRange(location: start, length: selection.length))
+        }
+    }
+    return (selection, opening + inner + closing,
+            NSRange(location: selection.location + prefixLength, length: selection.length))
+}
+
 /// One note with a native rich editor and version history.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app

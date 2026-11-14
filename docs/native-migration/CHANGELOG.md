@@ -901,3 +901,7 @@
 ### 2026-11-14 — Notes Format menu
 - Exposed existing inline formatting through a visible editor menu on Mac and iPhone.
 - Both native Dev builds passed.
+
+### 2026-11-14 — Consistent inline formatting
+- Reapplying inline note formatting now toggles it off on iPhone, using the same selection edit as Mac.
+- Native tests and both Dev builds passed.

@@ -208,17 +208,9 @@ final class NoteTextView: NSTextView {
     // MARK: formatting commands
 
     func wrapSelection(_ open: String, _ close: String) {
-        let r = selectedRange()
-        let s = string as NSString
-        // Toggle off when the selection is already wrapped.
-        if r.location >= open.utf16.count, NSMaxRange(r) + close.utf16.count <= s.length,
-           s.substring(with: NSRange(location: r.location - open.utf16.count, length: open.utf16.count)) == open,
-           s.substring(with: NSRange(location: NSMaxRange(r), length: close.utf16.count)) == close {
-            let full = NSRange(location: r.location - open.utf16.count, length: r.length + open.utf16.count + close.utf16.count)
-            replace(full, with: s.substring(with: r), select: NSRange(location: full.location, length: r.length)); return
-        }
-        let inner = r.length > 0 ? s.substring(with: r) : ""
-        replace(r, with: open + inner + close, select: NSRange(location: r.location + open.utf16.count, length: inner.utf16.count))
+        guard let edit = noteFormatEdit(in: string as NSString, selection: selectedRange(),
+                                        opening: open, closing: close) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func setHeading(_ level: Int) {
