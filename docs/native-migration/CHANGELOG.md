@@ -974,3 +974,7 @@
 ### 2026-11-14 — Search filter scroll positions
 - Kept separate result positions for different filters, sorts and groups within a Search tab.
 - Both Dev builds passed. Live filter switching remains to verify.
+
+### 2026-11-14 — Notes folder scroll restoration
+- Remember a visible row per Notes tab and folder configuration for the current run.
+- Both Dev builds passed. Live folder return and large-library checks remain open.

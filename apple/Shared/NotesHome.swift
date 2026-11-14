@@ -3,6 +3,14 @@ import BereanCore
 import BereanNotes
 import BereanReference
 
+struct NotesFolderScrollContext: Hashable {
+    let location: String?
+    let sort: String
+    let grouping: String
+    let type: String
+    let status: String
+}
+
 /// Notes home (the existing iPhone NotesHomePage, after Apple Notes; also the Mac Notes home):
 ///   Folders home — All Notes · Berean's system folders (Daily, Verse, e-Sword, BibleGateway) · your folder tree · Trash
 ///   Folder view  — subfolders · Pinned · Today / Previous 7 Days / Previous 30 Days / months (or by status, folder, type)
@@ -27,6 +35,8 @@ struct NotesHomeView: View {
     @State private var deletingFolder: NoteFolder?
     @State private var folderName = ""
     @State private var confirmEmptyTrash = false
+    @State private var visibleFolderRow: String?
+    @State private var loadedNotes = false
 
     private enum NoteTypeFilter: String, CaseIterable {
         case all = "All Types", scripture = "Scripture", topic = "Topic", daily = "Daily"
@@ -113,7 +123,7 @@ struct NotesHomeView: View {
                     .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
             }
         }
-        .task(id: app.notesRevision) { load() }
+        .task(id: app.notesRevision) { load(); loadedNotes = true }
         .task(id: request) { await runSearch(request) }
         .alert("New Folder", isPresented: Binding(get: { newFolderParent != nil }, set: { if !$0 { newFolderParent = nil } })) {
             TextField("Name", text: $folderName)
@@ -386,23 +396,64 @@ struct NotesHomeView: View {
     }
 
     var folderView: some View {
-        List {
-            let subs = isUserFolder ? folders.filter { $0.parentId == location } : []
-            let visibleSections = sections
-            let visibleCount = visibleSections.reduce(0) { $0 + $1.notes.count }
-            Section {
-                Text("\(visibleCount) note\(visibleCount == 1 ? "" : "s")\(subs.isEmpty ? "" : " · \(subs.count) folder\(subs.count == 1 ? "" : "s")")").font(.callout).foregroundStyle(.secondary)
+        let context = NotesFolderScrollContext(location: location, sort: sort, grouping: grouping,
+                                               type: typeFilter.rawValue, status: statusFilter)
+        let subs = isUserFolder ? folders.filter { $0.parentId == location } : []
+        let visibleSections = sections
+        let visibleCount = visibleSections.reduce(0) { $0 + $1.notes.count }
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    Text("\(visibleCount) note\(visibleCount == 1 ? "" : "s")\(subs.isEmpty ? "" : " · \(subs.count) folder\(subs.count == 1 ? "" : "s")")")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
+                    if !subs.isEmpty {
+                        folderSectionHeading("Folders")
+                        ForEach(subs) { folder in
+                            folderRow(folder, depth: 0).padding(.vertical, 6).id("folder:" + folder.id)
+                        }
+                    }
+                    ForEach(visibleSections) { section in
+                        folderSectionHeading(section.title)
+                        ForEach(section.notes) { note in
+                            noteRow(note)
+                                .padding(.vertical, 8)
+                                .overlay(alignment: .bottom) { Divider() }
+                                .id("note:" + note.id)
+                        }
+                    }
+                    if loadedNotes && visibleCount == 0 && hasFilters {
+                        ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
+                    } else if loadedNotes && visibleCount == 0 {
+                        ContentUnavailableView {
+                            Label("No notes here", systemImage: "note.text")
+                        } actions: { Button("New Note") { newNoteHere() } }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .scrollTargetLayout()
             }
-            if !subs.isEmpty { Section("Folders") { ForEach(subs) { folderRow($0, depth: 0) } } }
-            ForEach(visibleSections) { s in Section(s.title) { ForEach(s.notes) { noteRow($0) } } }
-            if visibleCount == 0 && hasFilters {
-                ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
-            } else if visibleCount == 0 {
-                ContentUnavailableView {
-                    Label("No notes here", systemImage: "note.text")
-                } actions: { Button("New Note") { newNoteHere() } }
+            .scrollPosition(id: $visibleFolderRow, anchor: .top)
+            .task(id: loadedNotes ? context : nil) {
+                guard loadedNotes, !Task.isCancelled else { return }
+                visibleFolderRow = nil
+                if let saved = app.notesFolderPositions[tabId]?[context] {
+                    proxy.scrollTo(saved, anchor: .top)
+                }
+            }
+            .onScrollPhaseChange { old, new in
+                guard old != .idle, new == .idle, app.activeTab?.id == tabId,
+                      let visibleFolderRow else { return }
+                app.notesFolderPositions[tabId, default: [:]][context] = visibleFolderRow
             }
         }
+        .id(context)
+    }
+
+    private func folderSectionHeading(_ title: String) -> some View {
+        Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            .padding(.top, 10).padding(.bottom, 4)
+            .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: rows

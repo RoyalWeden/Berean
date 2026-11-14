@@ -531,6 +531,7 @@ final class AppModel {
     }
 
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
+    @ObservationIgnored var notesFolderPositions: [String: [NotesFolderScrollContext: String]] = [:]
     @ObservationIgnored var searchVisibleRows: [String: [ScriptureSearchScrollContext: String]] = [:]
     private var backStack: [String: [TabHistoryEntry]] = [:]
     private var forwardStack: [String: [TabHistoryEntry]] = [:]
