@@ -7,7 +7,7 @@ import BereanReference
 ///   Folders home — All Notes · Berean's system folders (Daily, Verse, e-Sword, BibleGateway) · your folder tree · Trash
 ///   Folder view  — subfolders · Pinned · Today / Previous 7 Days / Previous 30 Days / months (or by status, folder, type)
 /// The location lives in the Notes tab (`listFolderId`: nil = Folders home, "all", "sys:<key>", "trash" or a folder id),
-/// so tab history and relaunch restore it. One search field searches all notes (FTS).
+/// so tab history and relaunch restore it. Search combines FTS with the selected folder, type and status.
 struct NotesHomeView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
@@ -15,7 +15,11 @@ struct NotesHomeView: View {
     @State private var folders: [NoteFolder] = []
     @State private var trash: [Note] = []
     @State private var query = ""
-    @State private var searchHits: [Note] = []
+    @State private var searchMode = NotesWordMode.all
+    @State private var searchEverywhere = false
+    @State private var typeFilter = NoteTypeFilter.all
+    @State private var statusFilter = "all"
+    @State private var searchResult: SearchResult?
     @AppStorage("notesHomeSort") private var sort = "modified"        // modified | created | name
     @AppStorage("notesHomeGrouping") private var grouping = "none"    // none | status | folder | type
     @State private var renamingFolder: NoteFolder?
@@ -23,6 +27,38 @@ struct NotesHomeView: View {
     @State private var deletingFolder: NoteFolder?
     @State private var folderName = ""
     @State private var confirmEmptyTrash = false
+
+    private enum NoteTypeFilter: String, CaseIterable {
+        case all = "All Types", scripture = "Scripture", topic = "Topic", daily = "Daily"
+        case idiom = "Idiom", youtube = "YouTube", esword = "e-Sword", biblegateway = "BibleGateway"
+
+        func matches(_ note: Note) -> Bool {
+            let scripture = note.verseRef != nil || note.type == "verse"
+            let daily = note.type == "daily" || note.type == "journal"
+                || (note.type == "general" && (note.title.hasPrefix("Daily — ") || note.title.hasPrefix("Journal — ")))
+            switch self {
+            case .all: return true
+            case .scripture: return scripture
+            case .topic: return !scripture && !daily && note.type != "youtube"
+            case .daily: return daily
+            case .idiom: return note.type == "idiom"
+            case .youtube: return note.type == "youtube"
+            case .esword: return note.tags.contains("esword")
+            case .biblegateway: return note.tags.contains("biblegateway")
+            }
+        }
+    }
+
+    private struct SearchRequest: Equatable {
+        let text: String
+        let mode: NotesWordMode
+        let revision: Int
+    }
+
+    private struct SearchResult {
+        let request: SearchRequest
+        let ids: Set<String>?
+    }
 
     var location: String? { app.findTab(tabId)?.state["listFolderId"]?.stringValue?.string }
     func go(_ loc: String?) { app.update(tabId) { $0.state["listFolderId"] = loc.map { .string(JSString($0)) } ?? .null; $0.title = Self.title(loc, folders) } }
@@ -45,13 +81,16 @@ struct NotesHomeView: View {
     }
 
     var body: some View {
+        let request = searchRequest
         VStack(spacing: 0) {
-            searchField
-            Divider()
+            if location != "trash" {
+                searchField
+                Divider()
+            }
             Group {
-                if !query.trimmingCharacters(in: .whitespaces).isEmpty { searchList }
+                if location == "trash" { trashList }
+                else if !request.text.isEmpty || (hasFilters && (location == nil || (hasFolderScope && searchEverywhere))) { searchList }
                 else if location == nil { foldersHome }
-                else if location == "trash" { trashList }
                 else { folderView }
             }
         }
@@ -75,7 +114,7 @@ struct NotesHomeView: View {
             }
         }
         .task(id: app.notesRevision) { load() }
-        .task(id: query) { runSearch() }
+        .task(id: request) { await runSearch(request) }
         .alert("New Folder", isPresented: Binding(get: { newFolderParent != nil }, set: { if !$0 { newFolderParent = nil } })) {
             TextField("Name", text: $folderName)
             Button("Create") { if let p = newFolderParent, !folderName.trimmingCharacters(in: .whitespaces).isEmpty { _ = try? app.notes?.createFolder(folderName, parentId: p) }; newFolderParent = nil }
@@ -105,9 +144,18 @@ struct NotesHomeView: View {
         trash = (try? s.trash()) ?? []
     }
 
-    func runSearch() {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        searchHits = q.isEmpty ? [] : ((try? app.notes?.search(q, limit: 200)) ?? [])
+    private var searchRequest: SearchRequest {
+        SearchRequest(text: query.trimmingCharacters(in: .whitespacesAndNewlines), mode: searchMode, revision: app.notesRevision)
+    }
+
+    private func runSearch(_ request: SearchRequest) async {
+        guard !Task.isCancelled else { return }
+        guard !request.text.isEmpty else { searchResult = nil; return }
+        // Keep the store connection on the main actor, and coalesce keystrokes before issuing SQLite queries.
+        do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
+        guard !Task.isCancelled, request == searchRequest else { return }
+        let ids = try? app.notes?.matchingNoteIDs(request.text, mode: request.mode)
+        searchResult = SearchResult(request: request, ids: ids)
     }
 
     func newNoteHere() {
@@ -117,24 +165,101 @@ struct NotesHomeView: View {
 
     // MARK: search
 
+    private var hasFilters: Bool { typeFilter != .all || statusFilter != "all" }
+    private var hasFolderScope: Bool { location != nil && location != "all" && location != "trash" }
+
+    private func passesFilters(_ note: Note) -> Bool {
+        guard typeFilter.matches(note) else { return false }
+        switch statusFilter {
+        case "all": return true
+        case "no-status": return note.status?.isEmpty ?? true
+        default: return note.status == statusFilter
+        }
+    }
+
     var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search all notes", text: $query).textFieldStyle(.plain)
-            if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }.buttonStyle(.plain).accessibilityLabel("Clear search") }
+            TextField(hasFolderScope && !searchEverywhere ? "Search this folder" : "Search all notes", text: $query)
+                .textFieldStyle(.plain)
+                .accessibilityIdentifier("notesSearchField")
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                    .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
+            }
+            Menu {
+                if hasFolderScope {
+                    Picker("Search Scope", selection: $searchEverywhere) {
+                        Text("This Folder").tag(false)
+                        Text("All Notes").tag(true)
+                    }
+                }
+                Picker("Match", selection: $searchMode) {
+                    Text("All Words").tag(NotesWordMode.all)
+                    Text("Any Word").tag(NotesWordMode.any)
+                    Text("Exact Phrase").tag(NotesWordMode.phrase)
+                }
+                Picker("Type", selection: $typeFilter) {
+                    ForEach(NoteTypeFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                Picker("Status", selection: $statusFilter) {
+                    Text("All Statuses").tag("all")
+                    Text("No Status").tag("no-status")
+                    ForEach(Self.statuses, id: \.id) { Text($0.label).tag($0.id) }
+                }
+                if hasFilters || searchMode != .all || searchEverywhere {
+                    Button("Reset Search Options") {
+                        typeFilter = .all
+                        statusFilter = "all"
+                        searchMode = .all
+                        searchEverywhere = false
+                    }
+                }
+            } label: {
+                Image(systemName: hasFilters || searchMode != .all || (hasFolderScope && searchEverywhere)
+                      ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    .frame(minWidth: 28, minHeight: 28)
+            }
+            #if os(macOS)
+            .menuStyle(.borderlessButton)
+            #endif
+            .menuIndicator(.hidden)
+            .accessibilityLabel("Notes Search Options")
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
         .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
-    var searchList: some View {
-        List {
-            let matchingFolders = folders.filter { $0.name.localizedCaseInsensitiveContains(query) }
-            if !matchingFolders.isEmpty {
-                Section("Folders") { ForEach(matchingFolders) { f in folderRow(f, depth: 0) } }
+    @ViewBuilder var searchList: some View {
+        let request = searchRequest
+        if !request.text.isEmpty, searchResult?.request != request {
+            ProgressView("Searching notes…").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !request.text.isEmpty, searchResult?.ids == nil {
+            ContentUnavailableView("Couldn’t search notes", systemImage: "magnifyingglass")
+        } else {
+            let global = !hasFolderScope || searchEverywhere
+            let candidates = global ? notes : here
+            let hits = searchResult?.ids ?? []
+            let matching = sorted(candidates.filter { passesFilters($0) && (request.text.isEmpty || hits.contains($0.id)) })
+            let matchingFolders = request.text.isEmpty || hasFilters ? [] : folders.filter { folder in
+                (global || (isUserFolder && folder.parentId == location))
+                    && folder.name.localizedCaseInsensitiveContains(request.text)
             }
-            Section("\(searchHits.count) note\(searchHits.count == 1 ? "" : "s")") { ForEach(searchHits) { noteRow($0) } }
+            if matching.isEmpty && matchingFolders.isEmpty {
+                ContentUnavailableView("No matching notes", systemImage: "magnifyingglass")
+            } else {
+                List {
+                    if !matchingFolders.isEmpty {
+                        Section("Folders") { ForEach(matchingFolders) { f in folderRow(f, depth: 0) } }
+                    }
+                    if !matching.isEmpty {
+                        Section("\(matching.count) note\(matching.count == 1 ? "" : "s")") {
+                            ForEach(matching) { noteRow($0) }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -157,7 +282,7 @@ struct NotesHomeView: View {
             Section {
                 ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, depth in folderRow(f, depth: depth) }
                 if folders.isEmpty {
-                    Button { folderName = ""; newFolderParent = .some(nil) } label: { Label("New Folder…", systemImage: "folder.badge.plus") }.buttonStyle(.plain).foregroundStyle(.secondary)
+                    Button { folderName = ""; newFolderParent = .some(nil) } label: { Label("New Folder…", systemImage: "folder.badge.plus") }.buttonStyle(.interactivePlain).foregroundStyle(.secondary)
                 }
             } header: { Text("My Folders") }
             Section { locationRow("trash", "Trash", "trash", trash.count) }
@@ -176,7 +301,7 @@ struct NotesHomeView: View {
             HStack { Label(name, systemImage: symbol); Spacer(); Text("\(n)").foregroundStyle(.secondary).monospacedDigit(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .accessibilityLabel("\(name), \(n) notes")
     }
 
@@ -189,7 +314,7 @@ struct NotesHomeView: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
             }.contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .contextMenu {
             Button("New Note Here") { if let id = app.newNote() { try? app.notes?.setFolder(id, f.id) } }
             Button("New Subfolder…") { folderName = ""; newFolderParent = .some(f.id) }
@@ -225,7 +350,7 @@ struct NotesHomeView: View {
     struct NoteSection: Identifiable { var id: String; var title: String; var notes: [Note] }
 
     var sections: [NoteSection] {
-        let ns = here
+        let ns = here.filter(passesFilters)
         var out: [NoteSection] = []
         let pinned = sorted(ns.filter(\.pinned))
         if !pinned.isEmpty { out.append(NoteSection(id: "pinned", title: "Pinned", notes: pinned)) }
@@ -263,12 +388,16 @@ struct NotesHomeView: View {
     var folderView: some View {
         List {
             let subs = isUserFolder ? folders.filter { $0.parentId == location } : []
+            let visibleSections = sections
+            let visibleCount = visibleSections.reduce(0) { $0 + $1.notes.count }
             Section {
-                Text("\(here.count) note\(here.count == 1 ? "" : "s")\(subs.isEmpty ? "" : " · \(subs.count) folder\(subs.count == 1 ? "" : "s")")").font(.callout).foregroundStyle(.secondary)
+                Text("\(visibleCount) note\(visibleCount == 1 ? "" : "s")\(subs.isEmpty ? "" : " · \(subs.count) folder\(subs.count == 1 ? "" : "s")")").font(.callout).foregroundStyle(.secondary)
             }
             if !subs.isEmpty { Section("Folders") { ForEach(subs) { folderRow($0, depth: 0) } } }
-            ForEach(sections) { s in Section(s.title) { ForEach(s.notes) { noteRow($0) } } }
-            if here.isEmpty {
+            ForEach(visibleSections) { s in Section(s.title) { ForEach(s.notes) { noteRow($0) } } }
+            if visibleCount == 0 && hasFilters {
+                ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
+            } else if visibleCount == 0 {
                 ContentUnavailableView {
                     Label("No notes here", systemImage: "note.text")
                 } actions: { Button("New Note") { newNoteHere() } }
@@ -280,6 +409,19 @@ struct NotesHomeView: View {
 
     func preview(_ n: Note) -> String {
         let plain = MarkdownLiveSpans.plainText(n.content)
+        let request = searchRequest
+        if !request.text.isEmpty {
+            let words = NotesService.cleanWords(request.text)
+            let terms = request.mode == .phrase ? [words.joined(separator: " ")] : words
+            let match = terms.compactMap { plain.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) }
+                .min { $0.lowerBound < $1.lowerBound }
+            if let match {
+                let start = plain.index(match.lowerBound, offsetBy: -30, limitedBy: plain.startIndex) ?? plain.startIndex
+                let end = plain.index(match.upperBound, offsetBy: 100, limitedBy: plain.endIndex) ?? plain.endIndex
+                let excerpt = plain[start..<end].split(whereSeparator: \.isWhitespace).joined(separator: " ")
+                return (start == plain.startIndex ? "" : "…") + excerpt + (end == plain.endIndex ? "" : "…")
+            }
+        }
         return plain.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty && $0 != n.title } ?? ""
     }
 
@@ -305,7 +447,7 @@ struct NotesHomeView: View {
                 }
                 HStack(spacing: 6) {
                     Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
-                    Text(preview(n)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(preview(n)).font(.caption).foregroundStyle(.secondary).lineLimit(searchRequest.text.isEmpty ? 1 : 2)
                 }
                 if location == "all" || location == nil || !query.isEmpty, let f = n.folderId.flatMap({ id in folders.first { $0.id == id } }) {
                     Label(f.name, systemImage: "folder").font(.caption2).foregroundStyle(.tertiary)
@@ -314,7 +456,7 @@ struct NotesHomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.interactivePlain)
         .contextMenu { noteMenu(n) }
         #if os(iOS)
         .swipeActions(edge: .leading) { Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }.tint(.orange) }

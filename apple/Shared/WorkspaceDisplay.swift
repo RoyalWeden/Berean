@@ -38,3 +38,34 @@ extension BereanWorkspace.Tab {
         }
     }
 }
+
+
+extension BereanWorkspace.Tab {
+    var navigationLabel: String {
+        let fallback = title.isEmpty ? "Untitled" : title
+        guard tabType == .bible else { return fallback }
+        let reader = BibleState(state)
+        guard let verse = reader.verse else { return fallback }
+        let groups = reader.compareMode ? [] : consecutiveVerseRuns(ResolvedPassage.savedVerses(in: self, reader: reader))
+        return ResolvedPassage(textId: reader.translation, bookId: reader.bookId,
+                               chapter: reader.chapter, verse: verse, endVerse: reader.endVerse, verseGroups: groups).label
+    }
+
+    var scriptureEditionLabel: String? {
+        guard tabType == .bible else { return nil }
+        let reader = BibleState(state)
+        return textInfo(reader.translation).short
+    }
+
+    var navigationDetail: String {
+        guard let edition = scriptureEditionLabel else { return spaceId.title }
+        let detail = "\(spaceId.title) · \(edition)"
+        return BibleState(state).compareMode ? detail + " · Compare" : detail
+    }
+
+    var navigationSearchText: String {
+        let edition = tabType == .bible ? textInfo(BibleState(state).translation).name : ""
+        return "\(title) \(navigationLabel) \(navigationDetail) \(edition)"
+            .replacingOccurrences(of: "–", with: "-")
+    }
+}

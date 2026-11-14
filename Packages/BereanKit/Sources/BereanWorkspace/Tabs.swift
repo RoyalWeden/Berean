@@ -30,13 +30,21 @@ public struct Tab: Equatable, Sendable, Identifiable {
     }
 
     public var tabType: TabType? { TabType(rawValue: type) }
+
+    /// Redirect a copied tab to its copied origin when both belong to the workspace.
+    public func remappingOrigin(using copiedIDs: [String: String]) -> Tab {
+        guard let originTabId, let replacement = copiedIDs[originTabId] else { return self }
+        var tab = self
+        tab.originTabId = replacement
+        return tab
+    }
 }
 
 /// Which tab-state fields synchronise and which stay on this device — port of src/platform/sync/tabFields.ts
 /// (allow-lists: a field not listed is dropped from storage, so nothing leaks to other devices by accident).
 public enum TabFields {
     static let sync: [TabType: [String]] = [
-        .bible: ["bookId", "chapter", "endChapter", "verse", "translation", "showStrongs", "compareMode", "compareColumns",
+        .bible: ["bookId", "chapter", "endChapter", "verse", "endVerse", "translation", "showStrongs", "compareMode", "compareColumns",
                  "compareSyncScroll", "hiddenAnnotations", "rightPanelTab", "rightPanelNoteId", "rightPanelLexiconEntry",
                  "rightPanelVerseFilter", "rightPanelSlotBTabs", "rightPanelSlotB", "rightPanelNoteIdB", "rightPanelLexiconEntryB",
                  "rightPanelVerseFilterB", "searchMode", "scriptureSearchQuery", "scriptureLayout", "searchTextId", "searchWordMode",
@@ -53,7 +61,7 @@ public enum TabFields {
         .calendar: ["month", "selected"],
     ]
     static let local: [TabType: [String]] = [
-        .bible: ["scrollPosition", "rightPanelOpen", "rightPanelWidth", "bottomPanelHeight", "rightPanelNoteCursor",
+        .bible: ["nativeSelectedVerses", "scrollPosition", "rightPanelOpen", "rightPanelWidth", "bottomPanelHeight", "rightPanelNoteCursor",
                  "rightPanelNoteFocused", "rightPanelExpandAll", "rightPanelExpandAllB", "rightPanelScrollTop", "rightPanelScrollTopB",
                  "rightPanelScrollTops", "rightPanelScrollTopsB",
                  "rightPanelNoteCursorB", "rightPanelNoteFocusedB", "searchScrollTop", "searchScrollAnchor", "searchSortDirection", "searchPreview"],

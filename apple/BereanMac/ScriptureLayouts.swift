@@ -40,6 +40,13 @@ enum ScriptureLayout: String, CaseIterable, Identifiable {
         default: "rectangle.split.2x1"
         }
     }
+    var showsNotes: Bool {
+        switch self {
+        case .reading, .scriptureFocus, .studyGrid: false
+        default: true
+        }
+    }
+
     /// The standard layout uses the window's native inspector; everything else is laid out here.
     var usesInspector: Bool { self == .standard }
 }
@@ -55,11 +62,12 @@ struct StudyPanel: View {
         Group {
             switch kind {
             case .tabbed: StudyInspector(tabId: tabId)
-            case .notes: VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: st.verse, textId: st.translation)
+            case .notes: VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st), textId: st.translation)
             case .lexicon:
-                if let id = st.rightPanelLexiconEntry { LexiconEntryView(strongsId: id, compact: true) }
+                if let id = st.rightPanelLexiconEntry { LexiconEntryView(strongsId: id, tabId: tabId, compact: true) }
                 else { ContentUnavailableView("No word selected", systemImage: "character.book.closed", description: Text("Click a Strong's number.")) }
-            case .crossrefs: CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: st.verse, textId: st.translation)
+            case .crossrefs: CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
+                              textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
             }
         }
         .frame(minWidth: 220, minHeight: 160)

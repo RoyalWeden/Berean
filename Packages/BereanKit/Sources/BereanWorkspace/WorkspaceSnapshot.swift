@@ -15,6 +15,7 @@ public enum WorkspaceSnapshot {
         public var activeTabId: [SpaceId: String?]
         public var displayOrder: [String]
         public var icon: String?
+        public var preferredSpace: SpaceId? = nil
         /// 0 = empty / unreadable, 1 = v1 (or any non-v2 object), 2 = v2.
         public var version: Int
 
@@ -71,14 +72,18 @@ public enum WorkspaceSnapshot {
     }
 
     /// Builds the v2 state JSON for a native session (what the Mac/iPhone "Save Workspace" writes).
-    public static func stateJSON(for session: Session, displayOrder: [String]?) -> String {
+    public static func stateJSON(for session: Session, displayOrder: [String]?, preferredSpace: SpaceId? = nil) -> String {
         var input: [SpaceId: [JSValue]] = [:]
         var active = JSObject()
         for sp in spaces {
             input[sp] = session.tabs(in: sp).map { .object($0.jsObject) }
             active[sp.rawValue] = ((session.activeTabId[sp] ?? nil).map { .string(JSString($0)) }) ?? .null
         }
-        return JSON.stringifyString(build(tabs: input, activeTabId: active, displayOrder: displayOrder, icon: session.icon))
+        let snapshot = build(tabs: input, activeTabId: active, displayOrder: displayOrder, icon: session.icon)
+        guard let preferredSpace, !session.tabs(in: preferredSpace).isEmpty,
+              var state = snapshot.objectValue else { return JSON.stringifyString(snapshot) }
+        state["nativePreferredSpace"] = .string(JSString(preferredSpace.rawValue))
+        return JSON.stringifyString(.object(state))
     }
 
     /// `parseWorkspaceState` — never throws.
@@ -108,7 +113,8 @@ public enum WorkspaceSnapshot {
         let stored = (r["displayOrder"]?.arrayValue ?? []).compactMap { $0.stringValue?.string }
         let order = unifiedOrder(tabs, stored: stored)
         let version = r["v"]?.numberValue == 2 ? 2 : 1
-        return Parsed(tabs: tabs, activeTabId: activeTabId, displayOrder: order, icon: r["icon"]?.stringValue?.string, version: version)
+        return Parsed(tabs: tabs, activeTabId: activeTabId, displayOrder: order, icon: r["icon"]?.stringValue?.string,
+                      preferredSpace: r["nativePreferredSpace"]?.stringValue.flatMap { SpaceId(rawValue: $0.string) }, version: version)
     }
 
     /// The session id a saved workspace opens as (stable, so re-opening switches rather than duplicates).
@@ -134,5 +140,40 @@ public extension Tab {
         self.init(id: id, spaceId: sp, type: type, title: title, state: o["state"]?.objectValue ?? JSObject(),
                   isPinned: o["isPinned"]?.boolValue ?? false, originTabId: o["originTabId"]?.stringValue?.string,
                   originSpaceId: o["originSpaceId"]?.stringValue.flatMap { SpaceId(rawValue: $0.string) })
+    }
+}
+
+extension WorkspaceSnapshot.Parsed {
+    /// Open a snapshot alongside live workspaces without sharing tab identities.
+    public func restoreSession(id: String, name: String, reservedIDs: Set<String>,
+                               makeID: () -> String) -> (session: Session, displayOrder: [String]) {
+        var usedIDs = reservedIDs
+        var firstIDByOriginal: [String: String] = [:]
+        var idsBySpace: [SpaceId: [String: String]] = [:]
+        var restoredTabs: [SpaceId: [Tab]] = [:]
+        var active: [SpaceId: String?] = [:]
+        for space in WorkspaceSnapshot.spaces {
+            var firstIDInSpace: [String: String] = [:]
+            restoredTabs[space] = tabs(in: space).compactMap(Tab.init(jsObject:)).map { original in
+                var tab = original
+                while !usedIDs.insert(tab.id).inserted { tab.id = makeID() }
+                if firstIDByOriginal[original.id] == nil { firstIDByOriginal[original.id] = tab.id }
+                if firstIDInSpace[original.id] == nil { firstIDInSpace[original.id] = tab.id }
+                return tab
+            }
+            idsBySpace[space] = firstIDInSpace
+            active[space] = (activeTabId[space] ?? nil).flatMap { firstIDInSpace[$0] } ?? restoredTabs[space]?.first?.id
+        }
+        restoredTabs = restoredTabs.mapValues { list in
+            list.map { tab in
+                let origins = tab.originSpaceId.map { idsBySpace[$0] ?? [:] } ?? firstIDByOriginal
+                return tab.remappingOrigin(using: origins)
+            }
+        }
+        let session = Session(id: id, name: name, icon: icon, tabs: restoredTabs, activeTabId: active)
+        let preferred = displayOrder.compactMap { firstIDByOriginal[$0] }
+        var orderedIDs = Set<String>()
+        let order = (preferred + session.allTabs.map(\.id)).filter { orderedIDs.insert($0).inserted }
+        return (session, order)
     }
 }

@@ -24,6 +24,54 @@ extension AppModel {
         return list.filter(\.isPinned) + list.filter { !$0.isPinned }
     }
 
+    func matchingOpenTabs(_ query: String, space: SpaceId? = nil) -> [BereanWorkspace.Tab] {
+        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
+        return orderedTabs.filter { tab in
+            guard space == nil || tab.spaceId == space else { return false }
+            let searchableText = tab.navigationSearchText
+            return terms.allSatisfy { searchableText.localizedStandardContains(String($0)) }
+        }
+    }
+
+    struct WorkspaceTabMatch: Identifiable {
+        let workspaceID: String
+        let workspaceName: String
+        let tab: BereanWorkspace.Tab
+        var id: String { "\(workspaceID)/\(tab.id)" }
+    }
+
+    var recentWorkspaceTabs: [WorkspaceTabMatch] {
+        recentTabIDs.filter { $0 != activeTab?.id }.compactMap { id in
+            for workspace in sessions {
+                if let tab = workspace.allTabs.first(where: { $0.id == id }) {
+                    return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: workspace.name, tab: tab)
+                }
+            }
+            return nil
+        }
+    }
+
+    func matchingWorkspaceTabs(_ query: String) -> [WorkspaceTabMatch] {
+        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
+        guard !terms.isEmpty else { return [] }
+        return sessions.flatMap { workspace in
+            let tabsByID = Dictionary(uniqueKeysWithValues: workspace.allTabs.map { ($0.id, $0) })
+            return displayOrder(for: workspace.id).compactMap { id -> WorkspaceTabMatch? in
+                guard let tab = tabsByID[id] else { return nil }
+                let searchable = "\(tab.navigationSearchText) \(workspace.name)"
+                guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { return nil }
+                return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: workspace.name, tab: tab)
+            }
+        }
+    }
+
+    func openWorkspaceTab(_ match: WorkspaceTabMatch) {
+        guard let tab = sessions.first(where: { $0.id == match.workspaceID })?.allTabs.first(where: { $0.id == match.tab.id }) else { return }
+        let sameWorkspace = match.workspaceID == currentSessionId
+        switchSession(match.workspaceID)
+        select(tab.id, in: tab.spaceId, rememberPrevious: sameWorkspace)
+    }
+
     func insertInDisplayOrder(_ id: String, after anchor: String?) {
         guard !currentSessionId.isEmpty else { return }
         var order = displayOrder(for: currentSessionId).filter { $0 != id }
@@ -60,34 +108,155 @@ extension AppModel {
         let label = tabs.count == 1 ? first.title : "\(first.title) and \(tabs.count - 1) more"
         let json = JSON.stringifyString(.array(tabs.map { .object($0.jsObject) }))
         let id = "arch-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(6))"
+        var placements = archivePlacements
+        placements[id] = ArchivePlacement(workspace: currentSessionId, order: displayOrder(for: currentSessionId),
+                                          workspaceName: session.name)
         archivedGroups.insert(ArchivedGroup(id: id, label: label, archivedAt: Int64(Date().timeIntervalSince1970 * 1000), tabsJSON: json), at: 0)
+        let recentGroups = Set(archivedGroups.prefix(50).map(\.id))
+        archivePlacements = placements.filter { recentGroups.contains($0.key) }
         for t in tabs { close(t.id) }
         scheduleSave()
+    }
+
+    private struct ArchivePlacement: Codable {
+        let workspace: String
+        let order: [String]
+        let workspaceName: String?
+    }
+
+    func archiveTitles() -> [String: String] {
+        let placements = archivePlacements
+        let liveNames = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.name) })
+        return Dictionary(uniqueKeysWithValues: archivedGroups.map { group in
+            let label = group.label.isEmpty ? "Archived tabs" : group.label
+            let name = placements[group.id].flatMap { liveNames[$0.workspace] ?? $0.workspaceName }
+            return (group.id, name.map { "\(label) · \($0)" } ?? label)
+        })
+    }
+
+    private var archivePlacements: [String: ArchivePlacement] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: "nativeArchivePlacements") else { return [:] }
+            return (try? JSONDecoder().decode([String: ArchivePlacement].self, from: data)) ?? [:]
+        }
+        set {
+            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "nativeArchivePlacements")
+        }
+    }
+
+    private func placeRestoredTab(_ id: String, in workspace: String, using placement: ArchivePlacement?) {
+        let savedOrder = placement?.workspace == workspace ? placement?.order : nil
+        displayOrders[workspace] = TabPersistence.restoredDisplayOrder(
+            tabID: id, current: displayOrder(for: workspace), archived: savedOrder ?? []
+        )
+    }
+
+    func archiveSourceNames() -> [String: String] {
+        let names = Dictionary(uniqueKeysWithValues: sessions.filter { $0.id != currentSessionId }.map { ($0.id, $0.name) })
+        return archivePlacements.compactMapValues { names[$0.workspace] }
+    }
+
+    var inactiveTabs: [BereanWorkspace.Tab] {
+        let selected = Set(session.activeTabId.values.compactMap { $0 })
+        return orderedTabs.filter { !$0.isPinned && !selected.contains($0.id) }
+    }
+
+    /// Suggest only copies with identical tab state. Prefer keeping a pinned or active copy,
+    /// then the first copy in sidebar order. Unknown tab types stay out of duplicate review.
+    var inactiveDuplicateOriginals: [String: BereanWorkspace.Tab] {
+        let tabs = orderedTabs
+        let inactive = Set(inactiveTabs.map(\.id))
+        let ordered = tabs.filter { !inactive.contains($0.id) } + tabs.filter { inactive.contains($0.id) }
+        var kept: [SpaceId: [String: [BereanWorkspace.Tab]]] = [:]
+        var duplicates: [String: BereanWorkspace.Tab] = [:]
+        for tab in ordered {
+            guard tab.tabType != nil else { continue }
+            let copies = kept[tab.spaceId]?[tab.title] ?? []
+            if inactive.contains(tab.id), let original = copies.first(where: {
+                $0.type == tab.type && $0.state == tab.state
+                    && $0.originTabId == tab.originTabId && $0.originSpaceId == tab.originSpaceId
+            }) {
+                duplicates[tab.id] = original
+            } else {
+                kept[tab.spaceId, default: [:]][tab.title, default: []].append(tab)
+            }
+        }
+        return duplicates
+    }
+
+    func archiveInactiveTabs(_ ids: [String], duplicatesOnly: Bool = false) {
+        var requested = Set(ids)
+        if duplicatesOnly { requested.formIntersection(inactiveDuplicateOriginals.keys) }
+        archive(inactiveTabs.filter { requested.contains($0.id) }.map(\.id))
     }
 
     func archiveAllTabs() { archive(orderedTabs.map(\.id)) }
 
     func archivedTabs(_ g: ArchivedGroup) -> [BereanWorkspace.Tab] {
-        ((try? JSON.parse(g.tabsJSON))?.arrayValue ?? []).compactMap { $0.objectValue.flatMap { BereanWorkspace.Tab(jsObject: $0) } }
+        g.tabs
     }
 
-    /// Re-adds each archived tab to its space in the current session (skipping ids already open) and removes the group.
-    func restoreArchived(_ groupId: String) {
-        guard let g = archivedGroups.first(where: { $0.id == groupId }) else { return }
-        let open = Set(session.allTabs.map(\.id))
-        var last: BereanWorkspace.Tab?
-        for t in archivedTabs(g) where !open.contains(t.id) {
-            sessions[sessionIndex].tabs[t.spaceId, default: []].append(t)
-            sessions[sessionIndex].activeTabId[t.spaceId] = t.id
-            insertInDisplayOrder(t.id, after: nil)
-            last = t
+    /// Restore saved sidebar placement when available and keep the current reading position.
+    func restoreArchived(_ groupId: String, toSource: Bool = false, only tabID: String? = nil) {
+        guard let index = archivedGroups.firstIndex(where: { $0.id == groupId }) else { return }
+        let group = archivedGroups[index]
+        let placement = archivePlacements[groupId]
+        guard let workspace = toSource ? placement?.workspace : currentSessionId,
+              let destination = sessions.firstIndex(where: { $0.id == workspace }) else { return }
+        // Tab IDs are unique in SQLite across all workspaces. An archived copy may
+        // already be open elsewhere after a restore on another device.
+        var openIds = Set(sessions.flatMap { $0.allTabs.map(\.id) })
+        let hadActiveTab = activeTab != nil
+        var firstRestoredSpace: SpaceId?
+        var restoredIDs = Set<String>()
+        for tab in archivedTabs(group) where (tabID == nil || tab.id == tabID) && openIds.insert(tab.id).inserted {
+            restoredIDs.insert(tab.id)
+            sessions[destination].tabs[tab.spaceId, default: []].append(tab)
+            if (sessions[destination].activeTabId[tab.spaceId] ?? nil) == nil {
+                sessions[destination].activeTabId[tab.spaceId] = tab.id
+            }
+            placeRestoredTab(tab.id, in: workspace, using: placement)
+            if firstRestoredSpace == nil { firstRestoredSpace = tab.spaceId }
         }
-        archivedGroups.removeAll { $0.id == groupId }
-        if let last { activeSpace = last.spaceId }
+        guard !restoredIDs.isEmpty else { return }
+        if let remaining = group.afterRestoring(tabIDs: restoredIDs) {
+            archivedGroups[index] = remaining
+        } else {
+            archivedGroups.remove(at: index)
+            archivePlacements.removeValue(forKey: groupId)
+        }
+        if workspace == currentSessionId, !hadActiveTab, let firstRestoredSpace { activeSpace = firstRestoredSpace }
         scheduleSave()
     }
 
-    func dismissArchived(_ groupId: String) { archivedGroups.removeAll { $0.id == groupId }; scheduleSave() }
+    /// Restore one archived tab while retaining the original records for the rest of the group.
+    func restoreArchivedTab(_ tabID: String, from groupID: String) {
+        guard let index = archivedGroups.firstIndex(where: { $0.id == groupID }),
+              let tab = archivedGroups[index].tabs.first(where: { $0.id == tabID }) else { return }
+
+        if let workspace = sessions.first(where: { $0.allTabs.contains(where: { $0.id == tabID }) }),
+           let liveTab = workspace.allTabs.first(where: { $0.id == tabID }) {
+            switchSession(workspace.id)
+            select(liveTab.id, in: liveTab.spaceId)
+            return
+        } else {
+            sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
+            placeRestoredTab(tab.id, in: currentSessionId, using: archivePlacements[groupID])
+            if let remaining = archivedGroups[index].afterRestoring(tabID: tabID) {
+                archivedGroups[index] = remaining
+            } else {
+                archivedGroups.remove(at: index)
+                archivePlacements.removeValue(forKey: groupID)
+            }
+        }
+        select(tab.id, in: tab.spaceId)
+    }
+
+    func dismissArchived(_ groupId: String) {
+        archivedGroups.removeAll { $0.id == groupId }
+        archivePlacements.removeValue(forKey: groupId)
+        scheduleSave()
+    }
 
     /// The saved workspace whose session is open (`ws:<id>`), if any.
     func isWorkspaceOpen(_ id: String) -> Bool { sessions.contains { $0.id == WorkspaceSnapshot.sessionId(id) } }

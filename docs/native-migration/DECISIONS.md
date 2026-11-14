@@ -314,3 +314,9 @@ advanced action.
 
 **Limitations (tracked).** Tables are styled source, not a grid editor; images show their alt text, not the picture; columns and threads
 show their content without the side-by-side or thread chrome. A full structured editor remains M7-02.
+
+### ADR-0015 — Reader navigation reuses eligible tabs (2026-11-12)
+
+- iPhone’s labeled Tabs / Go / More dock supersedes the center Plus presentation in ADR-0013. Go opens a destination in the active compatible unpinned tab in its Space, another eligible tab, or a new tab when needed. iPhone Scripture search results reuse a reader. Tabs → New Tab provides deliberate creation. Mac command behavior is preserved.
+- iPhone chapter text uses UIKit TextKit with the same display-to-storage highlight offsets as Mac. Verse and Strong’s links keep their affordance through position and color with no underline.
+- Calendar persists only the existing month and selected date keys. It uses the same daily-note date lookup and deterministic create path as Today’s Note. Native sunrise-aware Today remains open.

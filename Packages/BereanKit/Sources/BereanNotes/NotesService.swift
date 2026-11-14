@@ -156,6 +156,31 @@ public final class NotesService: @unchecked Sendable {
         return Array(rows.prefix(limit))
     }
 
+    /// Match Notes home filters against the full result set without loading note content a second time.
+    public func matchingNoteIDs(_ query: String, mode: NotesWordMode = .all) throws -> Set<String> {
+        let words = Self.cleanWords(query)
+        guard !words.isEmpty else { return [] }
+        // Like `search`, issue one query per prefix in Any Word mode.
+        let expressions = mode == .any
+            ? words.map { Self.ftsQuery($0, phrase: false) }
+            : [Self.ftsQuery(query, phrase: mode == .phrase)]
+        let sql = """
+            SELECT n.id FROM notes_fts
+            JOIN notes n ON n.rowid = notes_fts.rowid
+            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
+            """
+        var ids = Set<String>()
+        for expression in expressions {
+            let rows = try db.query(sql, [.text(expression)])
+            ids.formUnion(rows.compactMap { $0["id"]?.string })
+        }
+        if words.contains(where: { $0.lowercased() == "untitled" }) {
+            let untitled = try db.query("SELECT id FROM notes WHERE (title = '' OR title IS NULL) AND deleted_at IS NULL")
+            ids.formUnion(untitled.compactMap { $0["id"]?.string })
+        }
+        return ids
+    }
+
     // MARK: verse / chapter (KJV and LXX cross-linked)
 
     static func tidClause(_ t: String) -> String { t == "kjva" ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'" }
@@ -200,6 +225,56 @@ public final class NotesService: @unchecked Sendable {
             for n in try chapterNotes(bookId, c, tid: Self.tidClause(other)) where seen.insert(n.id).inserted { others.append(n) }
         }
         return Self.stableSort(own + others, Self.refLess)
+    }
+
+    /// Native inspector lookup for single, range and comma-separated attachments.
+    public func attachedNotes(_ bookId: String, _ chapter: Int, textId: String, verse: Int? = nil) throws -> [Note] {
+        var candidates = try byChapter(bookId, chapter, textId: textId)
+        let multi = try db.query("SELECT * FROM notes WHERE deleted_at IS NULL AND instr(verse_ref, ',') > 0 AND verse_ref LIKE ?",
+                                 [.text("%" + bookId + ".%")]).map(Self.note)
+        var seen = Set(candidates.map(\.id))
+        candidates += multi.filter { seen.insert($0.id).inserted }
+        let matches = candidates.filter {
+            Self.attachments($0, bookId: bookId, chapter: chapter, textId: textId).contains {
+                guard let verse else { return true }
+                guard let first = $0.verse else { return false }
+                return (first...($0.endVerse ?? first)).contains(verse)
+            }
+        }
+        return Self.stableSort(matches, verse == nil ? Self.refLess : { $0.createdAt < $1.createdAt })
+    }
+
+    public func coveringVerse(_ bookId: String, _ chapter: Int, _ verse: Int, textId: String) throws -> [Note] {
+        try attachedNotes(bookId, chapter, textId: textId, verse: verse)
+    }
+
+    /// Counts the same attachments the inspector displays, bounded by the installed chapter's verses.
+    public func coveringVerseCounts(_ bookId: String, _ chapter: Int, verses: Set<Int>, textId: String) throws -> [Int: Int] {
+        var counts: [Int: Int] = [:]
+        for note in try attachedNotes(bookId, chapter, textId: textId) {
+            let ranges = Self.attachments(note, bookId: bookId, chapter: chapter, textId: textId).compactMap { attachment in
+                attachment.verse.map { $0...(attachment.endVerse ?? $0) }
+            }
+            for verse in verses where ranges.contains(where: { $0.contains(verse) }) {
+                counts[verse, default: 0] += 1
+            }
+        }
+        return counts
+    }
+
+    private static func attachments(_ note: Note, bookId: String, chapter: Int, textId: String)
+        -> [(bookId: String, chapter: Int, verse: Int?, endVerse: Int?)] {
+        let chapters: [Int]
+        if note.textId == textId {
+            chapters = [chapter]
+        } else if (textId == "kjva" && note.textId == "lxx") || (textId == "lxx" && note.textId == "kjva") {
+            chapters = ChapterMap.equivalentChapters(bookId, chapter, from: textId, to: note.textId)
+        } else {
+            return []
+        }
+        return (note.verseRef ?? "").split(separator: ",").compactMap {
+            Reference.parseNoteAttachment(String($0))
+        }.filter { $0.bookId == bookId && chapters.contains($0.chapter) }
     }
 
     func verseRefs(_ bookId: String, _ chapter: Int, tid: String, param: String? = nil) throws -> [String] {

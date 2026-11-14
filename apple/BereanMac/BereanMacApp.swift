@@ -17,9 +17,9 @@ struct BereanMacApp: App {
         }
         .commands {
             CommandGroup(after: .newItem) {
-                Button("New Tab…") { app.commandPaletteShown = true }.keyboardShortcut("t")
-                Button("Open Reference or Search…") { app.commandPaletteShown = true }.keyboardShortcut("k")
-                Button("Go to Reference…") { app.commandPaletteShown = true }.keyboardShortcut("l")
+                Button("New Tab…") { app.showCommandPalette(newTab: true) }.keyboardShortcut("t")
+                Button("Open Reference or Search…") { app.showCommandPalette() }.keyboardShortcut("k")
+                Button("Go to Reference…") { app.showCommandPalette() }.keyboardShortcut("l")
                 Button("Close Tab") { app.closeActiveTab() }.keyboardShortcut("w")
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("Today's Note") { app.openTodayDailyNote() }.keyboardShortcut("d", modifiers: [.command, .shift])
@@ -31,10 +31,26 @@ struct BereanMacApp: App {
                     .disabled(app.activeNoteId == nil)
             }
             CommandGroup(before: .toolbar) {
+                Button("Increase Scripture Text Size") {
+                    app.fontSize = ScriptureTextSize.clamped(app.fontSize + 1)
+                }
+                .keyboardShortcut("=")
+                .disabled(app.fontSize >= ScriptureTextSize.range.upperBound)
+                Button("Decrease Scripture Text Size") {
+                    app.fontSize = ScriptureTextSize.clamped(app.fontSize - 1)
+                }
+                .keyboardShortcut("-")
+                .disabled(app.fontSize <= ScriptureTextSize.range.lowerBound)
+                Button("Reset Scripture Text Size") { app.fontSize = ScriptureTextSize.standard }
+                    .keyboardShortcut("0")
+                    .disabled(app.fontSize == ScriptureTextSize.standard)
+                Divider()
                 Button("Toggle Sidebar") { app.sidebarToggleRequest += 1 }.keyboardShortcut("s", modifiers: [.command, .control])
             }
             CommandMenu("Go") {
                 Button("History") { app.openHistory() }.keyboardShortcut("y")
+                Button("Study Trail") { app.showStudyTrail = true }
+                Button("Calendar") { app.openCalendar() }
                 Button("Tags") { app.openTags() }
                 Divider()
                 Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)

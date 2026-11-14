@@ -265,6 +265,20 @@
 				"$(SRCROOT)/../data/strongs_greek.db",
 				"$(SRCROOT)/../data/cross_references.db",
 				"$(SRCROOT)/../data/tske_refs.db",
+				"$(SRCROOT)/../data/1clement.db",
+				"$(SRCROOT)/../data/2baruch.db",
+				"$(SRCROOT)/../data/apoc_abraham.db",
+				"$(SRCROOT)/../data/apoc_elijah.db",
+				"$(SRCROOT)/../data/asc_isaiah.db",
+				"$(SRCROOT)/../data/didache_hoole.db",
+				"$(SRCROOT)/../data/ep_barnabas.db",
+				"$(SRCROOT)/../data/gad.db",
+				"$(SRCROOT)/../data/hermas.db",
+				"$(SRCROOT)/../data/hermas_taylor.db",
+				"$(SRCROOT)/../data/recog_clement.db",
+				"$(SRCROOT)/../data/t12p.db",
+				"$(SRCROOT)/../data/t_jacob.db",
+				"$(SRCROOT)/../data/t_job.db",
 			);
 			name = "Bundle corpora";
 			outputFileListPaths = (
@@ -280,6 +294,20 @@
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/strongs_greek.db",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/cross_references.db",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/tske_refs.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/1clement.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/2baruch.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/apoc_abraham.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/apoc_elijah.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/asc_isaiah.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/didache_hoole.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/ep_barnabas.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/gad.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/hermas.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/hermas_taylor.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/recog_clement.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/t12p.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/t_jacob.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/t_job.db",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -303,6 +331,20 @@
 				"$(SRCROOT)/../data/strongs_greek.db",
 				"$(SRCROOT)/../data/cross_references.db",
 				"$(SRCROOT)/../data/tske_refs.db",
+				"$(SRCROOT)/../data/1clement.db",
+				"$(SRCROOT)/../data/2baruch.db",
+				"$(SRCROOT)/../data/apoc_abraham.db",
+				"$(SRCROOT)/../data/apoc_elijah.db",
+				"$(SRCROOT)/../data/asc_isaiah.db",
+				"$(SRCROOT)/../data/didache_hoole.db",
+				"$(SRCROOT)/../data/ep_barnabas.db",
+				"$(SRCROOT)/../data/gad.db",
+				"$(SRCROOT)/../data/hermas.db",
+				"$(SRCROOT)/../data/hermas_taylor.db",
+				"$(SRCROOT)/../data/recog_clement.db",
+				"$(SRCROOT)/../data/t12p.db",
+				"$(SRCROOT)/../data/t_jacob.db",
+				"$(SRCROOT)/../data/t_job.db",
 			);
 			name = "Bundle corpora";
 			outputFileListPaths = (
@@ -318,6 +360,20 @@
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/strongs_greek.db",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/cross_references.db",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/tske_refs.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/1clement.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/2baruch.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/apoc_abraham.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/apoc_elijah.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/asc_isaiah.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/didache_hoole.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/ep_barnabas.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/gad.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/hermas.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/hermas_taylor.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/recog_clement.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/t12p.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/t_jacob.db",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Corpora/t_job.db",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

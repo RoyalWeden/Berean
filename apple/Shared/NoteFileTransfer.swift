@@ -23,13 +23,17 @@ enum NoteFileTransfer {
 
     @MainActor
     static func exportMarkdown(_ text: String, suggestedName: String, completion: @escaping (Outcome) -> Void) {
+        export(text, suggestedName: suggestedName, title: "Export Note as Markdown", type: markdownType, completion: completion)
+    }
+
+    @MainActor
+    static func export(_ text: String, suggestedName: String, title: String, type: UTType, completion: @escaping (Outcome) -> Void) {
         #if os(macOS)
         let panel = NSSavePanel()
-        panel.title = "Export Note as Markdown"
+        panel.title = title
         panel.prompt = "Export"
-        panel.message = "Choose where to save the note as a Markdown (.md) file."
         panel.nameFieldStringValue = suggestedName
-        panel.allowedContentTypes = [markdownType]
+        panel.allowedContentTypes = [type]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         let finish: (NSApplication.ModalResponse) -> Void = { response in
@@ -38,13 +42,24 @@ enum NoteFileTransfer {
         }
         if let window = NSApp.keyWindow ?? NSApp.mainWindow { panel.beginSheetModal(for: window, completionHandler: finish) } else { finish(panel.runModal()) }
         #else
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedName)
-        do { try write(text, to: url) } catch { completion(.failed(error.localizedDescription)); return }
+        guard let top = topViewController() else { completion(.failed("No window to present from.")); return }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let url = directory.appendingPathComponent(suggestedName)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try write(text, to: url)
+        } catch {
+            try? FileManager.default.removeItem(at: directory)
+            completion(.failed(error.localizedDescription))
+            return
+        }
         let picker = UIDocumentPickerViewController(forExporting: [url], asCopy: true)
-        let delegate = PickerDelegate { urls in completion(urls.first.map { .saved($0) } ?? .cancelled) }
+        let delegate = PickerDelegate { urls in
+            try? FileManager.default.removeItem(at: directory)
+            completion(urls.first.map { .saved($0) } ?? .cancelled)
+        }
         picker.delegate = delegate
         objc_setAssociatedObject(picker, &PickerDelegate.key, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        guard let top = topViewController() else { completion(.failed("No window to present from.")); return }
         top.present(picker, animated: true)
         #endif
     }

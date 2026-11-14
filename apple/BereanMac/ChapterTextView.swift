@@ -1,34 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// Everything the continuous reader needs to draw one verse.
-struct ReaderVerse: Equatable {
-    struct Word: Equatable { var text: String; var italic: Bool; var red: Bool; var strongs: [String] }
-    struct Mark: Equatable { var start: Int; var end: Int; var color: String }   // display offsets into the joined words
-    var verse: Int
-    var title: String?
-    var words: [Word]
-    var marks: [Mark] = []
-    var tint: String?          // whole-verse highlight colour
-    var noteCount = 0
-    var tags: [(name: String, color: String?, slot: Int?)] = []
-    static func == (a: ReaderVerse, b: ReaderVerse) -> Bool {
-        a.verse == b.verse && a.title == b.title && a.words == b.words && a.marks == b.marks && a.tint == b.tint && a.noteCount == b.noteCount
-            && a.tags.map(\.name) == b.tags.map(\.name)
-    }
-    /// The verse as displayed (words joined by spaces), the text copy uses.
-    var displayText: String { words.map(\.text).joined(separator: " ") }
-}
-
-struct ReaderStyle: Equatable {
-    var fontSize: Double
-    var lineSpacing: CGFloat
-    var family: String
-    var showStrongs: Bool
-    var showVerseNumbers = true
-    var redLetters = true
-}
-
 /// The Mac Scripture reader: ONE TextKit text view for the whole chapter, so a selection can run across verses
 /// (VERSE rows as separate SwiftUI Texts could not). Verse numbers, Strong's numbers and tag chips are links with
 /// a pointing-hand cursor and a hover underline; right-click gives the verse actions; ⌘C copies like the existing
@@ -41,13 +13,16 @@ struct ChapterTextView: NSViewRepresentable {
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
-    var reference: (Int) -> String                  // verse → "John 3:16"
+    var selectedVerseCopyText: (Bool) -> String?
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
+    var strongsTooltips: [String: String] = [:]
     var onStrongs: (String) -> Void
+    var onNotes: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
+    var onCopySelectedVerses: () -> Void
     /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
     var onHighlightRange: (Int, Int, Int, String) -> Void = { _, _, _, _ in }
 
@@ -58,11 +33,19 @@ struct ChapterTextView: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
-        let tv = ReaderTextView(usingTextLayoutManager: false)
+        let storage = NSTextStorage()
+        let layout = NSLayoutManager()
+        let container = NSTextContainer()
+        storage.addLayoutManager(layout)
+        layout.addTextContainer(container)
+        let tv = ReaderTextView(frame: .zero, textContainer: container)
         tv.isEditable = false
         tv.isSelectable = true
         tv.drawsBackground = false
         tv.isRichText = true
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.autoresizingMask = [.width]
         tv.textContainer?.widthTracksTextView = true
         tv.linkTextAttributes = [.cursor: NSCursor.pointingHand]
@@ -81,32 +64,100 @@ struct ChapterTextView: NSViewRepresentable {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
-        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, selected: selectedVerses)
-        if key != c.lastKey {
+        let clip = scroll.contentView
+        let previousBounds = clip.bounds
+        let revealVerse = c.lastPassage == passageId
+            ? selectedVerses.subtracting(c.renderedSelection).max() : nil
+        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
+        if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
-            let origin = scroll.contentView.bounds.origin
+            let origin = previousBounds.origin
+            let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
+            let previousBottom = clip.constrainBoundsRect(previousBounds.offsetBy(dx: 0, dy: clip.documentRect.height)).minY
+            let wasAtEnd = keepScroll && previousBottom > clip.documentRect.minY + 1
+                && origin.y >= previousBottom - 1
             let sel = tv.selectedRanges
+            let previousText = tv.string
+            tv.readerWidth = style.width
             tv.textStorage?.setAttributedString(c.build(self))
+            tv.needsDisplay = true
             if keepScroll {
-                // Restore the selection only where it still fits; AppKit throws on an empty selection array.
-                let kept = sel.filter { $0.rangeValue.upperBound <= tv.string.utf16.count }
+                // Character ranges use UTF-16 offsets, so even canonically equal text can invalidate them.
+                let kept = previousText.utf16.elementsEqual(tv.string.utf16) ? sel : []
                 tv.selectedRanges = kept.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : kept
-                scroll.contentView.scroll(to: origin)
+                var proposed = previousBounds
+                if wasAtEnd, let container = tv.textContainer {
+                    tv.layoutManager?.ensureLayout(for: container)
+                    proposed.origin.y = clip.documentRect.maxY
+                } else if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
+                    tv.layoutManager?.ensureLayout(for: container)
+                    if let marker = tv.firstRect(forVerseRange: range) {
+                        proposed.origin.y = marker.minY - readingAnchor.offsetFromTop
+                    }
+                }
+                clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+                scroll.reflectScrolledClipView(clip)
             }
             c.lastKey = key
             if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
         }
-        if let t = scrollTarget, t != c.scrolledTo, let r = c.verseRanges[t] {
-            c.scrolledTo = t
-            DispatchQueue.main.async {
-                tv.layoutManager?.ensureLayout(for: tv.textContainer!)
-                if let rect = tv.firstRect(forVerseRange: r) { scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, rect.minY - 12))); scroll.reflectScrolledClipView(scroll.contentView) }
+        if c.renderedSelection != selectedVerses {
+            if let storage = tv.textStorage {
+                c.updateMarkerColors(in: storage, changed: c.renderedSelection.symmetricDifference(selectedVerses))
+            }
+            c.renderedSelection = selectedVerses
+            tv.needsDisplay = true
+        }
+        if let revealVerse, scrollTarget == nil {
+            let destination = passageId
+            // Wait for SwiftUI to install the shorter viewport above the floating actions.
+            DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
+                guard let tv, let scroll, let c, c.lastPassage == destination,
+                      c.parent.selectedVerses.contains(revealVerse),
+                      let range = c.verseRanges[revealVerse],
+                      let container = tv.textContainer else { return }
+                tv.layoutManager?.ensureLayout(for: container)
+                guard let bottom = tv.lastVerseLineBottom(in: range) else { return }
+                let clip = scroll.contentView
+                let overlap = bottom + ReaderFloatingControls.readingGap - clip.bounds.maxY
+                if overlap > 0 {
+                    var proposed = clip.bounds
+                    proposed.origin.y += overlap
+                    clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+                    scroll.reflectScrolledClipView(clip)
+                }
+            }
+        }
+        if scrollTarget == nil { c.scrolledTo = nil }
+        if let target = scrollTarget, target != c.scrolledTo, c.verseRanges[target] != nil {
+            c.scrolledTo = target
+            let destination = passageId
+            DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
+                guard let tv, let scroll, let c,
+                      c.parent.passageId == destination, c.parent.scrollTarget == target,
+                      let range = c.verseRanges[target], let container = tv.textContainer else { return }
+                tv.layoutManager?.ensureLayout(for: container)
+                if let rect = tv.firstRect(forVerseRange: range) {
+                    let clip = scroll.contentView
+                    var proposed = clip.bounds
+                    proposed.origin.y = rect.minY - 12
+                    if let lastVerse = c.parent.selectedVerses.max(),
+                       lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
+                       let bottom = tv.lastVerseLineBottom(in: lastRange) {
+                        let lastLine = bottom + ReaderFloatingControls.readingGap
+                        if lastLine - rect.minY <= proposed.height {
+                            proposed.origin.y = max(proposed.origin.y, lastLine - proposed.height)
+                        }
+                    }
+                    clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+                    scroll.reflectScrolledClipView(clip)
+                }
             }
         }
     }
 
     struct Key: Equatable {
-        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var selected: Set<Int>
+        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var tooltips: [String: String]
     }
 
     // MARK: - Coordinator: builds the text, routes clicks, copies
@@ -118,6 +169,22 @@ struct ChapterTextView: NSViewRepresentable {
         var lastPassage = ""
         var scrolledTo: Int?
         /// verse → range of its paragraph (number + text) in the text storage.
+        var renderedSelection: Set<Int> = []
+        private var markerRanges: [Int: NSRange] = [:]
+
+        func updateMarkerColors(in storage: NSTextStorage, changed: Set<Int>) {
+            storage.beginEditing()
+            for verse in changed {
+                guard let range = markerRanges[verse] else { continue }
+                storage.addAttribute(.foregroundColor, value: markerColor(verse, parent), range: range)
+            }
+            storage.endEditing()
+        }
+
+        private func markerColor(_ verse: Int, _ reader: ChapterTextView) -> NSColor {
+            return reader.selectedVerses.contains(verse) ? .controlAccentColor : NSColor.controlAccentColor.withAlphaComponent(0.82)
+        }
+
         var verseRanges: [Int: NSRange] = [:]
         /// verse → storage index where its words start (after the gutter).
         var verseTextStarts: [Int: Int] = [:]
@@ -143,15 +210,19 @@ struct ChapterTextView: NSViewRepresentable {
         func build(_ p: ChapterTextView) -> NSAttributedString {
             let out = NSMutableAttributedString()
             verseRanges = [:]; verseTextStarts = [:]
+            markerRanges.removeAll(keepingCapacity: true)
             let size = p.style.fontSize
             let para = NSMutableParagraphStyle()
             para.lineSpacing = p.style.lineSpacing
             para.paragraphSpacing = size * 0.55
-            para.tabStops = [NSTextTab(textAlignment: .right, location: 26), NSTextTab(textAlignment: .left, location: 34)]
-            para.headIndent = 34
+            let gutterWidth: CGFloat = p.style.showVerseNumbers ? 34 : 0
+            if p.style.showVerseNumbers {
+                para.tabStops = [NSTextTab(textAlignment: .right, location: 26), NSTextTab(textAlignment: .left, location: gutterWidth)]
+                para.headIndent = gutterWidth
+            }
             let base: [NSAttributedString.Key: Any] = [.font: font(size), .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
 
-            let headPara = NSMutableParagraphStyle(); headPara.paragraphSpacing = 10; headPara.headIndent = 34; headPara.firstLineHeadIndent = 34
+            let headPara = NSMutableParagraphStyle(); headPara.paragraphSpacing = 10; headPara.headIndent = gutterWidth; headPara.firstLineHeadIndent = gutterWidth
             for h in p.header {
                 out.append(NSAttributedString(string: h + "\n", attributes: [.font: NSFont.preferredFont(forTextStyle: .callout), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: headPara, Self.skipKey: true]))
             }
@@ -166,20 +237,25 @@ struct ChapterTextView: NSViewRepresentable {
             for v in p.verses {
                 let start = out.length
                 if let title = v.title, !title.isEmpty {
-                    out.append(NSAttributedString(string: "\t\t" + title + "\n", attributes: base.merging([.font: font(size * 0.85, italic: true), .foregroundColor: NSColor.secondaryLabelColor, Self.skipKey: true]) { $1 }))
+                    let prefix = p.style.showVerseNumbers ? "\t\t" : ""
+                    out.append(NSAttributedString(string: prefix + title + "\n", attributes: base.merging([.font: font(size * 0.85, italic: true), .foregroundColor: NSColor.secondaryLabelColor, Self.skipKey: true]) { $1 }))
                 }
-                // Gutter: right-aligned verse number (a link → verse actions), note dot.
-                let numAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
-                    .foregroundColor: p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor : (p.style.showVerseNumbers ? NSColor.secondaryLabelColor : NSColor.clear),
-                    .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
-                    .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
-                ]
-                // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
-                let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
-                out.append(NSAttributedString(string: "\t", attributes: gutterTab))
-                out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
-                out.append(NSAttributedString(string: "\t", attributes: gutterTab))
+                if p.style.showVerseNumbers {
+                    // Gutter: right-aligned verse number (a link → verse actions), note dot.
+                    let numAttrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
+                        .foregroundColor: markerColor(v.verse, p),
+                        .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
+                        .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
+                    ]
+                    // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
+                    let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
+                    let markerStart = out.length
+                    out.append(NSAttributedString(string: "\t", attributes: gutterTab))
+                    out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
+                    out.append(NSAttributedString(string: "\t", attributes: gutterTab))
+                    markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
+                }
                 let textStart = out.length
                 verseTextStarts[v.verse] = textStart
                 // Words with italics / red letters / character highlights; Strong's numbers as superscript links.
@@ -209,15 +285,15 @@ struct ChapterTextView: NSViewRepresentable {
                             let id = n.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
                             out.append(NSAttributedString(string: "\u{2009}" + id, attributes: [
                                 .font: NSFont.monospacedDigitSystemFont(ofSize: max(9, size * 0.58), weight: .medium),
-                                .foregroundColor: NSColor.secondaryLabelColor, .baselineOffset: size * 0.38,
+                                .foregroundColor: NSColor.controlAccentColor, .baselineOffset: size * 0.38,
                                 .link: URL(string: "strongs:\(id)")!, .paragraphStyle: para, Self.skipKey: true,
-                                .toolTip: "Strong's \(id) — open in the lexicon",
+                                .toolTip: p.strongsTooltips[id] ?? "Strong's \(id) — open in the lexicon",
                             ]))
                         }
                     }
                 }
                 if v.noteCount > 0 {
-                    out.append(NSAttributedString(string: v.noteCount > 1 ? "  ●\(v.noteCount)" : "  ●", attributes: [.font: NSFont.systemFont(ofSize: max(8, size * 0.5)), .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: para, Self.skipKey: true, .toolTip: "\(v.noteCount) note(s)"]))
+                    out.append(NSAttributedString(string: v.noteCount > 1 ? "  ●\(v.noteCount)" : "  ●", attributes: [.font: NSFont.systemFont(ofSize: max(8, size * 0.5)), .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: para, Self.skipKey: true, .link: URL(string: "berean-verse-notes:\(v.verse)")!, .toolTip: "Open notes for verse \(v.verse) (\(v.noteCount))"]))
                 }
                 if !v.tags.isEmpty {
                     out.append(NSAttributedString(string: "  ", attributes: base.merging([Self.skipKey: true]) { $1 }))
@@ -226,8 +302,7 @@ struct ChapterTextView: NSViewRepresentable {
                 out.append(NSAttributedString(string: "\n", attributes: base))
                 let range = NSRange(location: start, length: out.length - start)
                 out.addAttribute(Self.verseKey, value: v.verse, range: range)
-                let tint: NSColor? = p.selectedVerses.contains(v.verse) ? NSColor.controlAccentColor.withAlphaComponent(0.16)
-                    : v.tint.map { NSColor(Color.highlight($0)).withAlphaComponent(0.22) }
+                let tint = v.tint.map { NSColor(Color.highlight($0)).withAlphaComponent(0.22) }
                 if let tint {
                     out.enumerateAttribute(.backgroundColor, in: NSRange(location: textStart, length: out.length - textStart - 1)) { val, r, _ in
                         if val == nil { out.addAttribute(.backgroundColor, value: tint, range: r) }
@@ -254,7 +329,13 @@ struct ChapterTextView: NSViewRepresentable {
             guard let url = link as? URL ?? (link as? String).flatMap(URL.init(string:)) else { return false }
             switch url.scheme {
             case "berean-verse":
-                if let v = Int(url.absoluteString.dropFirst("berean-verse:".count)) { parent.onVerseClick(v, NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false) }
+                if let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) {
+                    textView.window?.makeFirstResponder(textView)
+                    textView.setSelectedRange(NSRange(location: charIndex, length: 0))
+                    parent.onVerseClick(verse, NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false)
+                }
+            case "berean-verse-notes":
+                if let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) { parent.onNotes(verse) }
             case "strongs":
                 parent.onStrongs(String(url.absoluteString.dropFirst("strongs:".count)))
             case "berean-tag":
@@ -274,6 +355,17 @@ struct ChapterTextView: NSViewRepresentable {
             var rect = lm.boundingRect(forGlyphRange: NSRange(location: g, length: 1), in: tc)
             rect.origin.x += tv.textContainerOrigin.x; rect.origin.y += tv.textContainerOrigin.y
             menu.popUp(positioning: nil, at: NSPoint(x: rect.minX, y: rect.maxY + 2), in: tv)
+        }
+
+        func readingAnchor(at top: CGFloat, in view: NSTextView) -> (verse: Int, offsetFromTop: CGFloat)? {
+            guard top > view.textContainerOrigin.y, let layout = view.layoutManager,
+                  let container = view.textContainer, layout.numberOfGlyphs > 0 else { return nil }
+            let point = CGPoint(x: container.lineFragmentPadding, y: top - view.textContainerOrigin.y)
+            let glyph = layout.glyphIndex(for: point, in: container)
+            guard glyph < layout.numberOfGlyphs,
+                  let verse = verse(at: layout.characterIndexForGlyph(at: glyph)),
+                  let range = verseRanges[verse], let marker = view.firstRect(forVerseRange: range) else { return nil }
+            return (verse, marker.minY - top)
         }
 
         func verse(at index: Int) -> Int? {
@@ -320,10 +412,7 @@ struct ChapterTextView: NSViewRepresentable {
             guard let tv = textView else { return nil }
             let r = tv.selectedRange()
             if r.length == 0 {
-                let vs = parent.verses.filter { parent.selectedVerses.contains($0.verse) }
-                guard let first = vs.first, let last = vs.last else { return nil }
-                if plain { return vs.map(\.displayText).joined(separator: " ") }
-                return ([vs.count == 1 ? parent.reference(first.verse) : parent.rangeReference(first.verse, last.verse)] + vs.map { "\($0.verse) \($0.displayText)" }).joined(separator: "\n")
+                return parent.selectedVerseCopyText(plain)
             }
             let vs = verses(in: r)
             if vs.count <= 1 && !plain { return plainText(r) }
@@ -341,22 +430,63 @@ final class ReaderTextView: NSTextView {
     private var hovered: NSRange?
     private var tracking: NSTrackingArea?
 
+    var readerWidth = ScriptureWidth.normal {
+        didSet { if readerWidth != oldValue { updateReadingInset(for: frame.width) } }
+    }
+
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        let inset = max(20, (newSize.width - 760) / 2)
+        updateReadingInset(for: newSize.width)
+    }
+
+    private func updateReadingInset(for width: CGFloat) {
+        let inset = max(20, (width - readerWidth.macMaximum) / 2)
         if abs(textContainerInset.width - inset) > 0.5 { textContainerInset = NSSize(width: inset, height: 18) }
     }
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let c = coordinator, let layout = layoutManager, let container = textContainer else { return }
+        let origin = textContainerOrigin
+        for range in selectedVerseRanges(c.parent.selectedVerses, in: c.verseRanges) {
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            guard glyphs.length > 0 else { continue }
+            let first = layout.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+            let last = layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+            let padding = ReaderFloatingControls.outlinePadding
+            let rect = NSRect(x: origin.x, y: first.minY + origin.y,
+                              width: container.containerSize.width,
+                              height: last.maxY - first.minY).insetBy(dx: 0, dy: -padding)
+            guard dirtyRect.intersects(rect) else { continue }
+            let radius = ReaderFloatingControls.outlineRadius
+            let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+            path.lineWidth = 1
+            path.setLineDash([4, 3], count: 2, phase: 0)
+            NSColor.controlAccentColor.withAlphaComponent(0.7).setStroke()
+            path.stroke()
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         // A single click on a link (verse number, Strong's number, tag chip) acts like a button; anything else is text
         // selection. (The built-in link handling did not fire for these custom-scheme links inside SwiftUI.)
-        if event.clickCount == 1, let i = charIndex(at: event), let ts = textStorage, i < ts.length,
-           let link = ts.attribute(.link, at: i, effectiveRange: nil), let c = coordinator {
-            _ = c.textView(self, clickedOnLink: link, at: i)
-            return
+        if event.clickCount == 1, let c = coordinator, let ts = textStorage {
+            if let i = charIndex(at: event, includeVerseGutter: true),
+               let url = ts.attribute(.link, at: i, effectiveRange: nil) as? URL,
+               url.scheme == "berean-verse",
+               let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) {
+                setSelectedRange(NSRange(location: i, length: 0))
+                c.parent.onVerseClick(verse, event.modifierFlags.contains(.shift))
+                return
+            }
+            if let i = charIndex(at: event),
+               let link = ts.attribute(.link, at: i, effectiveRange: nil),
+               c.textView(self, clickedOnLink: link, at: i) {
+                return
+            }
         }
         super.mouseDown(with: event)
     }
@@ -368,24 +498,42 @@ final class ReaderTextView: NSTextView {
         addTrackingArea(t); tracking = t
     }
 
-    func charIndex(at event: NSEvent) -> Int? {
+    func charIndex(at event: NSEvent, includeVerseGutter: Bool = false) -> Int? {
         let p = convert(event.locationInWindow, from: nil)
         guard let lm = layoutManager, let tc = textContainer else { return nil }
+        guard lm.numberOfGlyphs > 0 else { return nil }
         let pt = NSPoint(x: p.x - textContainerOrigin.x, y: p.y - textContainerOrigin.y)
         var fraction: CGFloat = 0
         let g = lm.glyphIndex(for: pt, in: tc, fractionOfDistanceThroughGlyph: &fraction)
+        guard g < lm.numberOfGlyphs else { return nil }
         let rect = lm.boundingRect(forGlyphRange: NSRange(location: g, length: 1), in: tc)
-        guard rect.insetBy(dx: -2, dy: -2).contains(pt) else { return nil }
-        return lm.characterIndexForGlyph(at: g)
+        let index = lm.characterIndexForGlyph(at: g)
+        if rect.insetBy(dx: -2, dy: -2).contains(pt) { return index }
+        if includeVerseGutter, let storage = textStorage, let c = coordinator,
+           c.parent.style.showVerseNumbers, index < storage.length, let verse = c.verse(at: index),
+           let start = c.verseTextStarts[verse], start > 0, start < storage.length {
+            let firstWord = lm.glyphIndexForCharacter(at: start)
+            let line = lm.lineFragmentRect(forGlyphAt: firstWord, effectiveRange: nil)
+            let word = lm.boundingRect(forGlyphRange: NSRange(location: firstWord, length: 1), in: tc)
+            if pt.x >= 0, pt.x < word.minX, pt.y >= line.minY, pt.y < line.maxY {
+                return start - 1
+            }
+        }
+        return nil
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         guard let lm = layoutManager, let ts = textStorage else { return }
         var newRange: NSRange?
-        if let i = charIndex(at: event), i < ts.length {
+        if let i = charIndex(at: event, includeVerseGutter: true), i < ts.length {
             var r = NSRange()
             if ts.attribute(.link, at: i, effectiveRange: &r) != nil { newRange = r }
+        }
+        if newRange != nil {
+            NSCursor.pointingHand.set()
+        } else if hovered != nil {
+            NSCursor.iBeam.set()
         }
         if newRange != hovered {
             if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.underlineStyle, forCharacterRange: h) }
@@ -423,7 +571,10 @@ final class ReaderTextView: NSTextView {
 
     override func copy(_ sender: Any?) {
         guard let s = coordinator?.copyText(plain: false) else { return }
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
+        NSPasteboard.general.clearContents()
+        if NSPasteboard.general.setString(s, forType: .string), selectedRange().length == 0 {
+            coordinator?.parent.onCopySelectedVerses()
+        }
     }
 
     @objc func copyPlain(_ sender: Any?) {
@@ -439,9 +590,12 @@ final class ReaderTextView: NSTextView {
             let item = NSMenuItem(); item.tag = NSTextFinder.Action.showFindInterface.rawValue
             performFindPanelAction(item); return true
         }
-        if mods == [.command], event.charactersIgnoringModifiers?.lowercased() == "g" {
-            let item = NSMenuItem(); item.tag = NSTextFinder.Action.nextMatch.rawValue
-            performFindPanelAction(item); return true
+        if event.charactersIgnoringModifiers?.lowercased() == "g",
+           mods == [.command] || mods == [.command, .shift] {
+            let item = NSMenuItem()
+            item.tag = (mods.contains(.shift) ? NSTextFinder.Action.previousMatch : .nextMatch).rawValue
+            performFindPanelAction(item)
+            return true
         }
         if window?.firstResponder === self, selectedRange().length > 0 || !(coordinator?.parent.selectedVerses.isEmpty ?? true), event.charactersIgnoringModifiers?.lowercased() == "c" {
             if mods == [.command] { copy(nil); return true }
@@ -458,6 +612,16 @@ extension NSTextView {
         var rect = lm.boundingRect(forGlyphRange: g, in: tc)
         rect.origin.y += textContainerOrigin.y
         return rect
+    }
+
+    fileprivate func lastVerseLineBottom(in range: NSRange) -> CGFloat? {
+        guard range.length > 1, let layoutManager else { return nil }
+        // Match the outline: the final newline belongs to the paragraph, but adds no visible verse text.
+        let text = NSRange(location: range.location, length: range.length - 1)
+        let glyphs = layoutManager.glyphRange(forCharacterRange: text, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return nil }
+        return layoutManager.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY
+            + textContainerOrigin.y
     }
 }
 

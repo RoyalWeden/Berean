@@ -70,6 +70,57 @@ func noteJSON(_ n: Note) -> JSValue {
         }
     }
 
+    @Test func notesHomeMatchIDsCoverAllResultsAndRefreshAfterEdits() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        let older = try notes.create(.init(id: "z", title: "Olive branch")).note
+        for i in 0..<201 {
+            _ = try notes.create(.init(id: "a-\(i)", title: "Olive orchard branch"))
+        }
+        _ = try notes.create(.init(id: "untitled", content: "sycamore"))
+        #expect(try !notes.search("olive", limit: 200).contains { $0.id == older.id })
+        #expect(try notes.matchingNoteIDs("oliv branch").count == 202)
+        #expect(try notes.matchingNoteIDs("olive branch", mode: .phrase) == [older.id])
+        #expect(try notes.matchingNoteIDs("oliv sycam", mode: .any).count == 203)
+        #expect(try notes.matchingNoteIDs("untitled") == ["untitled"])
+        #expect(try notes.matchingNoteIDs("  !?\n").isEmpty)
+
+        _ = try notes.update(older.id, .init(title: "Fig tree"))
+        #expect(try notes.matchingNoteIDs("olive branch", mode: .phrase).isEmpty)
+        #expect(try notes.matchingNoteIDs("fig") == [older.id])
+        try notes.delete(older.id)
+        #expect(try notes.matchingNoteIDs("fig").isEmpty)
+        _ = try notes.restore(older.id)
+        #expect(try notes.matchingNoteIDs("fig") == [older.id])
+    }
+
+    @Test func verseInspectorIncludesRangeAttachments() throws {
+        let range = try svc.create(.init(type: "verse", title: "Range", verseRef: "JHN.3.14-16", textId: "kjva")).note
+        let chapter = try svc.create(.init(type: "verse", title: "Chapter", verseRef: "JHN.3", textId: "kjva")).note
+        let first = try svc.coveringVerse("JHN", 3, 14, textId: "kjva").map(\.id)
+        let last = try svc.coveringVerse("JHN", 3, 16, textId: "kjva").map(\.id)
+        #expect(first.contains(range.id))
+        #expect(last.contains(range.id))
+        let counts = try svc.coveringVerseCounts("JHN", 3, verses: [14, 16, 17], textId: "kjva")
+        #expect(counts[14] == first.count)
+        #expect(counts[16] == last.count)
+        #expect(counts[15] == nil)
+        #expect(!last.contains(chapter.id))
+        #expect(!(try svc.coveringVerse("JHN", 3, 17, textId: "kjva")).contains { $0.id == range.id })
+    }
+
+    @Test func disjointAttachmentsMatchEachChapterAndCountOnce() throws {
+        let note = try svc.create(.init(type: "verse", title: "Disjoint",
+                                       verseRef: "JHN.3.14-15, JHN.3.15, JHN.3.17, JHN.4.2", textId: "kjva")).note
+        #expect(try svc.coveringVerse("JHN", 3, 17, textId: "kjva").contains { $0.id == note.id })
+        #expect(!(try svc.coveringVerse("JHN", 3, 16, textId: "kjva")).contains { $0.id == note.id })
+        #expect(try svc.coveringVerse("JHN", 4, 2, textId: "kjva").contains { $0.id == note.id })
+        let matching = try svc.coveringVerse("JHN", 3, 15, textId: "kjva")
+        #expect(matching.filter { $0.id == note.id }.count == 1)
+        #expect(try svc.coveringVerseCounts("JHN", 3, verses: [15], textId: "kjva")[15] == matching.count)
+    }
+
     @Test func verseAndChapter() throws {
         for c in g.arr("byVerse") {
             #expect(try svc.byVerse(c["ref"]!.str, textId: c["textId"]!.str).map(\.id) == c["ids"]!.array.map(\.str), "\(c["ref"]!.str) \(c["textId"]!.str)")

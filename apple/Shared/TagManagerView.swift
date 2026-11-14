@@ -29,7 +29,7 @@ struct TagManagerView: View {
                     ContentUnavailableView("No tags yet", systemImage: "tag", description: Text("Tag a verse from its verse menu (Tag Verse…), or create a tag here."))
                 }
                 ForEach(shown) { t in
-                    Button { app.openSearch("#\(t.name)") } label: {
+                    Button { app.openSearch("#\(t.name)", reuseTab: true) } label: {
                         HStack {
                             TagChip(name: t.name, color: t.color, slot: t.colorSlot)
                             Spacer()
@@ -37,7 +37,7 @@ struct TagManagerView: View {
                             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                         }.contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.interactivePlain)
                     .contextMenu { menu(t) }
                     #if os(iOS)
                     .swipeActions { Button("Delete", role: .destructive) { attemptDelete(t) } }
@@ -74,7 +74,7 @@ struct TagManagerView: View {
     }
 
     @ViewBuilder func menu(_ t: VerseTagSummary) -> some View {
-        Button("Show Verses") { app.openSearch("#\(t.name)") }
+        Button("Show Verses") { app.openSearch("#\(t.name)", reuseTab: true) }
         Button("Rename…") { name = t.name; renaming = t }
         Menu("Colour") {
             ForEach(0..<VerseTagsService.slotCount, id: \.self) { slot in

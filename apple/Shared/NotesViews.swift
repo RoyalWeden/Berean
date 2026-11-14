@@ -22,7 +22,7 @@ struct NoteRowView: View {
     }
 }
 
-func verseLabel(_ ref: String, _ textId: String) -> String { Reference.verseRefDisplay(ref, textId: textId) }
+func verseLabel(_ ref: String, _ textId: String) -> String { Reference.verseRefDisplay(ref, textId: textId, hermas: HermasText(textId: textId)) }
 
 extension Color {
     static func noteColor(_ name: String) -> Color {
@@ -30,8 +30,7 @@ extension Color {
     }
 }
 
-/// One note: rendered Markdown, or (Edit) the Markdown source with autosave. The native rich editor
-/// (TextKit, ProseMirror-compatible Markdown) replaces the source mode in M7.
+/// One note with a native rich editor, Markdown source, and read-only preview.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app
     let noteId: String
@@ -45,6 +44,7 @@ struct NoteDetailView: View {
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
     @State private var showingHistory = false
+    @State private var showingPreview = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -57,10 +57,32 @@ struct NoteDetailView: View {
                         .onSubmit { focus = .body }
                         .onChange(of: title) { scheduleSave() }
                     if let ref = note.verseRef {
-                        Button(verseLabel(ref, note.textId)) {
-                            let p = ref.split(separator: ".").map(String.init)
-                            if p.count >= 2, let c = Int(p[1]) { app.openScripture(bookId: p[0], chapter: c, verse: p.count > 2 ? Int(p[2]) : nil, textId: note.textId) }
-                        }.buttonStyle(.borderless)
+                        let attachments = ref.split(separator: ",").compactMap { part -> ResolvedPassage? in
+                            guard let link = Reference.parseNoteAttachment(String(part)) else { return nil }
+                            return ResolvedPassage(textId: note.textId, bookId: link.bookId, chapter: link.chapter,
+                                                   verse: link.verse, endVerse: link.endVerse)
+                        }
+                        if let passage = attachments.first, attachments.count == 1 {
+                            Button { followAttachment(passage) } label: {
+                                Label(verseLabel(ref, note.textId), systemImage: "book")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Color.accentColor)
+                                    .padding(.vertical, 6)
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.interactivePlain)
+                            .accessibilityLabel("Open \(verseLabel(ref, note.textId)) in Scripture")
+                            .help("Open in Scripture")
+                        } else if !attachments.isEmpty {
+                            Menu {
+                                ForEach(attachments.indices, id: \.self) { index in
+                                    let passage = attachments[index]
+                                    Button(passage.label, systemImage: "book") { followAttachment(passage) }
+                                }
+                            } label: {
+                                Label("Scripture Attachments", systemImage: "book")
+                            }
+                        }
                     }
                     if showSource {
                         // Advanced: the Markdown source (View ▸ Show Markdown Source, ⇧⌘M).
@@ -83,6 +105,9 @@ struct NoteDetailView: View {
             }
         }
         .navigationTitle(title.isEmpty ? "Untitled" : title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItemGroup {
                 Button { saveNow(); app.openNote(nil) } label: { Label("All Notes", systemImage: "chevron.backward") }
@@ -90,6 +115,7 @@ struct NoteDetailView: View {
                 Toggle(isOn: $showSource) { Label("Show Markdown Source", systemImage: "chevron.left.forwardslash.chevron.right") }
                     .keyboardShortcut("m", modifiers: [.command, .shift]).help("Show the note's Markdown source (⇧⌘M)")
                 if let note {
+                    Button("Preview Note", systemImage: "eye") { showingPreview = true }
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
@@ -103,6 +129,31 @@ struct NoteDetailView: View {
                     Button(role: .destructive) { try? app.notes?.delete(note.id); app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
+        }
+        .sheet(isPresented: $showingPreview) {
+            NavigationStack {
+                ScrollView {
+                    MarkdownText(content)
+                        .textSelection(.enabled)
+                        .padding(24)
+                        .frame(maxWidth: 760)
+                        .frame(maxWidth: .infinity)
+                }
+                .navigationTitle(title.isEmpty ? "Untitled" : title)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingPreview = false }
+                    }
+                }
+            }
+            .environment(\.openURL, OpenURLAction { url in
+                showingPreview = false
+                openLink(url)
+                return .handled
+            })
+            #if os(macOS)
+            .frame(minWidth: 580, minHeight: 400)
+            #endif
         }
         .sheet(isPresented: $showingHistory) {
             NoteVersionHistoryView(noteId: noteId, currentTitle: title, currentContent: content) { restored in
@@ -129,11 +180,27 @@ struct NoteDetailView: View {
     }
 
     /// Wikilinks open the note with that title; verse references and web links open where they belong.
+    private func followAttachment(_ passage: ResolvedPassage) {
+        saveNow()
+        app.visitScripture(passage)
+    }
+
     func openLink(_ url: URL) {
         if url.scheme == "berean-note" {
+            saveNow()
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
-            if let p = app.resolvePassage(title) { app.openScripture(bookId: p.bookId, chapter: p.chapter, verse: p.verse, textId: p.textId); return }
+            if let passage = app.resolvePassage(title) {
+                app.visitScripture(passage)
+                return
+            }
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
+            return
+        }
+        let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
+        let internalSchemes = ["berean", "berean-dev", "berean-pdf", "berean-dev-pdf"]
+        if route != nil || internalSchemes.contains(url.scheme?.lowercased() ?? "") {
+            saveNow()
+            openBereanLink(route)
             return
         }
         #if os(macOS)
@@ -141,6 +208,39 @@ struct NoteDetailView: View {
         #else
         UIApplication.shared.open(url)
         #endif
+    }
+
+    private func openBereanLink(_ route: DeepLinkRoute?) {
+        switch route {
+        case .verse(let book, let chapter, let verse, let endVerse, let text, _):
+            if let text, !availableTexts.contains(where: { $0.id == text }) {
+                app.userMessage = "This Scripture text is unavailable."
+                return
+            }
+            let textId = text ?? app.bookCatalog.first {
+                $0.book.id == book && $0.textId == app.defaultText
+            }?.textId ?? app.bookCatalog.first { $0.book.id == book }?.textId
+                ?? Reference.translation(forBook: book, hermas: app.hermasEdition)
+            if let edition = HermasText(rawValue: text ?? app.hermasEdition.rawValue), Reference.isHermasBook(book) {
+                app.openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: edition.rawValue, reuseTab: true)
+            } else {
+                app.openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: textId, reuseTab: true)
+            }
+        case .note(let id):
+            guard (try? app.notes?.one(id)) != nil else {
+                app.userMessage = "This note is unavailable."
+                return
+            }
+            app.openNote(id)
+        case .lexicon(let id):
+            app.openLexicon(id, reuseTab: true)
+        case .search(let query):
+            app.openSearch(query, reuseTab: true)
+        case .daily:
+            app.openTodayDailyNote()
+        default:
+            app.userMessage = "This Berean link can’t be opened here."
+        }
     }
 
     func copyMarkdown() {
@@ -167,7 +267,12 @@ struct NoteDetailView: View {
         try? app.notes?.createVersion(noteId: note.id, title: title, content: content, kind: kind)
     }
 
-    func reload() { note = try? app.notes?.one(noteId); title = note?.title ?? ""; content = note?.content ?? "" }
+    func reload() {
+        note = try? app.notes?.one(noteId)
+        title = note?.title ?? ""
+        content = note?.content ?? ""
+        if let note { app.refreshNoteTabTitles(note) }
+    }
 
     func scheduleSave() {
         saveTask?.cancel()
@@ -176,9 +281,16 @@ struct NoteDetailView: View {
 
     func saveNow() {
         guard let note, title != note.title || content != note.content else { return }
-        try? app.notes?.update(note.id, .init(title: title, content: content))
-        self.note = try? app.notes?.one(noteId)
-        app.update(app.activeTab?.id ?? "") { if $0.tabType == .note { $0.title = title.isEmpty ? "Untitled" : title } }
+        guard let service = app.notes else { return }
+        do {
+            try service.update(note.id, .init(title: title, content: content))
+            if let saved = try service.one(note.id) {
+                self.note = saved
+                app.refreshNoteTabTitles(saved)
+            }
+        } catch {
+            app.userMessage = "Could not save the note: \(error)"
+        }
     }
 }
 
@@ -188,16 +300,76 @@ struct MarkdownText: View {
     init(_ s: String) { source = s }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(source.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in block(line) }
+            ForEach(Array(NotePreviewBlock.parse(source).enumerated()), id: \.offset) { _, previewBlock in
+                switch previewBlock {
+                case .line(let line): block(line)
+                case .code(let lines):
+                    Text(verbatim: lines.joined(separator: "\n"))
+                        .font(.body.monospaced())
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.quaternary, in: .rect(cornerRadius: 6))
+                case .table(let table): tableView(table)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+    private func tableView(_ table: NotePreviewTable) -> some View {
+        ScrollView(.horizontal) {
+            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+                ForEach(table.rows.indices, id: \.self) { row in
+                    GridRow {
+                        ForEach(table.alignments.indices, id: \.self) { column in
+                            let cell = inline(table.rows[row][column])
+                            cell
+                                .fontWeight(row == 0 ? .semibold : .regular)
+                                .multilineTextAlignment(table.alignments[column].text)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .frame(minWidth: 88, maxWidth: 240, alignment: table.alignments[column].frame)
+                                .gridColumnAlignment(table.alignments[column].frame.horizontal)
+                                .accessibilityAddTraits(row == 0 ? .isHeader : [])
+                        }
+                    }
+                    .background(row == 0 ? Color.secondary.opacity(0.10) : .clear)
+                    if row != table.rows.indices.last {
+                        Divider().gridCellUnsizedAxes(.horizontal)
+                    }
+                }
+            }
+            .background(.background)
+            .clipShape(.rect(cornerRadius: 8))
+            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary) }
+        }
+        .accessibilityLabel("Table")
+    }
+
     func inline(_ s: String) -> Text {
         Text((try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(s))
     }
+    private func standaloneScriptureLink(_ line: String) -> (label: String, url: URL)? {
+        guard let parsed = try? AttributedString(markdown: line, options: .init(interpretedSyntax: .inlineOnly)),
+              let url = parsed.runs.first?.link,
+              parsed.runs.allSatisfy({ $0.link == url }),
+              case .verse? = DeepLink.parse(url.absoluteString) else { return nil }
+        return (String(parsed.characters), url)
+    }
+
     @ViewBuilder func block(_ line: String) -> some View {
         let t = line.trimmingCharacters(in: .whitespaces)
-        if t.hasPrefix("### ") { inline(String(t.dropFirst(4))).font(.title3.bold()) }
+        if let passage = standaloneScriptureLink(t) {
+            Link(destination: passage.url) {
+                Label(passage.label, systemImage: "book")
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.vertical, 4)
+                    .contentShape(.rect)
+            }
+            #if os(macOS)
+            .pointerStyle(.link)
+            #endif
+            .accessibilityLabel("Open \(passage.label) in Scripture")
+        } else if t.hasPrefix("### ") { inline(String(t.dropFirst(4))).font(.title3.bold()) }
         else if t.hasPrefix("## ") { inline(String(t.dropFirst(3))).font(.title2.bold()) }
         else if t.hasPrefix("# ") { inline(String(t.dropFirst(2))).font(.title.bold()) }
         else if t.hasPrefix(">") { HStack(spacing: 8) { RoundedRectangle(cornerRadius: 1).fill(.secondary).frame(width: 3); inline(String(t.drop { $0 == ">" || $0 == " " })).foregroundStyle(.secondary) } }
@@ -208,26 +380,156 @@ struct MarkdownText: View {
     }
 }
 
+private struct NotePreviewTable {
+    enum Alignment {
+        case leading, center, trailing
+
+        var frame: SwiftUI.Alignment {
+            switch self {
+            case .leading: .leading
+            case .center: .center
+            case .trailing: .trailing
+            }
+        }
+
+        var text: TextAlignment {
+            switch self {
+            case .leading: .leading
+            case .center: .center
+            case .trailing: .trailing
+            }
+        }
+    }
+
+    var rows: [[String]]
+    let alignments: [Alignment]
+
+    /// Reads the pipe-delimited rows emitted by the legacy editor. Markdown escapes stay
+    /// intact for inline rendering and an escaped pipe never starts a new cell.
+    static func cells(_ line: String) -> [String]? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|"), trimmed.hasSuffix("|"), trimmed.count >= 2 else { return nil }
+
+        var cells: [String] = []
+        var cell = ""
+        var escaped = false
+        for character in trimmed.dropFirst() {
+            if character == "|" && !escaped {
+                cells.append(cell.trimmingCharacters(in: .whitespaces))
+                cell = ""
+            } else {
+                cell.append(character)
+            }
+            escaped = character == "\\" && !escaped
+        }
+        return cell.isEmpty && !cells.isEmpty ? cells : nil
+    }
+
+    static func alignment(_ separator: String) -> Alignment? {
+        guard separator.range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil else { return nil }
+        if separator.hasSuffix(":") { return separator.hasPrefix(":") ? .center : .trailing }
+        return .leading
+    }
+}
+
+private enum NotePreviewBlock {
+    case line(String)
+    case code([String])
+    case table(NotePreviewTable)
+
+    static func parse(_ source: String) -> [Self] {
+        let lines = source.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        var blocks: [Self] = []
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let mark = trimmed.first, mark == "`" || mark == "~" {
+                let length = trimmed.prefix { $0 == mark }.count
+                if length >= 3 {
+                    index += 1
+                    var code: [String] = []
+                    while index < lines.count {
+                        let candidate = lines[index].trimmingCharacters(in: .whitespaces)
+                        if candidate.count >= length, candidate.allSatisfy({ $0 == mark }) {
+                            index += 1
+                            break
+                        }
+                        code.append(lines[index])
+                        index += 1
+                    }
+                    blocks.append(.code(code))
+                    continue
+                }
+            }
+            if index + 1 < lines.count,
+               let header = NotePreviewTable.cells(line),
+               let separator = NotePreviewTable.cells(lines[index + 1]),
+               header.count == separator.count {
+                let alignments = separator.compactMap(NotePreviewTable.alignment)
+                if alignments.count == header.count {
+                    var table = NotePreviewTable(rows: [header], alignments: alignments)
+                    index += 2
+                    while index < lines.count, let row = NotePreviewTable.cells(lines[index]), row.count == header.count {
+                        table.rows.append(row)
+                        index += 1
+                    }
+                    blocks.append(.table(table))
+                    continue
+                }
+            }
+            blocks.append(.line(line))
+            index += 1
+        }
+        return blocks
+    }
+}
+
 /// Notes attached to a verse (study inspector "Notes" panel).
 struct VerseNotesView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
     @State private var notes: [Note] = []
 
+    private var passageLabel: String {
+        Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+    }
+
     var body: some View {
-        Group {
+        List {
+            ForEach(notes) { note in
+                Button {
+                    #if os(iOS)
+                    dismiss()
+                    #endif
+                    app.openNote(note.id)
+                } label: {
+                    NoteRowView(note: note)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+            }
+            if verse == nil, notes.isEmpty {
+                ContentUnavailableView("No chapter notes", systemImage: "note.text")
+            }
+            Button {
+                let ref = "\(bookId).\(chapter)" + (verse.map { ".\($0)" } ?? "")
+                if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
+                    #if os(iOS)
+                    dismiss()
+                    #endif
+                }
+            } label: {
+                Label("New Note for \(passageLabel)", systemImage: "plus")
+            }
+        }
+        .task(id: "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(textId)|\(app.notesRevision)") {
             if let verse {
-                List {
-                    ForEach(notes) { n in Button { app.openNote(n.id) } label: { NoteRowView(note: n) }.buttonStyle(.plain) }
-                    Button { app.newNote(verseRef: "\(bookId).\(chapter).\(verse)", textId: textId) } label: {
-                        Label("New Note for \(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse))", systemImage: "plus")
-                    }
-                }
-                .task(id: "\(bookId)|\(chapter)|\(verse)|\(textId)|\(app.notesRevision)") {
-                    notes = (try? app.notes?.byVerse("\(bookId).\(chapter).\(verse)", textId: textId)) ?? []
-                }
+                notes = (try? app.notes?.coveringVerse(bookId, chapter, verse, textId: textId)) ?? []
             } else {
-                ContentUnavailableView("Select a verse", systemImage: "hand.tap", description: Text("Click a verse number to see and add its notes.")).frame(maxHeight: .infinity, alignment: .top)
+                notes = (try? app.notes?.attachedNotes(bookId, chapter, textId: textId)) ?? []
             }
         }
     }

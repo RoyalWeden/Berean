@@ -201,13 +201,31 @@ func digest(_ rows: [JSValue]) -> JSObject {
 }
 
 @Suite("strong's number search", .enabled(if: bibleDataPresent)) struct StrongsQueryTests {
-    @Test func numbersAndWords() async {
+    @Test func numbersAndWords() async throws {
         let lex = LexiconService(lexiconPath: { dataFile($0 == "H" ? "strongs_hebrew" : "strongs_greek") }, textPath: { dataFile($0 == "lxx" ? "lxx_brenton" : $0) })
         let g = await ScriptureSearch.strongs("G5485", lexicon: lex)
         #expect((g?.count ?? 0) > 100)
         let both = await ScriptureSearch.strongs("H7225 H430", lexicon: lex)
-        #expect(both?.contains { $0.bookId == "GEN" && $0.chapter == 1 && $0.verseNum == 1 } == true)
+        let genesis = try #require(both?.first { $0.bookId == "GEN" && $0.chapter == 1 && $0.verseNum == 1 })
+        #expect(genesis.matchWordIndices == [2, 3])
+        #expect(genesis.matchedStrongs == ["H7225", "H430"])
         let none = await ScriptureSearch.strongs("grace", lexicon: lex)
         #expect(none == nil)
+    }
+}
+
+
+@Suite("Strong's search snippets") struct StrongsSnippetTests {
+    @Test func restoredNameKeepsMatchWhenArticleDisappears() throws {
+        let hit = ScriptureHit(textId: "kjva", bookId: "PSA", chapter: 23, verseNum: 1,
+                               text: "The Lord is my shepherd.",
+                               textTagged: "The{} LORD{H3068} *is{} my{} shepherd.{H7462}",
+                               matchWordIndices: [1, 4], matchedStrongs: ["H3068", "H7462"])
+        let raw = try #require(hit.strongsSnippet(replacerEnabled: false))
+        #expect(raw.text == "The Lord is my shepherd.")
+        #expect(raw.indices == [1, 4])
+        let rendered = try #require(hit.strongsSnippet(replacerEnabled: true))
+        #expect(rendered.text == "Yehovah is my shepherd.")
+        #expect(rendered.indices == [0, 3])
     }
 }

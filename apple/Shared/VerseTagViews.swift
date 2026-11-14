@@ -60,19 +60,33 @@ struct TagPickerView: View {
     @State private var chosen = Set<String>()
     @State private var query = ""
     @State private var error: String?
+    @State private var loaded = false
     @FocusState private var fieldFocused: Bool
 
     var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
     var shown: [VerseTagSummary] { trimmed.isEmpty ? tags : tags.filter { $0.name.localizedCaseInsensitiveContains(trimmed) } }
-    var canCreate: Bool { !trimmed.isEmpty && !tags.contains { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame } }
+    var canCreate: Bool { loaded && !trimmed.isEmpty && !tags.contains { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame } }
 
     var body: some View {
         NavigationStack {
             List {
+                #if os(iOS)
+                Text("Tag \(label)")
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                #endif
                 TextField("Find or create a tag", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .focused($fieldFocused)
-                    .onSubmit { if canCreate { apply(newName: trimmed) } else if let only = shown.first, shown.count == 1 { chosen = [only.id]; apply(newName: nil) } }
+                    .submitLabel(.search)
+                    .onSubmit {
+                        if canCreate {
+                            apply(newName: trimmed)
+                        } else if !trimmed.isEmpty, shown.count == 1, let only = shown.first {
+                            chosen.insert(only.id)
+                            apply(newName: nil)
+                        }
+                    }
                     .accessibilityLabel("Find or create a tag")
                 if canCreate {
                     Button { apply(newName: trimmed) } label: { Label("Create “\(trimmed)” and Tag", systemImage: "plus") }
@@ -85,24 +99,67 @@ struct TagPickerView: View {
                             Text("\(t.verseCount + t.chapterCount)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
                             Image(systemName: chosen.contains(t.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(chosen.contains(t.id) ? Color.accentColor : .secondary)
                         }.contentShape(.rect)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.interactivePlain)
+                        .accessibilityAddTraits(chosen.contains(t.id) ? .isSelected : [])
                 }
-                if tags.isEmpty && trimmed.isEmpty { Text("No tags yet. Type a name to create one.").foregroundStyle(.secondary) }
+                if loaded && tags.isEmpty && trimmed.isEmpty { Text("No tags yet. Type a name to create one.").foregroundStyle(.secondary) }
             }
+            #if os(iOS)
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    Button("Cancel") { dismiss() }
+                        .buttonStyle(.bordered)
+                    Spacer()
+                    addButton.buttonStyle(.borderedProminent)
+                }
+                .controlSize(.large)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.regularMaterial)
+            }
+            #else
             .navigationTitle("Tag \(label)")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Add") { apply(newName: nil) }.disabled(chosen.isEmpty) }
+                ToolbarItem(placement: .confirmationAction) { addButton }
             }
+            #endif
             .alert(error ?? "", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) { Button("OK") {} }
         }
+        #if os(macOS)
         .frame(minWidth: 380, minHeight: 420)
-        .task { tags = (try? app.verseTags?.list()) ?? []; try? await Task.sleep(for: .milliseconds(150)); fieldFocused = true }
+        #endif
+        .task {
+            guard let service = app.verseTags else {
+                error = "The tag library is unavailable."
+                return
+            }
+            do {
+                tags = try service.list()
+                loaded = true
+                try await Task.sleep(for: .milliseconds(150))
+                fieldFocused = true
+            } catch is CancellationError {
+                return
+            } catch {
+                self.error = "Tags could not be loaded. \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private var addButton: some View {
+        Button(chosen.count > 1 ? "Add \(chosen.count)" : "Add") { apply(newName: nil) }
+            .disabled(!loaded || chosen.isEmpty)
     }
 
     func apply(newName: String?) {
+        guard let service = app.verseTags else {
+            error = "The tag library is unavailable."
+            return
+        }
         do {
-            try app.verseTags?.addMembers(tagIds: Array(chosen), newTagNames: newName.map { [$0] } ?? [], ranges: ranges, label: label, kind: kind)
+            try service.addMembers(tagIds: Array(chosen), newTagNames: newName.map { [$0] } ?? [], ranges: ranges, label: label, kind: kind)
             dismiss()
         } catch { self.error = "The tag could not be added. \(error.localizedDescription)" }
     }

@@ -1,5 +1,6 @@
 import Foundation
 import BereanCore
+import BereanNotes
 import BereanWorkspace
 
 /// One user-facing "Workspace" (ADR-0011). Storage is unchanged: a live workspace is a `sessions` row (with its
@@ -11,18 +12,76 @@ struct WorkspaceItem: Identifiable, Hashable {
     var name: String
     var tabCount: Int
     var icon: String?
+    var tabTitles: [String]
+    var tabCountLabel: String { "\(tabCount) tab\(tabCount == 1 ? "" : "s")" }
+
+    var menuLabel: String { "\(name) · \(preview ?? tabCountLabel)" }
+
+    var preview: String? {
+        let labels = previewLabels()
+        return labels.isEmpty ? nil : labels.joined(separator: " · ")
+    }
+
+    func previewLabels(matching query: String = "") -> [String] {
+        let unmatched = termsOutsideName(query)
+        let matchingTitles = tabTitles.filter { title in
+            unmatched.allSatisfy { normalized(title).localizedStandardContains(String($0)) }
+        }
+        var seen = Set<String>()
+        return Array(matchingTitles.filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(2))
+    }
+
+    func matches(_ query: String) -> Bool {
+        termsOutsideName(query).isEmpty || !previewLabels(matching: query).isEmpty
+    }
+
+    private func termsOutsideName(_ query: String) -> [Substring] {
+        let workspaceName = normalized(name)
+        return normalized(query).split(whereSeparator: \.isWhitespace).filter {
+            !workspaceName.localizedStandardContains(String($0))
+        }
+    }
+
+    private func normalized(_ text: String) -> String {
+        text.replacingOccurrences(of: "–", with: "-")
+    }
+
     var id: String { switch kind { case .live(let s): "live:\(s)"; case .saved(let w): "saved:\(w)" } }
     var isSaved: Bool { if case .saved = kind { true } else { false } }
+}
+
+private extension WorkspaceItem {
+    init(session: Session) {
+        let tabs = session.workspacePreviewTabs
+        self.init(kind: .live(session.id), name: session.name, tabCount: tabs.count,
+                  icon: session.icon, tabTitles: tabs.map(\.workspacePreviewLabel))
+    }
 }
 
 extension AppModel {
     /// Live workspaces in session order, then saved ones that are not open.
     var workspaceItems: [WorkspaceItem] {
-        let live = sessions.map { WorkspaceItem(kind: .live($0.id), name: $0.name, tabCount: $0.allTabs.count, icon: $0.icon) }
-        let saved = savedWorkspaces.filter { !isWorkspaceOpen($0.id) }.map { w in
-            WorkspaceItem(kind: .saved(w.id), name: w.name, tabCount: WorkspaceSnapshot.parse(w.stateJSON).displayOrder.count, icon: nil)
+        let live = sessions.map(WorkspaceItem.init(session:))
+        let saved = savedWorkspaces.filter { !isWorkspaceOpen($0.id) }.map { workspace in
+            let snapshot = WorkspaceSnapshot.parse(workspace.stateJSON)
+            let tabs = WorkspaceSnapshot.spaces.flatMap { snapshot.tabs(in: $0) }
+            let decoded = tabs.compactMap(Tab.init(jsObject:))
+            let activeIDs = Set(snapshot.activeTabId.values.compactMap { $0 })
+            let ordered = decoded.filter { activeIDs.contains($0.id) } + decoded.filter { !activeIDs.contains($0.id) }
+            let titles = ordered.map(\.workspacePreviewLabel)
+            return WorkspaceItem(kind: .saved(workspace.id), name: workspace.name,
+                                 tabCount: tabs.count, icon: nil, tabTitles: titles)
         }
         return live + saved
+    }
+
+    var tabMoveDestinations: [WorkspaceItem] {
+        sessions.filter { $0.id != currentSessionId }.map(WorkspaceItem.init(session:))
+    }
+
+    func moveTab(_ id: String, to item: WorkspaceItem) {
+        guard case .live(let destination) = item.kind else { return }
+        moveTab(id, toSession: destination)
     }
 
     func isCurrent(_ item: WorkspaceItem) -> Bool { if case .live(let s) = item.kind { return s == currentSessionId }; return false }
@@ -78,11 +137,11 @@ extension AppModel {
         }
         var active: [SpaceId: String?] = [:]
         for sp in SpaceId.allCases { active[sp] = (source.activeTabId[sp] ?? nil).flatMap { idMap[$0] } }
+        tabs = tabs.mapValues { list in list.map { $0.remappingOrigin(using: idMap) } }
         let copy = Session(id: Self.newId(), name: "\(item.name) Copy", icon: source.icon, tabs: tabs, activeTabId: active)
         sessions.append(copy)
         displayOrders[copy.id] = order.compactMap { idMap[$0] }
-        currentSessionId = copy.id
-        scheduleSave()
+        switchSession(copy.id)
     }
 
     /// Deletes the workspace: a live one's session (its linked saved copy too), or a saved snapshot.
@@ -104,12 +163,42 @@ extension AppModel {
 }
 
 extension AppModel {
-    /// Today's daily note: find (getDailyDates) or create ("Daily — yyyy-MM-dd", type daily), then open it —
-    /// the same find-or-create as src/lib/dailyNotes.ts `resolveDailyNoteId`.
-    func openTodayDailyNote() {
-        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
-        let key = f.string(from: Date())
-        if let hit = (try? notes?.dailyDates())?.first(where: { $0.dateKey == key }) { openNote(hit.noteId); return }
-        if let n = try? notes?.create(.init(type: "daily", title: "Daily — \(key)", content: "")).note { openNote(n.id) }
+    func openCalendar(newTab: Bool = false) {
+        openUtilityTab(.calendar, in: .notes, title: "Calendar", newTab: newTab)
+    }
+
+    func openTodayDailyNote() { openDailyNote(DailyNoteDay.dateKey(DailyNotePreferences.today())) }
+
+    func openDailyNote(_ key: String) {
+        guard let notes else {
+            userMessage = "The notes library is unavailable."
+            return
+        }
+        do {
+            if let hit = try notes.dailyDates().first(where: { $0.dateKey == key }) {
+                openNote(hit.noteId)
+            } else {
+                let created = try notes.create(.init(type: "daily", title: "Daily — \(key)", content: ""))
+                openNote(created.note.id)
+            }
+        } catch {
+            userMessage = "Could not open the daily note: \(error)"
+        }
+    }
+}
+
+private extension Tab {
+    var workspacePreviewLabel: String {
+        guard let edition = scriptureEditionLabel else { return navigationLabel }
+        return "\(navigationLabel) (\(edition))"
+    }
+}
+
+extension Session {
+    /// Active tabs appear first in workspace previews and are preferred when switching Spaces.
+    var workspacePreviewTabs: [Tab] {
+        let activeIDs = Set(activeTabId.values.compactMap { $0 })
+        let tabs = allTabs
+        return tabs.filter { activeIDs.contains($0.id) } + tabs.filter { !activeIDs.contains($0.id) }
     }
 }

@@ -446,3 +446,430 @@
 - History (service port + tests, History tab, ⌘Y).
 - Tag Manager.
 - Checks: Swift 79/31 PASS; Mac + iOS builds PASS.
+
+### 2026-11-12 — Native reader, Notes search, Calendar and iPhone Go
+
+- `793a525` explicitly bundles the full Scripture catalog on both targets. No writable store in either resource list.
+- `22da4aa` opens daily notes through a native month grid on both platforms.
+- `83c2e96` replaces the iPhone per-verse rows with a continuous chapter text view, adds text actions and connects Strong’s links and character highlights to existing services.
+- `65c96d5` adds Notes match modes, folder scope, type/status filters, match previews and refresh. Regression covers more than 200 matches, edits, trash and restore.
+- `4946b16`, `5ca6b6f` add the compact labeled dock, remove Scripture link underlines, streamline the destination picker and reuse compatible tabs during normal iPhone navigation.
+- Verification and remaining touch checks are recorded in HANDOFF. No production database, signing, or sync work in this branch.
+- `87fd228` adds contained-tab lookup and preview for workspaces, and reviewable bulk archive that preserves pinned and selected tabs. Archive groups use the existing restore path.
+
+### 2026-11-12 — Scripture navigation and verse actions
+
+- iPhone Scripture shows the passage and text picker and chapter arrows in a single toolbar. Study commands are in More. The dock uses icons with accessibility labels.
+- Tapping an iPhone verse number highlights the verse and opens its actions directly. Long press still opens text selection. Notes and cross-references receive the verse with the inspector request.
+- Closing a comparison column returns to the reader when fewer than two remain. The remaining translation and its chapter numbering carry over. Previously saved single-column comparisons can also be closed.
+- Xcode 27.2 Dev builds passed for Mac and iPhone Simulator. On iPhone 18 Pro, tapping Jonah 1:2 opened its actions, Copy Verse closed the sheet, a saved one-column comparison could be closed, and closing KJV in a fresh two-column comparison kept Jonah 1 in the Septuagint reader.
+
+### 2026-11-12 — Floating reader controls and navigation parity
+
+- The iPhone Scripture header and dock use Liquid Glass where available. The passage button has no dropdown caret.
+- Tap verse numbers to add and remove whole verses. The floating panel copies, highlights or tags the selected verses. Single-verse details and native text selection remain available.
+- iPhone Go groups passage, lexicon, notes and Scripture search destinations. More includes native Find in Chapter.
+- Mac routine navigation reuses eligible tabs. The command palette offers exact open passages in other workspaces, and New Tab remains explicit.
+- The implementation backlog compares the native apps with Electron and Capacitor workflows and records acceptance checks.
+
+### 2026-11-12 — Archive access and Study Trail browsing
+
+- Mac Workspace and the top of iPhone Tabs expose the archive controls. Mac Dev verified excluding one tab, archiving two, and restoring both while keeping the active passage.
+- Mac Go and iPhone More open saved Study Trails with their recaps and ordered Scripture stops. The reader uses legacy tables and preserves saved translations. The migrated fixture checks legacy ordering and excludes the implicit loose-stops bucket. The Mac entry and empty state were checked in the running app.
+
+- Study Trail can start a named trail, add the current chapter, pause, resume, and finish. Existing connections show their destination and reason. Recording currently requires an explicit action.
+
+### 2026-11-13 — Scripture selection and Compare polish
+- **Branch and base:** `native/reader-notes` at `c90d7ec`, draft PR #24.
+- **Delivered:** macOS Scripture selection panel with spaced native controls and a caret-free passage picker. Both readers use a verse-number marker for whole-verse selection and preserve saved highlights. Mac keyboard copy formats references with gaps. Compare follows reader settings and clears stale results when navigating.
+- **Verification:** `npm run native:build:mac`, `npm run native:build:ios` and `git diff --check` passed. Mac Dev visually confirmed the panel and picker and verified Escape dismissal. The attempted range click did not establish a new range.
+- **Data touched:** isolated Mac Dev fixtures for UI verification.
+- **Next:** use visible verse numbers for Mac range and clipboard verification, repeat multi-verse selection in the iPhone Simulator, and exercise Compare settings and narrow Mac pane layout.
+
+### 2026-11-13 — Simplify verse selection controls
+- Replaced the two-row panel with a compact floating icon row on both platforms. Mac keeps hover help and iPhone keeps 44-point tap targets.
+- Whole-verse selection uses bold accent verse numbers. The selection no longer paints a box behind the number.
+- Both Dev builds passed. Mac Dev verified single-verse selection, the floating toolbar and Escape dismissal.
+
+### 2026-11-13 — Reader, tab, and calendar parity
+- Added a reversible Mac sidebar tab filter and improved verse gutter range handling. Cross References uses the current verse.
+- Added Mac Strong’s gloss tooltips and shared Strong’s search snippets with match positions. Added the Hermas edition preference and edition-aware reference labels.
+- Added local sunrise settings for Today and Calendar with tests for the DST boundary, missing coordinates, and polar fallback.
+- Mac Dev verified tab filtering, Shift-click range selection and opening Cross References. See HANDOFF for remaining runtime checks.
+
+### 2026-11-13 — iPhone verse targets, note previews, and deep-link grammar
+- Expanded iPhone verse tap targets into the gutter, keeping body text available for normal selection.
+- Added a read-only preview that renders Markdown tables and code in current notes and version history.
+- Ported legacy deep-link parsing to Swift, with 37 fixtures. Registration and routing remain open.
+- Both Dev builds and Swift conformance passed. The iPhone Simulator clipboard verified exact nonconsecutive verse copy.
+
+### 2026-11-13 — Dashed verse range outlines
+- Draw one rounded dashed outline around each consecutive selection in the native readers.
+- Float verse actions over the reader with extra scroll clearance for the chapter ending.
+- Add pointing-device cues to Mac sidebar controls and the native verse action row.
+- Both Dev builds passed. Verified grouped and separated ranges and end scrolling on the iPhone Simulator. Verified the Mac outline and adjacent selection.
+
+### 2026-11-13 — Verse actions for multiple selections
+- Keep iPhone More visible for multi-verse selections and target the active verse for notes and cross references.
+- Keep the range anchor on a selected verse and add hover feedback to the iPhone dock menu.
+- Both native Dev builds passed.
+
+### 2026-11-13 — Verse ranges in linked Scripture
+- Open linked verse ranges as a selection in both native readers and retain the legacy range key in tab state.
+- Preserve a reference’s LXX suffix unless the link names a text explicitly.
+- Save pending note edits before routing internal deep links.
+- Native conformance, both Dev builds and the updated focused parser suite passed.
+
+### 2026-11-13 — Independent Compare passages
+
+- Mac and iPhone can change one Compare column's chapter or edition and open its exact destination in the reader. Saved columns retain their individual destinations and legacy metadata. Mixed passages use labeled sections.
+
+### 2026-11-14 — iPhone tab switcher search — VERIFIED
+- Branch `native/reader-notes`, after `f2eee0d`, draft PR #24.
+- Tabs shows search as the first list row, including a clear button while a query is active.
+- iOS Simulator Dev build and identity check passed. Verified search and tab reuse with a mixed verse reference on iPhone 18 Pro. Only the isolated Dev library was exercised.
+
+### 2026-11-14 — iPhone workspace and archive search — VERIFIED
+- Shared the inline tab search field across the three iPhone tab-management lists.
+- Verified a mixed Scripture reference in Workspaces and Archived Tabs on the iOS 27 Simulator. Archive and restore preserved the full selection and returned the original tab count.
+- iOS Dev build and identity check passed. Used the isolated Dev library.
+
+### 2026-11-14 — Descriptive move destinations — BUILT
+- Mac and iPhone Move to Workspace menus include destination tab previews. Destination IDs and move persistence use the existing path.
+- Both Dev identity builds and diff check passed. Same-named destination fixture remains to exercise in the UI.
+
+### 2026-11-14 — iPhone adjacent verse outline and selection feedback
+- Verified a joint outline and unobscured final verse for Obadiah 1:20–21 LXX on iOS 27 Simulator.
+- Added haptic feedback and explicit verse toggle action names. The tab-search clear button now uses the shared pressed and hover feedback. iOS Dev build and identity check passed.
+
+### 2026-11-14 — Scripture Display from the iPhone reader
+- Restored quick access to reader display preferences from legacy mobile. The native sheet shares controls and storage with Settings.
+- Grouped chapter export in More and removed the Mac minimum size from iPhone Settings.
+- Both Dev builds passed. Verified toggling and restoring verse numbers on the iOS 27 Simulator.
+
+### 2026-11-14 — Direct chapter tagging
+- Added a direct route to the existing chapter tag picker from the iPhone More menu and Mac reader toolbar.
+- Both Dev builds passed. The iOS 27 Simulator verified creating a chapter tag while retaining a two-verse selection.
+
+### 2026-11-14 — Scripture tag picker feedback
+- Fit the iPhone sheet to its available width and keep the passage visible in the navigation bar.
+- Expose tag selection and selected count, preserve selections on keyboard submission, and report library failures.
+- Both Dev builds passed. Checked the heading, selected trait, and cancellation on the iPhone Simulator.
+
+### 2026-11-14 — Quick translation switching on iPhone
+- Restored the legacy KJVA/LXX shortcut using chapter mapping and installed chapter coverage.
+- iPhone Dev build passed. Verified Psalm numbering, Back, and unchanged tab count on iOS 27 Simulator.
+
+### 2026-11-14 — Explicit King James editions in native Go
+- Shared native reference resolver accepts KJV and KJVA suffixes with the requested edition's book coverage.
+- Both Dev builds and 101 native tests passed. Verified distinct edition results and tab reuse on the iOS 27 Simulator.
+
+### 2026-11-14 — Mac quick edition switching
+- Added the mapped edition shortcut to the Mac Scripture toolbar and shared its coverage and navigation logic with iPhone.
+- Both Dev builds passed. Verified the Mac control appears for Genesis 1. Persisted navigation QA remains open.
+
+### 2026-11-14 — Mac edition navigation verification
+- Verified Psalm chapter mapping, Back with verse selection restoration, a stable 26-tab count, and shortcut omission on John 7 in Mac Dev.
+
+### 2026-11-14 — Compare verse actions
+- Added edition-aware verse copy, reference copy and open-in-new-tab actions to aligned and independent comparisons.
+- Both native Dev builds passed. Live cell menu activation and clipboard output remain to verify.
+
+### 2026-11-14 — Discoverable Compare verse actions
+- Added an edition-labeled ellipsis to each Compare cell, with pointer feedback and a 44-point touch target on iPhone.
+- Both Dev builds passed. Verified the Mac action menu and exact LXX clipboard reference.
+
+### 2026-11-14 — Compare clipboard feedback
+- Added accessibility announcements for successful verse and reference copies.
+- Both Dev builds passed. Verified mapped LXX reference clipboard contents and retained comparison on iOS 27 Simulator.
+
+### 2026-11-14 — Edition-aware Scripture references
+- Copy Reference includes KJV and KJVA suffixes for verse selections, individual verses and chapters.
+- Both Dev builds passed. Verified the KJVA chapter reference round trip on iOS 27 Simulator.
+
+### 2026-11-14 — Copied references for other installed writings
+- Native Copy Reference and Go share bracketed edition labels for other writings, including both Hermas editions.
+- Native tests and both Dev builds passed. Verified Taylor chapter reference copy/paste on iOS 27 Simulator.
+
+### 2026-11-14 — Chapter navigation during overlapping requests
+- Cancelled superseded chapter lookups and guarded completion against newer reader destinations.
+- Both native Dev builds passed. Interactive race verification remains open.
+
+### 2026-11-14 — Scripture search result actions
+- Added a visible, edition-labeled actions button to Scripture hits on Mac and iPhone. Copied references share the Go format.
+- Both Dev builds passed. iOS 27 Simulator verified the exact KJVA reference and stable tab count.
+
+### 2026-11-14 — Cross-reference actions
+- Added edition-qualified reference copy, preview copy and explicit new-tab navigation to cross-reference rows on Mac and iPhone.
+- Both Dev builds passed. Mac Dev showed the new controls in expanded Classic cross references.
+
+### 2026-11-14 — Cross references for selected verses
+- The Mac and iPhone selection bars now pass all selected verses to the cross-reference inspector. Multiple source verses are grouped and the heading shows the complete reference.
+- Both native Dev builds passed. Live multi-verse and source-switching checks remain open.
+
+### 2026-11-14 — iPhone dock cross-reference scope
+- Cross References in More now uses the current verse selection.
+- Verified disjoint TSKe groups and reference clipboard output on iOS 27 Simulator. The iPhone Dev build passed.
+
+### 2026-11-14 — Cross-reference source control
+- The inspector's source menu displays the active source and gives the passage heading more room.
+- Both Dev builds passed. Verified Classic-to-TSKe switching with both verses of a disjoint selection on iOS 27 Simulator.
+
+### 2026-11-14 — Cross-reference scope restoration
+- Restore cross-reference scope from the saved Scripture selection when there is no live override.
+- Both Dev builds passed. On iOS 27 Simulator, an open cross-reference sheet restored both John 7:47 and 50 after relaunch.
+
+### 2026-11-14 — Empty results for selected cross-reference verses
+- Preserve rows for empty selected verses and keep successful results visible when another selected verse fails to load.
+- Both Dev builds passed. Verified per-verse empty results for Didache 1:1–2 in the iOS 27 Simulator.
+
+### 2026-11-14 — Tab duplication and cleanup
+- Duplicate Tab preserves the source type, state and origin, and inserts after the source in stored order.
+- Copies start unpinned so they can be reviewed once inactive. Both Dev build commands passed.
+
+### 2026-11-14 — Duplicate archive review
+- Identify the copy that stays open and recheck duplicate eligibility before archiving. Both Dev builds passed.
+
+### 2026-11-14 — Reachable iPhone archive confirmation
+- Keep archive and cancel controls in a persistent iPhone cleanup footer.
+- Verified archiving the unpinned copy, keeping the pinned original, and restoring the full verse selection in the iOS 27 Simulator.
+
+### 2026-11-14 — Restore archived tabs near their original positions
+- Save local sidebar ordering for recent archives and reuse it when restoring to the source workspace.
+- Both Dev builds passed. Existing archive records and sync schema are compatible.
+
+### 2026-11-14 — Workspace context for archived tabs
+- Show and search source workspace names in the native archive browser when local metadata is available. Both Dev builds passed.
+
+### 2026-11-14 — Restore archives to the source workspace
+- Added an explicit action to return archived groups to their original workspace while staying in the current workspace.
+- Both native Dev builds passed. Live cross-workspace group restore remains to verify.
+
+### 2026-11-14 — Return individual archive results to their source
+- Added a Mac context action and iPhone swipe action for restoring just one archived search result to its original workspace. Both Dev builds passed.
+
+### 2026-11-14 — Accessible iPhone floating verse actions
+- Expose individual selection toolbar controls and name the passage in the clear action hint.
+- Verified opening cross references for both selected verses from the toolbar on the iOS 27 Simulator.
+
+### 2026-11-14 — Floating selection copy verification
+- Verified Didache range reference round-trip, unchanged tab count and exact two-verse clipboard content on iOS 27 Simulator.
+- Added an accessibility value for transient copy confirmation. Both Dev builds passed.
+
+### 2026-11-14 — Mac whole-verse keyboard copy confirmation
+- Reuse the floating toolbar copy confirmation after successful ⌘C and multi-verse menu copy. Both Dev builds passed.
+
+### 2026-11-14 — iPhone chapter-end dashed selection
+- Draw consecutive verse outlines using the same TextKit layout as the chapter text.
+- Verified John 7:51–53 in iOS 27 Simulator with one visible rounded outline and clear floating toolbar.
+
+### 2026-11-14 — Keep the iPhone reading position during reflow
+- Preserve the visible verse anchor when a setting or annotation rebuilds the same chapter.
+- Verified Strong's toggle at John 7:51–53 on iOS 27 Simulator.
+
+### 2026-11-14 — Keep Mac reading position during reflow
+- Preserve the visible verse across same-chapter text rebuilds and avoid reusing character selection offsets against changed text.
+- Full native check passed with both Dev builds.
+
+### 2026-11-14 — Character selection through reader reflow
+- Preserve character selections when formatting changes leave UTF-16 text intact, and clear stale offsets when rendered text changes.
+- Both Dev builds passed. Mac Dev verified a Strong's toggle round trip kept the late chapter verse selection.
+
+### 2026-11-14 — Scripture text width presets
+- Added Wide, Normal and Narrow to the native Scripture display preferences using device-local storage.
+- Both Dev builds passed. Visually verified iPhone Narrow with the selected final verses and dashed outline still above the floating actions.
+
+### 2026-11-14 — Mac Scripture Display
+- Added a toolbar popover backed by the shared Scripture display preferences.
+- `npm run native:build:mac` passed with the Dev bundle identity. Opened the popover in Mac Dev and visually confirmed all six controls over John 7.
+- Draft PR #24. No production data touched.
+
+### 2026-11-14 — Reader display polish and parity corrections
+- Hid the slider's redundant visible label while retaining its accessible name.
+- Updated the parity matrix for the continuous reader, verse actions, history and display options.
+- Both native Dev builds passed.
+
+### 2026-11-14 — Mac reader without verse numbers
+- Removed invisible verse-number hit targets and reclaimed their gutter when verse numbers are off.
+- Mac Dev build and identity check passed. Live hover and toggle verification remain open.
+
+### 2026-11-14 — Full-verse iPhone selection outlines
+- Extended the existing grouped iPhone outline to cover the full rendered verse, including wrapped inline annotations. The iPhone Dev build passed.
+- In Mac Dev, toggling verse numbers off and back on removed and restored accessibility links while keeping John 7:47–50 selected at the chapter end.
+
+### 2026-11-14 — iPhone selection reveal
+- Use the final rendered verse line when calculating scroll clearance above the floating verse actions, including wrapped inline annotations.
+- Full native check passed. Wrapped annotation layout still needs visual verification.
+
+### 2026-11-14 — Mac selection reveal
+- Matched scroll clearance to the last visible verse line and dashed frame on Mac, including wrapped annotations.
+- Mac Dev build and identity check passed.
+
+### 2026-11-14 — Compact selection controls
+- Scoped icon-only styling to direct controls and added Mac help to compact actions.
+- Both native Dev builds passed. Narrow-window and overflow-menu UI checks remain open.
+
+### 2026-11-14 — iPhone Scripture pinch-to-resize
+- Brought the legacy Scripture pinch interaction to the native iPhone reader with a live point-size badge and one settings write on completion.
+- Both native Dev builds passed. Multitouch runtime verification remains open.
+
+### 2026-11-14 — Mac Scripture text-size shortcuts
+- Added View menu commands for increasing, decreasing and resetting Scripture size using the original zoom key combinations.
+- Shared default and bounds across Mac commands, the Settings slider and iPhone pinch.
+- Full native check passed with 103 tests and both Dev builds.
+
+### 2026-11-14 — Preserve the end of the chapter during reflow
+- Kept the reader at the chapter end when text reflows while already scrolled to the bottom.
+- Both Dev builds passed. Live resize verification remains open.
+
+### 2026-11-14 — Mapped edition shortcut in the passage picker
+- Added Same Passage for installed KJV/LXX counterparts in the Mac and iPhone pickers.
+- Both Dev builds passed. Runtime mapping and column isolation remain to verify.
+
+### 2026-11-14 — Passage picker edition switching
+- Bound edition and chapter loading to the current browse request on Mac and iPhone.
+- Both Dev builds passed. Rapid-switch running-app QA remains open.
+
+### 2026-11-14 — Passage picker Back and dismissal
+- Restored the cached book list immediately on Back and prevented a late lookup from submitting a second destination.
+- Both Dev builds passed.
+
+### 2026-11-14 — Chapter grid navigation
+- Centered the current chapter on entry, added its selected accessibility trait, and expanded compact chapter hit targets.
+- Both Dev builds passed. Running-app scroll and focus checks remain open.
+
+### 2026-11-14 — Mac reader toolbar affordances
+- Applied pointing-hand style to chapter navigation and the Compare, Strong’s Numbers and Study Panel toggles.
+- Mac Dev build passed. Live pointer inspection remains open.
+
+### 2026-11-14 — Outline bounds for blank verses
+- Shared the visible-range calculation on Mac and iPhone, including blank verses and disjoint selections.
+- Both Dev builds and four focused range assertions passed.
+
+### 2026-11-14 — iPhone chapter swipe arbitration
+- Suppressed chapter swipes while whole verses are selected or a pinch resize is in progress.
+- iPhone Dev build passed. Physical gesture verification remains open.
+
+### 2026-11-14 — Chapter navigation boundaries
+- Disabled unavailable chapter arrows at edition boundaries on both platforms.
+- Both Dev builds passed. Live boundary checks remain open.
+
+### 2026-11-14 — iPhone New Tab presentation
+- Sequenced Tabs dismissal and the explicit New Tab picker through the sheet’s dismissal callback.
+- iPhone Dev build passed. Simulator presentation and tab counts still need verification.
+
+### 2026-11-14 — Reuse Scripture tag search tabs
+- Moved the Mac tag menu and iPhone tag sheet to the shared Search tab reuse path.
+- Both Dev builds passed.
+
+### 2026-11-14 — Tag search result transitions
+- Isolated tag results and asynchronous previews across reused search destinations.
+- Both Dev builds passed. Running-app history and duplicate-number checks remain open.
+
+### 2026-11-14 — Tag result edition labels
+- Made the reading edition visible and consistent across tag previews, reference labels and navigation.
+- Both Dev builds passed.
+
+### 2026-11-14 — Dynamic Type in iPhone Scripture
+- Scaled continuous Scripture with Dynamic Type while keeping pinch and Settings in base points.
+- iPhone Dev build passed. Large-size visual and gesture checks remain open.
+
+### 2026-11-14 — Dynamic Type in iPhone Compare
+- Scaled verse text and switched to stacked layouts at accessibility sizes.
+- Both Dev builds passed. Accessibility-size runtime QA remains open.
+
+### 2026-11-14 — Saved highlights in Compare
+- Rendered chapter- and edition-specific verse highlights, including character ranges, in both native Compare layouts.
+- Both Dev builds passed after adding the missing highlight module import.
+
+### 2026-11-14 — Compare highlight actions
+- Added apply and remove actions for the actual verse and edition in each Compare column.
+- Separated legacy word-offset marks from whole-verse tint. Both Dev builds passed.
+
+### 2026-11-14 — Legacy word highlights
+- Restored rendering for saved word-level highlights in Scripture and Compare.
+- Both Dev builds passed. Rendering uses existing stored highlights without a migration.
+
+### 2026-11-14 — Open compared verses in the same reader
+- Added a same-tab action to Compare verse menus, using the exact rendered edition, chapter and verse.
+- Both Dev builds passed.
+
+### 2026-11-14 — Selection transfer from Compare
+- Used column row mappings to carry whole-verse selections into the single reader.
+- Both Dev builds passed.
+
+### 2026-11-14 — Compare selection indicators
+- Showed the same selected verses that transfer from Compare to Scripture and cleared old ranges on an explicit single-verse click.
+- Both Dev builds passed.
+
+### 2026-11-14 — Preserve selected verses during Compare changes
+- Kept saved verse selections across mode and column changes when the passage anchor stays the same.
+- Both Dev builds passed.
+
+### 2026-11-14 — Compare column controls
+- Made passage picking available directly from every column heading.
+- Both Dev builds passed. Live layout and hit testing remain open.
+
+### 2026-11-14 — Unavailable passages in Compare
+- Kept empty column headings actionable and identified the unavailable edition without repeating placeholders on iPhone.
+- Both Dev builds passed.
+
+### 2026-11-14 — Unavailable Scripture recovery
+- Gave unavailable chapters a way to choose a new passage or switch to a verified counterpart in the current tab.
+- Both Dev builds passed.
+
+### 2026-11-14 — Unavailable chapter commands
+- Disabled tag and text export actions on unavailable Scripture chapters while retaining reference copy.
+- Both Dev builds passed.
+
+### 2026-11-14 — Direct iPhone Compare exit
+- Added a floating close control that returns to the source passage and preserves the comparison layout for reentry.
+- iPhone Dev build and iOS 27 Simulator same-tab exit passed.
+
+### 2026-11-14 — iPhone Compare control capsule
+- Grouped Manage Translations with Exit Compare and removed the menu’s caret on iPhone.
+- Both Dev builds passed. Live capsule checks remain open.
+
+### 2026-11-14 — Compare reader destinations in Recents
+- Recorded same-tab Compare column destinations and their mapped verse selections in Recents.
+- Cleared stale multi-verse selection when opening an individual verse. Both Dev builds passed.
+
+### 2026-11-14 — Compare study actions
+- Added edition-aware verse notes and same-tab cross-reference navigation to Compare.
+- Both Dev builds passed.
+
+### 2026-11-14 — Compare verse notes and tags
+- Added same-tab Verse Notes and direct Tag Verse actions for the displayed verse.
+- Both Dev builds passed.
+
+### 2026-11-14 — iPhone tag picker controls
+- Added an inline passage heading and persistent Cancel and Add controls.
+- Both Dev builds passed. Live keyboard and save checks remain open.
+
+### 2026-11-14 — Compare verse tags
+- Displayed tags alongside compared verses and connected chips to reusable tag search.
+- Both Dev builds passed.
+
+### 2026-11-14 — Compare note indicators
+- Added clickable, edition-aware note indicators with accessible counts.
+- Both Dev builds passed.
+
+### 2026-11-14 — Stacked Compare reading width
+- Moved note and verse action controls into the edition header on stacked comparisons.
+- Both Dev builds passed.
+
+### 2026-11-14 — Compare dock spacing
+- Removed the duplicate bottom dock allowance from all Compare scroll layouts.
+- Both Dev builds passed. Chapter-end visual QA remains open.
+
+### 2026-11-14 — Scripture dock spacing
+- Removed the fixed dock deduction from the reader viewport, retaining space for verse actions.
+- Both Dev builds passed. Chapter-end visual testing is pending.
+
+### 2026-11-14 — Corrected Scripture dock clearance
+- Restored continuous reader dock clearance after Simulator testing reproduced overlapping floating controls.
+- Verified the final verse, grouped outline, verse actions and dock were all visible in iPhone portrait.
+
+### 2026-11-14 — Flexible Scripture viewport
+- Removed explicit viewport dimensions after reproducing clipping on iPhone rotation.
+- Both Dev builds passed. The rebuilt rotation path still needs live verification.

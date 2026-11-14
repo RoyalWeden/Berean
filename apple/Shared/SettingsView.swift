@@ -1,26 +1,22 @@
 import SwiftUI
 import BereanWorkspace
+import BereanReference
 
 /// Native Settings (Mac Settings window / iPhone sheet): reading preferences stored in the settings table.
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
-    // Device-local reading preferences (the existing apps keep these per device too).
-    @AppStorage("showVerseNumbers") private var showVerseNumbers = true
-    @AppStorage("showRedLetters") private var showRedLetters = true
 
     var body: some View {
         @Bindable var app = app
         Form {
             Section("Reading") {
                 Picker("Default text", selection: $app.defaultText) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
-                LabeledContent("Text size") {
-                    HStack { Slider(value: $app.fontSize, in: 12...30, step: 1).frame(minWidth: 160); Text("\(Int(app.fontSize)) pt").monospacedDigit().frame(width: 48, alignment: .trailing) }
+                Picker("Shepherd of Hermas edition", selection: $app.hermasEdition) {
+                    Text("Charles Taylor (1903)").tag(HermasText.taylor)
+                    Text("Roberts–Donaldson").tag(HermasText.robertsDonaldson)
                 }
-                Picker("Scripture font", selection: $app.scriptureFontFamily) { ForEach(ScriptureFont.options, id: \.id) { Text($0.label).tag($0.id) } }
-                Picker("Line spacing", selection: $app.lineHeight) { Text("Compact").tag("compact"); Text("Comfortable").tag("comfortable"); Text("Spacious").tag("spacious") }
+                ScriptureDisplayOptions()
                 Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
-                Toggle("Verse numbers", isOn: $showVerseNumbers)
-                Toggle("Words of Yeshua in red", isOn: $showRedLetters)
             }
             Section("Appearance") {
                 Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
@@ -39,7 +35,44 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(minWidth: 460, minHeight: 360)
+        #endif
+    }
+}
+
+struct ScriptureDisplayOptions: View {
+    @Environment(AppModel.self) private var app
+    @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
+    @AppStorage("showVerseNumbers") private var showVerseNumbers = true
+    @AppStorage("showRedLetters") private var showRedLetters = true
+
+    var body: some View {
+        @Bindable var app = app
+        LabeledContent("Text size") {
+            HStack {
+                Slider(value: $app.fontSize, in: ScriptureTextSize.range, step: 1) {
+                    Text("Text size")
+                }
+                .labelsHidden()
+                Text("\(Int(app.fontSize)) pt")
+                    .monospacedDigit()
+                    .fixedSize()
+            }
+        }
+        Picker("Scripture font", selection: $app.scriptureFontFamily) {
+            ForEach(ScriptureFont.options, id: \.id) { Text($0.label).tag($0.id) }
+        }
+        Picker("Line spacing", selection: $app.lineHeight) {
+            Text("Compact").tag("compact")
+            Text("Comfortable").tag("comfortable")
+            Text("Spacious").tag("spacious")
+        }
+        Picker("Text width", selection: $scriptureWidth) {
+            ForEach(ScriptureWidth.allCases, id: \.self) { Text($0.label).tag($0) }
+        }
+        Toggle("Verse numbers", isOn: $showVerseNumbers)
+        Toggle("Words of Yeshua in red", isOn: $showRedLetters)
     }
 }
 

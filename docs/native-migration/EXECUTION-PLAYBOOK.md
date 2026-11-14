@@ -23,6 +23,8 @@ Every **new or compacted Claude session** starts with this sequence:
 9. If blocked, record the precise owner action required, choose a separate unblocked task, and continue. Only interrupt when the user is genuinely necessary; batch questions.
 10. Before any session terminates, update `HANDOFF.md` with exact repository state, worktree, touched files, commands and outcomes, blockers, and next executable step. **No claim of background continuation beyond the current active agent session.**
 
+For reader, search and navigation changes, use both actual app bundles with the immutable catalog and the native Dev identities. Check that navigation resolves a less common bundled text, and compare tab counts before and after ordinary navigation and explicit New Tab. Verify touch selection and persistent highlights separately from compile checks. Keep unnamed-workspace discovery and reversible tab cleanup in the active parity queue.
+
 **Never infer completion from the existence of source files.** Feature completion requires actual behavior, persistence and restart checks, platform checks, and relevant parity tests.
 
 ## 1. Source hierarchy and how to resolve disagreement

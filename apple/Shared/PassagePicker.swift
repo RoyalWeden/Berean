@@ -8,8 +8,16 @@ struct RecentPassage: Codable, Hashable, Identifiable {
     var bookId: String
     var chapter: Int
     var verse: Int?
-    var id: String { "\(textId)|\(bookId)|\(chapter)" }
-    var label: String { Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse) }
+    var endVerse: Int? = nil
+    var verseGroups: [ClosedRange<Int>]? = nil
+
+    var id: String {
+        "\(textId)|\(bookId)|\(chapter)|\(verse.map(String.init) ?? "")|\(endVerse.map(String.init) ?? "")|\(verseGroups ?? [])"
+    }
+
+    var label: String {
+        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse, verseGroups: verseGroups ?? []).label
+    }
 }
 
 /// A book in some text (the picker searches every bundled text, not just the current one).
@@ -28,12 +36,15 @@ extension AppModel {
         (UserDefaults.standard.data(forKey: Self.recentKey)).flatMap { try? JSONDecoder().decode([RecentPassage].self, from: $0) } ?? []
     }
 
-    /// Records a visited passage (dedup by text + book + chapter, newest first, 40 kept).
-    func recordRecent(textId: String, bookId: String, chapter: Int, verse: Int?) {
-        var list = recentPassages.filter { !($0.textId == textId && $0.bookId == bookId && $0.chapter == chapter) }
-        list.insert(RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse), at: 0)
+    /// Records a visited destination, newest first, with up to 40 entries.
+    func recordRecent(textId: String, bookId: String, chapter: Int, verse: Int?, endVerse: Int? = nil, verseGroups: [ClosedRange<Int>] = []) {
+        let destination = RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse, verseGroups: verseGroups.isEmpty ? nil : verseGroups)
+        var list = recentPassages.filter { $0 != destination }
+        list.insert(destination, at: 0)
         if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserDefaults.standard.set(data, forKey: Self.recentKey) }
-        recordHistory(type: "bible", title: Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse), bookId: bookId, chapter: chapter, verse: verse)
+        let storedDestination = (try? JSONEncoder().encode(destination)).flatMap { String(data: $0, encoding: .utf8) }
+        recordHistory(type: "bible", title: destination.label, bookId: bookId, chapter: chapter, verse: verse,
+                      query: storedDestination)
     }
 
     /// Every book of every listed text, in list order.
@@ -51,15 +62,26 @@ struct PassagePicker: View {
     let currentBook: String
     let currentChapter: Int
     /// (textId, bookId, chapter, verse)
-    let onPick: (String, String, Int, Int?) -> Void
+    let onPick: (ResolvedPassage) -> Void
     var compact = false
 
-    @State private var text: String = ""
+    @State private var chosenText: String?
+    private var text: String { chosenText ?? textId }
+    private var textSelection: Binding<String> {
+        Binding(get: { text }, set: {
+            chosenText = $0
+            bookChoice = nil
+        })
+    }
+    @State private var loadedRequest: BrowseRequest?
+    @State private var bookChoice: CatalogBook?
+    @State private var didPick = false
     @State private var query = ""
     @State private var books: [BookRow] = []
     @State private var catalog: [CatalogBook] = []
     @State private var openBook: BookRow?
     @State private var chapters: [Int] = []
+    @State private var alternateEdition: ChapterEdition?
     @FocusState private var searchFocused: Bool
 
     var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
@@ -69,7 +91,10 @@ struct PassagePicker: View {
         guard !trimmed.isEmpty else { return [] }
         let q = trimmed.lowercased()
         let hits = catalog.filter { $0.book.name.lowercased().contains(q) || $0.book.shortName.lowercased().hasPrefix(q) || $0.book.id.lowercased().hasPrefix(q) }
-        func rank(_ c: CatalogBook) -> (Int, Int) { (c.textId == text ? 0 : 1, c.book.name.lowercased().hasPrefix(q) ? 0 : 1) }
+        func rank(_ c: CatalogBook) -> (Int, Int, Int) {
+            (c.textId == text ? 0 : 1, c.book.name.lowercased().hasPrefix(q) ? 0 : 1,
+             c.textId == app.hermasEdition.rawValue ? 0 : 1)
+        }
         return Array(hits.sorted { rank($0) < rank($1) }.prefix(40))
     }
 
@@ -91,21 +116,48 @@ struct PassagePicker: View {
             }
         }
         .task {
-            text = textId
-            books = await app.books(for: text)
-            if let b = books.first(where: { $0.id == currentBook }) {
-                let list = await app.bible.chapterNumbers(b.id, textId: text)
-                if list.count > 1 { chapters = list; openBook = b }
-            }
             searchFocused = true
             catalog = app.bookCatalog.isEmpty ? await app.catalog() : app.bookCatalog
         }
-        .onChange(of: text) { _, t in
-            Task {
-                books = await app.books(for: t)
-                if let b = openBook { openBook = books.first { $0.id == b.id }; chapters = await app.bible.chapterNumbers(b.id, textId: t) }
+        .task(id: BrowseRequest(text: text, choice: bookChoice)) {
+            let request = BrowseRequest(text: text, choice: bookChoice)
+            guard request != loadedRequest, !didPick else { return }
+            let requestedText = request.text
+            let choice = request.choice
+            let initial = loadedRequest == nil
+            let bookID = choice?.textId == requestedText ? choice?.book.id : (openBook?.id ?? (initial ? currentBook : nil))
+            let newBooks = await app.books(for: requestedText)
+            let book = newBooks.first { $0.id == bookID }
+            let newChapters: [Int]
+            if let book {
+                newChapters = await app.bible.chapterNumbers(book.id, textId: requestedText)
+            } else {
+                newChapters = []
+            }
+            guard !Task.isCancelled, !didPick, requestedText == text, choice == bookChoice else { return }
+            books = newBooks
+            chapters = newChapters
+            openBook = newChapters.isEmpty || (initial && choice == nil && newChapters.count == 1) ? nil : book
+            loadedRequest = request
+            if choice?.textId == requestedText, let book, newChapters.count == 1, let chapter = newChapters.first {
+                pick(ResolvedPassage(textId: requestedText, bookId: book.id, chapter: chapter, verse: nil))
             }
         }
+        .task(id: sourceEdition) {
+            alternateEdition = nil
+            let target = await app.installedCounterpart(of: sourceEdition)
+            guard !Task.isCancelled else { return }
+            alternateEdition = target
+        }
+    }
+
+    private struct BrowseRequest: Equatable {
+        let text: String
+        let choice: CatalogBook?
+    }
+
+    private var sourceEdition: ChapterEdition {
+        ChapterEdition(book: currentBook, chapter: currentChapter, text: textId)
     }
 
     // MARK: left — search across all texts, Go to, History
@@ -119,16 +171,32 @@ struct PassagePicker: View {
                 .padding(10)
                 .accessibilityLabel("Search books and references in every text")
             List {
+                if trimmed.isEmpty, let target = alternateEdition, target == sourceEdition.counterpart {
+                    Section("Same Passage") {
+                        Button {
+                            pick(ResolvedPassage(textId: target.text, bookId: target.book, chapter: target.chapter, verse: nil))
+                        } label: {
+                            HStack {
+                                Label(Reference.readerChapterLabel(target.book, target.chapter, textId: target.text),
+                                      systemImage: "arrow.left.arrow.right")
+                                Spacer()
+                                Text(textInfo(target.text).short).font(.caption).foregroundStyle(.secondary)
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                    }
+                }
                 if let p = resolved {
                     Section("Go to") {
-                        Button { onPick(p.textId, p.bookId, p.chapter, p.verse) } label: {
+                        Button { pick(p) } label: {
                             HStack {
-                                Label(Reference.bookChapterVerseLabel(p.bookId, chapter: p.chapter, verse: p.verse), systemImage: "arrow.right.circle")
+                                Label(p.label, systemImage: "arrow.right.circle")
                                 Spacer()
                                 Text(textInfo(p.textId).short).font(.caption).foregroundStyle(.secondary)
                             }.contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.interactivePlain)
                     }
                 }
                 if !bookMatches.isEmpty {
@@ -140,7 +208,7 @@ struct PassagePicker: View {
                                     Spacer()
                                     Text(textInfo(m.textId).short).font(.caption).foregroundStyle(.secondary)
                                 }.contentShape(.rect)
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(.interactivePlain)
                         }
                     }
                 }
@@ -149,20 +217,20 @@ struct PassagePicker: View {
                         let recents = app.recentPassages
                         if recents.isEmpty { Text("Passages you open appear here.").foregroundStyle(.secondary) }
                         ForEach(recents.prefix(25)) { r in
-                            Button { onPick(r.textId, r.bookId, r.chapter, r.verse) } label: {
+                            Button { pick(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? [])) } label: {
                                 HStack {
                                     Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary)
                                     Text(r.label)
                                     Spacer()
                                     if r.textId != "kjva" { Text(textInfo(r.textId).short).font(.caption).foregroundStyle(.secondary) }
                                 }.contentShape(.rect)
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(.interactivePlain)
                         }
                     }
                 }
                 if compact {
                     Section("Text") {
-                        Picker("Text", selection: $text) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
+                        Picker("Text", selection: textSelection) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
                     }
                 }
             }
@@ -170,54 +238,64 @@ struct PassagePicker: View {
         }
     }
 
-    func submit() {
-        if let p = resolved { onPick(p.textId, p.bookId, p.chapter, p.verse) } else if let first = bookMatches.first { choose(first) }
+    private func pick(_ passage: ResolvedPassage) {
+        guard !didPick else { return }
+        didPick = true
+        onPick(passage)
     }
 
-    func choose(_ m: CatalogBook) {
-        if m.textId != text { text = m.textId }
-        open(m.book, in: m.textId)
+    private func showBooks() {
+        openBook = nil
+        chapters = []
+        bookChoice = nil
+        loadedRequest = BrowseRequest(text: text, choice: nil)
+    }
+
+    func submit() {
+        if let p = resolved { pick(p) } else if let first = bookMatches.first { choose(first) }
+    }
+
+    func choose(_ match: CatalogBook) {
+        chosenText = match.textId
+        bookChoice = match
         query = ""
     }
 
-    /// Shows a book's chapters — or, when it has only one, opens it straight away (no one-button grid).
-    func open(_ b: BookRow, in textId: String) {
-        Task {
-            let list = await app.bible.chapterNumbers(b.id, textId: textId)
-            if list.count <= 1 { onPick(textId, b.id, list.first ?? 1, nil); return }
-            chapters = list
-            openBook = b
-        }
+    func open(_ book: BookRow, in textId: String) {
+        bookChoice = CatalogBook(textId: textId, book: book)
     }
 
     // MARK: middle — books, then chapters (with an internal Back)
 
     @ViewBuilder var middleColumn: some View {
-        if let b = openBook {
+        if loadedRequest != BrowseRequest(text: text, choice: bookChoice) {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let b = openBook {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Button { openBook = nil } label: { Label("Books", systemImage: "chevron.backward") }
-                        .buttonStyle(.borderless)
+                    Button(action: showBooks) { Label("Books", systemImage: "chevron.backward") }
+                        .buttonStyle(.interactivePlain)
                         .keyboardShortcut(.leftArrow, modifiers: [.command])
                         .help("Back to the book list (⌘←)")
                     Spacer()
                     Text(b.name).font(.headline).lineLimit(1)
                 }.padding(10)
                 Divider()
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 42, maximum: 48), spacing: 6)], spacing: 6) {
-                        ForEach(chapters.isEmpty ? Array(1...max(1, b.chaptersCount)) : chapters, id: \.self) { c in
-                            let current = b.id == currentBook && c == currentChapter && text == textId
-                            Button { onPick(text, b.id, c, nil) } label: {
-                                Text(c == 0 ? "Prol." : Reference.displayChapterString(b.id, c)).font(c == 0 ? .caption : .body).monospacedDigit().frame(width: 42, height: 30)
-                                    .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 6))
-                                    .foregroundStyle(current ? .white : .primary)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44, maximum: 52), spacing: 6)], spacing: 6) {
+                            ForEach(chapters, id: \.self) { chapter in
+                                chapterButton(chapter, in: b)
+                                    .id(chapter)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(c == 0 ? "\(b.name) prologue" : "\(b.name) chapter \(c)")
-                            .help(c == 0 ? "Prologue" : "Chapter \(Reference.displayChapterString(b.id, c))")
                         }
-                    }.padding(12)
+                        .padding(12)
+                    }
+                    .onAppear {
+                        if b.id == currentBook, text == textId, chapters.contains(currentChapter) {
+                            proxy.scrollTo(currentChapter, anchor: .center)
+                        }
+                    }
                 }
             }
         } else {
@@ -233,15 +311,43 @@ struct PassagePicker: View {
                                         Text(b.chaptersCount == 1 ? "" : "\(b.chaptersCount)").font(.caption).foregroundStyle(.tertiary).monospacedDigit()
                                     }.contentShape(.rect)
                                 }
-                                .buttonStyle(.plain).id(b.id)
+                                .buttonStyle(.interactivePlain).id(b.id)
                             }
                         }
                     }
                 }
                 .listStyle(.sidebar)
-                .onChange(of: books.count) { DispatchQueue.main.async { proxy.scrollTo(currentBook, anchor: .center) } }
+                .onAppear { proxy.scrollTo(currentBook, anchor: .center) }
             }
         }
+    }
+
+    private func chapterButton(_ chapter: Int, in book: BookRow) -> some View {
+        let current = book.id == currentBook && chapter == currentChapter && text == textId
+        let number = Reference.displayChapterString(book.id, chapter)
+        let label = if chapter == 0 {
+            "\(book.name) prologue"
+        } else if Reference.isHermasBook(book.id) {
+            Reference.readerChapterLabel(book.id, chapter, textId: text)
+        } else {
+            "\(book.name) chapter \(number)"
+        }
+        return Button {
+            pick(ResolvedPassage(textId: text, bookId: book.id, chapter: chapter, verse: nil))
+        } label: {
+            Text(chapter == 0 ? "Prol." : number)
+                .font(chapter == 0 ? .caption : .body)
+                .monospacedDigit()
+                .frame(maxWidth: .infinity)
+                .frame(height: compact ? 44 : 34)
+                .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 8))
+                .foregroundStyle(current ? .white : .primary)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(current ? .isSelected : [])
+        .help(label)
     }
 
     var sections: [(String, [BookRow])] {
@@ -264,14 +370,14 @@ struct PassagePicker: View {
             ForEach(["Bible", "Other writings"], id: \.self) { section in
                 Section(section) {
                     ForEach(availableTexts.filter { $0.section == section }) { t in
-                        Button { text = t.id } label: {
+                        Button { chosenText = t.id; bookChoice = nil } label: {
                             HStack {
                                 Text(t.name).lineLimit(2)
                                 Spacer()
                                 if t.id == text { Image(systemName: "checkmark").foregroundStyle(.tint) }
                             }.contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.interactivePlain)
                         .accessibilityAddTraits(t.id == text ? .isSelected : [])
                     }
                 }
@@ -282,6 +388,13 @@ struct PassagePicker: View {
 }
 
 extension Reference {
+    static func readerChapterLabel(_ bookId: String, _ chapter: Int, textId: String) -> String {
+        if isHermasBook(bookId) {
+            return bookChapterVerseLabel(bookId, chapter: chapter, hermas: HermasText(textId: textId))
+        }
+        return bookChapterLabel(bookId, chapter: Double(chapter))
+    }
+
     /// The chapter number as shown to readers (custom-numbered books such as Recognitions 3 differ from storage).
     static func displayChapterString(_ bookId: String, _ stored: Int) -> String {
         let d = displayChapter(bookId, Double(stored))

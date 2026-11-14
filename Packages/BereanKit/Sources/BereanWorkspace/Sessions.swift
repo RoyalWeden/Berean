@@ -25,6 +25,38 @@ public struct ArchivedGroup: Equatable, Sendable, Identifiable {
     /// The archived tabs as stored (`tabs_json`), kept verbatim.
     public var tabsJSON: String
     public init(id: String, label: String, archivedAt: Int64, tabsJSON: String) { self.id = id; self.label = label; self.archivedAt = archivedAt; self.tabsJSON = tabsJSON }
+
+    public var tabs: [Tab] {
+        records.compactMap { $0.objectValue.flatMap(Tab.init(jsObject:)) }
+    }
+
+    private var records: [JSValue] {
+        (try? JSON.parse(tabsJSON))?.arrayValue ?? []
+    }
+
+    /// Remove only the restored record, preserving records this version cannot decode.
+    public func afterRestoring(tabID: String) -> ArchivedGroup? {
+        afterRestoring(tabIDs: [tabID])
+    }
+
+    public func afterRestoring(tabIDs: Set<String>) -> ArchivedGroup? {
+        let original = records
+        let remaining = original.filter { value in
+            guard let object = value.objectValue, let tab = Tab(jsObject: object) else { return true }
+            return !tabIDs.contains(tab.id)
+        }
+        guard remaining.count != original.count else { return self }
+        guard !remaining.isEmpty else { return nil }
+        var group = self
+        group.tabsJSON = JSON.stringifyString(.array(remaining))
+        if let first = group.tabs.first {
+            let title = first.title.isEmpty ? "Untitled" : first.title
+            group.label = remaining.count == 1 ? title : "\(title) and \(remaining.count - 1) more"
+        } else {
+            group.label = "Archived tabs"
+        }
+        return group
+    }
 }
 
 /// Port of src/store/tabPersistence.ts: workspace state ⇄ the synced `sessions` / `tabs` / `archived_groups` rows.
@@ -34,6 +66,18 @@ public enum TabPersistence {
         public var tabs: [String: String] = [:]
         public var display: [String: String] = [:]
         public init() {}
+    }
+
+    /// Insert a restored tab beside a surviving neighbor without reordering open tabs.
+    public static func restoredDisplayOrder(tabID: String, current: [String], archived: [String]) -> [String] {
+        var order = current.filter { $0 != tabID }
+        guard let index = archived.firstIndex(of: tabID) else { return order + [tabID] }
+        let positions = Dictionary(order.enumerated().map { ($0.element, $0.offset) },
+                                   uniquingKeysWith: { first, _ in first })
+        let next = archived.dropFirst(index + 1).lazy.compactMap { positions[$0] }.first
+        let previous = archived.prefix(index).reversed().lazy.compactMap { positions[$0] }.first
+        order.insert(tabID, at: next ?? previous.map { $0 + 1 } ?? order.endIndex)
+        return order
     }
 
     /// `assignOrderKeys` — keep existing keys where they still increase; new keys only for moved ids.

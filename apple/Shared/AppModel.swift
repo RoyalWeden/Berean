@@ -68,16 +68,36 @@ final class AppModel {
 
     var sessions: [Session] = []
     var currentSessionId = ""
-    var activeSpace: SpaceId = .scripture
+    var activeSpace: SpaceId = .scripture {
+        didSet { rememberWorkspaceSpace() }
+    }
+    private var workspaceSpaces = UserDefaults.standard.dictionary(forKey: "nativeWorkspaceSpaces") as? [String: String] ?? [:]
+
+    private func rememberWorkspaceSpace() {
+        guard !currentSessionId.isEmpty, activeTab != nil,
+              workspaceSpaces[currentSessionId] != activeSpace.rawValue else { return }
+        workspaceSpaces[currentSessionId] = activeSpace.rawValue
+        UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
+    }
+    private(set) var recentTabIDs = Array((UserDefaults.standard.stringArray(forKey: "nativeRecentTabIDs") ?? []).prefix(20))
     var displayOrders: [String: [String]] = [:]
     var archivedGroups: [ArchivedGroup] = []
     var books: [String: [BookRow]] = [:]
     var libraryError: String?
     var commandPaletteShown = false
+    #if os(macOS)
+    var commandPaletteCreatesTab = false
+
+    func showCommandPalette(newTab: Bool = false) {
+        commandPaletteCreatesTab = newTab
+        commandPaletteShown = true
+    }
+    #endif
     /// Bumped by View ▸ Toggle Sidebar (the window's split view observes it).
     var sidebarToggleRequest = 0
     /// Every book of every text (passage navigator search, reference resolution).
     var bookCatalog: [CatalogBook] = []
+    var explicitKJVBooks: [BookRow]?
     /// One-line result shown in an alert after a user action (export/import outcome, errors).
     var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.
@@ -88,6 +108,8 @@ final class AppModel {
     private(set) var settingsService: SettingsService?
     private(set) var workspaces: WorkspacesService?
     private(set) var verseTags: VerseTagsService?
+    var showStudyTrail = false
+    private(set) var studyTrailService: StudyTrailService?
     private(set) var historyService: HistoryService?
     var historyRevision = 0
     /// Bumped on every verse-tag write so chips and tag lists refresh.
@@ -95,9 +117,10 @@ final class AppModel {
     /// Saved workspaces (newest first), shared with the existing apps' Settings → Layout list.
     var savedWorkspaces: [SavedWorkspace] = []
     /// Reading preferences (settings table keys shared with the existing apps where they exist).
-    var fontSize: Double = 16 { didSet { saveSetting("fontSize", .number(fontSize)) } }
+    var fontSize: Double = ScriptureTextSize.standard { didSet { saveSetting("fontSize", .number(fontSize)) } }
     var lineHeight = "comfortable" { didSet { saveSetting("lineHeight", .string(JSString(lineHeight))) } }
     var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
+    var hermasEdition = HermasText.taylor { didSet { saveSetting("hermasTranslation", .string(JSString(hermasEdition.rawValue))) } }
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
     /// The existing apps' `scriptureFontFamily` setting ('system' = the platform UI font).
@@ -131,6 +154,7 @@ final class AppModel {
             workspaces = WorkspacesService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) }, uuid: { Self.newId() }, onChange: { _ in })
             savedWorkspaces = (try? workspaces?.list()) ?? []
             historyService = HistoryService(db: db.connection)
+            studyTrailService = StudyTrailService(db: db.connection)
             verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
             loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
@@ -144,6 +168,10 @@ final class AppModel {
             if h.sessions.isEmpty { seedDefault() } else {
                 sessions = h.sessions; displayOrders = h.displayOrders; archivedGroups = h.archivedGroups; keys = h.keys
                 currentSessionId = UserDefaults.standard.string(forKey: "currentSessionId").flatMap { id in sessions.contains { $0.id == id } ? id : nil } ?? sessions[0].id
+                if let space = workspaceSpaces[currentSessionId].flatMap(SpaceId.init(rawValue:)),
+                   let id = activeTabId(in: space), tabs(in: space).contains(where: { $0.id == id }) {
+                    activeSpace = space
+                }
             }
         } catch {
             libraryError = "Could not open the library: \(error)"
@@ -173,6 +201,7 @@ final class AppModel {
         if let v = all["fontSize"]?.numberValue { fontSize = v }
         if let v = all["lineHeight"]?.stringValue?.string { lineHeight = v }
         if let v = all["defaultText"]?.stringValue?.string { defaultText = v }
+        if let v = all["hermasTranslation"]?.stringValue?.string, let edition = HermasText(rawValue: v) { hermasEdition = edition }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["theme"]?.stringValue?.string { theme = v }
         if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
@@ -216,10 +245,27 @@ final class AppModel {
     var sessionIndex: Int { sessions.firstIndex { $0.id == currentSessionId } ?? 0 }
     var session: Session { sessions.isEmpty ? Session(id: "", name: "") : sessions[sessionIndex] }
 
-    func switchSession(_ id: String) { currentSessionId = id; scheduleSave() }
+    func switchSession(_ id: String, preferredSpace: SpaceId? = nil, rememberPrevious: Bool = true) {
+        guard id != currentSessionId, let destination = sessions.first(where: { $0.id == id }) else { return }
+        if rememberPrevious { rememberActiveTab() }
+        currentSessionId = id
+        let remembered = workspaceSpaces[id].flatMap(SpaceId.init(rawValue:))
+        if let space = preferredSpace ?? remembered, !destination.tabs(in: space).isEmpty {
+            activeSpace = space
+        }
+        if activeTab == nil {
+            let ordered = destination.workspacePreviewTabs
+            if let tab = ordered.first(where: { $0.spaceId == activeSpace }) ?? ordered.first {
+                select(tab.id, in: tab.spaceId, rememberPrevious: false)
+                return
+            }
+        }
+        rememberWorkspaceSpace()
+        scheduleSave()
+    }
     func newSession(named name: String = "New Session") {
         let s = Session(id: Self.newId(), name: name)
-        sessions.append(s); currentSessionId = s.id
+        sessions.append(s); switchSession(s.id)
         openTab(.bible, in: .scripture, title: "Genesis 1", state: BibleState(bookId: "GEN", chapter: 1).object)
     }
     func renameSession(_ id: String, to name: String) {
@@ -229,7 +275,11 @@ final class AppModel {
     func deleteSession(_ id: String) {
         guard sessions.count > 1, let i = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions.remove(at: i)
-        if currentSessionId == id { currentSessionId = sessions[0].id }
+        workspaceSpaces.removeValue(forKey: id)
+        UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
+        if currentSessionId == id {
+            switchSession(sessions[0].id, rememberPrevious: false)
+        }
         scheduleSave()
     }
 
@@ -276,21 +326,32 @@ final class AppModel {
 
     // MARK: history (device-local `history` table, as the existing apps)
 
+    static let historyEntryLimit = 5_000
+
     func recordHistory(type: String, title: String, bookId: String? = nil, chapter: Int? = nil, verse: Int? = nil, noteId: String? = nil, strongsNum: String? = nil, query: String? = nil) {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let e = HistoryEntry(id: "hist-\(now)-\(Self.newId().prefix(8))", type: type, title: title, timestamp: now, sessionId: currentSessionId, sessionName: session.name,
                              bookId: bookId, chapter: chapter, verse: verse, noteId: noteId, strongsNum: strongsNum, query: query)
-        if (try? historyService?.add(e, maxEntries: 5000)) == true { historyRevision += 1 }
+        if (try? historyService?.add(e, maxEntries: Self.historyEntryLimit)) == true { historyRevision += 1 }
     }
 
-    func openHistory() {
-        if let t = session.allTabs.first(where: { $0.tabType == .history }) { select(t.id, in: t.spaceId); return }
-        openTab(.history, in: .search, title: "History", state: JSObject())   // the existing apps group History with Search
+    func openHistory(newTab: Bool = false) {
+        openUtilityTab(.history, in: .search, title: "History", newTab: newTab)
     }
 
-    func openTags() {
-        if let t = session.allTabs.first(where: { $0.tabType == .tags }) { select(t.id, in: t.spaceId); return }
-        openTab(.tags, in: .notes, title: "Tags", state: JSObject())   // the existing apps keep the Tags tab in Notes
+    func openTags(newTab: Bool = false) {
+        openUtilityTab(.tags, in: .notes, title: "Tags", newTab: newTab)
+    }
+
+    func openUtilityTab(_ type: TabType, in space: SpaceId, title: String, newTab: Bool) {
+        if !newTab {
+            let matching = session.allTabs.filter { $0.tabType == type }
+            if let tab = matching.first(where: { activeTabId(in: $0.spaceId) == $0.id }) ?? matching.first {
+                select(tab.id, in: tab.spaceId)
+                return
+            }
+        }
+        openTab(type, in: space, title: title, state: JSObject())
     }
 
     // MARK: saved workspaces (same rows and state_json v2 as src/lib/workspaceSnapshot.ts)
@@ -305,7 +366,7 @@ final class AppModel {
     func saveWorkspace(named name: String) -> Bool {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, let workspaces else { return false }
-        let state = WorkspaceSnapshot.stateJSON(for: session, displayOrder: displayOrders[currentSessionId])
+        let state = WorkspaceSnapshot.stateJSON(for: session, displayOrder: displayOrders[currentSessionId], preferredSpace: activeSpace)
         guard (try? workspaces.save(name: name, layoutJSON: Self.legacyDefaultPanelLayout, stateJSON: state)) != nil else { return false }
         refreshWorkspaces(); return true
     }
@@ -317,23 +378,12 @@ final class AppModel {
         if sessions.contains(where: { $0.id == sid }) { switchSession(sid); return }
         guard let ws = try? workspaces?.load(id) else { return }
         let parsed = WorkspaceSnapshot.parse(ws.stateJSON)
-        let open = Set(sessions.flatMap { $0.allTabs.map(\.id) })
-        var idMap: [String: String] = [:]
-        var tabs: [SpaceId: [BereanWorkspace.Tab]] = [:]
-        var active: [SpaceId: String?] = [:]
-        for sp in WorkspaceSnapshot.spaces {
-            tabs[sp] = parsed.tabs(in: sp).compactMap { BereanWorkspace.Tab(jsObject: $0) }.map { t in
-                guard open.contains(t.id) || idMap[t.id] != nil else { return t }
-                var c = t; c.id = "\(t.type)-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(8))"
-                idMap[t.id] = c.id; return c
-            }
-            active[sp] = ((parsed.activeTabId[sp] ?? nil).map { idMap[$0] ?? $0 }) ?? tabs[sp]?.first?.id
-        }
-        sessions.append(Session(id: sid, name: ws.name, icon: parsed.icon, tabs: tabs, activeTabId: active))
-        displayOrders[sid] = parsed.displayOrder.map { idMap[$0] ?? $0 }
-        currentSessionId = sid
-        if let sp = WorkspaceSnapshot.spaces.first(where: { !(tabs[$0] ?? []).isEmpty }), tabs[activeSpace]?.isEmpty ?? true { activeSpace = sp }
-        scheduleSave()
+        let restored = parsed.restoreSession(id: sid, name: ws.name,
+                                             reservedIDs: Set(sessions.flatMap { $0.allTabs.map(\.id) }),
+                                             makeID: Self.newId)
+        sessions.append(restored.session)
+        displayOrders[sid] = restored.displayOrder
+        switchSession(sid, preferredSpace: parsed.preferredSpace)
     }
 
     func renameWorkspace(_ id: String, to name: String) {
@@ -350,7 +400,16 @@ final class AppModel {
     func activeTabId(in space: SpaceId) -> String? { session.activeTabId[space] ?? nil }
     var activeTab: BereanWorkspace.Tab? { activeTabId(in: activeSpace).flatMap { id in tabs(in: activeSpace).first { $0.id == id } } }
 
-    func select(_ tabId: String, in space: SpaceId) {
+    private func rememberActiveTab() {
+        guard let id = activeTab?.id else { return }
+        recentTabIDs.removeAll { $0 == id }
+        recentTabIDs.insert(id, at: 0)
+        if recentTabIDs.count > 20 { recentTabIDs.removeLast() }
+        UserDefaults.standard.set(recentTabIDs, forKey: "nativeRecentTabIDs")
+    }
+
+    func select(_ tabId: String, in space: SpaceId, rememberPrevious: Bool = true) {
+        if rememberPrevious, activeTab?.id != tabId { rememberActiveTab() }
         sessions[sessionIndex].activeTabId[space] = tabId
         activeSpace = space
         scheduleSave()
@@ -358,18 +417,28 @@ final class AppModel {
 
     @discardableResult
     func openTab(_ type: TabType, in space: SpaceId, title: String, state: JSObject, origin: BereanWorkspace.Tab? = nil) -> String {
+        if sessions.isEmpty { seedDefault() }
         let id = Self.newId()
         let tab = BereanWorkspace.Tab(id: id, spaceId: space, type: type.rawValue, title: title, state: state, originTabId: origin?.id, originSpaceId: origin?.spaceId)
-        if sessions.isEmpty { seedDefault() }
-        insertInDisplayOrder(id, after: activeTab?.id)
-        var list = sessions[sessionIndex].tabs[space] ?? []
-        if let cur = activeTabId(in: space), let idx = list.firstIndex(where: { $0.id == cur }) { list.insert(tab, at: idx + 1) } else { list.append(tab) }
-        sessions[sessionIndex].tabs[space] = list
-        select(id, in: space)
+        insertTab(tab, after: activeTab?.id, inSpaceAfter: activeTabId(in: space))
         return id
     }
 
+    private func insertTab(_ tab: BereanWorkspace.Tab, after displayAnchor: String?, inSpaceAfter spaceAnchor: String?) {
+        let space = tab.spaceId
+        insertInDisplayOrder(tab.id, after: displayAnchor)
+        var list = sessions[sessionIndex].tabs[space] ?? []
+        if let spaceAnchor, let idx = list.firstIndex(where: { $0.id == spaceAnchor }) {
+            list.insert(tab, at: idx + 1)
+        } else {
+            list.append(tab)
+        }
+        sessions[sessionIndex].tabs[space] = list
+        select(tab.id, in: space)
+    }
+
     func close(_ tabId: String) {
+        studyVerseFocus.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
         let wasActive = activeTab?.id == tabId
         let ordered = orderedTabs
@@ -389,8 +458,10 @@ final class AppModel {
     func closeActiveTab() { if let t = activeTab { close(t.id) } }
 
     func duplicate(_ tabId: String) {
-        guard let t = findTab(tabId) else { return }
-        openTab(t.tabType ?? .bible, in: t.spaceId, title: t.title, state: t.state)
+        guard var copy = findTab(tabId) else { return }
+        copy.id = Self.newId()
+        copy.isPinned = false
+        insertTab(copy, after: tabId, inSpaceAfter: tabId)
     }
 
     func togglePin(_ tabId: String) { update(tabId) { $0.isPinned.toggle() } }
@@ -417,11 +488,36 @@ final class AppModel {
             guard let idx = sessions[sessionIndex].tabs[sp]?.firstIndex(where: { $0.id == tabId }) else { continue }
             let before = sessions[sessionIndex].tabs[sp]![idx]
             change(&sessions[sessionIndex].tabs[sp]![idx])
+            if recordHistory, before.tabType == .bible {
+                let updated = sessions[sessionIndex].tabs[sp]![idx].state
+                if let columns = updated["compareColumns"], columns == before.state["compareColumns"] {
+                    let moved = CompareColumn.followPassageChange(columns, from: BibleState(before.state), to: BibleState(updated))
+                    if moved != columns { sessions[sessionIndex].tabs[sp]![idx].state["compareColumns"] = moved }
+                }
+            }
             let after = sessions[sessionIndex].tabs[sp]![idx]
-            if recordHistory, Self.location(before) != Self.location(after) {
+            let locationChanged = (recordHistory || studyVerseFocus[tabId] != nil)
+                && Self.location(before) != Self.location(after)
+            if locationChanged, studyVerseFocus[tabId] != nil {
+                studyVerseFocus.removeValue(forKey: tabId)
+            }
+            if recordHistory, locationChanged {
+                if let saved = after.state["nativeSelectedVerses"], saved == before.state["nativeSelectedVerses"],
+                   Self.selectionLocation(before) != Self.selectionLocation(after) {
+                    sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
+                }
                 backStack[tabId, default: []].append((before.title, before.state))
                 if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
                 forwardStack[tabId] = []
+            }
+            if recordHistory, after.tabType == .bible, BibleState(after.state).compareMode {
+                let destination = CompareHistoryDestination(state: after.state)
+                if !BibleState(before.state).compareMode || CompareHistoryDestination(state: before.state) != destination {
+                    let passage = destination.passage
+                    let payload = (try? JSONEncoder().encode(destination)).flatMap { String(data: $0, encoding: .utf8) }
+                    self.recordHistory(type: "compare", title: "Compare · \(passage.label)",
+                                       bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, query: payload)
+                }
             }
             scheduleSave(); return
         }
@@ -432,16 +528,27 @@ final class AppModel {
     private var backStack: [String: [(String, JSObject)]] = [:]
     private var forwardStack: [String: [(String, JSObject)]] = [:]
 
+    private static func selectionLocation(_ tab: BereanWorkspace.Tab) -> [JSValue?] {
+        ["bookId", "chapter", "translation", "verse", "endVerse", "endChapter"].map { tab.state[$0] }
+    }
+
     static func location(_ t: BereanWorkspace.Tab) -> String {
         let keys: [String]
         switch t.tabType {
-        case .bible: keys = ["bookId", "chapter", "translation"]
+        case .bible: keys = ["bookId", "chapter", "translation", "verse", "endVerse", "nativeSelectedVerses"]
         case .note: keys = ["noteId"]
         case .lexicon: keys = ["strongsNum"]
         case .search: keys = ["query"]
         default: keys = []
         }
-        return keys.map { k in t.state[k].map { JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
+        let base = keys.map { k in t.state[k].flatMap { $0 == .null ? nil : JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
+        guard t.tabType == .bible else { return base }
+        let anchor = BibleState(t.state)
+        guard anchor.compareMode else { return base }
+        let columns = (t.state["compareColumns"]?.arrayValue ?? []).enumerated().compactMap { index, value in
+            value.objectValue.flatMap { CompareColumn(id: index, record: $0, anchor: anchor) }?.historyKey
+        }
+        return base + "|compare|" + columns.joined(separator: ",")
     }
 
     var canGoBack: Bool { activeTab.map { !(backStack[$0.id] ?? []).isEmpty } ?? false }
@@ -477,45 +584,176 @@ final class AppModel {
         return b
     }
 
-    /// The Cmd+T / Cmd+K command: a reference opens Scripture, a Strong's number the lexicon, anything else a search.
+    /// A reference opens Scripture, a Strong's number opens the lexicon, and words open search.
     func openQuery(_ q: String, newTab: Bool = true) {
         let query = q.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
-        if let p = resolvePassage(query, preferring: activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }) {
-            var st = BibleState(bookId: p.bookId, chapter: p.chapter)
-            st.verse = p.verse
-            st.translation = p.textId
-            let title = Reference.bookChapterLabel(p.bookId, chapter: Double(p.chapter))
-            if !newTab, let t = activeTab, t.tabType == .bible { update(t.id) { $0.state = st.merged(into: $0.state); $0.title = title } }
-            else { openTab(.bible, in: .scripture, title: title, state: st.object) }
-            recordRecent(textId: p.textId, bookId: p.bookId, chapter: p.chapter, verse: p.verse)
+        if let passage = resolvePassage(query, preferring: activeTab.flatMap({ $0.tabType == .bible ? BibleState($0.state).translation : nil })) {
+            visitScripture(passage, reuseTab: !newTab)
         } else if let id = StrongsId.normalize(query) {
-            openLexicon(id)
+            openLexicon(id, reuseTab: !newTab)
         } else {
-            var o = JSObject(); o["query"] = .string(JSString(query))
-            openTab(.search, in: .search, title: "Search: \(query)", state: o)
+            openSearch(query, reuseTab: !newTab)
+        }
+    }
+
+    private func openOrReuse(_ type: TabType, in space: SpaceId, title: String, state: JSObject, origin: BereanWorkspace.Tab? = nil,
+                             canReplace: (BereanWorkspace.Tab) -> Bool = { _ in true },
+                             matches: ((BereanWorkspace.Tab) -> Bool)? = nil) {
+        let candidates = tabs(in: space).filter { $0.tabType == type }
+        let currentId = activeTabId(in: space)
+        if let matches {
+            let exact = candidates.filter(matches)
+            if let tab = exact.first(where: { $0.id == currentId }) ?? exact.first {
+                select(tab.id, in: space)
+                return
+            }
+        }
+        let writable = candidates.filter { !$0.isPinned && canReplace($0) }
+        if let tab = writable.first(where: { $0.id == currentId }) ?? writable.first {
+            update(tab.id) { tab in
+                for field in state.entries { tab.state[field.key.string] = field.value }
+                tab.title = title
+            }
+            select(tab.id, in: space)
+        } else {
+            openTab(type, in: space, title: title, state: state, origin: origin)
         }
     }
 
     /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
-    func openSearch(_ query: String) {
+    func openSearch(_ query: String, reuseTab: Bool = false) {
         recordHistory(type: "search", title: "\"\(query)\"", query: query)
         var o = JSObject(); o["query"] = .string(JSString(query))
-        openTab(.search, in: .search, title: "Search: \(query)", state: o)
+        if reuseTab {
+            let isAllTextsSearch: (BereanWorkspace.Tab) -> Bool = { tab in
+                let state = tab.state
+                return state["scopeTexts"]?.arrayValue == nil
+                    && (state["wordMode"]?.stringValue?.string ?? "all") == "all"
+                    && (state["testament"]?.stringValue?.string ?? "all") == "all"
+                    && (state["bookIds"]?.arrayValue?.isEmpty ?? true)
+            }
+            openOrReuse(.search, in: .search, title: "Search: \(query)", state: o,
+                        canReplace: isAllTextsSearch,
+                        matches: { isAllTextsSearch($0) && $0.state["query"]?.stringValue?.string == query })
+        } else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
         SearchHistory.record(query)
     }
 
-    func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil) {
-        recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
-        var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
-        openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin)
+    private struct StudyVerseFocus {
+        let state: BibleState
+        let verse: Int?
+        let selectedVerses: [Int]
     }
 
-    func openNote(_ id: String?) {
-        if let id, let n = try? notes?.one(id) { recordHistory(type: "note", title: n.displayTitle, noteId: id) }
+    private var studyVerseFocus: [String: StudyVerseFocus] = [:]
+
+    func focusStudyVerse(_ verse: Int?, in tabId: String, selectedVerses: [Int] = []) {
+        guard let tab = findTab(tabId) else { return }
+        studyVerseFocus[tabId] = StudyVerseFocus(state: BibleState(tab.state), verse: verse, selectedVerses: selectedVerses)
+    }
+
+    private func studyFocus(in tabId: String, state: BibleState) -> StudyVerseFocus? {
+        guard let focus = studyVerseFocus[tabId],
+              focus.state.bookId == state.bookId, focus.state.chapter == state.chapter,
+              focus.state.translation == state.translation else { return nil }
+        return focus
+    }
+
+    func studyVerse(in tabId: String, state: BibleState) -> Int? {
+        if let focus = studyFocus(in: tabId, state: state) { return focus.verse }
+        return state.verse
+    }
+
+    func studySelectedVerses(in tabId: String, state: BibleState) -> [Int] {
+        if let focus = studyFocus(in: tabId, state: state) { return focus.selectedVerses }
+        return readerSelectedVerses(in: tabId, state: state)
+    }
+
+    func readerSelectedVerses(in tabId: String, state: BibleState) -> [Int] {
+        guard !state.compareMode, let tab = findTab(tabId),
+              let first = state.verse, (1...999).contains(first) else { return [] }
+        if let last = state.endVerse, (first...999).contains(last),
+           tab.state["endChapter"]?.numberValue == nil {
+            return Array(first...last)
+        }
+        return ResolvedPassage.savedVerses(in: tab, reader: state).sorted()
+    }
+
+    func inspectStrongs(_ id: String, in tabId: String, bookId: String, chapter: Int, verse: Int? = nil) {
+        guard !id.isEmpty else { return }
+        recordHistory(type: "strongs-click", title: id, bookId: bookId, chapter: chapter, verse: verse, strongsNum: id)
+        update(tabId, recordHistory: false) { tab in
+            var reader = BibleState(tab.state)
+            reader.rightPanelOpen = true
+            reader.rightPanelTab = "lexicon"
+            reader.rightPanelLexiconEntry = id
+            tab.state = reader.merged(into: tab.state)
+        }
+    }
+
+    func navigateLexicon(_ strongs: String, in tabId: String) {
+        guard let tab = findTab(tabId) else { return }
+        if tab.tabType == .bible {
+            update(tabId, recordHistory: false) {
+                $0.state["rightPanelLexiconEntry"] = .string(JSString(strongs))
+            }
+        } else if tab.tabType == .lexicon {
+            update(tabId) {
+                $0.state["strongsNum"] = .string(JSString(strongs))
+                $0.title = strongs
+            }
+        } else {
+            return
+        }
+        recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
+    }
+
+    func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false) {
+        recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
+        var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
+        if reuseTab {
+            openOrReuse(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin,
+                        canReplace: { $0.originTabId == origin?.id },
+                        matches: { $0.state["strongsNum"]?.stringValue?.string == strongs && $0.originTabId == origin?.id })
+        } else { openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin) }
+    }
+
+    func refreshNoteTabTitles(_ note: Note) {
+        for tab in tabs(in: .notes) where tab.tabType == .note
+            && tab.state["noteId"]?.stringValue?.string == note.id && tab.title != note.displayTitle {
+            update(tab.id, recordHistory: false) { $0.title = note.displayTitle }
+        }
+    }
+
+    /// Global Notes navigation leaves existing editors and their folder return paths intact.
+    func openNotesHome(newTab: Bool = false) {
+        if !newTab {
+            let homeTabs = tabs(in: .notes).filter {
+                $0.tabType == .note && $0.state["noteId"]?.stringValue == nil
+            }
+            if let existing = homeTabs.first(where: { $0.id == activeTabId(in: .notes) }) ?? homeTabs.first {
+                select(existing.id, in: .notes)
+                return
+            }
+        }
+        openNote(nil, newTab: true)
+    }
+
+    func openNote(_ id: String?, newTab: Bool = false) {
+        let note = id.flatMap { try? notes?.one($0) }
+        if let note {
+            refreshNoteTabTitles(note)
+            recordHistory(type: "note", title: note.displayTitle, noteId: note.id)
+        }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
-        let title = id.flatMap { try? notes?.one($0)?.displayTitle } ?? "Notes"
-        if let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }), t.tabType == .note, activeSpace == .notes {
+        let title = note?.displayTitle ?? "Notes"
+        if !newTab, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
+            select(exact.id, in: .notes)
+            return
+        }
+        if !newTab, let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }),
+           t.tabType == .note, (!t.isPinned || id == nil), activeSpace == .notes {
             // Keep the Notes home location, so closing the note returns to the same folder.
             var title = title
             if let loc = t.state["listFolderId"] {
@@ -528,7 +766,7 @@ final class AppModel {
 
     /// New note (optionally attached to a verse, e.g. "GEN.1.1" in `textId`), opened in the Notes space.
     @discardableResult
-    func newNote(verseRef: String? = nil, textId: String = "kjva", title: String? = nil) -> String? {
+    func newNote(verseRef: String? = nil, textId: String = "kjva", title: String? = nil, content: String = "") -> String? {
         guard let notes else { libraryError = "The library is not open."; return nil }
         do {
             let label = verseRef.flatMap { r -> String? in
@@ -536,15 +774,64 @@ final class AppModel {
                 guard p.count == 3, let c = Int(p[1]), let v = Int(p[2]) else { return nil }
                 return Reference.bookChapterVerseLabel(p[0], chapter: c, verse: v)
             }
-            let n = try notes.create(.init(type: verseRef == nil ? "general" : "verse", title: title ?? label ?? "", verseRef: verseRef, textId: textId)).note
+            let n = try notes.create(.init(type: verseRef == nil ? "general" : "verse", title: title ?? label ?? "", content: content, verseRef: verseRef, textId: textId)).note
             openNote(n.id)
             return n.id
         } catch { libraryError = "Could not create the note: \(error)"; return nil }
     }
 
-    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, textId: String? = nil) {
-        var st = BibleState(bookId: bookId, chapter: chapter); st.verse = verse; st.translation = textId ?? defaultText
-        openTab(.bible, in: .scripture, title: Reference.bookChapterLabel(bookId, chapter: Double(chapter)), state: st.object)
+    func reopenComparison(bookId: String, chapter: Int, verse: Int?, destination: CompareHistoryDestination?) {
+        var reader = BibleState(bookId: bookId, chapter: chapter)
+        reader.translation = destination?.passage.textId ?? defaultText
+        reader.verse = verse
+        reader.endVerse = destination?.passage.endVerse
+        reader.compareMode = true
+        var state = reader.object
+        state["compareColumns"] = .array(destination?.columns.map(\.value) ?? [])
+        let comparison = CompareHistoryDestination(state: state)
+        let title = Reference.readerChapterLabel(bookId, chapter, textId: reader.translation)
+        // Keep other open comparisons intact when a History entry has a different destination.
+        if let existing = tabs(in: .scripture).first(where: {
+            $0.tabType == .bible && BibleState($0.state).compareMode && CompareHistoryDestination(state: $0.state) == comparison
+        }) {
+            select(existing.id, in: .scripture)
+        } else {
+            openTab(.bible, in: .scripture, title: title, state: state)
+        }
+    }
+
+    func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true) {
+        openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
+                      endVerse: passage.endVerse, textId: passage.textId, reuseTab: reuseTab, verseGroups: passage.verseGroups)
+        recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
+                     verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
+    }
+
+    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false, verseGroups: [ClosedRange<Int>] = []) {
+        var st = BibleState(bookId: bookId, chapter: chapter)
+        st.verse = verse
+        if let verse, let endVerse, endVerse > verse { st.endVerse = endVerse }
+        st.translation = textId ?? defaultText
+        let title = Reference.readerChapterLabel(bookId, chapter, textId: st.translation)
+        let passage = ResolvedPassage(textId: st.translation, bookId: bookId, chapter: chapter, verse: verse,
+                                      endVerse: st.endVerse, verseGroups: verseGroups)
+        if reuseTab {
+            var location = JSObject()
+            location["bookId"] = .string(JSString(bookId))
+            location["chapter"] = .number(Double(chapter))
+            location["translation"] = .string(JSString(st.translation))
+            location["verse"] = verse.map { .number(Double($0)) } ?? .null
+            location["endVerse"] = st.endVerse.map { .number(Double($0)) } ?? .null
+            location["endChapter"] = .null
+            location["nativeSelectedVerses"] = passage.savedSelection
+            openOrReuse(.bible, in: .scripture, title: title, state: location,
+                        canReplace: { !BibleState($0.state).compareMode && $0.state["endChapter"]?.numberValue == nil },
+                        matches: passage.isShown(in:))
+        } else {
+            var state = st.object
+            if !verseGroups.isEmpty { state["nativeSelectedVerses"] = passage.savedSelection }
+            openTab(.bible, in: .scripture, title: title, state: state)
+        }
     }
 }
 
@@ -553,6 +840,7 @@ struct BibleState: Equatable {
     var bookId: String
     var chapter: Int
     var verse: Int? = nil
+    var endVerse: Int? = nil
     var translation = "kjva"
     var showStrongs = false
     var rightPanelOpen = false
@@ -567,6 +855,7 @@ struct BibleState: Equatable {
         bookId = o["bookId"]?.stringValue?.string ?? "GEN"
         chapter = o["chapter"]?.numberValue.map { Int($0) } ?? 1
         verse = o["verse"]?.numberValue.map { Int($0) }
+        endVerse = o["endVerse"]?.numberValue.flatMap { Int(exactly: $0) }
         translation = o["translation"]?.stringValue?.string ?? "kjva"
         showStrongs = o["showStrongs"]?.boolValue ?? false
         rightPanelOpen = o["rightPanelOpen"]?.boolValue ?? false
@@ -582,6 +871,7 @@ struct BibleState: Equatable {
         var o = base
         o["bookId"] = .string(JSString(bookId)); o["chapter"] = .number(Double(chapter))
         if let verse { o["verse"] = .number(Double(verse)) } else { o.remove("verse") }
+        if let endVerse { o["endVerse"] = .number(Double(endVerse)) } else { o.remove("endVerse") }
         o["translation"] = .string(JSString(translation)); o["showStrongs"] = .bool(showStrongs)
         if o["scrollPosition"] == nil { o["scrollPosition"] = .number(0) }
         o["rightPanelOpen"] = .bool(rightPanelOpen); o["rightPanelTab"] = .string(JSString(rightPanelTab))

@@ -458,6 +458,16 @@ export function createNotesService(ctx: ServiceContext) {
     return rows.map(rowToNote)
   }
 
+  function noteAttachments(ref: string | null) {
+    return (ref ?? '').split(',').flatMap((part) => {
+      const match = /^([^.]+)\.(\d+)(?:\.(\d+)(?:-(\d+))?)?$/.exec(part.trim())
+      if (!match) return []
+      const [, book, chapter, verse, end] = match
+      const first = Number(verse ?? 0)
+      return [{ book, chapter: Number(chapter), first, last: Math.max(first, Number(end ?? first)) }]
+    })
+  }
+
   async function getByVerse(verseRef: string, textId = 'kjva') {
     // KJV and LXX are cross-linked: each shows the other's notes with a translation badge
     // so study connections are always visible. Own-translation notes come first, then cross.
@@ -471,6 +481,18 @@ export function createNotesService(ctx: ServiceContext) {
     const bookId = parts[0]
     const chapter = parseInt(parts[1] ?? '', 10)
     const verseNum = parts[2]
+
+    const target = noteAttachments(verseRef)[0]
+    if (target && target.first > 0 && /^\d+$/.test(verseNum ?? '') && parts.length === 3) {
+      const notes = await getByChapter(target.book, target.chapter, textId)
+      return notes.filter((note) => {
+        const chapters = note.textId === textId ? [target.chapter]
+          : equivalentChapters(target.book, target.chapter, textId, note.textId)
+        return noteAttachments(note.verseRef ?? null).some((attachment) =>
+          attachment.book === target.book && chapters.includes(attachment.chapter)
+          && attachment.first > 0 && attachment.first <= target.first && target.first <= attachment.last)
+      }).sort((a, b) => a.createdAt - b.createdAt)
+    }
 
     if (textId !== 'kjva' && textId !== 'lxx') {
       const rows = await db().all<NoteRow>('SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? AND deleted_at IS NULL ORDER BY created_at ASC', [verseRef, textId])
@@ -610,11 +632,14 @@ export function createNotesService(ctx: ServiceContext) {
     // verse_ref is either the exact chapter-level form ("BOOK.CH", no verse segment —
     // e.g. a whole-chapter note) or a verse-specific form under it ("BOOK.CH.verse")
     // but NOT a deeper sub-range ("BOOK.CH.verse.something").
-    const sql = `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)) AND deleted_at IS NULL AND ${tidClause}`
-    const params = tidParam
-      ? [chapterRef, `${prefix}%`, `${prefix}%.%`, tidParam]
-      : [chapterRef, `${prefix}%`, `${prefix}%.%`]
-    return db().all<NoteRow>(sql, params)
+    const sql = `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)
+      OR (instr(verse_ref, ',') > 0 AND verse_ref LIKE ?)) AND deleted_at IS NULL AND ${tidClause}`
+    const params = [chapterRef, `${prefix}%`, `${prefix}%.%`, `%${chapterRef}%`]
+    if (tidParam) params.push(tidParam)
+    const rows = await db().all<NoteRow>(sql, params)
+    return rows.filter((row) => !row.verse_ref?.includes(',') || noteAttachments(row.verse_ref).some(
+      (attachment) => attachment.book === bookId && attachment.chapter === chapter))
+
   }
 
   async function getByChapter(bookId: string, chapter: number, textId = 'kjva') {
@@ -642,38 +667,21 @@ export function createNotesService(ctx: ServiceContext) {
     return combined.map(rowToNote)
   }
 
-  // Returns { [verseNum]: count } for all verses in a chapter that have notes.
-  // KJV and LXX are cross-linked so dots appear for both translations' notes. Same
-  // equivalent-chapter mapping as getByChapter above; verse numbers within a merge
-  // chapter are used as-is (verse-level splits are ignored — same simplification
-  // translationChapterMap.ts's navigation mapping already makes).
-  async function chapterVerseRefsForTid(bookId: string, chapter: number, tidClause: string, tidParam?: string): Promise<string[]> {
-    const prefix = `${bookId}.${chapter}.`
-    const sql = `SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND deleted_at IS NULL AND ${tidClause}`
-    const params = tidParam ? [`${prefix}%`, `${prefix}%.%`, tidParam] : [`${prefix}%`, `${prefix}%.%`]
-    const rows = await db().all<{ verse_ref: string }>(sql, params)
-    return rows.map((r) => r.verse_ref)
-  }
-
   async function getChapterCounts(bookId: string, chapter: number, textId = 'kjva') {
-    let verseRefs: string[]
-
-    if (textId !== 'kjva' && textId !== 'lxx') {
-      verseRefs = await chapterVerseRefsForTid(bookId, chapter, 'text_id = ?', textId)
-    } else {
-      const ownTid = textId === 'kjva' ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'"
-      const otherTextId = textId === 'kjva' ? 'lxx' : 'kjva'
-      const otherTid = otherTextId === 'kjva' ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'"
-      verseRefs = await chapterVerseRefsForTid(bookId, chapter, ownTid)
-      for (const ch of equivalentChapters(bookId, chapter, textId, otherTextId)) {
-        verseRefs.push(...await chapterVerseRefsForTid(bookId, ch, otherTid))
-      }
-    }
-
     const counts: Record<number, number> = {}
-    for (const verse_ref of verseRefs) {
-      const verseNum = parseInt(verse_ref.split('.')[2] ?? '0')
-      if (verseNum) counts[verseNum] = (counts[verseNum] ?? 0) + 1
+    for (const note of await getByChapter(bookId, chapter, textId)) {
+      const chapters = note.textId === textId ? [chapter] : equivalentChapters(bookId, chapter, textId, note.textId)
+      const covered = new Set<number>()
+      for (const attachment of noteAttachments(note.verseRef ?? null)) {
+        if (attachment.book !== bookId || !chapters.includes(attachment.chapter) || attachment.first < 1) continue
+        // The reader accepts three-digit verse numbers. Bound imported ranges before expanding them.
+        if (attachment.first === attachment.last && Number.isSafeInteger(attachment.first)) {
+          covered.add(attachment.first)
+        } else {
+          for (let verse = attachment.first; verse <= Math.min(attachment.last, 999); verse++) covered.add(verse)
+        }
+      }
+      for (const verse of covered) counts[verse] = (counts[verse] ?? 0) + 1
     }
     return counts
   }
