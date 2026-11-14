@@ -415,6 +415,20 @@ struct CompareView: View {
             Clipboard.copy(reference)
             AccessibilityNotification.Announcement("Reference copied").post()
         }
+        Menu("Highlight Verse", systemImage: "highlighter") {
+            ForEach(highlightColors, id: \.self) { color in
+                Button(color.capitalized, systemImage: "circle.fill") {
+                    try? app.highlights?.setVerseColor(bookId: row.bookId, chapter: row.chapter,
+                                                       verse: row.verseNum, color: color, textId: column.text)
+                }
+            }
+        }
+        if chapterHighlights[HighlightChapter(row, text: column.text)]?[row.verseNum]?.isEmpty == false {
+            Button("Remove Highlights", systemImage: "eraser", role: .destructive) {
+                try? app.highlights?.remove(bookId: row.bookId, chapter: row.chapter,
+                                            verse: row.verseNum, textId: column.text)
+            }
+        }
         Divider()
         Button("Open in New Tab", systemImage: "plus.square") {
             app.openScripture(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: column.text)

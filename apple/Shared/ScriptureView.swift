@@ -1140,7 +1140,7 @@ struct VerseRowView: View {
             out = t + out
         }
         let rules = replacer ? WordReplacer.defaultRules : []
-        let wholeTint = highlights.last { $0.startChar == nil }.map { Color.highlight($0.color).opacity(0.22) }
+        let wholeTint = highlights.last { $0.startChar == nil && $0.startWord == nil }.map { Color.highlight($0.color).opacity(0.22) }
         guard let tagged = row.textTagged, !tagged.isEmpty, textId == "kjva" || textId == "lxx" else {
             let shown = VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: replacer, rules: rules)
             return out + markedText(shown, wholeTint: wholeTint)
@@ -1247,7 +1247,7 @@ extension ScriptureView {
                 let off = OffsetMap.originalToDisplay(display: shown, original: v.text, offsets: [s, e])
                 return .init(start: off[0], end: off[1], color: h.color)
             }
-            let whole = highlights[v.verseNum]?.last { $0.startChar == nil }
+            let whole = highlights[v.verseNum]?.last { $0.startChar == nil && $0.startWord == nil }
             return ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
         }
