@@ -954,3 +954,7 @@
 ### 2026-11-14 — Scripture selection drawing
 - Drew the selection fill and dashed outline behind verse text on both platforms and matched their opacity.
 - Both Dev builds passed. Visual checks in light and dark mode remain open.
+
+### 2026-11-14 — Floating verse action feedback
+- Matched hover feedback and icon sizing between verse action buttons and menus.
+- Both Dev builds passed. Live desktop hover checks remain open.

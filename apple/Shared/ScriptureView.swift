@@ -711,14 +711,7 @@ struct ScriptureView: View {
 
     private func verseMenuLabel(_ title: String, symbol: String) -> some View {
         Label(title, systemImage: symbol)
-            .labelStyle(.iconOnly)
-            .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
-            .contentShape(.rect)
-            #if os(macOS)
-            .pointerStyle(.link)
-            #else
-            .hoverEffect(.highlight)
-            #endif
+            .modifier(VerseActionControlAppearance())
     }
 
     private var clearSelectionButton: some View {
@@ -1457,25 +1450,33 @@ enum ReaderFloatingControls {
 }
 
 private struct VerseActionButtonStyle: ButtonStyle {
-    @State private var hovering = false
-
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .modifier(VerseActionControlAppearance())
+            .opacity(configuration.isPressed ? 0.55 : 1)
+    }
+}
+
+private struct VerseActionControlAppearance: ViewModifier {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
             .labelStyle(.iconOnly)
             .font(.system(size: 15, weight: .medium))
             .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)
             #if os(macOS)
-            .background(hovering ? Color.primary.opacity(0.09) : .clear, in: .rect(cornerRadius: 7))
+            .background(isEnabled && hovering ? Color.primary.opacity(0.09) : .clear,
+                        in: .rect(cornerRadius: 7))
             .onHover { hovering = $0 }
-            .pointerStyle(.link)
+            .pointerStyle(isEnabled ? .link : .default)
             #else
-            .hoverEffect(.highlight)
+            .hoverEffect(.highlight, isEnabled: isEnabled)
             #endif
-            .opacity(configuration.isPressed ? 0.55 : 1)
     }
 }
-
 
 func consecutiveVerseRuns(_ verses: Set<Int>) -> [ClosedRange<Int>] {
     var runs: [ClosedRange<Int>] = []
