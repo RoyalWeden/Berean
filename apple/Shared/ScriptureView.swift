@@ -26,7 +26,7 @@ private struct SharedVerseSelection: Transferable {
     }
 }
 
-struct SharedScriptureChapter: Transferable {
+private struct SharedScriptureChapter: Transferable {
     let reference: String
     let bookId: String
     let chapter: Int
@@ -41,6 +41,23 @@ struct SharedScriptureChapter: Transferable {
             return SharedVerseSelection(reference: chapter.reference, rows: rows, textId: chapter.textId,
                                         replacerEnabled: chapter.replacerEnabled).formattedText
         })
+    }
+}
+
+struct ChapterExportActions: View {
+    @Environment(AppModel.self) private var app
+    let state: BibleState
+
+    var body: some View {
+        let chapterLabel = Reference.readerChapterLabel(state.bookId, state.chapter, textId: state.translation)
+        let reference = chapterLabel + (state.translation == "lxx" ? " LXX" : "")
+        let chapter = SharedScriptureChapter(reference: reference, bookId: state.bookId, chapter: state.chapter,
+                                            textId: state.translation, replacerEnabled: app.wordReplacerEnabled,
+                                            bible: app.bible)
+        Button("Copy Chapter Reference", systemImage: "doc.on.doc") { Clipboard.copy(reference) }
+        ShareLink(item: chapter, preview: SharePreview(reference)) {
+            Label("Share Chapter…", systemImage: "square.and.arrow.up")
+        }
     }
 }
 
@@ -631,6 +648,16 @@ struct ScriptureView: View {
                 .help("Show Strong's numbers")
             Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { v in mutate { $0.rightPanelOpen = v } })) { Label("Study Panel", systemImage: "sidebar.trailing") }
                 .keyboardShortcut("i", modifiers: [.command, .option]).help("Study panel: notes, lexicon, cross references (⌥⌘I)")
+        }
+        ToolbarItem {
+            Menu {
+                ChapterExportActions(state: st)
+            } label: {
+                Label("Chapter Export", systemImage: "square.and.arrow.up")
+            }
+            .menuIndicator(.hidden)
+            .pointerStyle(.link)
+            .help("Copy the chapter reference or share the chapter")
         }
         #endif
     }

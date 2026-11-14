@@ -128,15 +128,7 @@ struct IOSRootView: View {
                         app.focusStudyVerse(nil, in: tab.id)
                         mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" }
                     }
-                    let reference = Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)
-                    let shareReference = reference + (st.translation == "lxx" ? " LXX" : "")
-                    Button("Copy Chapter Reference", systemImage: "doc.on.doc") { Clipboard.copy(shareReference) }
-                    let chapter = SharedScriptureChapter(reference: shareReference, bookId: st.bookId, chapter: st.chapter,
-                                                        textId: st.translation, replacerEnabled: app.wordReplacerEnabled,
-                                                        bible: app.bible)
-                    ShareLink(item: chapter, preview: SharePreview(shareReference)) {
-                        Label("Share Chapter…", systemImage: "square.and.arrow.up")
-                    }
+                    ChapterExportActions(state: st)
                     Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                     Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
                 }
