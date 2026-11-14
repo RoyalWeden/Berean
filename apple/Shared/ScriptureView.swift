@@ -382,7 +382,7 @@ struct ScriptureView: View {
         }
         let disjoint = destination.endVerse == nil && selection.count > 1 ? selection.sorted() : []
         writeLocalSelectionDestination(destination, disjoint: disjoint)
-        app.focusStudyVerse(selectedVerse, in: tabId)
+        app.focusStudyVerse(selectedVerse, in: tabId, selectedVerses: selection.sorted())
     }
 
     private func writeLocalSelectionDestination(_ destination: SelectionDestination, disjoint: [Int] = []) {
