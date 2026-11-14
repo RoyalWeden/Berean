@@ -533,3 +533,7 @@
 - Shared the inline tab search field across the three iPhone tab-management lists.
 - Verified a mixed Scripture reference in Workspaces and Archived Tabs on the iOS 27 Simulator. Archive and restore preserved the full selection and returned the original tab count.
 - iOS Dev build and identity check passed. Used the isolated Dev library.
+
+### 2026-11-14 — Descriptive move destinations — BUILT
+- Mac and iPhone Move to Workspace menus include destination tab previews. Destination IDs and move persistence use the existing path.
+- Both Dev identity builds and diff check passed. Same-named destination fixture remains to exercise in the UI.

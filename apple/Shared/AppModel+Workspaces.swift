@@ -13,6 +13,10 @@ struct WorkspaceItem: Identifiable, Hashable {
     var tabCount: Int
     var icon: String?
     var tabTitles: [String]
+    var menuLabel: String {
+        preview.map { "\(name) · \($0)" } ?? "\(name) · \(tabCount) tabs"
+    }
+
     var preview: String? {
         let labels = previewLabels()
         return labels.isEmpty ? nil : labels.joined(separator: " · ")
@@ -65,6 +69,15 @@ extension AppModel {
                                  tabCount: tabs.count, icon: nil, tabTitles: titles)
         }
         return live + saved
+    }
+
+    var tabMoveDestinations: [WorkspaceItem] {
+        workspaceItems.filter { !$0.isSaved && !isCurrent($0) }
+    }
+
+    func moveTab(_ id: String, to item: WorkspaceItem) {
+        guard case .live(let destination) = item.kind else { return }
+        moveTab(id, toSession: destination)
     }
 
     func isCurrent(_ item: WorkspaceItem) -> Bool { if case .live(let s) = item.kind { return s == currentSessionId }; return false }

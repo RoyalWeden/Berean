@@ -250,9 +250,12 @@ struct TabCardsSheet: View {
         .contextMenu {
             Button("Duplicate Tab", systemImage: "plus.square.on.square") { app.duplicate(tab.id) }
             Button(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: "pin") { app.togglePin(tab.id) }
-            if app.sessions.count > 1 {
+            let destinations = app.tabMoveDestinations
+            if !destinations.isEmpty {
                 Menu("Move to Workspace", systemImage: "square.stack") {
-                    ForEach(app.sessions.filter { $0.id != app.currentSessionId }) { s in Button(s.name) { app.moveTab(tab.id, toSession: s.id) } }
+                    ForEach(destinations) { workspace in
+                        Button(workspace.menuLabel) { app.moveTab(tab.id, to: workspace) }
+                    }
                 }
             }
             Button("Archive Tab", systemImage: "archivebox") { app.archive([tab.id]) }

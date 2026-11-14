@@ -202,7 +202,7 @@ struct BereanSidebar: View {
             Divider()
             ForEach(app.workspaceItems) { w in
                 Toggle(isOn: Binding(get: { app.isCurrent(w) }, set: { if $0 { app.open(w) } })) {
-                    Text(w.name + (w.preview.map { " · \($0)" } ?? ""))
+                    Text(w.menuLabel)
                     Text(w.isSaved ? "Saved · \(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")" : "\(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")")
                 }
             }
@@ -297,9 +297,13 @@ struct BereanSidebar: View {
     @ViewBuilder func tabMenu(_ tab: BereanWorkspace.Tab) -> some View {
         Button("Duplicate Tab") { app.duplicate(tab.id) }
         Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") { app.togglePin(tab.id) }
-        let others = app.sessions.filter { $0.id != app.currentSessionId }
-        if !others.isEmpty {
-            Menu("Move to Workspace") { ForEach(others) { s in Button(s.name) { app.moveTab(tab.id, toSession: s.id) } } }
+        let destinations = app.tabMoveDestinations
+        if !destinations.isEmpty {
+            Menu("Move to Workspace") {
+                ForEach(destinations) { workspace in
+                    Button(workspace.menuLabel) { app.moveTab(tab.id, to: workspace) }
+                }
+            }
         }
         Button("Archive Tab") { app.archive([tab.id]) }
         Divider()
