@@ -123,6 +123,17 @@ struct CompareView: View {
         }
     }
 
+    private struct TagChapter: Hashable {
+        let book: String
+        let chapter: Int
+
+        init(_ row: ChapterVerseRow) {
+            book = row.bookId
+            chapter = row.chapter
+        }
+    }
+
+    @State private var chapterTags: [TagChapter: [Int: [TagLite]]] = [:]
     @State private var chapterHighlights: [HighlightChapter: [Int: [Highlight]]] = [:]
     @State private var loadedPassage: String?
     @State private var localVerseSelection: Int?
@@ -218,6 +229,14 @@ struct CompareView: View {
             }
             chapterHighlights = Dictionary(uniqueKeysWithValues: chapters.map { key in
                 (key, (try? app.highlights?.chapter(key.book, key.chapter, textId: key.text)) ?? [:])
+            })
+        }
+        .task(id: "\(loadedPassage ?? "")|\(app.tagsRevision)") {
+            let aligned = rows.values.flatMap { $0.values }
+            let independent = independentRows.values.flatMap { $0 }
+            let chapters = Set((aligned + independent).map(TagChapter.init))
+            chapterTags = Dictionary(uniqueKeysWithValues: chapters.map { key in
+                (key, (try? app.verseTags?.forChapter(key.book, key.chapter).verseTags) ?? [:])
             })
         }
     }
@@ -528,13 +547,30 @@ struct CompareView: View {
 
     private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
-                         highlights: chapterHighlights[HighlightChapter(row, text: column.text)]?[row.verseNum] ?? [],
-                         fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
-                         replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
-                .environment(\.openURL, strongsAction(for: row))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contextMenu { comparisonVerseActions(row, column: column) }
+            VStack(alignment: .leading, spacing: 4) {
+                VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
+                             highlights: chapterHighlights[HighlightChapter(row, text: column.text)]?[row.verseNum] ?? [],
+                             fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
+                             replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                    .environment(\.openURL, strongsAction(for: row))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contextMenu { comparisonVerseActions(row, column: column) }
+                if let tags = chapterTags[TagChapter(row)]?[row.verseNum], !tags.isEmpty {
+                    FlowLayout {
+                        ForEach(tags) { tag in
+                            Button {
+                                app.openSearch("#\(tag.name)", reuseTab: true)
+                            } label: {
+                                TagChip(name: tag.name, color: tag.color, slot: tag.colorSlot)
+                                    .padding(.vertical, 6)
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.interactivePlain)
+                            .accessibilityLabel("Search tag \(tag.name)")
+                        }
+                    }
+                }
+            }
             VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {
                 comparisonVerseActions(row, column: column)
             }
@@ -701,6 +737,7 @@ struct CompareView: View {
         }
         guard !Task.isCancelled else { return }
         chapterHighlights = [:]
+        chapterTags = [:]
         rows = out
         independentRows = independent
         loadedPassage = passage

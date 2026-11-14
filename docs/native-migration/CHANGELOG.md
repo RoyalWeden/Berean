@@ -845,3 +845,7 @@
 ### 2026-11-14 — iPhone tag picker controls
 - Added an inline passage heading and persistent Cancel and Add controls.
 - Both Dev builds passed. Live keyboard and save checks remain open.
+
+### 2026-11-14 — Compare verse tags
+- Displayed tags alongside compared verses and connected chips to reusable tag search.
+- Both Dev builds passed.
