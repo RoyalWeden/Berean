@@ -825,3 +825,7 @@
 ### 2026-11-14 — Direct iPhone Compare exit
 - Added a floating close control that returns to the source passage and preserves the comparison layout for reentry.
 - iPhone Dev build and iOS 27 Simulator same-tab exit passed.
+
+### 2026-11-14 — iPhone Compare control capsule
+- Grouped Manage Translations with Exit Compare and removed the menu’s caret on iPhone.
+- Both Dev builds passed. Live capsule checks remain open.

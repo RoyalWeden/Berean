@@ -153,62 +153,29 @@ struct CompareView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             #if os(iOS)
-            HStack {
-                Spacer()
+            HStack(spacing: 2) {
+                manageTranslations(st, cols)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .hoverEffect(.highlight)
                 Button("Exit Compare", systemImage: "xmark") {
                     app.update(tabId) { $0.state.remove("compareMode") }
                 }
                 .labelStyle(.iconOnly)
                 .frame(minWidth: 44, minHeight: 44)
                 .buttonStyle(.interactivePlain)
-                .glassEffectCompat(interactive: true)
             }
+            .padding(.horizontal, 4)
+            .glassEffectCompat(interactive: true)
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.horizontal, 16)
             #endif
         }
+        #if os(macOS)
         .toolbar {
-            ToolbarItem {
-                Menu {
-                    Menu("Add Translation", systemImage: "plus") {
-                        ForEach(availableTexts.filter { text in !cols.contains { $0.text == text.id && $0.follows(st) } }) { text in
-                            Button(text.name) { setColumns(cols + [CompareColumn(id: (cols.last?.id ?? -1) + 1, text: text.id, anchor: st)]) }
-                        }
-                    }
-                    .disabled(cols.count >= 4)
-                    Menu("Change Column Passage", systemImage: "book") {
-                        ForEach(cols) { column in
-                            Button(column.label) { editingColumn = column }
-                        }
-                    }
-                    Menu("Column Navigation", systemImage: "pin") {
-                        ForEach(cols) { column in
-                            let pinned = column.isPinned || !column.follows(st)
-                            Button {
-                                setPinned(!pinned, for: column)
-                            } label: {
-                                Label(pinned ? "Follow Main Passage · \(column.label)" : "Pin \(column.label)",
-                                      systemImage: pinned ? "pin.slash" : "pin")
-                            }
-                        }
-                    }
-                    Button {
-                        setColumns(Array(cols.reversed()))
-                    } label: {
-                        Label(cols.count == 2 ? "Swap Columns" : "Reverse Column Order",
-                              systemImage: "arrow.left.arrow.right")
-                    }
-                    .disabled(cols.count < 2)
-                    Section("Open in Reader") {
-                        ForEach(cols) { column in
-                            Button(column.label) { setColumns([column]) }
-                        }
-                    }
-                } label: {
-                    Label("Manage Translations", systemImage: "rectangle.split.3x1")
-                }
-                .help("Add a translation or open one in the reader")
-            }
+            ToolbarItem { manageTranslations(st, cols) }
         }
+        #endif
         .sheet(item: $editingColumn) { column in
             NavigationStack {
                 PassagePicker(textId: column.text, currentBook: column.book, currentChapter: column.chapter, onPick: { passage in
@@ -243,6 +210,53 @@ struct CompareView: View {
                 (key, (try? app.highlights?.chapter(key.book, key.chapter, textId: key.text)) ?? [:])
             })
         }
+    }
+
+    private func manageTranslations(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
+        Menu {
+            Menu("Add Translation", systemImage: "plus") {
+                ForEach(availableTexts.filter { text in !cols.contains { $0.text == text.id && $0.follows(st) } }) { text in
+                    Button(text.name) { setColumns(cols + [CompareColumn(id: (cols.last?.id ?? -1) + 1, text: text.id, anchor: st)]) }
+                }
+            }
+            .disabled(cols.count >= 4)
+            Menu("Change Column Passage", systemImage: "book") {
+                ForEach(cols) { column in
+                    Button(column.label) { editingColumn = column }
+                }
+            }
+            Menu("Column Navigation", systemImage: "pin") {
+                ForEach(cols) { column in
+                    let pinned = column.isPinned || !column.follows(st)
+                    Button {
+                        setPinned(!pinned, for: column)
+                    } label: {
+                        Label(pinned ? "Follow Main Passage · \(column.label)" : "Pin \(column.label)",
+                              systemImage: pinned ? "pin.slash" : "pin")
+                    }
+                }
+            }
+            Button {
+                setColumns(Array(cols.reversed()))
+            } label: {
+                Label(cols.count == 2 ? "Swap Columns" : "Reverse Column Order",
+                      systemImage: "arrow.left.arrow.right")
+            }
+            .disabled(cols.count < 2)
+            Section("Open in Reader") {
+                ForEach(cols) { column in
+                    Button(column.label) { setColumns([column]) }
+                }
+            }
+        } label: {
+            Label("Manage Translations", systemImage: "rectangle.split.3x1")
+                #if os(iOS)
+                .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
+                #endif
+        }
+        .help("Add a translation or open one in the reader")
     }
 
     private func passageKey(_ state: BibleState, _ columns: [CompareColumn]) -> String {
