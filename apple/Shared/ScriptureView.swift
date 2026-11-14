@@ -1287,16 +1287,17 @@ enum ReaderFloatingControls {
     static let actionWidth: CGFloat = 38
     static let actionHeight: CGFloat = 32
     static let dockOffset: CGFloat = 0
-    static let readingGap: CGFloat = 2
     #else
     static let actionWidth: CGFloat = 44
     static let actionHeight: CGFloat = 44
     static let dockOffset: CGFloat = 58
-    static let readingGap: CGFloat = 2
     #endif
 
     static let surfacePadding: CGFloat = 3
     static let bottomPadding: CGFloat = 8
+    static let outlinePadding: CGFloat = 3
+    static let outlineRadius: CGFloat = 9
+    static let readingGap: CGFloat = outlinePadding + 5
     static var selectionHeight: CGFloat { actionHeight + 2 * surfacePadding + bottomPadding }
 }
 

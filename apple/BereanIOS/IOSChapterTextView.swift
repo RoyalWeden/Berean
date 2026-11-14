@@ -188,11 +188,12 @@ struct IOSChapterTextView: UIViewRepresentable {
                 }
                 guard let first = characterRect(at: range.location),
                       let last = characterRect(at: NSMaxRange(range) - 1) else { continue }
-                let rect = CGRect(x: textContainerInset.left - 4, y: first.minY - 3,
+                let rect = CGRect(x: textContainerInset.left - 4, y: first.minY,
                                   width: bounds.width - textContainerInset.left - textContainerInset.right + 8,
-                                  height: last.maxY - first.minY + 6)
+                                  height: last.maxY - first.minY)
+                    .insetBy(dx: 0, dy: -ReaderFloatingControls.outlinePadding)
                 guard !rect.isEmpty, rect.height.isFinite, rect.minY.isFinite else { continue }
-                path.append(UIBezierPath(roundedRect: rect, cornerRadius: 9))
+                path.append(UIBezierPath(roundedRect: rect, cornerRadius: ReaderFloatingControls.outlineRadius))
             }
             CATransaction.begin()
             CATransaction.setDisableActions(true)

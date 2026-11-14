@@ -419,11 +419,13 @@ final class ReaderTextView: NSTextView {
             guard glyphs.length > 0 else { continue }
             let first = layout.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
             let last = layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
-            let rect = NSRect(x: origin.x, y: first.minY + origin.y - 3,
+            let padding = ReaderFloatingControls.outlinePadding
+            let rect = NSRect(x: origin.x, y: first.minY + origin.y,
                               width: container.containerSize.width,
-                              height: last.maxY - first.minY + 6)
+                              height: last.maxY - first.minY).insetBy(dx: 0, dy: -padding)
             guard dirtyRect.intersects(rect) else { continue }
-            let path = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+            let radius = ReaderFloatingControls.outlineRadius
+            let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
             path.lineWidth = 1
             path.setLineDash([4, 3], count: 2, phase: 0)
             NSColor.controlAccentColor.withAlphaComponent(0.7).setStroke()
