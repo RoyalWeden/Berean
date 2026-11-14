@@ -530,6 +530,7 @@ final class AppModel {
         case tab(String)
     }
 
+    @ObservationIgnored var historyReturnPositions: [String: HistoryView.ReturnPosition] = [:]
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesFolderPositions: [String: [NotesFolderScrollContext: String]] = [:]
     @ObservationIgnored var searchVisibleRows: [String: [ScriptureSearchScrollContext: String]] = [:]

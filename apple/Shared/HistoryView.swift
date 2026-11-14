@@ -44,6 +44,13 @@ struct HistoryView: View {
     let tabId: String
     @State private var entries: [HistoryEntry] = []
     @State private var filter = ""
+    @State private var restoreEntryID: String?
+
+    struct ReturnPosition {
+        let entryID: String
+        let filter: String
+        let visibleLimit: Int
+    }
     private enum Category: String, CaseIterable, Identifiable {
         case all, scripture, notes, lexicon, youtube, search, imports
         var id: String { rawValue }
@@ -107,7 +114,10 @@ struct HistoryView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Filter history", text: $filter).textFieldStyle(.plain)
+                    TextField("Filter history", text: Binding(get: { filter }, set: {
+                        filter = $0
+                        visibleLimit = 300
+                    })).textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7).background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
                 Picker("Show", selection: Binding(get: { category }, set: { value in
@@ -128,21 +138,28 @@ struct HistoryView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             Divider()
-            List {
-                if entries.isEmpty {
-                    ContentUnavailableView("No History", systemImage: "clock",
-                                           description: Text("Passages, notes, Strong's numbers and searches you open appear here."))
-                } else if shown.isEmpty {
-                    ContentUnavailableView("No Matching History", systemImage: "magnifyingglass",
-                                           description: Text("Try another category or search term."))
-                }
-                ForEach(days, id: \.0) { day, items in
-                    Section(day) {
-                        ForEach(items) { e in row(e) }
+            ScrollViewReader { proxy in
+                List {
+                    if entries.isEmpty {
+                        ContentUnavailableView("No History", systemImage: "clock",
+                                               description: Text("Passages, notes, Strong's numbers and searches you open appear here."))
+                    } else if shown.isEmpty {
+                        ContentUnavailableView("No Matching History", systemImage: "magnifyingglass",
+                                               description: Text("Try another category or search term."))
+                    }
+                    ForEach(days, id: \.0) { day, items in
+                        Section(day) {
+                            ForEach(items) { e in row(e).id(e.id) }
+                        }
+                    }
+                    if shown.count > visibleLimit {
+                        Button("Show Older") { visibleLimit += 300 }.frame(maxWidth: .infinity)
                     }
                 }
-                if shown.count > visibleLimit {
-                    Button("Show Older") { visibleLimit += 300 }.frame(maxWidth: .infinity)
+                .task(id: restoreEntryID) {
+                    guard !Task.isCancelled, let id = restoreEntryID else { return }
+                    proxy.scrollTo(id, anchor: .center)
+                    restoreEntryID = nil
                 }
             }
         }
@@ -153,8 +170,16 @@ struct HistoryView: View {
         .confirmationDialog("Clear all history on this device?", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Clear History", role: .destructive) { try? app.historyService?.clear(); load() }
         } message: { Text("Your notes, highlights and tabs are not affected.") }
-        .task(id: app.historyRevision) { load() }
-        .onChange(of: filter) { visibleLimit = 300 }
+        .task(id: app.historyRevision) {
+            load()
+            if let position = app.historyReturnPositions.removeValue(forKey: tabId) {
+                filter = position.filter
+                if let index = shown.firstIndex(where: { $0.id == position.entryID }) {
+                    visibleLimit = max(position.visibleLimit, index + 1)
+                    restoreEntryID = position.entryID
+                }
+            }
+        }
         .onChange(of: category) { visibleLimit = 300 }
         .onChange(of: studyOnly) { visibleLimit = 300 }
     }
@@ -271,6 +296,9 @@ struct HistoryView: View {
             app.openSearch(q, reuseTab: true)
         default: return
         }
-        app.recordTabReturn(to: tabId)
+        if let destination = app.activeTab?.id, destination != tabId {
+            app.historyReturnPositions[tabId] = ReturnPosition(entryID: e.id, filter: filter, visibleLimit: visibleLimit)
+            app.recordTabReturn(to: tabId)
+        }
     }
 }
