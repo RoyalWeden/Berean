@@ -531,6 +531,7 @@ final class AppModel {
     }
 
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
+    @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var lexiconOccurrenceOptions: [String: [String: LexiconEntryView.OccurrenceOptions]] = [:]
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]

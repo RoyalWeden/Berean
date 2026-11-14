@@ -19,6 +19,7 @@ struct LexiconEntryView: View {
     @State private var adjacent: (previous: String?, next: String?) = (nil, nil)
     @State private var loaded = false
     @State private var occurrencesLoading = false
+    @State private var scrollPosition = ScrollPosition()
     @State private var occurrenceEdition: String?
     @State private var occurrenceBook: String?
     @State private var visibleOccurrences = 40
@@ -187,17 +188,37 @@ struct LexiconEntryView: View {
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .scrollPosition($scrollPosition)
+            .onScrollPhaseChange { old, new, context in
+                guard !compact, !occurrencesLoading, new == .idle,
+                      old == .interacting || old == .decelerating,
+                      entry?.strongsNum == strongsId.uppercased(),
+                      app.activeTab?.id == tabId else { return }
+                let geometry = context.geometry
+                let offset = max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+                app.lexiconScrollOffsets[tabId, default: [:]][strongsId] = offset
+            }
             .task(id: occurrencesLoading) {
-                guard !compact, !occurrencesLoading, !occurrences.isEmpty,
-                      let key = app.lexiconOccurrenceReturns[tabId]?[strongsId],
-                      let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) else { return }
-                if app.lexiconOccurrenceOptions[tabId]?[strongsId]?.wordReplacerEnabled != app.wordReplacerEnabled {
-                    visibleOccurrences = max(visibleOccurrences, index + 1)
+                guard !compact, !occurrencesLoading,
+                      entry?.strongsNum == strongsId.uppercased() else { return }
+                if let key = app.lexiconOccurrenceReturns[tabId]?[strongsId],
+                   let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) {
+                    if app.lexiconOccurrenceOptions[tabId]?[strongsId]?.wordReplacerEnabled != app.wordReplacerEnabled {
+                        visibleOccurrences = max(visibleOccurrences, index + 1)
+                    }
+                    await Task.yield()
+                    guard !Task.isCancelled else { return }
+                    proxy.scrollTo(key, anchor: .center)
+                    app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
+                    // Discard the older browsing offset after an explicit return.
+                    app.lexiconScrollOffsets[tabId]?.removeValue(forKey: strongsId)
+                } else if let offset = app.lexiconScrollOffsets[tabId]?[strongsId] {
+                    await Task.yield()
+                    guard !Task.isCancelled else { return }
+                    scrollPosition.scrollTo(y: offset)
+                } else {
+                    scrollPosition.scrollTo(edge: .top)
                 }
-                await Task.yield()
-                guard !Task.isCancelled else { return }
-                proxy.scrollTo(key, anchor: .center)
-                app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -219,6 +240,12 @@ struct LexiconEntryView: View {
         .onChange(of: occurrenceOptions) { _, options in
             guard !compact, !occurrencesLoading,
                   entry?.strongsNum == strongsId.uppercased() else { return }
+            if let previous = app.lexiconOccurrenceOptions[tabId]?[strongsId],
+               previous.edition != options.edition || previous.book != options.book
+                || previous.renderings != options.renderings || previous.sortByMatches != options.sortByMatches
+                || previous.wordReplacerEnabled != options.wordReplacerEnabled {
+                app.lexiconScrollOffsets[tabId]?.removeValue(forKey: strongsId)
+            }
             app.lexiconOccurrenceOptions[tabId, default: [:]][strongsId] = options
         }
         .task(id: strongsId) {
