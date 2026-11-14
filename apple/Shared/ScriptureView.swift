@@ -1048,7 +1048,7 @@ struct ScriptureView: View {
         ForEach(members) { m in
             Button("Remove “\(m.label)” from #\(tag.name)", role: .destructive) { try? app.verseTags?.removeMember(m.memberId) }
         }
-        Button("Search #\(tag.name)") { app.openQuery("#\(tag.name)") }
+        Button("Search #\(tag.name)") { app.openSearch("#\(tag.name)", reuseTab: true) }
     }
 
     func showLexicon(_ id: String) {
@@ -1341,7 +1341,7 @@ extension ScriptureView {
             }
             for mem in members { m.addItem(ClosureMenuItem("Remove “\(mem.label)” from #\(name)") { try? app.verseTags?.removeMember(mem.memberId) }) }
         }
-        m.addItem(ClosureMenuItem("Search #\(name)", image: "magnifyingglass") { app.openQuery("#\(name)") })
+        m.addItem(ClosureMenuItem("Search #\(name)", image: "magnifyingglass") { app.openSearch("#\(name)", reuseTab: true) })
         return m
     }
 }

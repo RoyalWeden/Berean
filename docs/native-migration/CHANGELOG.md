@@ -757,3 +757,7 @@
 ### 2026-11-14 — iPhone New Tab presentation
 - Sequenced Tabs dismissal and the explicit New Tab picker through the sheet’s dismissal callback.
 - iPhone Dev build passed. Simulator presentation and tab counts still need verification.
+
+### 2026-11-14 — Reuse Scripture tag search tabs
+- Moved the Mac tag menu and iPhone tag sheet to the shared Search tab reuse path.
+- Both Dev builds passed.

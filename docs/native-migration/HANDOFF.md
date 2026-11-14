@@ -520,3 +520,5 @@ iPhone Tabs → New Tab now waits for the Tabs sheet to finish dismissing before
 iOS 27 Simulator verified Tabs → New Tab dismissed the tab list and opened Go. Cancel returned to the reader with four tabs. Ordinary dock Go → recent John 7:51–53 retained the selected range and stayed at four tabs. Explicit New Tab submission and its tab-count increment remain to exercise.
 
 iOS 27 Simulator follow-up verified explicit Tabs → New Tab → recent John 7:51–53 created exactly one tab (four to five) and retained the full selection. The extra tab is in the isolated Simulator Dev workspace.
+
+Scripture tag-chip Search now uses normal search-tab reuse on both platforms. Exact existing searches are selected first, and pinned searches are protected from replacement. Both Dev builds passed. Live QA remains for tag-chip searches with exact, compatible and pinned-only Search tabs.
