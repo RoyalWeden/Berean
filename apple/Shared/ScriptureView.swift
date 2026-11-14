@@ -262,11 +262,7 @@ struct ScriptureView: View {
         guard let first = state.verse else { return [] }
         let last = max(first, state.endVerse ?? first)
         let chapterVerses = Set(verses.map(\.verseNum))
-        let saved = app.findTab(tabId)?.state["nativeSelectedVerses"]
-        let savedVerses = saved?["passage"]?.stringValue?.string == chapterKey(state)
-            && saved?["activeVerse"]?.numberValue == Double(first)
-            ? saved?["verses"]?.arrayValue : nil
-        let restored = Set((savedVerses ?? []).compactMap { $0.numberValue.flatMap(Int.init(exactly:)) })
+        let restored = (app.findTab(tabId).map { ResolvedPassage.savedVerses(in: $0, reader: state) } ?? [])
             .intersection(chapterVerses)
         if state.endVerse == nil, restored.contains(first) {
             return restored
@@ -1186,7 +1182,7 @@ private struct VerseActionButtonStyle: ButtonStyle {
 }
 
 
-private func consecutiveVerseRuns(_ verses: Set<Int>) -> [ClosedRange<Int>] {
+func consecutiveVerseRuns(_ verses: Set<Int>) -> [ClosedRange<Int>] {
     var runs: [ClosedRange<Int>] = []
     for verse in verses.sorted() {
         if let last = runs.last, last.upperBound == verse - 1 {

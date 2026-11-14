@@ -23,6 +23,16 @@ struct ResolvedPassage: Equatable {
         return .object(object)
     }
 
+    static func savedVerses(in tab: Tab, reader: BibleState) -> Set<Int> {
+        guard reader.endVerse == nil, let active = reader.verse,
+              let saved = tab.state["nativeSelectedVerses"],
+              saved["passage"]?.stringValue?.string == "\(reader.translation)|\(reader.bookId)|\(reader.chapter)",
+              saved["activeVerse"]?.numberValue == Double(active) else { return [] }
+        let verses = Set((saved["verses"]?.arrayValue ?? []).compactMap { $0.numberValue.flatMap(Int.init(exactly:)) }
+            .filter { (1...999).contains($0) })
+        return verses.contains(active) ? verses : []
+    }
+
     var label: String {
         let start = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
         if let first = verseGroups.first {

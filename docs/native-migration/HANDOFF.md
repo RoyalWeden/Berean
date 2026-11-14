@@ -366,3 +366,5 @@ Native Go, the Mac command palette, and the reader passage picker now keep all g
 iOS 27 Simulator verified Go → Obadiah 1:18–19, 21 LXX from an existing Obadiah 1:18, 20 selection. The preview identified the correct edition and the reader selected 18–19 and 21 without adding a tab (15 open). More → Back restored 18 and 20 even though both locations start at verse 18. History reopening and Mac passage-picker behavior remain to verify.
 
 iOS 27 Simulator verified Go → History → Obadiah 1:18–19, 21 reopened all three verses in the Septuagint. Opening History added its utility tab, bringing the workspace from 15 to 16 open tabs. Native note wikilinks now also pass the full resolved selection through the shared Scripture visit path. Both Dev builds passed. Live note wikilinks and Mac passage-picker behavior remain to verify.
+
+Native tab labels and tab search now include every group in a saved mixed Scripture selection. The switcher and reader share saved-selection validation so a stale selection from another chapter or edition cannot label the tab. Both Dev builds passed. Live switcher and archive filter checks remain open.
