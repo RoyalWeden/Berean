@@ -700,3 +700,7 @@
 ### 2026-11-14 — iPhone selection reveal
 - Use the final rendered verse line when calculating scroll clearance above the floating verse actions, including wrapped inline annotations.
 - Full native check passed. Wrapped annotation layout still needs visual verification.
+
+### 2026-11-14 — Mac selection reveal
+- Matched scroll clearance to the last visible verse line and dashed frame on Mac, including wrapped annotations.
+- Mac Dev build and identity check passed.

@@ -108,13 +108,12 @@ struct ChapterTextView: NSViewRepresentable {
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll, let c, c.lastPassage == destination,
                       c.parent.selectedVerses.contains(revealVerse),
-                      let range = c.verseRanges[revealVerse], range.length > 0,
+                      let range = c.verseRanges[revealVerse],
                       let container = tv.textContainer else { return }
                 tv.layoutManager?.ensureLayout(for: container)
-                let lastCharacter = NSRange(location: NSMaxRange(range) - 1, length: 1)
-                guard let rect = tv.firstRect(forVerseRange: lastCharacter) else { return }
+                guard let bottom = tv.lastVerseLineBottom(in: range) else { return }
                 let clip = scroll.contentView
-                let overlap = rect.maxY + ReaderFloatingControls.readingGap - clip.bounds.maxY
+                let overlap = bottom + ReaderFloatingControls.readingGap - clip.bounds.maxY
                 if overlap > 0 {
                     var proposed = clip.bounds
                     proposed.origin.y += overlap
@@ -138,13 +137,10 @@ struct ChapterTextView: NSViewRepresentable {
                     proposed.origin.y = rect.minY - 12
                     if let lastVerse = c.parent.selectedVerses.max(),
                        lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
-                       lastRange.length > 0 {
-                        let lastCharacter = NSRange(location: NSMaxRange(lastRange) - 1, length: 1)
-                        if let end = tv.firstRect(forVerseRange: lastCharacter) {
-                            let lastLine = end.maxY + ReaderFloatingControls.readingGap
-                            if lastLine - rect.minY <= proposed.height {
-                                proposed.origin.y = max(proposed.origin.y, lastLine - proposed.height)
-                            }
+                       let bottom = tv.lastVerseLineBottom(in: lastRange) {
+                        let lastLine = bottom + ReaderFloatingControls.readingGap
+                        if lastLine - rect.minY <= proposed.height {
+                            proposed.origin.y = max(proposed.origin.y, lastLine - proposed.height)
                         }
                     }
                     clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
@@ -611,6 +607,16 @@ extension NSTextView {
         var rect = lm.boundingRect(forGlyphRange: g, in: tc)
         rect.origin.y += textContainerOrigin.y
         return rect
+    }
+
+    fileprivate func lastVerseLineBottom(in range: NSRange) -> CGFloat? {
+        guard range.length > 1, let layoutManager else { return nil }
+        // Match the outline: the final newline belongs to the paragraph, but adds no visible verse text.
+        let text = NSRange(location: range.location, length: range.length - 1)
+        let glyphs = layoutManager.glyphRange(forCharacterRange: text, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return nil }
+        return layoutManager.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY
+            + textContainerOrigin.y
     }
 }
 
