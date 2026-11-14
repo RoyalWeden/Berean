@@ -662,3 +662,7 @@
 ### 2026-11-14 — iPhone chapter-end dashed selection
 - Draw consecutive verse outlines using the same TextKit layout as the chapter text.
 - Verified John 7:51–53 in iOS 27 Simulator with one visible rounded outline and clear floating toolbar.
+
+### 2026-11-14 — Keep the iPhone reading position during reflow
+- Preserve the visible verse anchor when a setting or annotation rebuilds the same chapter.
+- Verified Strong's toggle at John 7:51–53 on iOS 27 Simulator.

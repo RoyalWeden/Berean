@@ -80,6 +80,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         if key != coordinator.key || !samePassage {
             let selection = view.selectedRange
             let oldText = view.text
+            let readingAnchor = samePassage ? coordinator.readingAnchor(in: view) : nil
             view.attributedText = coordinator.render(key.dark)
             view.setNeedsLayout()
 
@@ -87,7 +88,11 @@ struct IOSChapterTextView: UIViewRepresentable {
                 if view.text == oldText, NSMaxRange(selection) <= view.textStorage.length {
                     view.selectedRange = selection
                 }
-                view.setContentOffset(previousOffset, animated: false)
+                if let readingAnchor {
+                    coordinator.restoreReadingAnchor(readingAnchor, in: view, fallback: previousOffset)
+                } else {
+                    view.setContentOffset(previousOffset, animated: false)
+                }
             } else {
                 view.selectedRange = NSRange(location: 0, length: 0)
                 view.setContentOffset(CGPoint(x: 0, y: -view.adjustedContentInset.top), animated: false)
@@ -203,6 +208,39 @@ struct IOSChapterTextView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+        struct ReadingAnchor {
+            let verse: Int
+            let offsetFromTop: CGFloat
+        }
+
+        func readingAnchor(in view: UITextView) -> ReadingAnchor? {
+            let top = view.contentOffset.y + view.adjustedContentInset.top
+            guard top > view.textContainerInset.top,
+                  let position = view.closestPosition(to: CGPoint(x: view.bounds.midX, y: top)),
+                  let verse = verseRanges.first(where: {
+                      NSLocationInRange(view.offset(from: view.beginningOfDocument, to: position), $0.value)
+                  })?.key,
+                  let start = verseRanges[verse]?.location,
+                  let marker = view.position(from: view.beginningOfDocument, offset: start) else { return nil }
+            let markerY = view.caretRect(for: marker).minY
+            guard markerY.isFinite else { return nil }
+            return ReadingAnchor(verse: verse, offsetFromTop: markerY - top)
+        }
+
+        func restoreReadingAnchor(_ anchor: ReadingAnchor, in view: UITextView, fallback: CGPoint) {
+            guard let range = verseRanges[anchor.verse],
+                  let marker = view.position(from: view.beginningOfDocument, offset: range.location) else {
+                view.setContentOffset(fallback, animated: false)
+                return
+            }
+            layoutThroughEnd(of: range, in: view)
+            let inset = view.adjustedContentInset
+            let y = view.caretRect(for: marker).minY - anchor.offsetFromTop - inset.top
+            let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+            view.setContentOffset(CGPoint(x: fallback.x, y: y.isFinite ? min(max(y, -inset.top), bottom) : fallback.y),
+                                  animated: false)
+        }
+
         func layoutThroughEnd(of range: NSRange, in view: UITextView) {
             view.layoutIfNeeded()
             view.layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: NSMaxRange(range)))
