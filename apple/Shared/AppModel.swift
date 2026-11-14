@@ -502,7 +502,8 @@ final class AppModel {
                 studyVerseFocus.removeValue(forKey: tabId)
             }
             if recordHistory, locationChanged {
-                if after.state["nativeSelectedVerses"] == before.state["nativeSelectedVerses"] {
+                if let saved = after.state["nativeSelectedVerses"], saved == before.state["nativeSelectedVerses"],
+                   Self.selectionLocation(before) != Self.selectionLocation(after) {
                     sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
                 }
                 backStack[tabId, default: []].append((before.title, before.state))
@@ -526,6 +527,10 @@ final class AppModel {
 
     private var backStack: [String: [(String, JSObject)]] = [:]
     private var forwardStack: [String: [(String, JSObject)]] = [:]
+
+    private static func selectionLocation(_ tab: BereanWorkspace.Tab) -> [JSValue?] {
+        ["bookId", "chapter", "translation", "verse", "endVerse", "endChapter"].map { tab.state[$0] }
+    }
 
     static func location(_ t: BereanWorkspace.Tab) -> String {
         let keys: [String]

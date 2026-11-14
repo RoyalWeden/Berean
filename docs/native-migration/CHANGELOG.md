@@ -801,3 +801,7 @@
 ### 2026-11-14 — Compare selection indicators
 - Showed the same selected verses that transfer from Compare to Scripture and cleared old ranges on an explicit single-verse click.
 - Both Dev builds passed.
+
+### 2026-11-14 — Preserve selected verses during Compare changes
+- Kept saved verse selections across mode and column changes when the passage anchor stays the same.
+- Both Dev builds passed.
