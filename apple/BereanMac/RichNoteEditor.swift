@@ -60,6 +60,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .inline(let open, let close): editor.wrapSelection(open, close)
                 case .heading(let level): editor.setHeading(level)
                 case .list(let style): editor.setList(style)
+                case .insertTable: editor.insertTable()
                 }
                 window.makeFirstResponder(editor)
             }
@@ -236,6 +237,11 @@ final class NoteTextView: NSTextView {
             super.insertNewline(sender)
             return
         }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func insertTable() {
+        guard let edit = noteTableInsertion(in: string as NSString, selection: selectedRange()) else { return }
         replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 

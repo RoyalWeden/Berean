@@ -36,6 +36,7 @@ struct NoteFormatRequest: Equatable {
         case inline(String, String)
         case heading(Int)
         case list(NoteListStyle)
+        case insertTable
     }
 
     let action: Action
@@ -145,6 +146,35 @@ func noteListEdit(in text: NSString, selection: NSRange, style: NoteListStyle)
         ? NSRange(location: range.location + length, length: 0)
         : NSRange(location: range.location, length: length)
     return (range, replacement, resultSelection)
+}
+
+/// Insert the same two-column Markdown block used by the legacy editor.
+func noteTableInsertion(in text: NSString, selection: NSRange)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+    var lineStart = 0
+    var contentsEnd = 0
+    text.getLineStart(&lineStart, end: nil, contentsEnd: &contentsEnd,
+                      for: NSRange(location: NSMaxRange(selection), length: 0))
+    let line = text.substring(with: NSRange(location: lineStart, length: contentsEnd - lineStart))
+    let emptyLine = line.trimmingCharacters(in: .whitespaces).isEmpty
+    let offset = emptyLine ? lineStart : contentsEnd
+    let length = emptyLine ? contentsEnd - lineStart : 0
+    let newline = text.range(of: "\r\n").location == NSNotFound ? "\n" : "\r\n"
+    let prefix: String
+    if !emptyLine {
+        prefix = newline + newline
+    } else if offset == 0 {
+        prefix = ""
+    } else {
+        let previousLine = text.lineRange(for: NSRange(location: offset - 1, length: 0))
+        let previous = text.substring(with: previousLine)
+        prefix = previous.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : newline
+    }
+    let suffix = contentsEnd < text.length ? newline : newline + newline
+    let table = ["|  |  |", "| --- | --- |", "|  |  |"].joined(separator: newline)
+    return (NSRange(location: offset, length: length), prefix + table + suffix,
+            NSRange(location: offset + prefix.utf16.count + 2, length: 0))
 }
 
 /// A link on the visible checkbox routes activation through the native text editor.
@@ -285,6 +315,9 @@ struct NoteDetailView: View {
                                     formatRequest = NoteFormatRequest(action: .list(style))
                                 }
                             }
+                        }
+                        Button("Insert Table", systemImage: "tablecells") {
+                            formatRequest = NoteFormatRequest(action: .insertTable)
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")

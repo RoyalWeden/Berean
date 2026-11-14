@@ -921,3 +921,7 @@
 ### 2026-11-14 — Native checklist interaction
 - Added click and tap handling for the rendered checklist box. Toggling edits the Markdown marker in place.
 - Both Dev builds and six focused Swift checks passed. Live interaction, undo and accessibility checks remain open.
+
+### 2026-11-14 — Native Notes table insertion
+- Added Insert Table to the Notes Format menu on Mac and iPhone.
+- Both Dev builds and six focused Swift checks passed. Grid presentation and structural editing remain open.
