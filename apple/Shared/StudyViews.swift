@@ -52,6 +52,22 @@ struct LexiconEntryView: View {
         return occurrences.filter { $0.textId == occurrenceEdition }
     }
 
+    private typealias IndexedOccurrence = (Int, LexiconOccurrence, Set<String>, OccurrencePreview, OccurrenceKey)
+
+    private func indexedOccurrences(_ scoped: [LexiconOccurrence]) -> [IndexedOccurrence] {
+        return scoped.enumerated().map { index, occurrence in
+            let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
+            return (index, occurrence, preview.renderings, preview, OccurrenceKey(occurrence))
+        }
+    }
+
+    private func matchingOccurrences(_ indexed: [IndexedOccurrence]) -> [IndexedOccurrence] {
+        let filtered = indexed.filter { selectedRenderings.isEmpty || !$0.2.isDisjoint(with: selectedRenderings) }
+        return sortByMatches ? filtered.sorted {
+            (-$0.1.matchWordIndices.count, $0.0) < (-$1.1.matchWordIndices.count, $1.0)
+        } : filtered
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -100,17 +116,11 @@ struct LexiconEntryView: View {
                             }
                             let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
                             let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
-                            let indexed = scoped.enumerated().map { index, occurrence in
-                                let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
-                                return (index, occurrence, preview.renderings, preview, OccurrenceKey(occurrence))
-                            }
+                            let indexed = indexedOccurrences(scoped)
                             let forms = indexed.reduce(into: [String: Int]()) { counts, row in
                                 for word in row.2 { counts[word, default: 0] += 1 }
                             }
-                            let filtered = indexed.filter { selectedRenderings.isEmpty || !$0.2.isDisjoint(with: selectedRenderings) }
-                            let matches = sortByMatches ? filtered.sorted {
-                                (-$0.1.matchWordIndices.count, $0.0) < (-$1.1.matchWordIndices.count, $1.0)
-                            } : filtered
+                            let matches = matchingOccurrences(indexed)
                             if !occurrences.isEmpty {
                                 HStack {
                                     Text("\(matches.count) loaded occurrences")
@@ -204,17 +214,15 @@ struct LexiconEntryView: View {
                 guard !compact, !occurrencesLoading,
                       entry?.strongsNum == strongsId.uppercased() else { return }
                 defer { if !Task.isCancelled { restoredScrollEntry = strongsId } }
-                if let key = app.lexiconOccurrenceReturns[tabId]?[strongsId],
-                   let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) {
-                    if restoredWithChangedWordReplacement {
-                        // The old rendering filter can no longer locate the row in its previous page.
-                        // A match-count sort can move it past its original index.
-                        visibleOccurrences = max(visibleOccurrences, sortByMatches ? occurrences.count : index + 1)
-                    }
+                if let key = app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId),
+                   let index = matchingOccurrences(indexedOccurrences(
+                       editionOccurrences.filter { occurrenceBook == nil || $0.bookId == occurrenceBook }
+                   )).firstIndex(where: { $0.4 == key }) {
+                    let requiredLimit = (index / 40 + 1) * 40
+                    visibleOccurrences = max(visibleOccurrences, requiredLimit)
                     await Task.yield()
                     guard !Task.isCancelled else { return }
                     proxy.scrollTo(key, anchor: .center)
-                    app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
                     // Discard the older browsing offset after an explicit return.
                     app.lexiconScrollOffsets[tabId]?.removeValue(forKey: strongsId)
                 } else if !restoredWithChangedWordReplacement,
