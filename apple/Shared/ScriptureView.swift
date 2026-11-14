@@ -8,6 +8,56 @@ import BereanReference
 import BereanWorkspace
 import BereanNotes
 
+struct ChapterEdition: Equatable {
+    let book: String
+    let chapter: Int
+    let text: String
+
+    init(_ state: BibleState) {
+        book = state.bookId
+        chapter = state.chapter
+        text = state.translation
+    }
+
+    private init(book: String, chapter: Int, text: String) {
+        self.book = book
+        self.chapter = chapter
+        self.text = text
+    }
+
+    var counterpart: Self? {
+        let other: String
+        if ChapterMap.isLxx(text) { other = "kjva" }
+        else if ChapterMap.isKjv(text) { other = "lxx" }
+        else { return nil }
+        return Self(book: book, chapter: ChapterMap.mapChapter(book, chapter, from: text, to: other), text: other)
+    }
+}
+
+extension AppModel {
+    func installedCounterpart(of source: ChapterEdition) async -> ChapterEdition? {
+        guard let target = source.counterpart else { return nil }
+        let chapters = await bible.chapterNumbers(target.book, textId: target.text)
+        return chapters.contains(target.chapter) ? target : nil
+    }
+
+    func switchChapterEdition(in tabId: String, from source: ChapterEdition, to target: ChapterEdition) {
+        guard let tab = activeTab, tab.id == tabId, tab.tabType == .bible else { return }
+        var reader = BibleState(tab.state)
+        guard !reader.compareMode, ChapterEdition(reader) == source, source.counterpart == target else { return }
+        reader.translation = target.text
+        reader.chapter = target.chapter
+        reader.verse = nil
+        reader.endVerse = nil
+        update(tabId) {
+            $0.state = reader.merged(into: $0.state)
+            $0.state.remove("endChapter")
+            $0.title = Reference.readerChapterLabel(target.book, target.chapter, textId: target.text)
+        }
+        recordRecent(textId: target.text, bookId: target.book, chapter: target.chapter, verse: nil, endVerse: nil)
+    }
+}
+
 struct ChapterTagTarget: Identifiable {
     let bookId: String
     let chapter: Int
@@ -160,6 +210,7 @@ struct ScriptureView: View {
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
 
     #if os(macOS)
+    @State private var alternateEdition: ChapterEdition?
     @State private var strongsTooltips: [String: String] = [:]
     #endif
 
@@ -192,6 +243,15 @@ struct ScriptureView: View {
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         #endif
         .toolbar { toolbar(st) }
+        #if os(macOS)
+        .task(id: st.compareMode ? nil : ChapterEdition(st)) {
+            alternateEdition = nil
+            guard !st.compareMode else { return }
+            let target = await app.installedCounterpart(of: ChapterEdition(st))
+            guard !Task.isCancelled, !state.compareMode, ChapterEdition(state) == ChapterEdition(st) else { return }
+            alternateEdition = target
+        }
+        #endif
         .sheet(isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
             if let t = tagging { TagPickerView(ranges: t.ranges, label: t.label, kind: t.kind) }
         }
@@ -707,6 +767,13 @@ struct ScriptureView: View {
         }
         #if os(macOS)
         ToolbarItemGroup {
+            if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
+                Button("Switch to \(textInfo(target.text).short)", systemImage: "arrow.left.arrow.right") {
+                    app.switchChapterEdition(in: tabId, from: ChapterEdition(st), to: target)
+                }
+                .pointerStyle(.link)
+                .help("Switch to \(textInfo(target.text).name)")
+            }
             Button("Tag Chapter", systemImage: "tag") {
                 let target = ChapterTagTarget(st)
                 tagging = (target.ranges, target.label, "chapter")

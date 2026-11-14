@@ -563,3 +563,7 @@
 ### 2026-11-14 — Explicit King James editions in native Go
 - Shared native reference resolver accepts KJV and KJVA suffixes with the requested edition's book coverage.
 - Both Dev builds and 101 native tests passed. Verified distinct edition results and tab reuse on the iOS 27 Simulator.
+
+### 2026-11-14 — Mac quick edition switching
+- Added the mapped edition shortcut to the Mac Scripture toolbar and shared its coverage and navigation logic with iPhone.
+- Both Dev builds passed. Verified the Mac control appears for Genesis 1. Persisted navigation QA remains open.
