@@ -696,3 +696,7 @@
 ### 2026-11-14 — Full-verse iPhone selection outlines
 - Extended the existing grouped iPhone outline to cover the full rendered verse, including wrapped inline annotations. The iPhone Dev build passed.
 - In Mac Dev, toggling verse numbers off and back on removed and restored accessibility links while keeping John 7:47–50 selected at the chapter end.
+
+### 2026-11-14 — iPhone selection reveal
+- Use the final rendered verse line when calculating scroll clearance above the floating verse actions, including wrapped inline annotations.
+- Full native check passed. Wrapped annotation layout still needs visual verification.

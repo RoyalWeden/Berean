@@ -121,12 +121,11 @@ struct IOSChapterTextView: UIViewRepresentable {
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
                       coordinator.parent.selectedVerses.contains(revealVerse),
-                      let range = coordinator.bodyRanges[revealVerse], range.length > 0,
-                      let position = view.position(from: view.beginningOfDocument, offset: NSMaxRange(range) - 1) else { return }
+                      let range = coordinator.verseRanges[revealVerse], range.length > 1 else { return }
                 coordinator.layoutThroughEnd(of: range, in: view)
                 let inset = view.adjustedContentInset
                 let visibleBottom = view.bounds.maxY - inset.bottom
-                let overlap = view.caretRect(for: position).maxY + ReaderFloatingControls.readingGap - visibleBottom
+                let overlap = coordinator.lastLineBottom(of: range, in: view) + ReaderFloatingControls.readingGap - visibleBottom
                 if overlap > 0 {
                     let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
                     let y = min(view.contentOffset.y + overlap, bottom)
@@ -143,16 +142,15 @@ struct IOSChapterTextView: UIViewRepresentable {
                       coordinator.parent.scrollTarget == target, coordinator.lastTarget == target,
                       NSMaxRange(range) <= view.textStorage.length,
                       let position = view.position(from: view.beginningOfDocument, offset: range.location) else { return }
-                let lastRange = coordinator.parent.selectedVerses.max().flatMap { coordinator.bodyRanges[$0] }
+                let lastRange = coordinator.parent.selectedVerses.max().flatMap { verse in
+                    verse >= target ? coordinator.verseRanges[verse] : nil
+                }
                 coordinator.layoutThroughEnd(of: lastRange.map { NSUnionRange(range, $0) } ?? range, in: view)
                 let inset = view.adjustedContentInset
                 let top = view.caretRect(for: position).minY
                 var y = top - inset.top - 12
-                if let lastVerse = coordinator.parent.selectedVerses.max(),
-                   lastVerse >= target, let lastRange = coordinator.bodyRanges[lastVerse],
-                   lastRange.length > 0,
-                   let end = view.position(from: view.beginningOfDocument, offset: NSMaxRange(lastRange) - 1) {
-                    let lastLine = view.caretRect(for: end).maxY + ReaderFloatingControls.readingGap
+                if let lastRange, lastRange.length > 1 {
+                    let lastLine = coordinator.lastLineBottom(of: lastRange, in: view) + ReaderFloatingControls.readingGap
                     let readingHeight = view.bounds.height - inset.top - inset.bottom
                     if lastLine - top <= readingHeight {
                         y = max(y, lastLine - view.bounds.height + inset.bottom)
@@ -253,6 +251,16 @@ struct IOSChapterTextView: UIViewRepresentable {
         func layoutThroughEnd(of range: NSRange, in view: UITextView) {
             view.layoutIfNeeded()
             view.layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: NSMaxRange(range)))
+        }
+
+        // Use the final rendered glyph, excluding the paragraph break, just like the selection outline.
+        func lastLineBottom(of range: NSRange, in view: UITextView) -> CGFloat {
+            let layout = view.layoutManager
+            let text = NSRange(location: range.location, length: range.length - 1)
+            let glyphs = layout.glyphRange(forCharacterRange: text, actualCharacterRange: nil)
+            guard glyphs.length > 0 else { return view.textContainerInset.top }
+            return layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY
+                + view.textContainerInset.top
         }
 
         private static let skip = NSAttributedString.Key("bereanSkip")
