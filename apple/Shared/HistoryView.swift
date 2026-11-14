@@ -43,13 +43,12 @@ struct HistoryView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
     @State private var entries: [HistoryEntry] = []
-    @State private var filter = ""
+    @State private var options = BrowseOptions()
     @State private var restoreEntryID: String?
 
-    struct ReturnPosition {
-        let entryID: String
-        let filter: String
-        let visibleLimit: Int
+    struct BrowseOptions {
+        var filter = ""
+        var visibleLimit = 300
     }
     private enum Category: String, CaseIterable, Identifiable {
         case all, scripture, notes, lexicon, youtube, search, imports
@@ -85,10 +84,9 @@ struct HistoryView: View {
 
     private var studyOnly: Bool { app.findTab(tabId)?.state["studyOnly"]?.boolValue ?? false }
     @State private var confirmClear = false
-    @State private var visibleLimit = 300
 
     var shown: [HistoryEntry] {
-        let query = filter.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = options.filter.trimmingCharacters(in: .whitespacesAndNewlines)
         return entries.filter { e in
             category.includes(e.type)
                 && !(category == .scripture && studyOnly && e.type == "bible" && (e.verse ?? 0) == 0)
@@ -100,7 +98,7 @@ struct HistoryView: View {
 
     var days: [(String, [HistoryEntry])] {
         var order: [String] = [], map: [String: [HistoryEntry]] = [:]
-        for e in shown.prefix(visibleLimit) {
+        for e in shown.prefix(options.visibleLimit) {
             let d = Date(timeIntervalSince1970: Double(e.timestamp) / 1000)
             let label = Calendar.current.isDateInToday(d) ? "Today" : Calendar.current.isDateInYesterday(d) ? "Yesterday" : d.formatted(date: .complete, time: .omitted)
             if map[label] == nil { order.append(label) }
@@ -114,9 +112,9 @@ struct HistoryView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Filter history", text: Binding(get: { filter }, set: {
-                        filter = $0
-                        visibleLimit = 300
+                    TextField("Filter history", text: Binding(get: { options.filter }, set: {
+                        options.filter = $0
+                        resetPageLimit()
                     })).textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7).background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
@@ -152,8 +150,12 @@ struct HistoryView: View {
                             ForEach(items) { e in row(e).id(e.id) }
                         }
                     }
-                    if shown.count > visibleLimit {
-                        Button("Show Older") { visibleLimit += 300 }.frame(maxWidth: .infinity)
+                    if shown.count > options.visibleLimit {
+                        Button("Show Older") {
+                            options.visibleLimit += 300
+                            app.historyBrowseOptions[tabId] = options
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 .task(id: restoreEntryID) {
@@ -172,16 +174,21 @@ struct HistoryView: View {
         } message: { Text("Your notes, highlights and tabs are not affected.") }
         .task(id: app.historyRevision) {
             load()
-            if let position = app.historyReturnPositions.removeValue(forKey: tabId) {
-                filter = position.filter
-                if let index = shown.firstIndex(where: { $0.id == position.entryID }) {
-                    visibleLimit = max(position.visibleLimit, index + 1)
-                    restoreEntryID = position.entryID
-                }
+            options = app.historyBrowseOptions[tabId] ?? BrowseOptions()
+            if let id = app.historyReturnRows.removeValue(forKey: tabId),
+               let index = shown.firstIndex(where: { $0.id == id }) {
+                options.visibleLimit = max(options.visibleLimit, index + 1)
+                app.historyBrowseOptions[tabId] = options
+                restoreEntryID = id
             }
         }
-        .onChange(of: category) { visibleLimit = 300 }
-        .onChange(of: studyOnly) { visibleLimit = 300 }
+        .onChange(of: category) { resetPageLimit() }
+        .onChange(of: studyOnly) { resetPageLimit() }
+    }
+
+    private func resetPageLimit() {
+        options.visibleLimit = 300
+        app.historyBrowseOptions[tabId] = options
     }
 
     func load() {
@@ -297,7 +304,7 @@ struct HistoryView: View {
         default: return
         }
         if let destination = app.activeTab?.id, destination != tabId {
-            app.historyReturnPositions[tabId] = ReturnPosition(entryID: e.id, filter: filter, visibleLimit: visibleLimit)
+            app.historyReturnRows[tabId] = e.id
             app.recordTabReturn(to: tabId)
         }
     }
