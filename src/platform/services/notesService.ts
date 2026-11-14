@@ -458,6 +458,16 @@ export function createNotesService(ctx: ServiceContext) {
     return rows.map(rowToNote)
   }
 
+  function noteAttachments(ref: string | null) {
+    return (ref ?? '').split(',').flatMap((part) => {
+      const match = /^([^.]+)\.(\d+)(?:\.(\d+)(?:-(\d+))?)?$/.exec(part.trim())
+      if (!match) return []
+      const [, book, chapter, verse, end] = match
+      const first = Number(verse ?? 0)
+      return [{ book, chapter: Number(chapter), first, last: Math.max(first, Number(end ?? first)) }]
+    })
+  }
+
   async function getByVerse(verseRef: string, textId = 'kjva') {
     // KJV and LXX are cross-linked: each shows the other's notes with a translation badge
     // so study connections are always visible. Own-translation notes come first, then cross.
@@ -471,6 +481,18 @@ export function createNotesService(ctx: ServiceContext) {
     const bookId = parts[0]
     const chapter = parseInt(parts[1] ?? '', 10)
     const verseNum = parts[2]
+
+    const target = noteAttachments(verseRef)[0]
+    if (target && target.first > 0 && /^\d+$/.test(verseNum ?? '') && parts.length === 3) {
+      const notes = await getByChapter(target.book, target.chapter, textId)
+      return notes.filter((note) => {
+        const chapters = note.textId === textId ? [target.chapter]
+          : equivalentChapters(target.book, target.chapter, textId, note.textId)
+        return noteAttachments(note.verseRef ?? null).some((attachment) =>
+          attachment.book === target.book && chapters.includes(attachment.chapter)
+          && attachment.first > 0 && attachment.first <= target.first && target.first <= attachment.last)
+      }).sort((a, b) => a.createdAt - b.createdAt)
+    }
 
     if (textId !== 'kjva' && textId !== 'lxx') {
       const rows = await db().all<NoteRow>('SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? AND deleted_at IS NULL ORDER BY created_at ASC', [verseRef, textId])
@@ -610,11 +632,14 @@ export function createNotesService(ctx: ServiceContext) {
     // verse_ref is either the exact chapter-level form ("BOOK.CH", no verse segment —
     // e.g. a whole-chapter note) or a verse-specific form under it ("BOOK.CH.verse")
     // but NOT a deeper sub-range ("BOOK.CH.verse.something").
-    const sql = `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)) AND deleted_at IS NULL AND ${tidClause}`
-    const params = tidParam
-      ? [chapterRef, `${prefix}%`, `${prefix}%.%`, tidParam]
-      : [chapterRef, `${prefix}%`, `${prefix}%.%`]
-    return db().all<NoteRow>(sql, params)
+    const sql = `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)
+      OR (instr(verse_ref, ',') > 0 AND verse_ref LIKE ?)) AND deleted_at IS NULL AND ${tidClause}`
+    const params = [chapterRef, `${prefix}%`, `${prefix}%.%`, `%${chapterRef}%`]
+    if (tidParam) params.push(tidParam)
+    const rows = await db().all<NoteRow>(sql, params)
+    return rows.filter((row) => !row.verse_ref?.includes(',') || noteAttachments(row.verse_ref).some(
+      (attachment) => attachment.book === bookId && attachment.chapter === chapter))
+
   }
 
   async function getByChapter(bookId: string, chapter: number, textId = 'kjva') {

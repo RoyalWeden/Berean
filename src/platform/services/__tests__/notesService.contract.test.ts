@@ -281,6 +281,15 @@ describe('notesService', () => {
 
   // ── getByVerse ──────────────────────────────────────────────────────────────
   describe('getByVerse', () => {
+    it('finds native attachments across disjoint verses and chapters', async () => {
+      const { note } = await svc.create({ type: 'verse', verseRef: 'JHN.3.14-15,JHN.3.17,JHN.4.2', textId: 'kjva' })
+      expect((await svc.getByVerse('JHN.3.15')).map((row) => row.id)).toEqual([note.id])
+      expect(await svc.getByVerse('JHN.3.16')).toEqual([])
+      expect((await svc.getByVerse('JHN.3.17')).map((row) => row.id)).toEqual([note.id])
+      expect((await svc.getByChapter('JHN', 4)).map((row) => row.id)).toEqual([note.id])
+      expect((await svc.getByVerse('JHN.4.2')).map((row) => row.id)).toEqual([note.id])
+    })
+
     it('returns own-translation notes for a verse, oldest first', async () => {
       const a = await svc.create({ type: 'verse', verseRef: 'GEN.1.1', content: 'first' })
       const b = await svc.create({ type: 'verse', verseRef: 'GEN.1.1', content: 'second' })
