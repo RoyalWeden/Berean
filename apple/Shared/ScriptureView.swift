@@ -579,7 +579,7 @@ struct ScriptureView: View {
             }
             .help("Add note")
             Button("Cross References", systemImage: "arrow.triangle.branch") {
-                openInspector("crossrefs", verse: selectedVerse ?? selection.min())
+                openInspector("crossrefs", verse: selectedVerse ?? selection.min(), selectedVerses: selection.sorted())
             }
                 .help("Cross references")
             if !selectedRows.isEmpty {
@@ -626,7 +626,7 @@ struct ScriptureView: View {
         if !selectedRows.isEmpty {
             Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
             Button("Cross References", systemImage: "arrow.triangle.branch") {
-                openInspector("crossrefs", verse: selectedVerse ?? selection.min())
+                openInspector("crossrefs", verse: selectedVerse ?? selection.min(), selectedVerses: selection.sorted())
             }
         }
         selectedVerseExportActions(st)
@@ -969,9 +969,9 @@ struct ScriptureView: View {
         let reader = state
         app.inspectStrongs(id, in: tabId, bookId: reader.bookId, chapter: reader.chapter)
     }
-    func openInspector(_ tab: String, verse: Int? = nil) {
+    func openInspector(_ tab: String, verse: Int? = nil, selectedVerses: [Int] = []) {
         if tab == "crossrefs" || tab == "notes" {
-            app.focusStudyVerse(verse, in: tabId)
+            app.focusStudyVerse(verse, in: tabId, selectedVerses: selectedVerses)
 
         }
         mutate(recordHistory: false) {

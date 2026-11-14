@@ -627,22 +627,30 @@ final class AppModel {
     private struct StudyVerseFocus {
         let state: BibleState
         let verse: Int?
+        let selectedVerses: [Int]
     }
 
     private var studyVerseFocus: [String: StudyVerseFocus] = [:]
 
-    func focusStudyVerse(_ verse: Int?, in tabId: String) {
+    func focusStudyVerse(_ verse: Int?, in tabId: String, selectedVerses: [Int] = []) {
         guard let tab = findTab(tabId) else { return }
-        studyVerseFocus[tabId] = StudyVerseFocus(state: BibleState(tab.state), verse: verse)
+        studyVerseFocus[tabId] = StudyVerseFocus(state: BibleState(tab.state), verse: verse, selectedVerses: selectedVerses)
+    }
+
+    private func studyFocus(in tabId: String, state: BibleState) -> StudyVerseFocus? {
+        guard let focus = studyVerseFocus[tabId],
+              focus.state.bookId == state.bookId, focus.state.chapter == state.chapter,
+              focus.state.translation == state.translation else { return nil }
+        return focus
     }
 
     func studyVerse(in tabId: String, state: BibleState) -> Int? {
-        if let focus = studyVerseFocus[tabId],
-           focus.state.bookId == state.bookId, focus.state.chapter == state.chapter,
-           focus.state.translation == state.translation {
-            return focus.verse
-        }
+        if let focus = studyFocus(in: tabId, state: state) { return focus.verse }
         return state.verse
+    }
+
+    func studySelectedVerses(in tabId: String, state: BibleState) -> [Int] {
+        studyFocus(in: tabId, state: state)?.selectedVerses ?? []
     }
 
     func inspectStrongs(_ id: String, in tabId: String, bookId: String, chapter: Int, verse: Int? = nil) {

@@ -25,7 +25,8 @@ struct StudyInspector: View {
             if st.rightPanelTab == "notes" {
                 VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st), textId: st.translation)
             } else if st.rightPanelTab == "crossrefs" {
-                CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st), textId: st.translation)
+                CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
+                              textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
             } else if let id = st.rightPanelLexiconEntry {
                 LexiconEntryView(strongsId: id, tabId: tabId, compact: true)
             } else {

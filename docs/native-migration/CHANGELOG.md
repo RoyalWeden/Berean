@@ -602,3 +602,7 @@
 ### 2026-11-14 — Cross-reference actions
 - Added edition-qualified reference copy, preview copy and explicit new-tab navigation to cross-reference rows on Mac and iPhone.
 - Both Dev builds passed. Mac Dev showed the new controls in expanded Classic cross references.
+
+### 2026-11-14 — Cross references for selected verses
+- The Mac and iPhone selection bars now pass all selected verses to the cross-reference inspector. Multiple source verses are grouped and the heading shows the complete reference.
+- Both native Dev builds passed. Live multi-verse and source-switching checks remain open.

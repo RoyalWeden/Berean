@@ -338,6 +338,7 @@ struct CrossRefsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
+    var selectedVerses: [Int] = []
     @AppStorage("crossrefSource") private var source = "tske"
     @State private var loadedReference: String?
     @State private var groups: [ReferenceGroup] = []
@@ -369,7 +370,7 @@ struct CrossRefsView: View {
     }
 
     var body: some View {
-        let reference = "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(textId)|\(source)"
+        let reference = "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(selectedVerses)|\(textId)|\(source)"
         VStack(spacing: 0) {
             Picker("Source", selection: $source) {
                 Text("TSKe").tag("tske")
@@ -377,7 +378,8 @@ struct CrossRefsView: View {
             }
             .pickerStyle(.segmented)
             .padding(8)
-            Text(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId)))
+            Text(ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter,
+                                 verse: verse, verseGroups: consecutiveVerseRuns(Set(selectedVerses))).label)
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
@@ -392,7 +394,7 @@ struct CrossRefsView: View {
             } else {
                 List {
                     ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                        if verse == nil {
+                        if verse == nil || selectedVerses.count > 1 {
                             DisclosureGroup(groupTitle(group)) { referenceRows(group.rows) }
                         } else if let heading = group.heading {
                             Section(heading) { referenceRows(group.rows) }
@@ -420,17 +422,29 @@ struct CrossRefsView: View {
 
     private func load(_ reference: String) async {
         let result: (groups: [ReferenceGroup], error: Bool)
-        if source == "classic" {
-            if let verse {
-                let data = await app.crossrefs.forVerse(bookId, chapter, verse, textId: textId)
-                result = (data.refs.isEmpty ? [] : [ReferenceGroup(verse: verse, heading: nil, rows: data.refs.map(ReferenceRow.init))], data.error)
-            } else {
-                let data = await app.crossrefs.forChapter(bookId, chapter, textId: textId)
-                result = (data.verseRefs.map { ReferenceGroup(verse: $0.verseNum, heading: nil, rows: $0.refs.map(ReferenceRow.init)) }, data.error)
+        let targets = selectedVerses.isEmpty ? verse.map { [$0] } ?? [] : selectedVerses
+        let classic = source == "classic"
+        if !targets.isEmpty {
+            var selectedGroups: [ReferenceGroup] = []
+            var hadError = false
+            for selected in targets {
+                guard !Task.isCancelled else { return }
+                if classic {
+                    let data = await app.crossrefs.forVerse(bookId, chapter, selected, textId: textId)
+                    if !data.refs.isEmpty {
+                        selectedGroups.append(ReferenceGroup(verse: selected, heading: nil, rows: data.refs.map(ReferenceRow.init)))
+                    }
+                    hadError = hadError || data.error
+                } else {
+                    let data = await app.crossrefs.tskeForVerse(bookId, chapter, selected, textId: textId)
+                    selectedGroups += tskeGroups(data.groups, verse: selected)
+                    hadError = hadError || data.error
+                }
             }
-        } else if let verse {
-            let data = await app.crossrefs.tskeForVerse(bookId, chapter, verse, textId: textId)
-            result = (tskeGroups(data.groups, verse: verse), data.error)
+            result = (selectedGroups, hadError)
+        } else if classic {
+            let data = await app.crossrefs.forChapter(bookId, chapter, textId: textId)
+            result = (data.verseRefs.map { ReferenceGroup(verse: $0.verseNum, heading: nil, rows: $0.refs.map(ReferenceRow.init)) }, data.error)
         } else {
             let data = await app.crossrefs.tskeForChapter(bookId, chapter, textId: textId)
             result = (data.verseRefs.flatMap { tskeGroups($0.groups, verse: $0.verseNum) }, data.error)
