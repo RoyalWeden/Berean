@@ -15,6 +15,39 @@ struct IOSRootView: View {
     @State private var showScriptureDisplay = false
     @State private var chapterTagTarget: ChapterTagTarget?
     @State private var findRequest = 0
+    @State private var alternateEdition: ChapterEdition?
+
+    private struct ChapterEdition: Equatable {
+        let book: String
+        let chapter: Int
+        let text: String
+
+        init(_ state: BibleState) {
+            book = state.bookId
+            chapter = state.chapter
+            text = state.translation
+        }
+
+        private init(book: String, chapter: Int, text: String) {
+            self.book = book
+            self.chapter = chapter
+            self.text = text
+        }
+
+        var counterpart: Self? {
+            let other: String
+            if ChapterMap.isLxx(text) { other = "kjva" }
+            else if ChapterMap.isKjv(text) { other = "lxx" }
+            else { return nil }
+            return Self(book: book, chapter: ChapterMap.mapChapter(book, chapter, from: text, to: other), text: other)
+        }
+    }
+
+    private var readerEdition: ChapterEdition? {
+        guard let tab = app.activeTab, tab.tabType == .bible else { return nil }
+        let state = BibleState(tab.state)
+        return state.compareMode ? nil : ChapterEdition(state)
+    }
 
     var body: some View {
         @Bindable var app = app
@@ -23,6 +56,13 @@ struct IOSRootView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         }
         .studyTrailSheet(app: app)
+        .task(id: readerEdition) {
+            alternateEdition = nil
+            guard let source = readerEdition, let target = source.counterpart else { return }
+            let chapters = await app.bible.chapterNumbers(target.book, textId: target.text)
+            guard !Task.isCancelled, readerEdition == source, chapters.contains(target.chapter) else { return }
+            alternateEdition = target
+        }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .sheet(item: $chapterTagTarget) { target in
             TagPickerView(ranges: target.ranges, label: target.label, kind: "chapter")
@@ -140,6 +180,20 @@ struct IOSRootView: View {
                 Section {
                     if !st.compareMode {
                         Button("Find in Chapter", systemImage: "magnifyingglass") { findRequest += 1 }
+                        let source = ChapterEdition(st)
+                        if let target = alternateEdition, target == source.counterpart {
+                            Button("Switch to \(textInfo(target.text).short)", systemImage: "arrow.left.arrow.right") {
+                                guard app.activeTab?.id == tab.id, readerEdition == source else { return }
+                                mutate(tab.id) {
+                                    $0.translation = target.text
+                                    $0.chapter = target.chapter
+                                    $0.verse = nil
+                                    $0.endVerse = nil
+                                }
+                                app.recordRecent(textId: target.text, bookId: target.book, chapter: target.chapter,
+                                                 verse: nil, endVerse: nil)
+                            }
+                        }
                     }
                     Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" } } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }
                     Button("Notes for This Chapter", systemImage: "note.text") {

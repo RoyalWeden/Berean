@@ -555,3 +555,7 @@
 - Fit the iPhone sheet to its available width and keep the passage visible in the navigation bar.
 - Expose tag selection and selected count, preserve selections on keyboard submission, and report library failures.
 - Both Dev builds passed. Checked the heading, selected trait, and cancellation on the iPhone Simulator.
+
+### 2026-11-14 — Quick translation switching on iPhone
+- Restored the legacy KJVA/LXX shortcut using chapter mapping and installed chapter coverage.
+- iPhone Dev build passed. Verified Psalm numbering, Back, and unchanged tab count on iOS 27 Simulator.
