@@ -4,6 +4,22 @@ import BereanBible
 import BereanText
 import BereanReference
 
+struct ScriptureSearchRequest: Hashable {
+    let query: String
+    let texts: [String]
+    let mode: WordMode
+    let books: [String]
+    let replacer: Bool
+}
+
+struct ScriptureSearchScrollContext: Hashable {
+    let request: ScriptureSearchRequest
+    let testament: String
+    let edition: String?
+    let sort: String
+    let grouping: String
+}
+
 /// The Search tab: one field, an obvious scope (All Texts by default — every installed text), readable results.
 /// Everything else (match mode, testament and book filters, ordering, grouping) is one click away in Options.
 /// Search state lives in the tab (query, scope, options) so it survives navigation and relaunch.
@@ -18,18 +34,10 @@ struct ScriptureSearchView: View {
     @State private var visibleRow: String?
     @FocusState private var fieldFocused: Bool
 
-    private struct SearchRequest: Equatable {
-        let query: String
-        let texts: [String]
-        let mode: WordMode
-        let books: [String]
-        let replacer: Bool
-    }
+    @State private var completedRequest: ScriptureSearchRequest?
 
-    @State private var completedRequest: SearchRequest?
-
-    private var request: SearchRequest {
-        SearchRequest(query: query, texts: targets, mode: mode, books: bookFilter,
+    private var request: ScriptureSearchRequest {
+        ScriptureSearchRequest(query: query, texts: targets, mode: mode, books: bookFilter,
                       replacer: app.wordReplacerEnabled)
     }
 
@@ -195,7 +203,7 @@ struct ScriptureSearchView: View {
         }
     }
 
-    private func runSearch(_ request: SearchRequest) async {
+    private func runSearch(_ request: ScriptureSearchRequest) async {
         let q = request.query
         guard q.utf16.count >= 2 else {
             loading = false
@@ -311,10 +319,11 @@ struct ScriptureSearchView: View {
                     .scrollTargetLayout()
                 }
                 .scrollPosition(id: $visibleRow, anchor: .top)
-                .task(id: restorationContext) {
-                    guard let context = restorationContext else { return }
-                    let clicked = app.searchResultAnchors[tabId]?.removeValue(forKey: context.query)
-                    let remembered = app.searchVisibleRows[tabId]?[context.query]
+                .task(id: restorationContext) { [restorationContext] in
+                    guard !Task.isCancelled, let context = restorationContext else { return }
+                    visibleRow = nil
+                    let clicked = app.searchResultAnchors[tabId]?.removeValue(forKey: context)
+                    let remembered = app.searchVisibleRows[tabId]?[context]
                     if let clicked, shown.contains(where: { resultID($0) == clicked }) {
                         proxy.scrollTo(clicked, anchor: .center)
                     } else if let remembered, shown.contains(where: { resultID($0) == remembered }) {
@@ -324,9 +333,10 @@ struct ScriptureSearchView: View {
                 .onScrollPhaseChange { old, new in
                     guard old != .idle, new == .idle, let visibleRow,
                           let context = restorationContext else { return }
-                    app.searchVisibleRows[tabId, default: [:]][context.query] = visibleRow
+                    app.searchVisibleRows[tabId, default: [:]][context] = visibleRow
                 }
             }
+            .id(scrollContext)
         }
     }
 
@@ -347,9 +357,14 @@ struct ScriptureSearchView: View {
         }
     }
 
-    private var restorationContext: SearchRequest? {
+    private var scrollContext: ScriptureSearchScrollContext {
+        ScriptureSearchScrollContext(request: request, testament: testament, edition: focusText,
+                                     sort: sort, grouping: grouping)
+    }
+
+    private var restorationContext: ScriptureSearchScrollContext? {
         guard app.activeTab?.id == tabId, !searchPending, !shown.isEmpty else { return nil }
-        return request
+        return scrollContext
     }
 
     private func resultID(_ hit: ScriptureHit) -> String {
@@ -357,7 +372,7 @@ struct ScriptureSearchView: View {
     }
 
     private func openResult(_ hit: ScriptureHit, passage: ResolvedPassage, reuseTab: Bool = true) {
-        app.searchResultAnchors[tabId, default: [:]][query] = resultID(hit)
+        app.searchResultAnchors[tabId, default: [:]][scrollContext] = resultID(hit)
         app.visitScripture(passage, reuseTab: reuseTab, returningTo: tabId)
     }
 

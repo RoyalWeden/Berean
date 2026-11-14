@@ -530,8 +530,8 @@ final class AppModel {
         case tab(String)
     }
 
-    @ObservationIgnored var searchResultAnchors: [String: [String: String]] = [:]
-    @ObservationIgnored var searchVisibleRows: [String: [String: String]] = [:]
+    @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
+    @ObservationIgnored var searchVisibleRows: [String: [ScriptureSearchScrollContext: String]] = [:]
     private var backStack: [String: [TabHistoryEntry]] = [:]
     private var forwardStack: [String: [TabHistoryEntry]] = [:]
 

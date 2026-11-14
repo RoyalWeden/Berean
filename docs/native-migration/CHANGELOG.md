@@ -970,3 +970,7 @@
 ### 2026-11-14 — Scripture Search scroll restoration
 - Remember the visible result when returning to a Search tab without opening a passage.
 - Both Dev builds passed. Live scrolling and history checks remain open.
+
+### 2026-11-14 — Search filter scroll positions
+- Kept separate result positions for different filters, sorts and groups within a Search tab.
+- Both Dev builds passed. Live filter switching remains to verify.
