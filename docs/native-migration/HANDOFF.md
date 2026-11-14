@@ -492,3 +492,5 @@ The verse action capsule now applies icon-only styling to the visible button fac
 ### iPhone pinch-to-resize Scripture
 
 The existing Scripture text-size setting can now be adjusted with a two-finger pinch. The reader previews whole-point sizes from the same range as Settings, shows a size badge and saves only when the gesture completes. Cancellation clears the preview. Active character selection takes priority, and the chapter swipe remains one-finger. Both Dev builds passed. Use a physical device or Simulator multitouch to verify bounds, cancellation, range and scroll retention, and gesture arbitration. Compare mode has its own view and still needs equivalent coverage.
+
+Mac View now offers Increase Scripture Text Size (⌘=), Decrease Scripture Text Size (⌘−), and Reset Scripture Text Size (⌘0). These affect Scripture and Compare, including the persisted display preference, and share the size limits with iPhone pinch and the Settings slider. The original shortcuts adjusted app-wide zoom. Native check passed with 103 tests and both Dev builds. Live QA remains for keyboard routing with the reader focused, menu states at bounds, and visual anchor retention.

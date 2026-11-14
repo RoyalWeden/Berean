@@ -42,7 +42,6 @@ struct SettingsView: View {
 }
 
 struct ScriptureDisplayOptions: View {
-    static let fontSizeRange: ClosedRange<Double> = 12...30
     @Environment(AppModel.self) private var app
     @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
@@ -52,7 +51,7 @@ struct ScriptureDisplayOptions: View {
         @Bindable var app = app
         LabeledContent("Text size") {
             HStack {
-                Slider(value: $app.fontSize, in: Self.fontSizeRange, step: 1) {
+                Slider(value: $app.fontSize, in: ScriptureTextSize.range, step: 1) {
                     Text("Text size")
                 }
                 .labelsHidden()

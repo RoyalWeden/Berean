@@ -117,7 +117,7 @@ final class AppModel {
     /// Saved workspaces (newest first), shared with the existing apps' Settings → Layout list.
     var savedWorkspaces: [SavedWorkspace] = []
     /// Reading preferences (settings table keys shared with the existing apps where they exist).
-    var fontSize: Double = 16 { didSet { saveSetting("fontSize", .number(fontSize)) } }
+    var fontSize: Double = ScriptureTextSize.standard { didSet { saveSetting("fontSize", .number(fontSize)) } }
     var lineHeight = "comfortable" { didSet { saveSetting("lineHeight", .string(JSString(lineHeight))) } }
     var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
     var hermasEdition = HermasText.taylor { didSet { saveSetting("hermasTranslation", .string(JSString(hermasEdition.rawValue))) } }

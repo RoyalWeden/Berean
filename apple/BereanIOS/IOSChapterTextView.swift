@@ -588,8 +588,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 pinchStartSize = parent.style.fontSize
             case .changed:
                 guard let start = pinchStartSize, gesture.scale.isFinite else { return }
-                let range = ScriptureDisplayOptions.fontSizeRange
-                let size = min(range.upperBound, max(range.lowerBound, (start * gesture.scale).rounded()))
+                let size = ScriptureTextSize.clamped((start * gesture.scale).rounded())
                 guard size != (pinchPreviewSize ?? start) else { return }
                 pinchPreviewSize = size
                 parent.onPinchPreview(size)

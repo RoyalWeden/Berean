@@ -712,3 +712,8 @@
 ### 2026-11-14 — iPhone Scripture pinch-to-resize
 - Brought the legacy Scripture pinch interaction to the native iPhone reader with a live point-size badge and one settings write on completion.
 - Both native Dev builds passed. Multitouch runtime verification remains open.
+
+### 2026-11-14 — Mac Scripture text-size shortcuts
+- Added View menu commands for increasing, decreasing and resetting Scripture size using the original zoom key combinations.
+- Shared default and bounds across Mac commands, the Settings slider and iPhone pinch.
+- Full native check passed with 103 tests and both Dev builds.

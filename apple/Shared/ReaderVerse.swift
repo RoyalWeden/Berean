@@ -19,6 +19,15 @@ struct ReaderVerse: Equatable {
     var displayText: String { words.map(\.text).joined(separator: " ") }
 }
 
+enum ScriptureTextSize {
+    static let standard: Double = 16
+    static let range: ClosedRange<Double> = 12...30
+
+    static func clamped(_ size: Double) -> Double {
+        min(range.upperBound, max(range.lowerBound, size))
+    }
+}
+
 struct ReaderStyle: Equatable {
     var fontSize: Double
     var lineSpacing: CGFloat
