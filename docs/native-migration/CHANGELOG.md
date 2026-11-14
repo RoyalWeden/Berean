@@ -905,3 +905,7 @@
 ### 2026-11-14 — Consistent inline formatting
 - Reapplying inline note formatting now toggles it off on iPhone, using the same selection edit as Mac.
 - Native tests and both Dev builds passed.
+
+### 2026-11-14 — Native note headings
+- Added Body and Heading 1–3 to the Notes Format menu on Mac and iPhone.
+- Both Dev builds passed.

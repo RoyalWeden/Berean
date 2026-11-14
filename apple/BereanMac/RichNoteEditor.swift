@@ -56,7 +56,10 @@ struct RichNoteEditor: NSViewRepresentable {
             DispatchQueue.main.async { [weak c] in
                 guard let c, c.parent.formatRequest == request, let editor = c.textView,
                       let window = editor.window else { return }
-                editor.wrapSelection(request.prefix, request.suffix)
+                switch request.action {
+                case .inline(let open, let close): editor.wrapSelection(open, close)
+                case .heading(let level): editor.setHeading(level)
+                }
                 window.makeFirstResponder(editor)
             }
         }
@@ -214,13 +217,8 @@ final class NoteTextView: NSTextView {
     }
 
     func setHeading(_ level: Int) {
-        let s = string as NSString
-        let line = s.lineRange(for: selectedRange())
-        var text = s.substring(with: line)
-        while text.hasPrefix("#") { text.removeFirst() }
-        text = text.trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
-        let prefix = level > 0 ? String(repeating: "#", count: level) + " " : ""
-        replace(line, with: prefix + text, select: NSRange(location: line.location + prefix.utf16.count + max(0, (text as NSString).length - (text.hasSuffix("\n") ? 1 : 0)), length: 0))
+        guard let edit = noteHeadingEdit(in: string as NSString, selection: selectedRange(), level: level) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func toggleBulletList() {

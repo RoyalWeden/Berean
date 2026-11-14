@@ -42,7 +42,10 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         if let request = formatRequest, request != previousRequest {
             DispatchQueue.main.async { [weak coordinator, weak tv] in
                 guard coordinator?.parent.formatRequest == request, let tv, tv.window != nil else { return }
-                tv.wrap(request.prefix, request.suffix)
+                switch request.action {
+                case .inline(let open, let close): tv.wrap(open, close)
+                case .heading(let level): tv.setHeading(level)
+                }
                 tv.becomeFirstResponder()
             }
         }
@@ -188,8 +191,15 @@ final class NoteUITextView: UITextView {
     static let markdownType = "com.berean.note-markdown"
 
     func wrap(_ open: String, _ close: String) {
-        guard let edit = noteFormatEdit(in: (text ?? "") as NSString, selection: selectedRange,
-                                        opening: open, closing: close),
+        applyFormatEdit(noteFormatEdit(in: (text ?? "") as NSString, selection: selectedRange, opening: open, closing: close))
+    }
+
+    func setHeading(_ level: Int) {
+        applyFormatEdit(noteHeadingEdit(in: (text ?? "") as NSString, selection: selectedRange, level: level))
+    }
+
+    private func applyFormatEdit(_ edit: (range: NSRange, replacement: String, selection: NSRange)?) {
+        guard let edit,
               let start = position(from: beginningOfDocument, offset: edit.range.location),
               let end = position(from: start, offset: edit.range.length),
               let range = textRange(from: start, to: end) else { return }

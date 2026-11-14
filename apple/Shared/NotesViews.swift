@@ -32,8 +32,12 @@ extension Color {
 
 struct NoteFormatRequest: Equatable {
     let id = UUID()
-    let prefix: String
-    let suffix: String
+    enum Action: Equatable {
+        case inline(String, String)
+        case heading(Int)
+    }
+
+    let action: Action
 }
 
 /// TextKit selections and Markdown delimiter positions both use UTF-16 offsets.
@@ -55,6 +59,29 @@ func noteFormatEdit(in text: NSString, selection: NSRange, opening: String, clos
     }
     return (selection, opening + inner + closing,
             NSRange(location: selection.location + prefixLength, length: selection.length))
+}
+
+func noteHeadingEdit(in text: NSString, selection: NSRange, level: Int)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard (0...3).contains(level), selection.location <= text.length,
+          selection.length <= text.length - selection.location else { return nil }
+    // A selection ending at the start of the next line does not include that line.
+    let covered = NSRange(location: selection.location, length: max(0, selection.length - 1))
+    let range = text.lineRange(for: covered)
+    let prefix = level == 0 ? "" : String(repeating: "#", count: level) + " "
+    let lines = text.substring(with: range).components(separatedBy: "\n")
+    let replacement = lines.map { line in
+        if line.isEmpty, lines.count > 1 { return line }
+        let body = line.replacingOccurrences(of: #"^#{1,6}(?:[ \t]+|$)"#, with: "", options: .regularExpression)
+        return prefix + body
+    }.joined(separator: "\n")
+    guard replacement != text.substring(with: range) else { return nil }
+    if selection.length == 0 {
+        let content = replacement.trimmingCharacters(in: .newlines)
+        return (range, replacement, NSRange(location: range.location + content.utf16.count, length: 0))
+    }
+    let length = replacement.utf16.count - (replacement.hasSuffix("\n") ? 1 : 0)
+    return (range, replacement, NSRange(location: range.location, length: length))
 }
 
 /// One note with a native rich editor and version history.
@@ -134,6 +161,12 @@ struct NoteDetailView: View {
                     .help("Back to the notes list")
                 if let note {
                     Menu {
+                        Section("Paragraph") {
+                            Button("Body") { formatRequest = NoteFormatRequest(action: .heading(0)) }
+                            ForEach(1...3, id: \.self) { level in
+                                Button("Heading \(level)") { formatRequest = NoteFormatRequest(action: .heading(level)) }
+                            }
+                        }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")
                         formatButton("Underline", symbol: "underline", prefix: "<u>", suffix: "</u>")
@@ -248,7 +281,7 @@ struct NoteDetailView: View {
 
     private func formatButton(_ title: String, symbol: String, prefix: String, suffix: String) -> some View {
         Button(title, systemImage: symbol) {
-            formatRequest = NoteFormatRequest(prefix: prefix, suffix: suffix)
+            formatRequest = NoteFormatRequest(action: .inline(prefix, suffix))
         }
     }
 
