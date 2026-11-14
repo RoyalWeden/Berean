@@ -471,7 +471,7 @@ struct NoteDetailView: View {
         #endif
         .toolbar {
             ToolbarItemGroup {
-                Button { saveNow(); app.openNote(nil) } label: { Label("All Notes", systemImage: "chevron.backward") }
+                Button { saveNow(); app.returnToNotesList() } label: { Label("All Notes", systemImage: "chevron.backward") }
                     .help("Back to the notes list")
                 if let note {
                     Menu {

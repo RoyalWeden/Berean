@@ -785,7 +785,19 @@ final class AppModel {
         openNote(nil, newTab: true)
     }
 
-    func openNote(_ id: String?, newTab: Bool = false) {
+    @ObservationIgnored private var noteListReturnTabs: [String: String] = [:]
+
+    func returnToNotesList() {
+        if let editor = activeTab, let source = noteListReturnTabs.removeValue(forKey: editor.id),
+           let tab = tabs(in: .notes).first(where: { $0.id == source }),
+           tab.tabType == .note, tab.state["noteId"]?.stringValue == nil {
+            select(source, in: .notes)
+            return
+        }
+        openNote(nil)
+    }
+
+    func openNote(_ id: String?, newTab: Bool = false, fromList source: String? = nil) {
         let note = id.flatMap { try? notes?.one($0) }
         if let note {
             refreshNoteTabTitles(note)
@@ -794,11 +806,13 @@ final class AppModel {
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = note?.displayTitle ?? "Notes"
         if !newTab, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
+            noteListReturnTabs[exact.id] = source == exact.id ? nil : source
             select(exact.id, in: .notes)
             return
         }
         if !newTab, let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }),
            t.tabType == .note, (!t.isPinned || id == nil), activeSpace == .notes {
+            noteListReturnTabs.removeValue(forKey: t.id)
             // Keep the Notes home location, so closing the note returns to the same folder.
             var title = title
             if let loc = t.state["listFolderId"] {
@@ -806,7 +820,12 @@ final class AppModel {
                 if id == nil { title = NotesHomeView.title(loc.stringValue?.string, (try? notes?.folders()) ?? []) }
             }
             update(t.id) { $0.state = o; $0.title = title }
-        } else { openTab(.note, in: .notes, title: title, state: o) }
+        } else {
+            openTab(.note, in: .notes, title: title, state: o)
+            if let source, let editor = activeTab, editor.id != source {
+                noteListReturnTabs[editor.id] = source
+            }
+        }
     }
 
     /// New note (optionally attached to a verse, e.g. "GEN.1.1" in `textId`), opened in the Notes space.

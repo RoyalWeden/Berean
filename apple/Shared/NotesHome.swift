@@ -486,7 +486,7 @@ struct NotesHomeView: View {
     }
 
     func noteRow(_ n: Note) -> some View {
-        Button { app.openNote(n.id) } label: {
+        Button { app.openNote(n.id, fromList: tabId) } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     if n.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange) }
