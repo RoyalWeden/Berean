@@ -523,3 +523,8 @@
 ### 2026-11-13 — Independent Compare passages
 
 - Mac and iPhone can change one Compare column's chapter or edition and open its exact destination in the reader. Saved columns retain their individual destinations and legacy metadata. Mixed passages use labeled sections.
+
+### 2026-11-14 — iPhone tab switcher search — VERIFIED
+- Branch `native/reader-notes`, after `f2eee0d`, draft PR #24.
+- Tabs shows search as the first list row, including a clear button while a query is active.
+- iOS Simulator Dev build and identity check passed. Verified search and tab reuse with a mixed verse reference on iPhone 18 Pro. Only the isolated Dev library was exercised.

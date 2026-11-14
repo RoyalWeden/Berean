@@ -171,6 +171,26 @@ struct TabCardsSheet: View {
         NavigationStack {
             List {
                 Section {
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        TextField("Search tabs", text: $query)
+                            .autocorrectionDisabled()
+                            .submitLabel(.search)
+                        if !query.isEmpty {
+                            Button {
+                                query = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Clear tab search")
+                        }
+                    }
+                }
+                Section {
                     NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
                         LabeledContent {
                             Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
@@ -204,7 +224,7 @@ struct TabCardsSheet: View {
                 }
                 WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() })
             }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search tabs")
+            .scrollDismissesKeyboard(.interactively)
             .sheet(isPresented: $showTabCleanup) { TabCleanupView() }
             .navigationTitle("Tabs")
             .navigationBarTitleDisplayMode(.inline)

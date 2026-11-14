@@ -368,3 +368,5 @@ iOS 27 Simulator verified Go → Obadiah 1:18–19, 21 LXX from an existing Obad
 iOS 27 Simulator verified Go → History → Obadiah 1:18–19, 21 reopened all three verses in the Septuagint. Opening History added its utility tab, bringing the workspace from 15 to 16 open tabs. Native note wikilinks now also pass the full resolved selection through the shared Scripture visit path. Both Dev builds passed. Live note wikilinks and Mac passage-picker behavior remain to verify.
 
 Native tab labels and tab search now include every group in a saved mixed Scripture selection. The switcher and reader share saved-selection validation so a stale selection from another chapter or edition cannot label the tab. Both Dev builds passed. Live switcher and archive filter checks remain open.
+
+iPhone Tabs opens with an inline Search tabs field visible at half height. The iOS 27 Simulator found Obadiah 1:18–19, 21 LXX from `18-19, 21`. Opening the result kept all three selected verses and left the workspace at 16 tabs. The iOS Dev build passed. Archive search and cross-workspace filtering with a large fixture remain open.
