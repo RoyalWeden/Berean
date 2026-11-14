@@ -819,6 +819,7 @@ final class AppModel {
         if !newTab, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
             noteListReturnTabs[exact.id] = source == exact.id ? nil : source
             select(exact.id, in: .notes)
+            recordTabReturn(to: source)
             return
         }
         if !newTab, let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }),
@@ -835,6 +836,7 @@ final class AppModel {
             openTab(.note, in: .notes, title: title, state: o)
             if let source, let editor = activeTab, editor.id != source {
                 noteListReturnTabs[editor.id] = source
+                recordTabReturn(to: source)
             }
         }
     }
