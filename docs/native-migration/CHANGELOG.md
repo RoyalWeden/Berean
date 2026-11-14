@@ -885,3 +885,7 @@
 ### 2026-11-14 — Lexicon entry navigation
 - Moved full-tab adjacent Strong’s entry controls into a floating capsule and removed the duplicate heading.
 - Both native Dev builds passed. Live layout and navigation checks remain open.
+
+### 2026-11-14 — Lexicon occurrence options
+- Grouped occurrence filters and sorting in one menu and enlarged result row hit areas.
+- Both native Dev builds passed.

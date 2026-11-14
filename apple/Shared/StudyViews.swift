@@ -79,25 +79,7 @@ struct LexiconEntryView: View {
                         } else if occurrences.isEmpty {
                             Text("No occurrences found").foregroundStyle(.secondary)
                         }
-                        if editions.count > 1 {
-                            Picker("Edition", selection: $occurrenceEdition) {
-                                Text("All Editions").tag(nil as String?)
-                                ForEach(editions, id: \.self) { edition in
-                                    Text(textInfo(edition).short).tag(Optional(edition))
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
                         let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
-                        if books.count > 1 {
-                            Picker("Book", selection: $occurrenceBook) {
-                                Text("All Books").tag(nil as String?)
-                                ForEach(books.keys.sorted { Reference.bookName($0) < Reference.bookName($1) }, id: \.self) { book in
-                                    Text("\(Reference.bookName(book)) (\(books[book]?.count ?? 0))").tag(Optional(book))
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
                         let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
                         let indexed = scoped.enumerated().map { index, occurrence in
                             let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
@@ -106,40 +88,28 @@ struct LexiconEntryView: View {
                         let forms = indexed.reduce(into: [String: Int]()) { counts, row in
                             for word in row.2 { counts[word, default: 0] += 1 }
                         }
-                        if forms.count > 1 {
-                            Menu {
-                                ForEach(forms.keys.sorted { (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1) }, id: \.self) { word in
-                                    Toggle("\(word) (\(forms[word] ?? 0))", isOn: Binding(
-                                        get: { selectedRenderings.contains(word) },
-                                        set: { included in
-                                            if included { selectedRenderings.insert(word) }
-                                            else { selectedRenderings.remove(word) }
-                                        }
-                                    ))
-                                }
-                                if !selectedRenderings.isEmpty {
-                                    Button("Clear Word Filter") { selectedRenderings = [] }
-                                }
-                            } label: {
-                                Label(selectedRenderings.isEmpty ? "Translated Words" : "Translated Words (\(selectedRenderings.count))",
-                                      systemImage: "text.magnifyingglass")
-                            }
-                        }
-                        if scoped.count > 1 {
-                            Picker("Sort Occurrences", selection: $sortByMatches) {
-                                Text("Default Order").tag(false)
-                                Text("Most Matches").tag(true)
-                            }
-                            .pickerStyle(.menu)
-                        }
                         let filtered = indexed.filter { selectedRenderings.isEmpty || !$0.2.isDisjoint(with: selectedRenderings) }
                         let matches = sortByMatches ? filtered.sorted {
                             (-$0.1.matchWordIndices.count, $0.0) < (-$1.1.matchWordIndices.count, $1.0)
                         } : filtered
-                        if !scoped.isEmpty {
-                            Text("\(matches.count) loaded occurrences")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        if !occurrences.isEmpty {
+                            HStack {
+                                Text("\(matches.count) loaded occurrences")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Spacer(minLength: 4)
+                                occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1)
+                            }
+                            let activeFilters = [
+                                occurrenceEdition.map { textInfo($0).short },
+                                occurrenceBook.map { Reference.bookName($0) },
+                                selectedRenderings.isEmpty ? nil : "\(selectedRenderings.count) translated words"
+                            ].compactMap { $0 }
+                            if !activeFilters.isEmpty {
+                                Text(activeFilters.joined(separator: " · "))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         if !occurrences.isEmpty {
                             Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
@@ -173,7 +143,8 @@ struct LexiconEntryView: View {
                                         }
                                         Text(highlighted(preview)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
                                     }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
+                                    .padding(.vertical, 4)
                                     .contentShape(.rect)
                                 }.buttonStyle(.interactivePlain)
                             }
@@ -255,6 +226,76 @@ struct LexiconEntryView: View {
     private func leaveInspector() {
         #if os(iOS)
         if compact { dismiss() }
+        #endif
+    }
+
+    private func occurrenceFilters(books: [String: [LexiconOccurrence]], forms: [String: Int], canSort: Bool) -> some View {
+        let filtered = occurrenceEdition != nil || occurrenceBook != nil || !selectedRenderings.isEmpty || sortByMatches
+        return Menu {
+            if editions.count > 1 {
+                Picker("Edition", selection: $occurrenceEdition) {
+                    Text("All Editions").tag(nil as String?)
+                    ForEach(editions, id: \.self) { edition in
+                        Text(textInfo(edition).short).tag(Optional(edition))
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            if books.count > 1 {
+                Picker("Book", selection: $occurrenceBook) {
+                    Text("All Books").tag(nil as String?)
+                    ForEach(books.keys.sorted { Reference.bookName($0) < Reference.bookName($1) }, id: \.self) { book in
+                        Text("\(Reference.bookName(book)) (\(books[book]?.count ?? 0))").tag(Optional(book))
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            if forms.count > 1 {
+                Menu {
+                    ForEach(forms.keys.sorted { (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1) }, id: \.self) { word in
+                        Toggle("\(word) (\(forms[word] ?? 0))", isOn: Binding(
+                            get: { selectedRenderings.contains(word) },
+                            set: { included in
+                                if included { selectedRenderings.insert(word) }
+                                else { selectedRenderings.remove(word) }
+                            }
+                        ))
+                    }
+                    if !selectedRenderings.isEmpty {
+                        Button("Clear Word Filter") { selectedRenderings = [] }
+                    }
+                } label: {
+                    Label(selectedRenderings.isEmpty ? "Translated Words" : "Translated Words (\(selectedRenderings.count))",
+                          systemImage: "text.magnifyingglass")
+                }
+            }
+            if canSort {
+                Picker("Sort Occurrences", selection: $sortByMatches) {
+                    Text("Default Order").tag(false)
+                    Text("Most Matches").tag(true)
+                }
+                .pickerStyle(.menu)
+            }
+            if filtered {
+                Button("Reset Options") {
+                    occurrenceEdition = nil
+                    occurrenceBook = nil
+                    selectedRenderings = []
+                    sortByMatches = false
+                }
+            }
+        } label: {
+            Label("Occurrence Options", systemImage: filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                .labelStyle(.iconOnly)
+                .frame(minWidth: entryControlHeight, minHeight: entryControlHeight)
+                .contentShape(.rect)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        #if os(macOS)
+        .pointerStyle(.link)
+        #else
+        .hoverEffect(.highlight)
         #endif
     }
 
