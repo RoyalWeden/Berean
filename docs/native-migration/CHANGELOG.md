@@ -528,3 +528,8 @@
 - Branch `native/reader-notes`, after `f2eee0d`, draft PR #24.
 - Tabs shows search as the first list row, including a clear button while a query is active.
 - iOS Simulator Dev build and identity check passed. Verified search and tab reuse with a mixed verse reference on iPhone 18 Pro. Only the isolated Dev library was exercised.
+
+### 2026-11-14 — iPhone workspace and archive search — VERIFIED
+- Shared the inline tab search field across the three iPhone tab-management lists.
+- Verified a mixed Scripture reference in Workspaces and Archived Tabs on the iOS 27 Simulator. Archive and restore preserved the full selection and returned the original tab count.
+- iOS Dev build and identity check passed. Used the isolated Dev library.

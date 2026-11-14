@@ -15,6 +15,10 @@
 - Draft PR #24 includes Mac workspace tab filtering, a larger Mac verse click area, Strong’s hover glosses and search match marking, shared Hermas edition settings, and sunrise-aware Today.
 - Mac runtime verified title filtering and Shift-click range selection. See HANDOFF for the targeted iPhone and settings checks still open.
 
+## 2026-11-14 tab management
+
+- iPhone Tabs, Workspaces, and Archived Tabs expose search on entry. Verified a mixed Scripture reference in all three, including archive and restore with the full selection preserved. See HANDOFF for remaining large-list and cross-workspace checks.
+
 ## Initial snapshot
 - Updated at: 2026-11-07 18:45 PST
 - Master specification: `/Users/roywe/Downloads/Berean Native Migration Master Specification.docx`

@@ -170,26 +170,7 @@ struct TabCardsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                        TextField("Search tabs", text: $query)
-                            .autocorrectionDisabled()
-                            .submitLabel(.search)
-                        if !query.isEmpty {
-                            Button {
-                                query = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Clear tab search")
-                        }
-                    }
-                }
+                TabSearchField(prompt: "Search tabs", query: $query)
                 Section {
                     NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
                         LabeledContent {
@@ -280,6 +261,34 @@ struct TabCardsSheet: View {
     }
 }
 
+private struct TabSearchField: View {
+    let prompt: String
+    @Binding var query: String
+
+    var body: some View {
+        Section {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                TextField(prompt, text: $query)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+        }
+    }
+}
+
 /// Workspaces (ADR-0011): one list — live workspaces, then saved ones not open — with switch, new, rename, duplicate,
 /// delete; "Save Snapshot" is a secondary action on the current workspace.
 private struct WorkspaceTabResults: View {
@@ -324,6 +333,7 @@ struct SessionsPage: View {
 
     var body: some View {
         List {
+            TabSearchField(prompt: "Workspace or tab title", query: $query)
             WorkspaceTabResults(title: "Open Tabs", matches: app.matchingWorkspaceTabs(query), onOpen: closeTabs)
             Section {
                 ForEach(app.workspaceItems.filter { $0.matches(query.trimmingCharacters(in: .whitespacesAndNewlines)) }) { w in
@@ -357,7 +367,7 @@ struct SessionsPage: View {
             } footer: { Text("A workspace is a set of tabs you study with. Switching workspaces swaps the tabs you see. Touch and hold a workspace for more.") }
         }
         .navigationTitle("Workspaces")
-        .searchable(text: $query, prompt: "Workspace or tab title")
+        .scrollDismissesKeyboard(.interactively)
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
             Button("Rename") { if let r = renaming { app.rename(r, to: name) }; renaming = nil }
@@ -388,6 +398,9 @@ struct ArchivedTabsPage: View {
 
     var body: some View {
         List {
+            if !app.archivedGroups.isEmpty {
+                TabSearchField(prompt: "Search archived tabs", query: $query)
+            }
             ForEach(app.archivedGroups) { group in
                 let tabs = app.archivedTabs(group)
                 let matches = tabs.filter { self.matches($0) }
@@ -431,6 +444,6 @@ struct ArchivedTabsPage: View {
             }
         }
         .navigationTitle("Archived Tabs")
-        .searchable(text: $query, prompt: "Search archived tabs")
+        .scrollDismissesKeyboard(.interactively)
     }
 }
