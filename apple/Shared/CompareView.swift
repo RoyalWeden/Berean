@@ -355,10 +355,16 @@ struct CompareView: View {
                     if showVerseNumbers { verseButton(verse, state: state, selected: selected.contains(verse)) }
                     ForEach(columns.filter { available.contains($0.id) }) { text in
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(textInfo(text.text).short)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            comparisonText(verse, text: text, state: state)
+                            HStack(spacing: 4) {
+                                Text(textInfo(text.text).short)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                Spacer(minLength: 4)
+                                if let row = rows[verse]?[text.id] {
+                                    comparisonVerseControls(row, column: text)
+                                }
+                            }
+                            comparisonText(verse, text: text, state: state, showsControls: false)
                         }
                     }
                 }
@@ -553,7 +559,7 @@ struct CompareView: View {
         return referenceForCopy(label, textId: column.text)
     }
 
-    private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState) -> some View {
+    private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState, showsControls: Bool = true) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             VStack(alignment: .leading, spacing: 4) {
                 VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
@@ -579,23 +585,27 @@ struct CompareView: View {
                     }
                 }
             }
-            if let count = chapterNoteCounts[EditionChapter(row, text: column.text)]?[row.verseNum], count > 0 {
-                Button {
-                    openReader(row, in: column, inspector: "notes")
-                } label: {
-                    Label("Notes (\(count))", systemImage: "note.text")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(Color.accentColor)
-                        .frame(minWidth: controlSize, minHeight: controlSize)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.interactivePlain)
-                .accessibilityLabel("\(count) \(count == 1 ? "note" : "notes") for \(comparisonVerseReference(row, column: column))")
-                .help("Open verse notes")
+            if showsControls { comparisonVerseControls(row, column: column) }
+        }
+    }
+
+    @ViewBuilder private func comparisonVerseControls(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
+        if let count = chapterNoteCounts[EditionChapter(row, text: column.text)]?[row.verseNum], count > 0 {
+            Button {
+                openReader(row, in: column, inspector: "notes")
+            } label: {
+                Label("Notes (\(count))", systemImage: "note.text")
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(minWidth: controlSize, minHeight: controlSize)
+                    .contentShape(.rect)
             }
-            VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {
-                comparisonVerseActions(row, column: column)
-            }
+            .buttonStyle(.interactivePlain)
+            .accessibilityLabel("\(count) \(count == 1 ? "note" : "notes") for \(comparisonVerseReference(row, column: column))")
+            .help("Open verse notes")
+        }
+        VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {
+            comparisonVerseActions(row, column: column)
         }
     }
 
@@ -627,7 +637,7 @@ struct CompareView: View {
                          verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
     }
 
-    @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState) -> some View {
+    @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState, showsControls: Bool = true) -> some View {
         let text = column.text
         if let row = rows[verse]?[column.id] {
             VStack(alignment: .leading, spacing: 3) {
@@ -636,7 +646,7 @@ struct CompareView: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-                comparisonVerseBody(row, column: column, state: state)
+                comparisonVerseBody(row, column: column, state: state, showsControls: showsControls)
             }
         } else {
             Text("—").foregroundStyle(.tertiary)
