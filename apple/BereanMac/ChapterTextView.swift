@@ -13,6 +13,8 @@ struct ChapterTextView: NSViewRepresentable {
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
+    var restoreOffset: () -> CGFloat? = { nil }
+    var saveOffset: (CGFloat) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
     var verseMenu: (Int) -> NSMenu
@@ -60,12 +62,18 @@ struct ChapterTextView: NSViewRepresentable {
         return scroll
     }
 
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        guard let parent = coordinator.parent, coordinator.lastPassage == parent.passageId else { return }
+        parent.saveOffset(max(0, scroll.contentView.bounds.minY))
+    }
+
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
         let clip = scroll.contentView
         let previousBounds = clip.bounds
+        let passageChanged = c.lastPassage != passageId
         let revealVerse = c.lastPassage == passageId
             ? selectedVerses.subtracting(c.renderedSelection).max() : nil
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
@@ -127,6 +135,18 @@ struct ChapterTextView: NSViewRepresentable {
                     clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
                     scroll.reflectScrolledClipView(clip)
                 }
+            }
+        }
+        if passageChanged, scrollTarget == nil, let offset = restoreOffset() {
+            DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
+                guard let tv, let scroll, let c, c.lastPassage == passageId,
+                      c.parent?.scrollTarget == nil, let container = tv.textContainer else { return }
+                tv.layoutManager?.ensureLayout(for: container)
+                let clip = scroll.contentView
+                var bounds = clip.bounds
+                bounds.origin.y = offset
+                clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
+                scroll.reflectScrolledClipView(clip)
             }
         }
         if scrollTarget == nil { c.scrolledTo = nil }

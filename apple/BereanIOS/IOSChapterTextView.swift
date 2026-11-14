@@ -18,6 +18,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     var baseFontSize: Double
     var selectedVerses: Set<Int>
     var scrollTarget: Int?
+    var restoreOffset: () -> CGFloat? = { nil }
+    var saveOffset: (CGFloat) -> Void = { _ in }
     var findRequest: Int
     var reference: (Int, Int) -> String
     var onStrongs: (String) -> Void
@@ -68,6 +70,11 @@ struct IOSChapterTextView: UIViewRepresentable {
             view.addGestureRecognizer(swipe)
         }
         return view
+    }
+
+    static func dismantleUIView(_ view: UITextView, coordinator: Coordinator) {
+        guard coordinator.passageId == coordinator.parent.passageId else { return }
+        coordinator.parent.saveOffset(max(0, view.contentOffset.y + view.adjustedContentInset.top))
     }
 
     func updateUIView(_ view: UITextView, context: Context) {
@@ -149,6 +156,16 @@ struct IOSChapterTextView: UIViewRepresentable {
                     let y = min(view.contentOffset.y + overlap, bottom)
                     view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
                 }
+            }
+        }
+        if !samePassage, scrollTarget == nil, let offset = restoreOffset() {
+            DispatchQueue.main.async { [weak view, weak coordinator] in
+                guard let view, let coordinator, coordinator.passageId == passageId,
+                      coordinator.parent.scrollTarget == nil else { return }
+                coordinator.layoutThroughEnd(of: NSRange(location: 0, length: view.textStorage.length), in: view)
+                let inset = view.adjustedContentInset
+                let maximum = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+                view.setContentOffset(CGPoint(x: 0, y: min(offset - inset.top, maximum)), animated: false)
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }

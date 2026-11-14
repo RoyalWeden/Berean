@@ -788,6 +788,8 @@ struct ScriptureView: View {
             baseFontSize: baseSize,
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
             scrollTarget: scrollTarget,
+            restoreOffset: { app.scriptureScrollOffsets[tabId]?[chapterKey(st)] },
+            saveOffset: { app.scriptureScrollOffsets[tabId, default: [:]][chapterKey(st)] = $0 },
             findRequest: findRequest,
             reference: { first, last in
                 let suffix = st.translation == "lxx" ? " LXX" : ""
@@ -1317,6 +1319,8 @@ extension ScriptureView {
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: readerStyle(st),
             selectedVerses: selection, scrollTarget: scrollTarget,
+            restoreOffset: { app.scriptureScrollOffsets[tabId]?[chapterKey(st)] },
+            saveOffset: { app.scriptureScrollOffsets[tabId, default: [:]][chapterKey(st)] = $0 },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
             rangeReference: { a, b in "\(referenceChapterLabel(st)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
             verseMenu: { verseNSMenu($0, st) },

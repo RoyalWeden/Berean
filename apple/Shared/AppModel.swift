@@ -535,6 +535,7 @@ final class AppModel {
     @ObservationIgnored var lexiconOccurrenceOptions: [String: [String: LexiconEntryView.OccurrenceOptions]] = [:]
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
+    @ObservationIgnored var scriptureScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesSearchOffsets: [String: [NotesHomeView.SearchPosition: CGFloat]] = [:]
     @ObservationIgnored var notesSearchReturnRows: [String: [NotesHomeView.SearchPosition: String]] = [:]
