@@ -219,6 +219,11 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             ])
             var items = suggestedActions
             if range.length > 0 { items.insert(UIAction(title: "Copy as Plain Text", image: UIImage(systemName: "doc.plaintext")) { _ in tv.copyPlain() }, at: 0) }
+            let tableActions = tv.tableNavigationActions(for: range)
+            if !tableActions.isEmpty {
+                items.insert(UIMenu(title: "Table", image: UIImage(systemName: "tablecells"),
+                                    children: tableActions), at: 0)
+            }
             items.insert(format, at: 0)
             return UIMenu(children: items)
         }
@@ -246,8 +251,29 @@ final class NoteUITextView: UITextView {
                                         backwards: backwards)
     }
 
+    func tableNavigationActions(for selection: NSRange) -> [UIAction] {
+        guard markedTextRange == nil else { return [] }
+        let source = (text ?? "") as NSString
+        return [true, false].compactMap { backwards in
+            guard noteTableCellDestination(in: source, selection: selection, backwards: backwards) != nil else {
+                return nil
+            }
+            return UIAction(title: backwards ? "Previous Cell" : "Next Cell",
+                            image: UIImage(systemName: backwards ? "chevron.backward" : "chevron.forward")) { [weak self] _ in
+                guard let self, (self.text ?? "") == source as String else { return }
+                self.moveTableCell(from: selection, backwards: backwards)
+            }
+        }
+    }
+
     @objc private func moveTableCell(_ command: UIKeyCommand) {
-        guard let destination = tableCellDestination(backwards: command.modifierFlags.contains(.shift)) else { return }
+        moveTableCell(from: selectedRange, backwards: command.modifierFlags.contains(.shift))
+    }
+
+    private func moveTableCell(from selection: NSRange, backwards: Bool) {
+        guard markedTextRange == nil,
+              let destination = noteTableCellDestination(in: (text ?? "") as NSString, selection: selection,
+                                                         backwards: backwards) else { return }
         selectedRange = destination
         scrollRangeToVisible(destination)
     }

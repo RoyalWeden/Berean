@@ -941,3 +941,8 @@
 ### 2026-11-14 — Native Notes table deletion
 - Added Delete Row and Delete Column to native Notes.
 - Both Dev builds and 26 focused table checks passed. Live undo and persistence remain open.
+
+### 2026-11-14 — Native Notes table menus
+- Grouped table editing commands under Format → Table on both platforms.
+- Added conditional Previous Cell and Next Cell actions to the iPhone text-edit menu.
+- Both Dev builds and iOS 27 simulator launch passed. Live menu interaction remains to verify.

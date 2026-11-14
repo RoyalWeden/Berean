@@ -488,20 +488,22 @@ struct NoteDetailView: View {
                                 }
                             }
                         }
-                        Button("Insert Table", systemImage: "tablecells") {
-                            formatRequest = NoteFormatRequest(action: .insertTable)
-                        }
-                        Button("Add Row Below", systemImage: "rectangle.split.1x2") {
-                            formatRequest = NoteFormatRequest(action: .addTableRow)
-                        }
-                        Button("Add Column After", systemImage: "rectangle.split.2x1") {
-                            formatRequest = NoteFormatRequest(action: .addTableColumn)
-                        }
-                        Button("Delete Row", systemImage: "minus.rectangle") {
-                            formatRequest = NoteFormatRequest(action: .deleteTableRow)
-                        }
-                        Button("Delete Column", systemImage: "minus.rectangle.portrait") {
-                            formatRequest = NoteFormatRequest(action: .deleteTableColumn)
+                        Menu("Table", systemImage: "tablecells") {
+                            Button("Insert Table", systemImage: "tablecells") {
+                                formatRequest = NoteFormatRequest(action: .insertTable)
+                            }
+                            Button("Add Row Below", systemImage: "rectangle.split.1x2") {
+                                formatRequest = NoteFormatRequest(action: .addTableRow)
+                            }
+                            Button("Add Column After", systemImage: "rectangle.split.2x1") {
+                                formatRequest = NoteFormatRequest(action: .addTableColumn)
+                            }
+                            Button("Delete Row", systemImage: "minus.rectangle") {
+                                formatRequest = NoteFormatRequest(action: .deleteTableRow)
+                            }
+                            Button("Delete Column", systemImage: "minus.rectangle.portrait") {
+                                formatRequest = NoteFormatRequest(action: .deleteTableColumn)
+                            }
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")
