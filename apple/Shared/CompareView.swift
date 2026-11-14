@@ -646,34 +646,52 @@ struct CompareView: View {
         setColumns(updated)
     }
 
+    private func readerPassage(for column: CompareColumn, source: BibleState) -> ResolvedPassage {
+        var passage = ResolvedPassage(textId: column.text, bookId: column.book, chapter: column.chapter, verse: nil)
+        guard column.follows(source), let first = source.verse,
+              columns.contains(where: { $0.id == column.id && $0.destinationKey == column.destinationKey }) else { return passage }
+
+        var selectionSource = source
+        selectionSource.compareMode = false
+        let saved = app.readerSelectedVerses(in: tabId, state: selectionSource)
+        let selected = saved.isEmpty ? [first] : saved
+        let mapped = selected.compactMap { rows[$0]?[column.id] }
+        let anchor = rows[first]?[column.id] ?? mapped.first
+        guard let anchor else { return passage }
+        passage.bookId = anchor.bookId
+        passage.chapter = anchor.chapter
+        passage.verse = anchor.verseNum
+        let group = consecutiveVerseRuns(Set(mapped.filter {
+            $0.bookId == anchor.bookId && $0.chapter == anchor.chapter
+        }.map(\.verseNum)))
+        if group.count == 1, let range = group.first, range.lowerBound == anchor.verseNum {
+            if range.upperBound > anchor.verseNum { passage.endVerse = range.upperBound }
+        } else if !group.isEmpty {
+            passage.verseGroups = group
+        }
+        return passage
+    }
+
     func setColumns(_ cols: [CompareColumn]) {
         let st = state
+        let passage = cols.count == 1 ? cols.first.map { readerPassage(for: $0, source: st) } : nil
         app.update(tabId) { t in
             if cols.count < 2 {
                 var reader = st
                 reader.compareMode = false
-                if let column = cols.first {
-                    let remaining = column.text
-                    reader.bookId = column.book
-                    reader.chapter = column.chapter
-                    if !column.follows(st) {
-                        reader.verse = nil
-                        reader.endVerse = nil
-                    } else if st.bookId == "JON", let verse = st.verse {
-                        let start = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: verse, from: st.translation, to: remaining)
-                            ?? (chapter: reader.chapter, verse: verse)
-                        reader.chapter = start.chapter
-                        reader.verse = start.verse
-                        reader.endVerse = st.endVerse.flatMap { end in
-                            let mapped = ChapterMap.jonahCounterpart(chapter: st.chapter, verse: end, from: st.translation, to: remaining)
-                                ?? (chapter: st.chapter, verse: end)
-                            return mapped.chapter == start.chapter && mapped.verse > start.verse ? mapped.verse : nil
-                        }
-                    }
-                    reader.translation = remaining
+                if let passage {
+                    reader.bookId = passage.bookId
+                    reader.chapter = passage.chapter
+                    reader.translation = passage.textId
+                    reader.verse = passage.verse
+                    reader.endVerse = passage.endVerse
                 }
                 t.state = reader.merged(into: t.state)
                 t.state.remove("compareColumns")
+                if let passage {
+                    t.state.remove("endChapter")
+                    t.state["nativeSelectedVerses"] = passage.savedSelection
+                }
                 t.title = Reference.readerChapterLabel(reader.bookId, reader.chapter, textId: reader.translation)
                 return
             }

@@ -793,3 +793,7 @@
 ### 2026-11-14 — Open compared verses in the same reader
 - Added a same-tab action to Compare verse menus, using the exact rendered edition, chapter and verse.
 - Both Dev builds passed.
+
+### 2026-11-14 — Selection transfer from Compare
+- Used column row mappings to carry whole-verse selections into the single reader.
+- Both Dev builds passed.
