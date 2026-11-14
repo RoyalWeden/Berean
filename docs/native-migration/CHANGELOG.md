@@ -773,3 +773,7 @@
 ### 2026-11-14 — Dynamic Type in iPhone Scripture
 - Scaled continuous Scripture with Dynamic Type while keeping pinch and Settings in base points.
 - iPhone Dev build passed. Large-size visual and gesture checks remain open.
+
+### 2026-11-14 — Dynamic Type in iPhone Compare
+- Scaled verse text and switched to stacked layouts at accessibility sizes.
+- Both Dev builds passed. Accessibility-size runtime QA remains open.

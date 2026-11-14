@@ -88,6 +88,26 @@ struct CompareColumn: Identifiable {
 struct CompareView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
+    #if os(iOS)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var scriptureTypeScale = 1.0
+    #endif
+
+    private var scriptureFontSize: Double {
+        #if os(iOS)
+        app.fontSize * scriptureTypeScale
+        #else
+        app.fontSize
+        #endif
+    }
+
+    private var prefersStackedComparison: Bool {
+        #if os(iOS)
+        dynamicTypeSize.isAccessibilitySize
+        #else
+        false
+        #endif
+    }
     @State private var rows: [Int: [Int: ChapterVerseRow]] = [:]
     @State private var independentRows: [Int: [ChapterVerseRow]] = [:]
     @State private var loadedPassage: String?
@@ -107,7 +127,7 @@ struct CompareView: View {
             if loadedPassage != passage {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if !cols.allSatisfy({ $0.follows(st) }) {
-                if geometry.size.width >= CGFloat(cols.count) * 260 {
+                if !prefersStackedComparison, geometry.size.width >= CGFloat(cols.count) * 260 {
                     independentPanes(cols)
                 } else {
                     ScrollView { independentComparison(cols) }
@@ -251,9 +271,13 @@ struct CompareView: View {
     private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                ViewThatFits(in: .horizontal) {
-                    comparisonGrid(state, columns)
+                if prefersStackedComparison {
                     stackedComparison(state, columns)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        comparisonGrid(state, columns)
+                        stackedComparison(state, columns)
+                    }
                 }
             }
             .contentMargins(.bottom, dockClearance, for: .scrollContent)
@@ -376,7 +400,7 @@ struct CompareView: View {
     private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
-                         fontSize: app.fontSize, lineSpacing: app.lineSpacing,
+                         fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
                          replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
                 .environment(\.openURL, strongsAction(for: row))
                 .frame(maxWidth: .infinity, alignment: .leading)
