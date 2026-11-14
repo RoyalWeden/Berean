@@ -530,6 +530,7 @@ final class AppModel {
         case tab(String)
     }
 
+    @ObservationIgnored var searchResultAnchors: [String: [String: String]] = [:]
     private var backStack: [String: [TabHistoryEntry]] = [:]
     private var forwardStack: [String: [TabHistoryEntry]] = [:]
 
@@ -666,6 +667,11 @@ final class AppModel {
                         canReplace: isAllTextsSearch,
                         matches: { isAllTextsSearch($0) && $0.state["query"]?.stringValue?.string == query })
         } else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
+        recordTabReturn(to: sourceTabID)
+        SearchHistory.record(query)
+    }
+
+    private func recordTabReturn(to sourceTabID: String?) {
         if let sourceTabID, let destination = activeTab?.id, sourceTabID != destination,
            orderedTabs.contains(where: { $0.id == sourceTabID }) {
             backStack[destination, default: []].append(.tab(sourceTabID))
@@ -673,7 +679,6 @@ final class AppModel {
             forwardStack[destination] = []
             forwardStack[sourceTabID] = []
         }
-        SearchHistory.record(query)
     }
 
     private struct StudyVerseFocus {
@@ -836,9 +841,10 @@ final class AppModel {
         }
     }
 
-    func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true) {
+    func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true, returningTo sourceTabID: String? = nil) {
         openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
                       endVerse: passage.endVerse, textId: passage.textId, reuseTab: reuseTab, verseGroups: passage.verseGroups)
+        recordTabReturn(to: sourceTabID)
         recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
                      verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
     }

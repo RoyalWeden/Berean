@@ -893,3 +893,7 @@
 ### 2026-11-14 — Lexicon and Scripture Search navigation
 - Added a Back/Forward link for Search Scripture actions from Lexicon.
 - Both native Dev builds passed. Cross-tab scroll restoration remains open.
+
+### 2026-11-14 — Return to a Scripture Search result
+- Linked result navigation back to the source Search tab and saved a scroll anchor for the opened row.
+- Both native Dev builds passed. Live restoration remains open.

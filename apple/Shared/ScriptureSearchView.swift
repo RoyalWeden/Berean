@@ -250,14 +250,20 @@ struct ScriptureSearchView: View {
                 if hasActiveOptions { Button("Reset Options") { set("wordMode", nil); set("testament", nil); set("bookIds", nil) } }
             }
         } else {
-            List {
-                if !result.truncatedTexts.isEmpty {
-                    Label("Showing the first \(ScriptureSearch.perTextLimit) matches in \(result.truncatedTexts.map { textInfo($0).short }.sorted().joined(separator: ", ")). Narrow the search with more words, a phrase, or a book filter.",
-                          systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+            ScrollViewReader { proxy in
+                List {
+                    if !result.truncatedTexts.isEmpty {
+                        Label("Showing the first \(ScriptureSearch.perTextLimit) matches in \(result.truncatedTexts.map { textInfo($0).short }.sorted().joined(separator: ", ")). Narrow the search with more words, a phrase, or a book filter.",
+                              systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                    }
+                    ForEach(groups, id: \.title) { g in
+                        if grouping == "none" { ForEach(g.hits, id: \.self) { row($0).id(resultID($0)) } }
+                        else { Section("\(g.title) — \(g.hits.count)") { ForEach(g.hits, id: \.self) { row($0).id(resultID($0)) } } }
+                    }
                 }
-                ForEach(groups, id: \.title) { g in
-                    if grouping == "none" { ForEach(g.hits, id: \.self) { row($0) } }
-                    else { Section("\(g.title) — \(g.hits.count)") { ForEach(g.hits, id: \.self) { row($0) } } }
+                .task(id: resultAnchor) {
+                    guard let resultAnchor, shown.contains(where: { resultID($0) == resultAnchor }) else { return }
+                    proxy.scrollTo(resultAnchor, anchor: .center)
                 }
             }
         }
@@ -280,12 +286,26 @@ struct ScriptureSearchView: View {
         }
     }
 
+    private var resultAnchor: String? {
+        let anchor = app.searchResultAnchors[tabId]?[query]
+        return shown.contains { resultID($0) == anchor } ? anchor : nil
+    }
+
+    private func resultID(_ hit: ScriptureHit) -> String {
+        "\(hit.textId)|\(hit.bookId)|\(hit.chapter)|\(hit.verseNum)"
+    }
+
+    private func openResult(_ hit: ScriptureHit, passage: ResolvedPassage, reuseTab: Bool = true) {
+        app.searchResultAnchors[tabId, default: [:]][query] = resultID(hit)
+        app.visitScripture(passage, reuseTab: reuseTab, returningTo: tabId)
+    }
+
     func row(_ h: ScriptureHit) -> some View {
         let passage = ResolvedPassage(textId: h.textId, bookId: h.bookId, chapter: h.chapter, verse: h.verseNum)
         let edition = textInfo(h.textId)
         return HStack(alignment: .top, spacing: 8) {
             Button {
-                app.visitScripture(passage)
+                openResult(h, passage: passage)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
@@ -315,7 +335,7 @@ struct ScriptureSearchView: View {
 
     @ViewBuilder private func resultActions(_ hit: ScriptureHit, passage: ResolvedPassage) -> some View {
         let reference = referenceForCopy(passage.label, textId: hit.textId)
-        Button("Open in New Tab", systemImage: "plus.square") { app.visitScripture(passage, reuseTab: false) }
+        Button("Open in New Tab", systemImage: "plus.square") { openResult(hit, passage: passage, reuseTab: false) }
         Button("Copy Verse", systemImage: "doc.on.doc") {
             Clipboard.copy("\(reference) \(displayText(hit))")
             AccessibilityNotification.Announcement("Verse copied").post()
