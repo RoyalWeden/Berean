@@ -43,7 +43,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.isSelectable = true
         view.isFindInteractionEnabled = true
         view.backgroundColor = .clear
-        view.textContainerInset = UIEdgeInsets(top: 16, left: 20, bottom: 24, right: 20)
+        view.textContainerInset = UIEdgeInsets(top: 16, left: style.width.phoneInset, bottom: 24, right: style.width.phoneInset)
         view.linkTextAttributes = [.underlineStyle: NSUnderlineStyle([]).rawValue]
         view.alwaysBounceVertical = true
         view.accessibilityLabel = "Scripture text"
@@ -81,6 +81,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             let selection = view.selectedRange
             let oldText = view.text
             let readingAnchor = samePassage ? coordinator.readingAnchor(in: view) : nil
+            if view.textContainerInset.left != style.width.phoneInset {
+                view.textContainerInset.left = style.width.phoneInset
+                view.textContainerInset.right = style.width.phoneInset
+            }
             view.attributedText = coordinator.render(key.dark)
             view.setNeedsLayout()
 

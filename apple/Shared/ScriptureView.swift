@@ -214,6 +214,7 @@ struct ScriptureView: View {
     @State private var noteCounts: [Int: Int] = [:]
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
+    @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showRedLetters") private var showRedLetters = true
     @State private var scrollTarget: Int?
@@ -1155,7 +1156,7 @@ extension ScriptureView {
 
     func readerStyle(_ st: BibleState) -> ReaderStyle {
         ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily,
-                    showStrongs: st.showStrongs, showVerseNumbers: showVerseNumbers, redLetters: showRedLetters)
+                    showStrongs: st.showStrongs, showVerseNumbers: showVerseNumbers, redLetters: showRedLetters, width: scriptureWidth)
     }
 
     /// Partial highlight: shown-word offsets → offsets into the stored verse text (OffsetMap), saved as a character highlight.

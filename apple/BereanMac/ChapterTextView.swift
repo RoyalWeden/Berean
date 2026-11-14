@@ -75,6 +75,7 @@ struct ChapterTextView: NSViewRepresentable {
             let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
             let sel = tv.selectedRanges
             let previousText = tv.string
+            tv.readerWidth = style.width
             tv.textStorage?.setAttributedString(c.build(self))
             tv.needsDisplay = true
             if keepScroll {
@@ -422,9 +423,17 @@ final class ReaderTextView: NSTextView {
     private var hovered: NSRange?
     private var tracking: NSTrackingArea?
 
+    var readerWidth = ScriptureWidth.normal {
+        didSet { if readerWidth != oldValue { updateReadingInset(for: frame.width) } }
+    }
+
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        let inset = max(20, (newSize.width - 760) / 2)
+        updateReadingInset(for: newSize.width)
+    }
+
+    private func updateReadingInset(for width: CGFloat) {
+        let inset = max(20, (width - readerWidth.macMaximum) / 2)
         if abs(textContainerInset.width - inset) > 0.5 { textContainerInset = NSSize(width: inset, height: 18) }
     }
 

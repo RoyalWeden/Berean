@@ -674,3 +674,7 @@
 ### 2026-11-14 — Character selection through reader reflow
 - Preserve character selections when formatting changes leave UTF-16 text intact, and clear stale offsets when rendered text changes.
 - Both Dev builds passed. Mac Dev verified a Strong's toggle round trip kept the late chapter verse selection.
+
+### 2026-11-14 — Scripture text width presets
+- Added Wide, Normal and Narrow to the native Scripture display preferences using device-local storage.
+- Both Dev builds passed. Visually verified iPhone Narrow with the selected final verses and dashed outline still above the floating actions.

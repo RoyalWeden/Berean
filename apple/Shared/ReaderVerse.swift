@@ -26,5 +26,28 @@ struct ReaderStyle: Equatable {
     var showStrongs: Bool
     var showVerseNumbers = true
     var redLetters = true
+    var width: ScriptureWidth = .normal
 }
 
+
+enum ScriptureWidth: String, CaseIterable {
+    case wide, normal, narrow
+
+    var label: String { rawValue.capitalized }
+
+    var macMaximum: CGFloat {
+        switch self {
+        case .wide: 920
+        case .normal: 760
+        case .narrow: 600
+        }
+    }
+
+    var phoneInset: CGFloat {
+        switch self {
+        case .wide: 12
+        case .normal: 20
+        case .narrow: 32
+        }
+    }
+}

@@ -43,6 +43,7 @@ struct SettingsView: View {
 
 struct ScriptureDisplayOptions: View {
     @Environment(AppModel.self) private var app
+    @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showRedLetters") private var showRedLetters = true
 
@@ -65,6 +66,9 @@ struct ScriptureDisplayOptions: View {
             Text("Compact").tag("compact")
             Text("Comfortable").tag("comfortable")
             Text("Spacious").tag("spacious")
+        }
+        Picker("Text width", selection: $scriptureWidth) {
+            ForEach(ScriptureWidth.allCases, id: \.self) { Text($0.label).tag($0) }
         }
         Toggle("Verse numbers", isOn: $showVerseNumbers)
         Toggle("Words of Yeshua in red", isOn: $showRedLetters)
