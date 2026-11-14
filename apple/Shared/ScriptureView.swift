@@ -345,9 +345,9 @@ struct ScriptureView: View {
                     unavailablePassage(st)
                 } else {
                     #if os(macOS)
-                    macReader(st)
+                    macReader(st, actionClearance: actionSpace)
                     #else
-                    iosReader(st)
+                    iosReader(st, actionClearance: actionSpace)
                     #endif
                 }
             }
@@ -368,12 +368,9 @@ struct ScriptureView: View {
                 }
             }
             #endif
-            if showActions {
-                selectionBar(st)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: actionSpace, alignment: .bottom)
-                    .background(.background)
-            }
+        }
+        .overlay(alignment: .bottom) {
+            if showActions { selectionBar(st) }
         }
         .padding(.bottom, ReaderFloatingControls.readerDockClearance)
         .onChange(of: SelectionDestination(st)) { _, destination in
@@ -797,7 +794,7 @@ struct ScriptureView: View {
     @State private var pinchFontSize: Double?
     @ScaledMetric(relativeTo: .body) private var scriptureTypeScale = 1.0
 
-    func iosReader(_ st: BibleState) -> some View {
+    func iosReader(_ st: BibleState, actionClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
         var style = readerStyle(st)
         let baseSize = pinchFontSize ?? style.fontSize
@@ -811,6 +808,7 @@ struct ScriptureView: View {
             baseFontSize: baseSize,
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
             scrollTarget: scrollTarget,
+            actionClearance: actionClearance,
             restorePosition: { app.restoreScripturePosition(tabId: tabId, edition: ChapterEdition(st)) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             findRequest: findRequest,
@@ -1341,7 +1339,7 @@ import AppKit
 
 extension ScriptureView {
     /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
-    func macReader(_ st: BibleState) -> some View {
+    func macReader(_ st: BibleState, actionClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
         let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
         let suffix = st.translation == "lxx" ? " LXX" : ""
@@ -1350,6 +1348,7 @@ extension ScriptureView {
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: readerStyle(st),
             selectedVerses: selection, scrollTarget: scrollTarget,
+            actionClearance: actionClearance,
             restorePosition: { app.restoreScripturePosition(tabId: tabId, edition: ChapterEdition(st)) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },

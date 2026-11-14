@@ -18,6 +18,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var baseFontSize: Double
     var selectedVerses: Set<Int>
     var scrollTarget: Int?
+    var actionClearance: CGFloat = 0
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var findRequest: Int
@@ -93,6 +94,18 @@ struct IOSChapterTextView: UIViewRepresentable {
         let previousSelection = coordinator.renderedSelection
         let revealVerse = samePassage ? selectedVerses.subtracting(previousSelection).max() : nil
         let previousOffset = view.contentOffset
+        if view.contentInset.bottom != actionClearance {
+            let inset = view.adjustedContentInset
+            let oldBottom = view.contentSize.height + inset.bottom - view.bounds.height
+            let stayAtEnd = samePassage && oldBottom > -inset.top + 1 && previousOffset.y >= oldBottom - 1
+            view.contentInset.bottom = actionClearance
+            view.verticalScrollIndicatorInsets.bottom = actionClearance
+            if stayAtEnd {
+                let newInset = view.adjustedContentInset
+                let bottom = max(-newInset.top, view.contentSize.height + newInset.bottom - view.bounds.height)
+                view.setContentOffset(CGPoint(x: previousOffset.x, y: bottom), animated: false)
+            }
+        }
         if key != coordinator.key || !samePassage {
             let selection = view.selectedRange
             let oldText = view.text
@@ -142,7 +155,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
         if let revealVerse, scrollTarget == nil {
             let currentPassage = passageId
-            // Wait for SwiftUI to install the shorter viewport above the floating actions.
+            // Reveal the line above the floating actions after layout.
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
                       coordinator.parent.passageId == currentPassage, coordinator.parent.scrollTarget == nil,

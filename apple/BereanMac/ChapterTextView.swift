@@ -13,6 +13,7 @@ struct ChapterTextView: NSViewRepresentable {
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
+    var actionClearance: CGFloat = 0
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
@@ -35,6 +36,7 @@ struct ChapterTextView: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
+        scroll.automaticallyAdjustsContentInsets = false
         let storage = NSTextStorage()
         let layout = NSLayoutManager()
         let container = NSTextContainer()
@@ -74,6 +76,17 @@ struct ChapterTextView: NSViewRepresentable {
         c.parent = self
         guard let tv = c.textView else { return }
         let clip = scroll.contentView
+        if scroll.contentInsets.bottom != actionClearance {
+            let bounds = clip.bounds
+            let end = clip.constrainBoundsRect(bounds.offsetBy(dx: 0, dy: clip.documentRect.height)).minY
+            let stayAtEnd = c.lastPassage == passageId && end > clip.documentRect.minY + 1 && bounds.minY >= end - 1
+            scroll.contentInsets.bottom = actionClearance
+            scroll.scrollerInsets.bottom = actionClearance
+            var destination = bounds
+            if stayAtEnd { destination.origin.y = clip.documentRect.maxY + actionClearance }
+            clip.scroll(to: clip.constrainBoundsRect(destination).origin)
+            scroll.reflectScrolledClipView(clip)
+        }
         let previousBounds = clip.bounds
         let passageChanged = c.lastPassage != passageId
         let revealVerse = c.lastPassage == passageId
@@ -120,7 +133,7 @@ struct ChapterTextView: NSViewRepresentable {
         }
         if let revealVerse, scrollTarget == nil {
             let destination = passageId
-            // Wait for SwiftUI to install the shorter viewport above the floating actions.
+            // Reveal the line above the floating actions after layout.
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll, let c, c.lastPassage == destination,
                       c.parent.passageId == destination, c.parent.scrollTarget == nil,
@@ -130,7 +143,7 @@ struct ChapterTextView: NSViewRepresentable {
                 tv.layoutManager?.ensureLayout(for: container)
                 guard let bottom = tv.lastVerseLineBottom(in: range) else { return }
                 let clip = scroll.contentView
-                let overlap = bottom + ReaderFloatingControls.readingGap - clip.bounds.maxY
+                let overlap = bottom + ReaderFloatingControls.readingGap - (clip.bounds.maxY - c.parent.actionClearance)
                 if overlap > 0 {
                     var proposed = clip.bounds
                     proposed.origin.y += overlap
@@ -171,8 +184,9 @@ struct ChapterTextView: NSViewRepresentable {
                        lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
                        let bottom = tv.lastVerseLineBottom(in: lastRange) {
                         let lastLine = bottom + ReaderFloatingControls.readingGap
-                        if lastLine - rect.minY <= proposed.height {
-                            proposed.origin.y = max(proposed.origin.y, lastLine - proposed.height)
+                        let readingHeight = proposed.height - c.parent.actionClearance
+                        if lastLine - rect.minY <= readingHeight {
+                            proposed.origin.y = max(proposed.origin.y, lastLine - readingHeight)
                         }
                     }
                     clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
