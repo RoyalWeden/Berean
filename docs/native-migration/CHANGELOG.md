@@ -717,3 +717,7 @@
 - Added View menu commands for increasing, decreasing and resetting Scripture size using the original zoom key combinations.
 - Shared default and bounds across Mac commands, the Settings slider and iPhone pinch.
 - Full native check passed with 103 tests and both Dev builds.
+
+### 2026-11-14 — Preserve the end of the chapter during reflow
+- Kept the reader at the chapter end when text reflows while already scrolled to the bottom.
+- Both Dev builds passed. Live resize verification remains open.

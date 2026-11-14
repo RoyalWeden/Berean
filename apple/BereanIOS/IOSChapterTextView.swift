@@ -87,7 +87,10 @@ struct IOSChapterTextView: UIViewRepresentable {
         if key != coordinator.key || !samePassage {
             let selection = view.selectedRange
             let oldText = view.text
-            let readingAnchor = samePassage ? coordinator.readingAnchor(in: view) : nil
+            let inset = view.adjustedContentInset
+            let previousBottom = view.contentSize.height + inset.bottom - view.bounds.height
+            let wasAtEnd = samePassage && previousBottom > -inset.top + 1 && previousOffset.y >= previousBottom - 1
+            let readingAnchor = samePassage && !wasAtEnd ? coordinator.readingAnchor(in: view) : nil
             if view.textContainerInset.left != style.width.phoneInset {
                 view.textContainerInset.left = style.width.phoneInset
                 view.textContainerInset.right = style.width.phoneInset
@@ -102,7 +105,13 @@ struct IOSChapterTextView: UIViewRepresentable {
                 } else {
                     view.selectedRange = NSRange(location: 0, length: 0)
                 }
-                if let readingAnchor {
+                if wasAtEnd {
+                    coordinator.layoutThroughEnd(of: NSRange(location: 0, length: view.textStorage.length), in: view)
+                    view.layoutIfNeeded()
+                    let inset = view.adjustedContentInset
+                    let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+                    view.setContentOffset(CGPoint(x: previousOffset.x, y: bottom), animated: false)
+                } else if let readingAnchor {
                     coordinator.restoreReadingAnchor(readingAnchor, in: view, fallback: previousOffset)
                 } else {
                     view.setContentOffset(previousOffset, animated: false)

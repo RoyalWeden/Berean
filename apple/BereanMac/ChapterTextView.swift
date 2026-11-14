@@ -73,6 +73,9 @@ struct ChapterTextView: NSViewRepresentable {
             let keepScroll = c.lastPassage == passageId
             let origin = previousBounds.origin
             let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
+            let previousBottom = clip.constrainBoundsRect(previousBounds.offsetBy(dx: 0, dy: clip.documentRect.height)).minY
+            let wasAtEnd = keepScroll && previousBottom > clip.documentRect.minY + 1
+                && origin.y >= previousBottom - 1
             let sel = tv.selectedRanges
             let previousText = tv.string
             tv.readerWidth = style.width
@@ -83,7 +86,10 @@ struct ChapterTextView: NSViewRepresentable {
                 let kept = previousText.utf16.elementsEqual(tv.string.utf16) ? sel : []
                 tv.selectedRanges = kept.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : kept
                 var proposed = previousBounds
-                if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
+                if wasAtEnd, let container = tv.textContainer {
+                    tv.layoutManager?.ensureLayout(for: container)
+                    proposed.origin.y = clip.documentRect.maxY
+                } else if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
                     tv.layoutManager?.ensureLayout(for: container)
                     if let marker = tv.firstRect(forVerseRange: range) {
                         proposed.origin.y = marker.minY - readingAnchor.offsetFromTop
