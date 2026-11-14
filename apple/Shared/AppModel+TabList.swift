@@ -118,6 +118,29 @@ extension AppModel {
         return orderedTabs.filter { !$0.isPinned && !selected.contains($0.id) }
     }
 
+    /// Suggest only copies with identical tab state. Prefer keeping a pinned or active copy,
+    /// then the first copy in sidebar order. Unknown tab types stay out of duplicate review.
+    var duplicateInactiveTabIDs: Set<String> {
+        let tabs = orderedTabs
+        let inactive = Set(inactiveTabs.map(\.id))
+        let ordered = tabs.filter { !inactive.contains($0.id) } + tabs.filter { inactive.contains($0.id) }
+        var kept: [SpaceId: [String: [BereanWorkspace.Tab]]] = [:]
+        var duplicates: Set<String> = []
+        for tab in ordered {
+            guard tab.tabType != nil else { continue }
+            let copies = kept[tab.spaceId]?[tab.title] ?? []
+            if inactive.contains(tab.id), copies.contains(where: {
+                $0.type == tab.type && $0.state == tab.state
+                    && $0.originTabId == tab.originTabId && $0.originSpaceId == tab.originSpaceId
+            }) {
+                duplicates.insert(tab.id)
+            } else {
+                kept[tab.spaceId, default: [:]][tab.title, default: []].append(tab)
+            }
+        }
+        return duplicates
+    }
+
     func archiveInactiveTabs(_ ids: [String]) {
         let requested = Set(ids)
         archive(inactiveTabs.filter { requested.contains($0.id) }.map(\.id))

@@ -5,9 +5,11 @@ struct TabCleanupView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var included: Set<String> = []
     @State private var query = ""
+    @State private var duplicatesOnly = false
 
     var body: some View {
-        let tabs = app.inactiveTabs
+        let duplicateIDs = duplicatesOnly ? app.duplicateInactiveTabIDs : []
+        let tabs = app.inactiveTabs.filter { !duplicatesOnly || duplicateIDs.contains($0.id) }
         let selected = tabs.filter { included.contains($0.id) }
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let matches = tabs.filter { tab in
@@ -21,6 +23,10 @@ struct TabCleanupView: View {
                         TextField("Filter inactive tabs", text: $query)
                             .textFieldStyle(.plain)
                     }
+                    Toggle("Exact Duplicates Only", isOn: $duplicatesOnly)
+                        .onChange(of: duplicatesOnly) {
+                            included.removeAll()
+                        }
                     Button(terms.isEmpty ? "Select All" : "Select Matches", systemImage: "checkmark.circle") {
                         included.formUnion(matches.map(\.id))
                     }
@@ -30,7 +36,8 @@ struct TabCleanupView: View {
                 }
                 Section {
                     if matches.isEmpty {
-                        Text(tabs.isEmpty ? "No inactive tabs" : "No matching tabs").foregroundStyle(.secondary)
+                        Text(tabs.isEmpty ? (duplicatesOnly ? "No exact duplicates" : "No inactive tabs") : "No matching tabs")
+                            .foregroundStyle(.secondary)
                     }
                     ForEach(matches) { tab in
                         Toggle(isOn: Binding(
