@@ -620,6 +620,7 @@ struct TagResultsView: View {
     @State private var texts: [String: String] = [:]
 
     var body: some View {
+        let edition = app.defaultText
         List {
             if loadedTagName != tagName {
                 ProgressView()
@@ -627,16 +628,19 @@ struct TagResultsView: View {
                 Section {
                     HStack { TagChip(name: tag.name, color: tag.color, slot: tag.colorSlot); Spacer()
                         Text("\(tag.verseCount) verse\(tag.verseCount == 1 ? "" : "s") · \(tag.chapterCount) chapter\(tag.chapterCount == 1 ? "" : "s")").foregroundStyle(.secondary) }
+                    Text(textInfo(edition).name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 ForEach(members) { m in
                     Section(m.label) {
                         ForEach(Array(m.wholeChapters.enumerated()), id: \.offset) { _, c in
-                            Button { app.openScripture(bookId: c.bookId, chapter: c.chapter, reuseTab: true) } label: { Label(Reference.bookChapterLabel(c.bookId, chapter: Double(c.chapter)), systemImage: "book") }
+                            Button { app.openScripture(bookId: c.bookId, chapter: c.chapter, textId: edition, reuseTab: true) } label: { Label(Reference.readerChapterLabel(c.bookId, c.chapter, textId: edition), systemImage: "book") }
                         }
                         ForEach(Array(m.verses.enumerated()), id: \.offset) { _, v in
-                            Button { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verse, reuseTab: true) } label: {
+                            Button { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verse, textId: edition, reuseTab: true) } label: {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verse)).font(.headline)
+                                    Text(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verse, hermas: HermasText(textId: edition))).font(.headline)
                                     Text(texts["\(v.bookId).\(v.chapter).\(v.verse)"] ?? "").foregroundStyle(.secondary).lineLimit(3)
                                 }
                             }.buttonStyle(.interactivePlain)
@@ -648,7 +652,6 @@ struct TagResultsView: View {
             }
         }
         .task(id: "\(tagName)|\(app.tagsRevision)|\(app.defaultText)|\(app.wordReplacerEnabled)") {
-            let edition = app.defaultText
             let replaceWords = app.wordReplacerEnabled
             texts = [:]
             tag = (try? app.verseTags?.list())?.first { $0.name.caseInsensitiveCompare(tagName) == .orderedSame }

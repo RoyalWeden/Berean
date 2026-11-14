@@ -765,3 +765,7 @@
 ### 2026-11-14 — Tag search result transitions
 - Isolated tag results and asynchronous previews across reused search destinations.
 - Both Dev builds passed. Running-app history and duplicate-number checks remain open.
+
+### 2026-11-14 — Tag result edition labels
+- Made the reading edition visible and consistent across tag previews, reference labels and navigation.
+- Both Dev builds passed.
