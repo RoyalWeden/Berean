@@ -39,11 +39,12 @@ struct LexiconEntryView: View {
             VStack(alignment: .leading, spacing: 14) {
                 if let e = entry, e.strongsNum == strongsId.uppercased() {
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
-                            Spacer()
-                            adjacentButton(adjacent.previous, title: "Previous Entry", symbol: "chevron.backward")
-                            adjacentButton(adjacent.next, title: "Next Entry", symbol: "chevron.forward")
+                        if compact {
+                            HStack {
+                                Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                Spacer()
+                                entryNavigation
+                            }
                         }
                         Text(e.lemma).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
                         Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
@@ -193,6 +194,16 @@ struct LexiconEntryView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if !compact {
+                entryNavigation
+                    .padding(.horizontal, 4)
+                    .glassEffectCompat(interactive: true)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+            }
+        }
         .id(strongsId)
         .onChange(of: occurrenceEdition) {
             occurrenceBook = nil
@@ -245,6 +256,13 @@ struct LexiconEntryView: View {
         #if os(iOS)
         if compact { dismiss() }
         #endif
+    }
+
+    private var entryNavigation: some View {
+        HStack(spacing: 2) {
+            adjacentButton(adjacent.previous, title: "Previous Entry", symbol: "chevron.backward")
+            adjacentButton(adjacent.next, title: "Next Entry", symbol: "chevron.forward")
+        }
     }
 
     private var entryControlHeight: CGFloat {
