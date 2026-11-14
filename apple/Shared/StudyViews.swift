@@ -25,14 +25,19 @@ struct LexiconEntryView: View {
     @State private var selectedRenderings: Set<String> = []
     @State private var sortByMatches = false
 
-    struct OccurrenceReturn {
-        let key: OccurrenceKey
+    struct OccurrenceOptions: Equatable {
         let pageLimit: Int
         let edition: String?
         let book: String?
         let renderings: Set<String>
         let sortByMatches: Bool
         let wordReplacerEnabled: Bool
+    }
+
+    private var occurrenceOptions: OccurrenceOptions {
+        OccurrenceOptions(pageLimit: visibleOccurrences, edition: occurrenceEdition,
+                          book: occurrenceBook, renderings: selectedRenderings, sortByMatches: sortByMatches,
+                          wordReplacerEnabled: app.wordReplacerEnabled)
     }
 
     private var editions: [String] {
@@ -141,10 +146,7 @@ struct LexiconEntryView: View {
                                     let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
                                     Button {
                                         if !compact {
-                                            app.lexiconOccurrenceReturns[tabId, default: [:]][strongsId] = OccurrenceReturn(
-                                                key: key, pageLimit: visibleOccurrences, edition: occurrenceEdition,
-                                                book: occurrenceBook, renderings: selectedRenderings, sortByMatches: sortByMatches,
-                                                wordReplacerEnabled: app.wordReplacerEnabled)
+                                            app.lexiconOccurrenceReturns[tabId, default: [:]][strongsId] = key
                                         }
                                         leaveInspector()
                                         app.visitScripture(passage, returningTo: tabId)
@@ -187,17 +189,14 @@ struct LexiconEntryView: View {
             }
             .task(id: occurrencesLoading) {
                 guard !compact, !occurrencesLoading, !occurrences.isEmpty,
-                      let position = app.lexiconOccurrenceReturns[tabId]?[strongsId],
-                      let index = occurrences.firstIndex(where: { OccurrenceKey($0) == position.key }) else { return }
-                occurrenceEdition = position.edition
-                occurrenceBook = position.book
-                let sameRendering = position.wordReplacerEnabled == app.wordReplacerEnabled
-                selectedRenderings = sameRendering ? position.renderings : []
-                sortByMatches = position.sortByMatches
-                visibleOccurrences = sameRendering ? position.pageLimit : max(position.pageLimit, index + 1)
+                      let key = app.lexiconOccurrenceReturns[tabId]?[strongsId],
+                      let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) else { return }
+                if app.lexiconOccurrenceOptions[tabId]?[strongsId]?.wordReplacerEnabled != app.wordReplacerEnabled {
+                    visibleOccurrences = max(visibleOccurrences, index + 1)
+                }
                 await Task.yield()
                 guard !Task.isCancelled else { return }
-                proxy.scrollTo(position.key, anchor: .center)
+                proxy.scrollTo(key, anchor: .center)
                 app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
             }
         }
@@ -216,6 +215,11 @@ struct LexiconEntryView: View {
             selectedRenderings = []
             visibleOccurrences = 40
             updatePreviews()
+        }
+        .onChange(of: occurrenceOptions) { _, options in
+            guard !compact, !occurrencesLoading,
+                  entry?.strongsNum == strongsId.uppercased() else { return }
+            app.lexiconOccurrenceOptions[tabId, default: [:]][strongsId] = options
         }
         .task(id: strongsId) {
             loaded = false
@@ -245,6 +249,13 @@ struct LexiconEntryView: View {
             guard !Task.isCancelled else { return }
             occurrences = newOccurrences
             updatePreviews()
+            if !compact, let options = app.lexiconOccurrenceOptions[tabId]?[strongsId] {
+                occurrenceEdition = options.edition
+                occurrenceBook = options.book
+                selectedRenderings = options.wordReplacerEnabled == app.wordReplacerEnabled ? options.renderings : []
+                sortByMatches = options.sortByMatches
+                visibleOccurrences = options.pageLimit
+            }
             occurrencesLoading = false
         }
     }
