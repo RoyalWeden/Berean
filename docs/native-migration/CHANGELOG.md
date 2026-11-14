@@ -678,3 +678,8 @@
 ### 2026-11-14 — Scripture text width presets
 - Added Wide, Normal and Narrow to the native Scripture display preferences using device-local storage.
 - Both Dev builds passed. Visually verified iPhone Narrow with the selected final verses and dashed outline still above the floating actions.
+
+### 2026-11-14 — Mac Scripture Display
+- Added a toolbar popover backed by the shared Scripture display preferences.
+- `npm run native:build:mac` passed with the Dev bundle identity. Opened the popover in Mac Dev and visually confirmed all six controls over John 7.
+- Draft PR #24. No production data touched.

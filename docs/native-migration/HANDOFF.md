@@ -474,3 +474,7 @@ Mac now preserves a visible verse anchor as chapter contents reflow, matching th
 Mac Dev verified toggling Strong's on at John 7:47–50 kept the reader in the latter portion of the chapter and preserved the verse selection. Turning it off returned the scroll bar to its original position. Both Dev builds passed. Both readers now retain character ranges only when the UTF-16 text is unchanged, and clear stale character ranges when inserted markers alter offsets. Live character-selection and font-size regression checks remain open.
 
 Reader Settings on Mac and More → Scripture Display on iPhone now expose Wide, Normal and Narrow text widths. Normal matches the previous defaults. The device-local setting retains the visible verse on reflow. The iOS 27 Simulator visually verified Narrow on John 7:51–53 with one grouped dashed outline and the final line above both floating bars. Both Dev builds passed. Verify Mac width on a wide window and iPhone Wide, then assess an independent Compare-width policy.
+
+### Mac Scripture Display
+
+The Scripture toolbar opens the same display controls available from Settings, including text width. The Mac Dev build passed and the popover visibly opened over John 7 with an existing verse range selected. Changing the width from that popover was not exercised.

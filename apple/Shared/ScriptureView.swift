@@ -214,6 +214,9 @@ struct ScriptureView: View {
     @State private var noteCounts: [Int: Int] = [:]
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
+    #if os(macOS)
+    @State private var displayOptionsShown = false
+    #endif
     @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showRedLetters") private var showRedLetters = true
@@ -794,6 +797,17 @@ struct ScriptureView: View {
         }
         #if os(macOS)
         ToolbarItemGroup {
+            Button("Scripture Display", systemImage: "textformat.size") {
+                displayOptionsShown.toggle()
+            }
+            .pointerStyle(.link)
+            .help("Adjust Scripture font, spacing and width")
+            .popover(isPresented: $displayOptionsShown, arrowEdge: .bottom) {
+                Form { ScriptureDisplayOptions() }
+                    .formStyle(.grouped)
+                    .frame(width: 360)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
                 Button("Switch to \(textInfo(target.text).short)", systemImage: "arrow.left.arrow.right") {
                     app.switchChapterEdition(in: tabId, from: ChapterEdition(st), to: target)
