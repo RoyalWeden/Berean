@@ -8,6 +8,22 @@ import BereanReference
 import BereanWorkspace
 import BereanNotes
 
+struct ChapterTagTarget: Identifiable {
+    let bookId: String
+    let chapter: Int
+    let textId: String
+
+    init(_ state: BibleState) {
+        bookId = state.bookId
+        chapter = state.chapter
+        textId = state.translation
+    }
+
+    var id: String { "\(textId)/\(bookId)/\(chapter)" }
+    var label: String { Reference.readerChapterLabel(bookId, chapter, textId: textId) }
+    var ranges: [TagRange] { [TagRange(bookId: bookId, chapter: Double(chapter), whole: true)] }
+}
+
 private struct SharedVerseSelection: Transferable {
     let reference: String
     let rows: [ChapterVerseRow]
@@ -176,6 +192,9 @@ struct ScriptureView: View {
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         #endif
         .toolbar { toolbar(st) }
+        .sheet(isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
+            if let t = tagging { TagPickerView(ranges: t.ranges, label: t.label, kind: t.kind) }
+        }
     }
 
     private func chapterKey(_ state: BibleState) -> String {
@@ -228,9 +247,6 @@ struct ScriptureView: View {
         }
         .task(id: "\(st.bookId)|\(st.chapter)|\(app.tagsRevision)") {
             if let r = try? app.verseTags?.forChapter(st.bookId, st.chapter) { verseTags = r.verseTags; chapterTags = r.chapterTags } else { verseTags = [:]; chapterTags = [] }
-        }
-        .sheet(isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
-            if let t = tagging { TagPickerView(ranges: t.ranges, label: t.label, kind: t.kind) }
         }
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
             highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
@@ -691,6 +707,12 @@ struct ScriptureView: View {
         }
         #if os(macOS)
         ToolbarItemGroup {
+            Button("Tag Chapter", systemImage: "tag") {
+                let target = ChapterTagTarget(st)
+                tagging = (target.ranges, target.label, "chapter")
+            }
+            .pointerStyle(.link)
+            .help("Tag this chapter")
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
                 .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
             Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }

@@ -13,6 +13,7 @@ struct IOSRootView: View {
     @State private var explicitNewTab = false
     @State private var showSettings = false
     @State private var showScriptureDisplay = false
+    @State private var chapterTagTarget: ChapterTagTarget?
     @State private var findRequest = 0
 
     var body: some View {
@@ -23,6 +24,9 @@ struct IOSRootView: View {
         }
         .studyTrailSheet(app: app)
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
+        .sheet(item: $chapterTagTarget) { target in
+            TagPickerView(ranges: target.ranges, label: target.label, kind: "chapter")
+        }
         .sheet(isPresented: $showScriptureDisplay) {
             NavigationStack {
                 Form { ScriptureDisplayOptions() }
@@ -142,6 +146,7 @@ struct IOSRootView: View {
                         app.focusStudyVerse(nil, in: tab.id)
                         mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" }
                     }
+                    Button("Tag Chapter…", systemImage: "tag") { chapterTagTarget = ChapterTagTarget(st) }
                     Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                     Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
                     Button("Scripture Display…", systemImage: "textformat.size") { showScriptureDisplay = true }

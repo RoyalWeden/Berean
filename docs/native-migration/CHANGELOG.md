@@ -546,3 +546,7 @@
 - Restored quick access to reader display preferences from legacy mobile. The native sheet shares controls and storage with Settings.
 - Grouped chapter export in More and removed the Mac minimum size from iPhone Settings.
 - Both Dev builds passed. Verified toggling and restoring verse numbers on the iOS 27 Simulator.
+
+### 2026-11-14 — Direct chapter tagging
+- Added a direct route to the existing chapter tag picker from the iPhone More menu and Mac reader toolbar.
+- Both Dev builds passed. The iOS 27 Simulator verified creating a chapter tag while retaining a two-verse selection.
