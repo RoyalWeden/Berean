@@ -217,6 +217,7 @@ struct ScriptureView: View {
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showRedLetters") private var showRedLetters = true
     @State private var scrollTarget: Int?
+    @State private var chapterStepTask: Task<Void, Never>?
     @State private var verseTags: [Int: [TagLite]] = [:]
     @State private var chapterTags: [TagLite] = []
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
@@ -255,6 +256,7 @@ struct ScriptureView: View {
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         #endif
         .toolbar { toolbar(st) }
+        .onDisappear { chapterStepTask?.cancel() }
         #if os(macOS)
         .task(id: st.compareMode ? nil : ChapterEdition(st)) {
             alternateEdition = nil
@@ -886,18 +888,33 @@ struct ScriptureView: View {
     /// Previous / next chapter by the chapters the book really has (prologue chapter 0, gaps, Hermas numbering), then the
     /// neighbouring book — like bibleNav.ts getPrev/NextChapterRef, generalised from the actual chapter list.
     func step(_ delta: Int) {
-        Task {
-            let st = state
-            let chapters = await app.bible.chapterNumbers(st.bookId, textId: st.translation)
-            if let i = chapters.firstIndex(of: st.chapter), chapters.indices.contains(i + delta) {
-                let c = chapters[i + delta]; mutate { $0.chapter = c; $0.verse = nil; $0.endVerse = nil }; return
+        chapterStepTask?.cancel()
+        guard let source = app.findTab(tabId), app.activeTab?.id == tabId else { return }
+        let reader = BibleState(source.state)
+        chapterStepTask = Task {
+            let chapters = await app.bible.chapterNumbers(reader.bookId, textId: reader.translation)
+            guard !Task.isCancelled else { return }
+            let book: String
+            let chapter: Int
+            if let index = chapters.firstIndex(of: reader.chapter), chapters.indices.contains(index + delta) {
+                book = reader.bookId
+                chapter = chapters[index + delta]
+            } else {
+                let books = await app.books(for: reader.translation)
+                guard !Task.isCancelled, let index = books.firstIndex(where: { $0.id == reader.bookId }),
+                      books.indices.contains(index + delta) else { return }
+                book = books[index + delta].id
+                let list = await app.bible.chapterNumbers(book, textId: reader.translation)
+                guard let destination = delta > 0 ? list.first : list.last else { return }
+                chapter = destination
             }
-            let books = await app.books(for: st.translation)
-            guard let bi = books.firstIndex(where: { $0.id == st.bookId }), books.indices.contains(bi + delta) else { return }
-            let nb = books[bi + delta]
-            let list = await app.bible.chapterNumbers(nb.id, textId: st.translation)
-            guard let c = delta > 0 ? list.first : list.last else { return }
-            mutate { $0.bookId = nb.id; $0.chapter = c; $0.verse = nil; $0.endVerse = nil }
+            guard !Task.isCancelled, let current = app.activeTab, current.id == source.id else { return }
+            let destination = BibleState(current.state)
+            guard ChapterEdition(destination) == ChapterEdition(reader),
+                  destination.compareMode == reader.compareMode,
+                  destination.verse == reader.verse, destination.endVerse == reader.endVerse,
+                  current.state["nativeSelectedVerses"] == source.state["nativeSelectedVerses"] else { return }
+            mutate { $0.bookId = book; $0.chapter = chapter; $0.verse = nil; $0.endVerse = nil }
         }
     }
 

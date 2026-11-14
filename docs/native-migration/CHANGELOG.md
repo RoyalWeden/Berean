@@ -590,3 +590,7 @@
 ### 2026-11-14 — Copied references for other installed writings
 - Native Copy Reference and Go share bracketed edition labels for other writings, including both Hermas editions.
 - Native tests and both Dev builds passed. Verified Taylor chapter reference copy/paste on iOS 27 Simulator.
+
+### 2026-11-14 — Chapter navigation during overlapping requests
+- Cancelled superseded chapter lookups and guarded completion against newer reader destinations.
+- Both native Dev builds passed. Interactive race verification remains open.
