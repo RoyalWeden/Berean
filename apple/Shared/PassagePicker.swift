@@ -65,7 +65,16 @@ struct PassagePicker: View {
     let onPick: (ResolvedPassage) -> Void
     var compact = false
 
-    @State private var text: String = ""
+    @State private var chosenText: String?
+    private var text: String { chosenText ?? textId }
+    private var textSelection: Binding<String> {
+        Binding(get: { text }, set: {
+            chosenText = $0
+            bookChoice = nil
+        })
+    }
+    @State private var loadedRequest: BrowseRequest?
+    @State private var bookChoice: CatalogBook?
     @State private var query = ""
     @State private var books: [BookRow] = []
     @State private var catalog: [CatalogBook] = []
@@ -106,14 +115,30 @@ struct PassagePicker: View {
             }
         }
         .task {
-            text = textId
-            books = await app.books(for: text)
-            if let b = books.first(where: { $0.id == currentBook }) {
-                let list = await app.bible.chapterNumbers(b.id, textId: text)
-                if list.count > 1 { chapters = list; openBook = b }
-            }
             searchFocused = true
             catalog = app.bookCatalog.isEmpty ? await app.catalog() : app.bookCatalog
+        }
+        .task(id: BrowseRequest(text: text, choice: bookChoice)) {
+            let requestedText = text
+            let choice = bookChoice
+            let initial = loadedRequest == nil
+            let bookID = choice?.textId == requestedText ? choice?.book.id : (openBook?.id ?? (initial ? currentBook : nil))
+            let newBooks = await app.books(for: requestedText)
+            let book = newBooks.first { $0.id == bookID }
+            let newChapters: [Int]
+            if let book {
+                newChapters = await app.bible.chapterNumbers(book.id, textId: requestedText)
+            } else {
+                newChapters = []
+            }
+            guard !Task.isCancelled, requestedText == text, choice == bookChoice else { return }
+            books = newBooks
+            chapters = newChapters
+            openBook = newChapters.isEmpty || (initial && choice == nil && newChapters.count == 1) ? nil : book
+            loadedRequest = BrowseRequest(text: requestedText, choice: choice)
+            if choice?.textId == requestedText, let book, newChapters.count == 1, let chapter = newChapters.first {
+                onPick(ResolvedPassage(textId: requestedText, bookId: book.id, chapter: chapter, verse: nil))
+            }
         }
         .task(id: sourceEdition) {
             alternateEdition = nil
@@ -121,12 +146,11 @@ struct PassagePicker: View {
             guard !Task.isCancelled else { return }
             alternateEdition = target
         }
-        .onChange(of: text) { _, t in
-            Task {
-                books = await app.books(for: t)
-                if let b = openBook { openBook = books.first { $0.id == b.id }; chapters = await app.bible.chapterNumbers(b.id, textId: t) }
-            }
-        }
+    }
+
+    private struct BrowseRequest: Equatable {
+        let text: String
+        let choice: CatalogBook?
     }
 
     private var sourceEdition: ChapterEdition {
@@ -203,7 +227,7 @@ struct PassagePicker: View {
                 }
                 if compact {
                     Section("Text") {
-                        Picker("Text", selection: $text) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
+                        Picker("Text", selection: textSelection) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
                     }
                 }
             }
@@ -215,29 +239,25 @@ struct PassagePicker: View {
         if let p = resolved { onPick(p) } else if let first = bookMatches.first { choose(first) }
     }
 
-    func choose(_ m: CatalogBook) {
-        if m.textId != text { text = m.textId }
-        open(m.book, in: m.textId)
+    func choose(_ match: CatalogBook) {
+        chosenText = match.textId
+        bookChoice = match
         query = ""
     }
 
-    /// Shows a book's chapters — or, when it has only one, opens it straight away (no one-button grid).
-    func open(_ b: BookRow, in textId: String) {
-        Task {
-            let list = await app.bible.chapterNumbers(b.id, textId: textId)
-            if list.count <= 1 { onPick(ResolvedPassage(textId: textId, bookId: b.id, chapter: list.first ?? 1, verse: nil)); return }
-            chapters = list
-            openBook = b
-        }
+    func open(_ book: BookRow, in textId: String) {
+        bookChoice = CatalogBook(textId: textId, book: book)
     }
 
     // MARK: middle — books, then chapters (with an internal Back)
 
     @ViewBuilder var middleColumn: some View {
-        if let b = openBook {
+        if loadedRequest != BrowseRequest(text: text, choice: bookChoice) {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let b = openBook {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Button { openBook = nil } label: { Label("Books", systemImage: "chevron.backward") }
+                    Button { openBook = nil; bookChoice = nil } label: { Label("Books", systemImage: "chevron.backward") }
                         .buttonStyle(.borderless)
                         .keyboardShortcut(.leftArrow, modifiers: [.command])
                         .help("Back to the book list (⌘←)")
@@ -247,7 +267,7 @@ struct PassagePicker: View {
                 Divider()
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 42, maximum: 48), spacing: 6)], spacing: 6) {
-                        ForEach(chapters.isEmpty ? Array(1...max(1, b.chaptersCount)) : chapters, id: \.self) { c in
+                        ForEach(chapters, id: \.self) { c in
                             let chapterLabel = Reference.isHermasBook(b.id)
                                 ? Reference.readerChapterLabel(b.id, c, textId: text)
                                 : "\(b.name) chapter \(Reference.displayChapterString(b.id, c))"
@@ -308,7 +328,7 @@ struct PassagePicker: View {
             ForEach(["Bible", "Other writings"], id: \.self) { section in
                 Section(section) {
                     ForEach(availableTexts.filter { $0.section == section }) { t in
-                        Button { text = t.id } label: {
+                        Button { chosenText = t.id; bookChoice = nil } label: {
                             HStack {
                                 Text(t.name).lineLimit(2)
                                 Spacer()

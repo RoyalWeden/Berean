@@ -725,3 +725,7 @@
 ### 2026-11-14 — Mapped edition shortcut in the passage picker
 - Added Same Passage for installed KJV/LXX counterparts in the Mac and iPhone pickers.
 - Both Dev builds passed. Runtime mapping and column isolation remain to verify.
+
+### 2026-11-14 — Passage picker edition switching
+- Bound edition and chapter loading to the current browse request on Mac and iPhone.
+- Both Dev builds passed. Rapid-switch running-app QA remains open.
