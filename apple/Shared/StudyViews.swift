@@ -21,6 +21,7 @@ struct LexiconEntryView: View {
     @State private var occurrencesLoading = false
     @State private var scrollPosition = ScrollPosition()
     @State private var restoredScrollEntry: String?
+    @State private var restoredWithChangedWordReplacement = false
     @State private var occurrenceEdition: String?
     @State private var occurrenceBook: String?
     @State private var visibleOccurrences = 40
@@ -205,8 +206,10 @@ struct LexiconEntryView: View {
                 defer { if !Task.isCancelled { restoredScrollEntry = strongsId } }
                 if let key = app.lexiconOccurrenceReturns[tabId]?[strongsId],
                    let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) {
-                    if app.lexiconOccurrenceOptions[tabId]?[strongsId]?.wordReplacerEnabled != app.wordReplacerEnabled {
-                        visibleOccurrences = max(visibleOccurrences, index + 1)
+                    if restoredWithChangedWordReplacement {
+                        // The old rendering filter can no longer locate the row in its previous page.
+                        // A match-count sort can move it past its original index.
+                        visibleOccurrences = max(visibleOccurrences, sortByMatches ? occurrences.count : index + 1)
                     }
                     await Task.yield()
                     guard !Task.isCancelled else { return }
@@ -214,7 +217,8 @@ struct LexiconEntryView: View {
                     app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
                     // Discard the older browsing offset after an explicit return.
                     app.lexiconScrollOffsets[tabId]?.removeValue(forKey: strongsId)
-                } else if let offset = app.lexiconScrollOffsets[tabId]?[strongsId] {
+                } else if !restoredWithChangedWordReplacement,
+                          let offset = app.lexiconScrollOffsets[tabId]?[strongsId] {
                     await Task.yield()
                     guard !Task.isCancelled else { return }
                     scrollPosition.scrollTo(y: offset)
@@ -252,6 +256,7 @@ struct LexiconEntryView: View {
         }
         .task(id: strongsId) {
             restoredScrollEntry = nil
+            restoredWithChangedWordReplacement = false
             loaded = false
             entry = nil
             adjacent = (nil, nil)
@@ -282,7 +287,8 @@ struct LexiconEntryView: View {
             if !compact, let options = app.lexiconOccurrenceOptions[tabId]?[strongsId] {
                 occurrenceEdition = options.edition
                 occurrenceBook = options.book
-                selectedRenderings = options.wordReplacerEnabled == app.wordReplacerEnabled ? options.renderings : []
+                restoredWithChangedWordReplacement = options.wordReplacerEnabled != app.wordReplacerEnabled
+                selectedRenderings = restoredWithChangedWordReplacement ? [] : options.renderings
                 sortByMatches = options.sortByMatches
                 visibleOccurrences = options.pageLimit
             }
