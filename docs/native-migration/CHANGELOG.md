@@ -721,3 +721,7 @@
 ### 2026-11-14 — Preserve the end of the chapter during reflow
 - Kept the reader at the chapter end when text reflows while already scrolled to the bottom.
 - Both Dev builds passed. Live resize verification remains open.
+
+### 2026-11-14 — Mapped edition shortcut in the passage picker
+- Added Same Passage for installed KJV/LXX counterparts in the Mac and iPhone pickers.
+- Both Dev builds passed. Runtime mapping and column isolation remain to verify.

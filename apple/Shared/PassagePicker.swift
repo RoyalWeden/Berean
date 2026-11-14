@@ -71,6 +71,7 @@ struct PassagePicker: View {
     @State private var catalog: [CatalogBook] = []
     @State private var openBook: BookRow?
     @State private var chapters: [Int] = []
+    @State private var alternateEdition: ChapterEdition?
     @FocusState private var searchFocused: Bool
 
     var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
@@ -114,12 +115,22 @@ struct PassagePicker: View {
             searchFocused = true
             catalog = app.bookCatalog.isEmpty ? await app.catalog() : app.bookCatalog
         }
+        .task(id: sourceEdition) {
+            alternateEdition = nil
+            let target = await app.installedCounterpart(of: sourceEdition)
+            guard !Task.isCancelled else { return }
+            alternateEdition = target
+        }
         .onChange(of: text) { _, t in
             Task {
                 books = await app.books(for: t)
                 if let b = openBook { openBook = books.first { $0.id == b.id }; chapters = await app.bible.chapterNumbers(b.id, textId: t) }
             }
         }
+    }
+
+    private var sourceEdition: ChapterEdition {
+        ChapterEdition(book: currentBook, chapter: currentChapter, text: textId)
     }
 
     // MARK: left — search across all texts, Go to, History
@@ -133,6 +144,22 @@ struct PassagePicker: View {
                 .padding(10)
                 .accessibilityLabel("Search books and references in every text")
             List {
+                if trimmed.isEmpty, let target = alternateEdition, target == sourceEdition.counterpart {
+                    Section("Same Passage") {
+                        Button {
+                            onPick(ResolvedPassage(textId: target.text, bookId: target.book, chapter: target.chapter, verse: nil))
+                        } label: {
+                            HStack {
+                                Label(Reference.readerChapterLabel(target.book, target.chapter, textId: target.text),
+                                      systemImage: "arrow.left.arrow.right")
+                                Spacer()
+                                Text(textInfo(target.text).short).font(.caption).foregroundStyle(.secondary)
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                    }
+                }
                 if let p = resolved {
                     Section("Go to") {
                         Button { onPick(p) } label: {

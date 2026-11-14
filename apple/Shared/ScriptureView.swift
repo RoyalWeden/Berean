@@ -19,7 +19,7 @@ struct ChapterEdition: Equatable {
         text = state.translation
     }
 
-    private init(book: String, chapter: Int, text: String) {
+    init(book: String, chapter: Int, text: String) {
         self.book = book
         self.chapter = chapter
         self.text = text
