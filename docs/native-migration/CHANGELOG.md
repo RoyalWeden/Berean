@@ -946,3 +946,7 @@
 - Grouped table editing commands under Format → Table on both platforms.
 - Added conditional Previous Cell and Next Cell actions to the iPhone text-edit menu.
 - Both Dev builds and iOS 27 simulator launch passed. Live menu interaction remains to verify.
+
+### 2026-11-14 — Scripture selection scroll
+- Cancelled stale deferred verse reveals on Mac and iPhone when the selection or passage changes, or when an explicit passage jump starts.
+- Both Dev builds passed. Live rapid-selection and chapter-end checks remain open.

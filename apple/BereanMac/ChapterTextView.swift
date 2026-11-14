@@ -113,7 +113,8 @@ struct ChapterTextView: NSViewRepresentable {
             // Wait for SwiftUI to install the shorter viewport above the floating actions.
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll, let c, c.lastPassage == destination,
-                      c.parent.selectedVerses.contains(revealVerse),
+                      c.parent.passageId == destination, c.parent.scrollTarget == nil,
+                      c.parent.selectedVerses == selectedVerses,
                       let range = c.verseRanges[revealVerse],
                       let container = tv.textContainer else { return }
                 tv.layoutManager?.ensureLayout(for: container)

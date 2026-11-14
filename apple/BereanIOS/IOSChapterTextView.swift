@@ -137,7 +137,8 @@ struct IOSChapterTextView: UIViewRepresentable {
             // Wait for SwiftUI to install the shorter viewport above the floating actions.
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
-                      coordinator.parent.selectedVerses.contains(revealVerse),
+                      coordinator.parent.passageId == currentPassage, coordinator.parent.scrollTarget == nil,
+                      coordinator.parent.selectedVerses == selectedVerses,
                       let range = coordinator.verseRanges[revealVerse], range.length > 1 else { return }
                 coordinator.layoutThroughEnd(of: range, in: view)
                 let inset = view.adjustedContentInset
