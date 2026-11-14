@@ -17,6 +17,21 @@ struct ScriptureSearchView: View {
     @State private var showOptions = false
     @FocusState private var fieldFocused: Bool
 
+    private struct SearchRequest: Equatable {
+        let query: String
+        let texts: [String]
+        let mode: WordMode
+        let books: [String]
+        let replacer: Bool
+    }
+
+    @State private var completedRequest: SearchRequest?
+
+    private var request: SearchRequest {
+        SearchRequest(query: query, texts: targets, mode: mode, books: bookFilter,
+                      replacer: app.wordReplacerEnabled)
+    }
+
     // MARK: tab state
 
     var state: JSObject { app.findTab(tabId)?.state ?? JSObject() }
@@ -63,7 +78,7 @@ struct ScriptureSearchView: View {
         .navigationTitle(query.isEmpty ? "Search" : "Search: \(query)")
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
         .onChange(of: query) { _, newQuery in field = newQuery }
-        .task(id: "\(query)|\(targets)|\(mode.rawValue)|\(bookFilter)|\(app.wordReplacerEnabled)") { await runSearch() }
+        .task(id: request) { [request] in await runSearch(request) }
     }
 
     // MARK: header — field, scope, options
@@ -179,35 +194,39 @@ struct ScriptureSearchView: View {
         }
     }
 
-    func runSearch() async {
-        let q = query
+    private func runSearch(_ request: SearchRequest) async {
+        let q = request.query
         guard q.utf16.count >= 2 else {
             loading = false
             result = ScriptureSearchResult(hits: [], truncatedTexts: [])
+            completedRequest = request
             return
         }
         loading = true
         defer { if !Task.isCancelled { loading = false } }
-        let targetTexts = Set(targets)
-        let books = Set(bookFilter)
+        let targetTexts = Set(request.texts)
+        let books = Set(request.books)
         if let strongs = await ScriptureSearch.strongs(q, lexicon: app.lexicon) {
             guard !Task.isCancelled else { return }
             let hits = strongs.filter { targetTexts.contains($0.textId) && (books.isEmpty || books.contains($0.bookId)) }
             result = ScriptureSearchResult(hits: hits, truncatedTexts: [])
+            completedRequest = request
             return
         }
-        var text = q, m = mode
+        var text = q, m = request.mode
         if text.hasPrefix("\""), text.hasSuffix("\""), text.count > 2 { text = String(text.dropFirst().dropLast()); m = .phrase }
         guard !Task.isCancelled else { return }
-        let found = await ScriptureSearch.run(text, in: targets, mode: m, bookIds: bookFilter.isEmpty ? nil : bookFilter,
-                                              replacer: app.wordReplacerEnabled, bible: app.bible, lexicon: app.lexicon)
+        let found = await ScriptureSearch.run(text, in: request.texts, mode: m, bookIds: request.books.isEmpty ? nil : request.books,
+                                              replacer: request.replacer, bible: app.bible, lexicon: app.lexicon)
         guard !Task.isCancelled else { return }
         result = found
+        completedRequest = request
     }
 
     // MARK: results
 
     var testamentFiltered: [ScriptureHit] {
+        guard completedRequest == request else { return [] }
         guard testament != "all" else { return result.hits }
         let ids = Set(app.bookCatalog.filter { $0.book.testament == testament }.map { "\($0.textId)|\($0.book.id)" })
         return result.hits.filter { ids.contains("\($0.textId)|\($0.bookId)") }
@@ -232,7 +251,7 @@ struct ScriptureSearchView: View {
     var summaryRow: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 6) {
-                Text(loading ? "Searching…" : "\(testamentFiltered.count) result\(testamentFiltered.count == 1 ? "" : "s")")
+                Text(searchPending ? "Searching…" : "\(testamentFiltered.count) result\(testamentFiltered.count == 1 ? "" : "s")")
                     .font(.callout.weight(.semibold)).foregroundStyle(.secondary)
                 if counts.count > 1 {
                     ForEach(counts, id: \.0) { id, n in
@@ -250,8 +269,10 @@ struct ScriptureSearchView: View {
         .scrollIndicators(.never)
     }
 
+    private var searchPending: Bool { loading || completedRequest != request }
+
     @ViewBuilder var resultsView: some View {
-        if !loading && shown.isEmpty {
+        if !searchPending && shown.isEmpty {
             ContentUnavailableView {
                 Label("No results", systemImage: "magnifyingglass")
             } description: {
@@ -263,7 +284,7 @@ struct ScriptureSearchView: View {
         } else {
             ScrollViewReader { proxy in
                 List {
-                    if !result.truncatedTexts.isEmpty {
+                    if completedRequest == request && !result.truncatedTexts.isEmpty {
                         Label("Showing the first \(ScriptureSearch.perTextLimit) matches in \(result.truncatedTexts.map { textInfo($0).short }.sorted().joined(separator: ", ")). Narrow the search with more words, a phrase, or a book filter.",
                               systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
                     }
@@ -298,6 +319,7 @@ struct ScriptureSearchView: View {
     }
 
     private var resultAnchor: String? {
+        guard app.activeTab?.id == tabId else { return nil }
         let anchor = app.searchResultAnchors[tabId]?[query]
         return shown.contains { resultID($0) == anchor } ? anchor : nil
     }

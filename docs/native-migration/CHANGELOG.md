@@ -962,3 +962,7 @@
 ### 2026-11-14 — Verse action menu labels
 - Scoped the icon-only button treatment to visible floating controls and retained system styling inside their menus.
 - Both Dev builds passed. Runtime menu checks remain open.
+
+### 2026-11-14 — Scripture Search result consistency
+- Hide stale results during a new search and restore the clicked row only in the active Search tab.
+- Both Dev builds passed. Live rapid-filter and Back/Forward checks remain open.
