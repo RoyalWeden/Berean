@@ -629,3 +629,7 @@
 
 ### 2026-11-14 — Duplicate archive review
 - Identify the copy that stays open and recheck duplicate eligibility before archiving. Both Dev builds passed.
+
+### 2026-11-14 — Reachable iPhone archive confirmation
+- Keep archive and cancel controls in a persistent iPhone cleanup footer.
+- Verified archiving the unpinned copy, keeping the pinned original, and restoring the full verse selection in the iOS 27 Simulator.

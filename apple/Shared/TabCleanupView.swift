@@ -68,10 +68,24 @@ struct TabCleanupView: View {
                     Text("Pinned and selected tabs stay open. You can restore these tabs together from Archived Tabs.")
                 }
             }
-            .navigationTitle("Archive Inactive Tabs")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    Button("Cancel") { dismiss() }
+                        .buttonStyle(.bordered)
+                    Spacer()
+                    Button("Archive \(selected.count)", systemImage: "archivebox") {
+                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly)
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selected.isEmpty)
+                }
+                .padding()
+                .background(.regularMaterial)
+            }
+            #else
+            .navigationTitle("Archive Inactive Tabs")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -82,6 +96,7 @@ struct TabCleanupView: View {
                     .disabled(selected.isEmpty)
                 }
             }
+            #endif
         }
     }
 }
