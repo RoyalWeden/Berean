@@ -586,3 +586,5 @@ iOS 27 Simulator verified the Compare note indicator end to end. Add Note from J
 Stacked Compare now puts the verse-note button and verse menu beside the edition label above each verse. The verse text and tag chips have the full content width, while the grid and independent layouts retain existing control placement. Both Dev builds passed. Live QA remains for large Dynamic Type, note indicators and narrow layouts.
 
 Compare’s SwiftUI scroll views now use the iPhone root dock safe-area inset without a second hard-coded bottom margin. This applies to aligned, stacked and independent comparisons. The continuous TextKit reader keeps its own viewport clearance. Both Dev builds passed. Verify the final verse and controls above the dock in portrait and landscape.
+
+Continuous Scripture no longer subtracts a fixed dock height from its GeometryReader viewport. The root safe-area inset owns dock clearance, and the reader still reserves the selection capsule’s own height. Both Dev builds passed. Recheck the final line and rounded outline above both capsules in the running iPhone reader before treating the spacing as verified.

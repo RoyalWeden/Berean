@@ -861,3 +861,7 @@
 ### 2026-11-14 — Compare dock spacing
 - Removed the duplicate bottom dock allowance from all Compare scroll layouts.
 - Both Dev builds passed. Chapter-end visual QA remains open.
+
+### 2026-11-14 — Scripture dock spacing
+- Removed the fixed dock deduction from the reader viewport, retaining space for verse actions.
+- Both Dev builds passed. Chapter-end visual testing is pending.

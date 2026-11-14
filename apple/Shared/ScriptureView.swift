@@ -315,8 +315,6 @@ struct ScriptureView: View {
         GeometryReader { geometry in
             let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
             let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
-            // The iPhone's root dock sits over the representable's proposed viewport.
-            let dockSpace = ReaderFloatingControls.dockOffset
             VStack(spacing: 0) {
                 Group {
                     if loadedChapter != chapter {
@@ -331,7 +329,7 @@ struct ScriptureView: View {
                         #endif
                     }
                 }
-                .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace - dockSpace))
+                .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace))
                 .clipped()
                 #if os(iOS)
                 .overlay(alignment: .topTrailing) {
@@ -1417,11 +1415,9 @@ enum ReaderFloatingControls {
     #if os(macOS)
     static let actionWidth: CGFloat = 38
     static let actionHeight: CGFloat = 32
-    static let dockOffset: CGFloat = 0
     #else
     static let actionWidth: CGFloat = 44
     static let actionHeight: CGFloat = 44
-    static let dockOffset: CGFloat = 58
     #endif
 
     static let surfacePadding: CGFloat = 3
