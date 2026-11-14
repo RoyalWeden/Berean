@@ -644,3 +644,6 @@
 ### 2026-11-14 — Restore archives to the source workspace
 - Added an explicit action to return archived groups to their original workspace while staying in the current workspace.
 - Both native Dev builds passed. Live cross-workspace group restore remains to verify.
+
+### 2026-11-14 — Return individual archive results to their source
+- Added a Mac context action and iPhone swipe action for restoring just one archived search result to its original workspace. Both Dev builds passed.

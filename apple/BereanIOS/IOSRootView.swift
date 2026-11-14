@@ -474,6 +474,14 @@ struct ArchivedTabsPage: View {
                                 }
                                 .accessibilityHint("Restore and open this tab")
                             }
+                            .swipeActions {
+                                if let source = sourceNames[group.id] {
+                                    Button("Restore to \(source)", systemImage: "square.stack") {
+                                        app.restoreArchived(group.id, toSource: true, only: tab.id)
+                                    }
+                                    .tint(.indigo)
+                                }
+                            }
                         }
                         if searchTerms.isEmpty {
                             Menu("Group Actions", systemImage: "ellipsis.circle") {

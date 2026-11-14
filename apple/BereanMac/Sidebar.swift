@@ -315,6 +315,7 @@ struct BereanSidebar: View {
     private var archiveSearch: some View {
         let terms = archiveQuery.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let titles = app.archiveTitles()
+        let sourceNames = app.archiveSourceNames()
         let groups = app.archivedGroups.map { group in
             (group, group.tabs.filter { tab in
                 return terms.allSatisfy { "\(tab.navigationSearchText) \(titles[group.id] ?? group.label)".localizedStandardContains(String($0)) }
@@ -348,6 +349,13 @@ struct BereanSidebar: View {
                                 }
                                 .buttonStyle(.interactivePlain)
                                 .help("Restore and open this tab")
+                                .contextMenu {
+                                    if let source = sourceNames[group.id] {
+                                        Button("Restore to \(source)", systemImage: "square.stack") {
+                                            app.restoreArchived(group.id, toSource: true, only: tab.id)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

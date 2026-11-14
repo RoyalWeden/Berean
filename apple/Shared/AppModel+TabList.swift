@@ -197,7 +197,7 @@ extension AppModel {
     }
 
     /// Restore saved sidebar placement when available and keep the current reading position.
-    func restoreArchived(_ groupId: String, toSource: Bool = false) {
+    func restoreArchived(_ groupId: String, toSource: Bool = false, only tabID: String? = nil) {
         guard let index = archivedGroups.firstIndex(where: { $0.id == groupId }) else { return }
         let group = archivedGroups[index]
         let placement = archivePlacements[groupId]
@@ -209,7 +209,7 @@ extension AppModel {
         let hadActiveTab = activeTab != nil
         var firstRestoredSpace: SpaceId?
         var restoredIDs = Set<String>()
-        for tab in archivedTabs(group) where openIds.insert(tab.id).inserted {
+        for tab in archivedTabs(group) where (tabID == nil || tab.id == tabID) && openIds.insert(tab.id).inserted {
             restoredIDs.insert(tab.id)
             sessions[destination].tabs[tab.spaceId, default: []].append(tab)
             if (sessions[destination].activeTabId[tab.spaceId] ?? nil) == nil {
