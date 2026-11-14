@@ -737,3 +737,7 @@
 ### 2026-11-14 — Chapter grid navigation
 - Centered the current chapter on entry, added its selected accessibility trait, and expanded compact chapter hit targets.
 - Both Dev builds passed. Running-app scroll and focus checks remain open.
+
+### 2026-11-14 — Mac reader toolbar affordances
+- Applied pointing-hand style to chapter navigation and the Compare, Strong’s Numbers and Study Panel toggles.
+- Mac Dev build passed. Live pointer inspection remains open.

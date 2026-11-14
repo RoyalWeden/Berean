@@ -506,3 +506,5 @@ Passage picker book/chapter requests now cancel when the chosen edition or book 
 Back to Books now restores the loaded book list immediately and clears the previous chapter selection. The picker delivers only one destination per presentation, so a chapter lookup finishing during dismissal cannot replace an already chosen search or history result. Both Dev builds passed. Live Back → reopen and competing single-chapter/search actions remain to check.
 
 The chapter picker now scrolls to the current chapter when its grid appears, marks it as selected for accessibility, and uses full cell hit targets with 44-point height in compact presentations. Back to Books centers the current book when it exists in the edition. Both Dev builds passed. Verify long-book initial scroll, the compact hit area and keyboard focus in live pickers.
+
+Mac chapter navigation and the Compare, Strong’s Numbers and Study Panel toggles now use the pointing-hand style alongside the existing chapter controls. The Mac Dev build passed. Verify the cursor visually across toolbar items and its return to the I-beam over selectable Scripture.

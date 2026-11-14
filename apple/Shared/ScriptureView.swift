@@ -803,6 +803,7 @@ struct ScriptureView: View {
             #if os(macOS)
             ControlGroup { passageControls(st) }
                 .controlGroupStyle(.navigation)
+                .pointerStyle(.link)
                 .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
             #else
             HStack(spacing: 4) { passageControls(st) }
@@ -847,10 +848,13 @@ struct ScriptureView: View {
             .pointerStyle(.link)
             .help("Tag this chapter")
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
+                .pointerStyle(.link)
                 .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
             Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
+                .pointerStyle(.link)
                 .help("Show Strong's numbers")
             Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { v in mutate { $0.rightPanelOpen = v } })) { Label("Study Panel", systemImage: "sidebar.trailing") }
+                .pointerStyle(.link)
                 .keyboardShortcut("i", modifiers: [.command, .option]).help("Study panel: notes, lexicon, cross references (⌥⌘I)")
         }
         ToolbarItem {
