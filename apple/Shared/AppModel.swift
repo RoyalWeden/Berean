@@ -97,6 +97,7 @@ final class AppModel {
     var sidebarToggleRequest = 0
     /// Every book of every text (passage navigator search, reference resolution).
     var bookCatalog: [CatalogBook] = []
+    var explicitKJVBooks: [BookRow]?
     /// One-line result shown in an alert after a user action (export/import outcome, errors).
     var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.

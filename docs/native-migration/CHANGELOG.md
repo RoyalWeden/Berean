@@ -559,3 +559,7 @@
 ### 2026-11-14 — Quick translation switching on iPhone
 - Restored the legacy KJVA/LXX shortcut using chapter mapping and installed chapter coverage.
 - iPhone Dev build passed. Verified Psalm numbering, Back, and unchanged tab count on iOS 27 Simulator.
+
+### 2026-11-14 — Explicit King James editions in native Go
+- Shared native reference resolver accepts KJV and KJVA suffixes with the requested edition's book coverage.
+- Both Dev builds and 101 native tests passed. Verified distinct edition results and tab reuse on the iOS 27 Simulator.

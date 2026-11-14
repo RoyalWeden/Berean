@@ -59,14 +59,23 @@ extension AppModel {
     /// Every book of every listed text (loaded once, off the main thread).
     func loadBookCatalog() {
         guard bookCatalog.isEmpty else { return }
-        Task { bookCatalog = await catalog() }
+        Task {
+            explicitKJVBooks = await books(for: "kjv")
+            bookCatalog = await catalog()
+        }
     }
 
     func resolvePassage(_ raw: String, preferring current: String? = nil) -> ResolvedPassage? {
-        let q = raw.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return nil }
+        let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return nil }
+        let suffix = query.range(of: #"\s+(kjva|kjv)$"#, options: [.regularExpression, .caseInsensitive])
+        let requestedText = suffix.map { query[$0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        let q = suffix.map { String(query[..<$0.lowerBound]) } ?? query
         let pref = current ?? defaultText
         let edition = HermasText(rawValue: pref) ?? hermasEdition
+        let candidates = requestedText == "kjv"
+            ? (explicitKJVBooks ?? []).map { CatalogBook(textId: "kjv", book: $0) }
+            : bookCatalog
         func textFor(_ bookId: String, forced: String? = nil) -> String {
             if Reference.isHermasBook(bookId) { return edition.rawValue }
             if let forced { return forced }
@@ -74,12 +83,17 @@ extension AppModel {
             return bookCatalog.first { $0.book.id == bookId }?.textId ?? pref
         }
         if let ref = Reference.parse(q, hermas: edition) {
+            if let requestedText {
+                guard ref.forcedTranslation == nil, !Reference.isHermasBook(ref.bookId),
+                      candidates.contains(where: { $0.textId == requestedText && $0.book.id == ref.bookId })
+                else { return nil }
+            }
             let groups = (ref.verseGroups ?? []).compactMap { group -> ClosedRange<Int>? in
                 let end = group.endVerse ?? group.verse
                 guard group.verse > 0, end >= group.verse, end <= 999 else { return nil }
                 return group.verse...end
             }
-            return ResolvedPassage(textId: textFor(ref.bookId, forced: ref.forcedTranslation == "LXX" ? "lxx" : nil),
+            return ResolvedPassage(textId: textFor(ref.bookId, forced: requestedText ?? (ref.forcedTranslation == "LXX" ? "lxx" : nil)),
                                    bookId: ref.bookId, chapter: ref.chapter, verse: groups.first?.lowerBound ?? ref.verse,
                                    endVerse: groups.isEmpty ? ref.endVerse : nil, verseGroups: groups)
         }
@@ -93,11 +107,12 @@ extension AppModel {
             let n = b.name.lowercased(), s = b.shortName.lowercased()
             return n == name || s == name || b.id.lowercased() == name || n.replacingOccurrences(of: "'", with: "") == name
         }
-        let hits = bookCatalog.filter { matches($0.book) }
+        let hits = candidates.filter { (requestedText == nil || $0.textId == requestedText) && matches($0.book) }
         let preferredHit = hits.first {
             $0.textId == (Reference.isHermasBook($0.book.id) ? edition.rawValue : pref)
         }
         guard let hit = preferredHit ?? hits.first else {
+            guard requestedText == nil else { return nil }
             // A text's own name ("didache", "enoch", "jubilees") opens its first book.
             if number == nil, let t = availableTexts.first(where: { $0.name.lowercased() == name || $0.short.lowercased() == name || $0.id == name }) {
                 let textId = t.id == HermasText.robertsDonaldson.rawValue ? edition.rawValue : t.id
