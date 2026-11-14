@@ -23,6 +23,7 @@ private struct SharedVerseSelection: Transferable {
 
     static var transferRepresentation: some TransferRepresentation {
         ProxyRepresentation(exporting: { (selection: Self) in selection.formattedText })
+            .suggestedFileName { $0.reference.replacingOccurrences(of: ":", with: " ") + ".txt" }
     }
 }
 
@@ -45,6 +46,7 @@ private struct SharedScriptureChapter: Transferable {
         ProxyRepresentation(exporting: { (chapter: Self) async throws -> String in
             try await chapter.formattedText()
         })
+        .suggestedFileName { $0.reference + ".txt" }
     }
 }
 
