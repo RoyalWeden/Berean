@@ -311,7 +311,11 @@ struct ChapterTextView: NSViewRepresentable {
             guard let url = link as? URL ?? (link as? String).flatMap(URL.init(string:)) else { return false }
             switch url.scheme {
             case "berean-verse":
-                if let v = Int(url.absoluteString.dropFirst("berean-verse:".count)) { parent.onVerseClick(v, NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false) }
+                if let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) {
+                    textView.window?.makeFirstResponder(textView)
+                    textView.setSelectedRange(NSRange(location: charIndex, length: 0))
+                    parent.onVerseClick(verse, NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false)
+                }
             case "berean-verse-notes":
                 if let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) { parent.onNotes(verse) }
             case "strongs":
