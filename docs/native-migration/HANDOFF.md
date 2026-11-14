@@ -607,3 +607,5 @@ Landscape QA on iOS 27 reproduced a portrait-width reader surface clipped inside
 - Next implementation areas are per-tab and per-history-entry scroll restoration, cross-space Search/Lexicon Back and Forward, Lexicon controls and occurrence layout, and Notes formatting and richer table/highlight editing. Also apply type filtering to iPhone Tabs and verify both platforms.
 
 iPhone Tabs now filters by tab type independently of space. The filters apply to this workspace and matches from other workspaces. Clear Filters restores both, and unfiltered Recents are hidden while a filter is active. The iPhone Dev build passed. Verify combined filtering, clearing, and cross-workspace matches in Simulator.
+
+Mac verse gutter still shows a pointing hand throughout its clickable area, but the soft hover tint now appears only when hit testing reaches a visible link glyph. Mac Dev build passed. Confirm pointer and tint transitions live with small verse numbers and Strong’s links.

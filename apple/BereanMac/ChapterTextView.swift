@@ -3,7 +3,7 @@ import AppKit
 
 /// The Mac Scripture reader: ONE TextKit text view for the whole chapter, so a selection can run across verses
 /// (VERSE rows as separate SwiftUI Texts could not). Verse numbers, Strong's numbers and tag chips are links with
-/// a pointing-hand cursor and a hover underline; right-click gives the verse actions; ⌘C copies like the existing
+/// a pointing-hand cursor and a hover tint; right-click gives the verse actions; ⌘C copies like the existing
 /// app (several verses → "Book c:v1-v2" + numbered lines; ⌘⇧C → plain text on one line).
 struct ChapterTextView: NSViewRepresentable {
     var passageId = ""                       // text|book|chapter — scroll position is kept only within one passage
@@ -527,26 +527,27 @@ final class ReaderTextView: NSTextView {
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         guard let lm = layoutManager, let ts = textStorage else { return }
+        let hitsLink = charIndex(at: event, includeVerseGutter: true).map {
+            $0 < ts.length && ts.attribute(.link, at: $0, effectiveRange: nil) != nil
+        } ?? false
         var newRange: NSRange?
-        if let i = charIndex(at: event, includeVerseGutter: true), i < ts.length {
-            var r = NSRange()
-            if ts.attribute(.link, at: i, effectiveRange: &r) != nil {
+        if let index = charIndex(at: event), index < ts.length {
+            let character = (ts.string as NSString).character(at: index)
+            var link = NSRange()
+            if character != 9, ts.attribute(.link, at: index, effectiveRange: &link) != nil {
+                // The tabs on either side of a verse number enlarge the click target only.
                 let string = ts.string as NSString
-                while r.length > 0 && string.character(at: r.location) == 9 {
-                    r.location += 1
-                    r.length -= 1
+                while link.length > 0 && string.character(at: link.location) == 9 {
+                    link.location += 1
+                    link.length -= 1
                 }
-                while r.length > 0 && string.character(at: NSMaxRange(r) - 1) == 9 {
-                    r.length -= 1
+                while link.length > 0 && string.character(at: NSMaxRange(link) - 1) == 9 {
+                    link.length -= 1
                 }
-                newRange = r
+                newRange = link
             }
         }
-        if newRange != nil {
-            NSCursor.pointingHand.set()
-        } else if hovered != nil {
-            NSCursor.iBeam.set()
-        }
+        if hitsLink { NSCursor.pointingHand.set() }
         if newRange != hovered {
             if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
             if let n = newRange { lm.addTemporaryAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.14), forCharacterRange: n) }
