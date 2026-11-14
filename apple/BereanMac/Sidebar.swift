@@ -23,6 +23,7 @@ struct BereanSidebar: View {
     @FocusState private var workspaceSearchFocused: Bool
     @State private var showsTabFilter = false
     @State private var tabQuery = ""
+    @State private var tabTypeFilter: TabType?
     @FocusState private var tabFilterFocused: Bool
 
     var body: some View {
@@ -47,7 +48,10 @@ struct BereanSidebar: View {
                 .scrollIndicators(.never)
             }
         }
-        .onChange(of: app.currentSessionId) { _, _ in tabQuery = "" }
+        .onChange(of: app.currentSessionId) { _, _ in
+            tabQuery = ""
+            tabTypeFilter = nil
+        }
         .contextMenu {
             Toggle("Group Tabs by Space", isOn: $groupBySpace)
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
@@ -106,7 +110,7 @@ struct BereanSidebar: View {
                 Button {
                     showsTabFilter.toggle()
                     tabFilterFocused = showsTabFilter
-                    if !showsTabFilter { tabQuery = "" }
+                    if !showsTabFilter { tabQuery = ""; tabTypeFilter = nil }
                 } label: {
                     Label(showsTabFilter ? "Hide Tab Filter" : "Filter Tabs",
                           systemImage: "line.3.horizontal.decrease")
@@ -120,11 +124,20 @@ struct BereanSidebar: View {
             .foregroundStyle(.secondary)
 
             if showsTabFilter {
+                Picker("Tab type", selection: $tabTypeFilter) {
+                    Text("All Types").tag(nil as TabType?)
+                    ForEach(TabType.allCases.filter { type in app.orderedTabs.contains { $0.tabType == type } }, id: \.self) { type in
+                        Text(type == .bible ? "Scripture" : type.rawValue.capitalized).tag(Optional(type))
+                    }
+                }
+                .labelsHidden()
+                .accessibilityLabel("Tab type")
                 TextField("Filter tabs", text: $tabQuery)
                     .textFieldStyle(.roundedBorder)
                     .focused($tabFilterFocused)
                     .onExitCommand {
                         tabQuery = ""
+                        tabTypeFilter = nil
                         showsTabFilter = false
                     }
             }
@@ -241,12 +254,12 @@ struct BereanSidebar: View {
     // MARK: tabs
 
     private var isFilteringTabs: Bool {
-        !tabQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        tabTypeFilter != nil || !tabQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var matchingTabs: [BereanWorkspace.Tab] {
         let query = tabQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        return app.matchingOpenTabs(query)
+        return app.matchingOpenTabs(query).filter { tabTypeFilter == nil || $0.tabType == tabTypeFilter }
     }
 
     @ViewBuilder var orderedTabs: some View {
@@ -463,13 +476,12 @@ struct SidebarTabRow: View {
                 .foregroundStyle(isActive ? .primary : .secondary)
                 .lineLimit(1)
             Spacer(minLength: 0)
-            if let edition = tab.scriptureEditionLabel {
-                Text(edition)
+            if tab.scriptureEditionLabel == "LXX" {
+                Text("LXX")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 72)
+                    .fixedSize()
             }
             ZStack {
                 if hovering {

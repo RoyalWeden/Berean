@@ -48,7 +48,10 @@ struct ScriptureSearchView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if query.isEmpty { historyView } else { resultsView }
+            SwiftUI.Group {
+                if query.isEmpty { historyView } else { resultsView }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .navigationTitle(query.isEmpty ? "Search" : "Search: \(query)")
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
@@ -79,7 +82,10 @@ struct ScriptureSearchView: View {
                 Button { showOptions.toggle() } label: { Label("Options", systemImage: "line.3.horizontal.decrease.circle") }
                     .labelStyle(.iconOnly)
                     .help("Match, testament, books, order")
-                    .popover(isPresented: $showOptions, arrowEdge: .bottom) { options.padding(14).frame(width: 300) }
+                    .popover(isPresented: $showOptions, arrowEdge: .bottom) {
+                        ScrollView { options.padding(14) }
+                            .frame(idealWidth: 340, maxHeight: 430)
+                    }
                     .foregroundStyle(hasActiveOptions ? Color.accentColor : .secondary)
             }
             if !query.isEmpty { summaryRow }

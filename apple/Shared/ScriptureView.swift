@@ -887,8 +887,10 @@ struct ScriptureView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
-                Button("Switch to \(textInfo(target.text).short)", systemImage: "arrow.left.arrow.right") {
+                Toggle(isOn: Binding(get: { ChapterMap.isLxx(st.translation) }, set: { _ in
                     app.switchChapterEdition(in: tabId, from: ChapterEdition(st), to: target)
+                })) {
+                    Label("LXX", systemImage: "arrow.left.arrow.right")
                 }
                 .pointerStyle(.link)
                 .help("Switch to \(textInfo(target.text).name)")
@@ -1232,12 +1234,8 @@ struct VerseRowView: View {
 
 extension View {
     /// Liquid Glass capsule on current systems.
-    @ViewBuilder func glassEffectCompat(interactive: Bool = false) -> some View {
-        if #available(iOS 26, macOS 26, *) {
-            glassEffect(.regular.interactive(interactive), in: .capsule)
-        } else {
-            background(.regularMaterial, in: .capsule)
-        }
+    func glassEffectCompat(interactive: Bool = false) -> some View {
+        modifier(ReaderGlassCapsule(interactive: interactive))
     }
 
     /// macOS: the passage pill and text button already say where the reader is, so the window title is kept for the
@@ -1411,6 +1409,31 @@ private extension View {
     }
 }
 
+private struct ReaderGlassCapsule: ViewModifier {
+    let interactive: Bool
+    #if os(iOS)
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if verticalSizeClass == .compact {
+            content.background(.regularMaterial, in: .capsule)
+        } else if #available(iOS 26, *) {
+            content.glassEffect(.regular.interactive(interactive), in: .capsule)
+        } else {
+            content.background(.regularMaterial, in: .capsule)
+        }
+        #else
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular.interactive(interactive), in: .capsule)
+        } else {
+            content.background(.regularMaterial, in: .capsule)
+        }
+        #endif
+    }
+}
+
 enum ReaderFloatingControls {
     #if os(macOS)
     static let actionWidth: CGFloat = 38
@@ -1432,6 +1455,8 @@ enum ReaderFloatingControls {
 }
 
 private struct VerseActionButtonStyle: ButtonStyle {
+    @State private var hovering = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .labelStyle(.iconOnly)
@@ -1439,6 +1464,8 @@ private struct VerseActionButtonStyle: ButtonStyle {
             .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)
             #if os(macOS)
+            .background(hovering ? Color.primary.opacity(0.09) : .clear, in: .rect(cornerRadius: 7))
+            .onHover { hovering = $0 }
             .pointerStyle(.link)
             #else
             .hoverEffect(.highlight)

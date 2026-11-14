@@ -30,21 +30,19 @@ extension Color {
     }
 }
 
-/// One note with a native rich editor, Markdown source, and read-only preview.
+/// One note with a native rich editor and version history.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app
     let noteId: String
     @State private var note: Note?
     @State private var title = ""
     @State private var content = ""
-    @State private var showSource = false
     @State private var saveTask: Task<Void, Never>?
     @State private var snapshotTask: Task<Void, Never>?
     /// Content of the last version snapshot (or as opened) — a snapshot is only taken after edits.
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
     @State private var showingHistory = false
-    @State private var showingPreview = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -84,19 +82,13 @@ struct NoteDetailView: View {
                             }
                         }
                     }
-                    if showSource {
-                        // Advanced: the Markdown source (View ▸ Show Markdown Source, ⇧⌘M).
-                        TextEditor(text: $content).font(.system(.body, design: .monospaced)).scrollContentBackground(.hidden)
-                            .focused($focus, equals: .body)
-                    } else {
-                        #if os(macOS)
-                        RichNoteEditor(text: $content, fontSize: 15) { url in openLink(url) }
-                            .focused($focus, equals: .body)
-                        #else
-                        RichNoteEditorIOS(text: $content) { url in openLink(url) }
-                            .focused($focus, equals: .body)
-                        #endif
-                    }
+                    #if os(macOS)
+                    RichNoteEditor(text: $content, fontSize: 15) { url in openLink(url) }
+                        .focused($focus, equals: .body)
+                    #else
+                    RichNoteEditorIOS(text: $content) { url in openLink(url) }
+                        .focused($focus, equals: .body)
+                    #endif
                 }
                 .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
                 .frame(maxWidth: 760, alignment: .leading).padding(.horizontal, 24).padding(.top, 20).frame(maxWidth: .infinity)
@@ -112,10 +104,7 @@ struct NoteDetailView: View {
             ToolbarItemGroup {
                 Button { saveNow(); app.openNote(nil) } label: { Label("All Notes", systemImage: "chevron.backward") }
                     .help("Back to the notes list")
-                Toggle(isOn: $showSource) { Label("Show Markdown Source", systemImage: "chevron.left.forwardslash.chevron.right") }
-                    .keyboardShortcut("m", modifiers: [.command, .shift]).help("Show the note's Markdown source (⇧⌘M)")
                 if let note {
-                    Button("Preview Note", systemImage: "eye") { showingPreview = true }
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
@@ -129,31 +118,6 @@ struct NoteDetailView: View {
                     Button(role: .destructive) { try? app.notes?.delete(note.id); app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
-        }
-        .sheet(isPresented: $showingPreview) {
-            NavigationStack {
-                ScrollView {
-                    MarkdownText(content)
-                        .textSelection(.enabled)
-                        .padding(24)
-                        .frame(maxWidth: 760)
-                        .frame(maxWidth: .infinity)
-                }
-                .navigationTitle(title.isEmpty ? "Untitled" : title)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { showingPreview = false }
-                    }
-                }
-            }
-            .environment(\.openURL, OpenURLAction { url in
-                showingPreview = false
-                openLink(url)
-                return .handled
-            })
-            #if os(macOS)
-            .frame(minWidth: 580, minHeight: 400)
-            #endif
         }
         .sheet(isPresented: $showingHistory) {
             NoteVersionHistoryView(noteId: noteId, currentTitle: title, currentContent: content) { restored in

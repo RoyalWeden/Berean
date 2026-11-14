@@ -224,6 +224,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 let outline = UIBezierPath(roundedRect: rect, cornerRadius: ReaderFloatingControls.outlineRadius)
                 outline.lineWidth = 1
                 outline.setLineDash([4, 3], count: 2, phase: 0)
+                UIColor.systemBlue.withAlphaComponent(0.06).setFill()
+                outline.fill()
                 outline.stroke()
             }
         }

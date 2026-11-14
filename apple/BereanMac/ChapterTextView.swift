@@ -465,6 +465,8 @@ final class ReaderTextView: NSTextView {
             path.lineWidth = 1
             path.setLineDash([4, 3], count: 2, phase: 0)
             NSColor.controlAccentColor.withAlphaComponent(0.7).setStroke()
+            NSColor.controlAccentColor.withAlphaComponent(0.07).setFill()
+            path.fill()
             path.stroke()
         }
     }
@@ -528,7 +530,17 @@ final class ReaderTextView: NSTextView {
         var newRange: NSRange?
         if let i = charIndex(at: event, includeVerseGutter: true), i < ts.length {
             var r = NSRange()
-            if ts.attribute(.link, at: i, effectiveRange: &r) != nil { newRange = r }
+            if ts.attribute(.link, at: i, effectiveRange: &r) != nil {
+                let string = ts.string as NSString
+                while r.length > 0 && string.character(at: r.location) == 9 {
+                    r.location += 1
+                    r.length -= 1
+                }
+                while r.length > 0 && string.character(at: NSMaxRange(r) - 1) == 9 {
+                    r.length -= 1
+                }
+                newRange = r
+            }
         }
         if newRange != nil {
             NSCursor.pointingHand.set()
@@ -536,14 +548,14 @@ final class ReaderTextView: NSTextView {
             NSCursor.iBeam.set()
         }
         if newRange != hovered {
-            if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.underlineStyle, forCharacterRange: h) }
-            if let n = newRange { lm.addTemporaryAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, forCharacterRange: n) }
+            if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
+            if let n = newRange { lm.addTemporaryAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.14), forCharacterRange: n) }
             hovered = newRange
         }
     }
 
     override func mouseExited(with event: NSEvent) {
-        if let h = hovered, let ts = textStorage, NSMaxRange(h) <= ts.length { layoutManager?.removeTemporaryAttribute(.underlineStyle, forCharacterRange: h) }
+        if let h = hovered, let ts = textStorage, NSMaxRange(h) <= ts.length { layoutManager?.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
         hovered = nil
     }
 

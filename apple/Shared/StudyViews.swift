@@ -342,6 +342,7 @@ struct CrossRefsView: View {
     @AppStorage("crossrefSource") private var source = "tske"
     @State private var loadedReference: String?
     @State private var groups: [ReferenceGroup] = []
+    @State private var expandedGroups: Set<Int> = []
     @State private var failed = false
 
     private struct ReferenceGroup {
@@ -380,9 +381,11 @@ struct CrossRefsView: View {
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 Menu {
-                    Picker("Cross-reference source", selection: $source) {
-                        Text("TSKe").tag("tske")
-                        Text("Classic").tag("classic")
+                    Button { source = "tske" } label: {
+                        Label("TSKe", systemImage: source == "tske" ? "checkmark" : "book")
+                    }
+                    Button { source = "classic" } label: {
+                        Label("Classic", systemImage: source == "classic" ? "checkmark" : "book")
                     }
                 } label: {
                     Label(source == "classic" ? "Classic" : "TSKe", systemImage: "line.3.horizontal.decrease")
@@ -393,8 +396,7 @@ struct CrossRefsView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .accessibilityLabel("Cross-reference source")
-                .accessibilityValue(source == "classic" ? "Classic" : "TSKe")
+                .menuIndicator(.hidden)
                 #if os(macOS)
                 .pointerStyle(.link)
                 #else
@@ -411,12 +413,28 @@ struct CrossRefsView: View {
                 ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch")
             } else {
                 List {
-                    ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                    ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
                         if group.rows.isEmpty {
                             LabeledContent("Verse \(group.verse)",
                                            value: group.unavailable ? "Unavailable" : "No cross references")
                         } else if verse == nil || selectedVerses.count > 1 {
-                            DisclosureGroup(groupTitle(group)) { referenceRows(group.rows) }
+                            let expanded = expandedGroups.contains(index)
+                            Button {
+                                if expanded { expandedGroups.remove(index) } else { expandedGroups.insert(index) }
+                            } label: {
+                                HStack {
+                                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text(groupTitle(group))
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.vertical, 7)
+                                .contentShape(.rect)
+                            }
+                            .buttonStyle(.interactivePlain)
+                            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                            if expanded { referenceRows(group.rows) }
                         } else if let heading = group.heading {
                             Section(heading) { referenceRows(group.rows) }
                         } else {
@@ -427,7 +445,10 @@ struct CrossRefsView: View {
                 .id(reference)
             }
         }
-        .task(id: reference) { await load(reference) }
+        .task(id: reference) {
+            expandedGroups = []
+            await load(reference)
+        }
     }
 
     private func groupTitle(_ group: ReferenceGroup) -> String {
@@ -521,15 +542,9 @@ struct CrossRefsView: View {
 
     @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, preview: String) -> some View {
         let reference = referenceForCopy(passage.label, textId: passage.textId)
-        Button("Copy Reference", systemImage: "number") {
-            Clipboard.copy(reference)
+        Button("Copy", systemImage: "doc.on.doc") {
+            Clipboard.copy(passage.textId == "lxx" && !preview.isEmpty ? "\(reference) \(preview)" : reference)
             AccessibilityNotification.Announcement("Reference copied").post()
-        }
-        if !preview.isEmpty {
-            Button("Copy Preview", systemImage: "doc.on.doc") {
-                Clipboard.copy("\(reference) \(preview)")
-                AccessibilityNotification.Announcement("Preview copied").post()
-            }
         }
         Button("Open in New Tab", systemImage: "plus.square") {
             #if os(iOS)

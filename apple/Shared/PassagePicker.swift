@@ -302,7 +302,7 @@ struct PassagePicker: View {
             ScrollViewReader { proxy in
                 List {
                     ForEach(sections, id: \.0) { s in
-                        Section(s.0) {
+                        Section {
                             ForEach(s.1, id: \.id) { b in
                                 Button { open(b, in: text) } label: {
                                     HStack {
@@ -313,6 +313,8 @@ struct PassagePicker: View {
                                 }
                                 .buttonStyle(.interactivePlain).id(b.id)
                             }
+                        } header: {
+                            if !s.0.isEmpty { Text(s.0) }
                         }
                     }
                 }
@@ -353,7 +355,7 @@ struct PassagePicker: View {
     var sections: [(String, [BookRow])] {
         var out: [(String, [BookRow])] = []
         for b in books {
-            let title = Self.sectionTitle(b.testament)
+            let title = textInfo(text).section == "Other writings" ? "" : Self.sectionTitle(b.testament)
             if out.last?.0 == title { out[out.count - 1].1.append(b) } else { out.append((title, [b])) }
         }
         return out

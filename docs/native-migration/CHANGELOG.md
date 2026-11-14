@@ -873,3 +873,7 @@
 ### 2026-11-14 — Flexible Scripture viewport
 - Removed explicit viewport dimensions after reproducing clipping on iPhone rotation.
 - Both Dev builds passed. The rebuilt rotation path still needs live verification.
+
+### 2026-11-14 — Reader and study UI feedback
+- Added selection fill, pointer feedback, Mac tab filtering and LXX state, simpler cross references, Search layout fixes, and Notes toolbar cleanup.
+- Both native Dev builds passed. Runtime checks and the compact-height rotation workaround remain open.
