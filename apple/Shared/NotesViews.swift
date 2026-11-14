@@ -526,7 +526,7 @@ struct VerseNotesView: View {
             if let verse {
                 notes = (try? app.notes?.coveringVerse(bookId, chapter, verse, textId: textId)) ?? []
             } else {
-                notes = (try? app.notes?.byChapter(bookId, chapter, textId: textId)) ?? []
+                notes = (try? app.notes?.attachedNotes(bookId, chapter, textId: textId)) ?? []
             }
         }
     }

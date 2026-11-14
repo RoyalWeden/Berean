@@ -110,6 +110,17 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(!(try svc.coveringVerse("JHN", 3, 17, textId: "kjva")).contains { $0.id == range.id })
     }
 
+    @Test func disjointAttachmentsMatchEachChapterAndCountOnce() throws {
+        let note = try svc.create(.init(type: "verse", title: "Disjoint",
+                                       verseRef: "JHN.3.14-15, JHN.3.15, JHN.3.17, JHN.4.2", textId: "kjva")).note
+        #expect(try svc.coveringVerse("JHN", 3, 17, textId: "kjva").contains { $0.id == note.id })
+        #expect(!(try svc.coveringVerse("JHN", 3, 16, textId: "kjva")).contains { $0.id == note.id })
+        #expect(try svc.coveringVerse("JHN", 4, 2, textId: "kjva").contains { $0.id == note.id })
+        let matching = try svc.coveringVerse("JHN", 3, 15, textId: "kjva")
+        #expect(matching.filter { $0.id == note.id }.count == 1)
+        #expect(try svc.coveringVerseCounts("JHN", 3, verses: [15], textId: "kjva")[15] == matching.count)
+    }
+
     @Test func verseAndChapter() throws {
         for c in g.arr("byVerse") {
             #expect(try svc.byVerse(c["ref"]!.str, textId: c["textId"]!.str).map(\.id) == c["ids"]!.array.map(\.str), "\(c["ref"]!.str) \(c["textId"]!.str)")

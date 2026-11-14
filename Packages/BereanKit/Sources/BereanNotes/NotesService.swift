@@ -227,28 +227,54 @@ public final class NotesService: @unchecked Sendable {
         return Self.stableSort(own + others, Self.refLess)
     }
 
-    /// Notes attached to this verse or to a range that contains it. Chapter notes
-    /// remain available in the chapter view.
+    /// Native inspector lookup for single, range and comma-separated attachments.
+    public func attachedNotes(_ bookId: String, _ chapter: Int, textId: String, verse: Int? = nil) throws -> [Note] {
+        var candidates = try byChapter(bookId, chapter, textId: textId)
+        let multi = try db.query("SELECT * FROM notes WHERE deleted_at IS NULL AND instr(verse_ref, ',') > 0 AND verse_ref LIKE ?",
+                                 [.text("%" + bookId + ".%")]).map(Self.note)
+        var seen = Set(candidates.map(\.id))
+        candidates += multi.filter { seen.insert($0.id).inserted }
+        let matches = candidates.filter {
+            Self.attachments($0, bookId: bookId, chapter: chapter, textId: textId).contains {
+                guard let verse else { return true }
+                guard let first = $0.verse else { return false }
+                return (first...($0.endVerse ?? first)).contains(verse)
+            }
+        }
+        return Self.stableSort(matches, verse == nil ? Self.refLess : { $0.createdAt < $1.createdAt })
+    }
+
     public func coveringVerse(_ bookId: String, _ chapter: Int, _ verse: Int, textId: String) throws -> [Note] {
-        let candidates = try byChapter(bookId, chapter, textId: textId)
-        let matching = candidates.filter { Self.attachedRange($0, bookId: bookId)?.contains(verse) == true }
-        return Self.stableSort(matching) { $0.createdAt < $1.createdAt }
+        try attachedNotes(bookId, chapter, textId: textId, verse: verse)
     }
 
     /// Counts the same attachments the inspector displays, bounded by the installed chapter's verses.
     public func coveringVerseCounts(_ bookId: String, _ chapter: Int, verses: Set<Int>, textId: String) throws -> [Int: Int] {
         var counts: [Int: Int] = [:]
-        for note in try byChapter(bookId, chapter, textId: textId) {
-            guard let range = Self.attachedRange(note, bookId: bookId) else { continue }
-            for verse in verses where range.contains(verse) { counts[verse, default: 0] += 1 }
+        for note in try attachedNotes(bookId, chapter, textId: textId) {
+            let ranges = Self.attachments(note, bookId: bookId, chapter: chapter, textId: textId).compactMap { attachment in
+                attachment.verse.map { $0...(attachment.endVerse ?? $0) }
+            }
+            for verse in verses where ranges.contains(where: { $0.contains(verse) }) {
+                counts[verse, default: 0] += 1
+            }
         }
         return counts
     }
 
-    private static func attachedRange(_ note: Note, bookId: String) -> ClosedRange<Int>? {
-        guard let ref = note.verseRef, let attachment = Reference.parseNoteAttachment(ref),
-              attachment.bookId == bookId, let start = attachment.verse else { return nil }
-        return start...(attachment.endVerse ?? start)
+    private static func attachments(_ note: Note, bookId: String, chapter: Int, textId: String)
+        -> [(bookId: String, chapter: Int, verse: Int?, endVerse: Int?)] {
+        let chapters: [Int]
+        if note.textId == textId {
+            chapters = [chapter]
+        } else if (textId == "kjva" && note.textId == "lxx") || (textId == "lxx" && note.textId == "kjva") {
+            chapters = ChapterMap.equivalentChapters(bookId, chapter, from: textId, to: note.textId)
+        } else {
+            return []
+        }
+        return (note.verseRef ?? "").split(separator: ",").compactMap {
+            Reference.parseNoteAttachment(String($0))
+        }.filter { $0.bookId == bookId && chapters.contains($0.chapter) }
     }
 
     func verseRefs(_ bookId: String, _ chapter: Int, tid: String, param: String? = nil) throws -> [String] {

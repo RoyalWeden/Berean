@@ -262,7 +262,7 @@ struct ScriptureView: View {
     }
 
     private func addNoteForSelection(_ state: BibleState) {
-        guard let first = selectedRows.first else { return }
+        guard !selectedRows.isEmpty else { return }
         let links: [String] = selection.count > 1 ? selectionRanges(state).flatMap { range in
             (range.spans ?? []).compactMap { start, end in
                 let firstVerse = Int(start)
@@ -275,11 +275,12 @@ struct ScriptureView: View {
                 return "[\(label)](\(destination))"
             }
         } : []
-        var attachment = "\(first.bookId).\(first.chapter).\(first.verseNum)"
-        if let last = selectedRows.last, last.verseNum > first.verseNum,
-           selection.count == last.verseNum - first.verseNum + 1 {
-            attachment += "-\(last.verseNum)"
-        }
+        let attachment = selectionRanges(state).flatMap { range in
+            (range.spans ?? []).map { start, end in
+                let prefix = "\(range.bookId).\(Int(range.chapter)).\(Int(start))"
+                return start == end ? prefix : "\(prefix)-\(Int(end))"
+            }
+        }.joined(separator: ",")
         app.newNote(verseRef: attachment,
                     textId: state.translation, title: selectionLabel(state), content: links.joined(separator: "\n\n"))
     }
