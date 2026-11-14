@@ -372,17 +372,6 @@ struct ScriptureView: View {
         .overlay(alignment: .bottom) {
             if showActions { selectionBar(st) }
         }
-        #if os(macOS)
-        .overlay(alignment: .top) {
-            HStack(spacing: 4) { passageControls(st) }
-                .buttonStyle(.interactivePlain)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .glassEffectCompat(interactive: true)
-                .padding(.top, 6)
-                .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
-        }
-        #endif
         .padding(.bottom, ReaderFloatingControls.readerDockClearance)
         .onChange(of: SelectionDestination(st)) { _, destination in
             let appliedLocally = pendingSelectionDestination == destination
@@ -886,11 +875,9 @@ struct ScriptureView: View {
         // The passage pill: ‹ Book Chapter · Text › — previous / next chapter around the passage navigator.
         ToolbarItem(placement: .principal) {
             #if os(macOS)
-            if st.compareMode {
-                ControlGroup { passageControls(st) }
-                    .controlGroupStyle(.navigation)
-                    .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
-            }
+            ControlGroup { passageControls(st) }
+                .controlGroupStyle(.navigation)
+                .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
             #else
             HStack(spacing: 4) { passageControls(st) }
                 .buttonStyle(.interactivePlain)
@@ -989,10 +976,6 @@ struct ScriptureView: View {
             .padding(.horizontal, 4)
             .frame(minHeight: 44)
             .contentShape(.rect)
-            #else
-            .padding(.horizontal, 6)
-            .frame(minHeight: 32)
-            .contentShape(.rect)
             #endif
         }
         #if os(macOS)
@@ -1017,9 +1000,6 @@ struct ScriptureView: View {
             .contentShape(.rect)
         #else
         Label(title, systemImage: symbol)
-            .labelStyle(.iconOnly)
-            .frame(width: 32, height: 32)
-            .contentShape(.rect)
         #endif
     }
 

@@ -37,8 +37,6 @@ struct ChapterTextView: NSViewRepresentable {
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
         scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets.top = 48
-        scroll.scrollerInsets.top = 48
         let storage = NSTextStorage()
         let layout = NSLayoutManager()
         let container = NSTextContainer()
@@ -69,8 +67,8 @@ struct ChapterTextView: NSViewRepresentable {
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         guard let parent = coordinator.parent, coordinator.lastPassage == parent.passageId else { return }
         let top = scroll.contentView.bounds.minY
-        let verse = coordinator.textView.flatMap { coordinator.readingAnchor(at: top + scroll.contentInsets.top, in: $0)?.verse }
-        parent.savePosition(ScriptureReadingPosition(offset: max(0, top + scroll.contentInsets.top), verse: verse))
+        let verse = coordinator.textView.flatMap { coordinator.readingAnchor(at: top, in: $0)?.verse }
+        parent.savePosition(ScriptureReadingPosition(offset: max(0, top), verse: verse))
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -97,7 +95,7 @@ struct ChapterTextView: NSViewRepresentable {
         if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
             let origin = previousBounds.origin
-            let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y + scroll.contentInsets.top, in: tv) : nil
+            let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
             let previousBottom = clip.constrainBoundsRect(previousBounds.offsetBy(dx: 0, dy: clip.documentRect.height)).minY
             let wasAtEnd = keepScroll && previousBottom > clip.documentRect.minY + 1
                 && origin.y >= previousBottom - 1
@@ -117,21 +115,14 @@ struct ChapterTextView: NSViewRepresentable {
                 } else if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
                     tv.layoutManager?.ensureLayout(for: container)
                     if let marker = tv.firstRect(forVerseRange: range) {
-                        proposed.origin.y = marker.minY - readingAnchor.offsetFromTop - scroll.contentInsets.top
+                        proposed.origin.y = marker.minY - readingAnchor.offsetFromTop
                     }
                 }
                 clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
                 scroll.reflectScrolledClipView(clip)
             }
             c.lastKey = key
-            if passageChanged {
-                c.lastPassage = passageId
-                var initial = clip.bounds
-                initial.origin.y = -scroll.contentInsets.top
-                clip.scroll(to: clip.constrainBoundsRect(initial).origin)
-                scroll.reflectScrolledClipView(clip)
-                c.scrolledTo = nil
-            }
+            if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
         }
         if c.renderedSelection != selectedVerses {
             if let storage = tv.textStorage {
@@ -171,7 +162,7 @@ struct ChapterTextView: NSViewRepresentable {
                 var bounds = clip.bounds
                 let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
                     .flatMap { tv.firstRect(forVerseRange: $0)?.minY } : nil
-                bounds.origin.y = (verseTop ?? position.offset) - scroll.contentInsets.top
+                bounds.origin.y = verseTop ?? position.offset
                 clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                 scroll.reflectScrolledClipView(clip)
             }
@@ -188,14 +179,14 @@ struct ChapterTextView: NSViewRepresentable {
                 if let rect = tv.firstRect(forVerseRange: range) {
                     let clip = scroll.contentView
                     var proposed = clip.bounds
-                    proposed.origin.y = rect.minY - scroll.contentInsets.top - 12
+                    proposed.origin.y = rect.minY - 12
                     if let lastVerse = c.parent.selectedVerses.max(),
                        lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
                        let bottom = tv.lastVerseLineBottom(in: lastRange) {
                         let lastLine = bottom + ReaderFloatingControls.readingGap
-                        let readingHeight = proposed.height - scroll.contentInsets.top - c.parent.actionClearance
+                        let readingHeight = proposed.height - c.parent.actionClearance
                         if lastLine - rect.minY <= readingHeight {
-                            proposed.origin.y = max(proposed.origin.y, lastLine - proposed.height + c.parent.actionClearance)
+                            proposed.origin.y = max(proposed.origin.y, lastLine - readingHeight)
                         }
                     }
                     clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
