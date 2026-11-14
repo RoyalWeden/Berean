@@ -72,14 +72,24 @@ struct ChapterTextView: NSViewRepresentable {
         if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
             let origin = previousBounds.origin
+            let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
             let sel = tv.selectedRanges
+            let previousText = tv.string
             tv.textStorage?.setAttributedString(c.build(self))
             tv.needsDisplay = true
             if keepScroll {
                 // Restore the selection only where it still fits; AppKit throws on an empty selection array.
-                let kept = sel.filter { $0.rangeValue.upperBound <= tv.string.utf16.count }
+                let kept = previousText == tv.string ? sel : []
                 tv.selectedRanges = kept.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : kept
-                scroll.contentView.scroll(to: origin)
+                var proposed = previousBounds
+                if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
+                    tv.layoutManager?.ensureLayout(for: container)
+                    if let marker = tv.firstRect(forVerseRange: range) {
+                        proposed.origin.y = marker.minY - readingAnchor.offsetFromTop
+                    }
+                }
+                clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+                scroll.reflectScrolledClipView(clip)
             }
             c.lastKey = key
             if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
@@ -337,6 +347,17 @@ struct ChapterTextView: NSViewRepresentable {
             var rect = lm.boundingRect(forGlyphRange: NSRange(location: g, length: 1), in: tc)
             rect.origin.x += tv.textContainerOrigin.x; rect.origin.y += tv.textContainerOrigin.y
             menu.popUp(positioning: nil, at: NSPoint(x: rect.minX, y: rect.maxY + 2), in: tv)
+        }
+
+        func readingAnchor(at top: CGFloat, in view: NSTextView) -> (verse: Int, offsetFromTop: CGFloat)? {
+            guard top > view.textContainerOrigin.y, let layout = view.layoutManager,
+                  let container = view.textContainer, layout.numberOfGlyphs > 0 else { return nil }
+            let point = CGPoint(x: container.lineFragmentPadding, y: top - view.textContainerOrigin.y)
+            let glyph = layout.glyphIndex(for: point, in: container)
+            guard glyph < layout.numberOfGlyphs,
+                  let verse = verse(at: layout.characterIndexForGlyph(at: glyph)),
+                  let range = verseRanges[verse], let marker = view.firstRect(forVerseRange: range) else { return nil }
+            return (verse, marker.minY - top)
         }
 
         func verse(at index: Int) -> Int? {

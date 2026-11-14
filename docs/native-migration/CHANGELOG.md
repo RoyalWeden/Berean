@@ -666,3 +666,7 @@
 ### 2026-11-14 — Keep the iPhone reading position during reflow
 - Preserve the visible verse anchor when a setting or annotation rebuilds the same chapter.
 - Verified Strong's toggle at John 7:51–53 on iOS 27 Simulator.
+
+### 2026-11-14 — Keep Mac reading position during reflow
+- Preserve the visible verse across same-chapter text rebuilds and avoid reusing character selection offsets against changed text.
+- Full native check passed with both Dev builds.
