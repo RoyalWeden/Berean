@@ -151,6 +151,21 @@ struct CompareView: View {
                 alignedComparison(st, cols)
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            #if os(iOS)
+            HStack {
+                Spacer()
+                Button("Exit Compare", systemImage: "xmark") {
+                    app.update(tabId) { $0.state.remove("compareMode") }
+                }
+                .labelStyle(.iconOnly)
+                .frame(minWidth: 44, minHeight: 44)
+                .buttonStyle(.interactivePlain)
+                .glassEffectCompat(interactive: true)
+            }
+            .padding(.horizontal, 16)
+            #endif
+        }
         .toolbar {
             ToolbarItem {
                 Menu {

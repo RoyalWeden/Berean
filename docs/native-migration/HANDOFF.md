@@ -556,3 +556,5 @@ The empty Scripture reader now names the missing passage and edition, offers Cho
 Mac and iPhone disable Tag Chapter and text-dependent export actions when a Scripture chapter is unavailable. Copy Chapter Reference remains usable. Compare retains its existing chapter commands. Both Dev builds passed. Live QA remains for unavailable chapter actions and re-enabling after recovery.
 
 iOS 27 Simulator verified unavailable Scripture recovery. From the isolated John 8 KJVA / John 7 LXX Compare fixture, Manage Translations → Open in Reader → John 7 LXX showed Passage Unavailable, Choose Passage and Open in KJVA. Open in KJVA loaded John 7 and kept five tabs. Mac runtime and empty-chapter export menu checks remain open.
+
+iPhone Compare now offers a direct floating Exit Compare control. The first toolbar placement disappeared alongside the navigation controls in a loaded case, so the final control uses a safe-area inset. iOS 27 Simulator verified tapping Exit Compare restored John 7 KJVA in the same tab with the count still five. The action removes compareMode only, preserving column metadata for reentry. Verify reentry, Back and landscape spacing.

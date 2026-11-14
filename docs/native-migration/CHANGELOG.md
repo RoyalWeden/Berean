@@ -821,3 +821,7 @@
 ### 2026-11-14 — Unavailable chapter commands
 - Disabled tag and text export actions on unavailable Scripture chapters while retaining reference copy.
 - Both Dev builds passed.
+
+### 2026-11-14 — Direct iPhone Compare exit
+- Added a floating close control that returns to the source passage and preserves the comparison layout for reentry.
+- iPhone Dev build and iOS 27 Simulator same-tab exit passed.
