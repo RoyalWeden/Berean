@@ -550,3 +550,8 @@
 ### 2026-11-14 — Direct chapter tagging
 - Added a direct route to the existing chapter tag picker from the iPhone More menu and Mac reader toolbar.
 - Both Dev builds passed. The iOS 27 Simulator verified creating a chapter tag while retaining a two-verse selection.
+
+### 2026-11-14 — Scripture tag picker feedback
+- Fit the iPhone sheet to its available width and keep the passage visible in the navigation bar.
+- Expose tag selection and selected count, preserve selections on keyboard submission, and report library failures.
+- Both Dev builds passed. Checked the heading, selected trait, and cancellation on the iPhone Simulator.
