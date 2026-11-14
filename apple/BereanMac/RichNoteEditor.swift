@@ -62,6 +62,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .list(let style): editor.setList(style)
                 case .insertTable: editor.insertTable()
                 case .addTableRow: editor.addTableRow()
+                case .addTableColumn: editor.addTableColumn()
                 }
                 window.makeFirstResponder(editor)
             }
@@ -256,6 +257,11 @@ final class NoteTextView: NSTextView {
         setSelectedRange(destination)
         scrollRangeToVisible(destination)
         return true
+    }
+
+    func addTableColumn() {
+        guard let edit = noteTableColumnInsertion(in: string as NSString, selection: selectedRange()) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func addTableRow() {

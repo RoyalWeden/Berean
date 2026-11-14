@@ -38,6 +38,7 @@ struct NoteFormatRequest: Equatable {
         case list(NoteListStyle)
         case insertTable
         case addTableRow
+        case addTableColumn
     }
 
     let action: Action
@@ -232,6 +233,37 @@ func noteTableRowInsertion(in text: NSString, selection: NSRange)
             NSRange(location: anchor.upperBound + newline.utf16.count + 2, length: 0))
 }
 
+func noteTableColumnInsertion(in text: NSString, selection: NSRange)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard let (block, row) = noteTableContext(in: text, selection: selection),
+          let first = block.first, let last = block.last else { return nil }
+    let rows = block.map { noteTableCells(in: text, range: $0.range) }
+    let width = rows[0].count
+    guard rows[1].count == width,
+          rows.allSatisfy({ !$0.isEmpty && $0.count <= width }),
+          let column = rows[row].firstIndex(where: {
+              $0.location <= selection.location && selection.upperBound <= $0.upperBound
+          }) else { return nil }
+
+    let range = NSRange(location: first.range.location, length: last.range.upperBound - first.range.location)
+    let replacement = NSMutableString(string: text.substring(with: range))
+    var caret = 0
+    for index in rows.indices.reversed() {
+        let cells = rows[index]
+        let delimiter = cells[min(column, cells.count - 1)].upperBound
+        let gap = max(0, column + 1 - cells.count)
+        let inserted = String(repeating: "  |", count: gap) + (index == 1 ? " --- |" : "  |")
+        let offset = delimiter + 1 - range.location
+        replacement.insert(inserted, at: offset)
+        if index == row {
+            caret = range.location + offset + gap * 3 + 1
+        } else if index < row {
+            caret += inserted.utf16.count
+        }
+    }
+    return (range, replacement as String, NSRange(location: caret, length: 0))
+}
+
 /// Navigate the cells of the pipe tables written by the Electron and native editors.
 func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: Bool) -> NSRange? {
     guard let (block, row) = noteTableContext(in: text, selection: selection) else { return nil }
@@ -405,6 +437,9 @@ struct NoteDetailView: View {
                         }
                         Button("Add Row Below", systemImage: "rectangle.split.1x2") {
                             formatRequest = NoteFormatRequest(action: .addTableRow)
+                        }
+                        Button("Add Column After", systemImage: "rectangle.split.2x1") {
+                            formatRequest = NoteFormatRequest(action: .addTableColumn)
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")

@@ -933,3 +933,7 @@
 ### 2026-11-14 — Native Notes table rows
 - Added Add Row Below to the Notes Format menu on Mac and iPhone.
 - Both Dev builds, six insertion checks and six table navigation regression checks passed. Live menu and undo checks remain open.
+
+### 2026-11-14 — Native Notes table columns
+- Added Add Column After to the Notes Format menu on Mac and iPhone.
+- Both Dev builds and 19 focused table checks passed. Live interaction and undo remain open.

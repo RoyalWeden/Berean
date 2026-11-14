@@ -51,6 +51,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .list(let style): tv.setList(style)
                 case .insertTable: tv.insertTable()
                 case .addTableRow: tv.addTableRow()
+                case .addTableColumn: tv.addTableColumn()
                 }
                 tv.becomeFirstResponder()
             }
@@ -269,6 +270,11 @@ final class NoteUITextView: UITextView {
     func toggleTask(_ url: URL) {
         guard let edit = NoteTaskLink.edit(for: url, in: (text ?? "") as NSString) else { return }
         applyFormatEdit((edit.range, edit.replacement, selectedRange))
+    }
+
+    func addTableColumn() {
+        guard let edit = noteTableColumnInsertion(in: (text ?? "") as NSString, selection: selectedRange) else { return }
+        applyFormatEdit(edit)
     }
 
     func addTableRow() {
