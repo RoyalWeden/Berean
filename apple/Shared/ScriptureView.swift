@@ -430,7 +430,9 @@ struct ScriptureView: View {
     }
 
     func copySelection(_ st: BibleState, plain: Bool) {
-        if let text = selectionText(st, plain: plain) { Clipboard.copy(text) }
+        guard let text = selectionText(st, plain: plain) else { return }
+        Clipboard.copy(text)
+        if !plain { confirmSelectionCopy(.verses) }
     }
 
     private func selectionText(_ state: BibleState, plain: Bool = false) -> String? {
@@ -501,14 +503,18 @@ struct ScriptureView: View {
             let text = action == .verses ? selectionText(state) : selectionReference(state)
             guard let text, !text.isEmpty else { return }
             Clipboard.copy(text)
-            copiedAction = action
-            copyFeedbackID = UUID()
-            AccessibilityNotification.Announcement(action == .verses ? "Verses copied" : "Reference copied").post()
+            confirmSelectionCopy(action)
         } label: {
             Label(title, systemImage: copied ? "checkmark" : symbol)
                 .foregroundStyle(copied ? Color.accentColor : Color.primary)
         }
         .accessibilityValue(copied ? "Copied" : "")
+    }
+
+    private func confirmSelectionCopy(_ action: CopyAction) {
+        copiedAction = action
+        copyFeedbackID = UUID()
+        AccessibilityNotification.Announcement(action == .verses ? "Verses copied" : "Reference copied").post()
     }
 
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
@@ -1184,6 +1190,7 @@ extension ScriptureView {
             onStrongs: { showLexicon($0) },
             onNotes: { openInspector("notes", verse: $0) },
             onVerseClick: { v, shift in verseClick(v, shift: shift) },
+            onCopySelectedVerses: { confirmSelectionCopy(.verses) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) })
             .task(id: strongsIDs(in: rv, enabled: st.showStrongs)) {
                 let ids = strongsIDs(in: rv, enabled: st.showStrongs)

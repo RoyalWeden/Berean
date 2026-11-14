@@ -655,3 +655,6 @@
 ### 2026-11-14 — Floating selection copy verification
 - Verified Didache range reference round-trip, unchanged tab count and exact two-verse clipboard content on iOS 27 Simulator.
 - Added an accessibility value for transient copy confirmation. Both Dev builds passed.
+
+### 2026-11-14 — Mac whole-verse keyboard copy confirmation
+- Reuse the floating toolbar copy confirmation after successful ⌘C and multi-verse menu copy. Both Dev builds passed.

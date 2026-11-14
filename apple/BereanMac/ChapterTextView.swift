@@ -22,6 +22,7 @@ struct ChapterTextView: NSViewRepresentable {
     var onNotes: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
+    var onCopySelectedVerses: () -> Void
     /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
     var onHighlightRange: (Int, Int, Int, String) -> Void = { _, _, _, _ in }
 
@@ -531,7 +532,10 @@ final class ReaderTextView: NSTextView {
 
     override func copy(_ sender: Any?) {
         guard let s = coordinator?.copyText(plain: false) else { return }
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
+        NSPasteboard.general.clearContents()
+        if NSPasteboard.general.setString(s, forType: .string), selectedRange().length == 0 {
+            coordinator?.parent.onCopySelectedVerses()
+        }
     }
 
     @objc func copyPlain(_ sender: Any?) {
