@@ -180,7 +180,6 @@ struct ChapterTextView: NSViewRepresentable {
         }
 
         private func markerColor(_ verse: Int, _ reader: ChapterTextView) -> NSColor {
-            guard reader.style.showVerseNumbers else { return .clear }
             return reader.selectedVerses.contains(verse) ? .controlAccentColor : NSColor.controlAccentColor.withAlphaComponent(0.82)
         }
 
@@ -214,11 +213,14 @@ struct ChapterTextView: NSViewRepresentable {
             let para = NSMutableParagraphStyle()
             para.lineSpacing = p.style.lineSpacing
             para.paragraphSpacing = size * 0.55
-            para.tabStops = [NSTextTab(textAlignment: .right, location: 26), NSTextTab(textAlignment: .left, location: 34)]
-            para.headIndent = 34
+            let gutterWidth: CGFloat = p.style.showVerseNumbers ? 34 : 0
+            if p.style.showVerseNumbers {
+                para.tabStops = [NSTextTab(textAlignment: .right, location: 26), NSTextTab(textAlignment: .left, location: gutterWidth)]
+                para.headIndent = gutterWidth
+            }
             let base: [NSAttributedString.Key: Any] = [.font: font(size), .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
 
-            let headPara = NSMutableParagraphStyle(); headPara.paragraphSpacing = 10; headPara.headIndent = 34; headPara.firstLineHeadIndent = 34
+            let headPara = NSMutableParagraphStyle(); headPara.paragraphSpacing = 10; headPara.headIndent = gutterWidth; headPara.firstLineHeadIndent = gutterWidth
             for h in p.header {
                 out.append(NSAttributedString(string: h + "\n", attributes: [.font: NSFont.preferredFont(forTextStyle: .callout), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: headPara, Self.skipKey: true]))
             }
@@ -233,22 +235,25 @@ struct ChapterTextView: NSViewRepresentable {
             for v in p.verses {
                 let start = out.length
                 if let title = v.title, !title.isEmpty {
-                    out.append(NSAttributedString(string: "\t\t" + title + "\n", attributes: base.merging([.font: font(size * 0.85, italic: true), .foregroundColor: NSColor.secondaryLabelColor, Self.skipKey: true]) { $1 }))
+                    let prefix = p.style.showVerseNumbers ? "\t\t" : ""
+                    out.append(NSAttributedString(string: prefix + title + "\n", attributes: base.merging([.font: font(size * 0.85, italic: true), .foregroundColor: NSColor.secondaryLabelColor, Self.skipKey: true]) { $1 }))
                 }
-                // Gutter: right-aligned verse number (a link → verse actions), note dot.
-                let numAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
-                    .foregroundColor: markerColor(v.verse, p),
-                    .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
-                    .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
-                ]
-                // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
-                let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
-                let markerStart = out.length
-                out.append(NSAttributedString(string: "\t", attributes: gutterTab))
-                out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
-                out.append(NSAttributedString(string: "\t", attributes: gutterTab))
-                markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
+                if p.style.showVerseNumbers {
+                    // Gutter: right-aligned verse number (a link → verse actions), note dot.
+                    let numAttrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
+                        .foregroundColor: markerColor(v.verse, p),
+                        .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
+                        .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
+                    ]
+                    // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
+                    let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
+                    let markerStart = out.length
+                    out.append(NSAttributedString(string: "\t", attributes: gutterTab))
+                    out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
+                    out.append(NSAttributedString(string: "\t", attributes: gutterTab))
+                    markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
+                }
                 let textStart = out.length
                 verseTextStarts[v.verse] = textStart
                 // Words with italics / red letters / character highlights; Strong's numbers as superscript links.
@@ -504,7 +509,7 @@ final class ReaderTextView: NSTextView {
         let index = lm.characterIndexForGlyph(at: g)
         if rect.insetBy(dx: -2, dy: -2).contains(pt) { return index }
         if includeVerseGutter, let storage = textStorage, let c = coordinator,
-           index < storage.length, let verse = c.verse(at: index),
+           c.parent.style.showVerseNumbers, index < storage.length, let verse = c.verse(at: index),
            let start = c.verseTextStarts[verse], start > 0, start < storage.length {
             let firstWord = lm.glyphIndexForCharacter(at: start)
             let line = lm.lineFragmentRect(forGlyphAt: firstWord, effectiveRange: nil)

@@ -688,3 +688,7 @@
 - Hid the slider's redundant visible label while retaining its accessible name.
 - Updated the parity matrix for the continuous reader, verse actions, history and display options.
 - Both native Dev builds passed.
+
+### 2026-11-14 — Mac reader without verse numbers
+- Removed invisible verse-number hit targets and reclaimed their gutter when verse numbers are off.
+- Mac Dev build and identity check passed. Live hover and toggle verification remain open.
