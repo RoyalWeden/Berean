@@ -314,9 +314,10 @@ struct BereanSidebar: View {
 
     private var archiveSearch: some View {
         let terms = archiveQuery.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
+        let titles = app.archiveTitles()
         let groups = app.archivedGroups.map { group in
             (group, group.tabs.filter { tab in
-                return terms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
+                return terms.allSatisfy { "\(tab.navigationSearchText) \(titles[group.id] ?? group.label)".localizedStandardContains(String($0)) }
             })
         }.filter { !$0.1.isEmpty }
         return VStack(spacing: 12) {
@@ -331,7 +332,7 @@ struct BereanSidebar: View {
             List {
                 ForEach(groups, id: \.0.id) { group, tabs in
                     if !tabs.isEmpty {
-                        Section(group.label.isEmpty ? "Archived tabs" : group.label) {
+                        Section(titles[group.id] ?? group.label) {
                             ForEach(tabs) { tab in
                                 Button {
                                     app.restoreArchivedTab(tab.id, from: group.id)
@@ -368,7 +369,8 @@ struct BereanSidebar: View {
     }
 
     var archive: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        let titles = archiveExpanded ? app.archiveTitles() : [:]
+        return VStack(alignment: .leading, spacing: 2) {
             Button { withAnimation(.snappy(duration: 0.18)) { archiveExpanded.toggle() } } label: {
                 HStack {
                     Text("Archived").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -387,7 +389,7 @@ struct BereanSidebar: View {
                 .buttonStyle(.interactivePlain)
                 ForEach(app.archivedGroups) { g in
                     Button { app.restoreArchived(g.id) } label: {
-                        Label(g.label.isEmpty ? "Archived tabs" : g.label, systemImage: "archivebox").lineLimit(1)
+                        Label(titles[g.id] ?? g.label, systemImage: "archivebox").lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.vertical, 6).contentShape(.rect)
                     }
                     .buttonStyle(SidebarRowButtonStyle())

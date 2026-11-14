@@ -441,20 +441,23 @@ struct ArchivedTabsPage: View {
 
     private var searchTerms: [Substring] { query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace) }
 
-    private func matches(_ tab: BereanWorkspace.Tab) -> Bool {
-        searchTerms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
+    private func matches(_ tab: BereanWorkspace.Tab, title: String) -> Bool {
+        let text = "\(tab.navigationSearchText) \(title)"
+        return searchTerms.allSatisfy { text.localizedStandardContains(String($0)) }
     }
 
     var body: some View {
+        let titles = app.archiveTitles()
         List {
             if !app.archivedGroups.isEmpty {
                 TabSearchField(prompt: "Search archived tabs", query: $query)
             }
             ForEach(app.archivedGroups) { group in
                 let tabs = app.archivedTabs(group)
-                let matches = tabs.filter { self.matches($0) }
+                let title = titles[group.id] ?? group.label
+                let matches = tabs.filter { self.matches($0, title: title) }
                 if !matches.isEmpty || (tabs.isEmpty && searchTerms.isEmpty) {
-                    Section(group.label.isEmpty ? "Archived tabs" : group.label) {
+                    Section(title) {
                         ForEach(matches) { tab in
                             Button {
                                 app.restoreArchivedTab(tab.id, from: group.id)
@@ -488,7 +491,9 @@ struct ArchivedTabsPage: View {
             }
             if app.archivedGroups.isEmpty {
                 ContentUnavailableView("No Archived Tabs", systemImage: "archivebox")
-            } else if !searchTerms.isEmpty && !app.archivedGroups.contains(where: { app.archivedTabs($0).contains(where: matches) }) {
+            } else if !searchTerms.isEmpty && !app.archivedGroups.contains(where: { group in
+                app.archivedTabs(group).contains { matches($0, title: titles[group.id] ?? group.label) }
+             }) {
                 ContentUnavailableView.search(text: query)
             }
         }

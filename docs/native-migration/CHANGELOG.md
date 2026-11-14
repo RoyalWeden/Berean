@@ -637,3 +637,6 @@
 ### 2026-11-14 — Restore archived tabs near their original positions
 - Save local sidebar ordering for recent archives and reuse it when restoring to the source workspace.
 - Both Dev builds passed. Existing archive records and sync schema are compatible.
+
+### 2026-11-14 — Workspace context for archived tabs
+- Show and search source workspace names in the native archive browser when local metadata is available. Both Dev builds passed.

@@ -109,7 +109,8 @@ extension AppModel {
         let json = JSON.stringifyString(.array(tabs.map { .object($0.jsObject) }))
         let id = "arch-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(6))"
         var placements = archivePlacements
-        placements[id] = ArchivePlacement(workspace: currentSessionId, order: displayOrder(for: currentSessionId))
+        placements[id] = ArchivePlacement(workspace: currentSessionId, order: displayOrder(for: currentSessionId),
+                                          workspaceName: session.name)
         archivedGroups.insert(ArchivedGroup(id: id, label: label, archivedAt: Int64(Date().timeIntervalSince1970 * 1000), tabsJSON: json), at: 0)
         let recentGroups = Set(archivedGroups.prefix(50).map(\.id))
         archivePlacements = placements.filter { recentGroups.contains($0.key) }
@@ -120,6 +121,17 @@ extension AppModel {
     private struct ArchivePlacement: Codable {
         let workspace: String
         let order: [String]
+        let workspaceName: String?
+    }
+
+    func archiveTitles() -> [String: String] {
+        let placements = archivePlacements
+        let liveNames = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.name) })
+        return Dictionary(uniqueKeysWithValues: archivedGroups.map { group in
+            let label = group.label.isEmpty ? "Archived tabs" : group.label
+            let name = placements[group.id].flatMap { liveNames[$0.workspace] ?? $0.workspaceName }
+            return (group.id, name.map { "\(label) · \($0)" } ?? label)
+        })
     }
 
     private var archivePlacements: [String: ArchivePlacement] {
