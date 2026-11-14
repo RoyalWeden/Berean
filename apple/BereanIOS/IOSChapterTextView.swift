@@ -31,7 +31,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextView {
-        let view = ReaderTextView(frame: .zero, textContainer: nil)
+        let view = ReaderTextView(usingTextLayoutManager: false)
         view.reader = context.coordinator
         view.isEditable = false
         view.isSelectable = true
@@ -105,7 +105,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                       coordinator.parent.selectedVerses.contains(revealVerse),
                       let range = coordinator.bodyRanges[revealVerse], range.length > 0,
                       let position = view.position(from: view.beginningOfDocument, offset: NSMaxRange(range) - 1) else { return }
-                view.layoutIfNeeded()
+                coordinator.layoutThroughEnd(of: range, in: view)
                 let inset = view.adjustedContentInset
                 let visibleBottom = view.bounds.maxY - inset.bottom
                 let overlap = view.caretRect(for: position).maxY + ReaderFloatingControls.readingGap - visibleBottom
@@ -125,7 +125,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                       coordinator.parent.scrollTarget == target, coordinator.lastTarget == target,
                       NSMaxRange(range) <= view.textStorage.length,
                       let position = view.position(from: view.beginningOfDocument, offset: range.location) else { return }
-                view.layoutIfNeeded()
+                let lastRange = coordinator.parent.selectedVerses.max().flatMap { coordinator.bodyRanges[$0] }
+                coordinator.layoutThroughEnd(of: lastRange.map { NSUnionRange(range, $0) } ?? range, in: view)
                 let inset = view.adjustedContentInset
                 let top = view.caretRect(for: position).minY
                 var y = top - inset.top - 12
@@ -180,15 +181,12 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
             let path = UIBezierPath()
             for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.bodyRanges) where range.length > 0 {
-                func characterRect(at offset: Int) -> CGRect? {
-                    guard let start = position(from: beginningOfDocument, offset: offset),
-                          let end = position(from: start, offset: 1),
-                          let range = textRange(from: start, to: end) else { return nil }
-                    return firstRect(for: range)
-                }
-                guard let first = characterRect(at: range.location),
-                      let last = characterRect(at: NSMaxRange(range) - 1) else { continue }
-                let rect = CGRect(x: textContainerInset.left - 4, y: first.minY,
+                layoutManager.ensureLayout(forCharacterRange: range)
+                let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+                guard glyphs.length > 0 else { continue }
+                let first = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+                let last = layoutManager.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+                let rect = CGRect(x: textContainerInset.left - 4, y: first.minY + textContainerInset.top,
                                   width: bounds.width - textContainerInset.left - textContainerInset.right + 8,
                                   height: last.maxY - first.minY)
                     .insetBy(dx: 0, dy: -ReaderFloatingControls.outlinePadding)
@@ -213,6 +211,11 @@ struct IOSChapterTextView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+        func layoutThroughEnd(of range: NSRange, in view: UITextView) {
+            view.layoutIfNeeded()
+            view.layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: NSMaxRange(range)))
+        }
+
         private static let skip = NSAttributedString.Key("bereanSkip")
         private let selectionFeedback = UISelectionFeedbackGenerator()
         var parent: IOSChapterTextView
