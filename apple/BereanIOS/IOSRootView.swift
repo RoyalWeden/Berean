@@ -348,7 +348,7 @@ struct SessionsPage: View {
                                 ForEach(w.previewLabels(matching: query), id: \.self) { preview in
                                     Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                                 }
-                                Text(w.isSaved ? "Saved · \(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")" : "\(w.tabCount) tab\(w.tabCount == 1 ? "" : "s")")
+                                Text(w.isSaved ? "Saved · \(w.tabCountLabel)" : w.tabCountLabel)
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()

@@ -13,9 +13,9 @@ struct WorkspaceItem: Identifiable, Hashable {
     var tabCount: Int
     var icon: String?
     var tabTitles: [String]
-    var menuLabel: String {
-        preview.map { "\(name) · \($0)" } ?? "\(name) · \(tabCount) tabs"
-    }
+    var tabCountLabel: String { "\(tabCount) tab\(tabCount == 1 ? "" : "s")" }
+
+    var menuLabel: String { "\(name) · \(preview ?? tabCountLabel)" }
 
     var preview: String? {
         let labels = previewLabels()
@@ -50,14 +50,18 @@ struct WorkspaceItem: Identifiable, Hashable {
     var isSaved: Bool { if case .saved = kind { true } else { false } }
 }
 
+private extension WorkspaceItem {
+    init(session: Session) {
+        let tabs = session.workspacePreviewTabs
+        self.init(kind: .live(session.id), name: session.name, tabCount: tabs.count,
+                  icon: session.icon, tabTitles: tabs.map(\.workspacePreviewLabel))
+    }
+}
+
 extension AppModel {
     /// Live workspaces in session order, then saved ones that are not open.
     var workspaceItems: [WorkspaceItem] {
-        let live = sessions.map { session in
-            let tabs = session.workspacePreviewTabs
-            return WorkspaceItem(kind: .live(session.id), name: session.name, tabCount: tabs.count,
-                                 icon: session.icon, tabTitles: tabs.map(\.workspacePreviewLabel))
-        }
+        let live = sessions.map(WorkspaceItem.init(session:))
         let saved = savedWorkspaces.filter { !isWorkspaceOpen($0.id) }.map { workspace in
             let snapshot = WorkspaceSnapshot.parse(workspace.stateJSON)
             let tabs = WorkspaceSnapshot.spaces.flatMap { snapshot.tabs(in: $0) }
@@ -72,7 +76,7 @@ extension AppModel {
     }
 
     var tabMoveDestinations: [WorkspaceItem] {
-        workspaceItems.filter { !$0.isSaved && !isCurrent($0) }
+        sessions.filter { $0.id != currentSessionId }.map(WorkspaceItem.init(session:))
     }
 
     func moveTab(_ id: String, to item: WorkspaceItem) {

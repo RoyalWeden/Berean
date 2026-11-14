@@ -194,7 +194,7 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 
 | Task | Scope | Evidence / acceptance |
 |---|---|---|
-| SHARED-UX-020 — tame tabs and unnamed workspaces | Mac and iPhone | First pass implemented: search names and contained tab titles, preview a passage/title, archive selected inactive tabs and reuse iPhone destinations. Verify with duplicate default names and restore on both platforms. Next: routine Mac reuse and duplicate review. Keep pinned tabs, explicit New Tab, existing IDs and persisted state semantics. |
+| SHARED-UX-020 — tame tabs and unnamed workspaces | Mac and iPhone | Implemented name and contained-tab search, passage previews, eligible destination reuse, and reversible archive. iPhone search is visible in Tabs, Workspaces and Archived Tabs. Both Move to Workspace menus show passage previews. Next: test duplicate names and larger lists on both platforms, then add duplicate review. Preserve pinned tabs, explicit New Tab, existing IDs and persisted state semantics. |
 | IOS-FUNC-002 verification | iPhone | Drag selection handles across verses, inspect copied text/reference, create/reopen a partial highlight and verify swipe arbitration. |
 | U14 Study Trail | shared service, then Mac/iPhone UI | Port the legacy service with deterministic golden fixtures first. |
 | SHARED-FUNC-017 | Mac and iPhone | Port legacy sunrise calculation and fallback semantics before connecting any location provider. |
