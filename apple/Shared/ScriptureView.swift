@@ -854,7 +854,6 @@ struct ScriptureView: View {
             #if os(macOS)
             ControlGroup { passageControls(st) }
                 .controlGroupStyle(.navigation)
-                .pointerStyle(.link)
                 .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
             #else
             HStack(spacing: 4) { passageControls(st) }
@@ -928,6 +927,9 @@ struct ScriptureView: View {
     @ViewBuilder private func passageControls(_ st: BibleState) -> some View {
         Button { step(-1) } label: { passageArrow("Previous Chapter", "chevron.backward") }
             .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).help("Previous chapter (⌥⌘←)")
+            #if os(macOS)
+            .pointerStyle(canStep(-1, from: st) ? .link : .default)
+            #endif
             .disabled(!canStep(-1, from: st))
         Button { pickerShown.toggle() } label: {
             HStack(spacing: 5) {
@@ -945,10 +947,16 @@ struct ScriptureView: View {
             .contentShape(.rect)
             #endif
         }
+        #if os(macOS)
+        .pointerStyle(.link)
+        #endif
         .accessibilityLabel("\(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)), \(textInfo(st.translation).name). Choose passage or text")
         .help("Choose book, chapter or text — search every text, see history (⌘L)")
         Button { step(1) } label: { passageArrow("Next Chapter", "chevron.forward") }
             .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
+            #if os(macOS)
+            .pointerStyle(canStep(1, from: st) ? .link : .default)
+            #endif
             .disabled(!canStep(1, from: st))
     }
 
