@@ -13,7 +13,7 @@ struct ChapterTextView: NSViewRepresentable {
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
-    var selectionReference: () -> String
+    var selectedVerseCopyText: (Bool) -> String?
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
@@ -383,10 +383,7 @@ struct ChapterTextView: NSViewRepresentable {
             guard let tv = textView else { return nil }
             let r = tv.selectedRange()
             if r.length == 0 {
-                let vs = parent.verses.filter { parent.selectedVerses.contains($0.verse) }
-                guard !vs.isEmpty else { return nil }
-                if plain { return vs.map(\.displayText).joined(separator: " ") }
-                return ([parent.selectionReference()] + vs.map { "\($0.verse) \($0.displayText)" }).joined(separator: "\n")
+                return parent.selectedVerseCopyText(plain)
             }
             let vs = verses(in: r)
             if vs.count <= 1 && !plain { return plainText(r) }

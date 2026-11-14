@@ -450,3 +450,5 @@ iOS 27 Simulator verified More Verse Actions → Copy Reference → paste in Go 
 Mac Reader ⌘C now shows the floating Copy Verses checkmark and announces successful copy when copying whole selected verses. The multi-verse context action shares that confirmation. Character selection and plain copy retain their existing behavior. Both Dev builds passed. Verify the responder path live with a verse-number click followed by ⌘C and a normal text selection.
 
 Live Mac keyboard QA found that activating an accessibility verse link changed the whole-verse selection but left keyboard focus on the window. The link delegate now focuses the reader and clears the character selection, matching the pointer click path. Mac Dev verified clicking verse 53 to leave John 7:47–50, then ⌘C, showed the Copy Verses checkmark and Copied value. Mac Dev build passed. Normal character-selection copy remains to exercise.
+
+Mac keyboard copy for whole selected verses uses the same formatter as the floating toolbar. Character-range copy continues through TextKit. Mac Dev build passed. Retest byte-for-byte equality of the toolbar and keyboard clipboard contents in the running app.
