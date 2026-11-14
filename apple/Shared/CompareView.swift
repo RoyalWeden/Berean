@@ -488,6 +488,14 @@ struct CompareView: View {
             }
         }
         Divider()
+        Button("Add Note", systemImage: "square.and.pencil") {
+            let title = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                                        hermas: HermasText(textId: column.text))
+            app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: column.text, title: title)
+        }
+        Button("Cross References", systemImage: "arrow.triangle.branch") {
+            openReader(row, in: column, inspector: "crossrefs")
+        }
         Button("Open in Reader", systemImage: "book.pages") { openReader(row, in: column) }
         Button("Open in New Tab", systemImage: "plus.square") {
             app.openScripture(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: column.text)
@@ -515,12 +523,12 @@ struct CompareView: View {
         }
     }
 
-    private func openReader(_ row: ChapterVerseRow, in column: CompareColumn) {
+    private func openReader(_ row: ChapterVerseRow, in column: CompareColumn, inspector: String? = nil) {
         openReader(ResolvedPassage(textId: column.text, bookId: row.bookId,
-                                  chapter: row.chapter, verse: row.verseNum))
+                                  chapter: row.chapter, verse: row.verseNum), inspector: inspector)
     }
 
-    private func openReader(_ passage: ResolvedPassage) {
+    private func openReader(_ passage: ResolvedPassage, inspector: String? = nil) {
         app.update(tabId) { tab in
             var reader = BibleState(tab.state)
             reader.compareMode = false
@@ -529,6 +537,10 @@ struct CompareView: View {
             reader.translation = passage.textId
             reader.verse = passage.verse
             reader.endVerse = passage.endVerse
+            if let inspector {
+                reader.rightPanelOpen = true
+                reader.rightPanelTab = inspector
+            }
             tab.state = reader.merged(into: tab.state)
             tab.state.remove("compareColumns")
             tab.state.remove("endChapter")
