@@ -448,6 +448,7 @@ struct ArchivedTabsPage: View {
 
     var body: some View {
         let titles = app.archiveTitles()
+        let sourceNames = app.archiveSourceNames()
         List {
             if !app.archivedGroups.isEmpty {
                 TabSearchField(prompt: "Search archived tabs", query: $query)
@@ -476,6 +477,11 @@ struct ArchivedTabsPage: View {
                         }
                         if searchTerms.isEmpty {
                             Menu("Group Actions", systemImage: "ellipsis.circle") {
+                                if !tabs.isEmpty, let source = sourceNames[group.id] {
+                                    Button("Restore to \(source)", systemImage: "square.stack") {
+                                        app.restoreArchived(group.id, toSource: true)
+                                    }
+                                }
                                 if tabs.count > 1 {
                                     Button("Restore All \(tabs.count) Tabs", systemImage: "archivebox") {
                                         app.restoreArchived(group.id)

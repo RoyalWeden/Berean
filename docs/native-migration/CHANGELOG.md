@@ -640,3 +640,7 @@
 
 ### 2026-11-14 — Workspace context for archived tabs
 - Show and search source workspace names in the native archive browser when local metadata is available. Both Dev builds passed.
+
+### 2026-11-14 — Restore archives to the source workspace
+- Added an explicit action to return archived groups to their original workspace while staying in the current workspace.
+- Both native Dev builds passed. Live cross-workspace group restore remains to verify.

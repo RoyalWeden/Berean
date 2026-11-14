@@ -144,11 +144,16 @@ extension AppModel {
         }
     }
 
-    private func placeRestoredTab(_ id: String, using placement: ArchivePlacement?) {
-        let savedOrder = placement?.workspace == currentSessionId ? placement?.order : nil
-        displayOrders[currentSessionId] = TabPersistence.restoredDisplayOrder(
-            tabID: id, current: displayOrder(for: currentSessionId), archived: savedOrder ?? []
+    private func placeRestoredTab(_ id: String, in workspace: String, using placement: ArchivePlacement?) {
+        let savedOrder = placement?.workspace == workspace ? placement?.order : nil
+        displayOrders[workspace] = TabPersistence.restoredDisplayOrder(
+            tabID: id, current: displayOrder(for: workspace), archived: savedOrder ?? []
         )
+    }
+
+    func archiveSourceNames() -> [String: String] {
+        let names = Dictionary(uniqueKeysWithValues: sessions.filter { $0.id != currentSessionId }.map { ($0.id, $0.name) })
+        return archivePlacements.compactMapValues { names[$0.workspace] }
     }
 
     var inactiveTabs: [BereanWorkspace.Tab] {
@@ -192,10 +197,12 @@ extension AppModel {
     }
 
     /// Restore saved sidebar placement when available and keep the current reading position.
-    func restoreArchived(_ groupId: String) {
+    func restoreArchived(_ groupId: String, toSource: Bool = false) {
         guard let index = archivedGroups.firstIndex(where: { $0.id == groupId }) else { return }
         let group = archivedGroups[index]
         let placement = archivePlacements[groupId]
+        guard let workspace = toSource ? placement?.workspace : currentSessionId,
+              let destination = sessions.firstIndex(where: { $0.id == workspace }) else { return }
         // Tab IDs are unique in SQLite across all workspaces. An archived copy may
         // already be open elsewhere after a restore on another device.
         var openIds = Set(sessions.flatMap { $0.allTabs.map(\.id) })
@@ -204,11 +211,11 @@ extension AppModel {
         var restoredIDs = Set<String>()
         for tab in archivedTabs(group) where openIds.insert(tab.id).inserted {
             restoredIDs.insert(tab.id)
-            sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
-            if activeTabId(in: tab.spaceId) == nil {
-                sessions[sessionIndex].activeTabId[tab.spaceId] = tab.id
+            sessions[destination].tabs[tab.spaceId, default: []].append(tab)
+            if (sessions[destination].activeTabId[tab.spaceId] ?? nil) == nil {
+                sessions[destination].activeTabId[tab.spaceId] = tab.id
             }
-            placeRestoredTab(tab.id, using: placement)
+            placeRestoredTab(tab.id, in: workspace, using: placement)
             if firstRestoredSpace == nil { firstRestoredSpace = tab.spaceId }
         }
         guard !restoredIDs.isEmpty else { return }
@@ -218,7 +225,7 @@ extension AppModel {
             archivedGroups.remove(at: index)
             archivePlacements.removeValue(forKey: groupId)
         }
-        if !hadActiveTab, let firstRestoredSpace { activeSpace = firstRestoredSpace }
+        if workspace == currentSessionId, !hadActiveTab, let firstRestoredSpace { activeSpace = firstRestoredSpace }
         scheduleSave()
     }
 
@@ -234,7 +241,7 @@ extension AppModel {
             return
         } else {
             sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
-            placeRestoredTab(tab.id, using: archivePlacements[groupID])
+            placeRestoredTab(tab.id, in: currentSessionId, using: archivePlacements[groupID])
             if let remaining = archivedGroups[index].afterRestoring(tabID: tabID) {
                 archivedGroups[index] = remaining
             } else {

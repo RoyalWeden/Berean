@@ -370,6 +370,7 @@ struct BereanSidebar: View {
 
     var archive: some View {
         let titles = archiveExpanded ? app.archiveTitles() : [:]
+        let sourceNames = archiveExpanded ? app.archiveSourceNames() : [:]
         return VStack(alignment: .leading, spacing: 2) {
             Button { withAnimation(.snappy(duration: 0.18)) { archiveExpanded.toggle() } } label: {
                 HStack {
@@ -396,6 +397,9 @@ struct BereanSidebar: View {
                     .help("Restore \(app.archivedTabs(g).count) tab(s)")
                     .contextMenu {
                         Button("Restore All") { app.restoreArchived(g.id) }
+                        if !g.tabs.isEmpty, let source = sourceNames[g.id] {
+                            Button("Restore to \(source)") { app.restoreArchived(g.id, toSource: true) }
+                        }
                         Menu("Restore One Tab") {
                             ForEach(app.archivedTabs(g)) { tab in
                                 Button(tab.navigationLabel + " · " + tab.navigationDetail, systemImage: tab.symbol) {
