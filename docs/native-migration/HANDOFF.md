@@ -356,3 +356,5 @@ Verified iOS 27 Simulator More → Save Chapter as Text → On My iPhone. The pi
 Floating selection actions now offer Save Verses as Text on Mac and iPhone. Mac uses the existing export icon to open Save and Share. iPhone and narrow Mac layouts expose the commands through More. Saving uses the same UTF-8 formatter and suggested filename as sharing. Both Dev builds passed. Live selection export and filename checks remain open.
 
 Verified Mac Dev Export Selected Verses → Save Verses as Text. For John 7:47–50 the panel proposed John 7 47-50.txt, and the UTF-8 file had the range heading and exactly verses 47–50. Saving kept the range selected. Live iPhone selection export and nonadjacent export remain open.
+
+Verified nonadjacent verse export on the iOS 27 Simulator. Starting from Obadiah 1:18–20 LXX, tapped verse 19 to remove it, then used More → Save Verses as Text. On My iPhone contained Obadiah 1 18, 20 LXX.txt with the matching heading and only verses 18 and 20. The two-verse selection remained active after export. The simulator-local file was left in Files.
