@@ -332,3 +332,5 @@ The original Mac note editor now opens a single attachment from its header icon 
 The iPhone floating selection bar uses one More menu for both single- and multi-verse selections. Common actions stay directly available and the single-verse detail sheet remains accessible through All Verse Actions. The More menu label uses the same control dimensions as the neighboring buttons on both platforms. Both Dev builds passed. Verify tap area and overflow at narrow widths on a simulator.
 
 On the iOS 27 iPhone 18 Pro simulator, More opened for Obadiah 1:18–20 and Copy Reference returned to the same selection. Clear removed it. After selecting verse 18 by number, tapping near the upper edge of More opened the menu and All Verse Actions displayed the detail sheet for verse 18. Narrower device fallback remains to verify.
+
+The native floating verse bar now uses a Transferable selection for sharing. It prepares the full formatted text when the share system requests it, and Copy uses the same formatter. The share preview shows the reference. Both Dev builds passed. Live share-sheet presentation and exported text still need verification on Mac and iPhone.

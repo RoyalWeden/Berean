@@ -1,10 +1,30 @@
 import SwiftUI
+import CoreTransferable
 import BereanCore
 import BereanBible
 import BereanText
 import BereanReference
 import BereanWorkspace
 import BereanNotes
+
+private struct SharedVerseSelection: Transferable {
+    let reference: String
+    let rows: [ChapterVerseRow]
+    let textId: String
+    let replacerEnabled: Bool
+
+    var formattedText: String {
+        ([reference] + rows.map { row in
+            let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: textId,
+                                         replacerEnabled: replacerEnabled, rules: WordReplacer.defaultRules)
+            return "\(row.verseNum) \(text)"
+        }).joined(separator: "\n")
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation(exporting: { (selection: Self) in selection.formattedText })
+    }
+}
 
 /// A Scripture tab: chapter text with KJV italics and red letter, the word replacer's restorations (Yehovah,
 /// Yeshua, …) on by default as in the existing app, optional Strong's numbers that open the lexicon, and a
@@ -257,8 +277,22 @@ struct ScriptureView: View {
         let rows = selectedRows
         guard !rows.isEmpty else { return nil }
         if plain { return rows.map { clipboardVerseText($0, state) }.joined(separator: " ") }
-        let reference = selectionReference(state)
-        return ([reference] + rows.map { "\($0.verseNum) \(clipboardVerseText($0, state))" }).joined(separator: "\n")
+        return shareSelection(state, rows: rows).formattedText
+    }
+
+    private func shareSelection(_ state: BibleState, rows: [ChapterVerseRow]) -> SharedVerseSelection {
+        SharedVerseSelection(reference: selectionReference(state), rows: rows, textId: state.translation,
+                             replacerEnabled: app.wordReplacerEnabled)
+    }
+
+    @ViewBuilder private func shareSelectedVerses(_ state: BibleState) -> some View {
+        let rows = selectedRows
+        if !rows.isEmpty {
+            let selection = shareSelection(state, rows: rows)
+            ShareLink(item: selection, preview: SharePreview(selection.reference)) {
+                Label("Share Verses…", systemImage: "square.and.arrow.up")
+            }
+        }
     }
 
     private func addNoteForSelection(_ state: BibleState) {
@@ -378,13 +412,9 @@ struct ScriptureView: View {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min())
             }
                 .help("Cross references")
-            if let text = selectionText(st) {
-                ShareLink(item: text) {
-                    Label("Share Verses…", systemImage: "square.and.arrow.up")
-                }
+            shareSelectedVerses(st)
                 .help("Share selected verses")
                 .pointerStyle(.link)
-            }
             #else
             compactVerseMenu(st, includesTag: false)
             #endif
@@ -423,9 +453,7 @@ struct ScriptureView: View {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min())
             }
         }
-        if let text = selectionText(st) {
-            ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
-        }
+        shareSelectedVerses(st)
     }
 
     private func verseMenuLabel(_ title: String, symbol: String) -> some View {
