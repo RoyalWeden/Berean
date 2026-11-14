@@ -889,3 +889,7 @@
 ### 2026-11-14 — Lexicon occurrence options
 - Grouped occurrence filters and sorting in one menu and enlarged result row hit areas.
 - Both native Dev builds passed.
+
+### 2026-11-14 — Lexicon and Scripture Search navigation
+- Added a Back/Forward link for Search Scripture actions from Lexicon.
+- Both native Dev builds passed. Cross-tab scroll restoration remains open.

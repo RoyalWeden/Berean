@@ -506,7 +506,7 @@ final class AppModel {
                    Self.selectionLocation(before) != Self.selectionLocation(after) {
                     sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
                 }
-                backStack[tabId, default: []].append((before.title, before.state))
+                backStack[tabId, default: []].append(.location(before.title, before.state))
                 if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
                 forwardStack[tabId] = []
             }
@@ -525,8 +525,13 @@ final class AppModel {
 
     // MARK: in-tab history (⌘[ / ⌘]) — the place a tab shows, not presentation details like scroll or panels
 
-    private var backStack: [String: [(String, JSObject)]] = [:]
-    private var forwardStack: [String: [(String, JSObject)]] = [:]
+    private enum TabHistoryEntry {
+        case location(String, JSObject)
+        case tab(String)
+    }
+
+    private var backStack: [String: [TabHistoryEntry]] = [:]
+    private var forwardStack: [String: [TabHistoryEntry]] = [:]
 
     private static func selectionLocation(_ tab: BereanWorkspace.Tab) -> [JSValue?] {
         ["bookId", "chapter", "translation", "verse", "endVerse", "endChapter"].map { tab.state[$0] }
@@ -551,19 +556,43 @@ final class AppModel {
         return base + "|compare|" + columns.joined(separator: ",")
     }
 
-    var canGoBack: Bool { activeTab.map { !(backStack[$0.id] ?? []).isEmpty } ?? false }
-    var canGoForward: Bool { activeTab.map { !(forwardStack[$0.id] ?? []).isEmpty } ?? false }
-
-    func goBack() {
-        guard let t = activeTab, let prev = backStack[t.id]?.popLast() else { return }
-        forwardStack[t.id, default: []].append((t.title, t.state))
-        update(t.id, recordHistory: false) { $0.title = prev.0; $0.state = prev.1 }
+    private func isReachable(_ entry: TabHistoryEntry) -> Bool {
+        if case .tab(let id) = entry { return orderedTabs.contains { $0.id == id } }
+        return true
     }
 
-    func goForward() {
-        guard let t = activeTab, let next = forwardStack[t.id]?.popLast() else { return }
-        backStack[t.id, default: []].append((t.title, t.state))
-        update(t.id, recordHistory: false) { $0.title = next.0; $0.state = next.1 }
+    var canGoBack: Bool { activeTab.map { backStack[$0.id]?.contains(where: isReachable) == true } ?? false }
+    var canGoForward: Bool { activeTab.map { forwardStack[$0.id]?.contains(where: isReachable) == true } ?? false }
+
+    func goBack() { traverseHistory(forward: false) }
+    func goForward() { traverseHistory(forward: true) }
+
+    private func traverseHistory(forward: Bool) {
+        guard let current = activeTab else { return }
+        var entries = (forward ? forwardStack : backStack)[current.id] ?? []
+        while let entry = entries.popLast() {
+            if forward { forwardStack[current.id] = entries } else { backStack[current.id] = entries }
+            guard isReachable(entry) else { continue }
+            let destination: String
+            let reverse: TabHistoryEntry
+            switch entry {
+            case .location(let title, let state):
+                destination = current.id
+                reverse = .location(current.title, current.state)
+                update(current.id, recordHistory: false) { $0.title = title; $0.state = state }
+            case .tab(let id):
+                guard let tab = findTab(id) else { continue }
+                destination = id
+                reverse = .tab(current.id)
+                select(id, in: tab.spaceId)
+            }
+            if forward {
+                backStack[destination, default: []].append(reverse)
+            } else {
+                forwardStack[destination, default: []].append(reverse)
+            }
+            return
+        }
     }
 
     /// ⌃Tab / ⌃⇧Tab: the next / previous tab in the sidebar list (all tab types, the user's order).
@@ -622,7 +651,7 @@ final class AppModel {
     }
 
     /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
-    func openSearch(_ query: String, reuseTab: Bool = false) {
+    func openSearch(_ query: String, reuseTab: Bool = false, returningTo sourceTabID: String? = nil) {
         recordHistory(type: "search", title: "\"\(query)\"", query: query)
         var o = JSObject(); o["query"] = .string(JSString(query))
         if reuseTab {
@@ -637,6 +666,13 @@ final class AppModel {
                         canReplace: isAllTextsSearch,
                         matches: { isAllTextsSearch($0) && $0.state["query"]?.stringValue?.string == query })
         } else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
+        if let sourceTabID, let destination = activeTab?.id, sourceTabID != destination,
+           orderedTabs.contains(where: { $0.id == sourceTabID }) {
+            backStack[destination, default: []].append(.tab(sourceTabID))
+            if backStack[destination, default: []].count > 100 { backStack[destination]?.removeFirst() }
+            forwardStack[destination] = []
+            forwardStack[sourceTabID] = []
+        }
         SearchHistory.record(query)
     }
 

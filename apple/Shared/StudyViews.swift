@@ -114,7 +114,7 @@ struct LexiconEntryView: View {
                         if !occurrences.isEmpty {
                             Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
                                 leaveInspector()
-                                app.openSearch(e.strongsNum, reuseTab: true)
+                                app.openSearch(e.strongsNum, reuseTab: true, returningTo: tabId)
                             }
                             .buttonStyle(.interactivePlain)
                         }
