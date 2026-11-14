@@ -386,27 +386,7 @@ struct ScriptureView: View {
                 .pointerStyle(.link)
             }
             #else
-            if selectedRows.count == 1, let row = selectedRows.first {
-                Button("More Verse Actions", systemImage: "ellipsis") {
-                    tappedVerse = TappedVerse(row: row)
-                }
-            } else {
-                Menu {
-                    selectionCopyButton(.reference, state: st)
-                    if let text = selectionText(st) {
-                        ShareLink(item: text) { Label("Share Verses…", systemImage: "square.and.arrow.up") }
-                    }
-                    if !selectedRows.isEmpty {
-                        Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
-                        Button("Cross References", systemImage: "arrow.triangle.branch") {
-                            openInspector("crossrefs", verse: selectedVerse ?? selection.min())
-                        }
-                    }
-                } label: {
-                    verseMenuLabel("More Verse Actions", symbol: "ellipsis")
-                }
-                .menuIndicator(.hidden)
-            }
+            compactVerseMenu(st, includesTag: false)
             #endif
             Divider().frame(height: 16).padding(.horizontal, 3)
             clearSelectionButton
@@ -414,16 +394,16 @@ struct ScriptureView: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func compactVerseMenu(_ st: BibleState) -> some View {
+    private func compactVerseMenu(_ st: BibleState, includesTag: Bool = true) -> some View {
         Menu {
-            additionalVerseActions(st)
+            additionalVerseActions(st, includesTag: includesTag)
         } label: {
             verseMenuLabel("More Verse Actions", symbol: "ellipsis")
         }
         .menuIndicator(.hidden)
     }
 
-    @ViewBuilder private func additionalVerseActions(_ st: BibleState) -> some View {
+    @ViewBuilder private func additionalVerseActions(_ st: BibleState, includesTag: Bool = true) -> some View {
         selectionCopyButton(.reference, state: st)
         #if os(iOS)
         if selectedRows.count == 1, let row = selectedRows.first {
@@ -432,8 +412,10 @@ struct ScriptureView: View {
             }
         }
         #endif
-        Button("Tag Verses", systemImage: "tag") {
-            tagging = (selectionRanges(st), selectionLabel(st), "verses")
+        if includesTag {
+            Button("Tag Verses", systemImage: "tag") {
+                tagging = (selectionRanges(st), selectionLabel(st), "verses")
+            }
         }
         if !selectedRows.isEmpty {
             Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
@@ -449,6 +431,7 @@ struct ScriptureView: View {
     private func verseMenuLabel(_ title: String, symbol: String) -> some View {
         Label(title, systemImage: symbol)
             .labelStyle(.iconOnly)
+            .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)
             #if os(macOS)
             .pointerStyle(.link)
@@ -1035,10 +1018,12 @@ private extension View {
 
 enum ReaderFloatingControls {
     #if os(macOS)
+    static let actionWidth: CGFloat = 38
     static let actionHeight: CGFloat = 32
     static let dockOffset: CGFloat = 0
     static let readingGap: CGFloat = 2
     #else
+    static let actionWidth: CGFloat = 44
     static let actionHeight: CGFloat = 44
     static let dockOffset: CGFloat = 58
     static let readingGap: CGFloat = 2
@@ -1053,11 +1038,7 @@ private struct VerseActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .medium))
-            #if os(macOS)
-            .frame(width: 38, height: ReaderFloatingControls.actionHeight)
-            #else
-            .frame(width: 44, height: ReaderFloatingControls.actionHeight)
-            #endif
+            .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)
             #if os(macOS)
             .pointerStyle(.link)
