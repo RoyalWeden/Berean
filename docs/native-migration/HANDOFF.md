@@ -354,3 +354,5 @@ Verified Mac Dev Chapter Export → Save Chapter as Text. The save panel propose
 Verified iOS 27 Simulator More → Save Chapter as Text → On My iPhone. The picker proposed Obadiah 1 LXX and wrote Obadiah 1 LXX.txt with its heading, all 21 numbered verses, and the final line. The reader retained the existing 1:18–20 selection. The simulator-local file was left in Files. Markdown export regression and system-share filename behavior remain open.
 
 Floating selection actions now offer Save Verses as Text on Mac and iPhone. Mac uses the existing export icon to open Save and Share. iPhone and narrow Mac layouts expose the commands through More. Saving uses the same UTF-8 formatter and suggested filename as sharing. Both Dev builds passed. Live selection export and filename checks remain open.
+
+Verified Mac Dev Export Selected Verses → Save Verses as Text. For John 7:47–50 the panel proposed John 7 47-50.txt, and the UTF-8 file had the range heading and exactly verses 47–50. Saving kept the range selected. Live iPhone selection export and nonadjacent export remain open.
