@@ -667,3 +667,5 @@ The floating verse action buttons and icon-only menus now share control sizing a
 The verse action button style now applies only to buttons on the floating bar. The compact menu and nested Highlight and Export menus use system menu row styling, so the icon-only bar style no longer leaks into their labeled actions. Both Dev builds passed. Recheck the narrow Mac fallback and iPhone More menu in the running builds.
 
 The Mac Scripture chapter picker and available chapter arrows now advertise a pointing cursor individually. Unavailable chapter arrows use the normal cursor, and the surrounding control group has no pointer override. Both Dev builds passed. Verify cursor changes at the start and end of a book in the running Mac app.
+
+Mac window navigation now gives the sidebar toggle and available Back and Forward actions a pointing cursor in either sidebar layout. Unavailable history actions use the default pointer. Mac Dev build and identity check passed. Live cursor transitions and history round trips remain separate verification items.
