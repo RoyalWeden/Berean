@@ -578,3 +578,7 @@
 ### 2026-11-14 — Discoverable Compare verse actions
 - Added an edition-labeled ellipsis to each Compare cell, with pointer feedback and a 44-point touch target on iPhone.
 - Both Dev builds passed. Verified the Mac action menu and exact LXX clipboard reference.
+
+### 2026-11-14 — Compare clipboard feedback
+- Added accessibility announcements for successful verse and reference copies.
+- Both Dev builds passed. Verified mapped LXX reference clipboard contents and retained comparison on iOS 27 Simulator.

@@ -355,8 +355,12 @@ struct CompareView: View {
             let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: column.text,
                                          replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
             Clipboard.copy("\(reference) \(text)")
+            AccessibilityNotification.Announcement("Verse copied").post()
         }
-        Button("Copy Reference", systemImage: "number") { Clipboard.copy(reference) }
+        Button("Copy Reference", systemImage: "number") {
+            Clipboard.copy(reference)
+            AccessibilityNotification.Announcement("Reference copied").post()
+        }
         Divider()
         Button("Open in New Tab", systemImage: "plus.square") {
             app.openScripture(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: column.text)
