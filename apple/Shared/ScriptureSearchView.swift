@@ -15,7 +15,6 @@ struct ScriptureSearchView: View {
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
     @State private var showOptions = false
-    @State private var focusText: String?          // a per-text count chip narrows the list to one text
     @FocusState private var fieldFocused: Bool
 
     // MARK: tab state
@@ -30,8 +29,16 @@ struct ScriptureSearchView: View {
     var grouping: String { state["grouping"]?.stringValue?.string ?? "text" }     // text | book | none
     var bookFilter: [String] { state["bookIds"]?.arrayValue?.compactMap { $0.stringValue?.string } ?? [] }
 
+    private var focusText: String? { state["nativeSearchFocusText"]?.stringValue?.string }
+
     func set(_ key: String, _ v: JSValue?) {
-        app.update(tabId, recordHistory: false) { t in t.state[key] = v }
+        app.update(tabId, recordHistory: false) { tab in
+            tab.state[key] = v
+            if key == "scopeTexts", let focusText,
+               let editions = v?.arrayValue, !editions.contains(.string(JSString(focusText))) {
+                tab.state.remove("nativeSearchFocusText")
+            }
+        }
     }
 
     var targets: [String] { scope ?? availableTexts.map(\.id) }
@@ -55,7 +62,7 @@ struct ScriptureSearchView: View {
         }
         .navigationTitle(query.isEmpty ? "Search" : "Search: \(query)")
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
-        .onChange(of: query) { _, newQuery in field = newQuery; focusText = nil }
+        .onChange(of: query) { _, newQuery in field = newQuery }
         .task(id: "\(query)|\(targets)|\(mode.rawValue)|\(bookFilter)|\(app.wordReplacerEnabled)") { await runSearch() }
     }
 
@@ -160,12 +167,16 @@ struct ScriptureSearchView: View {
         let q = field.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return }
         // A plain reference in the search field goes to the passage, as everywhere else.
-        if StrongsId.normalize(q) == nil, Reference.parse(q) != nil || app.resolvePassage(q) != nil, !q.hasPrefix("\"") {
-            app.openQuery(q, newTab: false); return
+        if !q.hasPrefix("\""), StrongsId.normalize(q) == nil, let passage = app.resolvePassage(q, preferring: currentText) {
+            app.visitScripture(passage, returningTo: tabId)
+            return
         }
         SearchHistory.record(q)
-        focusText = nil
-        app.update(tabId) { t in t.state["query"] = .string(JSString(q)); t.title = "Search: \(q)" }
+        app.update(tabId) { tab in
+            tab.state["query"] = .string(JSString(q))
+            tab.state.remove("nativeSearchFocusText")
+            tab.title = "Search: \(q)"
+        }
     }
 
     func runSearch() async {
@@ -225,7 +236,7 @@ struct ScriptureSearchView: View {
                     .font(.callout.weight(.semibold)).foregroundStyle(.secondary)
                 if counts.count > 1 {
                     ForEach(counts, id: \.0) { id, n in
-                        Button { focusText = focusText == id ? nil : id } label: {
+                        Button { set("nativeSearchFocusText", focusText == id ? nil : .string(JSString(id))) } label: {
                             Text("\(textInfo(id).short) \(n)").font(.caption.weight(.medium))
                                 .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(focusText == id ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.12), in: .capsule)

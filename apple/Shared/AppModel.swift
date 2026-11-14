@@ -655,10 +655,12 @@ final class AppModel {
     func openSearch(_ query: String, reuseTab: Bool = false, returningTo sourceTabID: String? = nil) {
         recordHistory(type: "search", title: "\"\(query)\"", query: query)
         var o = JSObject(); o["query"] = .string(JSString(query))
+        o["nativeSearchFocusText"] = .null
         if reuseTab {
             let isAllTextsSearch: (BereanWorkspace.Tab) -> Bool = { tab in
                 let state = tab.state
-                return state["scopeTexts"]?.arrayValue == nil
+                return state["nativeSearchFocusText"]?.stringValue == nil
+                    && state["scopeTexts"]?.arrayValue == nil
                     && (state["wordMode"]?.stringValue?.string ?? "all") == "all"
                     && (state["testament"]?.stringValue?.string ?? "all") == "all"
                     && (state["bookIds"]?.arrayValue?.isEmpty ?? true)
