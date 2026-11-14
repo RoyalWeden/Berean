@@ -1450,6 +1450,8 @@ enum ReaderFloatingControls {
     static let bottomPadding: CGFloat = 8
     static let outlinePadding: CGFloat = 3
     static let outlineRadius: CGFloat = 9
+    static let outlineOpacity: CGFloat = 0.75
+    static let fillOpacity: CGFloat = 0.06
     static let readingGap: CGFloat = outlinePadding + 5
     static var selectionHeight: CGFloat { actionHeight + 2 * surfacePadding + bottomPadding }
 }

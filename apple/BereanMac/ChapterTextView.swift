@@ -448,8 +448,13 @@ final class ReaderTextView: NSTextView {
     override var acceptsFirstResponder: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        guard let c = coordinator, let layout = layoutManager, let container = textContainer else { return }
+        defer { super.draw(dirtyRect) }
+        guard let c = coordinator, !c.parent.selectedVerses.isEmpty,
+              let layout = layoutManager, let container = textContainer else { return }
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSColor.controlAccentColor.withAlphaComponent(ReaderFloatingControls.outlineOpacity).setStroke()
+        NSColor.controlAccentColor.withAlphaComponent(ReaderFloatingControls.fillOpacity).setFill()
         let origin = textContainerOrigin
         for range in selectedVerseRanges(c.parent.selectedVerses, in: c.verseRanges) {
             let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
@@ -465,8 +470,6 @@ final class ReaderTextView: NSTextView {
             let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
             path.lineWidth = 1
             path.setLineDash([4, 3], count: 2, phase: 0)
-            NSColor.controlAccentColor.withAlphaComponent(0.7).setStroke()
-            NSColor.controlAccentColor.withAlphaComponent(0.07).setFill()
             path.fill()
             path.stroke()
         }

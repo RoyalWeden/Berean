@@ -950,3 +950,7 @@
 ### 2026-11-14 — Scripture selection scroll
 - Cancelled stale deferred verse reveals on Mac and iPhone when the selection or passage changes, or when an explicit passage jump starts.
 - Both Dev builds passed. Live rapid-selection and chapter-end checks remain open.
+
+### 2026-11-14 — Scripture selection drawing
+- Drew the selection fill and dashed outline behind verse text on both platforms and matched their opacity.
+- Both Dev builds passed. Visual checks in light and dark mode remain open.

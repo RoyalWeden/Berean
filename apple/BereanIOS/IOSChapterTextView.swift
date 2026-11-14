@@ -210,9 +210,14 @@ struct IOSChapterTextView: UIViewRepresentable {
         weak var reader: Coordinator?
 
         override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
-            super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
-            guard let reader, let container = textContainers.first else { return }
-            UIColor.systemBlue.withAlphaComponent(0.8).setStroke()
+            defer { super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin) }
+            guard let reader, let container = textContainers.first,
+                  !reader.parent.selectedVerses.isEmpty,
+                  let context = UIGraphicsGetCurrentContext() else { return }
+            context.saveGState()
+            defer { context.restoreGState() }
+            UIColor.tintColor.withAlphaComponent(ReaderFloatingControls.outlineOpacity).setStroke()
+            UIColor.tintColor.withAlphaComponent(ReaderFloatingControls.fillOpacity).setFill()
             for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges) {
                 let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
                 guard glyphs.length > 0, NSIntersectionRange(glyphs, glyphsToShow).length > 0 else { continue }
@@ -225,7 +230,6 @@ struct IOSChapterTextView: UIViewRepresentable {
                 let outline = UIBezierPath(roundedRect: rect, cornerRadius: ReaderFloatingControls.outlineRadius)
                 outline.lineWidth = 1
                 outline.setLineDash([4, 3], count: 2, phase: 0)
-                UIColor.systemBlue.withAlphaComponent(0.06).setFill()
                 outline.fill()
                 outline.stroke()
             }
