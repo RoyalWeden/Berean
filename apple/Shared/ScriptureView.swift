@@ -329,7 +329,7 @@ struct ScriptureView: View {
                         #endif
                     }
                 }
-                .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace))
+                .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace - ReaderFloatingControls.readerDockClearance))
                 .clipped()
                 #if os(iOS)
                 .overlay(alignment: .topTrailing) {
@@ -1415,9 +1415,12 @@ enum ReaderFloatingControls {
     #if os(macOS)
     static let actionWidth: CGFloat = 38
     static let actionHeight: CGFloat = 32
+    static let readerDockClearance: CGFloat = 0
     #else
     static let actionWidth: CGFloat = 44
     static let actionHeight: CGFloat = 44
+    // The root dock overlays this explicitly sized TextKit viewport.
+    static let readerDockClearance: CGFloat = 58
     #endif
 
     static let surfacePadding: CGFloat = 3

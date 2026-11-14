@@ -865,3 +865,7 @@
 ### 2026-11-14 — Scripture dock spacing
 - Removed the fixed dock deduction from the reader viewport, retaining space for verse actions.
 - Both Dev builds passed. Chapter-end visual testing is pending.
+
+### 2026-11-14 — Corrected Scripture dock clearance
+- Restored continuous reader dock clearance after Simulator testing reproduced overlapping floating controls.
+- Verified the final verse, grouped outline, verse actions and dock were all visible in iPhone portrait.
