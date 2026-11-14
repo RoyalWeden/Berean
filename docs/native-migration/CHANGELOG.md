@@ -917,3 +917,7 @@
 ### 2026-11-14 — Native note list continuation
 - Return continues bullet, numbered and checklist items on Mac and iPhone and exits an empty item.
 - Both Dev builds and eight focused Swift edit checks passed. Live keyboard and undo checks remain open.
+
+### 2026-11-14 — Native checklist interaction
+- Added click and tap handling for the rendered checklist box. Toggling edits the Markdown marker in place.
+- Both Dev builds and six focused Swift checks passed. Live interaction, undo and accessibility checks remain open.

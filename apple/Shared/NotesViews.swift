@@ -147,6 +147,26 @@ func noteListEdit(in text: NSString, selection: NSRange, style: NoteListStyle)
     return (range, replacement, resultSelection)
 }
 
+/// A link on the visible checkbox routes activation through the native text editor.
+enum NoteTaskLink {
+    static let scheme = "berean-note-task"
+
+    static func url(for marker: NSRange) -> URL {
+        URL(string: "\(scheme):\(marker.location)")!
+    }
+
+    static func edit(for url: URL, in text: NSString) -> (range: NSRange, replacement: String)? {
+        guard url.scheme == scheme, let location = Int(url.absoluteString.dropFirst(scheme.count + 1)),
+              location >= 0, text.length >= 3, location <= text.length - 3 else { return nil }
+        let marker = text.substring(with: NSRange(location: location, length: 3))
+        switch marker {
+        case "[ ]": return (NSRange(location: location + 1, length: 1), "x")
+        case "[x]", "[X]": return (NSRange(location: location + 1, length: 1), " ")
+        default: return nil
+        }
+    }
+}
+
 /// Return continues a list at the end of an item and exits it on an empty item.
 func noteListReturnEdit(in text: NSString, selection: NSRange)
     -> (range: NSRange, replacement: String, selection: NSRange)? {

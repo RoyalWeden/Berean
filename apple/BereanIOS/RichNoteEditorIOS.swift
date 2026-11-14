@@ -23,6 +23,9 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         let tv = NoteUITextView(frame: .zero, textContainer: container)
         tv.coordinator = context.coordinator
         tv.delegate = context.coordinator
+        let taskTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.activateTask(_:)))
+        taskTap.delegate = context.coordinator
+        tv.addGestureRecognizer(taskTap)
         tv.backgroundColor = .clear
         tv.alwaysBounceVertical = true
         tv.smartQuotesType = .no
@@ -55,7 +58,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         context.coordinator.restyle()
     }
 
-    final class Coordinator: NSObject, UITextViewDelegate, @preconcurrency NSLayoutManagerDelegate {
+    final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate, @preconcurrency NSLayoutManagerDelegate {
         var parent: RichNoteEditorIOS
         weak var textView: NoteUITextView?
         var editing = false
@@ -102,7 +105,9 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     substitutions[r.location] = (r.length, String((t.capitalized + ": ").prefix(r.length)))
                     storage.addAttributes([.font: font(size, .semibold), .foregroundColor: UIColor.tintColor], range: r)
                 case .bullet: substitutions[r.location] = (r.length, "•"); storage.addAttribute(.foregroundColor, value: UIColor.secondaryLabel, range: r)
-                case .task(let on): substitutions[r.location] = (r.length, on ? "☑" : "□")
+                case .task(let on):
+                    substitutions[r.location] = (r.length, on ? "☑" : "□")
+                    storage.addAttribute(Self.taskAttribute, value: NoteTaskLink.url(for: r), range: NSRange(location: r.location, length: 1))
                 case .codeBlock: storage.addAttributes([.font: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular), .backgroundColor: UIColor.secondarySystemFill], range: r)
                 case .tableRow: storage.addAttribute(.font, value: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular), range: r)
                 case .tableRule, .rule: storage.addAttribute(.foregroundColor, value: UIColor.tertiaryLabel, range: r)
@@ -164,9 +169,37 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             textView.selectedRange = NSRange(location: loc, length: 0)
         }
 
+        private static let taskAttribute = NSAttributedString.Key("BereanNoteTask")
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            taskLink(at: gestureRecognizer) != nil
+        }
+
+        @objc func activateTask(_ gestureRecognizer: UITapGestureRecognizer) {
+            guard let url = taskLink(at: gestureRecognizer) else { return }
+            (textView as? NoteUITextView)?.toggleTask(url)
+        }
+
+        private func taskLink(at gestureRecognizer: UIGestureRecognizer) -> URL? {
+            guard let editor = textView, editor.markedTextRange == nil else { return nil }
+            let container = editor.textContainer
+            var point = gestureRecognizer.location(in: editor)
+            point.x -= editor.textContainerInset.left
+            point.y -= editor.textContainerInset.top
+            let layout = editor.layoutManager
+            let glyph = layout.glyphIndex(for: point, in: container)
+            guard glyph < layout.numberOfGlyphs,
+                  layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(point) else { return nil }
+            let index = layout.characterIndexForGlyph(at: glyph)
+            guard index < editor.textStorage.length,
+                  let url = editor.textStorage.attribute(Self.taskAttribute, at: index, effectiveRange: nil) as? URL,
+                  url.scheme == NoteTaskLink.scheme else { return nil }
+            return url
+        }
+
         func textView(_ textView: UITextView, primaryActionFor textItem: UITextItem, defaultAction: UIAction) -> UIAction? {
-            if case .link(let url) = textItem.content { return UIAction { [weak self] _ in self?.parent.onLink(url) } }
-            return defaultAction
+            guard case .link(let url) = textItem.content else { return defaultAction }
+            return UIAction { [weak self] _ in self?.parent.onLink(url) }
         }
 
         /// Edit menu: formatting and Copy as Plain Text join the standard items.
@@ -206,6 +239,11 @@ final class NoteUITextView: UITextView {
 
     func setHeading(_ level: Int) {
         applyFormatEdit(noteHeadingEdit(in: (text ?? "") as NSString, selection: selectedRange, level: level))
+    }
+
+    func toggleTask(_ url: URL) {
+        guard let edit = NoteTaskLink.edit(for: url, in: (text ?? "") as NSString) else { return }
+        applyFormatEdit((edit.range, edit.replacement, selectedRange))
     }
 
     func setList(_ style: NoteListStyle) {

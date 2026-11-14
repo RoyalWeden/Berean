@@ -121,6 +121,7 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: r)
                 case .task(let on):
                     substitutions[r.location] = (r.length, on ? "☑" : "□")
+                    storage.addAttribute(.link, value: NoteTaskLink.url(for: r), range: NSRange(location: r.location, length: 1))
                     storage.addAttribute(.foregroundColor, value: on ? NSColor.controlAccentColor : NSColor.secondaryLabelColor, range: r)
                 case .codeBlock:
                     storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.9, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor.withAlphaComponent(0.5)], range: r)
@@ -198,8 +199,15 @@ struct RichNoteEditor: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            if let u = link as? URL { parent.onLink(u); return true }
-            return false
+            guard let url = link as? URL else { return false }
+            if url.scheme == NoteTaskLink.scheme {
+                guard let editor = textView as? NoteTextView,
+                      let edit = NoteTaskLink.edit(for: url, in: editor.string as NSString) else { return true }
+                editor.replace(edit.range, with: edit.replacement, select: editor.selectedRange())
+                return true
+            }
+            parent.onLink(url)
+            return true
         }
     }
 }
