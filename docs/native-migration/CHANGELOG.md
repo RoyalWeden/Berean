@@ -606,3 +606,7 @@
 ### 2026-11-14 — Cross references for selected verses
 - The Mac and iPhone selection bars now pass all selected verses to the cross-reference inspector. Multiple source verses are grouped and the heading shows the complete reference.
 - Both native Dev builds passed. Live multi-verse and source-switching checks remain open.
+
+### 2026-11-14 — iPhone dock cross-reference scope
+- Cross References in More now uses the current verse selection.
+- Verified disjoint TSKe groups and reference clipboard output on iOS 27 Simulator. The iPhone Dev build passed.

@@ -161,7 +161,19 @@ struct IOSRootView: View {
                             }
                         }
                     }
-                    Button { mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" } } label: { Label("Cross References", systemImage: "arrow.triangle.branch") }
+                    let saved = ResolvedPassage.savedVerses(in: tab, reader: st)
+                    let range = st.verse.flatMap { first in
+                        st.endVerse.flatMap { last in
+                            (1...999).contains(first) && (first...999).contains(last) ? first...last : nil
+                        }
+                    }
+                    let selected = range.map(Array.init) ?? saved.sorted()
+                    Button {
+                        app.focusStudyVerse(selected.first ?? st.verse, in: tab.id, selectedVerses: selected)
+                        mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" }
+                    } label: {
+                        Label("Cross References", systemImage: "arrow.triangle.branch")
+                    }
                     Button("Notes for This Chapter", systemImage: "note.text") {
                         app.focusStudyVerse(nil, in: tab.id)
                         mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" }
