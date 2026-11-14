@@ -334,3 +334,5 @@ The iPhone floating selection bar uses one More menu for both single- and multi-
 On the iOS 27 iPhone 18 Pro simulator, More opened for Obadiah 1:18–20 and Copy Reference returned to the same selection. Clear removed it. After selecting verse 18 by number, tapping near the upper edge of More opened the menu and All Verse Actions displayed the detail sheet for verse 18. Narrower device fallback remains to verify.
 
 The native floating verse bar now uses a Transferable selection for sharing. It prepares the full formatted text when the share system requests it, and Copy uses the same formatter. The share preview shows the reference. Both Dev builds passed. Live share-sheet presentation and exported text still need verification on Mac and iPhone.
+
+Verified iOS 27 Simulator More → Share Verses for Obadiah 1:18–20 LXX. The system preview showed the reference and Save to Files wrote local text containing the reference and numbered lines for verses 18, 19, and 20, including the end of verse 20. The selection remained active after saving. The simulator-local export was left in On My iPhone as “text.” Mac share output remains to verify.
