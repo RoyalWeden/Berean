@@ -607,7 +607,7 @@ struct ScriptureView: View {
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
         if !selection.isEmpty {
             adaptiveVerseActions(st)
-                .padding(.horizontal, 5)
+                .padding(.horizontal, ReaderFloatingControls.surfaceHorizontalPadding)
                 .padding(.vertical, ReaderFloatingControls.surfacePadding)
                 .glassEffectCompat(interactive: true)
                 .padding(.horizontal, 8)
@@ -635,7 +635,7 @@ struct ScriptureView: View {
     @ViewBuilder private func adaptiveVerseActions(_ st: BibleState) -> some View {
         ViewThatFits(in: .horizontal) {
             verseActionRow(st)
-            HStack(spacing: 2) {
+            HStack(spacing: ReaderFloatingControls.actionSpacing) {
                 selectionCopyButton(.verses, state: st)
                     .buttonStyle(VerseActionButtonStyle())
                     .verseActionHelp("Copy with reference (⌘C)")
@@ -644,7 +644,7 @@ struct ScriptureView: View {
                 clearSelectionButton
             }
             .fixedSize(horizontal: true, vertical: false)
-            HStack(spacing: 2) {
+            HStack(spacing: ReaderFloatingControls.actionSpacing) {
                 Menu {
                     selectionCopyButton(.verses, state: st)
                     highlightMenu(st, iconOnly: false)
@@ -652,6 +652,7 @@ struct ScriptureView: View {
                 } label: {
                     verseMenuLabel("Verse Actions", symbol: "ellipsis")
                 }
+                .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 clearSelectionButton
             }
@@ -660,7 +661,7 @@ struct ScriptureView: View {
     }
 
     private func verseActionRow(_ st: BibleState) -> some View {
-        HStack(spacing: 2) {
+        HStack(spacing: ReaderFloatingControls.actionSpacing) {
             selectionCopyButton(.verses, state: st)
                 .buttonStyle(VerseActionButtonStyle())
                 .verseActionHelp("Copy with reference (⌘C)")
@@ -671,6 +672,7 @@ struct ScriptureView: View {
             .buttonStyle(VerseActionButtonStyle())
             .verseActionHelp("Tag verses")
             #if os(macOS)
+            Divider().frame(height: 16)
             selectionCopyButton(.reference, state: st)
                 .buttonStyle(VerseActionButtonStyle())
                 .help("Copy selected verse reference")
@@ -690,6 +692,7 @@ struct ScriptureView: View {
                 } label: {
                     verseMenuLabel("Export Selected Verses", symbol: "square.and.arrow.up")
                 }
+                .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .help("Save or share selected verses")
             }
@@ -708,6 +711,7 @@ struct ScriptureView: View {
         } label: {
             verseMenuLabel("More Verse Actions", symbol: "ellipsis")
         }
+        .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .verseActionHelp("More verse actions")
     }
@@ -782,6 +786,7 @@ struct ScriptureView: View {
                 Label("Highlight", systemImage: "highlighter").labelStyle(.titleAndIcon)
             }
         }
+        .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         #if os(macOS)
         .pointerStyle(.link)
@@ -1478,10 +1483,14 @@ private struct ReaderGlassCapsule: ViewModifier {
 
 enum ReaderFloatingControls {
     #if os(macOS)
+    static let actionSpacing: CGFloat = 4
+    static let surfaceHorizontalPadding: CGFloat = 8
     static let actionWidth: CGFloat = 38
     static let actionHeight: CGFloat = 32
     static let readerDockClearance: CGFloat = 0
     #else
+    static let actionSpacing: CGFloat = 2
+    static let surfaceHorizontalPadding: CGFloat = 5
     static let actionWidth: CGFloat = 44
     static let actionHeight: CGFloat = 44
     // The root dock overlays this explicitly sized TextKit viewport.
