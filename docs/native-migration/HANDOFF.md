@@ -631,3 +631,7 @@ Mac and iPhone Notes now share UTF-16 inline format edits. Reapplying the same s
 Mac and iPhone Notes now offer Body and Heading 1–3 in Format. The shared editor edit converts the selected paragraphs and preserves Markdown storage. Both Dev builds passed. Live heading, selection, undo and save/reopen checks remain open. Lists and tables remain to implement in the shared Format menu.
 
 Notes Format now includes Bullet List, Numbered List and Checklist on both platforms. The shared edit converts selected lines, keeps untouched following paragraphs and preserves checked items when adding checklist formatting to a mixed selection. Both Dev builds and three focused Swift edit checks passed. Live formatting and undo remain open, along with list continuation, interactive task toggles and table editing.
+
+Resume the active native migration from this handoff, then reconcile its remaining checks with the current branch, STATUS and TASKS before choosing the next change. Keep updating this file after verified work.
+
+Return now continues bulleted, numbered and checklist items in the native note editors. It keeps indentation, advances numbered items, starts a fresh unchecked task, and exits the list on an empty item. Both Dev builds and eight focused Swift edit checks passed. Verify Return and undo in the running Mac editor and with the iPhone software keyboard. Interactive task toggles and table editing remain open.

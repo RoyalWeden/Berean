@@ -913,3 +913,7 @@
 ### 2026-11-14 — Notes list commands
 - Added bulleted, numbered and checklist formatting to native Notes.
 - Both Dev builds and three focused list edit checks passed.
+
+### 2026-11-14 — Native note list continuation
+- Return continues bullet, numbered and checklist items on Mac and iPhone and exits an empty item.
+- Both Dev builds and eight focused Swift edit checks passed. Live keyboard and undo checks remain open.

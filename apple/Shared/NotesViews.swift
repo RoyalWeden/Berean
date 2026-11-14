@@ -147,6 +147,35 @@ func noteListEdit(in text: NSString, selection: NSRange, style: NoteListStyle)
     return (range, replacement, resultSelection)
 }
 
+/// Return continues a list at the end of an item and exits it on an empty item.
+func noteListReturnEdit(in text: NSString, selection: NSRange)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.length == 0, selection.location <= text.length else { return nil }
+    var start = 0, end = 0, contentEnd = 0
+    text.getLineStart(&start, end: &end, contentsEnd: &contentEnd, for: selection)
+    guard selection.location == contentEnd else { return nil }
+    let line = text.substring(with: NSRange(location: start, length: contentEnd - start))
+    let indent = String(line.prefix { $0 == " " || $0 == "\t" })
+    let body = String(line.dropFirst(indent.count))
+    let pattern = #"^(?:[-+*] \[[ xX]\] |[-+*] |[0-9]+[.)] )"#
+    guard let markerRange = body.range(of: pattern, options: .regularExpression) else { return nil }
+    let marker = String(body[markerRange])
+    let remainder = body[markerRange.upperBound...]
+    if remainder.allSatisfy(\.isWhitespace) {
+        return (NSRange(location: start, length: contentEnd - start), "", NSRange(location: start, length: 0))
+    }
+    let next: String
+    if marker.contains("[") {
+        next = String(marker.prefix(2)) + "[ ] "
+    } else if let number = Int(String(marker.dropLast(2))), number < Int.max {
+        next = String(number + 1) + marker.suffix(2)
+    } else {
+        next = marker
+    }
+    let replacement = "\n" + indent + next
+    return (selection, replacement, NSRange(location: contentEnd + replacement.utf16.count, length: 0))
+}
+
 /// One note with a native rich editor and version history.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app

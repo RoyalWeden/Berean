@@ -222,6 +222,15 @@ final class NoteTextView: NSTextView {
         replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
+    override func insertNewline(_ sender: Any?) {
+        guard !hasMarkedText(),
+              let edit = noteListReturnEdit(in: string as NSString, selection: selectedRange()) else {
+            super.insertNewline(sender)
+            return
+        }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
     func setList(_ style: NoteListStyle) {
         guard let edit = noteListEdit(in: string as NSString, selection: selectedRange(), style: style) else { return }
         replace(edit.range, with: edit.replacement, select: edit.selection)

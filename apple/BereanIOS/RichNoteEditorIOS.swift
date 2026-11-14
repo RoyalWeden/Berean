@@ -191,6 +191,15 @@ final class NoteUITextView: UITextView {
     weak var coordinator: RichNoteEditorIOS.Coordinator?
     static let markdownType = "com.berean.note-markdown"
 
+    override func insertText(_ text: String) {
+        guard text == "\n", markedTextRange == nil,
+              let edit = noteListReturnEdit(in: (self.text ?? "") as NSString, selection: selectedRange) else {
+            super.insertText(text)
+            return
+        }
+        applyFormatEdit(edit)
+    }
+
     func wrap(_ open: String, _ close: String) {
         applyFormatEdit(noteFormatEdit(in: (text ?? "") as NSString, selection: selectedRange, opening: open, closing: close))
     }
@@ -227,6 +236,6 @@ final class NoteUITextView: UITextView {
         let pb = UIPasteboard.general
         let md = pb.items.first?[Self.markdownType] as? String
         guard let s = md ?? pb.string, !s.isEmpty else { return }
-        insertText(s)
+        super.insertText(s)
     }
 }
