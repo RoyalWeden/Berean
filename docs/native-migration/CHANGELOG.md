@@ -651,3 +651,7 @@
 ### 2026-11-14 — Accessible iPhone floating verse actions
 - Expose individual selection toolbar controls and name the passage in the clear action hint.
 - Verified opening cross references for both selected verses from the toolbar on the iOS 27 Simulator.
+
+### 2026-11-14 — Floating selection copy verification
+- Verified Didache range reference round-trip, unchanged tab count and exact two-verse clipboard content on iOS 27 Simulator.
+- Added an accessibility value for transient copy confirmation. Both Dev builds passed.

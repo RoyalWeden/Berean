@@ -508,6 +508,7 @@ struct ScriptureView: View {
             Label(title, systemImage: copied ? "checkmark" : symbol)
                 .foregroundStyle(copied ? Color.accentColor : Color.primary)
         }
+        .accessibilityValue(copied ? "Copied" : "")
     }
 
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
