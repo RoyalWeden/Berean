@@ -580,3 +580,5 @@ Compare now shows clickable verse-tag chips sourced from each displayed row’s 
 iOS 27 Simulator verified the saved Dev Chapter Parity chip appeared in Compare on John 7:2. Activating it opened the matching tag results with a John 7:2 preview and the dock still showed five tabs, demonstrating Search reuse. Save-to-chip refresh while remaining in Compare and mapped Jonah placement remain open.
 
 Compare now shows an actionable note indicator beside verses with attached notes. It counts notes by the displayed edition, chapter and verse, refreshes after note writes, and opens the verse’s Notes inspector in the same reader tab. Both Dev builds passed. Live QA remains for note creation, indicator refresh and remapped verses.
+
+iOS 27 Simulator verified the Compare note indicator end to end. Add Note from John 7:2 KJVA created a Dev note with that Scripture backlink. Returning to the same Compare tab showed “1 note for John 7:2 KJVA”. Activating the indicator opened the Notes inspector listing that note and New Note for John 7:2. The test note and extra Notes tab remain in the isolated Simulator workspace. Mac and remapped Jonah note indicators remain open.
