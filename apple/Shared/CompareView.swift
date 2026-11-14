@@ -164,7 +164,6 @@ struct CompareView: View {
                     independentPanes(cols)
                 } else {
                     ScrollView { independentComparison(cols) }
-                        .contentMargins(.bottom, dockClearance, for: .scrollContent)
                 }
             } else {
                 alignedComparison(st, cols)
@@ -389,14 +388,6 @@ struct CompareView: View {
         }
     }
 
-    private var dockClearance: CGFloat {
-        #if os(iOS)
-        ReaderFloatingControls.dockOffset
-        #else
-        0
-        #endif
-    }
-
     private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -409,7 +400,6 @@ struct CompareView: View {
                     }
                 }
             }
-            .contentMargins(.bottom, dockClearance, for: .scrollContent)
             .onChange(of: state.verse, initial: true) {
                 let selectedHere = localVerseSelection != nil && localVerseSelection == state.verse
                 localVerseSelection = nil
@@ -434,7 +424,6 @@ struct CompareView: View {
                         }
                         .padding(16)
                     }
-                    .contentMargins(.bottom, dockClearance, for: .scrollContent)
                     .id(column.label)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

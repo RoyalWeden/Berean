@@ -857,3 +857,7 @@
 ### 2026-11-14 — Stacked Compare reading width
 - Moved note and verse action controls into the edition header on stacked comparisons.
 - Both Dev builds passed.
+
+### 2026-11-14 — Compare dock spacing
+- Removed the duplicate bottom dock allowance from all Compare scroll layouts.
+- Both Dev builds passed. Chapter-end visual QA remains open.
