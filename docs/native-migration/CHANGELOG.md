@@ -733,3 +733,7 @@
 ### 2026-11-14 — Passage picker Back and dismissal
 - Restored the cached book list immediately on Back and prevented a late lookup from submitting a second destination.
 - Both Dev builds passed.
+
+### 2026-11-14 — Chapter grid navigation
+- Centered the current chapter on entry, added its selected accessibility trait, and expanded compact chapter hit targets.
+- Both Dev builds passed. Running-app scroll and focus checks remain open.

@@ -281,23 +281,21 @@ struct PassagePicker: View {
                     Text(b.name).font(.headline).lineLimit(1)
                 }.padding(10)
                 Divider()
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 42, maximum: 48), spacing: 6)], spacing: 6) {
-                        ForEach(chapters, id: \.self) { c in
-                            let chapterLabel = Reference.isHermasBook(b.id)
-                                ? Reference.readerChapterLabel(b.id, c, textId: text)
-                                : "\(b.name) chapter \(Reference.displayChapterString(b.id, c))"
-                            let current = b.id == currentBook && c == currentChapter && text == textId
-                            Button { pick(ResolvedPassage(textId: text, bookId: b.id, chapter: c, verse: nil)) } label: {
-                                Text(c == 0 ? "Prol." : Reference.displayChapterString(b.id, c)).font(c == 0 ? .caption : .body).monospacedDigit().frame(width: 42, height: 30)
-                                    .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 6))
-                                    .foregroundStyle(current ? .white : .primary)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44, maximum: 52), spacing: 6)], spacing: 6) {
+                            ForEach(chapters, id: \.self) { chapter in
+                                chapterButton(chapter, in: b)
+                                    .id(chapter)
                             }
-                            .buttonStyle(.interactivePlain)
-                            .accessibilityLabel(c == 0 ? "\(b.name) prologue" : chapterLabel)
-                            .help(c == 0 ? "Prologue" : chapterLabel)
                         }
-                    }.padding(12)
+                        .padding(12)
+                    }
+                    .onAppear {
+                        if b.id == currentBook, text == textId, chapters.contains(currentChapter) {
+                            proxy.scrollTo(currentChapter, anchor: .center)
+                        }
+                    }
                 }
             }
         } else {
@@ -319,9 +317,37 @@ struct PassagePicker: View {
                     }
                 }
                 .listStyle(.sidebar)
-                .onChange(of: books.count) { DispatchQueue.main.async { proxy.scrollTo(currentBook, anchor: .center) } }
+                .onAppear { proxy.scrollTo(currentBook, anchor: .center) }
             }
         }
+    }
+
+    private func chapterButton(_ chapter: Int, in book: BookRow) -> some View {
+        let current = book.id == currentBook && chapter == currentChapter && text == textId
+        let number = Reference.displayChapterString(book.id, chapter)
+        let label = if chapter == 0 {
+            "\(book.name) prologue"
+        } else if Reference.isHermasBook(book.id) {
+            Reference.readerChapterLabel(book.id, chapter, textId: text)
+        } else {
+            "\(book.name) chapter \(number)"
+        }
+        return Button {
+            pick(ResolvedPassage(textId: text, bookId: book.id, chapter: chapter, verse: nil))
+        } label: {
+            Text(chapter == 0 ? "Prol." : number)
+                .font(chapter == 0 ? .caption : .body)
+                .monospacedDigit()
+                .frame(maxWidth: .infinity)
+                .frame(height: compact ? 44 : 34)
+                .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 8))
+                .foregroundStyle(current ? .white : .primary)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(current ? .isSelected : [])
+        .help(label)
     }
 
     var sections: [(String, [BookRow])] {
