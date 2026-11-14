@@ -34,12 +34,18 @@ struct NotesHomeView: View {
     @State private var visibleFolderRow: String?
     @State private var loadedNotes = false
 
-    struct BrowseOptions: Equatable {
+    struct BrowseOptions: Hashable {
         var query = ""
         var searchMode = NotesWordMode.all
         var searchEverywhere = false
         var typeFilter = NoteTypeFilter.all
         var statusFilter = "all"
+    }
+
+    struct SearchPosition: Hashable {
+        let folder: String?
+        let options: BrowseOptions
+        let sort: String
     }
 
     enum NoteTypeFilter: String, CaseIterable {
@@ -269,14 +275,25 @@ struct NotesHomeView: View {
             if matching.isEmpty && matchingFolders.isEmpty {
                 ContentUnavailableView("No matching notes", systemImage: "magnifyingglass")
             } else {
-                List {
-                    if !matchingFolders.isEmpty {
-                        Section("Folders") { ForEach(matchingFolders) { f in folderRow(f, depth: 0) } }
-                    }
-                    if !matching.isEmpty {
-                        Section("\(matching.count) note\(matching.count == 1 ? "" : "s")") {
-                            ForEach(matching) { noteRow($0) }
+                let position = SearchPosition(folder: location, options: browseOptions, sort: sort)
+                ScrollViewReader { proxy in
+                    List {
+                        if !matchingFolders.isEmpty {
+                            Section("Folders") { ForEach(matchingFolders) { f in folderRow(f, depth: 0) } }
                         }
+                        if !matching.isEmpty {
+                            Section("\(matching.count) note\(matching.count == 1 ? "" : "s")") {
+                                ForEach(matching) { note in
+                                    noteRow(note, searchPosition: position).id(note.id)
+                                }
+                            }
+                        }
+                    }
+                    .task(id: position) {
+                        guard !Task.isCancelled, app.activeTab?.id == tabId,
+                              let id = app.notesSearchReturnRows[tabId]?.removeValue(forKey: position),
+                              matching.contains(where: { $0.id == id }) else { return }
+                        proxy.scrollTo(id, anchor: .center)
                     }
                 }
             }
@@ -495,8 +512,13 @@ struct NotesHomeView: View {
         return d.formatted(date: .numeric, time: .omitted)
     }
 
-    func noteRow(_ n: Note) -> some View {
-        Button { app.openNote(n.id, fromList: tabId) } label: {
+    func noteRow(_ n: Note, searchPosition: SearchPosition? = nil) -> some View {
+        Button {
+            if let searchPosition {
+                app.notesSearchReturnRows[tabId, default: [:]][searchPosition] = n.id
+            }
+            app.openNote(n.id, fromList: tabId)
+        } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     if n.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange) }
