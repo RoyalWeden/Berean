@@ -598,3 +598,7 @@
 ### 2026-11-14 — Scripture search result actions
 - Added a visible, edition-labeled actions button to Scripture hits on Mac and iPhone. Copied references share the Go format.
 - Both Dev builds passed. iOS 27 Simulator verified the exact KJVA reference and stable tab count.
+
+### 2026-11-14 — Cross-reference actions
+- Added edition-qualified reference copy, preview copy and explicit new-tab navigation to cross-reference rows on Mac and iPhone.
+- Both Dev builds passed. Mac Dev showed the new controls in expanded Classic cross references.

@@ -1345,3 +1345,31 @@ struct InteractivePlainButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == InteractivePlainButtonStyle {
     static var interactivePlain: Self { Self() }
 }
+
+struct VerseActionsMenu<Actions: View>: View {
+    let label: String
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        Menu(content: actions) {
+            Image(systemName: "ellipsis")
+                .font(.callout.weight(.semibold))
+                #if os(iOS)
+                .frame(width: 44, height: 44)
+                #else
+                .frame(width: 32, height: 32)
+                #endif
+                .contentShape(.rect)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel(label)
+        .help("Verse actions")
+        #if os(macOS)
+        .pointerStyle(.link)
+        #else
+        .hoverEffect(.highlight)
+        #endif
+    }
+}

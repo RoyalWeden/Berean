@@ -301,28 +301,9 @@ struct ScriptureSearchView: View {
             .contextMenu {
                 resultActions(h, passage: passage)
             }
-            Menu {
+            VerseActionsMenu(label: "Actions for \(passage.label), \(edition.name)") {
                 resultActions(h, passage: passage)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.callout.weight(.semibold))
-                    #if os(iOS)
-                    .frame(width: 44, height: 44)
-                    #else
-                    .frame(width: 32, height: 32)
-                    #endif
-                    .contentShape(.rect)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .accessibilityLabel("Actions for \(passage.label), \(edition.name)")
-            .help("Search result actions")
-        #if os(macOS)
-            .pointerStyle(.link)
-        #else
-            .hoverEffect(.highlight)
-        #endif
         }
     }
 

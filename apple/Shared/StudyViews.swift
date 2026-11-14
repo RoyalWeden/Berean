@@ -449,28 +449,51 @@ struct CrossRefsView: View {
 
     func refRow(_ b: String, _ c: Int, _ v: Int, _ end: Int?, _ text: String, detail: String?) -> some View {
         let passage = ResolvedPassage(textId: "kjva", bookId: b, chapter: c, verse: v > 0 ? v : nil, endVerse: end)
-        return Button {
+        let preview = VerseDisplay.text(text, tagged: nil, textId: passage.textId,
+                                       replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+        return HStack(alignment: .top, spacing: 4) {
+            Button {
+                #if os(iOS)
+                dismiss()
+                #endif
+                app.visitScripture(passage)
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(passage.label).font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                        Spacer()
+                        if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                    }
+                    Text(preview).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                }
+                .contentShape(.rect)
+            }.buttonStyle(.interactivePlain)
+            .contextMenu { referenceActions(passage, preview: preview) }
+            VerseActionsMenu(label: "Actions for \(passage.label) KJVA") {
+                referenceActions(passage, preview: preview)
+            }
+        }
+    }
+
+    @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, preview: String) -> some View {
+        let reference = referenceForCopy(passage.label, textId: passage.textId)
+        Button("Copy Reference", systemImage: "number") {
+            Clipboard.copy(reference)
+            AccessibilityNotification.Announcement("Reference copied").post()
+        }
+        if !preview.isEmpty {
+            Button("Copy Preview", systemImage: "doc.on.doc") {
+                Clipboard.copy("\(reference) \(preview)")
+                AccessibilityNotification.Announcement("Preview copied").post()
+            }
+        }
+        Button("Open in New Tab", systemImage: "plus.square") {
             #if os(iOS)
             dismiss()
             #endif
-            app.visitScripture(passage)
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(passage.label).font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
-                    Spacer()
-                    if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-                    Image(systemName: "chevron.forward")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
-                Text(VerseDisplay.text(text, tagged: nil, textId: "kjva", replacerEnabled: true, rules: WordReplacer.defaultRules))
-                    .font(.callout).foregroundStyle(.secondary).lineLimit(3)
-            }
-            .contentShape(.rect)
-        }.buttonStyle(.interactivePlain)
+            app.visitScripture(passage, reuseTab: false)
+        }
     }
 }
 

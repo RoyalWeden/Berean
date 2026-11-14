@@ -381,24 +381,9 @@ struct CompareView: View {
                 .environment(\.openURL, strongsAction(for: row))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contextMenu { comparisonVerseActions(row, column: column) }
-            Menu {
+            VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {
                 comparisonVerseActions(row, column: column)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.callout.weight(.semibold))
-                    .frame(width: controlSize, height: controlSize)
-                    .contentShape(.rect)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .accessibilityLabel("Actions for \(comparisonVerseReference(row, column: column))")
-            .help("Verse actions")
-            #if os(macOS)
-            .pointerStyle(.link)
-            #else
-            .hoverEffect(.highlight)
-            #endif
         }
     }
 
