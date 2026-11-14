@@ -568,3 +568,5 @@ Compare now records same-tab column opens and single-column collapse in passage 
 Compare verse actions now include Add Note and Cross References on Mac and iPhone. A note attaches the exact displayed verse and edition. Cross References opens the verse in the same reader tab with its inspector selected. Both Dev builds passed. Live check mapped Jonah destinations, note attachments and Back into Compare.
 
 Compare now exposes Verse Notes and Tag Verse. Verse Notes opens the clicked verse and edition in the current reader with the Notes inspector. Tag Verse opens the shared tag picker directly over Compare and stores legacy-compatible coordinates from the displayed row. Both Dev builds passed. Live QA remains for notes, tagging and the remapped Jonah row.
+
+iOS 27 Simulator verified Compare actions on John 7:2 KJVA. Tag Verse opened the shared picker and Escape returned to the same Compare row without writing a tag. Verse Notes opened the Notes inspector with New Note for John 7:2. Dismissing it showed John 7:2 selected and five tabs still open. Saving tags and notes, cross references and mapped Jonah remain open.
