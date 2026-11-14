@@ -341,12 +341,8 @@ struct CompareView: View {
                         .accessibilityLabel("Open verse \(row.verseNum) in Reader")
                         .help("Open verse \(row.verseNum) in Reader")
                     }
-                    VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
-                                 fontSize: app.fontSize, lineSpacing: app.lineSpacing,
-                                 replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
-                    .environment(\.openURL, strongsAction(for: row))
+                    comparisonVerseBody(row, column: column, state: state)
                 }
-                .contextMenu { comparisonVerseActions(row, column: column) }
             }
         } else {
             Text("No Text in This Passage").foregroundStyle(.secondary)
@@ -354,9 +350,7 @@ struct CompareView: View {
     }
 
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
-        let label = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
-                                                    hermas: HermasText(textId: column.text))
-        let reference = "\(label) \(textInfo(column.text).short)"
+        let reference = comparisonVerseReference(row, column: column)
         Button("Copy Verse", systemImage: "doc.on.doc") {
             let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: column.text,
                                          replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
@@ -366,6 +360,41 @@ struct CompareView: View {
         Divider()
         Button("Open in New Tab", systemImage: "plus.square") {
             app.openScripture(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: column.text)
+        }
+    }
+
+    private func comparisonVerseReference(_ row: ChapterVerseRow, column: CompareColumn) -> String {
+        let label = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                                    hermas: HermasText(textId: column.text))
+        return "\(label) \(textInfo(column.text).short)"
+    }
+
+    private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
+                         fontSize: app.fontSize, lineSpacing: app.lineSpacing,
+                         replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                .environment(\.openURL, strongsAction(for: row))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contextMenu { comparisonVerseActions(row, column: column) }
+            Menu {
+                comparisonVerseActions(row, column: column)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.callout.weight(.semibold))
+                    .frame(width: controlSize, height: controlSize)
+                    .contentShape(.rect)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel("Actions for \(comparisonVerseReference(row, column: column))")
+            .help("Verse actions")
+            #if os(macOS)
+            .pointerStyle(.link)
+            #else
+            .hoverEffect(.highlight)
+            #endif
         }
     }
 
@@ -393,11 +422,8 @@ struct CompareView: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-                VerseRowView(row: row, textId: text, showStrongs: state.showStrongs, fontSize: app.fontSize,
-                             lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
-                    .environment(\.openURL, strongsAction(for: row))
+                comparisonVerseBody(row, column: column, state: state)
             }
-            .contextMenu { comparisonVerseActions(row, column: column) }
         } else {
             Text("—").foregroundStyle(.tertiary)
         }

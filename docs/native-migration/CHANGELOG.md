@@ -574,3 +574,7 @@
 ### 2026-11-14 — Compare verse actions
 - Added edition-aware verse copy, reference copy and open-in-new-tab actions to aligned and independent comparisons.
 - Both native Dev builds passed. Live cell menu activation and clipboard output remain to verify.
+
+### 2026-11-14 — Discoverable Compare verse actions
+- Added an edition-labeled ellipsis to each Compare cell, with pointer feedback and a 44-point touch target on iPhone.
+- Both Dev builds passed. Verified the Mac action menu and exact LXX clipboard reference.
