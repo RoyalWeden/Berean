@@ -25,6 +25,16 @@ struct LexiconEntryView: View {
     @State private var selectedRenderings: Set<String> = []
     @State private var sortByMatches = false
 
+    struct OccurrenceReturn {
+        let key: OccurrenceKey
+        let pageLimit: Int
+        let edition: String?
+        let book: String?
+        let renderings: Set<String>
+        let sortByMatches: Bool
+        let wordReplacerEnabled: Bool
+    }
+
     private var editions: [String] {
         Array(Set(occurrences.map(\.textId))).sorted()
     }
@@ -130,8 +140,11 @@ struct LexiconEntryView: View {
                                 ForEach(Array(matches.prefix(visibleOccurrences)), id: \.4) { _, o, _, preview, key in
                                     let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
                                     Button {
-                                        if !compact, let index = indexed.firstIndex(where: { $0.4 == key }) {
-                                            app.lexiconOccurrenceReturns[tabId, default: [:]][strongsId] = (key, index + 1)
+                                        if !compact {
+                                            app.lexiconOccurrenceReturns[tabId, default: [:]][strongsId] = OccurrenceReturn(
+                                                key: key, pageLimit: visibleOccurrences, edition: occurrenceEdition,
+                                                book: occurrenceBook, renderings: selectedRenderings, sortByMatches: sortByMatches,
+                                                wordReplacerEnabled: app.wordReplacerEnabled)
                                         }
                                         leaveInspector()
                                         app.visitScripture(passage, returningTo: tabId)
@@ -174,12 +187,18 @@ struct LexiconEntryView: View {
             }
             .task(id: occurrencesLoading) {
                 guard !compact, !occurrencesLoading, !occurrences.isEmpty,
-                      let (key, count) = app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId),
-                      let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) else { return }
-                visibleOccurrences = max(visibleOccurrences, count, index + 1)
+                      let position = app.lexiconOccurrenceReturns[tabId]?[strongsId],
+                      let index = occurrences.firstIndex(where: { OccurrenceKey($0) == position.key }) else { return }
+                occurrenceEdition = position.edition
+                occurrenceBook = position.book
+                let sameRendering = position.wordReplacerEnabled == app.wordReplacerEnabled
+                selectedRenderings = sameRendering ? position.renderings : []
+                sortByMatches = position.sortByMatches
+                visibleOccurrences = sameRendering ? position.pageLimit : max(position.pageLimit, index + 1)
                 await Task.yield()
                 guard !Task.isCancelled else { return }
-                proxy.scrollTo(key, anchor: .center)
+                proxy.scrollTo(position.key, anchor: .center)
+                app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -193,21 +212,11 @@ struct LexiconEntryView: View {
             }
         }
         .id(strongsId)
-        .onChange(of: occurrenceEdition) {
-            occurrenceBook = nil
-            selectedRenderings = []
-            visibleOccurrences = 40
-        }
-        .onChange(of: occurrenceBook) {
-            selectedRenderings = []
-            visibleOccurrences = 40
-        }
         .onChange(of: app.wordReplacerEnabled) {
             selectedRenderings = []
+            visibleOccurrences = 40
             updatePreviews()
         }
-        .onChange(of: selectedRenderings) { visibleOccurrences = 40 }
-        .onChange(of: sortByMatches) { visibleOccurrences = 40 }
         .task(id: strongsId) {
             loaded = false
             entry = nil
@@ -250,7 +259,12 @@ struct LexiconEntryView: View {
         let filtered = occurrenceEdition != nil || occurrenceBook != nil || !selectedRenderings.isEmpty || sortByMatches
         return Menu {
             if editions.count > 1 {
-                Picker("Edition", selection: $occurrenceEdition) {
+                Picker("Edition", selection: Binding(get: { occurrenceEdition }, set: {
+                    occurrenceEdition = $0
+                    occurrenceBook = nil
+                    selectedRenderings = []
+                    visibleOccurrences = 40
+                })) {
                     Text("All Editions").tag(nil as String?)
                     ForEach(editions, id: \.self) { edition in
                         Text(textInfo(edition).short).tag(Optional(edition))
@@ -259,7 +273,11 @@ struct LexiconEntryView: View {
                 .pickerStyle(.menu)
             }
             if books.count > 1 {
-                Picker("Book", selection: $occurrenceBook) {
+                Picker("Book", selection: Binding(get: { occurrenceBook }, set: {
+                    occurrenceBook = $0
+                    selectedRenderings = []
+                    visibleOccurrences = 40
+                })) {
                     Text("All Books").tag(nil as String?)
                     ForEach(books.keys.sorted { Reference.bookName($0) < Reference.bookName($1) }, id: \.self) { book in
                         Text("\(Reference.bookName(book)) (\(books[book]?.count ?? 0))").tag(Optional(book))
@@ -275,11 +293,12 @@ struct LexiconEntryView: View {
                             set: { included in
                                 if included { selectedRenderings.insert(word) }
                                 else { selectedRenderings.remove(word) }
+                                visibleOccurrences = 40
                             }
                         ))
                     }
                     if !selectedRenderings.isEmpty {
-                        Button("Clear Word Filter") { selectedRenderings = [] }
+                        Button("Clear Word Filter") { selectedRenderings = []; visibleOccurrences = 40 }
                     }
                 } label: {
                     Label(selectedRenderings.isEmpty ? "Translated Words" : "Translated Words (\(selectedRenderings.count))",
@@ -287,7 +306,10 @@ struct LexiconEntryView: View {
                 }
             }
             if canSort {
-                Picker("Sort Occurrences", selection: $sortByMatches) {
+                Picker("Sort Occurrences", selection: Binding(get: { sortByMatches }, set: {
+                    sortByMatches = $0
+                    visibleOccurrences = 40
+                })) {
                     Text("Default Order").tag(false)
                     Text("Most Matches").tag(true)
                 }
@@ -299,6 +321,7 @@ struct LexiconEntryView: View {
                     occurrenceBook = nil
                     selectedRenderings = []
                     sortByMatches = false
+                    visibleOccurrences = 40
                 }
             }
         } label: {

@@ -531,7 +531,7 @@ final class AppModel {
     }
 
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
-    @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: (LexiconEntryView.OccurrenceKey, Int)]] = [:]
+    @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceReturn]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesFolderPositions: [String: [NotesFolderScrollContext: String]] = [:]
