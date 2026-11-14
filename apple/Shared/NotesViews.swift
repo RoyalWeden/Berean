@@ -30,12 +30,19 @@ extension Color {
     }
 }
 
+struct NoteFormatRequest: Equatable {
+    let id = UUID()
+    let prefix: String
+    let suffix: String
+}
+
 /// One note with a native rich editor and version history.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app
     let noteId: String
     @State private var note: Note?
     @State private var title = ""
+    @State private var formatRequest: NoteFormatRequest?
     @State private var content = ""
     @State private var saveTask: Task<Void, Never>?
     @State private var snapshotTask: Task<Void, Never>?
@@ -83,10 +90,10 @@ struct NoteDetailView: View {
                         }
                     }
                     #if os(macOS)
-                    RichNoteEditor(text: $content, fontSize: 15) { url in openLink(url) }
+                    RichNoteEditor(text: $content, fontSize: 15, formatRequest: formatRequest) { url in openLink(url) }
                         .focused($focus, equals: .body)
                     #else
-                    RichNoteEditorIOS(text: $content) { url in openLink(url) }
+                    RichNoteEditorIOS(text: $content, formatRequest: formatRequest) { url in openLink(url) }
                         .focused($focus, equals: .body)
                     #endif
                 }
@@ -105,6 +112,17 @@ struct NoteDetailView: View {
                 Button { saveNow(); app.openNote(nil) } label: { Label("All Notes", systemImage: "chevron.backward") }
                     .help("Back to the notes list")
                 if let note {
+                    Menu {
+                        formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
+                        formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")
+                        formatButton("Underline", symbol: "underline", prefix: "<u>", suffix: "</u>")
+                        formatButton("Strikethrough", symbol: "strikethrough", prefix: "~~", suffix: "~~")
+                        formatButton("Highlight", symbol: "highlighter", prefix: "==", suffix: "==")
+                    } label: {
+                        Label("Format", systemImage: "textformat")
+                    }
+                    .menuIndicator(.hidden)
+                    .help("Format selected note text")
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
@@ -204,6 +222,12 @@ struct NoteDetailView: View {
             app.openTodayDailyNote()
         default:
             app.userMessage = "This Berean link can’t be opened here."
+        }
+    }
+
+    private func formatButton(_ title: String, symbol: String, prefix: String, suffix: String) -> some View {
+        Button(title, systemImage: symbol) {
+            formatRequest = NoteFormatRequest(prefix: prefix, suffix: suffix)
         }
     }
 

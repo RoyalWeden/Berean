@@ -7,6 +7,7 @@ import BereanNotes
 struct RichNoteEditorIOS: UIViewRepresentable {
     @Binding var text: String
     var fontSize: CGFloat = 17
+    var formatRequest: NoteFormatRequest? = nil
     var onLink: (URL) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -35,7 +36,16 @@ struct RichNoteEditorIOS: UIViewRepresentable {
     }
 
     func updateUIView(_ tv: NoteUITextView, context: Context) {
-        context.coordinator.parent = self
+        let coordinator = context.coordinator
+        let previousRequest = coordinator.parent.formatRequest
+        coordinator.parent = self
+        if let request = formatRequest, request != previousRequest {
+            DispatchQueue.main.async { [weak coordinator, weak tv] in
+                guard coordinator?.parent.formatRequest == request, let tv, tv.window != nil else { return }
+                tv.wrap(request.prefix, request.suffix)
+                tv.becomeFirstResponder()
+            }
+        }
         guard tv.text != text, !context.coordinator.editing else { return }
         tv.text = text
         context.coordinator.restyle()

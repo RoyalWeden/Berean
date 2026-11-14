@@ -897,3 +897,7 @@
 ### 2026-11-14 — Return to a Scripture Search result
 - Linked result navigation back to the source Search tab and saved a scroll anchor for the opened row.
 - Both native Dev builds passed. Live restoration remains open.
+
+### 2026-11-14 — Notes Format menu
+- Exposed existing inline formatting through a visible editor menu on Mac and iPhone.
+- Both native Dev builds passed.
