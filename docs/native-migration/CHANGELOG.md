@@ -841,3 +841,7 @@
 ### 2026-11-14 — Compare verse notes and tags
 - Added same-tab Verse Notes and direct Tag Verse actions for the displayed verse.
 - Both Dev builds passed.
+
+### 2026-11-14 — iPhone tag picker controls
+- Added an inline passage heading and persistent Cancel and Add controls.
+- Both Dev builds passed. Live keyboard and save checks remain open.

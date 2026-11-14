@@ -70,6 +70,11 @@ struct TagPickerView: View {
     var body: some View {
         NavigationStack {
             List {
+                #if os(iOS)
+                Text("Tag \(label)")
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                #endif
                 TextField("Find or create a tag", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .focused($fieldFocused)
@@ -99,18 +104,27 @@ struct TagPickerView: View {
                 }
                 if loaded && tags.isEmpty && trimmed.isEmpty { Text("No tags yet. Type a name to create one.").foregroundStyle(.secondary) }
             }
-            .navigationTitle("Tag \(label)")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
             .scrollDismissesKeyboard(.interactively)
-            #endif
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    Button("Cancel") { dismiss() }
+                        .buttonStyle(.bordered)
+                    Spacer()
+                    addButton.buttonStyle(.borderedProminent)
+                }
+                .controlSize(.large)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.regularMaterial)
+            }
+            #else
+            .navigationTitle("Tag \(label)")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(chosen.count > 1 ? "Add \(chosen.count)" : "Add") { apply(newName: nil) }
-                        .disabled(!loaded || chosen.isEmpty)
-                }
+                ToolbarItem(placement: .confirmationAction) { addButton }
             }
+            #endif
             .alert(error ?? "", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) { Button("OK") {} }
         }
         #if os(macOS)
@@ -132,6 +146,11 @@ struct TagPickerView: View {
                 self.error = "Tags could not be loaded. \(error.localizedDescription)"
             }
         }
+    }
+
+    private var addButton: some View {
+        Button(chosen.count > 1 ? "Add \(chosen.count)" : "Add") { apply(newName: nil) }
+            .disabled(!loaded || chosen.isEmpty)
     }
 
     func apply(newName: String?) {
