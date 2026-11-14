@@ -544,7 +544,10 @@ final class AppModel {
         let keys: [String]
         switch t.tabType {
         case .bible: keys = ["bookId", "chapter", "translation", "verse", "endVerse", "nativeSelectedVerses"]
-        case .note: keys = ["noteId"]
+        case .note:
+            if let note = t.state["noteId"]?.stringValue?.string { return "editor:" + note }
+            if let folder = t.state["listFolderId"]?.stringValue?.string { return "folder:" + folder }
+            return "notes-home"
         case .lexicon: keys = ["strongsNum"]
         case .search: keys = ["query"]
         default: keys = []
