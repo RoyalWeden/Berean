@@ -785,3 +785,7 @@
 ### 2026-11-14 — Compare highlight actions
 - Added apply and remove actions for the actual verse and edition in each Compare column.
 - Separated legacy word-offset marks from whole-verse tint. Both Dev builds passed.
+
+### 2026-11-14 — Legacy word highlights
+- Restored rendering for saved word-level highlights in Scripture and Compare.
+- Both Dev builds passed. Rendering uses existing stored highlights without a migration.

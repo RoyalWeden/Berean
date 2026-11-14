@@ -1099,6 +1099,27 @@ extension Color {
     }
 }
 
+private func displayedHighlightRanges(_ highlights: [Highlight], words: [String], original: String) -> [ReaderVerse.Mark] {
+    var offset = 0
+    let bounds = words.map { word in
+        let start = offset
+        offset += word.utf16.count + 1
+        return start..<(offset - 1)
+    }
+    let shown = words.joined(separator: " ")
+    return highlights.compactMap { highlight in
+        if let start = highlight.startChar, let end = highlight.endChar {
+            let mapped = OffsetMap.originalToDisplay(display: shown, original: original, offsets: [start, end])
+            guard mapped[0] < mapped[1] else { return nil }
+            return .init(start: mapped[0], end: mapped[1], color: highlight.color)
+        }
+        guard let start = highlight.startWord, bounds.indices.contains(start) else { return nil }
+        let end = min(highlight.endWord ?? start, bounds.count - 1)
+        guard end >= start, bounds[start].lowerBound < bounds[end].upperBound else { return nil }
+        return .init(start: bounds[start].lowerBound, end: bounds[end].upperBound, color: highlight.color)
+    }
+}
+
 struct VerseRowView: View {
     let row: ChapterVerseRow
     let textId: String
@@ -1121,11 +1142,9 @@ struct VerseRowView: View {
     private func markedText(_ shown: String, wholeTint: Color?) -> AttributedString {
         var text = AttributedString(shown)
         text.backgroundColor = wholeTint
-        for mark in highlights {
-            guard let start = mark.startChar, let end = mark.endChar else { continue }
-            let bounds = OffsetMap.originalToDisplay(display: shown, original: row.text, offsets: [start, end])
-            guard bounds[0] < bounds[1],
-                  let range = Range(NSRange(location: bounds[0], length: bounds[1] - bounds[0]), in: shown),
+        let words = shown.components(separatedBy: " ")
+        for mark in displayedHighlightRanges(highlights, words: words, original: row.text) {
+            guard let range = Range(NSRange(location: mark.start, length: mark.end - mark.start), in: shown),
                   let lower = AttributedString.Index(range.lowerBound, within: text),
                   let upper = AttributedString.Index(range.upperBound, within: text) else { continue }
             text[lower..<upper].backgroundColor = Color.highlight(mark.color).opacity(0.35)
@@ -1150,18 +1169,12 @@ struct VerseRowView: View {
             let nums: [String] = { switch t.strongs { case .none: return []; case .one(let s): return [s]; case .many(let a): return a } }()
             return (t.word, t.isItalic, t.isRedLetter, nums)
         }
-        // Stored character highlights are offsets into verse.text; map them onto the displayed words.
-        let shown = words.map(\.0).joined(separator: " ")
-        let ranges: [(Int, Int, String)] = highlights.compactMap { h in
-            guard let s = h.startChar, let e = h.endChar else { return nil }
-            let off = OffsetMap.originalToDisplay(display: shown, original: row.text, offsets: [s, e])
-            return (off[0], off[1], h.color)
-        }
+        let ranges = displayedHighlightRanges(highlights, words: words.map(\.0), original: row.text)
         var pos = 0
         for (i, w) in words.enumerated() {
             if i > 0 {
                 var space = AttributedString(" ")
-                space.backgroundColor = ranges.last { $0.0 <= pos && pos < $0.1 }.map { Color.highlight($0.2).opacity(0.35) } ?? wholeTint
+                space.backgroundColor = ranges.last { $0.start <= pos && pos < $0.end }.map { Color.highlight($0.color).opacity(0.35) } ?? wholeTint
                 out += space
                 pos += 1
             }
@@ -1169,13 +1182,13 @@ struct VerseRowView: View {
             var k = 0
             while k < units.count {
                 let p = pos + k
-                let hit = ranges.last { $0.0 <= p && p < $0.1 }
+                let hit = ranges.last { $0.start <= p && p < $0.end }
                 var j = k + 1
-                while j < units.count, (ranges.last { $0.0 <= pos + j && pos + j < $0.1 })?.2 == hit?.2 { j += 1 }
+                while j < units.count, (ranges.last { $0.start <= pos + j && pos + j < $0.end })?.color == hit?.color { j += 1 }
                 var a = AttributedString(String(decoding: units[k..<j], as: UTF16.self))
                 if w.1 { a.font = ScriptureFont.font(family, size: fontSize).italic() }
                 if w.2 && showRedLetters { a.foregroundColor = .red }
-                a.backgroundColor = hit.map { Color.highlight($0.2).opacity(0.35) } ?? wholeTint
+                a.backgroundColor = hit.map { Color.highlight($0.color).opacity(0.35) } ?? wholeTint
                 out += a
                 k = j
             }
@@ -1241,12 +1254,7 @@ extension ScriptureView {
                 let plain = VerseDisplay.text(v.text, tagged: nil, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules)
                 words = plain.split(separator: " ", omittingEmptySubsequences: false).map { .init(text: String($0), italic: false, red: false, strongs: []) }
             }
-            let shown = words.map(\.text).joined(separator: " ")
-            let marks: [ReaderVerse.Mark] = (highlights[v.verseNum] ?? []).compactMap { h in
-                guard let s = h.startChar, let e = h.endChar else { return nil }
-                let off = OffsetMap.originalToDisplay(display: shown, original: v.text, offsets: [s, e])
-                return .init(start: off[0], end: off[1], color: h.color)
-            }
+            let marks = displayedHighlightRanges(highlights[v.verseNum] ?? [], words: words.map(\.text), original: v.text)
             let whole = highlights[v.verseNum]?.last { $0.startChar == nil && $0.startWord == nil }
             return ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
