@@ -127,6 +127,13 @@ struct CompareView: View {
     @State private var loadedPassage: String?
     @State private var localVerseSelection: Int?
     @State private var editingColumn: CompareColumn?
+    @State private var tagging: VerseTagTarget?
+
+    private struct VerseTagTarget: Identifiable {
+        let id = UUID()
+        let range: TagRange
+        let label: String
+    }
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
@@ -192,6 +199,9 @@ struct CompareView: View {
             #if os(macOS)
             .frame(minWidth: 460, minHeight: 520)
             #endif
+        }
+        .sheet(item: $tagging) { target in
+            TagPickerView(ranges: [target.range], label: target.label, kind: "verses")
         }
         .task(id: passage) { await load(st, cols, passage: passage) }
         .task(id: "\(loadedPassage ?? "")|\(app.highlightsRevision)") {
@@ -492,6 +502,14 @@ struct CompareView: View {
             let title = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
                                                         hermas: HermasText(textId: column.text))
             app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: column.text, title: title)
+        }
+        Button("Verse Notes", systemImage: "note.text") {
+            openReader(row, in: column, inspector: "notes")
+        }
+        Button("Tag Verse…", systemImage: "tag") {
+            let verse = Double(row.verseNum)
+            let range = TagRange(bookId: row.bookId, chapter: Double(row.chapter), spans: [(verse, verse)])
+            tagging = VerseTagTarget(range: range, label: reference)
         }
         Button("Cross References", systemImage: "arrow.triangle.branch") {
             openReader(row, in: column, inspector: "crossrefs")

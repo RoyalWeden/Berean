@@ -837,3 +837,7 @@
 ### 2026-11-14 — Compare study actions
 - Added edition-aware verse notes and same-tab cross-reference navigation to Compare.
 - Both Dev builds passed.
+
+### 2026-11-14 — Compare verse notes and tags
+- Added same-tab Verse Notes and direct Tag Verse actions for the displayed verse.
+- Both Dev builds passed.
