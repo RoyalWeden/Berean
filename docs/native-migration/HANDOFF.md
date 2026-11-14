@@ -576,3 +576,5 @@ The iPhone Tag Picker now shows its passage as an inline heading and keeps Cance
 iOS 27 Simulator verified the updated Tag Picker from the John 7:2 selection bar. The passage heading and both footer controls were exposed. Choosing the existing Dev Chapter Parity test tag enabled Add and saving refreshed its inline marker on verse 2 while retaining selection and five tabs. The test tag remains in the isolated Dev library. Hardware keyboard-up layout and saving from Compare remain to check.
 
 Compare now shows clickable verse-tag chips sourced from each displayed row’s book, chapter and verse. Chips refresh on tag writes and open a reusable Search tab. The lookup follows legacy edition-independent tag coordinates. Both Dev builds passed. Live QA remains for save-to-chip refresh and remapped Jonah rows.
+
+iOS 27 Simulator verified the saved Dev Chapter Parity chip appeared in Compare on John 7:2. Activating it opened the matching tag results with a John 7:2 preview and the dock still showed five tabs, demonstrating Search reuse. Save-to-chip refresh while remaining in Compare and mapped Jonah placement remain open.
