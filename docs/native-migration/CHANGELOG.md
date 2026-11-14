@@ -594,3 +594,7 @@
 ### 2026-11-14 — Chapter navigation during overlapping requests
 - Cancelled superseded chapter lookups and guarded completion against newer reader destinations.
 - Both native Dev builds passed. Interactive race verification remains open.
+
+### 2026-11-14 — Scripture search result actions
+- Added a visible, edition-labeled actions button to Scripture hits on Mac and iPhone. Copied references share the Go format.
+- Both Dev builds passed. iOS 27 Simulator verified the exact KJVA reference and stable tab count.

@@ -277,34 +277,65 @@ struct ScriptureSearchView: View {
     func row(_ h: ScriptureHit) -> some View {
         let passage = ResolvedPassage(textId: h.textId, bookId: h.bookId, chapter: h.chapter, verse: h.verseNum)
         let edition = textInfo(h.textId)
-        return Button {
-            app.visitScripture(passage)
-        } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(passage.label)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
-                    if grouping != "text" || scope == nil {
-                        Text(edition.short).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
-                            .padding(.horizontal, 5).padding(.vertical, 1).background(Color.secondary.opacity(0.12), in: .capsule)
+        return HStack(alignment: .top, spacing: 8) {
+            Button {
+                app.visitScripture(passage)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(passage.label)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                        if grouping != "text" || scope == nil {
+                            Text(edition.short).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                                .padding(.horizontal, 5).padding(.vertical, 1).background(Color.secondary.opacity(0.12), in: .capsule)
+                        }
+                        Spacer()
                     }
-                    Spacer()
-                    Image(systemName: "chevron.forward")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
+                    Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(4)
                 }
-                Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
+            .buttonStyle(.interactivePlain)
+            .contextMenu {
+                resultActions(h, passage: passage)
+            }
+            Menu {
+                resultActions(h, passage: passage)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.callout.weight(.semibold))
+                    #if os(iOS)
+                    .frame(width: 44, height: 44)
+                    #else
+                    .frame(width: 32, height: 32)
+                    #endif
+                    .contentShape(.rect)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel("Actions for \(passage.label), \(edition.name)")
+            .help("Search result actions")
+        #if os(macOS)
+            .pointerStyle(.link)
+        #else
+            .hoverEffect(.highlight)
+        #endif
         }
-        .buttonStyle(.interactivePlain)
-        .contextMenu {
-            Button("Open in New Tab", systemImage: "plus.square") { app.visitScripture(passage, reuseTab: false) }
-            Button("Copy Verse", systemImage: "doc.on.doc") { Clipboard.copy("\(passage.label) \(edition.short) \(displayText(h))") }
-            Button("Copy Reference", systemImage: "number") { Clipboard.copy("\(passage.label) \(edition.short)") }
+    }
+
+    @ViewBuilder private func resultActions(_ hit: ScriptureHit, passage: ResolvedPassage) -> some View {
+        let reference = referenceForCopy(passage.label, textId: hit.textId)
+        Button("Open in New Tab", systemImage: "plus.square") { app.visitScripture(passage, reuseTab: false) }
+        Button("Copy Verse", systemImage: "doc.on.doc") {
+            Clipboard.copy("\(reference) \(displayText(hit))")
+            AccessibilityNotification.Announcement("Verse copied").post()
+        }
+        Button("Copy Reference", systemImage: "number") {
+            Clipboard.copy(reference)
+            AccessibilityNotification.Announcement("Reference copied").post()
         }
     }
 
