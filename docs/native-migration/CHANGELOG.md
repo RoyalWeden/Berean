@@ -909,3 +909,7 @@
 ### 2026-11-14 — Native note headings
 - Added Body and Heading 1–3 to the Notes Format menu on Mac and iPhone.
 - Both Dev builds passed.
+
+### 2026-11-14 — Notes list commands
+- Added bulleted, numbered and checklist formatting to native Notes.
+- Both Dev builds and three focused list edit checks passed.

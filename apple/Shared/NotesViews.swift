@@ -35,6 +35,7 @@ struct NoteFormatRequest: Equatable {
     enum Action: Equatable {
         case inline(String, String)
         case heading(Int)
+        case list(NoteListStyle)
     }
 
     let action: Action
@@ -82,6 +83,68 @@ func noteHeadingEdit(in text: NSString, selection: NSRange, level: Int)
     }
     let length = replacement.utf16.count - (replacement.hasSuffix("\n") ? 1 : 0)
     return (range, replacement, NSRange(location: range.location, length: length))
+}
+
+enum NoteListStyle: CaseIterable {
+    case bullet, numbered, checklist
+
+    var title: String {
+        switch self {
+        case .bullet: "Bullet List"
+        case .numbered: "Numbered List"
+        case .checklist: "Checklist"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .bullet: "list.bullet"
+        case .numbered: "list.number"
+        case .checklist: "checklist"
+        }
+    }
+
+    var markerPattern: String {
+        switch self {
+        case .bullet: #"^[-+*] (?!\[[ xX]\] )"#
+        case .numbered: #"^\d+[.)] "#
+        case .checklist: #"^[-+*] \[([ xX])\] "#
+        }
+    }
+}
+
+func noteListEdit(in text: NSString, selection: NSRange, style: NoteListStyle)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+    let range = text.lineRange(for: NSRange(location: selection.location, length: max(0, selection.length - 1)))
+    let original = text.substring(with: range)
+    let lines = original.components(separatedBy: "\n")
+    let bodies = lines.map { String($0.drop(while: { $0 == " " || $0 == "\t" })) }
+    let populated = bodies.filter { !$0.isEmpty }
+    let remove = !populated.isEmpty && populated.allSatisfy {
+        $0.range(of: style.markerPattern, options: .regularExpression) != nil
+    }
+    let marker = #"^(?:[-+*] \[[ xX]\] |[-+*] |\d+[.)] )"#
+    var number = 0
+    let replacement = zip(lines, bodies).map { line, body in
+        if body.isEmpty, lines.count > 1 { return line }
+        let indent = line.prefix(line.count - body.count)
+        let content = body.replacingOccurrences(of: marker, with: "", options: .regularExpression)
+        number += 1
+        let prefix: String
+        switch style {
+        case .bullet: prefix = "- "
+        case .numbered: prefix = "\(number). "
+        case .checklist: prefix = body.range(of: #"^[-+*] \[[xX]\] "#, options: .regularExpression) == nil ? "- [ ] " : "- [x] "
+        }
+        return indent + (remove ? "" : prefix) + content
+    }.joined(separator: "\n")
+    guard replacement != original else { return nil }
+    let length = replacement.utf16.count - (replacement.hasSuffix("\n") ? 1 : 0)
+    let resultSelection = selection.length == 0
+        ? NSRange(location: range.location + length, length: 0)
+        : NSRange(location: range.location, length: length)
+    return (range, replacement, resultSelection)
 }
 
 /// One note with a native rich editor and version history.
@@ -165,6 +228,13 @@ struct NoteDetailView: View {
                             Button("Body") { formatRequest = NoteFormatRequest(action: .heading(0)) }
                             ForEach(1...3, id: \.self) { level in
                                 Button("Heading \(level)") { formatRequest = NoteFormatRequest(action: .heading(level)) }
+                            }
+                        }
+                        Section("Lists") {
+                            ForEach(NoteListStyle.allCases, id: \.self) { style in
+                                Button(style.title, systemImage: style.symbol) {
+                                    formatRequest = NoteFormatRequest(action: .list(style))
+                                }
                             }
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")

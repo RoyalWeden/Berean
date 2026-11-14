@@ -59,6 +59,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 switch request.action {
                 case .inline(let open, let close): editor.wrapSelection(open, close)
                 case .heading(let level): editor.setHeading(level)
+                case .list(let style): editor.setList(style)
                 }
                 window.makeFirstResponder(editor)
             }
@@ -221,14 +222,9 @@ final class NoteTextView: NSTextView {
         replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
-    func toggleBulletList() {
-        let s = string as NSString
-        let lines = s.lineRange(for: selectedRange())
-        let body = s.substring(with: lines)
-        let parts = body.components(separatedBy: "\n")
-        let allBulleted = parts.filter { !$0.isEmpty }.allSatisfy { $0.hasPrefix("- ") }
-        let out = parts.map { $0.isEmpty ? $0 : (allBulleted ? String($0.dropFirst(2)) : "- " + $0) }.joined(separator: "\n")
-        replace(lines, with: out, select: NSRange(location: lines.location, length: (out as NSString).length))
+    func setList(_ style: NoteListStyle) {
+        guard let edit = noteListEdit(in: string as NSString, selection: selectedRange(), style: style) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func replace(_ r: NSRange, with s: String, select: NSRange) {
@@ -253,7 +249,7 @@ final class NoteTextView: NSTextView {
         case ([.command], "v"): paste(nil); return true
         case ([.command, .option], "1"), ([.command, .option], "2"), ([.command, .option], "3"): setHeading(Int(k)!); return true
         case ([.command, .option], "0"): setHeading(0); return true
-        case ([.command, .shift], "8"), ([.command, .shift], "*"): toggleBulletList(); return true
+        case ([.command, .shift], "8"), ([.command, .shift], "*"): setList(.bullet); return true
         default: return super.performKeyEquivalent(with: event)
         }
     }

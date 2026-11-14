@@ -45,6 +45,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 switch request.action {
                 case .inline(let open, let close): tv.wrap(open, close)
                 case .heading(let level): tv.setHeading(level)
+                case .list(let style): tv.setList(style)
                 }
                 tv.becomeFirstResponder()
             }
@@ -196,6 +197,10 @@ final class NoteUITextView: UITextView {
 
     func setHeading(_ level: Int) {
         applyFormatEdit(noteHeadingEdit(in: (text ?? "") as NSString, selection: selectedRange, level: level))
+    }
+
+    func setList(_ style: NoteListStyle) {
+        applyFormatEdit(noteListEdit(in: (text ?? "") as NSString, selection: selectedRange, style: style))
     }
 
     private func applyFormatEdit(_ edit: (range: NSRange, replacement: String, selection: NSRange)?) {
