@@ -8,8 +8,8 @@ struct TabCleanupView: View {
     @State private var duplicatesOnly = false
 
     var body: some View {
-        let duplicateIDs = duplicatesOnly ? app.duplicateInactiveTabIDs : []
-        let tabs = app.inactiveTabs.filter { !duplicatesOnly || duplicateIDs.contains($0.id) }
+        let originals = duplicatesOnly ? app.inactiveDuplicateOriginals : [:]
+        let tabs = app.inactiveTabs.filter { !duplicatesOnly || originals[$0.id] != nil }
         let selected = tabs.filter { included.contains($0.id) }
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let matches = tabs.filter { tab in
@@ -50,6 +50,12 @@ struct TabCleanupView: View {
                                 VStack(alignment: .leading) {
                                     Text(tab.navigationLabel)
                                     Text(tab.navigationDetail).font(.caption).foregroundStyle(.secondary)
+                                    if let original = originals[tab.id] {
+                                        Label(original.isPinned ? "Pinned copy stays open" : "Matching copy stays open",
+                                              systemImage: original.isPinned ? "pin" : "square.on.square")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             } icon: {
                                 Image(systemName: tab.symbol).foregroundStyle(tab.tint)
@@ -67,7 +73,7 @@ struct TabCleanupView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Archive \(selected.count)") {
-                        app.archiveInactiveTabs(selected.map(\.id))
+                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly)
                         dismiss()
                     }
                     .disabled(selected.isEmpty)

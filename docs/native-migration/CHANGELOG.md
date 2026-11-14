@@ -626,3 +626,6 @@
 ### 2026-11-14 — Tab duplication and cleanup
 - Duplicate Tab preserves the source type, state and origin, and inserts after the source in stored order.
 - Copies start unpinned so they can be reviewed once inactive. Both Dev build commands passed.
+
+### 2026-11-14 — Duplicate archive review
+- Identify the copy that stays open and recheck duplicate eligibility before archiving. Both Dev builds passed.
