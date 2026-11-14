@@ -610,3 +610,7 @@
 ### 2026-11-14 — iPhone dock cross-reference scope
 - Cross References in More now uses the current verse selection.
 - Verified disjoint TSKe groups and reference clipboard output on iOS 27 Simulator. The iPhone Dev build passed.
+
+### 2026-11-14 — Cross-reference source control
+- The inspector's source menu displays the active source and gives the passage heading more room.
+- Both Dev builds passed. Verified Classic-to-TSKe switching with both verses of a disjoint selection on iOS 27 Simulator.

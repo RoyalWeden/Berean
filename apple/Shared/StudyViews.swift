@@ -372,18 +372,35 @@ struct CrossRefsView: View {
     var body: some View {
         let reference = "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(selectedVerses)|\(textId)|\(source)"
         VStack(spacing: 0) {
-            Picker("Source", selection: $source) {
-                Text("TSKe").tag("tske")
-                Text("Classic").tag("classic")
+            HStack {
+                Text(ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter,
+                                     verse: verse, verseGroups: consecutiveVerseRuns(Set(selectedVerses))).label)
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                Menu {
+                    Picker("Cross-reference source", selection: $source) {
+                        Text("TSKe").tag("tske")
+                        Text("Classic").tag("classic")
+                    }
+                } label: {
+                    Label(source == "classic" ? "Classic" : "TSKe", systemImage: "line.3.horizontal.decrease")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 8)
+                        .frame(minHeight: 44)
+                        .contentShape(.rect)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel("Cross-reference source")
+                .accessibilityValue(source == "classic" ? "Classic" : "TSKe")
+                #if os(macOS)
+                .pointerStyle(.link)
+                #else
+                .hoverEffect(.highlight)
+                #endif
             }
-            .pickerStyle(.segmented)
-            .padding(8)
-            Text(ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter,
-                                 verse: verse, verseGroups: consecutiveVerseRuns(Set(selectedVerses))).label)
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 6)
+            .padding(.horizontal, 12)
             if loadedReference != reference {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if failed {
