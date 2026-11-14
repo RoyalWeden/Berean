@@ -133,6 +133,7 @@ func referenceForCopy(_ label: String, textId: String) -> String {
 struct ChapterExportActions: View {
     @Environment(AppModel.self) private var app
     let state: BibleState
+    var hasText = true
 
     var body: some View {
         let chapterLabel = Reference.readerChapterLabel(state.bookId, state.chapter, textId: state.translation)
@@ -150,6 +151,7 @@ struct ChapterExportActions: View {
                 }
             }
         }
+        .disabled(!hasText)
         Button("Copy Chapter Reference", systemImage: "number") {
             Clipboard.copy(referenceForCopy(chapterLabel, textId: state.translation))
             AccessibilityNotification.Announcement("Reference copied").post()
@@ -168,9 +170,11 @@ struct ChapterExportActions: View {
                 }
             }
         }
+        .disabled(!hasText)
         ShareLink(item: chapter, preview: SharePreview(reference)) {
             Label("Share Chapter…", systemImage: "square.and.arrow.up")
         }
+        .disabled(!hasText)
     }
 }
 
@@ -871,6 +875,7 @@ struct ScriptureView: View {
             #endif
         }
         #if os(macOS)
+        let hasText = st.compareMode || (loadedChapter == chapterKey(st) && !verses.isEmpty)
         ToolbarItemGroup {
             Button("Scripture Display", systemImage: "textformat.size") {
                 displayOptionsShown.toggle()
@@ -896,6 +901,7 @@ struct ScriptureView: View {
             }
             .pointerStyle(.link)
             .help("Tag this chapter")
+            .disabled(!hasText)
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
                 .pointerStyle(.link)
                 .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
@@ -908,7 +914,7 @@ struct ScriptureView: View {
         }
         ToolbarItem {
             Menu {
-                ChapterExportActions(state: st)
+                ChapterExportActions(state: st, hasText: hasText)
             } label: {
                 Label("Chapter Export", systemImage: "square.and.arrow.up")
             }

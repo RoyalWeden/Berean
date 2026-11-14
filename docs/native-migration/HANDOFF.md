@@ -552,3 +552,5 @@ iOS 27 Simulator verified changing a Compare column from its heading. At John 7:
 Aligned Compare keeps column headings actionable when an edition lacks the current passage, including when all columns are empty. It identifies unavailable editions in their heading and omits their repetitive placeholder rows in the stacked layout. Both Dev builds passed. Running-app QA remains for John in LXX and opening the picker from an unavailable heading.
 
 The empty Scripture reader now names the missing passage and edition, offers Choose Passage, and offers an in-place switch when a mapped KJV/LXX counterpart exists. It hides verse actions when no verses have loaded for that destination. Both Dev builds passed. Verify LXX John recovery on both platforms and the Choose Passage path for a text without a counterpart.
+
+Mac and iPhone disable Tag Chapter and text-dependent export actions when a Scripture chapter is unavailable. Copy Chapter Reference remains usable. Compare retains its existing chapter commands. Both Dev builds passed. Live QA remains for unavailable chapter actions and re-enabling after recovery.

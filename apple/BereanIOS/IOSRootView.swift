@@ -17,6 +17,7 @@ struct IOSRootView: View {
     @State private var findRequest = 0
     @State private var pendingNewTab = false
     @State private var alternateEdition: ChapterEdition?
+    @State private var availableEdition: ChapterEdition?
 
     private var readerEdition: ChapterEdition? {
         guard let tab = app.activeTab, tab.tabType == .bible else { return nil }
@@ -31,6 +32,13 @@ struct IOSRootView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         }
         .studyTrailSheet(app: app)
+        .task(id: readerEdition) {
+            availableEdition = nil
+            guard let source = readerEdition else { return }
+            let chapters = await app.bible.chapterNumbers(source.book, textId: source.text)
+            guard !Task.isCancelled, readerEdition == source else { return }
+            if chapters.contains(source.chapter) { availableEdition = source }
+        }
         .task(id: readerEdition) {
             alternateEdition = nil
             guard let source = readerEdition else { return }
@@ -160,6 +168,7 @@ struct IOSRootView: View {
             }
             if let tab = app.activeTab, tab.tabType == .bible {
                 let st = BibleState(tab.state)
+                let hasText = st.compareMode || availableEdition == ChapterEdition(st)
                 Section {
                     if !st.compareMode {
                         Button("Find in Chapter", systemImage: "magnifyingglass") { findRequest += 1 }
@@ -182,10 +191,11 @@ struct IOSRootView: View {
                         mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" }
                     }
                     Button("Tag Chapter…", systemImage: "tag") { chapterTagTarget = ChapterTagTarget(st) }
+                        .disabled(!hasText)
                     Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                     Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
                     Button("Scripture Display…", systemImage: "textformat.size") { showScriptureDisplay = true }
-                    Menu("Chapter Export", systemImage: "square.and.arrow.up") { ChapterExportActions(state: st) }
+                    Menu("Chapter Export", systemImage: "square.and.arrow.up") { ChapterExportActions(state: st, hasText: hasText) }
                 }
             }
             if let tab = app.activeTab {

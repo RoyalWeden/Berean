@@ -817,3 +817,7 @@
 ### 2026-11-14 — Unavailable Scripture recovery
 - Gave unavailable chapters a way to choose a new passage or switch to a verified counterpart in the current tab.
 - Both Dev builds passed.
+
+### 2026-11-14 — Unavailable chapter commands
+- Disabled tag and text export actions on unavailable Scripture chapters while retaining reference copy.
+- Both Dev builds passed.
