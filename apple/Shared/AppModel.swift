@@ -417,15 +417,24 @@ final class AppModel {
 
     @discardableResult
     func openTab(_ type: TabType, in space: SpaceId, title: String, state: JSObject, origin: BereanWorkspace.Tab? = nil) -> String {
+        if sessions.isEmpty { seedDefault() }
         let id = Self.newId()
         let tab = BereanWorkspace.Tab(id: id, spaceId: space, type: type.rawValue, title: title, state: state, originTabId: origin?.id, originSpaceId: origin?.spaceId)
-        if sessions.isEmpty { seedDefault() }
-        insertInDisplayOrder(id, after: activeTab?.id)
-        var list = sessions[sessionIndex].tabs[space] ?? []
-        if let cur = activeTabId(in: space), let idx = list.firstIndex(where: { $0.id == cur }) { list.insert(tab, at: idx + 1) } else { list.append(tab) }
-        sessions[sessionIndex].tabs[space] = list
-        select(id, in: space)
+        insertTab(tab, after: activeTab?.id, inSpaceAfter: activeTabId(in: space))
         return id
+    }
+
+    private func insertTab(_ tab: BereanWorkspace.Tab, after displayAnchor: String?, inSpaceAfter spaceAnchor: String?) {
+        let space = tab.spaceId
+        insertInDisplayOrder(tab.id, after: displayAnchor)
+        var list = sessions[sessionIndex].tabs[space] ?? []
+        if let spaceAnchor, let idx = list.firstIndex(where: { $0.id == spaceAnchor }) {
+            list.insert(tab, at: idx + 1)
+        } else {
+            list.append(tab)
+        }
+        sessions[sessionIndex].tabs[space] = list
+        select(tab.id, in: space)
     }
 
     func close(_ tabId: String) {
@@ -449,8 +458,10 @@ final class AppModel {
     func closeActiveTab() { if let t = activeTab { close(t.id) } }
 
     func duplicate(_ tabId: String) {
-        guard let t = findTab(tabId) else { return }
-        openTab(t.tabType ?? .bible, in: t.spaceId, title: t.title, state: t.state)
+        guard var copy = findTab(tabId) else { return }
+        copy.id = Self.newId()
+        copy.isPinned = false
+        insertTab(copy, after: tabId, inSpaceAfter: tabId)
     }
 
     func togglePin(_ tabId: String) { update(tabId) { $0.isPinned.toggle() } }

@@ -622,3 +622,7 @@
 ### 2026-11-14 — Empty results for selected cross-reference verses
 - Preserve rows for empty selected verses and keep successful results visible when another selected verse fails to load.
 - Both Dev builds passed. Verified per-verse empty results for Didache 1:1–2 in the iOS 27 Simulator.
+
+### 2026-11-14 — Tab duplication and cleanup
+- Duplicate Tab preserves the source type, state and origin, and inserts after the source in stored order.
+- Copies start unpinned so they can be reviewed once inactive. Both Dev build commands passed.
