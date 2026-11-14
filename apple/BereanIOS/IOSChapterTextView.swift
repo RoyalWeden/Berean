@@ -197,8 +197,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
             guard let reader, let container = textContainers.first else { return }
             UIColor.systemBlue.withAlphaComponent(0.8).setStroke()
-            for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.bodyRanges) where range.length > 0 {
-                let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges) where range.length > 1 {
+                // Omit the trailing paragraph break so the frame ends on the last rendered verse line.
+                let text = NSRange(location: range.location, length: range.length - 1)
+                let glyphs = glyphRange(forCharacterRange: text, actualCharacterRange: nil)
                 guard glyphs.length > 0, NSIntersectionRange(glyphs, glyphsToShow).length > 0 else { continue }
                 let first = lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
                 let last = lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
