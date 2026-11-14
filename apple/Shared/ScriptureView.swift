@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreTransferable
+import UniformTypeIdentifiers
 import BereanCore
 import BereanBible
 import BereanText
@@ -71,6 +72,20 @@ struct ChapterExportActions: View {
             }
         }
         Button("Copy Chapter Reference", systemImage: "number") { Clipboard.copy(reference) }
+        Button("Save Chapter as Text…", systemImage: "doc.badge.arrow.down") {
+            Task {
+                do {
+                    let text = try await chapter.formattedText()
+                    NoteFileTransfer.export(text, suggestedName: reference + ".txt", title: "Save Chapter as Text", type: .plainText) { outcome in
+                        if case .failed(let message) = outcome {
+                            app.userMessage = "Could not save the chapter. \(message)"
+                        }
+                    }
+                } catch {
+                    app.userMessage = "This chapter has no text to save."
+                }
+            }
+        }
         ShareLink(item: chapter, preview: SharePreview(reference)) {
             Label("Share Chapter…", systemImage: "square.and.arrow.up")
         }
