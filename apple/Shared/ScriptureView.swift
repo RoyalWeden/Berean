@@ -319,7 +319,6 @@ struct ScriptureView: View {
                                           last: isLast ? chapters.last : nil)
         }
         .task(id: st.compareMode ? nil : ChapterEdition(st)) {
-            alternateEdition = nil
             guard !st.compareMode else { return }
             let target = await app.installedCounterpart(of: ChapterEdition(st))
             guard !Task.isCancelled, !state.compareMode, ChapterEdition(state) == ChapterEdition(st) else { return }
@@ -913,7 +912,9 @@ struct ScriptureView: View {
             }
             if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
                 Toggle(isOn: Binding(get: { ChapterMap.isLxx(st.translation) }, set: { _ in
-                    app.switchChapterEdition(in: tabId, from: ChapterEdition(st), to: target)
+                    let source = ChapterEdition(st)
+                    if target.counterpart == source { alternateEdition = source }
+                    app.switchChapterEdition(in: tabId, from: source, to: target)
                 })) {
                     Label("LXX", systemImage: "arrow.left.arrow.right")
                 }
@@ -962,10 +963,16 @@ struct ScriptureView: View {
                 Text(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
                     .fontWeight(.semibold)
                     .lineLimit(1)
+                #if os(iOS)
+                if ChapterMap.isLxx(st.translation) {
+                    Text("LXX").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                }
+                #else
                 Text(textInfo(st.translation).short)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                #endif
             }
             #if os(iOS)
             .padding(.horizontal, 4)

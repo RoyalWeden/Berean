@@ -127,7 +127,7 @@ struct PassagePicker: View {
             let initial = loadedRequest == nil
             let bookID = choice?.textId == requestedText ? choice?.book.id : (openBook?.id ?? (initial ? currentBook : nil))
             let newBooks = await app.books(for: requestedText)
-            let book = newBooks.first { $0.id == bookID }
+            let book = newBooks.count == 1 ? newBooks.first : newBooks.first { $0.id == bookID }
             let newChapters: [Int]
             if let book {
                 newChapters = await app.bible.chapterNumbers(book.id, textId: requestedText)
@@ -137,7 +137,7 @@ struct PassagePicker: View {
             guard !Task.isCancelled, !didPick, requestedText == text, choice == bookChoice else { return }
             books = newBooks
             chapters = newChapters
-            openBook = newChapters.isEmpty || (initial && choice == nil && newChapters.count == 1) ? nil : book
+            openBook = newChapters.isEmpty || (newBooks.count > 1 && initial && choice == nil && newChapters.count == 1) ? nil : book
             loadedRequest = request
             if choice?.textId == requestedText, let book, newChapters.count == 1, let chapter = newChapters.first {
                 pick(ResolvedPassage(textId: requestedText, bookId: book.id, chapter: chapter, verse: nil))
@@ -273,10 +273,12 @@ struct PassagePicker: View {
         } else if let b = openBook {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Button(action: showBooks) { Label("Books", systemImage: "chevron.backward") }
-                        .buttonStyle(.interactivePlain)
-                        .keyboardShortcut(.leftArrow, modifiers: [.command])
-                        .help("Back to the book list (⌘←)")
+                    if books.count > 1 {
+                        Button(action: showBooks) { Label("Books", systemImage: "chevron.backward") }
+                            .buttonStyle(.interactivePlain)
+                            .keyboardShortcut(.leftArrow, modifiers: [.command])
+                            .help("Back to the book list (⌘←)")
+                    }
                     Spacer()
                     Text(b.name).font(.headline).lineLimit(1)
                 }.padding(10)

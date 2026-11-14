@@ -54,9 +54,9 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.accessibilityLabel = "Scripture text"
         view.delegate = context.coordinator
 
-        let gutterTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapVerseGutter(_:)))
-        gutterTap.delegate = context.coordinator
-        view.addGestureRecognizer(gutterTap)
+        let verseTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapVerse(_:)))
+        verseTap.delegate = context.coordinator
+        view.addGestureRecognizer(verseTap)
 
         let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.resizeText(_:)))
         pinch.delegate = context.coordinator
@@ -589,9 +589,25 @@ struct IOSChapterTextView: UIViewRepresentable {
             return verse
         }
 
-        @objc func tapVerseGutter(_ gesture: UITapGestureRecognizer) {
+        private func verseAtTap(_ point: CGPoint, in view: UITextView) -> Int? {
+            if let verse = verseInGutter(point, in: view) { return verse }
+            guard view.selectedRange.length == 0 else { return nil }
+            let container = view.textContainer
+            let layout = view.layoutManager
+            let inset = view.textContainerInset
+            let location = CGPoint(x: point.x - inset.left, y: point.y - inset.top)
+            let glyph = layout.glyphIndex(for: location, in: container)
+            guard glyph < layout.numberOfGlyphs,
+                  layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(location) else { return nil }
+            let index = layout.characterIndexForGlyph(at: glyph)
+            guard index < view.textStorage.length,
+                  view.textStorage.attribute(.link, at: index, effectiveRange: nil) == nil else { return nil }
+            return bodyRanges.first { NSLocationInRange(index, $0.value) }?.key
+        }
+
+        @objc func tapVerse(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? UITextView,
-                  let verse = verseInGutter(gesture.location(in: view), in: view) else { return }
+                  let verse = verseAtTap(gesture.location(in: view), in: view) else { return }
             toggleVerse(verse, in: view)
         }
 
@@ -603,7 +619,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             guard gesture is UITapGestureRecognizer, let view = gesture.view as? UITextView else { return true }
-            return verseInGutter(touch.location(in: view), in: view) != nil
+            return verseAtTap(touch.location(in: view), in: view) != nil
         }
 
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
