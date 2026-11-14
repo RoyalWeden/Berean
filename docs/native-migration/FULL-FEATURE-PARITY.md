@@ -27,7 +27,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Both readers use a single selectable chapter. iPhone long-press word selection and its copy menu verified in Simulator; cross-verse handle drag and clipboard output need touch QA. |
 | S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Copy Reference and Compare This Verse also available. Play Audio from Here remains open. |
 | S09 | Multiple translations and editions | implemented | ✅ | ✅ | — | Text switching in navigator; Compare mode for parallel texts |
-| S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Full per-tab scroll restoration still needs verification. |
+| S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Search and Notes folders keep row anchors per tab and view configuration for the current run. Mac Search and Notes folder history round trips passed live. Exact offsets, relaunch persistence, and full tab coverage remain open. |
 | S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size and family, line spacing, text width, verse-number visibility, red lettering, word replacer and theme. The reader exposes display options on both platforms. Mac View commands adjust Scripture text size with the original zoom shortcuts. iPhone Scripture supports pinch-to-resize, pending gesture QA. App-wide zoom remains open. Paragraph mode and per-text options remain open. |
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
 | S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open. |
@@ -46,8 +46,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | Q10 | YouTube transcript search | implemented (see M04) | ❌ | ❌ | P3 | Depends on YouTube (M01) |
 | N01 | General, verse and daily notes | implemented | 🟡 | 🟡 | P1 | General and verse notes create/edit; Today’s Note and the Calendar open daily notes on both platforms. |
 | N02 | Markdown model and ProseMirror structure | implemented | 🟡 | 🟡 | P1 | Live-preview editor over verbatim Markdown (ADR-0014) — no data loss by construction; structures shown simplified |
-| N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Missing toolbar & slash commands, task toggling by click |
-| N04 | Tables | implemented | 🟡 | 🟡 | P2 | Tables shown as aligned monospace source, not grid |
+| N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings and lists. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open. |
+| N04 | Tables | implemented | 🟡 | 🟡 | P2 | Markdown tables support insertion, row and column add/delete, keyboard cell navigation, and iPhone cell actions in the edit menu. Grid rendering and live editing QA remain open. |
 | N05 | Images and attachments | partial | ❌ | ❌ | P2 | Images shown as alt-text caption only |
 | N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links and wikilinks clickable; Scripture refs in plain text not auto-linked |
 | N07 | Autosave | implemented | ✅ | ✅ | — | 600 ms autosave + snapshots on idle/leave/close |
@@ -211,7 +211,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** iPhone adds edge-swipe back.
 - **Original files:** `src/hooks/{useReadingAnchor,useKeyedScrollMemory,useChapterProgress}.ts`; `src/mobile/reader/readerScrollMemory.ts`; `src/platform/services/historyService.ts`; `src/components/shell/HistoryModal.tsx`; `src/mobile/history/HistoryPage.tsx`; `src/lib/historyModel.ts`; `src/store/index.ts` (`tabNavStac
 - **Known original defects:** Reading position is device-local.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Full per-tab scroll restoration still needs verification.
+- **Native Mac / iPhone:** 🟡 / 🟡 — Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Search and Notes folders keep row anchors per tab and view configuration for the current run. Mac Search and Notes folder history round trips passed live. Exact offsets, relaunch persistence, and full tab coverage remain open.
 - **Native files:** AppModel goBack/goForward, PassagePicker recents
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -382,7 +382,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/*`, `src/lib/noteTextBlocks.ts`, `bereanMigrations.ts` v24/v27 collapse tables.
 - **Known original defects:** Alignment is PM attr, stored how in markdown? UNVERIFIED (not read).
-- **Native Mac / iPhone:** 🟡 / 🟡 — Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Missing toolbar & slash commands, task toggling by click
+- **Native Mac / iPhone:** 🟡 / 🟡 — Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings and lists. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open.
 - **Native files:** RichNoteEditor.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -391,7 +391,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/{tablePlugins,tableStatusPlugin,columnControls}.ts(x)`.
 - **Known original defects:** —
-- **Native Mac / iPhone:** 🟡 / 🟡 — Tables shown as aligned monospace source, not grid
+- **Native Mac / iPhone:** 🟡 / 🟡 — Markdown tables support insertion, row and column add/delete, keyboard cell navigation, and iPhone cell actions in the edit menu. Grid rendering and live editing QA remain open.
 - **Native files:** RichNoteEditor.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

@@ -678,7 +678,7 @@ final class AppModel {
         SearchHistory.record(query)
     }
 
-    private func recordTabReturn(to sourceTabID: String?) {
+    func recordTabReturn(to sourceTabID: String?) {
         if let sourceTabID, let destination = activeTab?.id, sourceTabID != destination,
            orderedTabs.contains(where: { $0.id == sourceTabID }) {
             backStack[destination, default: []].append(.tab(sourceTabID))

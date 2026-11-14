@@ -260,10 +260,17 @@ struct HistoryView: View {
         case "compare":
             guard let book = e.bookId, let chapter = e.chapter else { return }
             app.reopenComparison(bookId: book, chapter: chapter, verse: e.verse, destination: compareDestination(e))
-        case "note": if let n = e.noteId { app.openNote(n) }
-        case "lexicon", "strongs-click": if let s = e.strongsNum { app.openLexicon(s, reuseTab: true) }
-        case "search": if let q = e.query { app.openSearch(q, reuseTab: true) }
-        default: break
+        case "note":
+            guard let n = e.noteId else { return }
+            app.openNote(n)
+        case "lexicon", "strongs-click":
+            guard let s = e.strongsNum, !s.isEmpty else { return }
+            app.openLexicon(s, reuseTab: true)
+        case "search":
+            guard let q = e.query, !q.isEmpty else { return }
+            app.openSearch(q, reuseTab: true)
+        default: return
         }
+        app.recordTabReturn(to: tabId)
     }
 }
