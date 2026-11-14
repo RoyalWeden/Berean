@@ -85,8 +85,11 @@ struct IOSChapterTextView: UIViewRepresentable {
             view.setNeedsLayout()
 
             if samePassage {
-                if view.text == oldText, NSMaxRange(selection) <= view.textStorage.length {
+                if view.text.utf16.elementsEqual(oldText?.utf16 ?? "".utf16),
+                   NSMaxRange(selection) <= view.textStorage.length {
                     view.selectedRange = selection
+                } else {
+                    view.selectedRange = NSRange(location: 0, length: 0)
                 }
                 if let readingAnchor {
                     coordinator.restoreReadingAnchor(readingAnchor, in: view, fallback: previousOffset)

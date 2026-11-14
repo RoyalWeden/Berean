@@ -670,3 +670,7 @@
 ### 2026-11-14 — Keep Mac reading position during reflow
 - Preserve the visible verse across same-chapter text rebuilds and avoid reusing character selection offsets against changed text.
 - Full native check passed with both Dev builds.
+
+### 2026-11-14 — Character selection through reader reflow
+- Preserve character selections when formatting changes leave UTF-16 text intact, and clear stale offsets when rendered text changes.
+- Both Dev builds passed. Mac Dev verified a Strong's toggle round trip kept the late chapter verse selection.

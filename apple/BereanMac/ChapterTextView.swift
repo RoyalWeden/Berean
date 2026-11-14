@@ -78,8 +78,8 @@ struct ChapterTextView: NSViewRepresentable {
             tv.textStorage?.setAttributedString(c.build(self))
             tv.needsDisplay = true
             if keepScroll {
-                // Restore the selection only where it still fits; AppKit throws on an empty selection array.
-                let kept = previousText == tv.string ? sel : []
+                // Character ranges use UTF-16 offsets, so even canonically equal text can invalidate them.
+                let kept = previousText.utf16.elementsEqual(tv.string.utf16) ? sel : []
                 tv.selectedRanges = kept.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : kept
                 var proposed = previousBounds
                 if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
