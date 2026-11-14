@@ -314,13 +314,13 @@ struct ScriptureView: View {
 
     var selectedRows: [ChapterVerseRow] { verses.filter { selection.contains($0.verseNum) } }
 
-    /// "John 3:16", "John 3:16-18", "John 3:16, 18"
+    /// "John 3:16", "John 3:16-18", "John 3:16-18, 21"
     func selectionLabel(_ st: BibleState) -> String {
-        let vs = selection.sorted()
-        guard let f = vs.first, let l = vs.last else { return "" }
-        let base = "\(referenceChapterLabel(st)):"
-        if vs.count == l - f + 1 { return base + (f == l ? "\(f)" : "\(f)-\(l)") }
-        return base + vs.map(String.init).joined(separator: ", ")
+        guard !selection.isEmpty else { return "" }
+        let runs = consecutiveVerseRuns(selection).map { run in
+            run.lowerBound == run.upperBound ? "\(run.lowerBound)" : "\(run.lowerBound)-\(run.upperBound)"
+        }
+        return "\(referenceChapterLabel(st)):\(runs.joined(separator: ", "))"
     }
 
     private func referenceChapterLabel(_ st: BibleState) -> String {
@@ -332,10 +332,7 @@ struct ScriptureView: View {
 
     /// Consecutive verse runs → tag spans.
     func selectionRanges(_ st: BibleState) -> [TagRange] {
-        var spans: [(Double, Double)] = []
-        for v in selection.sorted() {
-            if let last = spans.last, Int(last.1) + 1 == v { spans[spans.count - 1].1 = Double(v) } else { spans.append((Double(v), Double(v))) }
-        }
+        let spans = consecutiveVerseRuns(selection).map { (Double($0.lowerBound), Double($0.upperBound)) }
         return [TagRange(bookId: st.bookId, chapter: Double(st.chapter), spans: spans)]
     }
 
@@ -1172,20 +1169,26 @@ private struct VerseActionButtonStyle: ButtonStyle {
 }
 
 
-// Group consecutive verse numbers so a continuous selection draws a single outline.
-func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [NSRange] {
-    var runs: [NSRange] = []
-    var previous: Int?
-    for verse in selection.sorted() {
-        guard let range = ranges[verse] else { continue }
-        if previous == verse - 1, let last = runs.popLast() {
-            runs.append(NSUnionRange(last, range))
+private func consecutiveVerseRuns(_ verses: Set<Int>) -> [ClosedRange<Int>] {
+    var runs: [ClosedRange<Int>] = []
+    for verse in verses.sorted() {
+        if let last = runs.last, last.upperBound == verse - 1 {
+            runs[runs.count - 1] = last.lowerBound...verse
         } else {
-            runs.append(range)
+            runs.append(verse...verse)
         }
-        previous = verse
     }
     return runs
+}
+
+// A missing layout range must break the outline even if the selection contains that verse.
+func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [NSRange] {
+    let available = Set(selection.filter { ranges[$0] != nil })
+    return consecutiveVerseRuns(available).compactMap { run in
+        let spans = run.compactMap { ranges[$0] }
+        guard let first = spans.first else { return nil }
+        return spans.dropFirst().reduce(first, NSUnionRange)
+    }
 }
 
 /// Feedback for controls whose layout already supplies the visible button shape.

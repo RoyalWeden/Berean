@@ -358,3 +358,5 @@ Floating selection actions now offer Save Verses as Text on Mac and iPhone. Mac 
 Verified Mac Dev Export Selected Verses → Save Verses as Text. For John 7:47–50 the panel proposed John 7 47-50.txt, and the UTF-8 file had the range heading and exactly verses 47–50. Saving kept the range selected. Live iPhone selection export and nonadjacent export remain open.
 
 Verified nonadjacent verse export on the iOS 27 Simulator. Starting from Obadiah 1:18–20 LXX, tapped verse 19 to remove it, then used More → Save Verses as Text. On My iPhone contained Obadiah 1 18, 20 LXX.txt with the matching heading and only verses 18 and 20. The two-verse selection remained active after export. The simulator-local file was left in Files.
+
+Native selection references now compress adjacent runs within mixed selections, such as John 3:16-18, 21. Copy, export, note titles, tags and accessibility labels share that reference. The dashed outline uses the same grouping as tags and still divides at missing layout ranges. Both Dev builds passed. Live mixed-run copy and reopening the entire comma-list in Go remain open.
