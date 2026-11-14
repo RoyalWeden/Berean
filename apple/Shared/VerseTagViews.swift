@@ -110,13 +110,15 @@ struct TagPickerView: View {
                 HStack {
                     Button("Cancel") { dismiss() }
                         .buttonStyle(.bordered)
-                    Spacer()
                     addButton.buttonStyle(.borderedProminent)
                 }
                 .controlSize(.large)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(.regularMaterial)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .glassEffectCompat(interactive: true)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
             }
             #else
             .navigationTitle("Tag \(label)")

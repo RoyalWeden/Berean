@@ -73,7 +73,6 @@ struct TabCleanupView: View {
                 HStack {
                     Button("Cancel") { dismiss() }
                         .buttonStyle(.bordered)
-                    Spacer()
                     Button("Archive \(selected.count)", systemImage: "archivebox") {
                         app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly)
                         dismiss()
@@ -81,8 +80,12 @@ struct TabCleanupView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(selected.isEmpty)
                 }
-                .padding()
-                .background(.regularMaterial)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .glassEffectCompat(interactive: true)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
             }
             #else
             .navigationTitle("Archive Inactive Tabs")
