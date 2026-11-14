@@ -805,3 +805,7 @@
 ### 2026-11-14 — Preserve selected verses during Compare changes
 - Kept saved verse selections across mode and column changes when the passage anchor stays the same.
 - Both Dev builds passed.
+
+### 2026-11-14 — Compare column controls
+- Made passage picking available directly from every column heading.
+- Both Dev builds passed. Live layout and hit testing remain open.

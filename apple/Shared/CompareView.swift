@@ -253,8 +253,7 @@ struct CompareView: View {
                 if showVerseNumbers { Text("").gridColumnAlignment(.trailing) }
                 ForEach(cols) { c in
                     HStack {
-                        Text(textInfo(c.text).name).font(.headline)
-                        Spacer()
+                        columnPassageButton(c, title: textInfo(c.text).name)
                         columnActions(c, columns: cols)
                     }
                     .frame(minWidth: 180)
@@ -281,8 +280,7 @@ struct CompareView: View {
         return LazyVStack(alignment: .leading, spacing: 14) {
             ForEach(columns) { text in
                 HStack {
-                    Text(textInfo(text.text).name).font(.subheadline.weight(.semibold))
-                    Spacer()
+                    columnPassageButton(text, title: textInfo(text.text).name)
                     columnActions(text, columns: columns)
                 }
             }
@@ -374,22 +372,24 @@ struct CompareView: View {
 
     private func independentHeader(_ column: CompareColumn, columns: [CompareColumn]) -> some View {
         HStack {
-            Button {
-                editingColumn = column
-            } label: {
-                Label(column.label, systemImage: "book")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .frame(minHeight: controlSize)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.interactivePlain)
-            .accessibilityLabel("Change passage for \(column.label)")
-            .help("Change column passage")
-            Spacer()
+            columnPassageButton(column, title: column.label)
             columnActions(column, columns: columns)
         }
         .padding(.horizontal, 8)
+    }
+
+    private func columnPassageButton(_ column: CompareColumn, title: String) -> some View {
+        Button {
+            editingColumn = column
+        } label: {
+            Label(title, systemImage: "book")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: controlSize, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel("Change passage for \(column.label)")
+        .help("Change column passage")
     }
 
     @ViewBuilder private func independentVerses(_ column: CompareColumn) -> some View {
@@ -558,6 +558,8 @@ struct CompareView: View {
         #if os(macOS)
         .menuIndicator(.hidden)
         .pointerStyle(.link)
+        #else
+        .hoverEffect(.highlight)
         #endif
         .help("Column actions")
     }
