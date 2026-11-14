@@ -749,3 +749,7 @@
 ### 2026-11-14 — iPhone chapter swipe arbitration
 - Suppressed chapter swipes while whole verses are selected or a pinch resize is in progress.
 - iPhone Dev build passed. Physical gesture verification remains open.
+
+### 2026-11-14 — Chapter navigation boundaries
+- Disabled unavailable chapter arrows at edition boundaries on both platforms.
+- Both Dev builds passed. Live boundary checks remain open.

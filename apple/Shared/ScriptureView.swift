@@ -246,6 +246,20 @@ struct ScriptureView: View {
     @State private var afterVerseSheet: (() -> Void)?
     #endif
 
+    private struct ChapterBounds {
+        let book: String
+        let text: String
+        let first: Int?
+        let last: Int?
+    }
+
+    @State private var chapterBounds: ChapterBounds?
+
+    private func canStep(_ delta: Int, from reader: BibleState) -> Bool {
+        guard let bounds = chapterBounds, bounds.book == reader.bookId, bounds.text == reader.translation else { return true }
+        return reader.chapter != (delta < 0 ? bounds.first : bounds.last)
+    }
+
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
 
     var body: some View {
@@ -261,6 +275,21 @@ struct ScriptureView: View {
         #endif
         .toolbar { toolbar(st) }
         .onDisappear { chapterStepTask?.cancel() }
+        .task(id: "\(st.translation)|\(st.bookId)") {
+            let books = await app.books(for: st.translation)
+            guard !Task.isCancelled else { return }
+            let isFirst = books.first?.id == st.bookId
+            let isLast = books.last?.id == st.bookId
+            let chapters = if isFirst || isLast {
+                await app.bible.chapterNumbers(st.bookId, textId: st.translation)
+            } else {
+                [Int]()
+            }
+            guard !Task.isCancelled else { return }
+            chapterBounds = ChapterBounds(book: st.bookId, text: st.translation,
+                                          first: isFirst ? chapters.first : nil,
+                                          last: isLast ? chapters.last : nil)
+        }
         #if os(macOS)
         .task(id: st.compareMode ? nil : ChapterEdition(st)) {
             alternateEdition = nil
@@ -873,6 +902,7 @@ struct ScriptureView: View {
     @ViewBuilder private func passageControls(_ st: BibleState) -> some View {
         Button { step(-1) } label: { passageArrow("Previous Chapter", "chevron.backward") }
             .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).help("Previous chapter (⌥⌘←)")
+            .disabled(!canStep(-1, from: st))
         Button { pickerShown.toggle() } label: {
             HStack(spacing: 5) {
                 Text(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
@@ -893,6 +923,7 @@ struct ScriptureView: View {
         .help("Choose book, chapter or text — search every text, see history (⌘L)")
         Button { step(1) } label: { passageArrow("Next Chapter", "chevron.forward") }
             .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
+            .disabled(!canStep(1, from: st))
     }
 
     @ViewBuilder private func passageArrow(_ title: String, _ symbol: String) -> some View {
@@ -945,6 +976,7 @@ struct ScriptureView: View {
         chapterStepTask?.cancel()
         guard let source = app.findTab(tabId), app.activeTab?.id == tabId else { return }
         let reader = BibleState(source.state)
+        guard canStep(delta, from: reader) else { return }
         chapterStepTask = Task {
             let chapters = await app.bible.chapterNumbers(reader.bookId, textId: reader.translation)
             guard !Task.isCancelled else { return }

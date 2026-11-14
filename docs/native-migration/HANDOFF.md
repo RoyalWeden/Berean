@@ -512,3 +512,5 @@ Mac chapter navigation and the Compare, Strong’s Numbers and Study Panel toggl
 Shared dashed-outline ranges now trim newline-only verses at the ends of a selection while retaining one frame when such a verse falls between selected neighbors. Missing layout ranges and unselected verses still split frames. Both Dev builds and four focused Swift range assertions passed. Visual QA remains open with verse numbers hidden on a fixture containing an empty verse.
 
 iPhone chapter swipes are now suppressed while a whole-verse selection or pinch resize is active. The chapter arrows remain available for deliberate navigation. iPhone Dev build passed. Live QA should cover swiping with and without a selection and lifting one finger during a pinch.
+
+Scripture chapter arrows now disable Previous and Next at the ends of the installed edition on Mac and iPhone. Single-book editions use their actual first and last chapter numbers, including prologues. Both Dev builds passed. Live checks remain for Jude in KJVA (cross-book arrows stay available), a single-book text and the end of an edition.
