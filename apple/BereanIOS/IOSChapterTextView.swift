@@ -31,7 +31,13 @@ struct IOSChapterTextView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextView {
-        let view = ReaderTextView(usingTextLayoutManager: false)
+        let storage = NSTextStorage()
+        let layout = OutlineLayoutManager()
+        let container = NSTextContainer(size: .zero)
+        storage.addLayoutManager(layout)
+        layout.addTextContainer(container)
+        let view = ReaderTextView(frame: .zero, textContainer: container)
+        layout.reader = context.coordinator
         view.reader = context.coordinator
         view.isEditable = false
         view.isSelectable = true
@@ -76,9 +82,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let oldText = view.text
             view.attributedText = coordinator.render(key.dark)
             view.setNeedsLayout()
-            DispatchQueue.main.async { [weak view] in
-                (view as? ReaderTextView)?.updateVerseOutline()
-            }
+
             if samePassage {
                 if view.text == oldText, NSMaxRange(selection) <= view.textStorage.length {
                     view.selectedRange = selection
@@ -95,7 +99,9 @@ struct IOSChapterTextView: UIViewRepresentable {
         if previousSelection != selectedVerses {
             coordinator.updateMarkerColors(in: view.textStorage, changed: previousSelection.symmetricDifference(selectedVerses))
             coordinator.renderedSelection = selectedVerses
-            (view as? ReaderTextView)?.updateVerseOutline()
+        }
+        if previousSelection != selectedVerses || !samePassage {
+            view.layoutManager.invalidateDisplay(forCharacterRange: NSRange(location: 0, length: view.textStorage.length))
         }
         if let revealVerse, scrollTarget == nil {
             let currentPassage = passageId
@@ -163,49 +169,35 @@ struct IOSChapterTextView: UIViewRepresentable {
     final class ReaderTextView: UITextView {
         weak var reader: Coordinator?
 
-        private let verseOutline = CAShapeLayer()
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            updateVerseOutline()
-        }
-
-        func updateVerseOutline() {
-            guard let reader else { return }
-            if verseOutline.superlayer == nil {
-                verseOutline.fillColor = nil
-                verseOutline.lineWidth = 1
-                verseOutline.zPosition = 100
-                verseOutline.lineDashPattern = [4, 3]
-                layer.addSublayer(verseOutline)
-            }
-            let path = UIBezierPath()
-            for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.bodyRanges) where range.length > 0 {
-                layoutManager.ensureLayout(forCharacterRange: range)
-                let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-                guard glyphs.length > 0 else { continue }
-                let first = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
-                let last = layoutManager.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
-                let rect = CGRect(x: textContainerInset.left - 4, y: first.minY + textContainerInset.top,
-                                  width: bounds.width - textContainerInset.left - textContainerInset.right + 8,
-                                  height: last.maxY - first.minY)
-                    .insetBy(dx: 0, dy: -ReaderFloatingControls.outlinePadding)
-                guard !rect.isEmpty, rect.height.isFinite, rect.minY.isFinite else { continue }
-                path.append(UIBezierPath(roundedRect: rect, cornerRadius: ReaderFloatingControls.outlineRadius))
-            }
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            verseOutline.frame = CGRect(origin: .zero, size: CGSize(width: bounds.width, height: max(bounds.height, contentSize.height)))
-            verseOutline.strokeColor = UIColor.tintColor.withAlphaComponent(0.7).cgColor
-            verseOutline.path = path.cgPath
-            CATransaction.commit()
-        }
-
         override func copy(_ sender: Any?) {
             if let copy = reader?.plainSelection(in: self) {
                 Clipboard.copy(copy)
             } else {
                 super.copy(sender)
+            }
+        }
+    }
+
+    private final class OutlineLayoutManager: NSLayoutManager {
+        weak var reader: Coordinator?
+
+        override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
+            super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
+            guard let reader, let container = textContainers.first else { return }
+            UIColor.systemBlue.withAlphaComponent(0.8).setStroke()
+            for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.bodyRanges) where range.length > 0 {
+                let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+                guard glyphs.length > 0, NSIntersectionRange(glyphs, glyphsToShow).length > 0 else { continue }
+                let first = lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+                let last = lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+                let rect = CGRect(x: origin.x - 4, y: origin.y + first.minY,
+                                  width: container.size.width + 8, height: last.maxY - first.minY)
+                    .insetBy(dx: 0, dy: -ReaderFloatingControls.outlinePadding)
+                guard !rect.isEmpty else { continue }
+                let outline = UIBezierPath(roundedRect: rect, cornerRadius: ReaderFloatingControls.outlineRadius)
+                outline.lineWidth = 1
+                outline.setLineDash([4, 3], count: 2, phase: 0)
+                outline.stroke()
             }
         }
     }
