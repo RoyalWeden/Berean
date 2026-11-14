@@ -20,6 +20,7 @@ struct LexiconEntryView: View {
     @State private var loaded = false
     @State private var occurrencesLoading = false
     @State private var scrollPosition = ScrollPosition()
+    @State private var restoredScrollEntry: String?
     @State private var occurrenceEdition: String?
     @State private var occurrenceBook: String?
     @State private var visibleOccurrences = 40
@@ -189,18 +190,19 @@ struct LexiconEntryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollPosition($scrollPosition)
-            .onScrollPhaseChange { old, new, context in
-                guard !compact, !occurrencesLoading, new == .idle,
-                      old == .interacting || old == .decelerating,
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+            } action: { _, offset in
+                guard !compact, !occurrencesLoading,
                       entry?.strongsNum == strongsId.uppercased(),
-                      app.activeTab?.id == tabId else { return }
-                let geometry = context.geometry
-                let offset = max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+                      app.activeTab?.id == tabId,
+                      restoredScrollEntry == strongsId else { return }
                 app.lexiconScrollOffsets[tabId, default: [:]][strongsId] = offset
             }
             .task(id: occurrencesLoading) {
                 guard !compact, !occurrencesLoading,
                       entry?.strongsNum == strongsId.uppercased() else { return }
+                defer { if !Task.isCancelled { restoredScrollEntry = strongsId } }
                 if let key = app.lexiconOccurrenceReturns[tabId]?[strongsId],
                    let index = occurrences.firstIndex(where: { OccurrenceKey($0) == key }) {
                     if app.lexiconOccurrenceOptions[tabId]?[strongsId]?.wordReplacerEnabled != app.wordReplacerEnabled {
@@ -249,6 +251,7 @@ struct LexiconEntryView: View {
             app.lexiconOccurrenceOptions[tabId, default: [:]][strongsId] = options
         }
         .task(id: strongsId) {
+            restoredScrollEntry = nil
             loaded = false
             entry = nil
             adjacent = (nil, nil)
