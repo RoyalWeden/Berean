@@ -12,6 +12,7 @@ struct IOSRootView: View {
     @State private var showGo = false
     @State private var explicitNewTab = false
     @State private var showSettings = false
+    @State private var showScriptureDisplay = false
     @State private var findRequest = 0
 
     var body: some View {
@@ -22,6 +23,19 @@ struct IOSRootView: View {
         }
         .studyTrailSheet(app: app)
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
+        .sheet(isPresented: $showScriptureDisplay) {
+            NavigationStack {
+                Form { ScriptureDisplayOptions() }
+                    .navigationTitle("Scripture Display")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showScriptureDisplay = false }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .sheet(isPresented: $showTabs) { TabCardsSheet().presentationDetents([.medium, .large]) }
         .sheet(isPresented: $showGo) { GoSheet(newTab: explicitNewTab, close: { showGo = false }).presentationDetents([.large]) }
         // ⌘T / ⌘K (hardware keyboard) and in-app "new tab" requests open the same sheet.
@@ -128,9 +142,10 @@ struct IOSRootView: View {
                         app.focusStudyVerse(nil, in: tab.id)
                         mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" }
                     }
-                    ChapterExportActions(state: st)
                     Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                     Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
+                    Button("Scripture Display…", systemImage: "textformat.size") { showScriptureDisplay = true }
+                    Menu("Chapter Export", systemImage: "square.and.arrow.up") { ChapterExportActions(state: st) }
                 }
             }
             if let tab = app.activeTab {

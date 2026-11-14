@@ -541,3 +541,8 @@
 ### 2026-11-14 — iPhone adjacent verse outline and selection feedback
 - Verified a joint outline and unobscured final verse for Obadiah 1:20–21 LXX on iOS 27 Simulator.
 - Added haptic feedback and explicit verse toggle action names. The tab-search clear button now uses the shared pressed and hover feedback. iOS Dev build and identity check passed.
+
+### 2026-11-14 — Scripture Display from the iPhone reader
+- Restored quick access to reader display preferences from legacy mobile. The native sheet shares controls and storage with Settings.
+- Grouped chapter export in More and removed the Mac minimum size from iPhone Settings.
+- Both Dev builds passed. Verified toggling and restoring verse numbers on the iOS 27 Simulator.
