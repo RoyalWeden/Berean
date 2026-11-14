@@ -395,6 +395,14 @@ describe('notesService', () => {
 
   // ── getByChapter / getChapterCounts ─────────────────────────────────────────
   describe('getByChapter / getChapterCounts', () => {
+    it('counts overlapping attachments once and keeps gaps and other chapters separate', async () => {
+      await svc.create({ type: 'verse', verseRef: 'JHN.3.14-15,JHN.3.15,JHN.3.17,JHN.4.2', textId: 'kjva' })
+      await svc.create({ type: 'verse', verseRef: 'JHN.3.15', textId: 'lxx' })
+      await svc.create({ type: 'verse', verseRef: 'JHN.3', textId: 'kjva' })
+      expect(await svc.getChapterCounts('JHN', 3)).toEqual({ 14: 1, 15: 2, 17: 1 })
+      expect(await svc.getChapterCounts('JHN', 4)).toEqual({ 2: 1 })
+    })
+
     it('cross-links KJV<->LXX through equivalentChapters for a merge chapter (LXX Ps 9 = KJV Ps 9+10)', async () => {
       const lxxOwn = await svc.create({ type: 'verse', verseRef: 'PSA.9.3', textId: 'lxx', content: 'lxx own' })
       const kjv9 = await svc.create({ type: 'verse', verseRef: 'PSA.9.5', textId: 'kjva', content: 'kjv ps9' })
