@@ -226,8 +226,8 @@ struct ScriptureView: View {
     @State private var chapterTags: [TagLite] = []
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
 
-    #if os(macOS)
     @State private var alternateEdition: ChapterEdition?
+    #if os(macOS)
     @State private var strongsTooltips: [String: String] = [:]
     #endif
 
@@ -290,7 +290,6 @@ struct ScriptureView: View {
                                           first: isFirst ? chapters.first : nil,
                                           last: isLast ? chapters.last : nil)
         }
-        #if os(macOS)
         .task(id: st.compareMode ? nil : ChapterEdition(st)) {
             alternateEdition = nil
             guard !st.compareMode else { return }
@@ -298,7 +297,6 @@ struct ScriptureView: View {
             guard !Task.isCancelled, !state.compareMode, ChapterEdition(state) == ChapterEdition(st) else { return }
             alternateEdition = target
         }
-        #endif
         .sheet(isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
             if let t = tagging { TagPickerView(ranges: t.ranges, label: t.label, kind: t.kind) }
         }
@@ -311,20 +309,22 @@ struct ScriptureView: View {
     @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
         let chapter = chapterKey(st)
         GeometryReader { geometry in
-            let showActions = loadedChapter == chapter && !selection.isEmpty
+            let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
             let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
             // The iPhone's root dock sits over the representable's proposed viewport.
             let dockSpace = ReaderFloatingControls.dockOffset
             VStack(spacing: 0) {
                 Group {
-                    if loadedChapter == chapter {
+                    if loadedChapter != chapter {
+                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if verses.isEmpty {
+                        unavailablePassage(st)
+                    } else {
                         #if os(macOS)
                         macReader(st)
                         #else
                         iosReader(st)
                         #endif
-                    } else {
-                        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .frame(width: geometry.size.width, height: max(0, geometry.size.height - actionSpace - dockSpace))
@@ -382,7 +382,24 @@ struct ScriptureView: View {
             applyPassageSelection(destination)
             loadedChapter = chapter
         }
-        .overlay { if loadedChapter == chapter, verses.isEmpty { ContentUnavailableView("No text", systemImage: "book.closed", description: Text("This passage is not in the selected text.")) } }
+    }
+
+    private func unavailablePassage(_ st: BibleState) -> some View {
+        let source = ChapterEdition(st)
+        return ContentUnavailableView {
+            Label("Passage Unavailable", systemImage: "book.closed")
+        } description: {
+            Text("\(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)) is unavailable in \(textInfo(st.translation).name).")
+        } actions: {
+            Button("Choose Passage") { pickerShown = true }
+                .buttonStyle(.borderedProminent)
+            if let target = alternateEdition, target == source.counterpart {
+                Button("Open in \(textInfo(target.text).short)") {
+                    app.switchChapterEdition(in: tabId, from: source, to: target)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
     }
 
     // MARK: verse selection (click / ⇧-click verse numbers)
