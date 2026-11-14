@@ -554,3 +554,5 @@ Aligned Compare keeps column headings actionable when an edition lacks the curre
 The empty Scripture reader now names the missing passage and edition, offers Choose Passage, and offers an in-place switch when a mapped KJV/LXX counterpart exists. It hides verse actions when no verses have loaded for that destination. Both Dev builds passed. Verify LXX John recovery on both platforms and the Choose Passage path for a text without a counterpart.
 
 Mac and iPhone disable Tag Chapter and text-dependent export actions when a Scripture chapter is unavailable. Copy Chapter Reference remains usable. Compare retains its existing chapter commands. Both Dev builds passed. Live QA remains for unavailable chapter actions and re-enabling after recovery.
+
+iOS 27 Simulator verified unavailable Scripture recovery. From the isolated John 8 KJVA / John 7 LXX Compare fixture, Manage Translations → Open in Reader → John 7 LXX showed Passage Unavailable, Choose Passage and Open in KJVA. Open in KJVA loaded John 7 and kept five tabs. Mac runtime and empty-chapter export menu checks remain open.
