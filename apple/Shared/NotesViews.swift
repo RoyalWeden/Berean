@@ -189,7 +189,10 @@ struct NoteDetailView: View {
         if url.scheme == "berean-note" {
             saveNow()
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
-            if let p = app.resolvePassage(title) { app.openScripture(bookId: p.bookId, chapter: p.chapter, verse: p.verse, endVerse: p.endVerse, textId: p.textId, reuseTab: true); return }
+            if let passage = app.resolvePassage(title) {
+                app.visitScripture(passage)
+                return
+            }
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
             return
         }
