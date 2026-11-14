@@ -111,7 +111,7 @@ struct CompareView: View {
     }
     @State private var rows: [Int: [Int: ChapterVerseRow]] = [:]
     @State private var independentRows: [Int: [ChapterVerseRow]] = [:]
-    private struct HighlightChapter: Hashable {
+    private struct EditionChapter: Hashable {
         let text: String
         let book: String
         let chapter: Int
@@ -134,7 +134,8 @@ struct CompareView: View {
     }
 
     @State private var chapterTags: [TagChapter: [Int: [TagLite]]] = [:]
-    @State private var chapterHighlights: [HighlightChapter: [Int: [Highlight]]] = [:]
+    @State private var chapterNoteCounts: [EditionChapter: [Int: Int]] = [:]
+    @State private var chapterHighlights: [EditionChapter: [Int: [Highlight]]] = [:]
     @State private var loadedPassage: String?
     @State private var localVerseSelection: Int?
     @State private var editingColumn: CompareColumn?
@@ -216,19 +217,15 @@ struct CompareView: View {
         }
         .task(id: passage) { await load(st, cols, passage: passage) }
         .task(id: "\(loadedPassage ?? "")|\(app.highlightsRevision)") {
-            var chapters: Set<HighlightChapter> = []
-            for column in cols {
-                for row in independentRows[column.id] ?? [] {
-                    chapters.insert(HighlightChapter(row, text: column.text))
-                }
-                for entries in rows.values {
-                    if let row = entries[column.id] {
-                        chapters.insert(HighlightChapter(row, text: column.text))
-                    }
-                }
-            }
+            let chapters = displayedVersesByChapter(cols).keys
             chapterHighlights = Dictionary(uniqueKeysWithValues: chapters.map { key in
                 (key, (try? app.highlights?.chapter(key.book, key.chapter, textId: key.text)) ?? [:])
+            })
+        }
+        .task(id: "\(loadedPassage ?? "")|\(app.notesRevision)") {
+            chapterNoteCounts = Dictionary(uniqueKeysWithValues: displayedVersesByChapter(cols).map { key, verses in
+                let counts = (try? app.notes?.coveringVerseCounts(key.book, key.chapter, verses: verses, textId: key.text)) ?? [:]
+                return (key, counts)
             })
         }
         .task(id: "\(loadedPassage ?? "")|\(app.tagsRevision)") {
@@ -239,6 +236,17 @@ struct CompareView: View {
                 (key, (try? app.verseTags?.forChapter(key.book, key.chapter).verseTags) ?? [:])
             })
         }
+    }
+
+    private func displayedVersesByChapter(_ columns: [CompareColumn]) -> [EditionChapter: Set<Int>] {
+        var chapters: [EditionChapter: Set<Int>] = [:]
+        for column in columns {
+            let verses = independentRows[column.id] ?? rows.values.compactMap { $0[column.id] }
+            for row in verses {
+                chapters[EditionChapter(row, text: column.text), default: []].insert(row.verseNum)
+            }
+        }
+        return chapters
     }
 
     private func manageTranslations(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
@@ -510,7 +518,7 @@ struct CompareView: View {
                 }
             }
         }
-        if chapterHighlights[HighlightChapter(row, text: column.text)]?[row.verseNum]?.isEmpty == false {
+        if chapterHighlights[EditionChapter(row, text: column.text)]?[row.verseNum]?.isEmpty == false {
             Button("Remove Highlights", systemImage: "eraser", role: .destructive) {
                 try? app.highlights?.remove(bookId: row.bookId, chapter: row.chapter,
                                             verse: row.verseNum, textId: column.text)
@@ -549,7 +557,7 @@ struct CompareView: View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             VStack(alignment: .leading, spacing: 4) {
                 VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
-                             highlights: chapterHighlights[HighlightChapter(row, text: column.text)]?[row.verseNum] ?? [],
+                             highlights: chapterHighlights[EditionChapter(row, text: column.text)]?[row.verseNum] ?? [],
                              fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
                              replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
                     .environment(\.openURL, strongsAction(for: row))
@@ -570,6 +578,20 @@ struct CompareView: View {
                         }
                     }
                 }
+            }
+            if let count = chapterNoteCounts[EditionChapter(row, text: column.text)]?[row.verseNum], count > 0 {
+                Button {
+                    openReader(row, in: column, inspector: "notes")
+                } label: {
+                    Label("Notes (\(count))", systemImage: "note.text")
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minWidth: controlSize, minHeight: controlSize)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityLabel("\(count) \(count == 1 ? "note" : "notes") for \(comparisonVerseReference(row, column: column))")
+                .help("Open verse notes")
             }
             VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {
                 comparisonVerseActions(row, column: column)
@@ -737,6 +759,7 @@ struct CompareView: View {
         }
         guard !Task.isCancelled else { return }
         chapterHighlights = [:]
+        chapterNoteCounts = [:]
         chapterTags = [:]
         rows = out
         independentRows = independent

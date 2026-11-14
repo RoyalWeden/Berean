@@ -849,3 +849,7 @@
 ### 2026-11-14 — Compare verse tags
 - Displayed tags alongside compared verses and connected chips to reusable tag search.
 - Both Dev builds passed.
+
+### 2026-11-14 — Compare note indicators
+- Added clickable, edition-aware note indicators with accessible counts.
+- Both Dev builds passed.

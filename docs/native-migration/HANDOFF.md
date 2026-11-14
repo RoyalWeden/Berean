@@ -578,3 +578,5 @@ iOS 27 Simulator verified the updated Tag Picker from the John 7:2 selection bar
 Compare now shows clickable verse-tag chips sourced from each displayed row’s book, chapter and verse. Chips refresh on tag writes and open a reusable Search tab. The lookup follows legacy edition-independent tag coordinates. Both Dev builds passed. Live QA remains for save-to-chip refresh and remapped Jonah rows.
 
 iOS 27 Simulator verified the saved Dev Chapter Parity chip appeared in Compare on John 7:2. Activating it opened the matching tag results with a John 7:2 preview and the dock still showed five tabs, demonstrating Search reuse. Save-to-chip refresh while remaining in Compare and mapped Jonah placement remain open.
+
+Compare now shows an actionable note indicator beside verses with attached notes. It counts notes by the displayed edition, chapter and verse, refreshes after note writes, and opens the verse’s Notes inspector in the same reader tab. Both Dev builds passed. Live QA remains for note creation, indicator refresh and remapped verses.
