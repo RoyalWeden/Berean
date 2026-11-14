@@ -704,3 +704,7 @@
 ### 2026-11-14 — Mac selection reveal
 - Matched scroll clearance to the last visible verse line and dashed frame on Mac, including wrapped annotations.
 - Mac Dev build and identity check passed.
+
+### 2026-11-14 — Compact selection controls
+- Scoped icon-only styling to direct controls and added Mac help to compact actions.
+- Both native Dev builds passed. Narrow-window and overflow-menu UI checks remain open.

@@ -524,7 +524,6 @@ struct ScriptureView: View {
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
         if !selection.isEmpty {
             adaptiveVerseActions(st)
-                .labelStyle(.iconOnly)
                 .buttonStyle(VerseActionButtonStyle())
                 .padding(.horizontal, 5)
                 .padding(.vertical, ReaderFloatingControls.surfacePadding)
@@ -556,7 +555,8 @@ struct ScriptureView: View {
             verseActionRow(st)
             HStack(spacing: 2) {
                 selectionCopyButton(.verses, state: st)
-                highlightMenu(st)
+                    .verseActionHelp("Copy with reference (⌘C)")
+                highlightMenu(st).verseActionHelp("Highlight")
                 compactVerseMenu(st)
                 clearSelectionButton
             }
@@ -620,6 +620,7 @@ struct ScriptureView: View {
             verseMenuLabel("More Verse Actions", symbol: "ellipsis")
         }
         .menuIndicator(.hidden)
+        .verseActionHelp("More verse actions")
     }
 
     @ViewBuilder private func additionalVerseActions(_ st: BibleState, includesTag: Bool = true) -> some View {
@@ -1319,6 +1320,7 @@ enum ReaderFloatingControls {
 private struct VerseActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .labelStyle(.iconOnly)
             .font(.system(size: 15, weight: .medium))
             .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)
