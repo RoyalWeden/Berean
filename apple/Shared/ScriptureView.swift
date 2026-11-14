@@ -753,17 +753,20 @@ struct ScriptureView: View {
 
     #if os(iOS)
     @State private var pinchFontSize: Double?
+    @ScaledMetric(relativeTo: .body) private var scriptureTypeScale = 1.0
 
     func iosReader(_ st: BibleState) -> some View {
         let rv = readerVerses(st)
         var style = readerStyle(st)
-        style.fontSize = pinchFontSize ?? style.fontSize
+        let baseSize = pinchFontSize ?? style.fontSize
+        style.fontSize = baseSize * scriptureTypeScale
         return IOSChapterTextView(
             passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
             header: ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation),
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) },
             verses: rv,
             style: style,
+            baseFontSize: baseSize,
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
             scrollTarget: scrollTarget,
             findRequest: findRequest,

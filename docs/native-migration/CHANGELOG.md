@@ -769,3 +769,7 @@
 ### 2026-11-14 — Tag result edition labels
 - Made the reading edition visible and consistent across tag previews, reference labels and navigation.
 - Both Dev builds passed.
+
+### 2026-11-14 — Dynamic Type in iPhone Scripture
+- Scaled continuous Scripture with Dynamic Type while keeping pinch and Settings in base points.
+- iPhone Dev build passed. Large-size visual and gesture checks remain open.

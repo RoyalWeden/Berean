@@ -15,6 +15,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var chapterTags: [(name: String, color: String?, slot: Int?)]
     var verses: [ReaderVerse]
     var style: ReaderStyle
+    var baseFontSize: Double
     var selectedVerses: Set<Int>
     var scrollTarget: Int?
     var findRequest: Int
@@ -593,7 +594,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         @objc func resizeText(_ gesture: UIPinchGestureRecognizer) {
             switch gesture.state {
             case .began:
-                pinchStartSize = parent.style.fontSize
+                pinchStartSize = parent.baseFontSize
             case .changed:
                 guard let start = pinchStartSize, gesture.scale.isFinite else { return }
                 let size = ScriptureTextSize.clamped((start * gesture.scale).rounded())
