@@ -789,3 +789,7 @@
 ### 2026-11-14 — Legacy word highlights
 - Restored rendering for saved word-level highlights in Scripture and Compare.
 - Both Dev builds passed. Rendering uses existing stored highlights without a migration.
+
+### 2026-11-14 — Open compared verses in the same reader
+- Added a same-tab action to Compare verse menus, using the exact rendered edition, chapter and verse.
+- Both Dev builds passed.

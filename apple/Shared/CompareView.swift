@@ -383,7 +383,7 @@ struct CompareView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     if showVerseNumbers {
                         Button {
-                            openReader(column, verse: row.verseNum)
+                            openReader(row, in: column)
                         } label: {
                             Text("\(row.verseNum)")
                                 .font(.caption.monospacedDigit().weight(.semibold))
@@ -430,6 +430,7 @@ struct CompareView: View {
             }
         }
         Divider()
+        Button("Open in Reader", systemImage: "book.pages") { openReader(row, in: column) }
         Button("Open in New Tab", systemImage: "plus.square") {
             app.openScripture(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: column.text)
         }
@@ -456,19 +457,21 @@ struct CompareView: View {
         }
     }
 
-    private func openReader(_ column: CompareColumn, verse: Int) {
+    private func openReader(_ row: ChapterVerseRow, in column: CompareColumn) {
         app.update(tabId) { tab in
             var reader = BibleState(tab.state)
             reader.compareMode = false
-            reader.bookId = column.book
-            reader.chapter = column.chapter
+            reader.bookId = row.bookId
+            reader.chapter = row.chapter
             reader.translation = column.text
-            reader.verse = verse
+            reader.verse = row.verseNum
             reader.endVerse = nil
             tab.state = reader.merged(into: tab.state)
             tab.state.remove("compareColumns")
-            tab.title = Reference.readerChapterLabel(column.book, column.chapter, textId: column.text)
+            tab.state.remove("endChapter")
+            tab.title = Reference.readerChapterLabel(row.bookId, row.chapter, textId: column.text)
         }
+        app.recordRecent(textId: column.text, bookId: row.bookId, chapter: row.chapter, verse: row.verseNum)
     }
 
     @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState) -> some View {
