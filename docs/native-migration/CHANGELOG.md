@@ -647,3 +647,7 @@
 
 ### 2026-11-14 — Return individual archive results to their source
 - Added a Mac context action and iPhone swipe action for restoring just one archived search result to its original workspace. Both Dev builds passed.
+
+### 2026-11-14 — Accessible iPhone floating verse actions
+- Expose individual selection toolbar controls and name the passage in the clear action hint.
+- Verified opening cross references for both selected verses from the toolbar on the iOS 27 Simulator.

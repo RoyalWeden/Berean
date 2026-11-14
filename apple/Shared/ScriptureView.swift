@@ -520,8 +520,10 @@ struct ScriptureView: View {
                 .glassEffectCompat(interactive: true)
                 .padding(.horizontal, 8)
                 .padding(.bottom, ReaderFloatingControls.bottomPadding)
+                #if os(macOS)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Selected \(selectionLabel(st))")
+                #endif
                 .task(id: copyFeedbackID) {
                     guard copiedAction != nil else { return }
                     do {
@@ -646,6 +648,7 @@ struct ScriptureView: View {
 
     private var clearSelectionButton: some View {
         Button("Clear Selection", systemImage: "xmark") { clearVerseSelection() }
+            .accessibilityHint("Clears \(selectionLabel(state))")
             .foregroundStyle(.secondary)
             #if os(macOS)
             .keyboardShortcut(.cancelAction)
