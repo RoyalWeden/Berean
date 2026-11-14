@@ -22,11 +22,7 @@ struct NotesHomeView: View {
     @State private var notes: [Note] = []
     @State private var folders: [NoteFolder] = []
     @State private var trash: [Note] = []
-    @State private var query = ""
-    @State private var searchMode = NotesWordMode.all
-    @State private var searchEverywhere = false
-    @State private var typeFilter = NoteTypeFilter.all
-    @State private var statusFilter = "all"
+    @State private var browseOptions = BrowseOptions()
     @State private var searchResult: SearchResult?
     @AppStorage("notesHomeSort") private var sort = "modified"        // modified | created | name
     @AppStorage("notesHomeGrouping") private var grouping = "none"    // none | status | folder | type
@@ -38,7 +34,15 @@ struct NotesHomeView: View {
     @State private var visibleFolderRow: String?
     @State private var loadedNotes = false
 
-    private enum NoteTypeFilter: String, CaseIterable {
+    struct BrowseOptions: Equatable {
+        var query = ""
+        var searchMode = NotesWordMode.all
+        var searchEverywhere = false
+        var typeFilter = NoteTypeFilter.all
+        var statusFilter = "all"
+    }
+
+    enum NoteTypeFilter: String, CaseIterable {
         case all = "All Types", scripture = "Scripture", topic = "Topic", daily = "Daily"
         case idiom = "Idiom", youtube = "YouTube", esword = "e-Sword", biblegateway = "BibleGateway"
 
@@ -99,7 +103,7 @@ struct NotesHomeView: View {
             }
             Group {
                 if location == "trash" { trashList }
-                else if !request.text.isEmpty || (hasFilters && (location == nil || (hasFolderScope && searchEverywhere))) { searchList }
+                else if !request.text.isEmpty || (hasFilters && (location == nil || (hasFolderScope && browseOptions.searchEverywhere))) { searchList }
                 else if location == nil { foldersHome }
                 else { folderView }
             }
@@ -122,6 +126,12 @@ struct NotesHomeView: View {
                 Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
                     .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
             }
+        }
+        .onAppear {
+            browseOptions = app.notesBrowseOptions[tabId] ?? BrowseOptions()
+        }
+        .onChange(of: browseOptions) { _, options in
+            app.notesBrowseOptions[tabId] = options
         }
         .task(id: app.notesRevision) { load(); loadedNotes = true }
         .task(id: request) { await runSearch(request) }
@@ -155,7 +165,7 @@ struct NotesHomeView: View {
     }
 
     private var searchRequest: SearchRequest {
-        SearchRequest(text: query.trimmingCharacters(in: .whitespacesAndNewlines), mode: searchMode, revision: app.notesRevision)
+        SearchRequest(text: browseOptions.query.trimmingCharacters(in: .whitespacesAndNewlines), mode: browseOptions.searchMode, revision: app.notesRevision)
     }
 
     private func runSearch(_ request: SearchRequest) async {
@@ -175,58 +185,58 @@ struct NotesHomeView: View {
 
     // MARK: search
 
-    private var hasFilters: Bool { typeFilter != .all || statusFilter != "all" }
+    private var hasFilters: Bool { browseOptions.typeFilter != .all || browseOptions.statusFilter != "all" }
     private var hasFolderScope: Bool { location != nil && location != "all" && location != "trash" }
 
     private func passesFilters(_ note: Note) -> Bool {
-        guard typeFilter.matches(note) else { return false }
-        switch statusFilter {
+        guard browseOptions.typeFilter.matches(note) else { return false }
+        switch browseOptions.statusFilter {
         case "all": return true
         case "no-status": return note.status?.isEmpty ?? true
-        default: return note.status == statusFilter
+        default: return note.status == browseOptions.statusFilter
         }
     }
 
     var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField(hasFolderScope && !searchEverywhere ? "Search this folder" : "Search all notes", text: $query)
+            TextField(hasFolderScope && !browseOptions.searchEverywhere ? "Search this folder" : "Search all notes", text: $browseOptions.query)
                 .textFieldStyle(.plain)
                 .accessibilityIdentifier("notesSearchField")
-            if !query.isEmpty {
-                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+            if !browseOptions.query.isEmpty {
+                Button { browseOptions.query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
                     .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
             }
             Menu {
                 if hasFolderScope {
-                    Picker("Search Scope", selection: $searchEverywhere) {
+                    Picker("Search Scope", selection: $browseOptions.searchEverywhere) {
                         Text("This Folder").tag(false)
                         Text("All Notes").tag(true)
                     }
                 }
-                Picker("Match", selection: $searchMode) {
+                Picker("Match", selection: $browseOptions.searchMode) {
                     Text("All Words").tag(NotesWordMode.all)
                     Text("Any Word").tag(NotesWordMode.any)
                     Text("Exact Phrase").tag(NotesWordMode.phrase)
                 }
-                Picker("Type", selection: $typeFilter) {
+                Picker("Type", selection: $browseOptions.typeFilter) {
                     ForEach(NoteTypeFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                Picker("Status", selection: $statusFilter) {
+                Picker("Status", selection: $browseOptions.statusFilter) {
                     Text("All Statuses").tag("all")
                     Text("No Status").tag("no-status")
                     ForEach(Self.statuses, id: \.id) { Text($0.label).tag($0.id) }
                 }
-                if hasFilters || searchMode != .all || searchEverywhere {
+                if hasFilters || browseOptions.searchMode != .all || browseOptions.searchEverywhere {
                     Button("Reset Search Options") {
-                        typeFilter = .all
-                        statusFilter = "all"
-                        searchMode = .all
-                        searchEverywhere = false
+                        browseOptions.typeFilter = .all
+                        browseOptions.statusFilter = "all"
+                        browseOptions.searchMode = .all
+                        browseOptions.searchEverywhere = false
                     }
                 }
             } label: {
-                Image(systemName: hasFilters || searchMode != .all || (hasFolderScope && searchEverywhere)
+                Image(systemName: hasFilters || browseOptions.searchMode != .all || (hasFolderScope && browseOptions.searchEverywhere)
                       ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                     .frame(minWidth: 28, minHeight: 28)
             }
@@ -248,7 +258,7 @@ struct NotesHomeView: View {
         } else if !request.text.isEmpty, searchResult?.ids == nil {
             ContentUnavailableView("Couldn’t search notes", systemImage: "magnifyingglass")
         } else {
-            let global = !hasFolderScope || searchEverywhere
+            let global = !hasFolderScope || browseOptions.searchEverywhere
             let candidates = global ? notes : here
             let hits = searchResult?.ids ?? []
             let matching = sorted(candidates.filter { passesFilters($0) && (request.text.isEmpty || hits.contains($0.id)) })
@@ -316,7 +326,7 @@ struct NotesHomeView: View {
     }
 
     func folderRow(_ f: NoteFolder, depth: Int) -> some View {
-        Button { query = ""; go(f.id) } label: {
+        Button { browseOptions.query = ""; go(f.id) } label: {
             HStack {
                 Label(f.name, systemImage: "folder").padding(.leading, CGFloat(depth) * 16)
                 Spacer()
@@ -397,7 +407,7 @@ struct NotesHomeView: View {
 
     var folderView: some View {
         let context = NotesFolderScrollContext(location: location, sort: sort, grouping: grouping,
-                                               type: typeFilter.rawValue, status: statusFilter)
+                                               type: browseOptions.typeFilter.rawValue, status: browseOptions.statusFilter)
         let subs = isUserFolder ? folders.filter { $0.parentId == location } : []
         let visibleSections = sections
         let visibleCount = visibleSections.reduce(0) { $0 + $1.notes.count }
@@ -500,7 +510,7 @@ struct NotesHomeView: View {
                     Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
                     Text(preview(n)).font(.caption).foregroundStyle(.secondary).lineLimit(searchRequest.text.isEmpty ? 1 : 2)
                 }
-                if location == "all" || location == nil || !query.isEmpty, let f = n.folderId.flatMap({ id in folders.first { $0.id == id } }) {
+                if location == "all" || location == nil || !browseOptions.query.isEmpty, let f = n.folderId.flatMap({ id in folders.first { $0.id == id } }) {
                     Label(f.name, systemImage: "folder").font(.caption2).foregroundStyle(.tertiary)
                 }
             }
