@@ -567,3 +567,6 @@
 ### 2026-11-14 — Mac quick edition switching
 - Added the mapped edition shortcut to the Mac Scripture toolbar and shared its coverage and navigation logic with iPhone.
 - Both Dev builds passed. Verified the Mac control appears for Genesis 1. Persisted navigation QA remains open.
+
+### 2026-11-14 — Mac edition navigation verification
+- Verified Psalm chapter mapping, Back with verse selection restoration, a stable 26-tab count, and shortcut omission on John 7 in Mac Dev.
