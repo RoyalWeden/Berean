@@ -958,3 +958,7 @@
 ### 2026-11-14 — Floating verse action feedback
 - Matched hover feedback and icon sizing between verse action buttons and menus.
 - Both Dev builds passed. Live desktop hover checks remain open.
+
+### 2026-11-14 — Verse action menu labels
+- Scoped the icon-only button treatment to visible floating controls and retained system styling inside their menus.
+- Both Dev builds passed. Runtime menu checks remain open.

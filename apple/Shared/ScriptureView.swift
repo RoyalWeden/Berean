@@ -587,7 +587,6 @@ struct ScriptureView: View {
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
         if !selection.isEmpty {
             adaptiveVerseActions(st)
-                .buttonStyle(VerseActionButtonStyle())
                 .padding(.horizontal, 5)
                 .padding(.vertical, ReaderFloatingControls.surfacePadding)
                 .glassEffectCompat(interactive: true)
@@ -618,6 +617,7 @@ struct ScriptureView: View {
             verseActionRow(st)
             HStack(spacing: 2) {
                 selectionCopyButton(.verses, state: st)
+                    .buttonStyle(VerseActionButtonStyle())
                     .verseActionHelp("Copy with reference (⌘C)")
                 highlightMenu(st).verseActionHelp("Highlight")
                 compactVerseMenu(st)
@@ -642,22 +642,28 @@ struct ScriptureView: View {
     private func verseActionRow(_ st: BibleState) -> some View {
         HStack(spacing: 2) {
             selectionCopyButton(.verses, state: st)
+                .buttonStyle(VerseActionButtonStyle())
                 .verseActionHelp("Copy with reference (⌘C)")
             highlightMenu(st).verseActionHelp("Highlight")
             Button("Tag Verses", systemImage: "tag") {
                 tagging = (selectionRanges(st), selectionLabel(st), "verses")
             }
+            .buttonStyle(VerseActionButtonStyle())
             .verseActionHelp("Tag verses")
             #if os(macOS)
-            selectionCopyButton(.reference, state: st).help("Copy selected verse reference")
+            selectionCopyButton(.reference, state: st)
+                .buttonStyle(VerseActionButtonStyle())
+                .help("Copy selected verse reference")
             Button("Add Note", systemImage: "square.and.pencil") {
                 addNoteForSelection(st)
             }
+            .buttonStyle(VerseActionButtonStyle())
             .help("Add note")
             Button("Cross References", systemImage: "arrow.triangle.branch") {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min(), selectedVerses: selection.sorted())
             }
-                .help("Cross references")
+            .buttonStyle(VerseActionButtonStyle())
+            .help("Cross references")
             if !selectedRows.isEmpty {
                 Menu {
                     selectedVerseExportActions(st)
@@ -716,6 +722,7 @@ struct ScriptureView: View {
 
     private var clearSelectionButton: some View {
         Button("Clear Selection", systemImage: "xmark") { clearVerseSelection() }
+            .buttonStyle(VerseActionButtonStyle())
             .accessibilityHint("Clears \(selectionLabel(state))")
             .foregroundStyle(.secondary)
             #if os(macOS)
