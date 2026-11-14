@@ -21,17 +21,17 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S01 | Text loading and bundled texts | implemented | ✅ | ✅ | — | All 19 texts bundled; lxx→lxx_brenton mapping fixed; text list = legacy TRANSLATIONS (KJV hidden, Hermas Taylor listed) |
 | S02 | Book / chapter / passage navigation | implemented | ✅ | 🟡 | P1 | iPhone chapter swipe and Go reuse available reading tabs; edge taps and pull navigation pending. |
 | S03 | Reference parsing | implemented | ✅ | ✅ | — | Golden-pinned parser + native resolver (bare book names, "Jude 5", other texts) |
-| S04 | Verse rendering | implemented | ✅ | 🟡 | P1 | Mac continuous TextKit reader (red letters, italics, titles, note dots, tags, highlights). iPhone per-verse SwiftUI rows; no psalm superscription special-casing check yet |
+| S04 | Verse rendering | implemented | ✅ | 🟡 | P1 | Continuous TextKit readers on both platforms. Psalm superscription treatment still needs a running-app check. |
 | S05 | Strong's rendering and lexicon access | implemented | ✅ | 🟡 | P1 | Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover now loads the lemma, transliteration, and gloss. Runtime hover verification remains pending. |
 | S06 | Interlinear | deferred | — | — | — | Deferred in original too |
 | S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Both readers use a single selectable chapter. iPhone long-press word selection and its copy menu verified in Simulator; cross-verse handle drag and clipboard output need touch QA. |
-| S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Missing vs original: copy reference, play audio from here, compare this verse |
+| S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Copy Reference and Compare This Verse also available. Play Audio from Here remains open. |
 | S09 | Multiple translations and editions | implemented | ✅ | ✅ | — | Text switching in navigator; Compare mode for parallel texts |
-| S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward history + picker History (recent passages). Missing: global History tab/sheet, scroll-position memory per tab |
-| S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size, line spacing, Scripture font, word replacer, theme. Missing: verse-number visibility, red-letter toggle, paragraph mode, per-text options (Hermas translation etc.) |
+| S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Full per-tab scroll restoration still needs verification. |
+| S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size and family, line spacing, text width, verse-number visibility, red lettering, word replacer and theme. The reader exposes display options on both platforms. Paragraph mode and per-text options remain open. |
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
 | S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open. |
-| S14 | Very long chapter performance | implemented (partly measured) | 🟡 | ❓ | P2 | Mac TextKit renders whole chapter (Ps 119 untested for latency); iPhone LazyVStack |
+| S14 | Very long chapter performance | implemented (partly measured) | 🟡 | ❓ | P2 | Both TextKit readers render the whole chapter. Psalm 119 latency still needs measurement. |
 | S15 | Find in chapter | implemented | ✅ | ❌ | P2 | Find in chapter (⌘F) missing — NSTextView find bar can be enabled |
 | S16 | Word replacer (display rules for divine names and search expansion) | implemented | ✅ | ✅ | — | Word replacer display + search variants + Strong's bridge |
 | Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Both app bundles carry all 19 supported Scripture IDs. All Texts searches the bundled corpus; Mac opened Didache via ⌘K. |
@@ -157,7 +157,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Same renderer on both; iPhone adds long-press sheets.
 - **Original files:** `src/components/bible/{VerseRow(2155),ChapterView(1431),TaggedVerseList,verseRowStyles}.tsx`; `src/lib/{taggedTokens,annotationFilters,psalmSuperscription,psalmTitles,verseTagRanges,scriptureText}.ts`; iPhone `src/mobile/study/VerseStudy.tsx`, `src/mobile/reader/readerViews.tsx`.
 - **Known original defects:** Rendering depends on DOM text-node ordering for selection→offset conversion; any native replacement must reproduce exactly the character positions that existing highlights were stored with (see H02).
-- **Native Mac / iPhone:** ✅ / 🟡 — Mac continuous TextKit reader (red letters, italics, titles, note dots, tags, highlights). iPhone per-verse SwiftUI rows; no psalm superscription special-casing check yet
+- **Native Mac / iPhone:** ✅ / 🟡 — Continuous TextKit readers on both platforms. Psalm superscription treatment still needs a running-app check.
 - **Native files:** ChapterTextView.swift, ScriptureView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -193,7 +193,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Floating-window items hidden on iPhone via `capabilities.multiWindow`-style checks (`platformCapabilities.ts`).
 - **Original files:** `src/components/bible/VerseRow.tsx`, `VerseSelectionBar.tsx`; `src/mobile/study/VerseActionSheet.tsx`, `verseSheetMode.ts`, `src/mobile/primitives/{ActionSheet,PopoverMenu,anchoredMenu}.ts(x)`; Mac native menus built in main for some surfaces (`app:noteImageMenu`, `buildAppMenu`).
 - **Known original defects:** none beyond UX drift between two implementations of the same action list.
-- **Native Mac / iPhone:** ✅ / 🟡 — Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Missing vs original: copy reference, play audio from here, compare this verse
+- **Native Mac / iPhone:** ✅ / 🟡 — Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Copy Reference and Compare This Verse also available. Play Audio from Here remains open.
 - **Native files:** ScriptureView.swift verseNSMenu/verseActions
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -211,7 +211,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** iPhone adds edge-swipe back.
 - **Original files:** `src/hooks/{useReadingAnchor,useKeyedScrollMemory,useChapterProgress}.ts`; `src/mobile/reader/readerScrollMemory.ts`; `src/platform/services/historyService.ts`; `src/components/shell/HistoryModal.tsx`; `src/mobile/history/HistoryPage.tsx`; `src/lib/historyModel.ts`; `src/store/index.ts` (`tabNavStac
 - **Known original defects:** Reading position is device-local.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Per-tab back/forward history + picker History (recent passages). Missing: global History tab/sheet, scroll-position memory per tab
+- **Native Mac / iPhone:** 🟡 / 🟡 — Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Full per-tab scroll restoration still needs verification.
 - **Native files:** AppModel goBack/goForward, PassagePicker recents
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -220,7 +220,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** iPhone uses Dynamic Type bridging via `BereanA11yPlugin.swift` (INFERRED from plugin name; content not read in detail).
 - **Original files:** `src/store/index.ts` prefs; `src/hooks/useBibleLineHeight.ts`; `src/lib/{zoom,fontFamilies,textFit}.ts`; `src/mobile/reader/{usePinchFontSize,readerWidth,scriptureTheme.css}`; `src/mobile/settings/scriptureTheme.ts`.
 - **Known original defects:** Preferences do not sync via iCloud (X6).
-- **Native Mac / iPhone:** 🟡 / 🟡 — Font size, line spacing, Scripture font, word replacer, theme. Missing: verse-number visibility, red-letter toggle, paragraph mode, per-text options (Hermas translation etc.)
+- **Native Mac / iPhone:** 🟡 / 🟡 — Font size and family, line spacing, text width, verse-number visibility, red lettering, word replacer and theme. The reader exposes display options on both platforms. Paragraph mode and per-text options remain open.
 - **Native files:** SettingsView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -247,7 +247,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Doc reports Mac scroll with 0 frames over 25 ms and iPhone reader scroll p95 17 ms (60 Hz), one frame over 25 ms of 120, simulator only. Numbers are the doc's (UNVERIFIED by this audit); iPhone numbers are simulator, not device.
 - **Original files:** `src/components/bible/{ContinuousChapterScroll,ChapterView}.tsx`; `docs/performance-audit-2026-10-19.md`; `scripts/perf/{nav,scroll}.*`.
 - **Known original defects:** Physical-device scroll and memory not measured (doc says so). Chromium sibling-selector restyle problem fixed in CSS (doc).
-- **Native Mac / iPhone:** 🟡 / ❓ — Mac TextKit renders whole chapter (Ps 119 untested for latency); iPhone LazyVStack
+- **Native Mac / iPhone:** 🟡 / ❓ — Both TextKit readers render the whole chapter. Psalm 119 latency still needs measurement.
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

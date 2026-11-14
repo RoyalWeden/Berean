@@ -54,6 +54,7 @@ struct ScriptureDisplayOptions: View {
                 Slider(value: $app.fontSize, in: 12...30, step: 1) {
                     Text("Text size")
                 }
+                .labelsHidden()
                 Text("\(Int(app.fontSize)) pt")
                     .monospacedDigit()
                     .fixedSize()

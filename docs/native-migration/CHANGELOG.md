@@ -683,3 +683,8 @@
 - Added a toolbar popover backed by the shared Scripture display preferences.
 - `npm run native:build:mac` passed with the Dev bundle identity. Opened the popover in Mac Dev and visually confirmed all six controls over John 7.
 - Draft PR #24. No production data touched.
+
+### 2026-11-14 — Reader display polish and parity corrections
+- Hid the slider's redundant visible label while retaining its accessible name.
+- Updated the parity matrix for the continuous reader, verse actions, history and display options.
+- Both native Dev builds passed.
