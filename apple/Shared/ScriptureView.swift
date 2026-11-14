@@ -271,6 +271,7 @@ struct ScriptureView: View {
     }
 
     func verseClick(_ v: Int, shift: Bool) {
+        scrollTarget = nil
         if shift, let a = anchor {
             selection = Set(min(a, v)...max(a, v)).intersection(verses.map(\.verseNum))
         } else {

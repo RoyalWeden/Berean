@@ -90,13 +90,19 @@ struct ChapterTextView: NSViewRepresentable {
             c.renderedSelection = selectedVerses
             tv.needsDisplay = true
         }
-        if let revealVerse, let range = c.verseRanges[revealVerse],
-           range.length > 0, let container = tv.textContainer {
-            tv.layoutManager?.ensureLayout(for: container)
-            let lastCharacter = NSRange(location: NSMaxRange(range) - 1, length: 1)
-            if let rect = tv.firstRect(forVerseRange: lastCharacter) {
-                let visibleBottom = clip.bounds.maxY
-                let overlap = rect.maxY + ReaderFloatingControls.readingGap - visibleBottom
+        if let revealVerse, scrollTarget == nil {
+            let destination = passageId
+            // Wait for SwiftUI to install the shorter viewport above the floating actions.
+            DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
+                guard let tv, let scroll, let c, c.lastPassage == destination,
+                      c.parent.selectedVerses.contains(revealVerse),
+                      let range = c.verseRanges[revealVerse], range.length > 0,
+                      let container = tv.textContainer else { return }
+                tv.layoutManager?.ensureLayout(for: container)
+                let lastCharacter = NSRange(location: NSMaxRange(range) - 1, length: 1)
+                guard let rect = tv.firstRect(forVerseRange: lastCharacter) else { return }
+                let clip = scroll.contentView
+                let overlap = rect.maxY + ReaderFloatingControls.readingGap - clip.bounds.maxY
                 if overlap > 0 {
                     var proposed = clip.bounds
                     proposed.origin.y += overlap
@@ -484,7 +490,11 @@ final class ReaderTextView: NSTextView {
             var r = NSRange()
             if ts.attribute(.link, at: i, effectiveRange: &r) != nil { newRange = r }
         }
-        if newRange != nil { NSCursor.pointingHand.set() }
+        if newRange != nil {
+            NSCursor.pointingHand.set()
+        } else if hovered != nil {
+            NSCursor.iBeam.set()
+        }
         if newRange != hovered {
             if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.underlineStyle, forCharacterRange: h) }
             if let n = newRange { lm.addTemporaryAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, forCharacterRange: n) }

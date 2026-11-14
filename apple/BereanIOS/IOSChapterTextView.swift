@@ -97,17 +97,23 @@ struct IOSChapterTextView: UIViewRepresentable {
             coordinator.renderedSelection = selectedVerses
             (view as? ReaderTextView)?.updateVerseOutline()
         }
-        if let revealVerse, let range = coordinator.bodyRanges[revealVerse],
-           range.length > 0,
-           let position = view.position(from: view.beginningOfDocument, offset: NSMaxRange(range) - 1) {
-            view.layoutIfNeeded()
-            let inset = view.adjustedContentInset
-            let visibleBottom = view.bounds.maxY - inset.bottom
-            let overlap = view.caretRect(for: position).maxY + ReaderFloatingControls.readingGap - visibleBottom
-            if overlap > 0 {
-                let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
-                let y = min(view.contentOffset.y + overlap, bottom)
-                view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
+        if let revealVerse, scrollTarget == nil {
+            let currentPassage = passageId
+            // Wait for SwiftUI to install the shorter viewport above the floating actions.
+            DispatchQueue.main.async { [weak view, weak coordinator] in
+                guard let view, let coordinator, coordinator.passageId == currentPassage,
+                      coordinator.parent.selectedVerses.contains(revealVerse),
+                      let range = coordinator.bodyRanges[revealVerse], range.length > 0,
+                      let position = view.position(from: view.beginningOfDocument, offset: NSMaxRange(range) - 1) else { return }
+                view.layoutIfNeeded()
+                let inset = view.adjustedContentInset
+                let visibleBottom = view.bounds.maxY - inset.bottom
+                let overlap = view.caretRect(for: position).maxY + ReaderFloatingControls.readingGap - visibleBottom
+                if overlap > 0 {
+                    let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+                    let y = min(view.contentOffset.y + overlap, bottom)
+                    view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
+                }
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
@@ -116,7 +122,8 @@ struct IOSChapterTextView: UIViewRepresentable {
             let currentPassage = passageId
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
-                      coordinator.lastTarget == target, NSMaxRange(range) <= view.textStorage.length,
+                      coordinator.parent.scrollTarget == target, coordinator.lastTarget == target,
+                      NSMaxRange(range) <= view.textStorage.length,
                       let position = view.position(from: view.beginningOfDocument, offset: range.location) else { return }
                 view.layoutIfNeeded()
                 let inset = view.adjustedContentInset
