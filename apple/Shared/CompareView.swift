@@ -346,9 +346,26 @@ struct CompareView: View {
                                  replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
                     .environment(\.openURL, strongsAction(for: row))
                 }
+                .contextMenu { comparisonVerseActions(row, column: column) }
             }
         } else {
             Text("No Text in This Passage").foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
+        let label = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                                    hermas: HermasText(textId: column.text))
+        let reference = "\(label) \(textInfo(column.text).short)"
+        Button("Copy Verse", systemImage: "doc.on.doc") {
+            let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: column.text,
+                                         replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+            Clipboard.copy("\(reference) \(text)")
+        }
+        Button("Copy Reference", systemImage: "number") { Clipboard.copy(reference) }
+        Divider()
+        Button("Open in New Tab", systemImage: "plus.square") {
+            app.openScripture(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: column.text)
         }
     }
 
@@ -380,6 +397,7 @@ struct CompareView: View {
                              lineSpacing: app.lineSpacing, replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
                     .environment(\.openURL, strongsAction(for: row))
             }
+            .contextMenu { comparisonVerseActions(row, column: column) }
         } else {
             Text("—").foregroundStyle(.tertiary)
         }

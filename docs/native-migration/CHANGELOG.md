@@ -570,3 +570,7 @@
 
 ### 2026-11-14 — Mac edition navigation verification
 - Verified Psalm chapter mapping, Back with verse selection restoration, a stable 26-tab count, and shortcut omission on John 7 in Mac Dev.
+
+### 2026-11-14 — Compare verse actions
+- Added edition-aware verse copy, reference copy and open-in-new-tab actions to aligned and independent comparisons.
+- Both native Dev builds passed. Live cell menu activation and clipboard output remain to verify.
