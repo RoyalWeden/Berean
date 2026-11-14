@@ -797,3 +797,7 @@
 ### 2026-11-14 — Selection transfer from Compare
 - Used column row mappings to carry whole-verse selections into the single reader.
 - Both Dev builds passed.
+
+### 2026-11-14 — Compare selection indicators
+- Showed the same selected verses that transfer from Compare to Scripture and cleared old ranges on an explicit single-verse click.
+- Both Dev builds passed.

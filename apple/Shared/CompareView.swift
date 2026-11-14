@@ -136,7 +136,7 @@ struct CompareView: View {
 
     var body: some View {
         let st = state, cols = columns
-        let passage = "\(st.translation)|\(st.bookId)|\(st.chapter)|\(cols.map { "\($0.id):\($0.destinationKey)" }.joined(separator: ","))"
+        let passage = passageKey(st, cols)
         GeometryReader { geometry in
             if loadedPassage != passage {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -233,8 +233,22 @@ struct CompareView: View {
         }
     }
 
+    private func passageKey(_ state: BibleState, _ columns: [CompareColumn]) -> String {
+        let destinations = columns.map { "\($0.id):\($0.destinationKey)" }.joined(separator: ",")
+        return "\(state.translation)|\(state.bookId)|\(state.chapter)|\(destinations)"
+    }
+
+    private func selectedVerses(in state: BibleState) -> Set<Int> {
+        guard let first = state.verse else { return [] }
+        var reader = state
+        reader.compareMode = false
+        let saved = app.readerSelectedVerses(in: tabId, state: reader)
+        return saved.isEmpty ? [first] : Set(saved)
+    }
+
     private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
-        Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 10) {
+        let selected = selectedVerses(in: st)
+        return Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 10) {
             GridRow {
                 if showVerseNumbers { Text("").gridColumnAlignment(.trailing) }
                 ForEach(cols) { c in
@@ -250,7 +264,7 @@ struct CompareView: View {
             ForEach(rows.keys.sorted(), id: \.self) { v in
                 GridRow(alignment: .firstTextBaseline) {
                     if showVerseNumbers {
-                        verseButton(v, state: st)
+                        verseButton(v, state: st, selected: selected.contains(v))
                     }
                     ForEach(cols) { c in
                         comparisonText(v, text: c, state: st)
@@ -263,7 +277,8 @@ struct CompareView: View {
     }
 
     private func stackedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
-        LazyVStack(alignment: .leading, spacing: 14) {
+        let selected = selectedVerses(in: state)
+        return LazyVStack(alignment: .leading, spacing: 14) {
             ForEach(columns) { text in
                 HStack {
                     Text(textInfo(text.text).name).font(.subheadline.weight(.semibold))
@@ -274,7 +289,7 @@ struct CompareView: View {
             ForEach(rows.keys.sorted(), id: \.self) { verse in
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
-                    if showVerseNumbers { verseButton(verse, state: state) }
+                    if showVerseNumbers { verseButton(verse, state: state, selected: selected.contains(verse)) }
                     ForEach(columns) { text in
                         VStack(alignment: .leading, spacing: 3) {
                             Text(textInfo(text.text).short)
@@ -547,7 +562,7 @@ struct CompareView: View {
         .help("Column actions")
     }
 
-    private func verseButton(_ verse: Int, state: BibleState) -> some View {
+    private func verseButton(_ verse: Int, state: BibleState, selected: Bool) -> some View {
         Button {
             if state.verse != verse { localVerseSelection = verse }
             app.update(tabId, recordHistory: false) { tab in
@@ -555,22 +570,19 @@ struct CompareView: View {
                 target.verse = verse
                 target.endVerse = nil
                 tab.state = target.merged(into: tab.state)
+                tab.state.remove("nativeSelectedVerses")
+                tab.state.remove("endChapter")
             }
         } label: {
             Text("\(verse)")
                 .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(isSelected(verse, state) ? Color.accentColor : Color.secondary)
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
         .accessibilityLabel("Verse \(verse)")
-        .accessibilityAddTraits(isSelected(verse, state) ? .isSelected : [])
-    }
-
-    private func isSelected(_ verse: Int, _ state: BibleState) -> Bool {
-        guard let first = state.verse else { return false }
-        return verse >= first && verse <= max(first, state.endVerse ?? first)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     func load(_ st: BibleState, _ cols: [CompareColumn], passage: String) async {
@@ -648,14 +660,10 @@ struct CompareView: View {
 
     private func readerPassage(for column: CompareColumn, source: BibleState) -> ResolvedPassage {
         var passage = ResolvedPassage(textId: column.text, bookId: column.book, chapter: column.chapter, verse: nil)
-        guard column.follows(source), let first = source.verse,
+        guard loadedPassage == passageKey(source, columns), column.follows(source), let first = source.verse,
               columns.contains(where: { $0.id == column.id && $0.destinationKey == column.destinationKey }) else { return passage }
 
-        var selectionSource = source
-        selectionSource.compareMode = false
-        let saved = app.readerSelectedVerses(in: tabId, state: selectionSource)
-        let selected = saved.isEmpty ? [first] : saved
-        let mapped = selected.compactMap { rows[$0]?[column.id] }
+        let mapped = selectedVerses(in: source).sorted().compactMap { rows[$0]?[column.id] }
         let anchor = rows[first]?[column.id] ?? mapped.first
         guard let anchor else { return passage }
         passage.bookId = anchor.bookId
