@@ -1101,3 +1101,8 @@
 
 - Plain searches and book-scoped History replay now preserve existing filtered tabs and reuse only result-compatible tabs.
 - Both Dev builds and all 132 tests passed. Live Mac scratch QA verified the same query stayed separate with 52 unfiltered results and zero tagged results.
+
+### 2026-11-15 — Advanced Scripture Search History replay
+
+- Submitting an advanced search captures its filters and presentation for History replay. The legacy query and history table remain compatible.
+- Both Dev builds and all 133 tests passed. Mac scratch QA verified replay after closing a tagged search, Back to History, and replay of an older plain query.

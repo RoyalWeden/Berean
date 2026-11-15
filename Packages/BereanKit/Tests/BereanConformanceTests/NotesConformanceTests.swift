@@ -497,6 +497,19 @@ func noteJSON(_ n: Note) -> JSValue {
 }
 
 @Suite("navigation history") struct HistoryServiceTests {
+    @Test func distinctAdvancedSearchesCanShareALegacyQuery() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let history = HistoryService(db: db)
+        let first = HistoryEntry(id: "a", type: "search", title: "grace", timestamp: 1, query: "grace")
+        var second = first
+        second.id = "b"
+        second.timestamp = 2
+        #expect(try history.add(first))
+        #expect(try history.add(second, deduplicate: false))
+        #expect(try history.all().map(\.id) == ["b", "a"])
+    }
+
     @Test func addDedupPageDeleteClear() throws {
         let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
         try Migrator.migrate(db)

@@ -196,7 +196,7 @@ struct HistoryView: View {
             }
         }
         .confirmationDialog("Clear all history on this device?", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("Clear History", role: .destructive) { app.attempt("Couldn’t clear history") { try app.historyService?.clear() }; load() }
+            Button("Clear History", role: .destructive) { app.attempt("Couldn’t clear history") { try app.clearHistory() }; load() }
         } message: { Text("Your notes, highlights and tabs are not affected.") }
         .task(id: app.historyRevision) {
             load()
@@ -292,14 +292,14 @@ struct HistoryView: View {
         .contextMenu {
             if canOpen(entry) { Button("Open") { open(entry) } }
             Button("Remove from History", role: .destructive) {
-                try? app.historyService?.delete(entry.id)
+                try? app.deleteHistoryEntry(entry.id)
                 load()
             }
         }
         #if os(iOS)
         .swipeActions {
             Button("Remove", role: .destructive) {
-                try? app.historyService?.delete(entry.id)
+                try? app.deleteHistoryEntry(entry.id)
                 load()
             }
         }
@@ -343,6 +343,9 @@ struct HistoryView: View {
             app.openLexicon(s, reuseTab: true)
         case "search":
             guard let q = e.query, !q.isEmpty else { return }
+            if app.reopenSavedScriptureSearch(e) {
+                break
+            }
             if let book = e.bookId, let qualified = app.editionQualifiedQuery(q) {
                 app.openBookSearch(qualified.query, bookId: book, textId: qualified.text, reuseTab: true)
             } else {

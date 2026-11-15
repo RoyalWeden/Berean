@@ -415,11 +415,14 @@ final class AppModel {
 
     static let historyEntryLimit = 5_000
 
-    func recordHistory(type: String, title: String, bookId: String? = nil, chapter: Int? = nil, verse: Int? = nil, noteId: String? = nil, strongsNum: String? = nil, query: String? = nil) {
+    @discardableResult
+    func recordHistory(type: String, title: String, bookId: String? = nil, chapter: Int? = nil, verse: Int? = nil, noteId: String? = nil, strongsNum: String? = nil, query: String? = nil, deduplicate: Bool = true) -> String? {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let e = HistoryEntry(id: "hist-\(now)-\(Self.newId().prefix(8))", type: type, title: title, timestamp: now, sessionId: currentSessionId, sessionName: session.name,
                              bookId: bookId, chapter: chapter, verse: verse, noteId: noteId, strongsNum: strongsNum, query: query)
-        if (try? historyService?.add(e, maxEntries: Self.historyEntryLimit)) == true { historyRevision += 1 }
+        guard (try? historyService?.add(e, maxEntries: Self.historyEntryLimit, deduplicate: deduplicate)) == true else { return nil }
+        historyRevision += 1
+        return e.id
     }
 
     func openHistory(newTab: Bool = false) {
@@ -881,11 +884,75 @@ final class AppModel {
         recordTabReturn(to: sourceTabID)
     }
 
-    func recordScriptureSearch(_ query: String, bookId: String? = nil) {
+    // Navigation history is device-local. Keep native search options with their history IDs
+    // while leaving the legacy history query and library schema intact.
+    private static var searchHistoryOptionsKey: String {
+        "berean.native.searchHistoryOptions." + UserLibrary.directory.lastPathComponent
+    }
+
+    private static let searchHistoryStateKeys = [
+        "scopeTexts", "bookIds", "wordMode", "testament",
+        "tagFilter", "tagFilterAll", "sort", "grouping",
+    ]
+
+    private var historySearchOptions: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: Self.searchHistoryOptionsKey) as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: Self.searchHistoryOptionsKey) }
+    }
+
+    private static func scriptureSearchState(_ state: JSObject) -> JSObject {
+        var result = JSObject()
+        for key in searchHistoryStateKeys { result[key] = state[key] }
+        return result
+    }
+
+    func recordScriptureSearch(_ query: String, bookId: String? = nil, tabState: JSObject? = nil) {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let bookSuffix = bookId.map { " · \(Reference.bookName($0))" } ?? ""
-        recordHistory(type: "search", title: "\"\(query)\"\(bookSuffix)", bookId: bookId, query: query)
+        var options = historySearchOptions
+        let snapshot = tabState.map { JSON.stringify(.object(Self.scriptureSearchState($0))).string }
+        let previousID = (try? historyService?.all(limit: 1))?.first?.id
+        let previousSnapshot = previousID.flatMap { options[$0] }
+        if let id = recordHistory(type: "search", title: "\"\(query)\"\(bookSuffix)", bookId: bookId, query: query,
+                                  deduplicate: snapshot == previousSnapshot),
+           let snapshot {
+            options[id] = snapshot
+            if options.count > Self.historyEntryLimit {
+                for id in options.keys.sorted().prefix(options.count - Self.historyEntryLimit) { options.removeValue(forKey: id) }
+            }
+            historySearchOptions = options
+        }
         SearchHistory.record(query)
+    }
+
+    func reopenSavedScriptureSearch(_ entry: HistoryEntry) -> Bool {
+        guard let snapshot = historySearchOptions[entry.id],
+              let state = (try? JSON.parse(snapshot))?.objectValue,
+              let savedQuery = entry.query, !savedQuery.isEmpty else { return false }
+        let query = editionQualifiedQuery(savedQuery)?.query ?? savedQuery
+        var search = Self.scriptureSearchState(state)
+        search["query"] = .string(JSString(query))
+        if let existing = tabs(in: .search).first(where: { tab in
+            tab.tabType == .search && tab.state["query"] == search["query"]
+                && tab.state["nativeSearchFocusText"]?.stringValue == nil
+                && Self.searchHistoryStateKeys.allSatisfy { key in tab.state[key] == search[key] }
+        }) {
+            select(existing.id, in: .search)
+        } else {
+            openTab(.search, in: .search, title: "Search: \(query)", state: search)
+        }
+        return true
+    }
+
+    func deleteHistoryEntry(_ id: String) throws {
+        try historyService?.delete(id)
+        var options = historySearchOptions
+        if options.removeValue(forKey: id) != nil { historySearchOptions = options }
+    }
+
+    func clearHistory() throws {
+        try historyService?.clear()
+        UserDefaults.standard.removeObject(forKey: Self.searchHistoryOptionsKey)
     }
 
     func recordTabReturn(to sourceTabID: String?) {

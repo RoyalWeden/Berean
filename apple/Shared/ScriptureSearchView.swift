@@ -549,9 +549,9 @@ struct ScriptureSearchView: View {
             historyQuery = q
         }
         let historyBook = (qualified != nil || scope?.count == 1) && bookFilter.count == 1 ? bookFilter.first : nil
-        app.recordScriptureSearch(historyQuery, bookId: historyBook)
         if let qualified { field = qualified.query }
         commitQuery(qualified?.query ?? q, edition: qualified?.text)
+        app.recordScriptureSearch(historyQuery, bookId: historyBook, tabState: app.findTab(tabId)?.state)
     }
 
     private func clearQuery() {
