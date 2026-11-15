@@ -41,3 +41,19 @@ struct DailyNoteDayTests {
         #expect(NotesService.dailyDisplayTitle("nope") == nil)
     }
 }
+
+@Suite("auto em dash") struct NoteAutoEmDashTests {
+    func dash(_ text: String) -> NSRange? {
+        NoteAutoEmDash.dashRange(in: text as NSString, range: NSRange(location: (text as NSString).length, length: 0), replacement: "-")
+    }
+    @Test func convertsSecondDashMidLine() {
+        #expect(dash("a-") == NSRange(location: 1, length: 1))
+        #expect(dash("line\nword-") == NSRange(location: 9, length: 1))
+    }
+    @Test func skipsLineStartCodeAndSingles() {
+        #expect(dash("-") == nil)          // "--" at line start (divider in progress)
+        #expect(dash("x\n--") == nil)      // "---" at line start
+        #expect(dash("`a-") == nil)        // inside inline code
+        #expect(dash("a") == nil)          // previous char isn't "-"
+    }
+}
