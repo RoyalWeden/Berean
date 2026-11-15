@@ -11,6 +11,8 @@ import BereanReference
 struct RichNoteEditor: NSViewRepresentable {
     @Binding var text: String
     var fontSize: CGFloat = 15
+    var detectVerseReferences = true
+    var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
     var onLink: (URL) -> Void = { _ in }
 
@@ -40,6 +42,7 @@ struct RichNoteEditor: NSViewRepresentable {
         tv.setAccessibilityLabel("Note text")
         // Link colour comes from the styled runs (task boxes keep their accent / secondary tint); this only adds the hand.
         tv.linkTextAttributes = [.cursor: NSCursor.pointingHand]
+        tv.isContinuousSpellCheckingEnabled = spellCheck
         tv.string = text
         context.coordinator.textView = tv
         context.coordinator.restyle()
@@ -53,6 +56,8 @@ struct RichNoteEditor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         let c = context.coordinator
+        let referenceSettingChanged = c.parent.detectVerseReferences != detectVerseReferences
+        let spellingSettingChanged = c.parent.spellCheck != spellCheck
         let previousRequest = c.parent.formatRequest
         c.parent = self
         if let request = formatRequest, request != previousRequest {
@@ -74,9 +79,11 @@ struct RichNoteEditor: NSViewRepresentable {
                 window.makeFirstResponder(editor)
             }
         }
-        guard let tv = c.textView, tv.string != text, !c.editing else { return }
-        tv.string = text
-        c.restyle()
+        guard let tv = c.textView else { return }
+        if spellingSettingChanged { tv.isContinuousSpellCheckingEnabled = spellCheck }
+        let contentChanged = tv.string != text && !c.editing
+        if contentChanged { tv.string = text }
+        if contentChanged || referenceSettingChanged { c.restyle() }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
@@ -157,9 +164,11 @@ struct RichNoteEditor: NSViewRepresentable {
             }
             // Scripture references written as plain text link to the passage (original note auto-linking; same
             // berean-note: route the editor already resolves as a passage first).
-            for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
-                guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
-                storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
+            if parent.detectVerseReferences {
+                for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
+                    guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
+                    storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
+                }
             }
             storage.endEditing()
             if let lm = tv.layoutManager { lm.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil); lm.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil) }

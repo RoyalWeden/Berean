@@ -75,8 +75,21 @@ struct SettingsView: View {
     }
 
     private var notesSection: some View {
-        Section {
+        @Bindable var app = app
+        return Section {
+            Toggle("Detect Scripture References", isOn: $app.noteVerseRefsEnabled)
+            Toggle("Check Spelling", isOn: $app.noteSpellCheck)
             Toggle("Typing -- makes an em dash (—)", isOn: $autoEmDash)
+            Picker("Default Status for New Notes", selection: $app.defaultNoteStatus) {
+                Text("No Status").tag("none")
+                ForEach(NotesHomeView.statuses, id: \.id) { status in
+                    Text(status.label).tag(status.id)
+                }
+                if app.defaultNoteStatus != "none",
+                   !NotesHomeView.statuses.contains(where: { $0.id == app.defaultNoteStatus }) {
+                    Text(app.defaultNoteStatus).tag(app.defaultNoteStatus)
+                }
+            }
         } header: { Text("Notes") }
     }
 

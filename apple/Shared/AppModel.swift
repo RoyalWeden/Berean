@@ -173,6 +173,9 @@ final class AppModel {
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
     /// The existing apps' `scriptureFontFamily` setting ('system' = the platform UI font).
     var scriptureFontFamily = "system" { didSet { saveSetting("scriptureFontFamily", .string(JSString(scriptureFontFamily))) } }
+    var noteVerseRefsEnabled = true { didSet { saveSetting("noteVerseRefsEnabled", .bool(noteVerseRefsEnabled)) } }
+    var noteSpellCheck = true { didSet { saveSetting("noteSpellCheck", .bool(noteSpellCheck)) } }
+    var defaultNoteStatus = "none" { didSet { saveSetting("defaultNoteStatus", .string(JSString(defaultNoteStatus))) } }
     private var loadingSettings = false
 
     private var database: UserDatabase?
@@ -253,6 +256,9 @@ final class AppModel {
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["theme"]?.stringValue?.string { theme = v }
         if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
+        if let v = all["noteVerseRefsEnabled"]?.boolValue { noteVerseRefsEnabled = v }
+        if let v = all["noteSpellCheck"]?.boolValue { noteSpellCheck = v }
+        if let v = all["defaultNoteStatus"]?.stringValue?.string, !v.isEmpty { defaultNoteStatus = v }
         loadingSettings = false
     }
 

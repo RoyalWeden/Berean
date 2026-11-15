@@ -1056,3 +1056,8 @@
 
 - Format → Highlight offers six colors on both native apps. The editor renders existing legacy colors and preserves Markdown compatibility.
 - Both Dev builds passed. Mac scratch QA applied Blue to selected text and verified its markup. The 17 focused Swift selection checks and the full package suite (128 Swift tests and 4 XCTest tests) passed. iPhone interaction remains open.
+
+### 2026-11-15 — I19 — Notes preferences
+
+- Mac and iPhone Notes settings support Scripture reference detection, spell check, and the default status for new notes. The native editor applies the writing settings in place.
+- Full native check passed. Mac scratch QA exercised the controls and confirmed a newly created note inherited In Progress. Updated the migration audit and handoff.

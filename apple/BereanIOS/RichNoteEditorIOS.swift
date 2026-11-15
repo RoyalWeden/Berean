@@ -8,6 +8,8 @@ import BereanReference
 struct RichNoteEditorIOS: UIViewRepresentable {
     @Binding var text: String
     var fontSize: CGFloat = 17
+    var detectVerseReferences = true
+    var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
     var onLink: (URL) -> Void = { _ in }
 
@@ -32,6 +34,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         tv.smartQuotesType = .no
         tv.smartDashesType = .no
         tv.adjustsFontForContentSizeCategory = true
+        tv.spellCheckingType = spellCheck ? .yes : .no
         tv.text = text
         tv.accessibilityLabel = "Note text"
         context.coordinator.textView = tv
@@ -42,6 +45,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
 
     func updateUIView(_ tv: NoteUITextView, context: Context) {
         let coordinator = context.coordinator
+        let referenceSettingChanged = coordinator.parent.detectVerseReferences != detectVerseReferences
+        let spellingSettingChanged = coordinator.parent.spellCheck != spellCheck
         let previousRequest = coordinator.parent.formatRequest
         coordinator.parent = self
         if let request = formatRequest, request != previousRequest {
@@ -62,9 +67,10 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 tv.becomeFirstResponder()
             }
         }
-        guard tv.text != text, !context.coordinator.editing else { return }
-        tv.text = text
-        context.coordinator.restyle()
+        if spellingSettingChanged { tv.spellCheckingType = spellCheck ? .yes : .no }
+        let contentChanged = tv.text != text && !coordinator.editing
+        if contentChanged { tv.text = text }
+        if contentChanged || referenceSettingChanged { coordinator.restyle() }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate, @preconcurrency NSLayoutManagerDelegate {
@@ -200,9 +206,11 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             }
             // Scripture references written as plain text link to the passage (original note auto-linking; same
             // berean-note: route the editor already resolves as a passage first).
-            for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
-                guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
-                storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
+            if parent.detectVerseReferences {
+                for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
+                    guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
+                    storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
+                }
             }
             storage.endEditing()
             tv.layoutManager.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil)

@@ -511,10 +511,10 @@ struct NoteDetailView: View {
                         }
                     }
                     #if os(macOS)
-                    RichNoteEditor(text: $content, fontSize: 15, formatRequest: formatRequest) { url in openLink(url) }
+                    RichNoteEditor(text: $content, fontSize: 15, detectVerseReferences: app.noteVerseRefsEnabled, spellCheck: app.noteSpellCheck, formatRequest: formatRequest) { url in openLink(url) }
                         .focused($focus, equals: .body)
                     #else
-                    RichNoteEditorIOS(text: $content, formatRequest: formatRequest) { url in openLink(url) }
+                    RichNoteEditorIOS(text: $content, detectVerseReferences: app.noteVerseRefsEnabled, spellCheck: app.noteSpellCheck, formatRequest: formatRequest) { url in openLink(url) }
                         .focused($focus, equals: .body)
                     #endif
                 }
