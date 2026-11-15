@@ -1242,7 +1242,8 @@ enum NoteAutoEmDash {
         let line = text.lineRange(for: NSRange(location: range.location - 1, length: 0))
         let before = text.substring(with: NSRange(location: line.location, length: range.location - line.location))
         if before.filter({ $0 == "`" }).count % 2 == 1 { return nil }
-        if before.trimmingCharacters(in: .whitespaces) == "-" && range.location - line.location <= 3 { return nil }
+        // Dashes that start the line stay as typed so "---" can still make a divider (original: never fire at line start).
+        if before.allSatisfy({ $0 == "-" || $0 == " " }) { return nil }
         return NSRange(location: range.location - 1, length: 1)
     }
 }
