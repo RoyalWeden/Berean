@@ -83,6 +83,35 @@ public enum ChapterMap {
         return nil
     }
 
+    /// Verified verse runs across chapter boundaries in the bundled KJV and Brenton editions.
+    public static func verseCounterpart(_ bookId: String, chapter: Int, verse: Int, from: String, to: String)
+        -> (chapter: Int, verse: Int)? {
+        let forward = isKjv(from) && isLxx(to)
+        guard forward || (isLxx(from) && isKjv(to)) else { return nil }
+        let runs: [(kjvChapter: Int, kjvVerses: ClosedRange<Int>, lxxChapter: Int, lxxFirstVerse: Int)]
+        switch bookId.uppercased() {
+        case "JON": return jonahCounterpart(chapter: chapter, verse: verse, from: from, to: to)
+        case "PSA":
+            runs = [(9, 1...20, 9, 2), (10, 1...18, 9, 22),
+                    (114, 1...8, 113, 1), (115, 1...18, 113, 9),
+                    (116, 1...9, 114, 1), (116, 10...19, 115, 1),
+                    (147, 1...11, 146, 1), (147, 12...20, 147, 1)]
+        case "JOL": runs = [(2, 28...32, 3, 1)]
+        case "MAL": runs = [(4, 1...3, 3, 19), (4, 4...4, 3, 24), (4, 5...6, 3, 22)]
+        default: return nil
+        }
+        for run in runs {
+            if forward, chapter == run.kjvChapter, run.kjvVerses.contains(verse) {
+                return (run.lxxChapter, run.lxxFirstVerse + verse - run.kjvVerses.lowerBound)
+            }
+            let lxxLastVerse = run.lxxFirstVerse + run.kjvVerses.count - 1
+            if !forward, chapter == run.lxxChapter, (run.lxxFirstVerse...lxxLastVerse).contains(verse) {
+                return (run.kjvChapter, run.kjvVerses.lowerBound + verse - run.lxxFirstVerse)
+            }
+        }
+        return nil
+    }
+
     /// `versificationNote` — the explanatory note for an LXX chapter whose numbering differs.
     public static func versificationNote(_ bookId: String, _ chapter: Int, textId: String) -> String? {
         let book = bookId.uppercased()

@@ -101,8 +101,9 @@ extension AppModel {
         var target = fallback
         if let previous = position?.returnEdition, previous.book == fallback.book, previous.text == fallback.text {
             target = previous
-        } else if source.book == "JON", let verse = position?.verse,
-                  let mapped = ChapterMap.jonahCounterpart(chapter: source.chapter, verse: verse, from: source.text, to: fallback.text) {
+        } else if let verse = position?.verse,
+                  let mapped = ChapterMap.verseCounterpart(source.book, chapter: source.chapter, verse: verse,
+                                                           from: source.text, to: fallback.text) {
             target = ChapterEdition(book: fallback.book, chapter: mapped.chapter, text: fallback.text)
         }
         if let position { scriptureReadingPositions[tabId, default: [:]][source.key] = position }
@@ -127,8 +128,8 @@ extension AppModel {
                 return original
             }
             var verse = saved.verse
-            if edition.book == "JON", let number = verse,
-               let mapped = ChapterMap.jonahCounterpart(chapter: transition.source.chapter, verse: number,
+            if let number = verse,
+               let mapped = ChapterMap.verseCounterpart(edition.book, chapter: transition.source.chapter, verse: number,
                                                         from: transition.source.text, to: edition.text) {
                 verse = mapped.chapter == edition.chapter ? mapped.verse : nil
             }
@@ -1317,7 +1318,10 @@ struct ScriptureView: View {
     private func flipEdition(_ state: BibleState, to target: ChapterEdition) {
         let source = ChapterEdition(state)
         if target.counterpart == source { alternateEdition = source }
-        let preferred = source.book == "JON" && selection.count == 1 ? selection.first : nil
+        let preferred = selection.count == 1 ? selection.first.flatMap { verse in
+            ChapterMap.verseCounterpart(source.book, chapter: source.chapter, verse: verse,
+                                        from: source.text, to: target.text) == nil ? nil : verse
+        } : nil
         app.switchChapterEdition(in: tabId, from: source, to: target, position: positionReader.capture(preferred))
     }
 

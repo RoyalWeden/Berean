@@ -9,6 +9,23 @@ func optStr(_ s: String?) -> JSValue { s.map { .string(JSString($0)) } ?? .null 
 extension CrossRef {
     var json: JSValue { var o = JSObject(); o["bookId"] = js(bookId); o["chapter"] = .number(Double(chapter)); o["verse"] = .number(Double(verse)); o["endVerse"] = optInt(endVerse); o["votes"] = .number(Double(votes)); o["text"] = js(text); return .object(o) }
 }
+
+@Test func splitChapterVerseCounterparts() {
+    let cases = [("PSA", 9, 1, 9, 2), ("PSA", 9, 20, 9, 21), ("PSA", 10, 1, 9, 22),
+                 ("PSA", 10, 18, 9, 39), ("PSA", 114, 8, 113, 8), ("PSA", 115, 1, 113, 9),
+                 ("PSA", 116, 9, 114, 9), ("PSA", 116, 10, 115, 1), ("PSA", 147, 11, 146, 11),
+                 ("PSA", 147, 12, 147, 1), ("JOL", 2, 28, 3, 1), ("JOL", 2, 32, 3, 5),
+                 ("MAL", 4, 1, 3, 19), ("MAL", 4, 4, 3, 24), ("MAL", 4, 5, 3, 22),
+                 ("MAL", 4, 6, 3, 23), ("JON", 1, 17, 2, 1)]
+    for (book, kjvChapter, kjvVerse, lxxChapter, lxxVerse) in cases {
+        let lxx = ChapterMap.verseCounterpart(book, chapter: kjvChapter, verse: kjvVerse, from: "kjva", to: "lxx")
+        #expect(lxx?.chapter == lxxChapter && lxx?.verse == lxxVerse)
+        let kjv = ChapterMap.verseCounterpart(book, chapter: lxxChapter, verse: lxxVerse, from: "lxx", to: "kjv")
+        #expect(kjv?.chapter == kjvChapter && kjv?.verse == kjvVerse)
+    }
+    #expect(ChapterMap.verseCounterpart("PSA", chapter: 9, verse: 1, from: "lxx", to: "kjv") == nil)
+    #expect(ChapterMap.verseCounterpart("PSA", chapter: 9, verse: 1, from: "enoch", to: "lxx") == nil)
+}
 extension TskeGroup {
     var json: JSValue {
         var o = JSObject(); o["heading"] = optStr(heading); o["isReciprocal"] = .bool(isReciprocal)
