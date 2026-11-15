@@ -1018,3 +1018,4 @@ Still open, best next picks: I4 rest (Undo/Redo, Print/PDF), I16 whole-book find
 I20 tab-type switcher, D10 search tag filter, D14 two-slot inspector, D20/D21 continuous scroll, I24 platform integrations (App Intents,
 Spotlight, widget, Share Extension — needs entitlements; gated for production), I15 themes.
 - **01:20 I4 Note Details menu:** editor toolbar ⓘ → Status picker, Folder, word/character count, edited time (both platforms). Mac verified: status set to in-progress on the Dev note "Insert menu QA" (left set).
+- **01:22 iPhone Undo/Redo** in the note format bar (UITextView undoManager); simulator verified typed text undone.

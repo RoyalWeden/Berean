@@ -86,6 +86,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             }
             let flex = UIBarButtonItem.flexibleSpace()
             bar.items = [
+                item("arrow.uturn.backward", "Undo") { $0.undoManager?.undo() }, flex,
+                item("arrow.uturn.forward", "Redo") { $0.undoManager?.redo() }, flex,
                 item("bold", "Bold") { $0.wrap("**", "**") }, flex,
                 item("italic", "Italic") { $0.wrap("*", "*") }, flex,
                 item("highlighter", "Highlight") { $0.wrap("==", "==") }, flex,
