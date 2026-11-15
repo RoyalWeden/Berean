@@ -470,6 +470,7 @@ struct TabCardsSheet: View {
                 }
             }
             Button("Archive Tab", systemImage: "archivebox") { app.archive([tab.id]) }
+            Button("Close Other Tabs", systemImage: "xmark.square") { app.closeOthers(tab.id) }
             Button("Close Tab", systemImage: "xmark", role: .destructive) { app.close(tab.id) }
     }
 }

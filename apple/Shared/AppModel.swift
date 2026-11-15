@@ -462,6 +462,12 @@ final class AppModel {
         if activeTab?.id != old.id { close(old.id) }
     }
 
+    /// Closes every unpinned tab in the current workspace except `tabId` (pinned tabs stay, as in the original).
+    func closeOthers(_ tabId: String) {
+        for t in orderedTabs where t.id != tabId && !t.isPinned { close(t.id) }
+        if let keep = findTab(tabId) { select(keep.id, in: keep.spaceId) }
+    }
+
     func close(_ tabId: String) {
         studyVerseFocus.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).

@@ -316,6 +316,7 @@ struct BereanSidebar: View {
 
     @ViewBuilder func tabMenu(_ tab: BereanWorkspace.Tab) -> some View {
         Button("Duplicate Tab") { app.duplicate(tab.id) }
+        Button("Close Other Tabs") { app.closeOthers(tab.id) }
         Menu("Change Tab To") {
             ForEach(AppModel.TabKind.allCases, id: \.self) { kind in Button(kind.rawValue) { app.switchTab(tab.id, to: kind) } }
         }

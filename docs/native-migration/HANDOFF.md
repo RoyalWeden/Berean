@@ -1041,3 +1041,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 - **01:15 full native:check at `b4ba2f6c`:** 117 tests / 43 suites pass; Mac + iOS Dev builds pass.
 - **01:18 I6 sort:** tab grid Filter menu → Sort: Custom Order / Recently Used (`tabCardsSort`, uses `recentTabIDs`). Simulator verified; set back to Custom.
 - **01:24 Note Print… (Share menu, both platforms).** Mac needed `ENABLE_RESOURCE_ACCESS_PRINTING = YES` in `apple/Config/BereanMac.xcconfig` (sandbox printing entitlement; Dev config only — production entitlements untouched). Print panel showed the note preview; cancelled. macOS then asked to allow local-network printer discovery — answered **Don't Allow** (Michael can allow it later in System Settings › Privacy › Local Network).
+- **01:28 Close Other Tabs** (Mac sidebar tab menu, iPhone tab card/row menu; keeps pinned tabs). Mac verified in a throwaway Workspace 7 (3 tabs → 1), then deleted that workspace; Study untouched.
