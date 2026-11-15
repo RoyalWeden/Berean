@@ -1,14 +1,41 @@
 import SwiftUI
+import UIKit
 import BereanCore
 import BereanWorkspace
 import BereanReference
 import BereanText
+
+private struct HistoryEdgeSwipe: UIGestureRecognizerRepresentable {
+    let enabled: Bool
+    let edge: UIRectEdge
+    let action: () -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UIScreenEdgePanGestureRecognizer {
+        let recognizer = UIScreenEdgePanGestureRecognizer()
+        updateUIGestureRecognizer(recognizer, context: context)
+        return recognizer
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: UIScreenEdgePanGestureRecognizer, context: Context) {
+        recognizer.edges = edge
+        recognizer.isEnabled = enabled
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UIScreenEdgePanGestureRecognizer, context: Context) {
+        guard enabled, recognizer.state == .ended else { return }
+        let translation = recognizer.translation(in: recognizer.view)
+        let inwardDistance = edge == .right ? -translation.x : translation.x
+        guard inwardDistance >= 44, inwardDistance >= abs(translation.y) * 1.5 else { return }
+        action()
+    }
+}
 
 /// The native iPhone shell, following the existing iPhone navigation (docs/mobile/mobile-navigation.md):
 /// bottom-left tabs, bottom-centre Go (reference / Strong's / search), bottom-right More with the
 /// current tab's commands. Content views are shared with the Mac app.
 struct IOSRootView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var showTabs = false
     @State private var showGo = false
     @State private var explicitNewTab = false
@@ -32,6 +59,11 @@ struct IOSRootView: View {
         @Bindable var app = app
         NavigationStack {
             content
+                .gesture(HistoryEdgeSwipe(
+                    enabled: app.canGoBack && !keyboardUp,
+                    edge: layoutDirection == .rightToLeft ? .right : .left,
+                    action: goBackFromEdge
+                ))
                 .safeAreaInset(edge: .bottom, spacing: 0) { if !keyboardUp { bottomBar } }
                 // The dock steps aside while typing (the note editor's format bar docks above the keyboard).
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
@@ -94,6 +126,14 @@ struct IOSRootView: View {
         }
         .sheet(isPresented: $showGo) { GoSheet(newTab: explicitNewTab, close: { showGo = false }).presentationDetents([.large]) }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
+    }
+
+    private func goBackFromEdge() {
+        guard app.canGoBack, !keyboardUp else { return }
+        withAnimation(.snappy) { app.goBack() }
+        if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
     }
 
     private func openGo(newTab: Bool = false) {

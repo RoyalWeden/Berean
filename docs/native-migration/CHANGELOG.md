@@ -1106,3 +1106,8 @@
 
 - Submitting an advanced search captures its filters and presentation for History replay. The legacy query and history table remain compatible.
 - Both Dev builds and all 133 tests passed. Mac scratch QA verified replay after closing a tagged search, Back to History, and replay of an older plain query.
+
+### 2026-11-15 — I7 — iPhone leading-edge history gesture
+
+- Added a native inward swipe that traverses available tab history. Tabs remain open when there is no Back destination.
+- iPhone Dev built and launched. Device Hub verified opening a search result; the edge swipe itself remains unverified.
