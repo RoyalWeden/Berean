@@ -118,6 +118,18 @@ struct CompareView: View {
     }
     @State private var rows: [Int: [Int: ChapterVerseRow]] = [:]
     @State private var independentRows: [Int: [ChapterVerseRow]] = [:]
+
+    private struct ColumnBook: Hashable {
+        let book: String
+        let edition: String
+
+        init(_ column: CompareColumn) {
+            book = column.book
+            edition = column.text
+        }
+    }
+
+    @State private var chapterNumbers: [ColumnBook: [Int]] = [:]
     private struct EditionChapter: Hashable {
         let text: String
         let book: String
@@ -198,6 +210,17 @@ struct CompareView: View {
             } else {
                 alignedComparison(st, cols)
             }
+        }
+        .task(id: Set(cols.map(ColumnBook.init))) {
+            let books = Set(cols.map(ColumnBook.init))
+            var numbers = chapterNumbers.filter { books.contains($0.key) }
+            for book in books where numbers[book] == nil {
+                let installed = await app.bible.chapterNumbers(book.book, textId: book.edition)
+                guard !Task.isCancelled else { return }
+                numbers[book] = installed
+            }
+            guard !Task.isCancelled else { return }
+            chapterNumbers = numbers
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
         .onChange(of: passage) {
@@ -953,7 +976,9 @@ struct CompareView: View {
             }
             // Per-column chapter stepping (original CompareView column ‹ ›); only this column moves.
             Button { stepColumn(column, by: -1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
+                .disabled(adjacentChapter(to: column, by: -1) == nil)
             Button { stepColumn(column, by: 1) } label: { Label("Next Chapter", systemImage: "chevron.forward") }
+                .disabled(adjacentChapter(to: column, by: 1) == nil)
             Divider()
             Button("Move Earlier", systemImage: "arrow.backward") { moveColumn(column, by: -1) }
                 .disabled(columns.first?.id == column.id)
@@ -1095,17 +1120,21 @@ struct CompareView: View {
         setColumns(columns.map { $0.id == column.id ? updated : $0 })
     }
 
+    private func adjacentChapter(to column: CompareColumn, by delta: Int) -> Int? {
+        guard let numbers = chapterNumbers[ColumnBook(column)],
+              let index = numbers.firstIndex(of: column.chapter),
+              numbers.indices.contains(index + delta) else { return nil }
+        return numbers[index + delta]
+    }
+
     private func stepColumn(_ column: CompareColumn, by delta: Int) {
-        Task {
-            let chapters = await app.bible.chapterNumbers(column.book, textId: column.text)
-            guard !Task.isCancelled, app.activeTab?.id == tabId,
-                  columns.contains(where: { $0.id == column.id && $0.destinationKey == column.destinationKey }),
-                  let i = chapters.firstIndex(of: column.chapter), chapters.indices.contains(i + delta) else { return }
-            changePassage(for: column.id, text: column.text, book: column.book, chapter: chapters[i + delta])
-            #if os(iOS)
-            readerNavigationFeedback()
-            #endif
-        }
+        guard app.activeTab?.id == tabId,
+              let current = columns.first(where: { $0.id == column.id && ColumnBook($0) == ColumnBook(column) }),
+              let destination = adjacentChapter(to: current, by: delta) else { return }
+        changePassage(for: current.id, text: current.text, book: current.book, chapter: destination)
+        #if os(iOS)
+        readerNavigationFeedback()
+        #endif
     }
 
     private func changePassage(for id: Int, text: String, book: String, chapter: Int) {

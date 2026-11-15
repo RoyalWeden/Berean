@@ -1115,3 +1115,7 @@
 ### 2026-11-15 — I12 — iPhone reader navigation feedback
 
 - Chapter changes, edition flips and Compare column steps now observe the shared haptics preference. Both Dev builds passed and Simulator taps verified chapter and edition navigation.
+
+### 2026-11-15 — Compare column chapter controls
+
+- Mac and iPhone Compare chapter actions now use the installed chapters and disable unavailable directions. Both Dev builds passed, and Mac QA verified the independent LXX chapter round trip.
