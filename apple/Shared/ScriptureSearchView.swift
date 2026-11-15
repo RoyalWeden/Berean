@@ -3,6 +3,7 @@ import BereanCore
 import BereanBible
 import BereanText
 import BereanReference
+import BereanNotes
 
 struct ScriptureSearchRequest: Hashable {
     let query: String
@@ -12,12 +13,31 @@ struct ScriptureSearchRequest: Hashable {
     let replacer: Bool
 }
 
+private struct ScriptureTagSelection: Hashable {
+    let ids: [String]
+    let all: Bool
+}
+
+private struct ScriptureTagMembership {
+    struct Chapter: Hashable { let book: String; let number: Int }
+    struct Verse: Hashable { let chapter: Chapter; let number: Int }
+
+    var chapters: Set<Chapter> = []
+    var verses: Set<Verse> = []
+
+    func contains(_ chapter: Chapter, verse: Int?) -> Bool {
+        chapters.contains(chapter) || verse.map { verses.contains(Verse(chapter: chapter, number: $0)) } == true
+    }
+}
+
 struct ScriptureSearchScrollContext: Hashable {
     let request: ScriptureSearchRequest
     let testament: String
     let edition: String?
     let sort: String
     let grouping: String
+    let tagIDs: [String]
+    let matchAllTags: Bool
 }
 
 /// The Search tab: one field, an obvious scope (All Texts by default — every installed text), readable results.
@@ -46,6 +66,40 @@ struct ScriptureSearchView: View {
     @FocusState private var fieldFocused: Bool
 
     @State private var completedRequest: ScriptureSearchRequest?
+
+    @State private var verseTags: [VerseTagSummary] = []
+    @State private var loadedTagIDs: [String] = []
+    @State private var tagMembership: [String: ScriptureTagMembership] = [:]
+
+    private var tagSelection: ScriptureTagSelection {
+        ScriptureTagSelection(
+            ids: state["tagFilter"]?.stringValue?.string.split(separator: ",").map(String.init) ?? [],
+            all: state["tagFilterAll"]?.boolValue == true
+        )
+    }
+
+    private func matchesTags(book: String, chapter: Int, verse: Int?, filter: ScriptureTagSelection) -> Bool {
+        guard !filter.ids.isEmpty else { return true }
+        guard loadedTagIDs == filter.ids else { return false }
+        let key = ScriptureTagMembership.Chapter(book: book, number: chapter)
+        func matches(_ id: String) -> Bool { tagMembership[id]?.contains(key, verse: verse) == true }
+        return filter.all ? filter.ids.allSatisfy(matches) : filter.ids.contains(where: matches)
+    }
+
+    private func refreshTags() {
+        let ids = tagSelection.ids
+        verseTags = (try? app.verseTags?.list()) ?? []
+        let tagMembers = ids.isEmpty ? [] : ((try? app.verseTags?.members(ids)) ?? [])
+        var membership: [String: ScriptureTagMembership] = [:]
+        for member in tagMembers {
+            membership[member.tagId, default: .init()].chapters.formUnion(
+                member.wholeChapters.map { .init(book: $0.bookId, number: $0.chapter) })
+            membership[member.tagId, default: .init()].verses.formUnion(
+                member.verses.map { .init(chapter: .init(book: $0.bookId, number: $0.chapter), number: $0.verse) })
+        }
+        tagMembership = membership
+        loadedTagIDs = ids
+    }
 
     private var request: ScriptureSearchRequest {
         ScriptureSearchRequest(query: query, texts: targets, mode: mode, books: bookFilter,
@@ -91,7 +145,15 @@ struct ScriptureSearchView: View {
             header
             Divider()
             SwiftUI.Group {
-                if query.isEmpty { historyView } else if let target = crossRefTarget { crossRefMode(target) } else { resultsView }
+                if let target = crossRefTarget {
+                    crossRefMode(target)
+                } else if query.utf16.count < 2, !tagSelection.ids.isEmpty {
+                    taggedResults
+                } else if query.isEmpty {
+                    historyView
+                } else {
+                    resultsView
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -99,6 +161,8 @@ struct ScriptureSearchView: View {
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
         .onChange(of: query) { _, newQuery in field = newQuery }
         .task(id: request) { [request] in await runSearch(request) }
+        .task(id: tagSelection.ids) { refreshTags() }
+        .onChange(of: app.tagsRevision) { refreshTags() }
     }
 
     // MARK: header — field, scope, options
@@ -147,12 +211,12 @@ struct ScriptureSearchView: View {
                         #endif
                 }
             }
-            if !query.isEmpty { summaryRow }
+            if !query.isEmpty, query.utf16.count >= 2 { summaryRow }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
-    var hasActiveOptions: Bool { mode != .all || testament != "all" || !bookFilter.isEmpty }
+    var hasActiveOptions: Bool { mode != .all || testament != "all" || !bookFilter.isEmpty || !tagSelection.ids.isEmpty }
 
     var scopeMenu: some View {
         Menu {
@@ -215,6 +279,33 @@ struct ScriptureSearchView: View {
             }.labelsHidden().clickableCursor()
             Text("Books").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             BookFilterField(selected: bookFilter) { ids in set("bookIds", ids.isEmpty ? nil : .array(ids.map { .string(JSString($0)) })) }
+            Text("Verse Tags").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Menu {
+                ForEach(verseTags) { tag in
+                    Button {
+                        var ids = tagSelection.ids
+                        if ids.contains(tag.id) { ids.removeAll { $0 == tag.id } } else { ids.append(tag.id) }
+                        setTagIDs(ids)
+                    } label: {
+                        check(tagSelection.ids.contains(tag.id), tag.name)
+                    }
+                }
+                if !tagSelection.ids.isEmpty {
+                    Button("Clear Tags") { setTagIDs([]) }
+                }
+            } label: {
+                let selected = verseTags.filter { tagSelection.ids.contains($0.id) }
+                Label(selected.isEmpty ? "Choose Tags" : selected.map(\.name).joined(separator: ", "), systemImage: "tag")
+                    .lineLimit(1)
+            }
+            .disabled(verseTags.isEmpty && tagSelection.ids.isEmpty)
+            .clickableCursor()
+            if tagSelection.ids.count > 1 {
+                Picker("Match Tags", selection: Binding(get: { tagSelection.all }, set: { set("tagFilterAll", $0 ? .bool(true) : nil) })) {
+                    Text("Any selected tag").tag(false)
+                    Text("All selected tags").tag(true)
+                }.pickerStyle(.segmented).labelsHidden().clickableCursor()
+            }
             Text("Results").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Order", selection: Binding(get: { sort }, set: { set("sort", .string(JSString($0))) })) {
                 Text("Scripture order").tag("bookOrder"); Text("Best match first").tag("relevance")
@@ -227,7 +318,62 @@ struct ScriptureSearchView: View {
                 Text("Verse only").tag(0); Text("±1 verse").tag(1); Text("±2 verses").tag(2)
             }.pickerStyle(.segmented).labelsHidden().clickableCursor()
             if hasActiveOptions {
-                Button("Reset Options") { set("wordMode", nil); set("testament", nil); set("bookIds", nil) }
+                Button("Reset Options", action: resetOptions)
+            }
+        }
+    }
+
+    private func setTagIDs(_ ids: [String]) {
+        app.update(tabId, recordHistory: false) { tab in
+            tab.state["tagFilter"] = ids.isEmpty ? nil : .string(JSString(ids.joined(separator: ",")))
+            if ids.isEmpty { tab.state.remove("tagFilterAll") }
+        }
+    }
+
+    private func resetOptions() {
+        app.update(tabId, recordHistory: false) { tab in
+            for key in ["wordMode", "testament", "bookIds", "tagFilter", "tagFilterAll"] {
+                tab.state.remove(JSString(key))
+            }
+        }
+    }
+
+    private var taggedResults: some View {
+        let filter = tagSelection
+        let editions = focusText.map { [$0] } ?? targets
+        let preferredEditions = editions.contains(app.defaultText)
+            ? [app.defaultText] + editions.filter { $0 != app.defaultText } : editions
+        let allowedBooks = Set(bookFilter)
+        let catalog = Dictionary(grouping: app.bookCatalog.filter {
+            (testament == "all" || $0.book.testament == testament)
+                && (allowedBooks.isEmpty || allowedBooks.contains($0.book.id))
+        }, by: { $0.book.id })
+        let chapters = Set(tagMembership.values.flatMap(\.chapters).filter {
+            matchesTags(book: $0.book, chapter: $0.number, verse: nil, filter: filter)
+        })
+        let verses = Set(tagMembership.values.flatMap(\.verses).filter {
+            !chapters.contains($0.chapter) && matchesTags(book: $0.chapter.book, chapter: $0.chapter.number, verse: $0.number, filter: filter)
+        })
+        let rows = (chapters.map { ($0, nil as Int?) } + verses.map { ($0.chapter, Optional($0.number)) }).sorted {
+            (Reference.bookOrder($0.0.book), $0.0.book, $0.0.number, $0.1 ?? 0)
+                < (Reference.bookOrder($1.0.book), $1.0.book, $1.0.number, $1.1 ?? 0)
+        }
+        let passages: [ResolvedPassage] = rows.compactMap { chapter, verse in
+            let installed = Set(catalog[chapter.book, default: []].map(\.textId))
+            guard let edition = preferredEditions.first(where: { installed.contains($0) }) else { return nil }
+            return ResolvedPassage(textId: edition, bookId: chapter.book, chapter: chapter.number, verse: verse)
+        }
+        return List {
+            if loadedTagIDs != filter.ids {
+                ProgressView()
+            } else if passages.isEmpty {
+                ContentUnavailableView("No tagged passages", systemImage: "tag")
+            }
+            ForEach(Array(passages.enumerated()), id: \.offset) { _, passage in
+                Button { app.visitScripture(passage, returningTo: tabId) } label: {
+                    Label(passage.label, systemImage: passage.verse == nil ? "book" : "text.quote")
+                }
+                .buttonStyle(.interactivePlain)
             }
         }
     }
@@ -286,9 +432,13 @@ struct ScriptureSearchView: View {
 
     var testamentFiltered: [ScriptureHit] {
         guard completedRequest == request else { return [] }
-        guard testament != "all" else { return result.hits }
+        let filter = tagSelection
+        let tagged = filter.ids.isEmpty ? result.hits : result.hits.filter {
+            matchesTags(book: $0.bookId, chapter: $0.chapter, verse: $0.verseNum, filter: filter)
+        }
+        guard testament != "all" else { return tagged }
         let ids = Set(app.bookCatalog.filter { $0.book.testament == testament }.map { "\($0.textId)|\($0.book.id)" })
-        return result.hits.filter { ids.contains("\($0.textId)|\($0.bookId)") }
+        return tagged.filter { ids.contains("\($0.textId)|\($0.bookId)") }
     }
 
     var shown: [ScriptureHit] {
@@ -350,7 +500,7 @@ struct ScriptureSearchView: View {
         .scrollIndicators(.never)
     }
 
-    private var searchPending: Bool { loading || completedRequest != request }
+    private var searchPending: Bool { loading || completedRequest != request || loadedTagIDs != tagSelection.ids }
 
     @ViewBuilder private func crossRefMode(_ target: ResolvedPassage) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -382,7 +532,7 @@ struct ScriptureSearchView: View {
             } actions: {
                 if focusText != nil { Button("Clear Edition Filter") { set("nativeSearchFocusText", nil) } }
                 if scope != nil { Button("Search All Texts") { set("scopeTexts", nil) } }
-                if hasActiveOptions { Button("Reset Options") { set("wordMode", nil); set("testament", nil); set("bookIds", nil) } }
+                if hasActiveOptions { Button("Reset Options", action: resetOptions) }
             }
         } else {
             ScrollViewReader { proxy in
@@ -479,7 +629,7 @@ struct ScriptureSearchView: View {
 
     private var scrollContext: ScriptureSearchScrollContext {
         ScriptureSearchScrollContext(request: request, testament: testament, edition: focusText,
-                                     sort: sort, grouping: grouping)
+                                     sort: sort, grouping: grouping, tagIDs: tagSelection.ids, matchAllTags: tagSelection.all)
     }
 
     private var restorationContext: ScriptureSearchScrollContext? {
