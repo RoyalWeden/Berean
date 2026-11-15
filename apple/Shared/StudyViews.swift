@@ -28,7 +28,10 @@ struct LexiconEntryView: View {
     /// ⌘F find inside the entry (original LexiconPanel find bar); highlights matches in the entry's prose.
     @State private var findShown = false
     @State private var findSection = 0
-    private enum FindSection: Hashable { case headword, gloss, definition, derivation, extended }
+    private enum FindSection: Hashable {
+        case headword, gloss, definition, derivation, extended
+        case related(String), occurrence(OccurrenceKey)
+    }
     @State private var findQuery = ""
     @FocusState private var findFocused: Bool
     @State private var selectedRenderings: Set<String> = []
@@ -101,7 +104,7 @@ struct LexiconEntryView: View {
         return out
     }
 
-    private func findMatches(_ e: LexiconEntry) -> (sections: [FindSection], count: Int) {
+    private func findMatches(_ e: LexiconEntry, visibleRows: [IndexedOccurrence]) -> (sections: [FindSection], count: Int) {
         let query = findQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard findShown, query.count >= 2 else { return ([], 0) }
         let pronunciation = [e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -110,10 +113,19 @@ struct LexiconEntryView: View {
             case .text(let text), .number(let text), .abbr(let text, _): text
             }
         }.joined() : replaced(e.extendedDef)
-        let fields: [(FindSection, String)] = [
+        var fields: [(FindSection, String)] = [
             (.headword, e.lemma), (.headword, pronunciation), (.gloss, displayGloss(e)),
             (.definition, replaced(e.definition)), (.derivation, replaced(e.derivation)), (.extended, extended)
         ]
+        for row in related {
+            fields += [row.strongsNum, row.lemma, row.gloss].map { (.related(row.strongsNum), $0) }
+        }
+        for (_, occurrence, _, preview, key) in visibleRows {
+            let passage = ResolvedPassage(textId: occurrence.textId, bookId: occurrence.bookId,
+                                          chapter: occurrence.chapter, verse: occurrence.verseNum)
+            fields += [passage.label, textInfo(occurrence.textId).short, preview.words.joined(separator: " ")]
+                .map { (.occurrence(key), $0) }
+        }
         var sections: [FindSection] = []
         var count = 0
         for (section, text) in fields {
@@ -130,7 +142,15 @@ struct LexiconEntryView: View {
     private func moveFind(_ direction: Int, in sections: [FindSection], proxy: ScrollViewProxy) {
         guard !sections.isEmpty else { return }
         findSection = (min(findSection, sections.count - 1) + direction + sections.count) % sections.count
-        proxy.scrollTo(sections[findSection], anchor: .top)
+        scrollToFind(sections[findSection], proxy: proxy)
+    }
+
+    private func scrollToFind(_ section: FindSection, proxy: ScrollViewProxy) {
+        if case .occurrence(let key) = section {
+            proxy.scrollTo(key, anchor: .top)
+        } else {
+            proxy.scrollTo(section, anchor: .top)
+        }
     }
 
     private func bdbText(_ text: String) -> Text {
@@ -200,8 +220,15 @@ struct LexiconEntryView: View {
     }
 
     var body: some View {
-        let matches: (sections: [FindSection], count: Int) = (entry?.strongsNum == strongsId.uppercased() ? entry : nil).map(findMatches) ?? ([], 0)
+        let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
+        let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
+        let indexed = indexedOccurrences(scoped)
+        let occurrenceMatches = matchingOccurrences(indexed)
+        let visibleRows = Array(occurrenceMatches.prefix(visibleOccurrences))
+        let matches = (entry?.strongsNum == strongsId.uppercased() ? entry : nil)
+            .map { findMatches($0, visibleRows: visibleRows) } ?? (sections: [], count: 0)
         let sections = matches.sections
+        let matchingDestinations = Set(sections)
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -242,9 +269,10 @@ struct LexiconEntryView: View {
                                 ForEach(related, id: \.strongsNum) { r in
                                     Button { app.navigateLexicon(r.strongsNum, in: tabId) } label: {
                                         HStack(spacing: 8) {
-                                            Text(r.strongsNum).monospaced().foregroundStyle(Color.accentColor)
-                                            Text(r.lemma)
-                                            Text(r.gloss).foregroundStyle(.secondary).lineLimit(1)
+                                            Text(markFind(AttributedString(r.strongsNum))).monospaced().foregroundStyle(Color.accentColor)
+                                            Text(markFind(AttributedString(r.lemma)))
+                                            Text(markFind(AttributedString(r.gloss))).foregroundStyle(.secondary)
+                                                .lineLimit(matchingDestinations.contains(.related(r.strongsNum)) ? nil : 1)
                                             Spacer(minLength: 0)
                                             Image(systemName: "chevron.forward")
                                                 .font(.caption2.weight(.semibold))
@@ -255,6 +283,7 @@ struct LexiconEntryView: View {
                                         .contentShape(.rect)
                                     }.buttonStyle(.interactivePlain)
                                     .contextMenu { strongsMenu(r.strongsNum, gloss: r.gloss) }
+                                    .id(FindSection.related(r.strongsNum))
                                 }
                             }
                         }
@@ -264,16 +293,12 @@ struct LexiconEntryView: View {
                             } else if occurrences.isEmpty {
                                 Text("No occurrences found").foregroundStyle(.secondary)
                             }
-                            let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
-                            let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
-                            let indexed = indexedOccurrences(scoped)
                             let forms = indexed.reduce(into: [String: Int]()) { counts, row in
                                 for word in row.2 { counts[word, default: 0] += 1 }
                             }
-                            let matches = matchingOccurrences(indexed)
                             if !occurrences.isEmpty {
                                 HStack {
-                                    Text(matches.count == occurrences.count ? "All shown" : "\(matches.count) shown")
+                                    Text(occurrenceMatches.count == occurrences.count ? "All shown" : "\(occurrenceMatches.count) shown")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                     Spacer(minLength: 4)
@@ -305,7 +330,7 @@ struct LexiconEntryView: View {
                                 .buttonStyle(.interactivePlain)
                             }
                             LazyVStack(alignment: .leading, spacing: 8) {
-                                ForEach(Array(matches.prefix(visibleOccurrences)), id: \.4) { _, o, _, preview, key in
+                                ForEach(visibleRows, id: \.4) { _, o, _, preview, key in
                                     let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
                                     Button {
                                         if !compact {
@@ -316,9 +341,9 @@ struct LexiconEntryView: View {
                                     } label: {
                                         VStack(alignment: .leading, spacing: 2) {
                                             HStack {
-                                                Text(passage.label).font(.subheadline.weight(.semibold))
+                                                Text(markFind(AttributedString(passage.label))).font(.subheadline.weight(.semibold))
                                                     .foregroundStyle(Color.accentColor)
-                                                Text(textInfo(passage.textId).short)
+                                                Text(markFind(AttributedString(textInfo(passage.textId).short)))
                                                     .font(.caption).foregroundStyle(.secondary)
                                                 Spacer()
                                                 Image(systemName: "chevron.forward")
@@ -326,7 +351,8 @@ struct LexiconEntryView: View {
                                                     .foregroundStyle(.secondary)
                                                     .accessibilityHidden(true)
                                             }
-                                            Text(highlighted(preview)).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                                            Text(markFind(highlighted(preview))).font(.callout).foregroundStyle(.secondary)
+                                                .lineLimit(matchingDestinations.contains(.occurrence(key)) ? nil : 3)
                                         }
                                         .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
                                         .padding(.vertical, 4)
@@ -334,15 +360,15 @@ struct LexiconEntryView: View {
                                     }.buttonStyle(.interactivePlain).id(key)
                                 }
                             }
-                            if matches.count > visibleOccurrences {
+                            if occurrenceMatches.count > visibleOccurrences {
                                 HStack(spacing: 16) {
                                     Button("Show More Occurrences", systemImage: "chevron.down") {
                                         visibleOccurrences += 40
                                     }
-                                    Button("Show All \(matches.count)") { visibleOccurrences = matches.count }
+                                    Button("Show All \(occurrenceMatches.count)") { visibleOccurrences = occurrenceMatches.count }
                                 }
                                 .buttonStyle(.interactivePlain)
-                            } else if visibleOccurrences > 40, matches.count > 40 {
+                            } else if visibleOccurrences > 40, occurrenceMatches.count > 40 {
                                 Button("Show Fewer", systemImage: "chevron.up") { visibleOccurrences = 40 }
                                     .buttonStyle(.interactivePlain)
                             }
@@ -398,7 +424,7 @@ struct LexiconEntryView: View {
                             .onKeyPress(.escape) { findShown = false; findQuery = ""; return .handled }
                         if findQuery.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 {
                             Text(sections.count > 1
-                                 ? "\(min(findSection + 1, sections.count))/\(sections.count) sections"
+                                 ? "\(min(findSection + 1, sections.count))/\(sections.count) results"
                                  : matches.count == 1 ? "1 match" : "\(matches.count) matches")
                                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         }
@@ -415,9 +441,9 @@ struct LexiconEntryView: View {
                     .padding(.horizontal, 16).padding(.vertical, 6)
                 }
             }
-            .onChange(of: findQuery) {
+            .onChange(of: sections) { _, updated in
                 findSection = 0
-                if let first = sections.first { proxy.scrollTo(first, anchor: .top) }
+                if let first = updated.first { scrollToFind(first, proxy: proxy) }
             }
         }
         .toolbar {
