@@ -237,6 +237,14 @@ struct ChapterTextView: NSViewRepresentable {
         static let verseKey = NSAttributedString.Key("bereanVerse")       // Int on every character of a verse paragraph
         static let skipKey = NSAttributedString.Key("bereanSkip")         // gutter number, Strong's, chips: not copied as text
 
+        func textView(_ textView: NSTextView, willChangeSelectionFromCharacterRanges oldSelectedCharRanges: [NSValue],
+                      toCharacterRanges newSelectedCharRanges: [NSValue]) -> [NSValue] {
+            guard let storage = textView.textStorage else { return newSelectedCharRanges }
+            return newSelectedCharRanges.map {
+                NSValue(range: readerTextSelection($0.rangeValue, in: storage, excluding: Self.skipKey))
+            }
+        }
+
         func font(_ size: Double, italic: Bool = false) -> NSFont {
             let s = CGFloat(size)
             var f: NSFont

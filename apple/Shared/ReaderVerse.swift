@@ -1,5 +1,24 @@
 import Foundation
 
+/// Keeps the native selection endpoints on readable text while preserving a continuous drag across verses.
+func readerTextSelection(_ range: NSRange, in storage: NSAttributedString, excluding marker: NSAttributedString.Key) -> NSRange {
+    guard range.location != NSNotFound, range.length > 0, NSMaxRange(range) <= storage.length else { return range }
+    let text = storage.string as NSString
+    let ink = CharacterSet.whitespacesAndNewlines.inverted
+    var start: Int?
+    var end = range.location
+    storage.enumerateAttribute(marker, in: range) { skipped, run, _ in
+        guard skipped == nil else { return }
+        let first = text.rangeOfCharacter(from: ink, range: run)
+        guard first.location != NSNotFound else { return }
+        let last = text.rangeOfCharacter(from: ink, options: .backwards, range: run)
+        if start == nil { start = first.location }
+        end = NSMaxRange(last)
+    }
+    guard let start else { return NSRange(location: range.location, length: 0) }
+    return NSRange(location: start, length: end - start)
+}
+
 /// Everything the continuous reader needs to draw one verse.
 struct ReaderVerse: Equatable {
     struct Word: Equatable { var text: String; var italic: Bool; var red: Bool; var strongs: [String] }

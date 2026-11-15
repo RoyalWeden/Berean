@@ -584,11 +584,11 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
-            // A quick second tap can invoke UIKit's word selection before the gutter tap wins.
-            // A verse marker is a control. Body selections may still span across markers.
-            if isVerseMarkerSelection(textView.selectedRange, in: textView) {
-                textView.selectedTextRange = nil
-            }
+            let selection = textView.selectedRange
+            let trimmed = readerTextSelection(selection, in: textView.textStorage, excluding: Self.skip)
+            guard trimmed != selection else { return }
+            if trimmed.length == 0 { textView.selectedTextRange = nil }
+            else { textView.selectedRange = trimmed }
         }
 
         func textView(_ view: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
