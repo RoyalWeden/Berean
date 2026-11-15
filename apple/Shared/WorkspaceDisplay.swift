@@ -1,5 +1,6 @@
 import SwiftUI
 import BereanWorkspace
+import BereanNotes
 
 /// Display names, symbols and colours for Spaces and tab types (shared by the Mac and iPhone shells).
 extension SpaceId {
@@ -43,6 +44,14 @@ extension BereanWorkspace.Tab {
 extension BereanWorkspace.Tab {
     var navigationLabel: String {
         let fallback = title.isEmpty ? "Untitled" : title
+        // Daily note tabs read as their long date; the stored tab title ("Daily — YYYY-MM-DD") is unchanged.
+        if tabType == .note, title.hasPrefix("Daily — ") || title.hasPrefix("Journal — "),
+           let key = NotesService.dailyDateKey(title), let long = NotesService.dailyDisplayTitle(key) {
+            // Compact for tab rows: "Sabbath, Nov 14, 2026".
+            let parts = long.split(separator: " ")   // ["Sabbath,", "November", "14,", "2026"]
+            guard parts.count == 4 else { return long }
+            return "\(parts[0]) \(parts[1].prefix(3)) \(parts[2]) \(parts[3])"
+        }
         guard tabType == .bible else { return fallback }
         let reader = BibleState(state)
         guard let verse = reader.verse else { return fallback }

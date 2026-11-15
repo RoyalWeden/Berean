@@ -998,3 +998,4 @@ The study Notes inspector now filters the active scope by case-insensitive title
 - **00:31 Calendar polish:** today shows as a white number on an accent circle (Calendar-style), larger month title; Mac verified.
 - **00:34 History:** note entries show the note's current title (a note opened as "Untitled" then named shows its name); stored history rows unchanged. Mac verified.
 - **00:42 I9 notes select mode** (Notes Home folder views, both platforms; Mac verified pin/unpin of two notes, restored) + daily notes show long-date titles in Notes Home rows, peek and trash.
+- **00:46 daily tab labels:** `Tab.navigationLabel` shows daily-note tabs as "Sabbath, Nov 14, 2026" (sidebar, tab cards, palette); stored tab title unchanged. Mac verified.
