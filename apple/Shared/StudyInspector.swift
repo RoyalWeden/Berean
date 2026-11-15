@@ -4,12 +4,100 @@ import BereanNotes
 import BereanWorkspace
 import BereanText
 
-/// The Scripture tab's study panel (`rightPanelTab`): Lexicon or Cross References for the selected verse/word.
+enum InspectorTool: String, CaseIterable, Identifiable {
+    case notes, lexicon, crossrefs
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .notes: "Notes"
+        case .lexicon: "Lexicon"
+        case .crossrefs: "Cross Refs"
+        }
+    }
+}
+
+struct StudyPanelSlots {
+    var primary: InspectorTool
+    var secondary: InspectorTool?
+    var secondaryTabs: [InspectorTool]
+
+    var primaryTabs: [InspectorTool] { InspectorTool.allCases.filter { !secondaryTabs.contains($0) } }
+
+    init(_ state: JSObject) {
+        let savedPrimary = state["rightPanelTab"]?.stringValue?.string.flatMapPanel ?? .lexicon
+        let savedSecondary = state["rightPanelSlotB"]?.stringValue?.string.flatMapPanel
+        let assigned = state["rightPanelSlotBTabs"]?.arrayValue?.compactMap { $0.stringValue?.string.flatMapPanel }
+            ?? savedSecondary.map { [$0] } ?? []
+        let unique = InspectorTool.allCases.filter { assigned.contains($0) }
+        let tabs = unique.count < InspectorTool.allCases.count ? unique : []
+        secondaryTabs = tabs
+        primary = tabs.contains(savedPrimary)
+            ? InspectorTool.allCases.first { !tabs.contains($0) } ?? .lexicon : savedPrimary
+        secondary = savedSecondary.flatMap { tabs.contains($0) ? $0 : nil } ?? tabs.first
+    }
+
+    mutating func move(_ panel: InspectorTool, toSecondary: Bool) {
+        if toSecondary {
+            guard !secondaryTabs.contains(panel), primaryTabs.count > 1 else { return }
+            secondaryTabs.append(panel)
+            secondary = panel
+            if primary == panel, let first = primaryTabs.first { primary = first }
+        } else {
+            secondaryTabs.removeAll { $0 == panel }
+            if secondary == panel { secondary = secondaryTabs.first }
+            primary = panel
+        }
+    }
+
+    func write(to state: inout JSObject) {
+        state["rightPanelTab"] = .string(JSString(primary.rawValue))
+        state["rightPanelSlotBTabs"] = .array(secondaryTabs.map { .string(JSString($0.rawValue)) })
+        state["rightPanelSlotB"] = secondary.map { .string(JSString($0.rawValue)) } ?? .null
+    }
+
+    /// Route actions from the Scripture reader to the pane that owns the tool.
+    static func focus(_ panel: InspectorTool, in state: inout JSObject) {
+        #if os(macOS)
+        var slots = Self(state)
+        if usesSplitPane(in: state), slots.secondaryTabs.contains(panel) {
+            slots.secondary = panel
+            slots.write(to: &state)
+            return
+        }
+        #endif
+        state["rightPanelTab"] = .string(JSString(panel.rawValue))
+    }
+
+    private static func usesSplitPane(in state: JSObject) -> Bool {
+        #if os(macOS)
+        switch ScriptureLayout(rawValue: BibleState(state).scriptureLayout) ?? .standard {
+        case .standard, .panelBottom, .panelLeft, .notesWide, .scriptureWide: true
+        default: false
+        }
+        #else
+        false
+        #endif
+    }
+
+    static func lexiconKey(in state: JSObject) -> JSString {
+        #if os(macOS)
+        if usesSplitPane(in: state), Self(state).secondaryTabs.contains(.lexicon) { return "rightPanelLexiconEntryB" }
+        #endif
+        return "rightPanelLexiconEntry"
+    }
+}
+
+private extension String {
+    var flatMapPanel: InspectorTool? { InspectorTool(rawValue: self) }
+}
+
+/// The Scripture tab's study panel for Notes, Lexicon, and Cross References.
 struct StudyInspector: View {
     @Environment(AppModel.self) private var app
     let tabId: String
 
-    /// Verses whose Strong's numbers the Lexicon pane lists: the selection, else the focused verse.
     private func strongsVerses(_ st: BibleState) -> [Int] {
         let selected = app.studySelectedVerses(in: tabId, state: st)
         if !selected.isEmpty { return selected }
@@ -17,50 +105,122 @@ struct StudyInspector: View {
     }
 
     var body: some View {
-        let st = BibleState(app.findTab(tabId)?.state ?? JSObject())
-        VStack(spacing: 0) {
-            Picker("Panel", selection: Binding(get: { ["notes", "crossrefs"].contains(st.rightPanelTab) ? st.rightPanelTab : "lexicon" }, set: { v in
-                app.update(tabId) { t in var s = BibleState(t.state); s.rightPanelTab = v; t.state = s.merged(into: t.state) }
-            })) {
-                Text("Notes").tag("notes")
-                Text("Lexicon").tag("lexicon")
-                Text("Cross Refs").tag("crossrefs")
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden().clickableCursor()
-            .padding(10)
-            Divider()
-            if st.rightPanelTab == "notes" {
-                VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
-                               textId: st.translation, selectedVerses: Set(app.studySelectedVerses(in: tabId, state: st)),
-                               allowsChapterScope: true)
-            } else if st.rightPanelTab == "crossrefs" {
-                CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
-                              textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
-            } else if let id = st.rightPanelLexiconEntry {
-                if !strongsVerses(st).isEmpty {
-                    Button { app.update(tabId, recordHistory: false) { $0.state.remove("rightPanelLexiconEntry") } } label: {
-                        Label("Selected Verses", systemImage: "chevron.backward").font(.callout)
-                    }
-                    .buttonStyle(.interactivePlain)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12).padding(.top, 8)
+        let state = app.findTab(tabId)?.state ?? JSObject()
+        let reader = BibleState(state)
+        let slots = StudyPanelSlots(state)
+        let lexiconKey = StudyPanelSlots.lexiconKey(in: state)
+        Group {
+            #if os(macOS)
+            if let secondary = slots.secondary {
+                VSplitView {
+                    pane(slots.primary, tabs: slots.primaryTabs, reader: reader, lexiconKey: lexiconKey, secondary: false)
+                        .frame(minHeight: 120)
+                    pane(secondary, tabs: slots.secondaryTabs, reader: reader, lexiconKey: lexiconKey, secondary: true)
+                        .frame(minHeight: 120)
                 }
-                LexiconEntryView(strongsId: id, tabId: tabId, compact: true)
-            } else if !strongsVerses(st).isEmpty {
-                SelectedVersesStrongsView(tabId: tabId, bookId: st.bookId, chapter: st.chapter, textId: st.translation,
-                                          verses: strongsVerses(st))
             } else {
-                ContentUnavailableView("No word selected", systemImage: "character.book.closed",
-                                       description: Text("Turn on Strong's numbers and click one to look it up."))
-                    .frame(maxHeight: .infinity, alignment: .top)
+                pane(slots.primary, tabs: InspectorTool.allCases, reader: reader, lexiconKey: lexiconKey, secondary: false)
             }
+            #else
+            pane(InspectorTool(rawValue: reader.rightPanelTab) ?? .lexicon, tabs: InspectorTool.allCases,
+                 reader: reader, lexiconKey: lexiconKey, secondary: false)
+            #endif
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        // A new verse selection shows its Strong's strip again (a previously opened entry would otherwise cover it).
-        .onChange(of: strongsVerses(BibleState(app.findTab(tabId)?.state ?? JSObject()))) { _, verses in
-            guard !verses.isEmpty, app.findTab(tabId)?.state["rightPanelLexiconEntry"] != nil else { return }
-            app.update(tabId, recordHistory: false) { $0.state.remove("rightPanelLexiconEntry") }
+        .onChange(of: strongsVerses(reader)) { _, verses in
+            guard !verses.isEmpty, app.findTab(tabId)?.state[lexiconKey] != nil else { return }
+            app.update(tabId, recordHistory: false) { $0.state.remove(lexiconKey) }
+        }
+    }
+
+    private func pane(_ panel: InspectorTool, tabs: [InspectorTool], reader: BibleState, lexiconKey: JSString, secondary: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                if tabs.count == 1 {
+                    Text(panel.title).font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Picker(secondary ? "Second study pane" : "Study pane", selection: Binding(get: { panel }, set: { next in
+                        app.update(tabId, recordHistory: false) { StudyPanelSlots.focus(next, in: &$0.state) }
+                    })) {
+                        ForEach(tabs) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden().clickableCursor()
+                }
+                #if os(macOS)
+                paneActions(secondary: secondary)
+                #endif
+            }
+            .padding(10)
+            Divider()
+            panelContent(panel, st: reader, lexiconKey: lexiconKey)
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    #if os(macOS)
+    private func paneActions(secondary: Bool) -> some View {
+        let slots = StudyPanelSlots(app.findTab(tabId)?.state ?? JSObject())
+        return Menu {
+            if secondary {
+                ForEach(slots.secondaryTabs) { panel in
+                    Button("Move \(panel.title) to Main Pane") { changeSlots { $0.move(panel, toSecondary: false) } }
+                }
+                Button("Close Second Pane") { changeSlots { $0.secondaryTabs = []; $0.secondary = nil } }
+            } else {
+                ForEach(slots.primaryTabs) { panel in
+                    Button("Move \(panel.title) to Second Pane") { changeSlots { $0.move(panel, toSecondary: true) } }
+                        .disabled(slots.primaryTabs.count < 2)
+                }
+            }
+        } label: {
+            Label(secondary ? "Second Pane Actions" : "Study Pane Actions", systemImage: "ellipsis.circle")
+                .labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().clickableCursor()
+    }
+
+    private func changeSlots(_ change: (inout StudyPanelSlots) -> Void) {
+        app.update(tabId, recordHistory: false) { tab in
+            var slots = StudyPanelSlots(tab.state)
+            let oldKey = StudyPanelSlots.lexiconKey(in: tab.state)
+            change(&slots)
+            slots.write(to: &tab.state)
+            let newKey = StudyPanelSlots.lexiconKey(in: tab.state)
+            if oldKey != newKey {
+                tab.state[newKey] = tab.state[oldKey]
+                tab.state.remove(oldKey)
+            }
+        }
+    }
+    #endif
+
+    @ViewBuilder private func panelContent(_ panel: InspectorTool, st: BibleState, lexiconKey: JSString) -> some View {
+        if panel == .notes {
+            VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
+                           textId: st.translation, selectedVerses: Set(app.studySelectedVerses(in: tabId, state: st)),
+                           allowsChapterScope: true)
+        } else if panel == .crossrefs {
+            CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
+                          textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
+        } else if let id = app.findTab(tabId)?.state[lexiconKey]?.stringValue?.string {
+            if !strongsVerses(st).isEmpty {
+                Button { app.update(tabId, recordHistory: false) { $0.state.remove(lexiconKey) } } label: {
+                    Label("Selected Verses", systemImage: "chevron.backward").font(.callout)
+                }
+                .buttonStyle(.interactivePlain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12).padding(.top, 8)
+            }
+            LexiconEntryView(strongsId: id, tabId: tabId, compact: true)
+        } else if !strongsVerses(st).isEmpty {
+            SelectedVersesStrongsView(tabId: tabId, bookId: st.bookId, chapter: st.chapter, textId: st.translation,
+                                      verses: strongsVerses(st))
+        } else {
+            ContentUnavailableView("No word selected", systemImage: "character.book.closed",
+                                   description: Text("Turn on Strong's numbers and click one to look it up."))
+                .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 }

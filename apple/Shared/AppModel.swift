@@ -820,9 +820,9 @@ final class AppModel {
         update(tabId, recordHistory: false) { tab in
             var reader = BibleState(tab.state)
             reader.rightPanelOpen = true
-            reader.rightPanelTab = "lexicon"
-            reader.rightPanelLexiconEntry = id
             tab.state = reader.merged(into: tab.state)
+            StudyPanelSlots.focus(.lexicon, in: &tab.state)
+            tab.state[StudyPanelSlots.lexiconKey(in: tab.state)] = .string(JSString(id))
         }
     }
 
@@ -830,7 +830,7 @@ final class AppModel {
         guard let tab = findTab(tabId) else { return }
         if tab.tabType == .bible {
             update(tabId, recordHistory: false) {
-                $0.state["rightPanelLexiconEntry"] = .string(JSString(strongs))
+                $0.state[StudyPanelSlots.lexiconKey(in: $0.state)] = .string(JSString(strongs))
             }
         } else if tab.tabType == .lexicon {
             update(tabId) {

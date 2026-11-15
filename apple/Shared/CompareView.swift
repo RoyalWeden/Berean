@@ -888,11 +888,11 @@ struct CompareView: View {
             reader.translation = passage.textId
             reader.verse = passage.verse
             reader.endVerse = passage.endVerse
-            if let inspector {
-                reader.rightPanelOpen = true
-                reader.rightPanelTab = inspector
-            }
+            if inspector != nil { reader.rightPanelOpen = true }
             tab.state = reader.merged(into: tab.state)
+            if let inspector, let panel = InspectorTool(rawValue: inspector) {
+                StudyPanelSlots.focus(panel, in: &tab.state)
+            }
             tab.state.remove("compareColumns")
             tab.state.remove("endChapter")
             tab.state["nativeSelectedVerses"] = passage.savedSelection

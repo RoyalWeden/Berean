@@ -1378,22 +1378,26 @@ struct ScriptureView: View {
             app.focusStudyVerse(verse, in: tabId, selectedVerses: selectedVerses)
 
         }
-        mutate(recordHistory: false) {
+        app.update(tabId, recordHistory: false) { source in
+            var reader = BibleState(source.state)
             #if os(macOS)
-            if tab == "notes", let layout = ScriptureLayout(rawValue: $0.scriptureLayout), !layout.showsNotes {
-                $0.scriptureLayout = ScriptureLayout.standard.rawValue
+            if tab == "notes", let layout = ScriptureLayout(rawValue: reader.scriptureLayout), !layout.showsNotes {
+                reader.scriptureLayout = ScriptureLayout.standard.rawValue
             }
-            if tab == "crossrefs", let layout = ScriptureLayout(rawValue: $0.scriptureLayout) {
+            if tab == "crossrefs", let layout = ScriptureLayout(rawValue: reader.scriptureLayout) {
                 switch layout {
                 case .reading, .scriptureFocus, .notesBottom, .compareNotes, .notesTop, .commentary, .tripleCol, .splitBottom:
-                    $0.scriptureLayout = ScriptureLayout.standard.rawValue
+                    reader.scriptureLayout = ScriptureLayout.standard.rawValue
                 default:
                     break
                 }
             }
             #endif
-            $0.rightPanelOpen = true
-            $0.rightPanelTab = tab
+            reader.rightPanelOpen = true
+            source.state = reader.merged(into: source.state)
+            if let panel = InspectorTool(rawValue: tab) {
+                StudyPanelSlots.focus(panel, in: &source.state)
+            }
         }
     }
 
