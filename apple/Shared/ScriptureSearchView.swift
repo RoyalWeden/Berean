@@ -110,14 +110,22 @@ struct ScriptureSearchView: View {
                 .padding(.horizontal, 10).padding(.vertical, 7)
                 .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
                 scopeMenu
-                Button { showOptions.toggle() } label: { Label("Options", systemImage: "line.3.horizontal.decrease.circle") }
-                    .labelStyle(.iconOnly)
-                    .help("Match, testament, books, order")
-                    .popover(isPresented: $showOptions, arrowEdge: .bottom) {
-                        ScrollView { options.padding(14) }
-                            .frame(idealWidth: 340, maxHeight: 430)
-                    }
-                    .foregroundStyle(hasActiveOptions ? Color.accentColor : .secondary)
+                Button { showOptions.toggle() } label: {
+                    Image(systemName: hasActiveOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                        .foregroundStyle(hasActiveOptions ? Color.accentColor : Color.primary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityLabel("Search Options")
+                .accessibilityHint(hasActiveOptions ? "Filters are active" : "Match, testament, books, and order")
+                .help(hasActiveOptions ? "Search options · filters active" : "Search options")
+                .popover(isPresented: $showOptions, arrowEdge: .bottom) {
+                    ScrollView { options.frame(maxWidth: .infinity, alignment: .leading).padding(14) }
+                        #if os(macOS)
+                        .frame(width: 340, height: 420)
+                        #endif
+                }
             }
             if !query.isEmpty { summaryRow }
         }
@@ -145,9 +153,17 @@ struct ScriptureSearchView: View {
                     }))
                 }
             }
-        } label: { Label(scopeLabel, systemImage: "books.vertical") }
-        .fixedSize()
-        .help("Which texts to search — All Texts searches every installed text")
+        } label: {
+            ViewThatFits(in: .horizontal) {
+                Label(scopeLabel, systemImage: "books.vertical").fixedSize(horizontal: true, vertical: false)
+                Image(systemName: "books.vertical")
+            }
+            .frame(maxWidth: 124)
+        }
+        .menuStyle(.borderlessButton)
+        .accessibilityLabel("Search Scope")
+        .accessibilityValue(scopeLabel)
+        .help("Search scope: \(scopeLabel)")
     }
 
     @ViewBuilder func check(_ on: Bool, _ title: String) -> some View { if on { Label(title, systemImage: "checkmark") } else { Text(title) } }
@@ -270,6 +286,7 @@ struct ScriptureSearchView: View {
                                 .background(focusText == id ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.12), in: .capsule)
                         }
                         .buttonStyle(.interactivePlain)
+                        .accessibilityAddTraits(focusText == id ? .isSelected : [])
                         .help(focusText == id ? "Show all texts again" : "Show only \(textInfo(id).name)")
                     }
                 }
