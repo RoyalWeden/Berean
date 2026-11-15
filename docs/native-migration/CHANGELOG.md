@@ -1159,3 +1159,7 @@
 ### 2026-11-15 — Study Trail library ordering
 - Added Move Up and Move Down to saved trail rows. The order persists in the original trail session rows.
 - Both Dev builds and all 138 Swift tests passed. Mac scratch QA verified the order after reopening the library. Live iPhone verification remains open.
+
+### 2026-11-15 — Study Trail tags
+- Create and assign tags from Trail Actions. Find saved trails by their assigned tag names.
+- Both Dev builds and all 139 Swift tests passed. Mac scratch QA verified tag creation, assignment, and library search.

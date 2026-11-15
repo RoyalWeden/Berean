@@ -31,6 +31,7 @@ struct StudyTrailView: View {
         let source: String?
         let annotation: String?
         let reason: String?
+        let isTag: Bool
     }
 
     private var searchActive: Bool { !query.split(whereSeparator: \.isWhitespace).isEmpty }
@@ -128,7 +129,7 @@ struct StudyTrailView: View {
                 let trailNameMatches = trailSearchMatches(query, fields: [trail.name])
                 let item = matches[trail.id]
                 let excerpt = trailNameMatches ? nil : item?.title ?? item?.source ?? trail.recap
-                NavigationLink(value: TrailRoute(trailID: trail.id, filter: trailNameMatches ? "" : query)) {
+                NavigationLink(value: TrailRoute(trailID: trail.id, filter: trailNameMatches || item?.isTag == true ? "" : query)) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(trail.name.isEmpty ? "Untitled Trail" : trail.name)
                         Text("\(trail.stopCount) \(trail.stopCount == 1 ? "stop" : "stops") · \(trail.status.capitalized)")
@@ -168,7 +169,8 @@ struct StudyTrailView: View {
                 let destination = trailReference(record.destinationBook, chapter: record.destinationChapter,
                                                  verse: record.destinationVerse, endVerse: record.destinationEndVerse)
                 return IndexedTrailItem(trailID: record.trailId, title: destination ?? record.title,
-                                       source: source, annotation: record.annotation, reason: record.reason)
+                                       source: source, annotation: record.annotation, reason: record.reason,
+                                       isTag: record.isTag)
             }
             indexFailed = false
         } catch {
@@ -232,6 +234,7 @@ private struct StudyTrailStopsView: View {
     @State private var editTarget: NoteTarget?
     @State private var presentation: Presentation = .list
     @State var query: String
+    @State private var showsTags = false
     @State private var renamingTrail = false
     @State private var draftTrailName = ""
 
@@ -306,6 +309,9 @@ private struct StudyTrailStopsView: View {
                 .disabled(draftTrailName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .task(id: trail.id) { load() }
+        .sheet(isPresented: $showsTags, onDismiss: reloadTrails) {
+            StudyTrailTagsView(trailID: trail.id)
+        }
         .sheet(item: $editTarget) { target in
             StudyTrailNoteEditor(title: target.title, text: target.text) { try saveNote($0, target: target) }
         }
@@ -325,6 +331,7 @@ private struct StudyTrailStopsView: View {
                 draftTrailName = trail.name
                 renamingTrail = true
             }
+            Button("Tags", systemImage: "tag") { showsTags = true }
             Button(trail.recap?.isEmpty == false ? "Edit Recap" : "Add Recap", systemImage: "text.alignleft") {
                 editTarget = .recap(trail)
             }
@@ -843,6 +850,66 @@ extension View {
                 #if os(macOS)
                 .frame(minWidth: 460, minHeight: 440)
                 #endif
+        }
+    }
+}
+
+private struct StudyTrailTagsView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var tags: [StudyTrailService.Tag] = []
+    @State private var newName = ""
+    @State private var failed = false
+    let trailID: String
+
+    private var trimmedName: String { newName.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Add Tag") {
+                    TextField("Tag Name", text: $newName)
+                        .onSubmit(addTag)
+                    Button("Add and Assign", systemImage: "plus", action: addTag)
+                        .disabled(trimmedName.isEmpty)
+                }
+                Section("Tags") {
+                    if tags.isEmpty { Text("No tags yet").foregroundStyle(.secondary) }
+                    ForEach(tags) { tag in
+                        Toggle(tag.name, isOn: Binding(get: { tag.assigned }, set: { assigned in
+                            update { try $0.assignTag(tag.id, to: trailID, assigned: assigned, at: StudyTrailView.now()) }
+                        }))
+                    }
+                }
+            }
+            .navigationTitle("Trail Tags")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+        #if os(macOS)
+        .frame(minWidth: 360, minHeight: 320)
+        #endif
+        .task { update { _ in } }
+        .alert("Couldn’t Load or Save Tags", isPresented: $failed) { Button("OK") {} }
+    }
+
+    private func addTag() {
+        guard !trimmedName.isEmpty else { return }
+        update { service in
+            if try service.createAndAssignTag(trimmedName, id: AppModel.newId(), to: trailID, at: StudyTrailView.now()) {
+                newName = ""
+            }
+        }
+    }
+
+    private func update(_ action: (StudyTrailService) throws -> Void) {
+        guard let service = app.studyTrailService else { failed = true; return }
+        do {
+            try action(service)
+            tags = try service.tags(for: trailID)
+        } catch {
+            failed = true
         }
     }
 }

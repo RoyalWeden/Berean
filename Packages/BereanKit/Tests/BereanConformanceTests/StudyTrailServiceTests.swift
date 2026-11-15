@@ -161,3 +161,21 @@ import Testing
     #expect(rows.map(\.reason) == ["Strong's word · G2316", "Strong's word · G2316"])
     #expect(try db.query("SELECT strongs_depth FROM trail_connections").map { $0["strongs_depth"]?.string } == ["click", "click"])
 }
+
+@Test func createsAndAssignsLegacyTrailTagsWithoutChangingOtherTrails() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    let service = StudyTrailService(db: db)
+    try service.start(name: "First", id: "first", at: 1)
+    try service.start(name: "Second", id: "second", at: 2)
+    #expect(try service.createAndAssignTag("Wisdom", id: "wisdom", to: "first", at: 3))
+    #expect(try service.createAndAssignTag("WISDOM", id: "duplicate", to: "second", at: 4))
+    #expect(try !service.createAndAssignTag("Missing", id: "missing", to: "absent", at: 5))
+    #expect(try service.tags(for: "second").map(\.id) == ["wisdom"])
+    #expect(try service.tags(for: "second").first?.assigned == true)
+    try service.assignTag("wisdom", to: "first", assigned: false, at: 6)
+    #expect(try service.tags(for: "first").first?.assigned == false)
+    let searchableTags = try service.librarySearchRecords().filter(\.isTag)
+    #expect(searchableTags.map(\.trailId) == ["second"])
+    #expect(searchableTags.first?.title == "Wisdom")
+}
