@@ -216,7 +216,7 @@ struct WorkspacesSettingsSection: View {
 
 extension SettingsView {
     static let shortcuts: [(String, String)] = [
-        ("⌘T / ⌘K", "New tab · search Berean"), ("⌘L", "Go to passage"), ("⌘W", "Close tab"), ("⌘[  ⌘]", "Back · Forward"),
+        ("⌘T / ⌘K", "New tab · search Berean"), ("⌘L", "Go to location"), ("⌘W", "Close tab"), ("⌘[  ⌘]", "Back · Forward"),
         ("⌥⌘←  ⌥⌘→", "Previous · next chapter"), ("⌘F  ⌘G", "Find in chapter · next match"), ("⌘C  ⇧⌘C", "Copy with reference · plain text"),
         ("⌥⌘C", "Compare texts"), ("⌥⌘I", "Study panel"), ("⇧⌘N", "New note"), ("⇧⌘D", "Today's note"), ("⌘Y", "History"),
         ("⇧⌘0", "New workspace"), ("⌃⌘S", "Show / hide sidebar"), ("⌘1 … ⌘5", "Spaces"), ("⌃Tab", "Next tab"),

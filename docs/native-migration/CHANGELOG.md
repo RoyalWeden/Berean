@@ -1046,3 +1046,8 @@
 
 - Mac and iPhone Notes expose Format → Table → Delete Table for outer-pipe Markdown tables. Both Dev builds and seven focused Swift checks passed at `cec84643`.
 - Live Mac scratch QA verified deletion from a body cell, undo, redo, and reopening the edited note. Updated parity row N04 and the handoff. Live iPhone verification and grid rendering remain open.
+
+### 2026-11-15 — Mac command palette location
+
+- Command-L prefills and selects the current location, prefers the active compatible tab, and records a Back route for destinations in another space. Renamed the palette command to Notes and made the title-bar dimming use the same strength as the content.
+- Mac Dev build and scratch UI verified same-tab Scripture navigation, Back, Strong’s prefill, and Notes. Dark mode, fullscreen, and additional tab types remain open.

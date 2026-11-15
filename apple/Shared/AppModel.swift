@@ -105,9 +105,39 @@ final class AppModel {
     #if os(macOS)
     var commandPaletteCreatesTab = false
     var commandPaletteActionsRequest = 0
+    struct LocationRequest: Equatable {
+        let text: String
+        let id = UUID()
+    }
+    private(set) var commandPaletteLocationRequest: LocationRequest?
+
+    func showLocation() {
+        let text: String
+        if let tab = activeTab {
+            switch tab.tabType {
+            case .bible:
+                text = tab.navigationLabel
+            case .lexicon:
+                let entry = tab.state["strongsNum"]?.stringValue?.string ?? ""
+                text = entry.isEmpty ? lexiconSearches[tab.id]?.query ?? "" : entry
+            case .search:
+                text = tab.state["query"]?.stringValue?.string ?? ""
+            case .note where tab.state["noteId"]?.stringValue != nil:
+                text = tab.title
+            default:
+                text = ""
+            }
+        } else {
+            text = ""
+        }
+        commandPaletteCreatesTab = false
+        commandPaletteLocationRequest = LocationRequest(text: text)
+        commandPaletteShown = true
+    }
 
     func showCommandPalette(newTab: Bool = false) {
         commandPaletteCreatesTab = newTab
+        commandPaletteLocationRequest = nil
         commandPaletteShown = true
     }
     #endif
@@ -749,22 +779,22 @@ final class AppModel {
     }
 
     private func openOrReuse(_ type: TabType, in space: SpaceId, title: String, state: JSObject, origin: BereanWorkspace.Tab? = nil,
+                             preferActiveTab: Bool = false,
                              canReplace: (BereanWorkspace.Tab) -> Bool = { _ in true },
                              matches: ((BereanWorkspace.Tab) -> Bool)? = nil) {
         let candidates = tabs(in: space).filter { $0.tabType == type }
         let currentId = activeTabId(in: space)
-        if let matches {
-            let exact = candidates.filter(matches)
-            if let tab = exact.first(where: { $0.id == currentId }) ?? exact.first {
-                select(tab.id, in: space)
-                return
-            }
-        }
         let writable = candidates.filter { !$0.isPinned && canReplace($0) }
-        if let tab = writable.first(where: { $0.id == currentId }) ?? writable.first {
-            update(tab.id) { tab in
-                for field in state.entries { tab.state[field.key.string] = field.value }
-                tab.title = title
+        let preferred = preferActiveTab && activeSpace == space ? writable.first(where: { $0.id == currentId }) : nil
+        let exact = matches.map { candidates.filter($0) } ?? []
+        let destination = preferred ?? exact.first(where: { $0.id == currentId }) ?? exact.first
+            ?? writable.first(where: { $0.id == currentId }) ?? writable.first
+        if let tab = destination {
+            if !exact.contains(where: { $0.id == tab.id }) {
+                update(tab.id) { tab in
+                    for field in state.entries { tab.state[field.key.string] = field.value }
+                    tab.title = title
+                }
             }
             select(tab.id, in: space)
         } else {
@@ -793,7 +823,8 @@ final class AppModel {
         recordTabReturn(to: sourceTabID)
     }
 
-    func openSearch(_ rawQuery: String, reuseTab: Bool = false, returningTo sourceTabID: String? = nil) {
+    func openSearch(_ rawQuery: String, reuseTab: Bool = false, returningTo sourceTabID: String? = nil,
+                    preferActiveTab: Bool = false) {
         let qualified = editionQualifiedQuery(rawQuery)
         let query = qualified?.query ?? rawQuery
         let scope = qualified.map { JSValue.array([.string(JSString($0.text))]) }
@@ -810,7 +841,7 @@ final class AppModel {
                     && (state["bookIds"]?.arrayValue?.isEmpty ?? true)
             }
             openOrReuse(.search, in: .search, title: "Search: \(query)", state: o,
-                        canReplace: isCompatibleSearch,
+                        preferActiveTab: preferActiveTab, canReplace: isCompatibleSearch,
                         matches: { isCompatibleSearch($0) && $0.state["query"]?.stringValue?.string == query })
         } else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
         recordTabReturn(to: sourceTabID)
@@ -914,12 +945,13 @@ final class AppModel {
         if !query.isEmpty { lexiconSearches[id] = (query, "all") }
     }
 
-    func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false) {
+    func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false,
+                     preferActiveTab: Bool = false) {
         recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
         var o = JSObject(); o["strongsNum"] = .string(JSString(strongs))
         if reuseTab {
             openOrReuse(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin,
-                        canReplace: { $0.originTabId == origin?.id },
+                        preferActiveTab: preferActiveTab, canReplace: { $0.originTabId == origin?.id },
                         matches: { $0.state["strongsNum"]?.stringValue?.string == strongs && $0.originTabId == origin?.id })
         } else { openTab(.lexicon, in: .lexicon, title: strongs, state: o, origin: origin) }
     }
@@ -971,7 +1003,7 @@ final class AppModel {
         openNote(nil)
     }
 
-    func openNote(_ id: String?, newTab: Bool = false, fromList source: String? = nil) {
+    func openNote(_ id: String?, newTab: Bool = false, fromList source: String? = nil, preferActiveTab: Bool = false) {
         let note = id.flatMap { try? notes?.one($0) }
         if let note {
             refreshNoteTabTitles(note)
@@ -979,7 +1011,8 @@ final class AppModel {
         }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = note?.displayTitle ?? "Notes"
-        if !newTab, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
+        let writableActive = preferActiveTab && activeTab?.tabType == .note && activeTab?.isPinned == false
+        if !newTab, !writableActive, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
             noteListReturnTabs[exact.id] = source == exact.id ? nil : source
             select(exact.id, in: .notes)
             recordTabReturn(to: source)
@@ -1092,15 +1125,18 @@ final class AppModel {
         }
     }
 
-    func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true, returningTo sourceTabID: String? = nil) {
+    func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true, returningTo sourceTabID: String? = nil,
+                        preferActiveTab: Bool = false) {
         openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
-                      endVerse: passage.endVerse, textId: passage.textId, reuseTab: reuseTab, verseGroups: passage.verseGroups)
+                      endVerse: passage.endVerse, textId: passage.textId, reuseTab: reuseTab, verseGroups: passage.verseGroups,
+                      preferActiveTab: preferActiveTab)
         recordTabReturn(to: sourceTabID)
         recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
                      verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
     }
 
-    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false, verseGroups: [ClosedRange<Int>] = []) {
+    func openScripture(bookId: String, chapter: Int, verse: Int? = nil, endVerse: Int? = nil, textId: String? = nil, reuseTab: Bool = false, verseGroups: [ClosedRange<Int>] = [],
+                       preferActiveTab: Bool = false) {
         var st = BibleState(bookId: bookId, chapter: chapter)
         st.verse = verse
         if let verse, let endVerse, endVerse > verse { st.endVerse = endVerse }
@@ -1118,7 +1154,7 @@ final class AppModel {
             location["endChapter"] = .null
             location["nativeSelectedVerses"] = passage.savedSelection
             openOrReuse(.bible, in: .scripture, title: title, state: location,
-                        canReplace: { !BibleState($0.state).compareMode && $0.state["endChapter"]?.numberValue == nil },
+                        preferActiveTab: preferActiveTab, canReplace: { !BibleState($0.state).compareMode && $0.state["endChapter"]?.numberValue == nil },
                         matches: passage.isShown(in:))
         } else {
             var state = st.object

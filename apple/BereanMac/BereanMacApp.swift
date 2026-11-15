@@ -33,7 +33,7 @@ struct BereanMacApp: App {
                         app.showCommandPalette()
                     }
                 }.keyboardShortcut("k")
-                Button("Go to Reference…") { app.showCommandPalette() }.keyboardShortcut("l")
+                Button("Go to Location…") { app.showLocation() }.keyboardShortcut("l")
                 Button("Close Tab") { app.closeActiveTab() }.keyboardShortcut("w")
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("Today's Note") { app.openTodayDailyNote() }.keyboardShortcut("d", modifiers: [.command, .shift])

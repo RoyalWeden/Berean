@@ -238,6 +238,7 @@ struct CommandPalette: View {
     let resultsHeight: CGFloat
     let close: () -> Void
     @State private var text = ""
+    @State private var textSelection: TextSelection?
     @State private var index = 0
     @State private var noteHits: [Note] = []
     @State private var actionsShown = false
@@ -256,41 +257,43 @@ struct CommandPalette: View {
     }
 
     var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var prefersActiveTab: Bool { app.commandPaletteLocationRequest != nil }
 
     var items: [Item] {
         var out: [Item] = []
+        let preferActiveTab = prefersActiveTab
         if trimmed.isEmpty {
             for r in app.recentPassages.prefix(5) {
                 out.append(Item(id: "recent-\(r.id)", group: "Recent", title: r.label, detail: textInfo(r.textId).short, symbol: "clock.arrow.circlepath", offersOpenMenu: true) { inNewTab in
-                    app.visitScripture(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? []), reuseTab: !inNewTab)
+                    app.visitScripture(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? []), reuseTab: !inNewTab, preferActiveTab: preferActiveTab)
                 })
             }
         }
         let currentText = app.activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }
         if let ref = app.resolvePassage(trimmed, preferring: currentText) {
             out.append(Item(id: "go", group: "Go to", title: ref.label,
-                            detail: textInfo(ref.textId).name, symbol: "book", offersOpenMenu: true) { inNewTab in app.visitScripture(ref, reuseTab: !inNewTab) })
+                            detail: textInfo(ref.textId).name, symbol: "book", offersOpenMenu: true) { inNewTab in app.visitScripture(ref, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
         }
         if let id = StrongsId.normalize(trimmed) {
-            out.append(Item(id: "lex", group: "Lexicon", title: "Look up \(id)", detail: "Strong's lexicon entry", symbol: "character.book.closed", offersOpenMenu: true) { inNewTab in app.openLexicon(id, reuseTab: !inNewTab) })
-            out.append(Item(id: "strongs", group: "Lexicon", title: "Verses with \(id)", detail: "Search all tagged texts", symbol: "number", offersOpenMenu: true) { inNewTab in app.openSearch(id, reuseTab: !inNewTab) })
+            out.append(Item(id: "lex", group: "Lexicon", title: "Look up \(id)", detail: "Strong's lexicon entry", symbol: "character.book.closed", offersOpenMenu: true) { inNewTab in app.openLexicon(id, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
+            out.append(Item(id: "strongs", group: "Lexicon", title: "Verses with \(id)", detail: "Search all tagged texts", symbol: "number", offersOpenMenu: true) { inNewTab in app.openSearch(id, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
         }
         // A note whose title is exactly what was typed comes before the word search, so Return opens it.
         let exactNotes = noteHits.filter { $0.displayTitle.caseInsensitiveCompare(trimmed) == .orderedSame }
         for n in exactNotes.prefix(3) {
-            out.append(Item(id: "note-\(n.id)", group: "Top Hit", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab) })
+            out.append(Item(id: "note-\(n.id)", group: "Top Hit", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab, preferActiveTab: preferActiveTab) })
         }
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil {
             let qualified = app.editionQualifiedQuery(trimmed)
             let scope = qualified.map { textInfo($0.text).short } ?? "all texts"
             let words = qualified?.query ?? trimmed
-            out.append(Item(id: "search", group: "Search", title: "Search \(scope) for “\(words)”", detail: qualified == nil ? "Scripture and other writings" : "", symbol: "magnifyingglass", offersOpenMenu: true) { inNewTab in app.openSearch(trimmed, reuseTab: !inNewTab) })
+            out.append(Item(id: "search", group: "Search", title: "Search \(scope) for “\(words)”", detail: qualified == nil ? "Scripture and other writings" : "", symbol: "magnifyingglass", offersOpenMenu: true) { inNewTab in app.openSearch(trimmed, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
             out.append(Item(id: "notes-search", group: "Search", title: "Search Notes for “\(trimmed)”", detail: "Titles and text",
                             symbol: "note.text") { _ in app.openNotesSearch(trimmed) })
         }
         for n in noteHits.filter({ hit in !exactNotes.contains { $0.id == hit.id } }).prefix(6) {
-            out.append(Item(id: "note-\(n.id)", group: "Notes", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab) })
+            out.append(Item(id: "note-\(n.id)", group: "Notes", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab, preferActiveTab: preferActiveTab) })
         }
         if !trimmed.isEmpty && !newTab {
             for match in app.matchingArchivedTabs(trimmed) {
@@ -312,7 +315,7 @@ struct CommandPalette: View {
             ("New Note", "square.and.pencil", { _ in app.newNote() }),
             ("Today's Note", "calendar", { _ in app.openTodayDailyNote() }),
             ("Calendar", "calendar", { inNewTab in app.openCalendar(newTab: inNewTab) }),
-            ("Notes Home", "tray.full", { inNewTab in app.openNotesHome(newTab: inNewTab) }),
+            ("Notes", "tray.full", { inNewTab in app.openNotesHome(newTab: inNewTab) }),
             ("History", "clock", { inNewTab in app.openHistory(newTab: inNewTab) }),
             ("Tags", "tag", { inNewTab in app.openTags(newTab: inNewTab) }),
             ("Search Lexicon", "character.book.closed", { inNewTab in app.openLexiconSearch(newTab: inNewTab) }),
@@ -410,7 +413,7 @@ struct CommandPalette: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-                    TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text)
+                    TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text, selection: $textSelection)
                     .textFieldStyle(.plain)
                     .font(.system(size: 18))
                     .focused($focused)
@@ -540,10 +543,22 @@ struct CommandPalette: View {
             if !actionsShown { focused = true }
         }
         .onChange(of: selected?.id) { actionsShown = false }
-        .task {
+        .task(id: app.commandPaletteLocationRequest) {
+            let location = app.commandPaletteLocationRequest
+            if let location {
+                textSelection = nil
+                text = location.text
+                index = 0
+                actionsShown = false
+            }
             await Task.yield()
             guard !Task.isCancelled else { return }
             focused = true
+            guard let location, !location.text.isEmpty else { return }
+            // The field editor attaches on the next AppKit update after SwiftUI requests focus.
+            try? await Task.sleep(for: .milliseconds(30))
+            guard !Task.isCancelled, text == location.text else { return }
+            textSelection = TextSelection(range: text.startIndex..<text.endIndex)
         }
         .task(id: trimmed) {
             noteHits = trimmed.count < 2 ? [] : ((try? app.notes?.search(trimmed, limit: 6)) ?? [])
@@ -571,7 +586,9 @@ struct CommandPalette: View {
     }
 
     private func activate(_ item: Item, inNewTab: Bool) {
+        let source = prefersActiveTab && !inNewTab && item.offersOpenMenu ? app.activeTab?.id : nil
         item.run(inNewTab)
+        app.recordTabReturn(to: source)
         close()
     }
 }
