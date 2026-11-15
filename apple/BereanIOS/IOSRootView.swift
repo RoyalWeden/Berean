@@ -98,6 +98,9 @@ struct IOSRootView: View {
         .frame(maxWidth: 260)
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
+        .offset(y: app.readerChromeHidden ? 110 : 0)
+        .opacity(app.readerChromeHidden ? 0 : 1)
+        .allowsHitTesting(!app.readerChromeHidden)
         .frame(maxWidth: .infinity)
     }
 

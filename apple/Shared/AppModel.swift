@@ -537,6 +537,8 @@ final class AppModel {
     /// A chapter step asked for outside the reader (command palette); the reader for `tabId` performs it.
     struct ChapterStepRequest: Equatable { let tabId: String; let delta: Int; let nonce = UUID() }
     var chapterStepRequest: ChapterStepRequest?
+    /// iPhone: the reader scrolled down far enough to tuck its passage capsule and the dock away.
+    var readerChromeHidden = false
     @ObservationIgnored var lexiconOccurrenceOptions: [String: [String: LexiconEntryView.OccurrenceOptions]] = [:]
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]

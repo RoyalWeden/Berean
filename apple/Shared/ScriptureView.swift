@@ -400,6 +400,8 @@ struct ScriptureView: View {
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
             highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
         }
+        .onChange(of: chapter) { _, _ in if app.readerChromeHidden { withAnimation(.snappy) { app.readerChromeHidden = false } } }
+        .onDisappear { app.readerChromeHidden = false }
         .onChange(of: app.chapterStepRequest) { _, request in
             guard let request, request.tabId == tabId else { return }
             app.chapterStepRequest = nil
@@ -863,7 +865,8 @@ struct ScriptureView: View {
             onPinchCommit: { size in
                 if app.fontSize != size { app.fontSize = size }
                 pinchFontSize = nil
-            }
+            },
+            onChromeHidden: { hidden in withAnimation(.snappy(duration: 0.25)) { app.readerChromeHidden = hidden } }
         )
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet
@@ -909,6 +912,10 @@ struct ScriptureView: View {
                 .buttonStyle(.interactivePlain)
                 .padding(.horizontal, 8)
                 .glassEffectCompat(interactive: true)
+                // Tucked away while reading downward (fades and lifts; the nav bar keeps its height so text never jumps).
+                .opacity(app.readerChromeHidden ? 0 : 1)
+                .offset(y: app.readerChromeHidden ? -12 : 0)
+                .allowsHitTesting(!app.readerChromeHidden)
                 .sheet(isPresented: $pickerShown) {
                     NavigationStack {
                         picker(st, compact: true)

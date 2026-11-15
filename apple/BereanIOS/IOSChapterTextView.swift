@@ -32,6 +32,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onStep: (Int) -> Void
     var onPinchPreview: (Double?) -> Void
     var onPinchCommit: (Double) -> Void
+    /// Scrolling down hides the reader chrome (passage capsule, dock); scrolling up or reaching the top shows it.
+    var onChromeHidden: (Bool) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -325,6 +327,26 @@ struct IOSChapterTextView: UIViewRepresentable {
         private let selectionFeedback = UISelectionFeedbackGenerator()
         var parent: IOSChapterTextView
         var key: Key?
+        private var lastScrollY: CGFloat = 0
+        private var scrollTravel: CGFloat = 0
+        private var chromeHidden = false
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            let y = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
+            defer { lastScrollY = y }
+            // Only user scrolling moves the chrome; programmatic jumps and restores leave it alone.
+            guard scrollView.isTracking || scrollView.isDecelerating else { scrollTravel = 0; return }
+            let delta = y - lastScrollY
+            scrollTravel = (delta > 0) == (scrollTravel > 0) ? scrollTravel + delta : delta   // hysteresis per direction
+            let atTop = y < 40
+            let atBottom = y + scrollView.bounds.height >= scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - 8
+            let hide: Bool
+            if atTop || atBottom { hide = false } else if scrollTravel > 36 { hide = true } else if scrollTravel < -24 { hide = false } else { return }
+            guard hide != chromeHidden else { return }
+            chromeHidden = hide
+            parent.onChromeHidden(hide)
+        }
+
         var passageId: String?
         var lastTarget: Int?
         var verseRanges: [Int: NSRange] = [:]
