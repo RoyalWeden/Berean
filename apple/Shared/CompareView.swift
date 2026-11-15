@@ -1019,11 +1019,17 @@ struct CompareView: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    private func comparisonChapter(book: String, chapter: Int, edition: String) async -> [ChapterVerseRow] {
+        let rows = await app.bible.queryChapter(book, chapter, textId: edition)
+        return PsalmSuperscription.apply(rows, textId: edition, bookId: book, chapter: chapter)
+    }
+
     func load(_ st: BibleState, _ cols: [CompareColumn], passage: String) async {
         var out: [Int: [Int: ChapterVerseRow]] = [:]
         var independent: [Int: [ChapterVerseRow]] = [:]
         for column in cols {
-            independent[column.id] = await app.bible.queryChapter(column.book, column.chapter, textId: column.text)
+            guard !Task.isCancelled else { return }
+            independent[column.id] = await comparisonChapter(book: column.book, chapter: column.chapter, edition: column.text)
         }
         let aligned = cols.allSatisfy { $0.follows(st) }
         for column in cols where aligned {
@@ -1035,7 +1041,7 @@ struct CompareView: View {
             for chapter in chapters {
                 let chapterRows = chapter == column.chapter
                     ? independent[column.id] ?? []
-                    : await app.bible.queryChapter(st.bookId, chapter, textId: c)
+                    : await comparisonChapter(book: st.bookId, chapter: chapter, edition: c)
                 for row in chapterRows {
                     let mapped = st.bookId == "JON"
                         ? ChapterMap.jonahCounterpart(chapter: chapter, verse: row.verseNum, from: c, to: st.translation)
