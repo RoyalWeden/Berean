@@ -121,22 +121,40 @@ struct NotesHomeView: View {
         }
         .navigationTitle(Self.title(location, folders))
         .toolbar {
+            #if os(iOS)
+            // iPhone: a compact bar (Back · Select · New Note · ⋯) so the title keeps its room.
+            if location != nil {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { go(parentLocation) } label: { Label("Back", systemImage: "chevron.backward") }
+                }
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if location != nil, location != "trash" {
+                    Button(selecting ? "Done" : "Select") {
+                        withAnimation(.snappy) { selecting.toggle(); selectedNotes = [] }
+                    }
+                }
+                Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
+                Menu {
+                    Button("Today's Note", systemImage: "sun.max") { app.openTodayDailyNote() }
+                    Button("Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) }
+                    Button("New Folder", systemImage: "folder.badge.plus") { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) }
+                    Divider()
+                    viewOptions
+                } label: { Label("More", systemImage: "ellipsis") }
+            }
+            #else
             ToolbarItemGroup {
                 if location != nil {
                     Button { go(parentLocation) } label: { Label("Back", systemImage: "chevron.backward") }.help("Back to \(Self.title(parentLocation, folders))")
                 }
-                Menu {
-                    Picker("Sort", selection: $sort) { Text("Date Edited").tag("modified"); Text("Date Created").tag("created"); Text("Title").tag("name") }
-                    Picker("Group", selection: $grouping) { Text("By Date").tag("none"); Text("By Status").tag("status"); Text("By Folder").tag("folder"); Text("By Type").tag("type") }
-                    Divider()
-                    Button("Import Markdown…") { app.importMarkdownFiles() }
-                } label: { Label("View Options", systemImage: "line.3.horizontal.decrease.circle") }
-                .menuIndicator(.hidden).help("Sort, group, import")
-                // Tap: today's note. Long-press / right-click: the calendar — original Notes home "Today".
+                Menu { viewOptions } label: { Label("View Options", systemImage: "line.3.horizontal.decrease.circle") }
+                    .menuIndicator(.hidden).help("Sort, group, import")
+                // Tap: today's note. Right-click: the calendar — original Notes home "Today".
                 Button { app.openTodayDailyNote() } label: { Label("Today's Note", systemImage: "calendar") }
                     .contextMenu { Button("Open Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) } }
-                    .help("Today's note (right-click or hold for the calendar)")
-                                Button { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
+                    .help("Today's note (right-click for the calendar)")
+                Button { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
                     .help("New folder")
                 if location != nil, location != "trash" {
                     Button(selecting ? "Done" : "Select") {
@@ -147,6 +165,7 @@ struct NotesHomeView: View {
                 Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
                     .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
             }
+            #endif
         }
         .onAppear {
             browseOptions = app.notesBrowseOptions[tabId] ?? BrowseOptions()
@@ -551,6 +570,13 @@ struct NotesHomeView: View {
         if days <= 0 { return d.formatted(date: .omitted, time: .shortened) }
         if days <= 6 { return d.formatted(.dateTime.weekday(.wide)) }
         return d.formatted(date: .numeric, time: .omitted)
+    }
+
+    @ViewBuilder private var viewOptions: some View {
+        Picker("Sort", selection: $sort) { Text("Date Edited").tag("modified"); Text("Date Created").tag("created"); Text("Title").tag("name") }
+        Picker("Group", selection: $grouping) { Text("By Date").tag("none"); Text("By Status").tag("status"); Text("By Folder").tag("folder"); Text("By Type").tag("type") }
+        Divider()
+        Button("Import Markdown…") { app.importMarkdownFiles() }
     }
 
     /// A daily note reads as its long date ("Sabbath, November 14, 2026"); others use their title.
