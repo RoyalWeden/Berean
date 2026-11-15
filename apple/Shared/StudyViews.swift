@@ -5,6 +5,53 @@ import BereanText
 import BereanReference
 import BereanNotes
 
+private struct LexiconEntryGuide: View {
+    let close: () -> Void
+
+    private static let fields: [(title: String, description: String)] = [
+        ("Strong’s number", "Identifies a dictionary entry. H denotes Hebrew or Aramaic and G denotes Greek."),
+        ("Original word", "The dictionary headword in the original script. Hebrew reads right to left."),
+        ("Transliteration and pronunciation", "The headword written in Latin letters, followed by a pronunciation guide when available."),
+        ("Gloss", "A short English summary. Compare the definition and verse context for the range of meanings."),
+        ("Definition", "A fuller explanation of the word’s meanings and uses."),
+        ("Derivation", "The word’s origin or root. Select a linked Strong’s number to read that entry."),
+        ("BDB Notes and Extended", "Additional dictionary material. BDB stands for Brown–Driver–Briggs, a Hebrew lexicon. An occurrence count in these notes refers to usage, separate from the entry number."),
+        ("Derived Terms", "Related dictionary entries. Select one to explore its meaning and usage."),
+        ("Occurrences", "Passages indexed for this entry. Filter by edition, book, or translated word to narrow the list.")
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("How to Read a Lexicon Entry")
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button("Done", action: close)
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding()
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(Self.fields, id: \.title) { field in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(field.title).font(.subheadline.weight(.semibold))
+                                .accessibilityAddTraits(.isHeader)
+                            Text(field.description).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+            }
+        }
+        #if os(macOS)
+        .frame(width: 380, height: 450)
+        #endif
+    }
+}
+
 /// A lexicon entry with definition, related words and occurrences (Lexicon tab and study inspector).
 struct LexiconEntryView: View {
     @Environment(\.dismiss) private var dismiss
@@ -27,6 +74,7 @@ struct LexiconEntryView: View {
     @State private var visibleOccurrences = 40
     /// ⌘F find inside the entry (original LexiconPanel find bar); highlights matches in the entry's prose.
     @State private var findShown = false
+    @State private var showsEntryGuide = false
     @State private var findSection = 0
     @State private var pendingFindOccurrence: OccurrenceKey?
     private enum FindSection: Hashable {
@@ -250,6 +298,7 @@ struct LexiconEntryView: View {
                                         Image(systemName: "doc.on.doc").frame(width: entryControlHeight, height: entryControlHeight).contentShape(.rect)
                                     }
                                     .buttonStyle(.interactivePlain).accessibilityLabel("Copy \(e.strongsNum) and gloss").help("Copy \(e.strongsNum) and gloss")
+                                    entryGuideButton
                                     entryNavigation
                                 }
                             }
@@ -486,6 +535,7 @@ struct LexiconEntryView: View {
                     .help("Find in this entry (⌘F)")
                     Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
                         .help("Search the Lexicon")
+                    entryGuideButton
                 }
             }
         }
@@ -636,6 +686,20 @@ struct LexiconEntryView: View {
         #else
         .hoverEffect(.highlight)
         #endif
+    }
+
+    private var entryGuideButton: some View {
+        Button { showsEntryGuide = true } label: {
+            Label("How to Read a Lexicon Entry", systemImage: "info.circle")
+                .labelStyle(.iconOnly)
+                .frame(minWidth: compact ? entryControlHeight : nil, minHeight: compact ? entryControlHeight : nil)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .help("How to read a lexicon entry")
+        .popover(isPresented: $showsEntryGuide) {
+            LexiconEntryGuide { showsEntryGuide = false }
+        }
     }
 
     private var entryNavigation: some View {
