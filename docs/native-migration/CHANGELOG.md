@@ -1041,3 +1041,8 @@
 - **Known failures, regressions and their fixes:** em dash initially broke `---` dividers (fixed `62102592`); scanner refactor flattened
   Unicode spaces in NoteVerseRefs (caught by golden, fixed before commit).
 - **Next exact action:** see HANDOFF "Still open, best next picks".
+
+### 2026-11-15 — N04 — Whole-table deletion and Mac verification
+
+- Mac and iPhone Notes expose Format → Table → Delete Table for outer-pipe Markdown tables. Both Dev builds and seven focused Swift checks passed at `cec84643`.
+- Live Mac scratch QA verified deletion from a body cell, undo, redo, and reopening the edited note. Updated parity row N04 and the handoff. Live iPhone verification and grid rendering remain open.
