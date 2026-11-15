@@ -609,6 +609,7 @@ struct CrossRefsView: View {
     @State private var groups: [ReferenceGroup] = []
     @State private var expandedVerses: Set<Int> = []
     @State private var failed = false
+    @State private var indirectNotes: [Note] = []
     @State private var chapterScopeOverride: String?
 
     private var selectionKey: String {
@@ -634,6 +635,15 @@ struct CrossRefsView: View {
         let end: Int?
         let text: String
         let detail: String?
+        var textId = "kjva"
+        var noteID: String?
+
+        init(_ link: NoteCrossReferences.Link) {
+            (book, chapter, verse, end, text) = (link.bookId, link.chapter, link.verse ?? 0, link.endVerse, link.context)
+            textId = link.textId
+            detail = link.note.title.isEmpty ? "Untitled" : link.note.title
+            noteID = link.note.id
+        }
 
         init(_ ref: CrossRef) {
             (book, chapter, verse, end, text) = (ref.bookId, ref.chapter, ref.verse, ref.endVerse, ref.text)
@@ -647,7 +657,7 @@ struct CrossRefsView: View {
     }
 
     var body: some View {
-        let reference = "\(selectionKey)|\(showingChapter)|\(source)"
+        let reference = "\(selectionKey)|\(showingChapter)|\(source)|\(source == "notes" ? app.notesRevision : 0)"
         VStack(spacing: 0) {
             HStack {
                 Text(ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter,
@@ -675,8 +685,11 @@ struct CrossRefsView: View {
                     Button { source = "classic" } label: {
                         Label("Classic", systemImage: source == "classic" ? "checkmark" : "book")
                     }
+                    Button { source = "notes" } label: {
+                        Label("My Notes", systemImage: source == "notes" ? "checkmark" : "note.text")
+                    }
                 } label: {
-                    Label(source == "classic" ? "Classic" : "TSKe", systemImage: "line.3.horizontal.decrease")
+                    Label(source == "notes" ? "My Notes" : source == "classic" ? "Classic" : "TSKe", systemImage: "line.3.horizontal.decrease")
                         .font(.subheadline.weight(.medium))
                         .padding(.horizontal, 8)
                         .frame(minHeight: controlHeight)
@@ -697,7 +710,7 @@ struct CrossRefsView: View {
             } else if failed {
                 ContentUnavailableView("Cross references unavailable", systemImage: "exclamationmark.circle",
                                        description: Text("The selected source could not be loaded."))
-            } else if groups.isEmpty {
+            } else if groups.isEmpty && indirectNotes.isEmpty {
                 ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch")
             } else {
                 List {
@@ -708,6 +721,16 @@ struct CrossRefsView: View {
                         }
                     } else {
                         groupedReferenceRows(groups)
+                    }
+                    if !indirectNotes.isEmpty {
+                        Section("Indirect Mentions") {
+                            ForEach(indirectNotes) { note in
+                                Button(note.title.isEmpty ? "Untitled" : note.title, systemImage: "note.text") {
+                                    openSourceNote(note.id)
+                                }
+                                .buttonStyle(.interactivePlain)
+                            }
+                        }
                     }
                 }
                 .id(reference)
@@ -743,7 +766,7 @@ struct CrossRefsView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
-                    Text("Verse \(number)").font(.subheadline.weight(.semibold))
+                    Text(number == 0 ? "Chapter" : "Verse \(number)").font(.subheadline.weight(.semibold))
                     Spacer(minLength: 0)
                     Text(count, format: .number)
                         .font(.caption.monospacedDigit())
@@ -772,7 +795,7 @@ struct CrossRefsView: View {
 
     private func referenceRows(_ rows: [ReferenceRow]) -> some View {
         ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-            refRow(row.book, row.chapter, row.verse, row.end, row.text, detail: row.detail)
+            refRow(row)
         }
     }
 
@@ -780,7 +803,17 @@ struct CrossRefsView: View {
         let result: (groups: [ReferenceGroup], error: Bool)
         let targets = scopedSelection.isEmpty ? scopedVerse.map { [$0] } ?? [] : scopedSelection
         let classic = source == "classic"
-        if !targets.isEmpty {
+        var indirect: [Note] = []
+        if source == "notes" {
+            if let data = try? app.notes?.crossReferences(bookId: bookId, chapter: chapter, textId: textId, selected: Set(targets)) {
+                indirect = data.indirect
+                result = (data.byVerse.keys.sorted().map { number in
+                    ReferenceGroup(verse: number, heading: nil, rows: (data.byVerse[number] ?? []).map(ReferenceRow.init))
+                }, false)
+            } else {
+                result = ([], true)
+            }
+        } else if !targets.isEmpty {
             var selectedGroups: [ReferenceGroup] = []
             var hadError = false
             for selected in targets {
@@ -815,6 +848,7 @@ struct CrossRefsView: View {
         }
         guard !Task.isCancelled else { return }
         groups = result.groups
+        indirectNotes = indirect
         failed = result.error
         loadedReference = reference
     }
@@ -825,10 +859,12 @@ struct CrossRefsView: View {
         }
     }
 
-    func refRow(_ b: String, _ c: Int, _ v: Int, _ end: Int?, _ text: String, detail: String?) -> some View {
-        let passage = ResolvedPassage(textId: "kjva", bookId: b, chapter: c, verse: v > 0 ? v : nil, endVerse: end)
-        let preview = VerseDisplay.text(text, tagged: nil, textId: passage.textId,
-                                       replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+    private func refRow(_ row: ReferenceRow) -> some View {
+        let passage = ResolvedPassage(textId: row.textId, bookId: row.book, chapter: row.chapter,
+                                      verse: row.verse > 0 ? row.verse : nil, endVerse: row.end)
+        let preview = row.noteID != nil ? row.text : VerseDisplay.text(
+            row.text, tagged: nil, textId: passage.textId, replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules
+        )
         return HStack(alignment: .top, spacing: 4) {
             Button {
                 #if os(iOS)
@@ -838,27 +874,49 @@ struct CrossRefsView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
-                        Text(passage.label).font(.subheadline.weight(.semibold))
+                        Text(passage.textId == "kjva" ? passage.label : referenceForCopy(passage.label, textId: passage.textId))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.accentColor)
                         Spacer()
-                        if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                        if let detail = row.detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                     }
                     Text(preview).font(.callout).foregroundStyle(.secondary).lineLimit(3)
                 }
                 .contentShape(.rect)
             }.buttonStyle(.interactivePlain)
-            .contextMenu { referenceActions(passage, preview: preview) }
-            VerseActionsMenu(label: "Actions for \(passage.label) KJVA") {
-                referenceActions(passage, preview: preview)
+            .contextMenu { referenceActions(passage, sourceNote: row.noteID) }
+            VerseActionsMenu(label: "Actions for \(passage.label), \(textInfo(passage.textId).short)") {
+                referenceActions(passage, sourceNote: row.noteID)
             }
         }
     }
 
-    @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, preview: String) -> some View {
+    private func openSourceNote(_ id: String) {
+        #if os(iOS)
+        dismiss()
+        #endif
+        app.openNote(id)
+    }
+
+    @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, sourceNote: String?) -> some View {
         let reference = referenceForCopy(passage.label, textId: passage.textId)
         Button("Copy", systemImage: "doc.on.doc") {
-            Clipboard.copy(passage.textId == "lxx" && !preview.isEmpty ? "\(reference) \(preview)" : reference)
-            AccessibilityNotification.Announcement("Reference copied").post()
+            Task {
+                var copied = reference
+                if passage.textId == "lxx", let first = passage.verse {
+                    let rows = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
+                    let text = rows.filter { (first...max(first, passage.endVerse ?? first)).contains($0.verseNum) }
+                        .map { VerseDisplay.text($0.text, tagged: nil, textId: passage.textId,
+                                                 replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules) }
+                        .joined(separator: " ")
+                    if !text.isEmpty { copied += " " + text }
+                }
+                Clipboard.copy(copied)
+                AccessibilityNotification.Announcement("Reference copied").post()
+            }
+        }
+        if let sourceNote {
+            Button("Open Source Note", systemImage: "note.text") { openSourceNote(sourceNote) }
         }
         Button("Open in New Tab", systemImage: "plus.square") {
             #if os(iOS)

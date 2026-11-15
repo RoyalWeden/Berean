@@ -95,6 +95,34 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(try notes.matchingNoteIDs("fig") == [older.id])
     }
 
+    @Test func noteCrossReferencesKeepRangesEditionsAndIndirectMentions() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        _ = try notes.create(.init(id: "direct", type: "verse", title: "Direct",
+                                  content: "Isaiah 6:4 LXX. Isaiah 6:4 LXX. John 3:16.",
+                                  verseRef: "JHN.3.16-17", textId: "kjva"))
+        _ = try notes.create(.init(id: "reverse", type: "verse", title: "Backlink",
+                                  content: "John 3:16–17 and Romans 5:8.",
+                                  verseRef: "ROM.8.28", textId: "kjva"))
+        _ = try notes.create(.init(id: "general", title: "Indirect", content: "John 3:17"))
+        _ = try notes.create(.init(id: "other", title: "Different verse", content: "John 3:18"))
+        _ = try notes.create(.init(id: "trash", title: "Deleted", content: "John 3:17"))
+        try notes.delete("trash")
+
+        let scoped = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17, 19])
+        #expect(scoped.byVerse.keys.sorted() == [17])
+        let links = scoped.byVerse[17] ?? []
+        #expect(links.filter { $0.bookId == "ISA" && $0.textId == "lxx" }.count == 1)
+        #expect(links.contains { $0.bookId == "ROM" && $0.chapter == 8 && $0.verse == 28 && $0.note.id == "reverse" })
+        #expect(links.contains { $0.bookId == "ROM" && $0.chapter == 5 && $0.verse == 8 })
+        #expect(scoped.indirect.map(\.id) == ["general"])
+
+        let chapter = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva")
+        #expect(Set(chapter.indirect.map(\.id)) == ["general", "other"])
+        #expect(chapter.byVerse[16]?.contains { $0.bookId == "JHN" && $0.verse == 16 && $0.endVerse == nil } == false)
+    }
+
     @Test func verseInspectorIncludesRangeAttachments() throws {
         let range = try svc.create(.init(type: "verse", title: "Range", verseRef: "JHN.3.14-16", textId: "kjva")).note
         let chapter = try svc.create(.init(type: "verse", title: "Chapter", verseRef: "JHN.3", textId: "kjva")).note

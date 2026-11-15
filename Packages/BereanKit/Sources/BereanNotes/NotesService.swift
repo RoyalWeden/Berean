@@ -262,7 +262,7 @@ public final class NotesService: @unchecked Sendable {
         return counts
     }
 
-    private static func attachments(_ note: Note, bookId: String, chapter: Int, textId: String)
+    static func attachments(_ note: Note, bookId: String, chapter: Int, textId: String)
         -> [(bookId: String, chapter: Int, verse: Int?, endVerse: Int?)] {
         let chapters: [Int]
         if note.textId == textId {

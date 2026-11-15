@@ -1012,3 +1012,8 @@
 - **Branch / commit / PR / CI link:** `native/reader-notes` `68c75906`…`a33189d0`, PR #24.
 - **Documentation/parity rows updated:** AUDIT-2026-11-14.md (D1, D2, D3, D5, D6, D7 statuses), HANDOFF.md evening checkpoint.
 - **Next exact action and its prerequisites:** iPhone simulator QA of this batch, then I1 iPhone verse sheet (see HANDOFF "Next executable tasks").
+
+### 2026-11-14 — My Notes cross references — BUILD VERIFIED
+
+- My Notes is a Cross Refs source on Mac and iPhone. It shows attached-note citations, reverse verse-note links, and a separate Indirect Mentions section. Links retain their edition and provide a source-note action.
+- `npm run native:check` passed with 112 Swift tests across 40 suites and both Dev builds. The synthetic database fixture checks verse ranges, LXX identity, deduplication, and exclusion of trashed notes. Live UI verification remains pending.
