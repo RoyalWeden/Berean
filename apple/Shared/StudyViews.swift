@@ -162,13 +162,13 @@ struct LexiconEntryView: View {
                         if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
                         if !e.extendedDef.isEmpty, !compact {
                             if e.strongsNum.hasPrefix("H") {
-                                section("BDB Notes") { bdbText(e.extendedDef).textSelection(.enabled) }
+                                section("BDB Notes") { bdbText(replaced(e.extendedDef)).textSelection(.enabled) }
                             } else {
-                                section("Extended") { Text(e.extendedDef).textSelection(.enabled) }
+                                section("Extended") { Text(replaced(e.extendedDef)).textSelection(.enabled) }
                             }
                         }
                         if !related.isEmpty {
-                            section("Related") {
+                            section("Derived Terms") {
                                 ForEach(related, id: \.strongsNum) { r in
                                     Button { app.navigateLexicon(r.strongsNum, in: tabId) } label: {
                                         HStack(spacing: 8) {
@@ -265,10 +265,16 @@ struct LexiconEntryView: View {
                                 }
                             }
                             if matches.count > visibleOccurrences {
-                                Button("Show More Occurrences", systemImage: "chevron.down") {
-                                    visibleOccurrences += 40
+                                HStack(spacing: 16) {
+                                    Button("Show More Occurrences", systemImage: "chevron.down") {
+                                        visibleOccurrences += 40
+                                    }
+                                    Button("Show All \(matches.count)") { visibleOccurrences = matches.count }
                                 }
                                 .buttonStyle(.interactivePlain)
+                            } else if visibleOccurrences > 40, matches.count > 40 {
+                                Button("Show Fewer", systemImage: "chevron.up") { visibleOccurrences = 40 }
+                                    .buttonStyle(.interactivePlain)
                             }
                         }
                     } else if loaded && entry == nil {
