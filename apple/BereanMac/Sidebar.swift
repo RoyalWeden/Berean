@@ -108,42 +108,110 @@ struct BereanSidebar: View {
                 .help("New tab (⌘T)")
 
                 Button {
-                    showsTabFilter.toggle()
-                    tabFilterFocused = showsTabFilter
-                    if !showsTabFilter { tabQuery = ""; tabTypeFilter = nil }
+                    withAnimation(.snappy(duration: 0.2)) {
+                        if showsTabFilter {
+                            closeTabFilter()
+                        } else {
+                            showsTabFilter = true
+                            tabFilterFocused = true
+                        }
+                    }
                 } label: {
-                    Label(showsTabFilter ? "Hide Tab Filter" : "Filter Tabs",
-                          systemImage: "line.3.horizontal.decrease")
+                    Label(showsTabFilter ? "Close Tab Filter" : "Filter Tabs",
+                          systemImage: showsTabFilter ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                         .labelStyle(.iconOnly)
                         .frame(width: 30, height: 26)
+                        .background(showsTabFilter ? Color.primary.opacity(0.08) : Color.clear, in: .rect(cornerRadius: 6))
                         .contentShape(.rect)
                 }
                 .buttonStyle(SidebarRowButtonStyle())
-                .help(showsTabFilter ? "Hide tab filter" : "Filter tabs in this workspace")
+                .help(showsTabFilter ? "Close and clear tab filters" : "Filter tabs in this workspace")
             }
             .foregroundStyle(.secondary)
 
             if showsTabFilter {
-                Picker("Tab type", selection: $tabTypeFilter) {
-                    Text("All Types").tag(nil as TabType?)
-                    ForEach(TabType.allCases.filter { type in app.orderedTabs.contains { $0.tabType == type } }, id: \.self) { type in
-                        Text(type == .bible ? "Scripture" : type.rawValue.capitalized).tag(Optional(type))
-                    }
-                }
-                .labelsHidden()
-                .accessibilityLabel("Tab type")
-                TextField("Filter tabs", text: $tabQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($tabFilterFocused)
-                    .onExitCommand {
-                        tabQuery = ""
-                        tabTypeFilter = nil
-                        showsTabFilter = false
-                    }
+                tabFilterControls
+                    .transition(.opacity)
             }
         }
         .padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 8)
         .background(WindowDragArea())   // below the title bar only, so the toolbar's own buttons keep their clicks
+    }
+
+    private var tabFilterControls: some View {
+        let tabs = app.orderedTabs
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                TextField("Search tabs", text: $tabQuery)
+                    .textFieldStyle(.plain)
+                    .focused($tabFilterFocused)
+                if !tabQuery.isEmpty {
+                    Button("Clear search", systemImage: "xmark.circle.fill") {
+                        tabQuery = ""
+                        tabFilterFocused = true
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.interactivePlain)
+                    .foregroundStyle(.secondary)
+                }
+                Menu {
+                    Picker("Tab Type", selection: $tabTypeFilter) {
+                        Text("All Types").tag(nil as TabType?)
+                        ForEach(TabType.allCases.filter { type in
+                            tabs.contains { $0.tabType == type } || tabTypeFilter == type
+                        }, id: \.self) { type in
+                            Text(tabTypeTitle(type)).tag(Optional(type))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label("Tab Type", systemImage: "line.3.horizontal.decrease")
+                        .labelStyle(.iconOnly)
+                        .frame(width: 22, height: 22)
+                        .contentShape(.rect)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(tabTypeFilter.map(tabTypeTitle) ?? "All tab types")
+            }
+            .padding(.leading, 8)
+            .padding(.trailing, 4)
+            .padding(.vertical, 3)
+            .background(.quaternary.opacity(0.55), in: .rect(cornerRadius: 8))
+
+            if let type = tabTypeFilter {
+                Button {
+                    tabTypeFilter = nil
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(tabTypeTitle(type))
+                        Image(systemName: "xmark").font(.caption2.weight(.semibold))
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.quaternary, in: .capsule)
+                    .contentShape(.capsule)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityLabel("Remove \(tabTypeTitle(type)) filter")
+            }
+        }
+        .onExitCommand { closeTabFilter() }
+    }
+
+    private func tabTypeTitle(_ type: TabType) -> String {
+        type == .bible ? "Scripture" : type.rawValue.capitalized
+    }
+
+    private func closeTabFilter() {
+        tabQuery = ""
+        tabTypeFilter = nil
+        tabFilterFocused = false
+        showsTabFilter = false
     }
 
     private var workspaceTabSearch: some View {

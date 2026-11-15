@@ -271,6 +271,12 @@ struct TabCardsSheet: View {
     @AppStorage("tabCardsSort") private var tabSort = "custom"
 
     private var isFiltering: Bool { spaceFilter != nil || typeFilter != nil }
+    private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canReorder: Bool { tabSort != "recent" && !isFiltering && !hasQuery }
+
+    private func typeTitle(_ type: TabType) -> String {
+        type == .bible ? "Scripture" : type.rawValue.capitalized
+    }
 
     private func matchesFilters(_ tab: BereanWorkspace.Tab) -> Bool {
         (spaceFilter == nil || tab.spaceId == spaceFilter)
@@ -284,7 +290,16 @@ struct TabCardsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                TabSearchField(prompt: "Search tabs", query: $query)
+                VStack(alignment: .leading, spacing: 4) {
+                    TabSearchField(prompt: "Search tabs", query: $query)
+                    if isFiltering {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) { activeFilters }
+                                .fixedSize(horizontal: true, vertical: false)
+                            VStack(alignment: .leading, spacing: 4) { activeFilters }
+                        }
+                    }
+                }
                 Section {
                     NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
                         LabeledContent {
@@ -304,7 +319,7 @@ struct TabCardsSheet: View {
                         NavigationLink { ArchivedTabsPage(onOpen: { dismiss() }) } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
                     }
                 }
-                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !isFiltering {
+                if !hasQuery, !isFiltering {
                     WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
                                         onOpen: { dismiss() })
                 }
@@ -316,17 +331,19 @@ struct TabCardsSheet: View {
                     if layout == "grid" {
                         if !shown.isEmpty {
                             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                                ForEach(sortedForGrid(pinned + others)) { card($0) }
+                                ForEach(sortedTabs(pinned + others)) { card($0) }
                             }
                             .padding(.vertical, 6)
                             .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
                             .listRowBackground(Color.clear)
                         }
-                    } else {
+                    } else if canReorder {
                         ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
                         ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
+                    } else {
+                        ForEach(sortedTabs(pinned + others)) { row($0) }
                     }
-                    if shown.isEmpty && otherMatches.isEmpty { Text(query.isEmpty && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
+                    if shown.isEmpty && otherMatches.isEmpty { Text(!hasQuery && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
                 WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() })
             }
@@ -336,7 +353,7 @@ struct TabCardsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if layout == "list" { EditButton() }
+                    if layout == "list" && canReorder { EditButton() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(layout == "grid" ? "Show as List" : "Show as Grid", systemImage: layout == "grid" ? "list.bullet" : "square.grid.2x2") {
@@ -351,15 +368,15 @@ struct TabCardsSheet: View {
                                 Text(space.title).tag(Optional(space))
                             }
                         }
-                        Picker("Sort", selection: $tabSort) {
-                            Text("Custom Order").tag("custom")
-                            Text("Recently Used").tag("recent")
-                        }
                         Picker("Tab Type", selection: $typeFilter) {
                             Text("All Types").tag(nil as TabType?)
                             ForEach(TabType.allCases, id: \.self) { type in
-                                Text(type == .bible ? "Scripture" : type.rawValue.capitalized).tag(Optional(type))
+                                Text(typeTitle(type)).tag(Optional(type))
                             }
+                        }
+                        Picker("Sort", selection: $tabSort) {
+                            Text("Custom Order").tag("custom")
+                            Text("Recently Used").tag("recent")
                         }
                         if isFiltering {
                             Button("Clear Filters", systemImage: "xmark") {
@@ -370,11 +387,37 @@ struct TabCardsSheet: View {
                     } label: {
                         Label("Filter Tabs", systemImage: isFiltering ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                     }
-                    .accessibilityValue([spaceFilter?.title, typeFilter.map { $0 == .bible ? "Scripture" : $0.rawValue.capitalized }].compactMap { $0 }.joined(separator: ", "))
+                    .accessibilityValue([spaceFilter?.title, typeFilter.map(typeTitle)].compactMap { $0 }.joined(separator: ", "))
                 }
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }
         }
+    }
+
+    @ViewBuilder
+    private var activeFilters: some View {
+        if let spaceFilter {
+            filterChip(spaceFilter.title, category: "Space") { self.spaceFilter = nil }
+        }
+        if let typeFilter {
+            filterChip(typeTitle(typeFilter), category: "Type") { self.typeFilter = nil }
+        }
+    }
+
+    private func filterChip(_ title: String, category: String, clear: @escaping () -> Void) -> some View {
+        Button(action: clear) {
+            HStack(spacing: 6) {
+                Text(title).font(.subheadline.weight(.medium))
+                Image(systemName: "xmark").font(.caption2.weight(.semibold))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.quaternary, in: .capsule)
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Remove \(category) filter: \(title)")
     }
 
     func row(_ tab: BereanWorkspace.Tab) -> some View {
@@ -398,7 +441,7 @@ struct TabCardsSheet: View {
         .contextMenu { tabMenu(tab) }
     }
 
-    private func sortedForGrid(_ tabs: [BereanWorkspace.Tab]) -> [BereanWorkspace.Tab] {
+    private func sortedTabs(_ tabs: [BereanWorkspace.Tab]) -> [BereanWorkspace.Tab] {
         guard tabSort == "recent" else { return tabs }
         let rank = Dictionary((([app.activeTab?.id].compactMap { $0 }) + app.recentTabIDs).enumerated().map { ($1, $0) },
                               uniquingKeysWith: { first, _ in first })
