@@ -102,3 +102,26 @@ import Testing
     #expect(try db.query("SELECT anchor_ended_at FROM trail_nodes ORDER BY order_index").map { $0.values[0] } == [.integer(600), .integer(550)])
     #expect(try !trail.transition(.resume, trailId: "study", at: 700, intervalId: "unused"))
 }
+
+
+@Test func capturesExplicitCrossReferencesFromTheRecordedEditionAndVerse() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    let trail = StudyTrailService(db: db)
+    try trail.start(name: "Cross references", id: "trail", at: 10)
+    try trail.recordStop(trailId: "trail", id: "stop", bookId: "GEN", chapter: 2, translation: "lxx", at: 20)
+    let destination: StudyTrailService.Connection.Destination = .scripture(bookId: "GEN", chapter: 2, verse: 4, endVerse: 5)
+    func record(_ id: String, edition: String = "lxx", verse: Int = 1) throws -> Bool {
+        try trail.recordCrossReference(destination, id: id, trailId: "trail", fromBook: "GEN",
+                                       chapter: 2, translation: edition, verse: verse, at: 30)
+    }
+    #expect(try !record("wrong-edition", edition: "kjva"))
+    #expect(try record("first"))
+    #expect(try !record("duplicate"))
+    #expect(try record("second-verse", verse: 2))
+    try trail.transition(.pause, trailId: "trail", at: 40, intervalId: "pause")
+    #expect(try !record("paused", verse: 3))
+    #expect(try trail.connections(in: "trail").map(\.reason) == ["Cross reference", "Cross reference"])
+    #expect(try db.query("SELECT origin_verse_pin_from FROM trail_connections ORDER BY id")
+        .map { $0["origin_verse_pin_from"]?.int } == [1, 2])
+}

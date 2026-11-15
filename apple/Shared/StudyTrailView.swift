@@ -515,6 +515,23 @@ private struct StudyTrailNoteEditor: View {
     }
 }
 
+extension AppModel {
+    func recordStudyCrossReference(_ passage: ResolvedPassage, sourceBook: String, chapter: Int,
+                                   edition: String, verse: Int?) {
+        guard let recording = studyTrailRecording, !recording.isPaused,
+              let service = studyTrailService else { return }
+        do {
+            try service.recordCrossReference(
+                .scripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, endVerse: passage.endVerse),
+                id: AppModel.newId(), trailId: recording.trailID, fromBook: sourceBook, chapter: chapter,
+                translation: edition, verse: verse, at: StudyTrailView.now()
+            )
+        } catch {
+            userMessage = "Study Trail could not save this cross reference."
+        }
+    }
+}
+
 private struct StudyTrailRecorder: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
     let app: AppModel

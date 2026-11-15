@@ -1047,16 +1047,16 @@ struct CrossRefsView: View {
     private func groupedReferenceRows(_ groups: [ReferenceGroup]) -> some View {
         ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
             if let heading = group.heading {
-                Section(heading) { referenceRows(group.rows) }
+                Section(heading) { referenceRows(group.rows, fromVerse: group.verse) }
             } else {
-                referenceRows(group.rows)
+                referenceRows(group.rows, fromVerse: group.verse)
             }
         }
     }
 
-    private func referenceRows(_ rows: [ReferenceRow]) -> some View {
+    private func referenceRows(_ rows: [ReferenceRow], fromVerse: Int) -> some View {
         ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-            refRow(row)
+            refRow(row, fromVerse: fromVerse)
         }
     }
 
@@ -1120,7 +1120,7 @@ struct CrossRefsView: View {
         }
     }
 
-    private func refRow(_ row: ReferenceRow) -> some View {
+    private func refRow(_ row: ReferenceRow, fromVerse: Int) -> some View {
         let passage = ResolvedPassage(textId: row.textId, bookId: row.book, chapter: row.chapter,
                                       verse: row.verse > 0 ? row.verse : nil, endVerse: row.end)
         let preview = row.noteID != nil ? row.text : VerseDisplay.text(
@@ -1128,7 +1128,7 @@ struct CrossRefsView: View {
         )
         return HStack(alignment: .top, spacing: 4) {
             Button {
-                openDestination { app.visitScripture(passage) }
+                openReference(passage, fromVerse: fromVerse)
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
@@ -1142,10 +1142,18 @@ struct CrossRefsView: View {
                 }
                 .contentShape(.rect)
             }.buttonStyle(.interactivePlain)
-            .contextMenu { referenceActions(passage, sourceNote: row.noteID) }
+            .contextMenu { referenceActions(passage, fromVerse: fromVerse, sourceNote: row.noteID) }
             VerseActionsMenu(label: "Actions for \(passage.label), \(textInfo(passage.textId).short)") {
-                referenceActions(passage, sourceNote: row.noteID)
+                referenceActions(passage, fromVerse: fromVerse, sourceNote: row.noteID)
             }
+        }
+    }
+
+    private func openReference(_ passage: ResolvedPassage, fromVerse: Int, newTab: Bool = false) {
+        openDestination {
+            app.recordStudyCrossReference(passage, sourceBook: bookId, chapter: chapter,
+                                          edition: textId, verse: fromVerse > 0 ? fromVerse : nil)
+            app.visitScripture(passage, reuseTab: !newTab)
         }
     }
 
@@ -1164,7 +1172,7 @@ struct CrossRefsView: View {
         action()
     }
 
-    @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, sourceNote: String?) -> some View {
+    @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, fromVerse: Int, sourceNote: String?) -> some View {
         let reference = referenceForCopy(passage.label, textId: passage.textId)
         Button("Copy", systemImage: "doc.on.doc") {
             Task {
@@ -1185,7 +1193,7 @@ struct CrossRefsView: View {
             Button("Open Source Note", systemImage: "note.text") { openSourceNote(sourceNote) }
         }
         Button("Open in New Tab", systemImage: "plus.square") {
-            openDestination { app.visitScripture(passage, reuseTab: false) }
+            openReference(passage, fromVerse: fromVerse, newTab: true)
         }
     }
 }

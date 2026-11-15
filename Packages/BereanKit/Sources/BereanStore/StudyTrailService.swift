@@ -238,10 +238,35 @@ public struct StudyTrailService {
         }
     }
 
+    /// Records an intentional cross-reference jump from an already recorded Scripture stop.
+    @discardableResult
+    public func recordCrossReference(_ destination: Connection.Destination, id: String, trailId: String,
+                                     fromBook: String, chapter: Int, translation: String,
+                                     verse: Int?, at time: Int64) throws -> Bool {
+        guard case .scripture = destination else { return false }
+        let source = try db.query("""
+            SELECT n.id FROM trail_nodes n
+            JOIN trail_sessions s ON s.id = n.trail_session_id
+            WHERE s.id = ? AND s.status = 'live' AND n.book_id = ? AND n.chapter = ? AND n.translation = ?
+            ORDER BY n.anchor_ended_at IS NOT NULL, n.anchor_started_at DESC, n.order_index DESC, n.id
+            LIMIT 1
+            """, [.text(trailId), .text(fromBook), .integer(Int64(chapter)), .text(translation)]).first?["id"]?.string
+        guard let source else { return false }
+        return try addConnection(destination, id: id, fromStopId: source, trailId: trailId,
+                                 after: nil, at: time, reason: "Cross reference", originVerse: verse)
+    }
+
     /// Adds an explicit connection, optionally continuing an existing legacy chain.
     @discardableResult
     public func addConnection(_ destination: Connection.Destination, id: String, fromStopId: String,
                               trailId: String, after parentId: String? = nil, at time: Int64) throws -> Bool {
+        try addConnection(destination, id: id, fromStopId: fromStopId, trailId: trailId,
+                          after: parentId, at: time, reason: nil, originVerse: nil)
+    }
+
+    private func addConnection(_ destination: Connection.Destination, id: String, fromStopId: String,
+                               trailId: String, after parentId: String?, at time: Int64,
+                               reason: String?, originVerse: Int?) throws -> Bool {
         let fields: [SQLiteValue]
         switch destination {
         case .scripture(let book, let chapter, let verse, let endVerse):
@@ -261,26 +286,29 @@ public struct StudyTrailService {
         }
         let parent = parentId.map(SQLiteValue.text) ?? .null
         let parameters: [SQLiteValue] = [.text(id), .text(trailId), .text(fromStopId)]
-            + fields + [.integer(time), parent]
+            + fields + [.integer(time), parent, reason.map(SQLiteValue.text) ?? .null,
+                        originVerse.map { .integer(Int64($0)) } ?? .null]
         return try db.run("""
             INSERT INTO trail_connections (
                 id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
                 to_verse_end, to_strongs_num, to_note_id, clarity_tier, created_at,
-                from_connection_id, chain_depth
+                from_connection_id, chain_depth, reason_text, origin_verse_pin_from
             )
             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11,
-                   p.id, COALESCE(p.chain_depth + 1, 0)
+                   p.id, COALESCE(p.chain_depth + 1, 0), ?13, ?14
             FROM trail_nodes n
             JOIN trail_sessions s ON s.id = n.trail_session_id
             LEFT JOIN trail_connections p
                 ON p.id = ?12 AND p.trail_session_id = s.id AND p.from_node_id = n.id
             WHERE n.id = ?3 AND s.id = ?2 AND s.id <> '__loose_stops__'
               AND (?12 IS NULL OR p.id IS NOT NULL)
+              AND (?13 IS NULL OR s.status = 'live')
               AND NOT EXISTS (
                 SELECT 1 FROM trail_connections
                 WHERE trail_session_id = ?2 AND from_node_id = ?3 AND from_connection_id IS ?12
                   AND to_kind = ?4 AND to_book_id IS ?5 AND to_chapter IS ?6 AND to_verse IS ?7
                   AND to_verse_end IS ?8 AND to_strongs_num IS ?9 AND to_note_id IS ?10
+                  AND (?13 IS NULL OR (reason_text IS ?13 AND origin_verse_pin_from IS ?14))
               )
             """, parameters).changes == 1
     }
