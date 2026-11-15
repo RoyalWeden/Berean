@@ -10,6 +10,10 @@ enum ClickableCursor {
         for cls: AnyClass in [NSButton.self, NSSegmentedControl.self] { swizzle(cls, with: #selector(NSControl.berean_resetCursorRects)) }
         // Toolbar items are SwiftUI hosting views inside AppKit's private item viewer (no NSButton to hook).
         if let viewer = NSClassFromString("NSToolbarItemViewer") { swizzle(viewer, with: #selector(NSView.berean_toolbarResetCursorRects)) }
+        // Toolbar items change enabled state without resetting cursor rects (Back gains history); re-check after events.
+        NotificationCenter.default.addObserver(forName: NSWindow.didUpdateNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { ToolbarCursorWatch.refresh() }
+        }
     }
 
     private static func swizzle(_ cls: AnyClass, with replacement: Selector) {
@@ -29,7 +33,18 @@ extension NSView {
     @objc func berean_toolbarResetCursorRects() {
         berean_toolbarResetCursorRects()
         guard !isHidden, bounds.width > 0, !containsEditableText else { return }
+        // Skip disabled items (e.g. Back with no history) when the viewer exposes its NSToolbarItem.
+        let enabled = toolbarItemEnabled
+        ToolbarCursorWatch.record(self, enabled: enabled)
+        if enabled == false { return }
         addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    /// The hosted NSToolbarItem's enabled state, when the private viewer exposes `item` (nil if it doesn't).
+    fileprivate var toolbarItemEnabled: Bool? {
+        let itemSelector = NSSelectorFromString("item")
+        guard responds(to: itemSelector), let item = perform(itemSelector)?.takeUnretainedValue() as? NSToolbarItem else { return nil }
+        return item.isEnabled
     }
 
     fileprivate var containsEditableText: Bool {
@@ -63,3 +78,28 @@ enum ClickableCursorDebug {
     }
 }
 #endif
+
+
+/// Remembers each toolbar item viewer's enabled state at its last cursor-rect reset and invalidates its rects when it changes.
+@MainActor enum ToolbarCursorWatch {
+    private static let viewers = NSHashTable<NSView>.weakObjects()
+    private static var states: [ObjectIdentifier: Bool] = [:]
+
+    static func record(_ view: NSView, enabled: Bool?) {
+        guard let enabled else { return }
+        viewers.add(view)
+        states[ObjectIdentifier(view)] = enabled
+    }
+
+    static func refresh() {
+        for view in viewers.allObjects {
+            guard let now = view.toolbarItemEnabledPublic, states[ObjectIdentifier(view)] != now else { continue }
+            states[ObjectIdentifier(view)] = now
+            view.window?.invalidateCursorRects(for: view)
+        }
+    }
+}
+
+extension NSView {
+    @MainActor var toolbarItemEnabledPublic: Bool? { toolbarItemEnabled }
+}

@@ -811,8 +811,9 @@ Lexicon tab toolbar (now three nav-bar buttons), iPhone annotation section in th
 1. **Global Mac cursor hook** — `apple/BereanMac/ClickableCursor.swift` swizzles `resetCursorRects` on `NSButton`, `NSSegmentedControl`
    and AppKit's private `NSToolbarItemViewer` (looked up with `NSClassFromString`; skipped if missing). Toolbar items are SwiftUI
    `ToolbarItemHostingView`s inside the viewer, so per-view `pointerStyle` cannot reach them. Viewers containing an editable text
-   field/view are skipped. Known limitation: a *disabled* toolbar button (e.g. Back with no history) still shows the hand, because
-   the viewer can't see SwiftUI's disabled state. A DEBUG-only, env-gated dump (`BEREAN_CURSOR_DEBUG=1`) writes the window view tree to
+   field/view are skipped. **Update 19:55:** disabled toolbar items now keep the arrow — the hook reads the viewer's `item` (`NSToolbarItem.isEnabled`,
+   guarded by `responds(to:)`), and `ToolbarCursorWatch` re-checks after each window update and invalidates a viewer's cursor rects
+   when its enabled state flips (verified: Back arrow → hand after navigating). A DEBUG-only, env-gated dump (`BEREAN_CURSOR_DEBUG=1`) writes the window view tree to
    the sandbox tmp (`~/Library/Containers/com.berean.native.mac.dev/Data/tmp/berean-views.txt`) — useful for any future AppKit
    hosting question.
 2. **`clickableCursor()`** modifier (in `ScriptureView.swift` next to `InteractivePlainButtonStyle`) for SwiftUI menus/pickers that keep
