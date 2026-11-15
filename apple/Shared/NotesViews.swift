@@ -41,6 +41,7 @@ struct NoteFormatRequest: Equatable {
         case addTableColumn
         case deleteTableRow
         case deleteTableColumn
+        case deleteTable
     }
 
     let action: Action
@@ -264,6 +265,19 @@ func noteTableColumnInsertion(in text: NSString, selection: NSRange)
         }
     }
     return (range, replacement as String, NSRange(location: caret, length: 0))
+}
+
+func noteWholeTableDeletion(in text: NSString, selection: NSRange)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard let (block, _) = noteTableContext(in: text, selection: selection),
+          let first = block.first, let last = block.last,
+          block.dropFirst(2).allSatisfy({ $0.kind == .tableRow }) else { return nil }
+    let width = noteTableCells(in: text, range: first.range).count
+    guard width > 0, noteTableCells(in: text, range: block[1].range).count == width else { return nil }
+    let start = first.range.location
+    let end = text.lineRange(for: last.range).upperBound
+    let range = NSRange(location: start, length: end - start)
+    return (range, "", NSRange(location: start, length: 0))
 }
 
 func noteTableDeletion(in text: NSString, selection: NSRange, columnOnly: Bool)
@@ -525,6 +539,9 @@ struct NoteDetailView: View {
                             }
                             Button("Delete Column", systemImage: "minus.rectangle.portrait") {
                                 formatRequest = NoteFormatRequest(action: .deleteTableColumn)
+                            }
+                            Button("Delete Table", systemImage: "trash", role: .destructive) {
+                                formatRequest = NoteFormatRequest(action: .deleteTable)
                             }
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")

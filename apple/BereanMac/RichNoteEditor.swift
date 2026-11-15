@@ -68,6 +68,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .addTableColumn: editor.addTableColumn()
                 case .deleteTableRow: editor.deleteTablePart(columnOnly: false)
                 case .deleteTableColumn: editor.deleteTablePart(columnOnly: true)
+                case .deleteTable: editor.deleteTable()
                 }
                 window.makeFirstResponder(editor)
             }
@@ -274,6 +275,11 @@ final class NoteTextView: NSTextView {
         setSelectedRange(destination)
         scrollRangeToVisible(destination)
         return true
+    }
+
+    func deleteTable() {
+        guard let edit = noteWholeTableDeletion(in: string as NSString, selection: selectedRange()) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func deleteTablePart(columnOnly: Bool) {
