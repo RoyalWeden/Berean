@@ -882,6 +882,7 @@ struct VerseNotesView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
+    var performDestination: ((@escaping () -> Void) -> Void)?
     @State private var notes: [Note] = []
 
     private var passageLabel: String {
@@ -892,6 +893,10 @@ struct VerseNotesView: View {
         List {
             ForEach(notes) { note in
                 Button {
+                    if let performDestination {
+                        performDestination { app.openNote(note.id) }
+                        return
+                    }
                     #if os(iOS)
                     dismiss()
                     #endif
@@ -908,6 +913,10 @@ struct VerseNotesView: View {
             }
             Button {
                 let ref = "\(bookId).\(chapter)" + (verse.map { ".\($0)" } ?? "")
+                if let performDestination {
+                    performDestination { _ = app.newNote(verseRef: ref, textId: textId, title: passageLabel) }
+                    return
+                }
                 if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
                     #if os(iOS)
                     dismiss()

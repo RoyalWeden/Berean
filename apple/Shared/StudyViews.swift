@@ -604,6 +604,7 @@ struct CrossRefsView: View {
     @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
     var selectedVerses: [Int] = []
+    var performDestination: ((@escaping () -> Void) -> Void)?
     @AppStorage("crossrefSource") private var source = "tske"
     @State private var loadedReference: String?
     @State private var groups: [ReferenceGroup] = []
@@ -867,10 +868,7 @@ struct CrossRefsView: View {
         )
         return HStack(alignment: .top, spacing: 4) {
             Button {
-                #if os(iOS)
-                dismiss()
-                #endif
-                app.visitScripture(passage)
+                openDestination { app.visitScripture(passage) }
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
@@ -892,10 +890,18 @@ struct CrossRefsView: View {
     }
 
     private func openSourceNote(_ id: String) {
+        openDestination { app.openNote(id) }
+    }
+
+    private func openDestination(_ action: @escaping () -> Void) {
+        if let performDestination {
+            performDestination(action)
+            return
+        }
         #if os(iOS)
         dismiss()
         #endif
-        app.openNote(id)
+        action()
     }
 
     @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, sourceNote: String?) -> some View {
@@ -919,10 +925,7 @@ struct CrossRefsView: View {
             Button("Open Source Note", systemImage: "note.text") { openSourceNote(sourceNote) }
         }
         Button("Open in New Tab", systemImage: "plus.square") {
-            #if os(iOS)
-            dismiss()
-            #endif
-            app.visitScripture(passage, reuseTab: false)
+            openDestination { app.visitScripture(passage, reuseTab: false) }
         }
     }
 }

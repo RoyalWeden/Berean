@@ -945,3 +945,7 @@ Live Mac Dev QA passed at `9920a11e`. Created the synthetic verse note “Dev Ci
 ### iPhone verse action sheet swatches
 
 The single-verse sheet opens at 300 points and can expand to full height. Its palette shows five inline colors, a selection checkmark and an eraser. Controls use 44-point minimum targets and named accessibility labels. In iPhone 18 Pro Simulator (iOS 27.0), Genesis 1:1 → selection overflow → All Verse Actions showed the compact palette. Yellow applied behind the sheet, and the eraser removed it while the sheet stayed open. The Dev test left no highlight on that verse. Remaining I1/I2 work includes compact Notes/Refs shortcuts, in-sheet navigation, copy feedback, and verification with large Dynamic Type and a physical iPhone.
+
+### iPhone verse sheet study navigation
+
+The compact sheet now includes Notes and Cross References shortcuts. Both push full-height pages inside the same sheet, and Back returns to the palette and actions. Following a passage or opening/creating a note schedules navigation after dismissal to avoid dismissing only the pushed page. Both Dev builds passed. iPhone 18 Pro Simulator verified Genesis 1:1 → Notes (New Note for Genesis 1:1), Back → Cross References (TSKe) → Proverbs 8. The linked range began near the bottom of the first settled viewport rather than above the action bar, so range reveal needs follow-up. In-sheet note editing, creating/opening an actual note through this route, and the My Notes source require additional checks.

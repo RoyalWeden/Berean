@@ -277,6 +277,10 @@ struct ScriptureView: View {
     @State private var tappedTag: TappedTag?
     @State private var tappedVerse: TappedVerse?
     @State private var afterVerseSheet: (() -> Void)?
+    private enum VerseSheetPage: Hashable { case notes, crossReferences }
+    private static let verseSheetCompactDetent = PresentationDetent.height(300)
+    @State private var verseSheetPath: [VerseSheetPage] = []
+    @State private var verseSheetDetent = Self.verseSheetCompactDetent
     #endif
 
     private struct ChapterBounds {
@@ -915,23 +919,42 @@ struct ScriptureView: View {
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet
             afterVerseSheet = nil
+            verseSheetPath = []
+            verseSheetDetent = Self.verseSheetCompactDetent
             action?()
         }) { item in
-            NavigationStack {
+            NavigationStack(path: $verseSheetPath) {
                 List {
                     Section("Highlight") { verseHighlightSwatches(item.row, st) }
                     Section {
-                        verseActions(item.row, st, perform: { action in
-                            afterVerseSheet = action
-                            tappedVerse = nil
-                        })
+                        HStack(spacing: 8) {
+                            verseSheetShortcut("Notes", icon: "note.text", page: .notes)
+                            verseSheetShortcut("Cross References", icon: "arrow.triangle.branch", page: .crossReferences)
+                        }
+                    }
+                    Section {
+                        verseActions(item.row, st, perform: finishVerseSheet)
                     }
                 }
                     .navigationTitle(Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: item.row.verseNum, hermas: HermasText(textId: st.translation)))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } } }
+                    .navigationDestination(for: VerseSheetPage.self) { page in
+                        switch page {
+                        case .notes:
+                            VerseNotesView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
+                                           textId: st.translation, performDestination: finishVerseSheet)
+                                .navigationTitle("Verse Notes")
+                                .navigationBarTitleDisplayMode(.inline)
+                        case .crossReferences:
+                            CrossRefsView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
+                                          textId: st.translation, performDestination: finishVerseSheet)
+                                .navigationTitle("Cross References")
+                                .navigationBarTitleDisplayMode(.inline)
+                        }
+                    }
             }
-            .presentationDetents([.height(300), .large])
+            .presentationDetents([Self.verseSheetCompactDetent, .large], selection: $verseSheetDetent)
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $tappedTag) { item in
@@ -1159,6 +1182,24 @@ struct ScriptureView: View {
     }
 
     #if os(iOS)
+    private func finishVerseSheet(_ action: @escaping () -> Void) {
+        afterVerseSheet = action
+        tappedVerse = nil
+    }
+
+    private func verseSheetShortcut(_ title: String, icon: String, page: VerseSheetPage) -> some View {
+        Button {
+            verseSheetDetent = .large
+            verseSheetPath.append(page)
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+    }
+
     private func verseHighlightSwatches(_ verse: ChapterVerseRow, _ state: BibleState) -> some View {
         let marks = highlights[verse.verseNum] ?? []
         let current = marks.last { $0.startChar == nil && $0.startWord == nil }?.color
@@ -1223,8 +1264,6 @@ struct ScriptureView: View {
             }
         }
         Button("Add Note") { perform { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } }
-        Button("Verse Notes") { perform { openInspector("notes", verse: v.verseNum) } }
-        Button("Cross References") { perform { openInspector("crossrefs", verse: v.verseNum) } }
         Button("Compare This Verse") { perform { mutate { $0.verse = v.verseNum; $0.endVerse = nil; $0.compareMode = true } } }
         Button("Open in New Tab") { perform { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
     }
