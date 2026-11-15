@@ -860,3 +860,19 @@ Each was built for Mac + iOS and checked in the running Mac Dev app (iPhone simu
 **Decision to review:** the Search tab's field used to send *every* reference to the passage. Now a **single-verse** reference
 ("John 3:16") stays in Search and shows that verse's cross references (the original Search tab's auto mode), with an Open button;
 chapter references ("John 3") still navigate. If Michael prefers the old behaviour, revert the guard in `ScriptureSearchView.submit()`.
+
+#### Codex task spec — "My Notes" cross references (audit D11 / D12 / D13; iPhone I-series "cross-ref My Notes")
+
+Not started natively; it was judged too large to finish safely in the Claude session. Suggested slices, each golden-verified:
+
+1. **Port `extractRefsFromNote` (src/lib/noteRefs.ts, 176 lines)** into BereanReference (or BereanNotes) as `NoteVerseRefs.extract(content:title:)`.
+   It depends on `parseRef`, `AMBIGUOUS_PATTERNS`, `isExactBookToken` (src/lib/parseRef.ts) and `stripLxxMarker` /
+   `normalizeRefWhitespace` (src/lib/noteTextBlocks.ts); check which of these BereanReference already ports
+   (`Reference.parse…`). Add the function to `scripts/golden/corpus.ts` with note fixtures (wikilinks `[[John 3:16]]`, ranges,
+   comma groups, "Book 2" Hermas forms, " LXX" suffix, lowercase ambiguous tokens like "job"/"mark" without a colon) and run
+   `npm run golden:export`.
+2. **Port `loadChapterNoteCrossRefs` + `filterNoteCrossRefs` (src/lib/notesCrossRefs.ts, 83 lines)** as a NotesService method using
+   the existing `chapterNotes(_:_:tid:)` and `search(_:limit:)` (the original searches for `"<Book> <chapter>:"`, limit 80).
+3. **UI:** add "My Notes" as a third source in `CrossRefsView` (`apple/Shared/StudyViews.swift`, `@AppStorage("crossrefSource")`
+   currently `tske`/`classic`; the original value is `notes`), with an "Indirect mentions" section; then the reader indicator (D11:
+   sized dot by count, `VerseRow.tsx` ~202-240) and the chapter banner (D12, `ChapterView.tsx` ~1214).
