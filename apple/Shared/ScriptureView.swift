@@ -1544,6 +1544,7 @@ private struct VerseActionControlAppearance: ViewModifier {
                     .padding(2)
             }
             .onHover { hovering = $0 }
+            .pointerStyle(isEnabled ? .link : .default)
             #else
             .hoverEffect(.highlight, isEnabled: isEnabled)
             #endif
