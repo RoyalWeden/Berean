@@ -141,7 +141,7 @@ extension AppModel {
         let id = "arch-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(6))"
         var placements = archivePlacements
         placements[id] = ArchivePlacement(workspace: currentSessionId, order: displayOrder(for: currentSessionId),
-                                          workspaceName: session.name)
+                                          workspaceName: session.name, workspaceLabel: currentWorkspace?.displayName)
         let group = ArchivedGroup(id: id, label: label, archivedAt: Int64(Date().timeIntervalSince1970 * 1000), tabsJSON: json)
         archivedGroups.insert(group, at: 0)
         let recentGroups = Set(archivedGroups.prefix(50).map(\.id))
@@ -155,14 +155,23 @@ extension AppModel {
         let workspace: String
         let order: [String]
         let workspaceName: String?
+        let workspaceLabel: String?
     }
 
-    func archiveTitles() -> [String: String] {
+    func archiveTitles(includeAliases: Bool = false) -> [String: String] {
         let placements = archivePlacements
-        let liveNames = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.name) })
+        let sourceIDs = Set(placements.values.map(\.workspace))
+        let live = Dictionary(uniqueKeysWithValues: sessions.filter { sourceIDs.contains($0.id) }
+            .map { ($0.id, WorkspaceItem(session: $0)) })
         return Dictionary(uniqueKeysWithValues: archivedGroups.map { group in
             let label = group.label.isEmpty ? "Archived tabs" : group.label
-            let name = placements[group.id].flatMap { liveNames[$0.workspace] ?? $0.workspaceName }
+            guard let placement = placements[group.id] else { return (group.id, label) }
+            let source = live[placement.workspace]
+            let name = source?.displayName ?? placement.workspaceLabel ?? placement.workspaceName
+            if includeAliases {
+                let aliases = [name, source?.name, placement.workspaceLabel, placement.workspaceName].compactMap { $0 }
+                return (group.id, ([label] + aliases).joined(separator: " ").replacingOccurrences(of: "–", with: "-"))
+            }
             return (group.id, name.map { "\(label) · \($0)" } ?? label)
         })
     }
@@ -247,12 +256,13 @@ extension AppModel {
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         guard !terms.isEmpty else { return [] }
         let titles = archiveTitles()
+        let searchTitles = archiveTitles(includeAliases: true)
         let sourceNames = archiveSourceNames()
         var matches: [ArchivedTabMatch] = []
         for group in archivedGroups {
             let title = titles[group.id] ?? group.label
             for tab in archivedTabs(group) {
-                let searchable = "\(tab.navigationSearchText) \(title)"
+                let searchable = "\(tab.navigationSearchText) \(searchTitles[group.id] ?? title)"
                 guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { continue }
                 matches.append(ArchivedTabMatch(groupID: group.id, groupTitle: title, sourceName: sourceNames[group.id], tab: tab))
                 if matches.count >= limit { return matches }

@@ -451,9 +451,10 @@ struct BereanSidebar: View {
         let terms = archiveQuery.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let titles = app.archiveTitles()
         let sourceNames = app.archiveSourceNames()
+        let searchTitles = app.archiveTitles(includeAliases: true)
         let groups = app.archivedGroups.map { group in
             (group, group.tabs.filter { tab in
-                return terms.allSatisfy { "\(tab.navigationSearchText) \(titles[group.id] ?? group.label)".localizedStandardContains(String($0)) }
+                return terms.allSatisfy { "\(tab.navigationSearchText) \(searchTitles[group.id] ?? group.label)".localizedStandardContains(String($0)) }
             })
         }.filter { !$0.1.isEmpty }
         return VStack(spacing: 12) {

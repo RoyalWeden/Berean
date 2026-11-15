@@ -919,6 +919,7 @@ struct ArchivedTabsPage: View {
 
     var body: some View {
         let titles = app.archiveTitles()
+        let searchTitles = app.archiveTitles(includeAliases: true)
         let sourceNames = app.archiveSourceNames()
         List {
             if !app.archivedGroups.isEmpty {
@@ -927,7 +928,7 @@ struct ArchivedTabsPage: View {
             ForEach(app.archivedGroups) { group in
                 let tabs = app.archivedTabs(group)
                 let title = titles[group.id] ?? group.label
-                let matches = tabs.filter { self.matches($0, title: title) }
+                let matches = tabs.filter { self.matches($0, title: searchTitles[group.id] ?? title) }
                 if !matches.isEmpty || (tabs.isEmpty && searchTerms.isEmpty) {
                     Section(title) {
                         ForEach(matches) { tab in
@@ -977,7 +978,7 @@ struct ArchivedTabsPage: View {
             if app.archivedGroups.isEmpty {
                 ContentUnavailableView("No Archived Tabs", systemImage: "archivebox")
             } else if !searchTerms.isEmpty && !app.archivedGroups.contains(where: { group in
-                app.archivedTabs(group).contains { matches($0, title: titles[group.id] ?? group.label) }
+                app.archivedTabs(group).contains { matches($0, title: searchTitles[group.id] ?? group.label) }
              }) {
                 ContentUnavailableView.search(text: query)
             }

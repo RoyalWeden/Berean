@@ -1142,3 +1142,7 @@
 
 - Restoring a group resolves existing tab IDs and restores the remaining tabs. Future-format records are retained.
 - Both Dev builds and the focused mixed-record regression passed.
+
+### 2026-11-15 — Archive workspace labels
+
+- Archived tabs can be found using the workspace passage label or stored workspace name. Both Dev builds passed. Mac QA verified both searches and restored the tab.
