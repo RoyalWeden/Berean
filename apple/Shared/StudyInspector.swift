@@ -69,8 +69,9 @@ struct StudyInspector: View {
 /// The Mac palette uses the same results for routine navigation and explicit New Tab.
 struct CommandPalette: View {
     @Environment(AppModel.self) private var app
-    @Environment(\.dismiss) private var dismiss
     let newTab: Bool
+    let resultsHeight: CGFloat
+    let close: () -> Void
     /// Shift-Return: open the chosen result in a new tab (original Floating Search behaviour).
     @State private var shiftNewTab = false
     private var opensNewTab: Bool { newTab || shiftNewTab }
@@ -190,7 +191,9 @@ struct CommandPalette: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text)
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+                TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text)
                 .textFieldStyle(.plain)
                 .font(.title2)
                 .focused($focused)
@@ -203,7 +206,9 @@ struct CommandPalette: View {
                 }
                 .onKeyPress(.downArrow) { index = min(index + 1, max(0, items.count - 1)); return .handled }
                 .onKeyPress(.upArrow) { index = max(index - 1, 0); return .handled }
-                .padding(16)
+            }
+            .padding(.horizontal, 20)
+            .frame(height: 58)
             Divider()
             ScrollViewReader { proxy in
                 ScrollView {
@@ -215,14 +220,14 @@ struct CommandPalette: View {
                             }
                             Button { index = i; activate() } label: {
                                 HStack(spacing: 10) {
-                                    Image(systemName: it.symbol).frame(width: 20).foregroundStyle(i == index ? .white : .secondary)
+                                    Image(systemName: it.symbol).frame(width: 20).foregroundStyle(.secondary)
                                     Text(it.title).lineLimit(1)
                                     Spacer()
-                                    Text(it.detail).font(.caption).foregroundStyle(i == index ? .white.opacity(0.85) : .secondary).lineLimit(1)
+                                    Text(it.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                 }
                                 .padding(.horizontal, 10).padding(.vertical, 6)
-                                .foregroundStyle(i == index ? .white : .primary)
-                                .background(i == index ? Color.accentColor : .clear, in: .rect(cornerRadius: 7))
+                                .foregroundStyle(.primary)
+                                .background(i == index ? Color.primary.opacity(0.09) : .clear, in: .rect(cornerRadius: 8))
                                 .contentShape(.rect)
                             }
                             .buttonStyle(.interactivePlain)
@@ -234,9 +239,25 @@ struct CommandPalette: View {
                 }
                 .onChange(of: index) { _, i in let l = items; if l.indices.contains(i) { proxy.scrollTo(l[i].id) } }
             }
-            .frame(maxHeight: 380)
+            .frame(height: resultsHeight)
+            Divider()
+            HStack(spacing: 8) {
+                Spacer()
+                Text("Open").foregroundStyle(.secondary)
+                Text("↩").font(.caption.monospaced())
+                Text("Close").foregroundStyle(.secondary).padding(.leading, 8)
+                Text("Esc").font(.caption.monospaced())
+            }
+            .font(.caption)
+            .padding(.horizontal, 16)
+            .frame(height: 32)
         }
-        .frame(minWidth: 360, idealWidth: 560, maxWidth: 560)
+        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(.primary.opacity(0.14)).allowsHitTesting(false) }
+        .clipShape(.rect(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.24), radius: 22, y: 8)
+        .accessibilityElement(children: .contain)
+        .onExitCommand(perform: close)
         .onAppear { focused = true }
         .onChange(of: text) { index = 0 }
         .task(id: trimmed) {
@@ -248,7 +269,7 @@ struct CommandPalette: View {
         let l = items
         guard l.indices.contains(index) else { return }
         l[index].run()
-        dismiss()
+        close()
     }
 }
 #endif

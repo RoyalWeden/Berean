@@ -25,7 +25,27 @@ struct MacRootView: View {
                 }
         }
         .studyTrailSheet(app: app)
-        .sheet(isPresented: $app.commandPaletteShown) { CommandPalette(newTab: app.commandPaletteCreatesTab) }
+        .overlay(alignment: .top) {
+            if app.commandPaletteShown {
+                GeometryReader { geometry in
+                    ZStack(alignment: .top) {
+                        Color.black.opacity(0.12)
+                            .contentShape(.rect)
+                            .onTapGesture { app.commandPaletteShown = false }
+                            .accessibilityHidden(true)
+                        CommandPalette(newTab: app.commandPaletteCreatesTab,
+                                       resultsHeight: min(390, max(100, geometry.size.height - 148)),
+                                       close: { app.commandPaletteShown = false })
+                            .frame(maxWidth: 680)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 24)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: app.commandPaletteShown)
         .onChange(of: app.sidebarToggleRequest) { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
         .alert("Library", isPresented: Binding(get: { app.libraryError != nil }, set: { if !$0 { app.libraryError = nil } })) {
