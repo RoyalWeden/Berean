@@ -281,14 +281,17 @@ struct LexiconEntryView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
+        .toolbar {
+            // Full Lexicon tab: previous / next entry and search live in the window toolbar (top right).
             if !compact {
-                entryNavigation
-                    .padding(.horizontal, 4)
-                    .glassEffectCompat(interactive: true)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 4)
+                ToolbarItemGroup(placement: .primaryAction) {
+                    toolbarAdjacentButton(adjacent.previous, title: "Previous Entry", symbol: "chevron.backward")
+                    toolbarAdjacentButton(adjacent.next, title: "Next Entry", symbol: "chevron.forward")
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
+                        .help("Search the Lexicon")
+                }
             }
         }
         .id(strongsId)
@@ -453,6 +456,12 @@ struct LexiconEntryView: View {
         #else
         32
         #endif
+    }
+
+    private func toolbarAdjacentButton(_ destination: String?, title: String, symbol: String) -> some View {
+        Button(title, systemImage: symbol) { if let destination { app.navigateLexicon(destination, in: tabId) } }
+            .disabled(destination == nil)
+            .help(destination.map { "\(title), \($0)" } ?? title)
     }
 
     private func adjacentButton(_ destination: String?, title: String, symbol: String) -> some View {

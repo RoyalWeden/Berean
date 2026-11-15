@@ -93,7 +93,7 @@ struct LexiconSearchView: View {
     private func open(_ id: String) { app.navigateLexicon(id, in: tabId) }
 }
 
-/// A Lexicon tab: the search view until an entry is chosen, then the entry with a Search button.
+/// A Lexicon tab: the search view until an entry is chosen, then the entry (its toolbar has ‹ › and Search).
 struct LexiconTabHost: View {
     @Environment(AppModel.self) private var app
     let tab: BereanWorkspace.Tab
@@ -105,12 +105,6 @@ struct LexiconTabHost: View {
         } else {
             LexiconEntryView(strongsId: sid, tabId: tab.id).id(tab.id)
                 .navigationTitle(tab.title)
-                .toolbar {
-                    ToolbarItem {
-                        Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
-                            .help("Search the Lexicon")
-                    }
-                }
         }
     }
 }
