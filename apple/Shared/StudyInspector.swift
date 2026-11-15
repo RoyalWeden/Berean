@@ -45,6 +45,9 @@ struct CommandPalette: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     let newTab: Bool
+    /// Shift-Return: open the chosen result in a new tab (original Floating Search behaviour).
+    @State private var shiftNewTab = false
+    private var opensNewTab: Bool { newTab || shiftNewTab }
     @State private var text = ""
     @State private var index = 0
     @State private var noteHits: [Note] = []
@@ -70,14 +73,14 @@ struct CommandPalette: View {
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
         }
         if let id = StrongsId.normalize(trimmed) {
-            out.append(Item(id: "lex", group: "Lexicon", title: "Look up \(id)", detail: "Strong's lexicon entry", symbol: "character.book.closed") { app.openLexicon(id, reuseTab: !newTab) })
-            out.append(Item(id: "strongs", group: "Lexicon", title: "Verses with \(id)", detail: "Search all tagged texts", symbol: "number") { app.openSearch(id, reuseTab: !newTab) })
+            out.append(Item(id: "lex", group: "Lexicon", title: "Look up \(id)", detail: "Strong's lexicon entry", symbol: "character.book.closed") { app.openLexicon(id, reuseTab: !opensNewTab) })
+            out.append(Item(id: "strongs", group: "Lexicon", title: "Verses with \(id)", detail: "Search all tagged texts", symbol: "number") { app.openSearch(id, reuseTab: !opensNewTab) })
         }
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil {
-            out.append(Item(id: "search", group: "Search", title: "Search all texts for “\(trimmed)”", detail: "Scripture and other writings", symbol: "magnifyingglass") { app.openSearch(trimmed, reuseTab: !newTab) })
+            out.append(Item(id: "search", group: "Search", title: "Search all texts for “\(trimmed)”", detail: "Scripture and other writings", symbol: "magnifyingglass") { app.openSearch(trimmed, reuseTab: !opensNewTab) })
         }
         for n in noteHits.prefix(6) {
-            out.append(Item(id: "note-\(n.id)", group: "Notes", title: n.displayTitle, detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text") { app.openNote(n.id, newTab: newTab) })
+            out.append(Item(id: "note-\(n.id)", group: "Notes", title: n.displayTitle, detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text") { app.openNote(n.id, newTab: opensNewTab) })
         }
         if !trimmed.isEmpty && !newTab {
             for workspace in app.workspaceItems.filter({ $0.matches(trimmed) }).prefix(6) {
@@ -89,11 +92,11 @@ struct CommandPalette: View {
         var commands: [(String, String, () -> Void)] = [
             ("New Note", "square.and.pencil", { app.newNote() }),
             ("Today's Note", "calendar", { app.openTodayDailyNote() }),
-            ("Calendar", "calendar", { app.openCalendar(newTab: newTab) }),
-            ("Notes Home", "tray.full", { app.openNotesHome(newTab: newTab) }),
-            ("History", "clock", { app.openHistory(newTab: newTab) }),
-            ("Tags", "tag", { app.openTags(newTab: newTab) }),
-            ("Search Lexicon", "character.book.closed", { app.openLexiconSearch(newTab: newTab) }),
+            ("Calendar", "calendar", { app.openCalendar(newTab: opensNewTab) }),
+            ("Notes Home", "tray.full", { app.openNotesHome(newTab: opensNewTab) }),
+            ("History", "clock", { app.openHistory(newTab: opensNewTab) }),
+            ("Tags", "tag", { app.openTags(newTab: opensNewTab) }),
+            ("Search Lexicon", "character.book.closed", { app.openLexiconSearch(newTab: opensNewTab) }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
         ]
         // Reader commands (original lib/commands.ts) when a Scripture tab is active.
@@ -118,7 +121,7 @@ struct CommandPalette: View {
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber),
            trimmed.split(separator: " ").count <= 2 {
             out.append(Item(id: "lexicon-search", group: "Lexicon", title: "Search Lexicon for “\(trimmed)”", detail: "",
-                            symbol: "character.book.closed") { app.openLexiconSearch(trimmed, newTab: newTab) })
+                            symbol: "character.book.closed") { app.openLexiconSearch(trimmed, newTab: opensNewTab) })
         }
         if !leading.isEmpty {
             let at = out.firstIndex { $0.group != "Recent" && $0.group != "Go to" && $0.group != "Open in Other Workspaces" } ?? out.count
@@ -128,7 +131,7 @@ struct CommandPalette: View {
     }
 
     private func open(_ ref: ResolvedPassage) {
-        app.visitScripture(ref, reuseTab: !newTab)
+        app.visitScripture(ref, reuseTab: !opensNewTab)
     }
 
     private func openTabs(for ref: ResolvedPassage) -> [Item] {
@@ -153,6 +156,12 @@ struct CommandPalette: View {
                 .font(.title2)
                 .focused($focused)
                 .onSubmit { activate() }
+                .onKeyPress(.return, phases: .down) { press in
+                    guard press.modifiers.contains(.shift) else { return .ignored }
+                    shiftNewTab = true
+                    activate()
+                    return .handled
+                }
                 .onKeyPress(.downArrow) { index = min(index + 1, max(0, items.count - 1)); return .handled }
                 .onKeyPress(.upArrow) { index = max(index - 1, 0); return .handled }
                 .padding(16)
