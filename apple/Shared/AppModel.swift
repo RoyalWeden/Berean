@@ -446,6 +446,22 @@ final class AppModel {
         select(tab.id, in: space)
     }
 
+    /// Tab-type switcher (original TabTypeSwitcher): turns the current tab into another kind of tab in its place.
+    /// Implemented as open-new-then-close so it reuses the normal open paths and never mutates a tab's type in storage.
+    enum TabKind: String, CaseIterable { case scripture = "Scripture", notes = "Notes", lexicon = "Lexicon", search = "Search", history = "History" }
+    func switchTab(_ tabId: String, to kind: TabKind) {
+        guard let old = findTab(tabId) else { return }
+        switch kind {
+        case .scripture: openScripture(bookId: recentPassages.first?.bookId ?? "GEN", chapter: recentPassages.first?.chapter ?? 1,
+                                       textId: recentPassages.first?.textId, reuseTab: false)
+        case .notes: openNotesHome(newTab: true)
+        case .lexicon: openLexiconSearch(newTab: true)
+        case .search: openSearch("", reuseTab: false)
+        case .history: openHistory(newTab: true)
+        }
+        if activeTab?.id != old.id { close(old.id) }
+    }
+
     func close(_ tabId: String) {
         studyVerseFocus.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).

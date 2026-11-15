@@ -230,6 +230,11 @@ struct IOSRootView: View {
             }
             if let tab = app.activeTab {
                 Section {
+                    Menu {
+                        ForEach(AppModel.TabKind.allCases, id: \.self) { kind in
+                            Button(kind.rawValue) { app.switchTab(tab.id, to: kind) }
+                        }
+                    } label: { Label("Change Tab To", systemImage: "arrow.triangle.swap") }
                     Button { app.duplicate(tab.id) } label: { Label("Duplicate Tab", systemImage: "plus.square.on.square") }
                     Button(role: .destructive) { app.close(tab.id) } label: { Label("Close Tab", systemImage: "xmark") }
                 }
