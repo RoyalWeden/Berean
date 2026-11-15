@@ -253,7 +253,7 @@ struct TabCardsSheet: View {
                         LabeledContent {
                             Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
                         } label: {
-                            Label(app.session.name, systemImage: "square.stack").fontWeight(.semibold)
+                            Label(app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon)).fontWeight(.semibold)
                         }
                     }
                     .accessibilityHint("Switch, create or manage workspaces")
@@ -431,7 +431,7 @@ struct SessionsPage: View {
                 ForEach(app.workspaceItems.filter { $0.matches(query.trimmingCharacters(in: .whitespacesAndNewlines)) }) { w in
                     Button { app.open(w); closeTabs() } label: {
                         HStack {
-                            Image(systemName: w.isSaved ? "square.stack.3d.up" : "square.stack").foregroundStyle(.secondary).frame(width: 24)
+                            Image(systemName: w.icon.map { WorkspaceIcon.symbol($0) } ?? (w.isSaved ? "square.stack.3d.up" : "square.stack")).foregroundStyle(.secondary).frame(width: 24)
                             VStack(alignment: .leading) {
                                 Text(w.name).foregroundStyle(.primary)
                                 ForEach(w.previewLabels(matching: query), id: \.self) { preview in
@@ -451,6 +451,12 @@ struct SessionsPage: View {
                         if app.isCurrent(w) {
                             Button("Save Snapshot…", systemImage: "square.and.arrow.down.on.square") { name = w.name; saving = true }
                             Button("Archive All Tabs", systemImage: "archivebox") { app.archiveAllTabs() }
+                            Menu("Icon", systemImage: WorkspaceIcon.symbol(w.icon)) {
+                                ForEach(WorkspaceIcon.all, id: \.name) { icon in
+                                    Button(WorkspaceIcon.label(icon.name), systemImage: icon.symbol) { app.setSessionIcon(app.currentSessionId, icon.name) }
+                                }
+                                Button("Default") { app.setSessionIcon(app.currentSessionId, nil) }
+                            }
                         }
                         if app.canDelete(w) { Button("Delete…", systemImage: "trash", role: .destructive) { deleting = w } }
                     }
