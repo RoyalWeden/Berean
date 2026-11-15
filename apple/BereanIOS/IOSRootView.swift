@@ -266,6 +266,7 @@ struct TabCardsSheet: View {
     @State private var isSelecting = false
     @State private var selectedTabIDs: Set<String> = []
     @State private var undoArchiveID: String?
+    @State private var movedTabsNotice: String?
 
     @State private var spaceFilter: SpaceId?
     @State private var typeFilter: TabType?
@@ -358,6 +359,8 @@ struct TabCardsSheet: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if isSelecting {
                     batchArchiveBar
+                } else if let movedTabsNotice {
+                    moveReceipt(movedTabsNotice)
                 } else if let undoArchiveID, let group = app.archivedGroups.first(where: { $0.id == undoArchiveID }) {
                     archiveReceipt(group)
                 }
@@ -418,11 +421,28 @@ struct TabCardsSheet: View {
 
     private var batchArchiveBar: some View {
         let count = selectedTabIDs.count
-        return HStack(spacing: 12) {
+        let destinations = app.tabMoveDestinations
+        return HStack(spacing: 8) {
             Text("\(count) selected").font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
+            if !destinations.isEmpty {
+                Menu {
+                    ForEach(destinations) { workspace in
+                        Button(workspace.menuLabel) { moveSelection(to: workspace) }
+                    }
+                } label: {
+                    Label("Move", systemImage: "square.stack")
+                        .labelStyle(.iconOnly)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .menuIndicator(.hidden)
+                .accessibilityLabel("Move selected tabs to a workspace")
+                .disabled(count == 0)
+            }
             Button("Archive", systemImage: "archivebox") {
                 if let group = app.archiveInactiveTabs(Array(selectedTabIDs.intersection(selectableIDs))) {
+                    movedTabsNotice = nil
                     undoArchiveID = group.id
                     let count = group.tabs.count
                     AccessibilityNotification.Announcement("\(count) tab\(count == 1 ? "" : "s") archived").post()
@@ -438,6 +458,33 @@ struct TabCardsSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .accessibilityElement(children: .contain)
+    }
+
+    private func moveSelection(to workspace: WorkspaceItem) {
+        let ids = Array(selectedTabIDs.intersection(selectableIDs))
+        let count = app.moveInactiveTabs(ids, to: workspace, duplicatesOnly: false, keepingRecent: false)
+        let message = count == 0 ? "No selected tabs were moved."
+            : "Moved \(count) tab\(count == 1 ? "" : "s") to \(workspace.name)."
+        movedTabsNotice = message
+        AccessibilityNotification.Announcement(message).post()
+        finishSelection()
+    }
+
+    private func moveReceipt(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Label(message, systemImage: "square.stack")
+                .font(.subheadline.weight(.medium))
+            Button("Dismiss move notice", systemImage: "xmark") { movedTabsNotice = nil }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .glassEffectCompat(interactive: true)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
     }
 
     private func archiveReceipt(_ group: ArchivedGroup) -> some View {
