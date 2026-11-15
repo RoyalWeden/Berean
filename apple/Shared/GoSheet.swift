@@ -135,6 +135,13 @@ struct GoSheet: View {
                         } icon: { Image(systemName: "archivebox") }
                     }
                     .accessibilityHint("Restore and open this tab")
+                    .contextMenu {
+                        if let source = match.sourceName {
+                            Button("Restore to \(source)", systemImage: "square.stack") {
+                                finish { app.restoreArchivedTab(match.tab.id, from: match.groupID, toSource: true) }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ import BereanWorkspace
 struct ArchivedTabMatch: Identifiable {
     let groupID: String
     let groupTitle: String
+    let sourceName: String?
     let tab: BereanWorkspace.Tab
     var id: String { "\(groupID)/\(tab.id)" }
 }
@@ -234,13 +235,14 @@ extension AppModel {
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         guard !terms.isEmpty else { return [] }
         let titles = archiveTitles()
+        let sourceNames = archiveSourceNames()
         var matches: [ArchivedTabMatch] = []
         for group in archivedGroups {
             let title = titles[group.id] ?? group.label
             for tab in archivedTabs(group) {
                 let searchable = "\(tab.navigationSearchText) \(title)"
                 guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { continue }
-                matches.append(ArchivedTabMatch(groupID: group.id, groupTitle: title, tab: tab))
+                matches.append(ArchivedTabMatch(groupID: group.id, groupTitle: title, sourceName: sourceNames[group.id], tab: tab))
                 if matches.count >= limit { return matches }
             }
         }
@@ -281,25 +283,26 @@ extension AppModel {
     }
 
     /// Restore one archived tab while retaining the original records for the rest of the group.
-    func restoreArchivedTab(_ tabID: String, from groupID: String) {
+    func restoreArchivedTab(_ tabID: String, from groupID: String, toSource: Bool = false) {
         guard let index = archivedGroups.firstIndex(where: { $0.id == groupID }),
               let tab = archivedGroups[index].tabs.first(where: { $0.id == tabID }) else { return }
 
         if let workspace = sessions.first(where: { $0.allTabs.contains(where: { $0.id == tabID }) }),
            let liveTab = workspace.allTabs.first(where: { $0.id == tabID }) {
-            switchSession(workspace.id)
-            select(liveTab.id, in: liveTab.spaceId)
-            return
-        } else {
-            sessions[sessionIndex].tabs[tab.spaceId, default: []].append(tab)
-            placeRestoredTab(tab.id, in: currentSessionId, using: archivePlacements[groupID])
             if let remaining = archivedGroups[index].afterRestoring(tabID: tabID) {
                 archivedGroups[index] = remaining
             } else {
                 archivedGroups.remove(at: index)
                 archivePlacements.removeValue(forKey: groupID)
             }
+            switchSession(workspace.id)
+            select(liveTab.id, in: liveTab.spaceId)
+            return
         }
+        guard let destination = toSource ? archivePlacements[groupID]?.workspace : currentSessionId else { return }
+        restoreArchived(groupID, toSource: toSource, only: tabID)
+        guard sessions.first(where: { $0.id == destination })?.allTabs.contains(where: { $0.id == tabID }) == true else { return }
+        if destination != currentSessionId { switchSession(destination) }
         select(tab.id, in: tab.spaceId)
     }
 

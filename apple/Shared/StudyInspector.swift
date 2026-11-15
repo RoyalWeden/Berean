@@ -250,6 +250,8 @@ struct CommandPalette: View {
         let detail: String
         let symbol: String
         var offersOpenMenu = false
+        var sourceRestore: (name: String, run: () -> Void)?
+        var hasActions: Bool { offersOpenMenu || sourceRestore != nil }
         let run: (_ inNewTab: Bool) -> Void
     }
 
@@ -292,8 +294,11 @@ struct CommandPalette: View {
         }
         if !trimmed.isEmpty && !newTab {
             for match in app.matchingArchivedTabs(trimmed) {
+                let restore = match.sourceName.map { name in
+                    (name: name, run: { app.restoreArchivedTab(match.tab.id, from: match.groupID, toSource: true) })
+                }
                 out.append(Item(id: "archived-\(match.id)", group: "Archived Tabs", title: match.tab.navigationLabel,
-                                detail: match.groupTitle, symbol: "archivebox") { _ in
+                                detail: match.groupTitle, symbol: "archivebox", sourceRestore: restore) { _ in
                     app.restoreArchivedTab(match.tab.id, from: match.groupID)
                 })
             }
@@ -450,10 +455,7 @@ struct CommandPalette: View {
                                 if inside { index = i }
                             }
                             .contextMenu {
-                                if it.offersOpenMenu {
-                                    Button("Open", systemImage: "arrow.right") { activate(it, inNewTab: false) }
-                                    Button("Open in New Tab", systemImage: "plus.square") { activate(it, inNewTab: true) }
-                                }
+                                resultActions(it)
                             }
                             .id(it.id)
                         }
@@ -487,7 +489,7 @@ struct CommandPalette: View {
                             }
                             .buttonStyle(.interactivePlain)
 
-                            if selected.offersOpenMenu {
+                            if selected.hasActions {
                                 Button {
                                     actionsShown.toggle()
                                 } label: {
@@ -503,8 +505,7 @@ struct CommandPalette: View {
                                 .help("Search result actions (⌘K)")
                                 .popover(isPresented: $actionsShown, arrowEdge: .bottom) {
                                     VStack(alignment: .leading, spacing: 6) {
-                                        Button("Open", systemImage: "arrow.right") { activate(selected, inNewTab: false) }
-                                        Button("Open in New Tab", systemImage: "plus.square") { activate(selected, inNewTab: true) }
+                                        resultActions(selected)
                                     }
                                     .controlSize(.large)
                                     .padding(8)
@@ -534,7 +535,7 @@ struct CommandPalette: View {
             }
         }
         .onChange(of: app.commandPaletteActionsRequest) {
-            guard selected?.offersOpenMenu == true else { return }
+            guard selected?.hasActions == true else { return }
             actionsShown.toggle()
             if !actionsShown { focused = true }
         }
@@ -554,6 +555,19 @@ struct CommandPalette: View {
             .frame(width: 23, height: 23)
             .background(.quaternary, in: .rect(cornerRadius: 5))
             .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private func resultActions(_ item: Item) -> some View {
+        if item.offersOpenMenu {
+            Button("Open", systemImage: "arrow.right") { activate(item, inNewTab: false) }
+            Button("Open in New Tab", systemImage: "plus.square") { activate(item, inNewTab: true) }
+        }
+        if let source = item.sourceRestore {
+            Button("Restore to \(source.name)", systemImage: "square.stack") {
+                source.run()
+                close()
+            }
+        }
     }
 
     private func activate(_ item: Item, inNewTab: Bool) {
