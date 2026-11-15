@@ -414,6 +414,7 @@ struct NoteDetailView: View {
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
     @State private var showingHistory = false
+    @State private var insertingReference = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -536,6 +537,18 @@ struct NoteDetailView: View {
                     }
                     .menuIndicator(.hidden)
                     .help("Format selected note text")
+                    // Insert menu (original note editor "+"): Scripture reference, link, quote, divider, checklist.
+                    Menu {
+                        Button("Scripture Reference…", systemImage: "book") { insertingReference = true }
+                        Button("Link", systemImage: "link") { formatRequest = NoteFormatRequest(action: .inline("[", "](https://)")) }
+                        Button("Quote", systemImage: "text.quote") { formatRequest = NoteFormatRequest(action: .inline("\n> ", "")) }
+                        Button("Checklist", systemImage: "checklist") { formatRequest = NoteFormatRequest(action: .list(.checklist)) }
+                        Button("Divider", systemImage: "minus") { formatRequest = NoteFormatRequest(action: .inline("\n\n---\n\n", "")) }
+                    } label: {
+                        Label("Insert", systemImage: "plus")
+                    }
+                    .menuIndicator(.hidden)
+                    .help("Insert a Scripture reference, link, quote, checklist or divider")
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
@@ -555,6 +568,24 @@ struct NoteDetailView: View {
                     } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
+        }
+        .sheet(isPresented: $insertingReference) {
+            NavigationStack {
+                PassagePicker(textId: app.defaultText, currentBook: "", currentChapter: 0, onPick: { passage in
+                    // The reference is plain text: the editor's reference detection links it, as in the original.
+                    let text = passage.label + (passage.textId == "lxx" ? " LXX" : "")
+                    formatRequest = NoteFormatRequest(action: .inline(text, ""))
+                    insertingReference = false
+                }, compact: true)
+                .navigationTitle("Insert Reference")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { insertingReference = false } } }
+            }
+            #if os(macOS)
+            .frame(minWidth: 460, minHeight: 520)
+            #endif
         }
         .sheet(isPresented: $showingHistory) {
             NoteVersionHistoryView(noteId: noteId, currentTitle: title, currentContent: content) { restored in

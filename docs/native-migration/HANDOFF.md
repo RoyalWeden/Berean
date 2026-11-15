@@ -991,3 +991,4 @@ The study Notes inspector now filters the active scope by case-insensitive title
   icons clearly legible with Codex's adaptive background layer. Remaining for I25: physical iPhone only. Simulator set back to light.
 - **00:11 I6 tab cards (iPhone):** Tabs sheet now defaults to a two-column card grid (toolbar toggles list/grid, `@AppStorage("tabCardsLayout")`); list mode keeps Edit/reorder. Simulator: grid renders, card tap opened John 7. Next for I6: preview snippets, sort, select mode.
 - **00:12 I7 dock swipe (iPhone):** swiping across the dock moves to the previous/next tab in display order (`AppModel.stepTab`); simulator verified both directions.
+- **00:15 I3 Insert menu:** note editor toolbar "+" (Scripture Reference… / Link / Quote / Checklist / Divider), both platforms; Mac verified on a new Dev note "Insert menu QA" (left in the Dev library). Inserted references are plain text (the editor doesn't style them as links yet — follow-up).
