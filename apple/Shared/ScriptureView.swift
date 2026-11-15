@@ -305,6 +305,8 @@ struct ScriptureView: View {
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
     #if os(macOS)
+    private enum VersePopover { case highlight, export }
+    @State private var versePopover: VersePopover?
     @State private var displayOptionsShown = false
     #endif
     @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
@@ -873,7 +875,8 @@ struct ScriptureView: View {
             .buttonStyle(VerseActionButtonStyle())
             .help("Cross references")
             if !selectedRows.isEmpty {
-                VerseActionPopover(title: "Export Selected Verses", symbol: "square.and.arrow.up", selection: selection) { close in
+                VerseActionPopover(title: "Export Selected Verses", symbol: "square.and.arrow.up", selection: selection,
+                                   presented: versePopoverBinding(.export)) { close in
                     selectedVerseExportActions(st, onComplete: close)
                 }
                 .help("Save or share selected verses")
@@ -938,7 +941,7 @@ struct ScriptureView: View {
             .buttonStyle(VerseActionButtonStyle())
             .accessibilityHint("Clears \(selectionLabel(state))")
             #if os(macOS)
-            .keyboardShortcut(.cancelAction)
+            .keyboardShortcut(versePopover == nil ? .cancelAction : nil)
             .help("Clear selection (Esc)")
             #endif
     }
@@ -950,10 +953,23 @@ struct ScriptureView: View {
         persistLocalSelection()
     }
 
+    #if os(macOS)
+    private func versePopoverBinding(_ target: VersePopover) -> Binding<Bool> {
+        Binding(get: { versePopover == target }, set: { isPresented in
+            if isPresented {
+                versePopover = target
+            } else if versePopover == target {
+                versePopover = nil
+            }
+        })
+    }
+    #endif
+
     @ViewBuilder private func highlightMenu(_ st: BibleState, iconOnly: Bool = true) -> some View {
         #if os(macOS)
         if iconOnly {
-            VerseActionPopover(title: "Highlight", symbol: "highlighter", selection: selection) { close in
+            VerseActionPopover(title: "Highlight", symbol: "highlighter", selection: selection,
+                               presented: versePopoverBinding(.highlight)) { close in
                 highlightActions(st, onComplete: close)
             }
         } else {
@@ -1897,8 +1913,8 @@ private struct VerseActionPopover<Actions: View>: View {
     let title: String
     let symbol: String
     let selection: Set<Int>
+    @Binding var presented: Bool
     @ViewBuilder let actions: (@escaping () -> Void) -> Actions
-    @State private var presented = false
 
     var body: some View {
         Button(title, systemImage: symbol) { presented.toggle() }
@@ -1911,6 +1927,7 @@ private struct VerseActionPopover<Actions: View>: View {
                 .onExitCommand { presented = false }
             }
             .onChange(of: selection) { presented = false }
+            .onDisappear { presented = false }
     }
 }
 #endif
