@@ -115,7 +115,8 @@ struct CommandPalette: View {
             let lower = t.lowercased(), q = trimmed.lowercased()
             if !q.isEmpty, lower == q || (q.count >= 3 && lower.hasPrefix(q)) { leading.append(item) } else { out.append(item) }
         }
-        if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber) {
+        if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber),
+           trimmed.split(separator: " ").count <= 2 {
             out.append(Item(id: "lexicon-search", group: "Lexicon", title: "Search Lexicon for “\(trimmed)”", detail: "",
                             symbol: "character.book.closed") { app.openLexiconSearch(trimmed, newTab: newTab) })
         }

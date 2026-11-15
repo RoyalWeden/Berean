@@ -28,6 +28,8 @@ struct ScriptureSearchView: View {
     let tabId: String
 
     @State private var field = ""
+    /// Verses of context shown around each result (original Compact / ±1 / ±2 modes); a local display preference.
+    @AppStorage("searchResultContext") private var resultContext = 0
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
     @State private var showOptions = false
@@ -210,6 +212,10 @@ struct ScriptureSearchView: View {
             }.pickerStyle(.segmented).labelsHidden().clickableCursor()
             Picker("Group by", selection: Binding(get: { grouping }, set: { set("grouping", .string(JSString($0))) })) {
                 Text("By text").tag("text"); Text("By book").tag("book"); Text("No groups").tag("none")
+            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
+            Text("Context").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Picker("Context", selection: $resultContext) {
+                Text("Verse only").tag(0); Text("±1 verse").tag(1); Text("±2 verses").tag(2)
             }.pickerStyle(.segmented).labelsHidden().clickableCursor()
             if hasActiveOptions {
                 Button("Reset Options") { set("wordMode", nil); set("testament", nil); set("bookIds", nil) }
@@ -453,7 +459,13 @@ struct ScriptureSearchView: View {
                         }
                         Spacer()
                     }
-                    Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(4)
+                    if resultContext > 0 {
+                        SearchResultContext(hit: h, span: resultContext, edge: .before)
+                    }
+                    Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(resultContext > 0 ? nil : 4)
+                    if resultContext > 0 {
+                        SearchResultContext(hit: h, span: resultContext, edge: .after)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)
@@ -556,6 +568,36 @@ enum SearchHistory {
 }
 
 /// Book filter: type to add books (any text); chosen books show as removable chips.
+/// Neighbouring verses shown dimmed around a search result.
+private struct SearchResultContext: View {
+    enum Edge { case before, after }
+    @Environment(AppModel.self) private var app
+    let hit: ScriptureHit
+    let span: Int
+    let edge: Edge
+    @State private var lines: [(Int, String)] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(lines, id: \.0) { verse, text in
+                (Text("\(verse) ").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary) + Text(text))
+                    .font(.footnote).foregroundStyle(.tertiary)
+            }
+        }
+        .task(id: "\(hit.textId)|\(hit.bookId)|\(hit.chapter)|\(hit.verseNum)|\(span)|\(edge)") {
+            let range = edge == .before ? Array((hit.verseNum - span)..<hit.verseNum) : Array((hit.verseNum + 1)...(hit.verseNum + span))
+            var found: [(Int, String)] = []
+            for v in range where v > 0 {
+                if let row = await app.bible.queryVerse(hit.bookId, hit.chapter, v, textId: hit.textId) {
+                    found.append((v, VerseDisplay.text(row.text, tagged: row.textTagged, textId: hit.textId,
+                                                       replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)))
+                }
+            }
+            lines = found
+        }
+    }
+}
+
 struct BookFilterField: View {
     @Environment(AppModel.self) private var app
     let selected: [String]
