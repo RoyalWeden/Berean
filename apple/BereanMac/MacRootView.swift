@@ -8,6 +8,7 @@ import BereanReference
 struct MacRootView: View {
     @Environment(AppModel.self) private var app
     @State private var columns: NavigationSplitViewVisibility = .all
+    private let paletteDimOpacity = 0.12
 
     var body: some View {
         @Bindable var app = app
@@ -24,12 +25,16 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
+        .toolbarBackground(app.commandPaletteShown ? AnyShapeStyle(Color.black.opacity(paletteDimOpacity)) : AnyShapeStyle(.bar),
+                           for: .windowToolbar)
+        .toolbarBackground(app.commandPaletteShown ? .visible : .automatic, for: .windowToolbar)
+        .disabled(app.commandPaletteShown)
         .studyTrailSheet(app: app)
         .overlay(alignment: .top) {
             if app.commandPaletteShown {
                 GeometryReader { geometry in
                     ZStack(alignment: .top) {
-                        Color.black.opacity(0.12)
+                        Color.black.opacity(paletteDimOpacity)
                             .ignoresSafeArea(.container, edges: .top)
                             .contentShape(.rect)
                             .onTapGesture { app.commandPaletteShown = false }

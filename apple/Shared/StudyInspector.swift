@@ -496,6 +496,7 @@ struct CommandPalette: View {
         .clipShape(.rect(cornerRadius: 20))
         .modifier(CommandPaletteSurface())
         .defaultFocus($focused, true, priority: .userInitiated)
+        .onAppear { focused = true }
         .accessibilityElement(children: .contain)
         .onExitCommand(perform: close)
         .task {
@@ -515,13 +516,11 @@ struct CommandPalette: View {
 }
 
 private struct CommandPaletteSurface: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 20)
         if #available(macOS 26.0, *) {
             content
-                .glassEffect(reduceTransparency ? .regular : .clear, in: shape)
+                .glassEffect(.regular, in: shape)
                 .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
         } else {
             content
