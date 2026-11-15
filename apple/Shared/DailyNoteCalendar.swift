@@ -295,6 +295,9 @@ private struct DailyNotesTimeline<Row: View>: View {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     Button("Show Later Days") { latest += 7 }
                         .frame(maxWidth: .infinity)
+                        .onScrollVisibilityChange(threshold: 0.8) { visible in
+                            if visible { latest += 7 }
+                        }
                     ForEach((earliest...latest).reversed(), id: \.self) { offset in
                         if let day = calendar.date(byAdding: .day, value: offset, to: start) {
                             row(day).id(day)
@@ -302,6 +305,9 @@ private struct DailyNotesTimeline<Row: View>: View {
                     }
                     Button("Show Earlier Days") { earliest -= 7 }
                         .frame(maxWidth: .infinity)
+                        .onScrollVisibilityChange(threshold: 0.8) { visible in
+                            if visible { earliest -= 7 }
+                        }
                 }
                 .scrollTargetLayout()
                 .padding(16)
@@ -310,10 +316,7 @@ private struct DailyNotesTimeline<Row: View>: View {
             }
             .scrollPosition(id: $visibleDay, anchor: .top)
             .onChange(of: visibleDay) { _, day in
-                guard let day, let offset = calendar.dateComponents([.day], from: start, to: day).day else { return }
-                positionChanged(day)
-                if offset <= earliest + 2 { earliest -= 7 }
-                if offset >= latest - 1 { latest += 7 }
+                if let day { positionChanged(day) }
             }
         }
     }
@@ -340,17 +343,26 @@ private struct DailyTimelineRow: View {
     @State private var failed = false
 
     var body: some View {
+        let dateLabel = date.formatted(date: .complete, time: .omitted)
+        let action = noteId == nil ? "Create Daily Note" : "Open Daily Note"
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(date.formatted(date: .complete, time: .omitted))
+                Text(dateLabel)
                     .font(.headline)
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityLabel(isToday ? "Today, \(dateLabel)" : dateLabel)
                     .foregroundStyle(isToday ? Color.accentColor : Color.primary)
                 Spacer()
-                Button(noteId == nil ? "Create Daily Note" : "Open Daily Note",
-                       systemImage: noteId == nil ? "plus" : "square.and.pencil", action: open)
-                    .labelStyle(.iconOnly)
-                    .disabled(indexError)
+                Button(action: open) {
+                    Label(action, systemImage: noteId == nil ? "plus" : "square.and.pencil")
+                        .labelStyle(.iconOnly)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityLabel("\(action) for \(dateLabel)")
+                .help(action)
+                .disabled(indexError)
             }
             if let note, !note.content.isEmpty {
                 MarkdownText(note.content).textSelection(.enabled)
