@@ -35,6 +35,9 @@ struct NotesHomeView: View {
     @State private var restoredSearchPosition: SearchPosition?
     @State private var visibleFolderRow: String?
     @State private var loadedNotes = false
+    /// Select mode (original Notes home Edit): tap rows to select, then Pin / Move / Trash them together.
+    @State private var selecting = false
+    @State private var selectedNotes: Set<String> = []
 
     struct BrowseOptions: Hashable {
         var query = ""
@@ -135,6 +138,12 @@ struct NotesHomeView: View {
                     .help("Today's note (right-click or hold for the calendar)")
                                 Button { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
                     .help("New folder")
+                if location != nil, location != "trash" {
+                    Button(selecting ? "Done" : "Select") {
+                        withAnimation(.snappy) { selecting.toggle(); selectedNotes = [] }
+                    }
+                    .help(selecting ? "Finish selecting" : "Select notes to pin, move or delete together")
+                }
                 Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
                     .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
             }
@@ -489,6 +498,9 @@ struct NotesHomeView: View {
                 .padding(.horizontal, 16)
                 .scrollTargetLayout()
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if selecting { bulkBar(visibleSections.flatMap(\.notes)) }
+            }
             .scrollPosition(id: $visibleFolderRow, anchor: .top)
             .task(id: loadedNotes ? context : nil) {
                 guard loadedNotes, !Task.isCancelled else { return }
@@ -541,17 +553,76 @@ struct NotesHomeView: View {
         return d.formatted(date: .numeric, time: .omitted)
     }
 
+    /// A daily note reads as its long date ("Sabbath, November 14, 2026"); others use their title.
+    static func rowTitle(_ n: Note) -> String {
+        if n.type == "daily" || n.type == "journal", let key = NotesService.dailyDateKey(n.title),
+           let long = NotesService.dailyDisplayTitle(key) { return long }
+        return n.displayTitle
+    }
+
+    /// Floating actions for the selected notes.
+    func bulkBar(_ visible: [Note]) -> some View {
+        let ids = visible.map(\.id).filter(selectedNotes.contains)
+        let allPinned = !ids.isEmpty && visible.filter { selectedNotes.contains($0.id) }.allSatisfy(\.pinned)
+        return HStack(spacing: 14) {
+            Button(ids.count == visible.count ? "Deselect All" : "Select All") {
+                selectedNotes = ids.count == visible.count ? [] : Set(visible.map(\.id))
+            }
+            Text("\(ids.count) selected").font(.callout).foregroundStyle(.secondary).monospacedDigit()
+            Spacer(minLength: 8)
+            Button(allPinned ? "Unpin" : "Pin", systemImage: allPinned ? "pin.slash" : "pin") {
+                app.attempt("Couldn’t change pins") { for id in ids { try app.notes?.setPinned(id, !allPinned) } }
+                selectedNotes = []
+            }
+            .disabled(ids.isEmpty)
+            Menu {
+                Button("No Folder") { app.attempt("Couldn’t move the notes") { for id in ids { try app.notes?.setFolder(id, nil) } }; selectedNotes = [] }
+                ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, d in
+                    Button(String(repeating: "  ", count: d) + f.name) {
+                        app.attempt("Couldn’t move the notes") { for id in ids { try app.notes?.setFolder(id, f.id) } }
+                        selectedNotes = []
+                    }
+                }
+            } label: { Label("Move", systemImage: "folder") }
+            .disabled(ids.isEmpty)
+            Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                app.attempt("Couldn’t move the notes to Trash") { for id in ids { try app.notes?.delete(id) } }
+                selectedNotes = []
+            }
+            .disabled(ids.isEmpty)
+        }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.interactivePlain)
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .glassEffectCompat(interactive: true)
+        .padding(.horizontal, 16).padding(.bottom, 10)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
     func noteRow(_ n: Note, searchPosition: SearchPosition? = nil) -> some View {
         Button {
+            if selecting {
+                withAnimation(.snappy(duration: 0.2)) {
+                    if selectedNotes.contains(n.id) { selectedNotes.remove(n.id) } else { selectedNotes.insert(n.id) }
+                }
+                return
+            }
             if let searchPosition {
                 app.notesSearchReturnRows[tabId, default: [:]][searchPosition] = n.id
             }
             app.openNote(n.id, fromList: tabId)
         } label: {
+            HStack(spacing: 12) {
+            if selecting {
+                Image(systemName: selectedNotes.contains(n.id) ? "checkmark.circle.fill" : "circle")
+                    .font(.title3).foregroundStyle(selectedNotes.contains(n.id) ? Color.accentColor : Color.secondary)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     if n.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange) }
-                    Text(n.displayTitle).font(.body.weight(.semibold)).lineLimit(1)
+                    Text(Self.rowTitle(n)).font(.body.weight(.semibold)).lineLimit(1)
                     Spacer()
                     if let st = Self.statuses.first(where: { $0.id == n.status }) {
                         Text(st.label).font(.caption2.weight(.medium)).foregroundStyle(st.color).padding(.horizontal, 6).padding(.vertical, 1).background(st.color.opacity(0.15), in: .capsule)
@@ -566,9 +637,11 @@ struct NotesHomeView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            }
             .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
+        .accessibilityAddTraits(selecting && selectedNotes.contains(n.id) ? .isSelected : [])
         #if os(iOS)
         // Long-press peeks at the note (original NotePeek) above the actions.
         .contextMenu { noteMenu(n) } preview: { notePeek(n) }
@@ -583,7 +656,7 @@ struct NotesHomeView: View {
 
     func notePeek(_ n: Note) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(n.displayTitle).font(.headline)
+            Text(Self.rowTitle(n)).font(.headline)
             Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
             Divider()
             Text(n.content.isEmpty ? "Empty note" : String(n.content.prefix(900)))
@@ -630,7 +703,7 @@ struct NotesHomeView: View {
                 } footer: { Text("Restored notes go back to their folder, or to the top level if the folder is gone.") }
                 ForEach(trash) { n in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(n.displayTitle).font(.body.weight(.semibold))
+                        Text(Self.rowTitle(n)).font(.body.weight(.semibold))
                         Text("Deleted \(n.deletedAt.map { Self.dateLabel($0) } ?? "")").font(.caption).foregroundStyle(.secondary)
                     }
                     .contextMenu {

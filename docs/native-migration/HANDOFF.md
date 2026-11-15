@@ -997,3 +997,4 @@ The study Notes inspector now filters the active scope by case-insensitive title
 - **00:28 Mac Settings:** native toolbar panes (Reading / Appearance / Workspaces / Shortcuts / About) instead of one long form; iPhone keeps the single grouped Form (with Haptics). Mac verified pane switching.
 - **00:31 Calendar polish:** today shows as a white number on an accent circle (Calendar-style), larger month title; Mac verified.
 - **00:34 History:** note entries show the note's current title (a note opened as "Untitled" then named shows its name); stored history rows unchanged. Mac verified.
+- **00:42 I9 notes select mode** (Notes Home folder views, both platforms; Mac verified pin/unpin of two notes, restored) + daily notes show long-date titles in Notes Home rows, peek and trash.
