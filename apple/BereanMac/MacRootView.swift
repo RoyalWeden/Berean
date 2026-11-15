@@ -89,7 +89,7 @@ struct MacRootView: View {
                 TagManagerView().id(tab.id)
             default:
                 ContentUnavailableView(tab.title, systemImage: tab.symbol,
-                                       description: Text("This kind of tab arrives in a later native build. It stays saved with your session."))
+                                       description: Text("This kind of tab arrives in a later native build. It stays saved with your workspace."))
             }
         } else {
             ContentUnavailableView("No tab open", systemImage: app.activeSpace.symbol,

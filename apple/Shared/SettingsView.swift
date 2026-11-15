@@ -159,7 +159,7 @@ struct WorkspacesSettingsSection: View {
         }
         .confirmationDialog("Delete \(deleting?.name ?? "")?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("Delete Workspace", role: .destructive) { if let w = deleting { app.deleteWorkspace(w.id) }; deleting = nil }
-        } message: { Text("Open sessions are not affected.") }
+        } message: { Text("Open workspaces are not affected.") }
     }
 }
 
