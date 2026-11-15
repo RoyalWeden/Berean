@@ -569,11 +569,30 @@ struct NotesHomeView: View {
             .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
+        #if os(iOS)
+        // Long-press peeks at the note (original NotePeek) above the actions.
+        .contextMenu { noteMenu(n) } preview: { notePeek(n) }
+        #else
         .contextMenu { noteMenu(n) }
+        #endif
         #if os(iOS)
         .swipeActions(edge: .leading) { Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }.tint(.orange) }
         .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { app.attempt("Couldn’t move the note to Trash") { try app.notes?.delete(n.id) } } }
         #endif
+    }
+
+    func notePeek(_ n: Note) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(n.displayTitle).font(.headline)
+            Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
+            Divider()
+            Text(n.content.isEmpty ? "Empty note" : String(n.content.prefix(900)))
+                .font(.callout).foregroundStyle(n.content.isEmpty ? .secondary : .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(width: 320, height: 360, alignment: .topLeading)
     }
 
     @ViewBuilder func noteMenu(_ n: Note) -> some View {
