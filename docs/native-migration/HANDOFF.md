@@ -1049,3 +1049,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 > **Correction (real time 01:21):** the "HH:MM" labels on the 2026-11-15 Claude bullets above drifted ahead of the clock (some read
 > 01:3x–02:1x but were written between 00:40 and 01:20). Treat them as order only; use `git log --format='%h %cd %s' --date=format:%H:%M`
 > for real times.
+- iPhone Notes ⋯ menu: Sort / Group as submenus (was a long inline list). Simulator verified. Full native:check at `c5fb27fd`+: 117 tests / 43 suites, both builds pass.

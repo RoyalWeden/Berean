@@ -574,7 +574,13 @@ struct NotesHomeView: View {
 
     @ViewBuilder private var viewOptions: some View {
         Picker("Sort", selection: $sort) { Text("Date Edited").tag("modified"); Text("Date Created").tag("created"); Text("Title").tag("name") }
+            #if os(iOS)
+            .pickerStyle(.menu)   // compact submenus on iPhone
+            #endif
         Picker("Group", selection: $grouping) { Text("By Date").tag("none"); Text("By Status").tag("status"); Text("By Folder").tag("folder"); Text("By Type").tag("type") }
+            #if os(iOS)
+            .pickerStyle(.menu)
+            #endif
         Divider()
         Button("Import Markdown…") { app.importMarkdownFiles() }
     }
