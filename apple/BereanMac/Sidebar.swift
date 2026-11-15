@@ -230,7 +230,7 @@ struct BereanSidebar: View {
                     .focused($workspaceSearchFocused)
                     .onSubmit {
                         guard !query.isEmpty else { return }
-                        if let exact = workspaces.first(where: { $0.name.localizedStandardCompare(query) == .orderedSame }) {
+                        if let exact = WorkspaceItem.exactMatch(for: query, in: workspaces) {
                             openWorkspaceSearchResult(exact)
                         } else if let first = matches.first {
                             openWorkspaceTab(first)

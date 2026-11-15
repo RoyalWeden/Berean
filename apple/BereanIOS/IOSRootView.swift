@@ -826,7 +826,7 @@ struct SessionsPage: View {
             TabSearchField(prompt: "Workspace, passage, or tab title", query: $query)
                 .onSubmit {
                     guard !search.isEmpty else { return }
-                    if let exact = workspaces.first(where: { $0.name.localizedStandardCompare(search) == .orderedSame }) {
+                    if let exact = WorkspaceItem.exactMatch(for: search, in: workspaces) {
                         app.open(exact)
                     } else if let tab = tabs.first {
                         app.openWorkspaceTab(tab)

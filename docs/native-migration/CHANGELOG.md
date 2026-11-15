@@ -1132,3 +1132,8 @@
 ### 2026-11-15 — Recognize unnamed workspaces by their tabs
 
 - Mac and iPhone show the passage-based name on the current workspace control and use it as an editable rename suggestion. Mac scratch QA verified the label and cancel path.
+
+### 2026-11-15 — Workspace passage search
+
+- Workspace search accepts displayed passage names, prioritizes direct tab matches, and keeps unrelated tabs out of passage-only results.
+- Both Dev builds passed. Mac scratch QA verified the result list and exact-label Return.

@@ -58,6 +58,20 @@ struct WorkspaceItem: Identifiable, Hashable {
         termsOutsideName(query).isEmpty || !previewLabels(matching: query).isEmpty
     }
 
+    static func exactMatch(for query: String, in candidates: [WorkspaceItem]) -> WorkspaceItem? {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "–", with: "-")
+        guard !query.isEmpty else { return nil }
+        func equals(_ name: String) -> Bool {
+            name.replacingOccurrences(of: "–", with: "-").localizedStandardCompare(query) == .orderedSame
+        }
+        let stored = candidates.filter { equals($0.name) }
+        if stored.count == 1 { return stored.first }
+        guard stored.isEmpty else { return nil }
+        let displayed = candidates.filter { equals($0.displayName) }
+        return displayed.count == 1 ? displayed.first : nil
+    }
+
     private func termsOutsideName(_ query: String) -> [Substring] {
         let workspaceName = normalized(name)
         return normalized(query).split(whereSeparator: \.isWhitespace).filter {
@@ -73,7 +87,7 @@ struct WorkspaceItem: Identifiable, Hashable {
     var isSaved: Bool { if case .saved = kind { true } else { false } }
 }
 
-private extension WorkspaceItem {
+extension WorkspaceItem {
     init(session: Session) {
         let tabs = session.workspacePreviewTabs
         self.init(kind: .live(session.id), name: session.name, tabCount: tabs.count,

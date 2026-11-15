@@ -72,15 +72,27 @@ extension AppModel {
     func matchingWorkspaceTabs(_ query: String) -> [WorkspaceTabMatch] {
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         guard !terms.isEmpty else { return [] }
-        return sessions.flatMap { workspace in
+        var direct: [WorkspaceTabMatch] = []
+        var workspaceMatches: [WorkspaceTabMatch] = []
+        for workspace in sessions {
+            let item = WorkspaceItem(session: workspace)
             let tabsByID = Dictionary(uniqueKeysWithValues: workspace.allTabs.map { ($0.id, $0) })
-            return displayOrder(for: workspace.id).compactMap { id -> WorkspaceTabMatch? in
-                guard let tab = tabsByID[id] else { return nil }
-                let searchable = "\(tab.navigationSearchText) \(workspace.name)"
-                guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { return nil }
-                return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: workspace.name, tab: tab)
+            let displayName = item.displayName.replacingOccurrences(of: "–", with: "-")
+            // A passage by itself should find the workspace and matching tabs, without listing every tab it contains.
+            let includesTabTerms = !terms.allSatisfy { displayName.localizedStandardContains(String($0)) }
+            let workspaceText = includesTabTerms ? item.name + " " + displayName : item.name
+            for id in displayOrder(for: workspace.id) {
+                guard let tab = tabsByID[id] else { continue }
+                let tabText = tab.navigationSearchText
+                let match = WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: item.displayName, tab: tab)
+                if terms.allSatisfy({ tabText.localizedStandardContains(String($0)) }) {
+                    direct.append(match)
+                } else if terms.allSatisfy({ (tabText + " " + workspaceText).localizedStandardContains(String($0)) }) {
+                    workspaceMatches.append(match)
+                }
             }
         }
+        return direct + workspaceMatches
     }
 
     func openWorkspaceTab(_ match: WorkspaceTabMatch) {
