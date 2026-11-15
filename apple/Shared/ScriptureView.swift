@@ -677,6 +677,9 @@ struct ScriptureView: View {
                 #if os(macOS)
                 .glassEffectCompat()
                 #else
+                .tint(.primary)
+                // Keep Scripture glyphs from competing with the small symbols on the glass.
+                .background(Color(uiColor: .systemBackground).opacity(0.78), in: .capsule)
                 .glassEffectCompat(interactive: true)
                 #endif
                 .padding(.horizontal, 8)

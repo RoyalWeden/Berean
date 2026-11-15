@@ -953,3 +953,5 @@ The compact sheet now includes Notes and Cross References shortcuts. Both push f
 ### iPhone linked-range positioning
 
 The iPhone reader now measures both ends of an explicit verse jump with the same laid-out TextKit line fragments used for the selection outline. The jump uses the first line's actual position and the last selected verse's lower edge when checking available room above the action bar. The iPhone Dev build passed. On iPhone 18 Pro Simulator, relaunching on the Proverbs 8:22–24 cross-reference destination displayed all three verses inside one dashed outline near the top, above both floating controls. A fresh link traversal at this revision, chapter-end ranges, and large type remain to verify.
+
+iPhone verse actions keep regular glass and now use an adaptive system-background layer behind the icons, with neutral tint shared by menu and button actions. On the iPhone 18 Pro Simulator in light appearance, the icons stayed distinct over Proverbs 8:30 with 8:22–24 selected. The iPhone Dev build passed. Red-letter text, dark appearance and physical iPhone still need direct checks for I25.
