@@ -486,6 +486,7 @@ func noteListReturnEdit(in text: NSString, selection: NSRange)
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     let noteId: String
     var performDestination: ((@escaping () -> Void) -> Void)?
     @State private var note: Note?
@@ -774,6 +775,10 @@ struct NoteDetailView: View {
             guard let fresh = try? app.notes?.one(noteId), let note, fresh.updatedAt != note.updatedAt,
                   title == note.title, content == note.content else { return }
             reload(); lastSnapshot = content
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // A suspended scene may never get to finish the editor's debounce task.
+            if phase == .background { saveNow() }
         }
         .onDisappear {
             saveNow()
