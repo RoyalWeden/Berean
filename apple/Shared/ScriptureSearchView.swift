@@ -92,6 +92,14 @@ struct ScriptureSearchView: View {
 
     // MARK: header — field, scope, options
 
+    private var headerControlSize: CGFloat {
+        #if os(iOS)
+        44
+        #else
+        32
+        #endif
+    }
+
     var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -108,12 +116,13 @@ struct ScriptureSearchView: View {
                     }
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7)
+                .frame(minHeight: headerControlSize)
                 .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
                 scopeMenu
                 Button { showOptions.toggle() } label: {
                     Image(systemName: hasActiveOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                         .foregroundStyle(hasActiveOptions ? Color.accentColor : Color.primary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: headerControlSize, height: headerControlSize)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.interactivePlain)
@@ -154,11 +163,18 @@ struct ScriptureSearchView: View {
                 }
             }
         } label: {
+            #if os(iOS)
+            Image(systemName: "books.vertical")
+                .foregroundStyle(scope == nil ? Color.primary : Color.accentColor)
+                .frame(width: headerControlSize, height: headerControlSize)
+                .contentShape(.rect)
+            #else
             ViewThatFits(in: .horizontal) {
                 Label(scopeLabel, systemImage: "books.vertical").fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "books.vertical")
             }
             .frame(maxWidth: 124)
+            #endif
         }
         .menuStyle(.borderlessButton)
         .accessibilityLabel("Search Scope")
@@ -278,6 +294,13 @@ struct ScriptureSearchView: View {
             HStack(spacing: 6) {
                 Text(searchPending ? "Searching…" : "\(testamentFiltered.count) result\(testamentFiltered.count == 1 ? "" : "s")")
                     .font(.callout.weight(.semibold)).foregroundStyle(.secondary)
+                #if os(iOS)
+                if scope != nil {
+                    Text(scopeLabel)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                }
+                #endif
                 if counts.count > 1 {
                     ForEach(counts, id: \.0) { id, n in
                         Button { set("nativeSearchFocusText", focusText == id ? nil : .string(JSString(id))) } label: {
