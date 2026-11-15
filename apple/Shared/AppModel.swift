@@ -54,6 +54,13 @@ final class SingleInstanceLock {
 enum UserLibrary {
     static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        #if DEBUG && os(macOS)
+        // Fixed, container-local scratch library for interactive QA while the regular Dev library is open.
+        if ProcessInfo.processInfo.arguments.contains("--qa-library"),
+           Bundle.main.bundleIdentifier == "com.berean.native.mac.dev" {
+            return base.appendingPathComponent("BereanNativeQA", isDirectory: true)
+        }
+        #endif
         return base.appendingPathComponent("BereanNative", isDirectory: true)
     }
 }
