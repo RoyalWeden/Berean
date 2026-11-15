@@ -320,3 +320,17 @@ show their content without the side-by-side or thread chrome. A full structured 
 - iPhone’s labeled Tabs / Go / More dock supersedes the center Plus presentation in ADR-0013. Go opens a destination in the active compatible unpinned tab in its Space, another eligible tab, or a new tab when needed. iPhone Scripture search results reuse a reader. Tabs → New Tab provides deliberate creation. Mac command behavior is preserved.
 - iPhone chapter text uses UIKit TextKit with the same display-to-storage highlight offsets as Mac. Verse and Strong’s links keep their affordance through position and color with no underline.
 - Calendar persists only the existing month and selected date keys. It uses the same daily-note date lookup and deterministic create path as Today’s Note. Native sunrise-aware Today remains open.
+
+## 2026-11-14 evening (Claude Code) — decisions taken during the parity/polish session
+
+- **D-2026-11-14-a Mac pointer:** a global `resetCursorRects` hook (`apple/BereanMac/ClickableCursor.swift`) gives every enabled
+  NSButton / NSSegmentedControl / NSToolbarItemViewer the pointing hand; disabled toolbar items keep the arrow. SwiftUI plain buttons use
+  `.interactivePlain`; native-look menus/pickers may add `clickableCursor()`. Reason: SwiftUI `pointerStyle` cannot reach AppKit-hosted controls.
+- **D-2026-11-14-b No new tab-state keys:** Lexicon search query lives in memory (`AppModel.lexiconSearches`); a Lexicon tab with
+  `strongsNum: ""` is the search view. Annotation hiding uses the existing `hiddenAnnotations`; workspace icons store the original Lucide names.
+- **D-2026-11-14-c Search tab:** a single-verse query shows that verse's cross references (original auto mode); chapter references still navigate.
+- **D-2026-11-14-d Daily notes:** the editor shows the long date (Saturday = Sabbath) read-only; the stored "Daily — YYYY-MM-DD" title is untouched.
+- **D-2026-11-14-e Generated tables:** Psalm superscriptions (`PsalmTitleData.swift`) and BDB abbreviations (`BdbNotes.swift`) are generated
+  from the TS sources; regenerate rather than hand-edit.
+- **D-2026-11-14-f Compare layout:** grid vs stacked is chosen by measured width (≥ 280 pt per column), not `ViewThatFits`; iOS-only
+  modifiers must be wrapped as whole modifiers (an empty macOS `.safeAreaInset` collapsed Compare — MAC-FUNC-037).
