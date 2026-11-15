@@ -25,6 +25,10 @@ struct LexiconEntryView: View {
     @State private var occurrenceEdition: String?
     @State private var occurrenceBook: String?
     @State private var visibleOccurrences = 40
+    /// ⌘F find inside the entry (original LexiconPanel find bar); highlights matches in the entry's prose.
+    @State private var findShown = false
+    @State private var findQuery = ""
+    @FocusState private var findFocused: Bool
     @State private var selectedRenderings: Set<String> = []
     @State private var sortByMatches = false
 
@@ -82,6 +86,29 @@ struct LexiconEntryView: View {
     }
 
     /// BDB notes with grammatical abbreviations expanded (italic, accent) — original LexiconPanel BdbNotesText.
+    /// Case- and diacritic-insensitive find highlights.
+    private func markFind(_ text: AttributedString) -> AttributedString {
+        let q = findQuery.trimmingCharacters(in: .whitespaces)
+        guard findShown, q.count >= 2 else { return text }
+        var out = text
+        var start = out.startIndex
+        while start < out.endIndex, let r = out[start...].range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) {
+            out[r].backgroundColor = Color.yellow.opacity(0.45)
+            start = r.upperBound
+        }
+        return out
+    }
+
+    private func findMatchCount(_ e: LexiconEntry) -> Int {
+        let q = findQuery.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2 else { return 0 }
+        return [displayGloss(e), replaced(e.definition), replaced(e.derivation), replaced(e.extendedDef)].reduce(0) { total, s in
+            var n = 0, from = s.startIndex
+            while let r = s.range(of: q, options: [.caseInsensitive, .diacriticInsensitive], range: from..<s.endIndex) { n += 1; from = r.upperBound }
+            return total + n
+        }
+    }
+
     private func bdbText(_ text: String) -> Text {
         var out = AttributedString()
         for token in BdbNotes.tokens(text) {
@@ -93,7 +120,7 @@ struct LexiconEntryView: View {
                 var a = AttributedString(expanded); a.font = .body.italic(); a.foregroundColor = Color.accentColor.opacity(0.85); out += a
             }
         }
-        return Text(out)
+        return Text(markFind(out))
     }
 
     /// Definition / derivation text with Strong's cross-references as links (⌘-click opens a new tab on the Mac).
@@ -110,7 +137,7 @@ struct LexiconEntryView: View {
                 out += a
             }
         }
-        return Text(out)
+        return Text(markFind(out))
     }
 
     /// Context menu for a Strong's number (original StrongsContextMenu.tsx).
@@ -180,7 +207,7 @@ struct LexiconEntryView: View {
                             if e.strongsNum.hasPrefix("H") {
                                 section("BDB Notes") { bdbText(replaced(e.extendedDef)).textSelection(.enabled) }
                             } else {
-                                section("Extended") { Text(replaced(e.extendedDef)).textSelection(.enabled) }
+                                section("Extended") { Text(markFind(AttributedString(replaced(e.extendedDef)))).textSelection(.enabled) }
                             }
                         }
                         if !related.isEmpty {
@@ -335,6 +362,31 @@ struct LexiconEntryView: View {
                 } else {
                     scrollPosition.scrollTo(edge: .top)
                 }
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if findShown, !compact {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Find in entry", text: $findQuery).textFieldStyle(.plain).focused($findFocused)
+                        .onSubmit {}
+                        .onKeyPress(.escape) { findShown = false; findQuery = ""; return .handled }
+                    if let e = entry, findQuery.trimmingCharacters(in: .whitespaces).count >= 2 {
+                        let n = findMatchCount(e)
+                        Text(n == 1 ? "1 match" : "\(n) matches").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    Button("Done") { findShown = false; findQuery = "" }.buttonStyle(.borderless)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .glassEffectCompat(interactive: true)
+                .padding(.horizontal, 16).padding(.vertical, 6)
+            }
+        }
+        .background {
+            // ⌘F opens the entry find bar (full Lexicon tab only).
+            if !compact {
+                Button("Find in Entry") { findShown = true; findFocused = true }
+                    .keyboardShortcut("f").hidden()
             }
         }
         .toolbar {
