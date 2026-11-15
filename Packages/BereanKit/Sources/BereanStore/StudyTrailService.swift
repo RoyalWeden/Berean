@@ -20,7 +20,7 @@ public struct StudyTrailService {
 
     public struct Connection: Identifiable, Sendable {
         public enum Destination: Sendable {
-            case scripture(bookId: String, chapter: Int, verse: Int?)
+            case scripture(bookId: String, chapter: Int, verse: Int?, endVerse: Int?)
             case lexicon(String)
             case note(String)
             case other(String)
@@ -77,7 +77,7 @@ public struct StudyTrailService {
     public func connections(in trailId: String) throws -> [Connection] {
         let rows = try db.query("""
             SELECT id, from_node_id, from_connection_id, to_kind, to_book_id, to_chapter,
-                   to_verse, to_strongs_num, to_note_id, reason_text, user_note
+                   to_verse, to_verse_end, to_strongs_num, to_note_id, reason_text, user_note
             FROM trail_connections WHERE trail_session_id = ? ORDER BY created_at, id
             """, [.text(trailId)])
         return rows.compactMap { row in
@@ -87,7 +87,8 @@ public struct StudyTrailService {
             switch kind {
             case "chapter", "compare":
                 if let book = row["to_book_id"]?.string, let chapter = row["to_chapter"]?.int {
-                    destination = .scripture(bookId: book, chapter: chapter, verse: row["to_verse"]?.int)
+                    destination = .scripture(bookId: book, chapter: chapter, verse: row["to_verse"]?.int,
+                                             endVerse: row["to_verse_end"]?.int)
                 } else {
                     destination = .other(kind)
                 }
@@ -187,6 +188,48 @@ public struct StudyTrailService {
             }
             return true
         }
+    }
+
+    /// Adds an explicit, top-level connection using the legacy destination fields.
+    @discardableResult
+    public func addConnection(_ destination: Connection.Destination, id: String, fromStopId: String,
+                              trailId: String, at time: Int64) throws -> Bool {
+        let fields: [SQLiteValue]
+        switch destination {
+        case .scripture(let book, let chapter, let verse, let endVerse):
+            guard !book.isEmpty, chapter >= 0, verse.map({ $0 > 0 }) ?? true,
+                  endVerse.map({ end in verse.map { end >= $0 } ?? false }) ?? true else { return false }
+            fields = [.text("chapter"), .text(book), .integer(Int64(chapter)),
+                      verse.map { .integer(Int64($0)) } ?? .null,
+                      endVerse.map { .integer(Int64($0)) } ?? .null, .null, .null]
+        case .lexicon(let strongs):
+            guard !strongs.isEmpty else { return false }
+            fields = [.text("lexicon"), .null, .null, .null, .null, .text(strongs), .null]
+        case .note(let note):
+            guard !note.isEmpty else { return false }
+            fields = [.text("note"), .null, .null, .null, .null, .null, .text(note)]
+        case .other:
+            return false
+        }
+        let trail = SQLiteValue.text(trailId)
+        let stop = SQLiteValue.text(fromStopId)
+        return try db.run("""
+            INSERT INTO trail_connections (
+                id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
+                to_verse_end, to_strongs_num, to_note_id, clarity_tier, created_at
+            )
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?
+            WHERE EXISTS (
+                SELECT 1 FROM trail_nodes n JOIN trail_sessions s ON s.id = n.trail_session_id
+                WHERE n.id = ? AND s.id = ? AND s.id <> '__loose_stops__'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM trail_connections
+                WHERE trail_session_id = ? AND from_node_id = ? AND from_connection_id IS NULL
+                  AND to_kind = ? AND to_book_id IS ? AND to_chapter IS ? AND to_verse IS ?
+                  AND to_verse_end IS ? AND to_strongs_num IS ? AND to_note_id IS ?
+            )
+            """, [.text(id), trail, stop] + fields + [.integer(time), stop, trail, trail, stop] + fields).changes == 1
     }
 
     @discardableResult

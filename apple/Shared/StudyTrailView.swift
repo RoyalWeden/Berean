@@ -161,8 +161,17 @@ private struct StudyTrailStopsView: View {
                     }
                 }
             }
-            if !connections.isEmpty {
+            if !connections.isEmpty || (!stops.isEmpty && currentDestination != nil) {
                 Section("Connections") {
+                    if let destination = currentDestination, !stops.isEmpty {
+                        Menu {
+                            ForEach(stops) { stop in
+                                Button(stopLabel(stop)) { addConnection(destination.value, from: stop) }
+                            }
+                        } label: {
+                            Label("Connect \(destination.label) to a Stop", systemImage: "link.badge.plus")
+                        }
+                    }
                     ForEach(connections) { connection in connectionRow(connection) }
                 }
             }
@@ -186,6 +195,42 @@ private struct StudyTrailStopsView: View {
     private var currentPassage: BibleState? {
         guard let tab = app.activeTab, tab.tabType == .bible else { return nil }
         return BibleState(tab.state)
+    }
+
+    private var currentDestination: (value: StudyTrailService.Connection.Destination, label: String)? {
+        guard let tab = app.activeTab else { return nil }
+        switch tab.tabType {
+        case .bible:
+            let passage = BibleState(tab.state)
+            guard !passage.compareMode else { return nil }
+            return (.scripture(bookId: passage.bookId, chapter: passage.chapter,
+                               verse: passage.verse, endVerse: passage.endVerse), tab.navigationLabel)
+        case .lexicon:
+            guard let id = tab.state["strongsNum"]?.stringValue?.string, !id.isEmpty else { return nil }
+            return (.lexicon(id), id)
+        case .note:
+            guard let id = tab.state["noteId"]?.stringValue?.string else { return nil }
+            return (.note(id), tab.navigationLabel)
+        default: return nil
+        }
+    }
+
+    private func stopLabel(_ stop: StudyTrailService.Stop) -> String {
+        Reference.readerChapterLabel(stop.bookId, stop.chapter, textId: stop.translation ?? app.defaultText)
+    }
+
+    private func addConnection(_ destination: StudyTrailService.Connection.Destination, from stop: StudyTrailService.Stop) {
+        guard let service = app.studyTrailService else { return }
+        do {
+            guard try service.addConnection(destination, id: AppModel.newId(), fromStopId: stop.id,
+                                            trailId: trail.id, at: StudyTrailView.now()) else {
+                actionMessage = "This connection already exists or the stop is unavailable."
+                return
+            }
+            load()
+        } catch {
+            actionMessage = "The connection could not be saved."
+        }
     }
 
     @ViewBuilder private var trailControls: some View {
@@ -263,14 +308,16 @@ private struct StudyTrailStopsView: View {
                     .foregroundStyle(.secondary)
             }
             switch connection.destination {
-            case let .scripture(book, chapter, verse):
-                Button(Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse), systemImage: "book") {
+            case let .scripture(book, chapter, verse, endVerse):
+                let first = Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse)
+                let label = endVerse.map { end in verse.map { end > $0 ? "\(first)–\(end)" : first } ?? first } ?? first
+                Button(label, systemImage: "book") {
                     app.showStudyTrail = false
                     let translation = origin?.translation
                     let textId = app.bookCatalog.first {
                         $0.book.id == book && $0.textId == translation
                     }?.textId ?? app.bookCatalog.first { $0.book.id == book }?.textId
-                    app.openScripture(bookId: book, chapter: chapter, verse: verse, textId: textId, reuseTab: true)
+                    app.openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: textId, reuseTab: true)
                 }
             case let .lexicon(id):
                 Button(id, systemImage: "character.book.closed") {

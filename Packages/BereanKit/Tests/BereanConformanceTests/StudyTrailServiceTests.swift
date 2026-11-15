@@ -42,13 +42,23 @@ import Testing
     #expect(edited.reason == "Beginning")
     #expect(try reader.stops(in: "pinned").first?.subnote == "A revised subnote")
     guard let last = connections.last,
-          case let .scripture(book, chapter, verse) = last.destination else {
+          case let .scripture(book, chapter, verse, endVerse) = last.destination else {
         Issue.record("Expected a Scripture destination")
         return
     }
     #expect(book == "JHN")
     #expect(chapter == 1)
     #expect(verse == 1)
+    #expect(endVerse == nil)
+    let range: StudyTrailService.Connection.Destination = .scripture(bookId: "JHN", chapter: 1, verse: 1, endVerse: 4)
+    #expect(try !reader.addConnection(range, id: "foreign", fromStopId: "first", trailId: "recent", at: 7))
+    #expect(try reader.addConnection(range, id: "range", fromStopId: "first", trailId: "pinned", at: 7))
+    #expect(try !reader.addConnection(range, id: "duplicate", fromStopId: "first", trailId: "pinned", at: 8))
+    #expect(try reader.addConnection(.note("note-id"), id: "note", fromStopId: "second", trailId: "pinned", at: 9))
+    let new = try reader.connections(in: "pinned")
+    #expect(new.map(\.id) == ["lex", "chapter", "range", "note"])
+    if case .scripture("JHN", 1, 1, 4) = new[2].destination {} else { Issue.record("Expected the saved verse range") }
+    if case .note("note-id") = new[3].destination {} else { Issue.record("Expected the saved note") }
 }
 
 @Test func recordsAndFinishesTrailWithLegacyRows() throws {
