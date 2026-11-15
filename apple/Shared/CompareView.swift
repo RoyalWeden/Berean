@@ -4,6 +4,7 @@ import BereanBible
 import BereanText
 import BereanReference
 import BereanNotes
+import BereanWorkspace
 
 /// A persisted Compare column. Keep the raw object so older clients retain their metadata.
 struct CompareColumn: Identifiable {

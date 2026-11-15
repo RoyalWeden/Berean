@@ -4,11 +4,7 @@ import BereanNotes
 import BereanWorkspace
 import BereanText
 
-enum InspectorTool: String, CaseIterable, Identifiable {
-    case notes, lexicon, crossrefs
-
-    var id: Self { self }
-
+private extension InspectorTool {
     var title: String {
         switch self {
         case .notes: "Notes"
@@ -18,51 +14,13 @@ enum InspectorTool: String, CaseIterable, Identifiable {
     }
 }
 
-struct StudyPanelSlots {
-    var primary: InspectorTool
-    var secondary: InspectorTool?
-    var secondaryTabs: [InspectorTool]
-
-    var primaryTabs: [InspectorTool] { InspectorTool.allCases.filter { !secondaryTabs.contains($0) } }
-
-    init(_ state: JSObject) {
-        let savedPrimary = state["rightPanelTab"]?.stringValue?.string.flatMapPanel ?? .lexicon
-        let savedSecondary = state["rightPanelSlotB"]?.stringValue?.string.flatMapPanel
-        let assigned = state["rightPanelSlotBTabs"]?.arrayValue?.compactMap { $0.stringValue?.string.flatMapPanel }
-            ?? savedSecondary.map { [$0] } ?? []
-        let unique = InspectorTool.allCases.filter { assigned.contains($0) }
-        let tabs = unique.count < InspectorTool.allCases.count ? unique : []
-        secondaryTabs = tabs
-        primary = tabs.contains(savedPrimary)
-            ? InspectorTool.allCases.first { !tabs.contains($0) } ?? .lexicon : savedPrimary
-        secondary = savedSecondary.flatMap { tabs.contains($0) ? $0 : nil } ?? tabs.first
-    }
-
-    mutating func move(_ panel: InspectorTool, toSecondary: Bool) {
-        if toSecondary {
-            guard !secondaryTabs.contains(panel), primaryTabs.count > 1 else { return }
-            secondaryTabs.append(panel)
-            secondary = panel
-            if primary == panel, let first = primaryTabs.first { primary = first }
-        } else {
-            secondaryTabs.removeAll { $0 == panel }
-            if secondary == panel { secondary = secondaryTabs.first }
-            primary = panel
-        }
-    }
-
-    func write(to state: inout JSObject) {
-        state["rightPanelTab"] = .string(JSString(primary.rawValue))
-        state["rightPanelSlotBTabs"] = .array(secondaryTabs.map { .string(JSString($0.rawValue)) })
-        state["rightPanelSlotB"] = secondary.map { .string(JSString($0.rawValue)) } ?? .null
-    }
-
+extension StudyPanelSlots {
     /// Route actions from the Scripture reader to the pane that owns the tool.
     static func focus(_ panel: InspectorTool, in state: inout JSObject) {
         #if os(macOS)
         var slots = Self(state)
         if usesSplitPane(in: state), slots.secondaryTabs.contains(panel) {
-            slots.secondary = panel
+            slots.focusSecondary(panel)
             slots.write(to: &state)
             return
         }
@@ -87,10 +45,6 @@ struct StudyPanelSlots {
         #endif
         return "rightPanelLexiconEntry"
     }
-}
-
-private extension String {
-    var flatMapPanel: InspectorTool? { InspectorTool(rawValue: self) }
 }
 
 /// The Scripture tab's study panel for Notes, Lexicon, and Cross References.
@@ -218,7 +172,7 @@ struct StudyInspector: View {
                 ForEach(slots.secondaryTabs) { panel in
                     Button("Move \(panel.title) to Main Pane") { changeSlots { $0.move(panel, toSecondary: false) } }
                 }
-                Button("Close Second Pane") { changeSlots { $0.secondaryTabs = []; $0.secondary = nil } }
+                Button("Close Second Pane") { changeSlots { $0.closeSecondary() } }
             } else {
                 ForEach(slots.primaryTabs) { panel in
                     Button("Move \(panel.title) to Second Pane") { changeSlots { $0.move(panel, toSecondary: true) } }
