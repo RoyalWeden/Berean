@@ -28,6 +28,7 @@ struct ChapterTextView: NSViewRepresentable {
     var onCopySelectedVerses: () -> Void
     /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
     var onHighlightRange: (Int, Int, Int, String) -> Void = { _, _, _, _ in }
+    var onSearchSelection: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -617,6 +618,14 @@ final class ReaderTextView: NSTextView {
                 }
                 hl.submenu = sub
                 menu.insertItem(hl, at: 0)
+            }
+            let words = (string as NSString).substring(with: selectedRange())
+                .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
+            if !words.isEmpty, words.count <= 120 {
+                let shown = words.count > 32 ? String(words.prefix(31)) + "…" : words
+                let search = ClosureMenuItem("Search for “\(shown)”") { c.parent.onSearchSelection(words) }
+                search.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
+                menu.insertItem(search, at: 0)
             }
             menu.insertItem(.separator(), at: 0)
             menu.insertItem(ClosureMenuItem("Copy as Plain Text", key: "C", modifiers: [.command, .shift]) { [weak self] in self?.copyPlain(nil) }, at: 0)

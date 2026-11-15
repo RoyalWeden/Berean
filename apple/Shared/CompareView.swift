@@ -173,7 +173,7 @@ struct CompareView: View {
             #if os(iOS)
             HStack(spacing: 2) {
                 manageTranslations(st, cols)
-                    .menuStyle(.borderlessButton)
+                    .menuStyle(.borderlessButton).clickableCursor()
                     .menuIndicator(.hidden)
                     .hoverEffect(.highlight)
                 Button("Exit Compare", systemImage: "xmark") {
@@ -691,7 +691,7 @@ struct CompareView: View {
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.borderlessButton).clickableCursor()
         #if os(macOS)
         .menuIndicator(.hidden)
         .pointerStyle(.link)

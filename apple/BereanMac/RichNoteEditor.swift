@@ -37,6 +37,8 @@ struct RichNoteEditor: NSViewRepresentable {
         tv.delegate = context.coordinator
         tv.coordinator = context.coordinator
         tv.setAccessibilityLabel("Note text")
+        // Link colour comes from the styled runs (task boxes keep their accent / secondary tint); this only adds the hand.
+        tv.linkTextAttributes = [.cursor: NSCursor.pointingHand]
         tv.string = text
         context.coordinator.textView = tv
         context.coordinator.restyle()
@@ -107,7 +109,7 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor], range: r)
                 case .highlight(let c): storage.addAttribute(.backgroundColor, value: NSColor(Color.highlight(c ?? "yellow")).withAlphaComponent(0.35), range: r)
                 case .link(let url):
-                    if let u = URL(string: url) { storage.addAttribute(.link, value: u, range: r) }
+                    if let u = URL(string: url) { storage.addAttributes([.link: u, .foregroundColor: NSColor.linkColor, .underlineStyle: NSUnderlineStyle.single.rawValue], range: r) }
                 case .wikilink(let target):
                     storage.addAttributes([.link: URL(string: "berean-note:" + (target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target))!,
                                            .foregroundColor: NSColor.linkColor], range: r)

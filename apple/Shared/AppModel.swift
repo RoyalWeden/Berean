@@ -263,7 +263,7 @@ final class AppModel {
         rememberWorkspaceSpace()
         scheduleSave()
     }
-    func newSession(named name: String = "New Session") {
+    func newSession(named name: String = "New Workspace") {
         let s = Session(id: Self.newId(), name: name)
         sessions.append(s); switchSession(s.id)
         openTab(.bible, in: .scripture, title: "Genesis 1", state: BibleState(bookId: "GEN", chapter: 1).object)

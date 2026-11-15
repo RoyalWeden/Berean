@@ -19,7 +19,7 @@ struct SettingsView: View {
                 Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
             }
             Section("Appearance") {
-                Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
+                Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented).clickableCursor()
             }
             WorkspacesSettingsSection()
             Section("Keyboard Shortcuts") {
@@ -86,7 +86,7 @@ struct WorkspacesSettingsSection: View {
     var body: some View {
         Section("Workspaces") {
             if app.savedWorkspaces.isEmpty {
-                Text("No saved workspaces yet. Use Save Session as Workspace… in the session menu.").foregroundStyle(.secondary)
+                Text("No saved workspaces yet. Use Save Snapshot… in the workspace menu at the top of the sidebar.").foregroundStyle(.secondary)
             }
             ForEach(app.savedWorkspaces) { w in
                 HStack {
@@ -101,7 +101,7 @@ struct WorkspacesSettingsSection: View {
                         Button("Rename…") { name = w.name; renaming = w }
                         Button("Delete…", role: .destructive) { deleting = w }
                     } label: { Image(systemName: "ellipsis.circle") }
-                        .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("More for \(w.name)")
+                        .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("More for \(w.name)").clickableCursor()
                 }
             }
         }

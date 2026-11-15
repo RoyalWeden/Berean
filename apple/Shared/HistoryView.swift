@@ -132,7 +132,7 @@ struct HistoryView: View {
                     })) {
                         Label("Study Only", systemImage: "line.3.horizontal.decrease")
                     }
-                    .toggleStyle(.button)
+                    .toggleStyle(.button).clickableCursor()
                     .labelStyle(.iconOnly)
                     .help("Hide chapter-only reading visits")
                 }
@@ -183,7 +183,7 @@ struct HistoryView: View {
         }
         .navigationTitle("History")
         .toolbar {
-            ToolbarItem { Button("Clear History…", role: .destructive) { confirmClear = true }.disabled(entries.isEmpty) }
+            ToolbarItem { Button("Clear History…", role: .destructive) { confirmClear = true }.disabled(entries.isEmpty).clickableCursor(!entries.isEmpty) }
         }
         .confirmationDialog("Clear all history on this device?", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Clear History", role: .destructive) { try? app.historyService?.clear(); load() }

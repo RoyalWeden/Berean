@@ -325,7 +325,7 @@ struct LexiconEntryView: View {
                         Text(textInfo(edition).short).tag(Optional(edition))
                     }
                 }
-                .pickerStyle(.menu)
+                .pickerStyle(.menu).clickableCursor()
             }
             if books.count > 1 {
                 Picker("Book", selection: Binding(get: { occurrenceBook }, set: {
@@ -338,7 +338,7 @@ struct LexiconEntryView: View {
                         Text("\(Reference.bookName(book)) (\(books[book]?.count ?? 0))").tag(Optional(book))
                     }
                 }
-                .pickerStyle(.menu)
+                .pickerStyle(.menu).clickableCursor()
             }
             if forms.count > 1 {
                 Menu {
@@ -368,7 +368,7 @@ struct LexiconEntryView: View {
                     Text("Default Order").tag(false)
                     Text("Most Matches").tag(true)
                 }
-                .pickerStyle(.menu)
+                .pickerStyle(.menu).clickableCursor()
             }
             if filtered {
                 Button("Reset Options") {
@@ -385,7 +385,7 @@ struct LexiconEntryView: View {
                 .frame(minWidth: entryControlHeight, minHeight: entryControlHeight)
                 .contentShape(.rect)
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.borderlessButton).clickableCursor()
         .menuIndicator(.hidden)
         #if os(macOS)
         .pointerStyle(.link)
@@ -571,7 +571,7 @@ struct CrossRefsView: View {
                         .frame(minHeight: controlHeight)
                         .contentShape(.rect)
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.borderlessButton).clickableCursor()
                 .fixedSize()
                 .menuIndicator(.hidden)
                 #if os(macOS)
@@ -781,7 +781,7 @@ struct SearchResultsView: View {
                 HStack {
                     Picker("Text", selection: $textId) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }.frame(maxWidth: 260)
                     Picker("Match", selection: $mode) { Text("All words").tag(WordMode.all); Text("Any word").tag(WordMode.any); Text("Phrase").tag(WordMode.phrase) }
-                        .pickerStyle(.segmented).frame(maxWidth: 280)
+                        .pickerStyle(.segmented).frame(maxWidth: 280).clickableCursor()
                     Spacer()
                     Text(loading ? "Searching…" : "\(results.count) verses").foregroundStyle(.secondary)
                 }

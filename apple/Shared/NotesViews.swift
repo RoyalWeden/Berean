@@ -946,7 +946,7 @@ struct NoteVersionHistoryView: View {
                     Button { try? app.notes?.createVersion(noteId: noteId, title: currentTitle, content: currentContent, kind: "manual"); load() } label: {
                         Label("Save Version Now", systemImage: "plus.circle").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderless).padding(10)
+                    .buttonStyle(.borderless).padding(10).clickableCursor()
                 }
                 Divider()
                 Group {

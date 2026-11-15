@@ -1365,7 +1365,8 @@ extension ScriptureView {
             onNotes: { openInspector("notes", verse: $0) },
             onVerseClick: { v, shift in verseClick(v, shift: shift) },
             onCopySelectedVerses: { confirmSelectionCopy(.verses) },
-            onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) })
+            onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) },
+            onSearchSelection: { app.openSearch($0, returningTo: tabId) })
             .task(id: strongsIDs(in: rv, enabled: st.showStrongs)) {
                 let ids = strongsIDs(in: rv, enabled: st.showStrongs)
                 var next: [String: String] = [:]
@@ -1510,7 +1511,7 @@ enum ReaderFloatingControls {
 private struct VerseActionMenuChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .menuStyle(.borderlessButton)
+            .menuStyle(.borderlessButton).clickableCursor()
             .menuIndicator(.hidden)
             #if os(macOS)
             .buttonStyle(.plain)
@@ -1594,6 +1595,19 @@ struct InteractivePlainButtonStyle: ButtonStyle {
 
 extension ButtonStyle where Self == InteractivePlainButtonStyle {
     static var interactivePlain: Self { Self() }
+}
+
+extension View {
+    /// Pointing-hand cursor on the Mac for controls that keep their native look (menus, pickers, toggles, toolbar and
+    /// bordered buttons). Plain buttons use `.buttonStyle(.interactivePlain)` instead. Applied to a container it covers
+    /// every control inside, so keep text fields out of such containers.
+    @ViewBuilder func clickableCursor(_ enabled: Bool = true) -> some View {
+        #if os(macOS)
+        pointerStyle(enabled ? .link : .default)
+        #else
+        self
+        #endif
+    }
 }
 
 struct VerseActionsMenu<Actions: View>: View {

@@ -5,6 +5,13 @@ import BereanWorkspace
 struct BereanMacApp: App {
     @State private var app = AppModel()
 
+    init() {
+        ClickableCursor.install()
+        #if DEBUG
+        ClickableCursorDebug.dumpToolbar()
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             MacRootView()

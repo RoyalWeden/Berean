@@ -19,7 +19,7 @@ struct StudyInspector: View {
                 Text("Cross Refs").tag("crossrefs")
             }
             .pickerStyle(.segmented)
-            .labelsHidden()
+            .labelsHidden().clickableCursor()
             .padding(10)
             Divider()
             if st.rightPanelTab == "notes" {

@@ -176,7 +176,7 @@ struct ScriptureSearchView: View {
             .frame(maxWidth: 124)
             #endif
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.borderlessButton).clickableCursor()
         .accessibilityLabel("Search Scope")
         .accessibilityValue(scopeLabel)
         .help("Search scope: \(scopeLabel)")
@@ -197,20 +197,20 @@ struct ScriptureSearchView: View {
             Text("Match").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Match", selection: Binding(get: { mode }, set: { set("wordMode", .string(JSString($0.rawValue))) })) {
                 Text("All words").tag(WordMode.all); Text("Any word").tag(WordMode.any); Text("Exact phrase").tag(WordMode.phrase)
-            }.pickerStyle(.segmented).labelsHidden()
+            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
             Text("Testament").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Testament", selection: Binding(get: { testament }, set: { set("testament", .string(JSString($0))) })) {
                 Text("All").tag("all"); Text("Old Testament").tag("OT"); Text("New Testament").tag("NT"); Text("Apocrypha").tag("Apocrypha"); Text("Other writings").tag("Pseudepigrapha")
-            }.labelsHidden()
+            }.labelsHidden().clickableCursor()
             Text("Books").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             BookFilterField(selected: bookFilter) { ids in set("bookIds", ids.isEmpty ? nil : .array(ids.map { .string(JSString($0)) })) }
             Text("Results").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Order", selection: Binding(get: { sort }, set: { set("sort", .string(JSString($0))) })) {
                 Text("Scripture order").tag("bookOrder"); Text("Best match first").tag("relevance")
-            }.pickerStyle(.segmented).labelsHidden()
+            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
             Picker("Group by", selection: Binding(get: { grouping }, set: { set("grouping", .string(JSString($0))) })) {
                 Text("By text").tag("text"); Text("By book").tag("book"); Text("No groups").tag("none")
-            }.pickerStyle(.segmented).labelsHidden()
+            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
             if hasActiveOptions {
                 Button("Reset Options") { set("wordMode", nil); set("testament", nil); set("bookIds", nil) }
             }

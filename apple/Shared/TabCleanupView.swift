@@ -23,7 +23,7 @@ struct TabCleanupView: View {
                         TextField("Filter inactive tabs", text: $query)
                             .textFieldStyle(.plain)
                     }
-                    Toggle("Exact Duplicates Only", isOn: $duplicatesOnly)
+                    Toggle("Exact Duplicates Only", isOn: $duplicatesOnly).clickableCursor()
                         .onChange(of: duplicatesOnly) {
                             included.removeAll()
                         }
@@ -31,7 +31,7 @@ struct TabCleanupView: View {
                         included.formUnion(matches.map(\.id))
                     }
                     .disabled(matches.allSatisfy { included.contains($0.id) })
-                    Button("Clear Selection", systemImage: "xmark.circle") { included.removeAll() }
+                    Button("Clear Selection", systemImage: "xmark.circle") { included.removeAll() }.clickableCursor()
                         .disabled(selected.isEmpty)
                 }
                 Section {
@@ -90,7 +90,7 @@ struct TabCleanupView: View {
             #else
             .navigationTitle("Archive Inactive Tabs")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.clickableCursor() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Archive \(selected.count)") {
                         app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly)

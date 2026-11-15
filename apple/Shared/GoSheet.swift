@@ -33,9 +33,9 @@ struct GoSheet: View {
                     if trimmed.isEmpty { Text("For example: John 3:16 · Ps 23 · Isaiah 53 LXX · H3068 · grace") }
                 }
                 if trimmed.isEmpty {
-                    shortcuts
+                    shortcuts.clickableCursor()
                 } else {
-                    results
+                    results.clickableCursor()
                 }
             }
             .navigationTitle(newTab ? "New Tab" : "Go")

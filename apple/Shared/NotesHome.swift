@@ -249,7 +249,7 @@ struct NotesHomeView: View {
                     .frame(minWidth: 28, minHeight: 28)
             }
             #if os(macOS)
-            .menuStyle(.borderlessButton)
+            .menuStyle(.borderlessButton).clickableCursor()
             #endif
             .menuIndicator(.hidden)
             .accessibilityLabel("Notes Search Options")
