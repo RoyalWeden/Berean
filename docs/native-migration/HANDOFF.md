@@ -918,3 +918,4 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 - **20:29 — MAC-FUNC-037 FIXED** (empty macOS `.safeAreaInset` collapsed Compare). Task 0 is done; next verify the per-column Previous/Next Chapter items.
 - **20:31 — SHARED-UI-038 FIXED:** stacked Compare skipped verse 1 (LazyVStack id collision between column headers and verse rows).
 - **20:34 final verification at `4152b515`:** `swift test -c release` 111 tests / 40 suites pass; Mac + iOS Dev builds pass. Tree clean, pushed.
+- **Next for Codex (Compare):** MAC-UI-039 — wide windows should show side-by-side columns; replace `ViewThatFits` with a width test.
