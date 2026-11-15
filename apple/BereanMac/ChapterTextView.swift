@@ -72,6 +72,7 @@ struct ChapterTextView: NSViewRepresentable {
     var animateOutline = true
     var scrollRevision: UUID?
     var titleBarClearance: CGFloat = 0
+    let positionReader: ScripturePositionReader
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
@@ -128,16 +129,16 @@ struct ChapterTextView: NSViewRepresentable {
         scroll.documentView = tv
         scroll.findBarPosition = .aboveContent
         context.coordinator.textView = tv
+        positionReader.capture = { [weak coordinator = context.coordinator, weak scroll] preferred in
+            guard let coordinator, let scroll else { return nil }
+            return coordinator.readingPosition(in: scroll, preferred: preferred)
+        }
         return scroll
     }
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
-        guard let parent = coordinator.parent, coordinator.lastPassage == parent.passageId else { return }
-        let top = scroll.contentView.bounds.minY
-        let offset = max(0, top - scroll.contentView.documentRect.minY)
-        let verse = coordinator.textView.flatMap { coordinator.readingAnchor(at: top, in: $0)?.verse }
-        parent.savePosition(ScriptureReadingPosition(offset: offset, verse: verse, selectedVerses: parent.selectedVerses,
-                                                      returnEdition: coordinator.editionArrival?.returnEdition(at: offset)))
+        guard let position = coordinator.readingPosition(in: scroll) else { return }
+        coordinator.parent.savePosition(position)
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -520,6 +521,20 @@ struct ChapterTextView: NSViewRepresentable {
                   let verse = verse(at: layout.characterIndexForGlyph(at: glyph)),
                   let range = verseRanges[verse], let marker = view.firstRect(forVerseRange: range) else { return nil }
             return (verse, marker.minY - localTop)
+        }
+
+        func readingPosition(in scroll: NSScrollView, preferred: Int? = nil) -> ScriptureReadingPosition? {
+            guard let parent, lastPassage == parent.passageId, let view = textView else { return nil }
+            let clip = scroll.contentView
+            let offset = max(0, clip.bounds.minY - clip.documentRect.minY)
+            let visiblePreferred = preferred.flatMap { verse -> Int? in
+                guard let range = verseRanges[verse], let first = view.firstVerseLineTop(in: range) else { return nil }
+                let y = view.convert(NSPoint(x: 0, y: first), to: clip).y
+                return y >= clip.bounds.minY + view.visibleTitleBarClearance && y < clip.bounds.maxY - parent.actionClearance ? verse : nil
+            }
+            let verse = visiblePreferred ?? readingAnchor(at: clip.bounds.minY, in: view)?.verse
+            return ScriptureReadingPosition(offset: offset, verse: verse, selectedVerses: parent.selectedVerses,
+                                            returnEdition: editionArrival?.returnEdition(at: offset))
         }
 
         func verse(at index: Int) -> Int? {

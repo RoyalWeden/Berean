@@ -21,6 +21,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var actionClearance: CGFloat = 0
     var animateOutline = true
     var scrollRevision: UUID?
+    let positionReader: ScripturePositionReader
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var findRequest: Int
@@ -58,6 +59,10 @@ struct IOSChapterTextView: UIViewRepresentable {
         layout.reader = context.coordinator
         layout.view = view
         view.reader = context.coordinator
+        positionReader.capture = { [weak coordinator = context.coordinator, weak view] preferred in
+            guard let coordinator, let view else { return nil }
+            return coordinator.readingPosition(in: view, preferred: preferred)
+        }
         view.isEditable = false
         view.isSelectable = true
         view.isFindInteractionEnabled = true
@@ -87,11 +92,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ view: ReaderTextView, coordinator: Coordinator) {
-        guard coordinator.passageId == coordinator.parent.passageId else { return }
-        let offset = max(0, view.contentOffset.y + view.adjustedContentInset.top)
-        coordinator.parent.savePosition(ScriptureReadingPosition(offset: offset, verse: coordinator.readingAnchor(in: view)?.verse,
-                                                                 selectedVerses: coordinator.parent.selectedVerses,
-                                                                 returnEdition: coordinator.editionArrival?.returnEdition(at: offset)))
+        guard let position = coordinator.readingPosition(in: view) else { return }
+        coordinator.parent.savePosition(position)
     }
 
     func updateUIView(_ view: ReaderTextView, context: Context) {
@@ -335,6 +337,20 @@ struct IOSChapterTextView: UIViewRepresentable {
             let markerY = view.caretRect(for: marker).minY
             guard markerY.isFinite else { return nil }
             return ReadingAnchor(verse: verse, offsetFromTop: markerY - top)
+        }
+
+        func readingPosition(in view: UITextView, preferred: Int? = nil) -> ScriptureReadingPosition? {
+            guard passageId == parent.passageId else { return nil }
+            let inset = view.adjustedContentInset
+            let top = view.contentOffset.y + inset.top
+            let offset = max(0, top)
+            let visiblePreferred = preferred.flatMap { verse -> Int? in
+                guard let range = verseRanges[verse], let lines = renderedLineBounds(of: range, in: view) else { return nil }
+                return lines.lowerBound >= top && lines.lowerBound < view.bounds.maxY - inset.bottom ? verse : nil
+            }
+            let verse = visiblePreferred ?? readingAnchor(in: view)?.verse
+            return ScriptureReadingPosition(offset: offset, verse: verse, selectedVerses: parent.selectedVerses,
+                                            returnEdition: editionArrival?.returnEdition(at: offset))
         }
 
         func restoreReadingAnchor(_ anchor: ReadingAnchor, in view: UITextView, fallback: CGPoint) {

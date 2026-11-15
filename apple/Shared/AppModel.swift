@@ -602,7 +602,7 @@ final class AppModel {
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
     @ObservationIgnored var scriptureReadingPositions: [String: [String: ScriptureReadingPosition]] = [:]
     var scriptureJumpRequest: (tabID: String, revision: UUID)?
-    @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition)] = [:]
+    @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition, position: ScriptureReadingPosition?)] = [:]
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesSearchOffsets: [String: [NotesHomeView.SearchPosition: CGFloat]] = [:]
     @ObservationIgnored var notesSearchReturnRows: [String: [NotesHomeView.SearchPosition: String]] = [:]

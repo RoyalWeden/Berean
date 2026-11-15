@@ -13,16 +13,20 @@ struct ScriptureReadingPosition {
     let verse: Int?
     var atEnd = false
     var selectedVerses: Set<Int> = []
-    var returnEdition: String?
+    var returnEdition: ChapterEdition?
 }
 
 struct ScriptureEditionArrival {
-    let edition: String
+    let edition: ChapterEdition
     let offset: CGFloat
 
-    func returnEdition(at currentOffset: CGFloat) -> String? {
+    func returnEdition(at currentOffset: CGFloat) -> ChapterEdition? {
         abs(currentOffset - offset) <= 1 ? edition : nil
     }
+}
+
+@MainActor final class ScripturePositionReader {
+    var capture: (Int?) -> ScriptureReadingPosition? = { _ in nil }
 }
 
 struct ChapterEdition: Equatable {
@@ -89,11 +93,20 @@ extension AppModel {
         return chapters.contains(target.chapter) ? target : nil
     }
 
-    func switchChapterEdition(in tabId: String, from source: ChapterEdition, to target: ChapterEdition) {
+    func switchChapterEdition(in tabId: String, from source: ChapterEdition, to fallback: ChapterEdition,
+                              position: ScriptureReadingPosition? = nil) {
         guard let tab = activeTab, tab.id == tabId, tab.tabType == .bible else { return }
         var reader = BibleState(tab.state)
-        guard !reader.compareMode, ChapterEdition(reader) == source, source.counterpart == target else { return }
-        scriptureEditionSources[tabId] = (source, target)
+        guard !reader.compareMode, ChapterEdition(reader) == source, source.counterpart == fallback else { return }
+        var target = fallback
+        if let previous = position?.returnEdition, previous.book == fallback.book, previous.text == fallback.text {
+            target = previous
+        } else if source.book == "JON", let verse = position?.verse,
+                  let mapped = ChapterMap.jonahCounterpart(chapter: source.chapter, verse: verse, from: source.text, to: fallback.text) {
+            target = ChapterEdition(book: fallback.book, chapter: mapped.chapter, text: fallback.text)
+        }
+        if let position { scriptureReadingPositions[tabId, default: [:]][source.key] = position }
+        scriptureEditionSources[tabId] = (source, target, position)
         reader.translation = target.text
         reader.chapter = target.chapter
         reader.verse = nil
@@ -108,9 +121,9 @@ extension AppModel {
     func restoreScripturePosition(tabId: String, edition: ChapterEdition) -> ScriptureReadingPosition? {
         if let transition = scriptureEditionSources[tabId], transition.target == edition {
             scriptureEditionSources.removeValue(forKey: tabId)
-            guard let saved = scriptureReadingPositions[tabId]?[transition.source.key] else { return nil }
-            if saved.returnEdition == edition.key, var original = scriptureReadingPositions[tabId]?[edition.key] {
-                original.returnEdition = transition.source.key
+            guard let saved = transition.position ?? scriptureReadingPositions[tabId]?[transition.source.key] else { return nil }
+            if saved.returnEdition == edition, var original = scriptureReadingPositions[tabId]?[edition.key] {
+                original.returnEdition = transition.source
                 return original
             }
             var verse = saved.verse
@@ -119,7 +132,7 @@ extension AppModel {
                                                         from: transition.source.text, to: edition.text) {
                 verse = mapped.chapter == edition.chapter ? mapped.verse : nil
             }
-            return ScriptureReadingPosition(offset: 0, verse: verse, returnEdition: transition.source.key)
+            return ScriptureReadingPosition(offset: 0, verse: verse, returnEdition: transition.source)
         }
         scriptureEditionSources.removeValue(forKey: tabId)
         return scriptureReadingPositions[tabId]?[edition.key]
@@ -337,6 +350,7 @@ struct ScriptureView: View {
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
 
     @State private var alternateEdition: ChapterEdition?
+    @State private var positionReader = ScripturePositionReader()
     #if os(macOS)
     @State private var strongsTooltips: [String: String] = [:]
     #endif
@@ -1065,6 +1079,7 @@ struct ScriptureView: View {
             actionClearance: actionClearance,
             animateOutline: !reduceMotion && scenePhase == .active,
             scrollRevision: scrollRevision,
+            positionReader: positionReader,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             findRequest: findRequest,
@@ -1302,7 +1317,8 @@ struct ScriptureView: View {
     private func flipEdition(_ state: BibleState, to target: ChapterEdition) {
         let source = ChapterEdition(state)
         if target.counterpart == source { alternateEdition = source }
-        app.switchChapterEdition(in: tabId, from: source, to: target)
+        let preferred = source.book == "JON" && selection.count == 1 ? selection.first : nil
+        app.switchChapterEdition(in: tabId, from: source, to: target, position: positionReader.capture(preferred))
     }
 
     @ViewBuilder private func passageControls(_ st: BibleState) -> some View {
@@ -1806,6 +1822,7 @@ extension ScriptureView {
             animateOutline: !reduceMotion && scenePhase == .active,
             scrollRevision: scrollRevision,
             titleBarClearance: titleBarClearance,
+            positionReader: positionReader,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
