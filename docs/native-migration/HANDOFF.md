@@ -1021,3 +1021,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 - **01:22 iPhone Undo/Redo** in the note format bar (UITextView undoManager); simulator verified typed text undone.
 - **01:28 D10 Jump to:** grouped Scripture Search results with >3 groups get a floating "Jump to" glass menu that scrolls to a text/book header. Mac verified.
 - **01:33 D28 missing-LXX markers:** `MissingLxxVerses` (port + tests) adds "— v.N not in LXX —" before the next LXX verse (skips PSA/JOL/MAL/JER 26+, as the original). Mac verified Exodus 32.
+- **01:44 D25 selected-verses Strong's strip:** inspector Lexicon pane lists the selected (or focused) verses with tappable Strong's superscripts; '‹ Selected Verses' returns from an entry; selection changes reopen the strip. Mac verified. Note: `studySelectedVerses` was empty while `studyVerse` was 1 for a single focused verse — the strip falls back to the focused verse.

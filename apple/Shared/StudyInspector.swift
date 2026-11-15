@@ -2,11 +2,19 @@ import SwiftUI
 import BereanCore
 import BereanNotes
 import BereanWorkspace
+import BereanText
 
 /// The Scripture tab's study panel (`rightPanelTab`): Lexicon or Cross References for the selected verse/word.
 struct StudyInspector: View {
     @Environment(AppModel.self) private var app
     let tabId: String
+
+    /// Verses whose Strong's numbers the Lexicon pane lists: the selection, else the focused verse.
+    private func strongsVerses(_ st: BibleState) -> [Int] {
+        let selected = app.studySelectedVerses(in: tabId, state: st)
+        if !selected.isEmpty { return selected }
+        return app.studyVerse(in: tabId, state: st).map { [$0] } ?? []
+    }
 
     var body: some View {
         let st = BibleState(app.findTab(tabId)?.state ?? JSObject())
@@ -30,7 +38,18 @@ struct StudyInspector: View {
                 CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
                               textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
             } else if let id = st.rightPanelLexiconEntry {
+                if !strongsVerses(st).isEmpty {
+                    Button { app.update(tabId, recordHistory: false) { $0.state.remove("rightPanelLexiconEntry") } } label: {
+                        Label("Selected Verses", systemImage: "chevron.backward").font(.callout)
+                    }
+                    .buttonStyle(.interactivePlain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.top, 8)
+                }
                 LexiconEntryView(strongsId: id, tabId: tabId, compact: true)
+            } else if !strongsVerses(st).isEmpty {
+                SelectedVersesStrongsView(tabId: tabId, bookId: st.bookId, chapter: st.chapter, textId: st.translation,
+                                          verses: strongsVerses(st))
             } else {
                 ContentUnavailableView("No word selected", systemImage: "character.book.closed",
                                        description: Text("Turn on Strong's numbers and click one to look it up."))
@@ -38,6 +57,11 @@ struct StudyInspector: View {
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
+        // A new verse selection shows its Strong's strip again (a previously opened entry would otherwise cover it).
+        .onChange(of: strongsVerses(BibleState(app.findTab(tabId)?.state ?? JSObject()))) { _, verses in
+            guard !verses.isEmpty, app.findTab(tabId)?.state["rightPanelLexiconEntry"] != nil else { return }
+            app.update(tabId, recordHistory: false) { $0.state.remove("rightPanelLexiconEntry") }
+        }
     }
 }
 
@@ -222,3 +246,78 @@ struct CommandPalette: View {
 #endif
 
 import BereanReference
+
+/// The selected verses with their Strong's numbers as tappable superscripts — port of SelectedVersesStrongs.tsx, shown in the
+/// Lexicon pane while verses are selected and no entry is open. Tapping a number opens it in the same pane.
+struct SelectedVersesStrongsView: View {
+    @Environment(AppModel.self) private var app
+    let tabId: String
+    let bookId: String
+    let chapter: Int
+    let textId: String
+    let verses: [Int]
+    @State private var rows: [(verse: Int, tokens: [StudyToken])] = []
+    static let limit = 60
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(verses.count == 1 ? "Selected verse" : "Selected verses · \(verses.count)")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                ForEach(rows, id: \.verse) { row in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: row.verse) + (textId == "lxx" ? " LXX" : ""))
+                            .font(.footnote.weight(.semibold))
+                        Text(attributed(row.tokens)).font(.body).lineSpacing(4)
+                            .environment(\.openURL, OpenURLAction { url in
+                                guard url.scheme == "berean-lexicon" else { return .systemAction }
+                                app.navigateLexicon(String(url.absoluteString.dropFirst("berean-lexicon:".count)), in: tabId)
+                                return .handled
+                            })
+                        if !row.tokens.contains(where: { !$0.strongs.isEmpty }) {
+                            Text("No Strong's tagging for this text.").font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                    Divider()
+                }
+                if verses.count > Self.limit {
+                    Text("+\(verses.count - Self.limit) more selected — narrow the selection to see them here.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text("Tap a number to open its lexicon entry.").font(.caption2).foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .task(id: "\(textId)|\(bookId)|\(chapter)|\(verses)|\(app.wordReplacerEnabled)") {
+            var out: [(Int, [StudyToken])] = []
+            for v in verses.sorted().prefix(Self.limit) {
+                guard let row = await app.bible.queryVerse(bookId, chapter, v, textId: textId) else { continue }
+                out.append((v, VerseDisplay.studyTokens(row.text, tagged: row.textTagged, textId: textId,
+                                                        replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)))
+            }
+            rows = out.map { (verse: $0.0, tokens: $0.1) }
+        }
+    }
+
+    private func attributed(_ tokens: [StudyToken]) -> AttributedString {
+        var out = AttributedString()
+        for t in tokens {
+            var word = AttributedString(t.word)
+            if t.isRedLetter { word.foregroundColor = .red }
+            if t.isItalic { word.font = .body.italic() }
+            out += word
+            for n in t.strongs {
+                let num = n.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
+                var chip = AttributedString("\u{2009}" + num)
+                chip.font = .caption2.monospaced()
+                chip.baselineOffset = 6
+                chip.foregroundColor = n.hasPrefix("(") ? .secondary : .accentColor
+                chip.link = URL(string: "berean-lexicon:" + num)
+                out += chip
+            }
+            out += AttributedString(" ")
+        }
+        return out
+    }
+}
