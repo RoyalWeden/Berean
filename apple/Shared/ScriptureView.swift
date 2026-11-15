@@ -467,16 +467,8 @@ struct ScriptureView: View {
                                                    textId: st.translation, bookId: st.bookId, chapter: st.chapter)
             // LXX: mark KJV verses this chapter doesn't have ("— v.5 not in LXX —"), as the original reader does.
             if st.translation == "lxx", MissingLxxVerses.eligible(bookId: st.bookId, chapter: st.chapter) {
-                let kjv = await app.bible.queryChapter(st.bookId, st.chapter, textId: "kjva").map(\.verseNum)
-                let marks = MissingLxxVerses.markers(lxxVerses: loaded.map(\.verseNum), kjvVerses: kjv)
-                if !marks.isEmpty {
-                    loaded = loaded.map { row in
-                        guard let mark = marks[row.verseNum] else { return row }
-                        var r = row
-                        r.title = r.title.map { mark + "\n" + $0 } ?? mark
-                        return r
-                    }
-                }
+                let kjv = await app.bible.queryChapter(st.bookId, st.chapter, textId: "kjva")
+                loaded = MissingLxxVerses.annotate(loaded, comparingTo: kjv)
             }
             let hidden = chapterAnnotationFilters
             if !hidden.isEmpty {

@@ -1059,6 +1059,20 @@ struct CompareView: View {
                 out[17, default: [:]][column.id] = opening
             }
         }
+        // The aligned grid already shows the gap as an empty LXX cell. Independent panes
+        // carry the notice on the next available verse, as in the standalone reader.
+        for column in cols where column.text == "lxx" && MissingLxxVerses.eligible(bookId: column.book, chapter: column.chapter) {
+            guard !Task.isCancelled else { return }
+            guard let lxx = independent[column.id], !lxx.isEmpty else { continue }
+            let kjv: [ChapterVerseRow]
+            if let counterpart = cols.first(where: { $0.text == "kjva" && $0.book == column.book && $0.chapter == column.chapter }),
+               let existing = independent[counterpart.id] {
+                kjv = existing
+            } else {
+                kjv = await app.bible.queryChapter(column.book, column.chapter, textId: "kjva")
+            }
+            independent[column.id] = MissingLxxVerses.annotate(lxx, comparingTo: kjv)
+        }
         guard !Task.isCancelled else { return }
         chapterHighlights = [:]
         chapterNoteCounts = [:]

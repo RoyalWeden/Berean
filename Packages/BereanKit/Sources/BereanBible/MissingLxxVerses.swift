@@ -7,6 +7,17 @@ public enum MissingLxxVerses {
         return !["PSA", "JOL", "MAL"].contains(b) && !(b == "JER" && chapter >= 26)
     }
 
+    public static func annotate(_ rows: [ChapterVerseRow], comparingTo kjv: [ChapterVerseRow]) -> [ChapterVerseRow] {
+        let marks = markers(lxxVerses: rows.map(\.verseNum), kjvVerses: kjv.map(\.verseNum))
+        guard !marks.isEmpty else { return rows }
+        return rows.map { row in
+            guard let mark = marks[row.verseNum] else { return row }
+            var annotated = row
+            annotated.title = row.title.map { mark + "\n" + $0 } ?? mark
+            return annotated
+        }
+    }
+
     /// LXX verse number → marker text for the KJV verses missing just before it.
     public static func markers(lxxVerses: [Int], kjvVerses: [Int]) -> [Int: String] {
         guard let maxLxx = lxxVerses.max() else { return [:] }
