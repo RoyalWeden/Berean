@@ -171,12 +171,15 @@ extension AppModel {
         return orderedTabs.filter { !$0.isPinned && !selected.contains($0.id) }
     }
 
-    /// Suggest only copies with identical tab state. Prefer keeping a pinned or active copy,
-    /// then the first copy in sidebar order. Unknown tab types stay out of duplicate review.
-    var inactiveDuplicateOriginals: [String: BereanWorkspace.Tab] {
+    /// Suggest only copies with identical tab state. Prefer active or pinned copies, then
+    /// protected recent copies, then sidebar order. Unknown tab types stay out of review.
+    func inactiveDuplicateOriginals(keepingRecent: Bool) -> [String: BereanWorkspace.Tab] {
         let tabs = orderedTabs
         let inactive = Set(inactiveTabs.map(\.id))
-        let ordered = tabs.filter { !inactive.contains($0.id) } + tabs.filter { inactive.contains($0.id) }
+        let recent: Set<String> = keepingRecent ? recentCleanupTabIDs : []
+        let ordered = tabs.filter { !inactive.contains($0.id) }
+            + tabs.filter { inactive.contains($0.id) && recent.contains($0.id) }
+            + tabs.filter { inactive.contains($0.id) && !recent.contains($0.id) }
         var kept: [SpaceId: [String: [BereanWorkspace.Tab]]] = [:]
         var duplicates: [String: BereanWorkspace.Tab] = [:]
         for tab in ordered {
@@ -197,7 +200,7 @@ extension AppModel {
     func archiveInactiveTabs(_ ids: [String], duplicatesOnly: Bool = false, keepingRecent: Bool = false) {
         var requested = Set(ids)
         if keepingRecent { requested.subtract(recentCleanupTabIDs) }
-        if duplicatesOnly { requested.formIntersection(inactiveDuplicateOriginals.keys) }
+        if duplicatesOnly { requested.formIntersection(inactiveDuplicateOriginals(keepingRecent: keepingRecent).keys) }
         archive(inactiveTabs.filter { requested.contains($0.id) }.map(\.id))
     }
 

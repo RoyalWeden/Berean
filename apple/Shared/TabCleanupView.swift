@@ -9,7 +9,7 @@ struct TabCleanupView: View {
     @State private var keepingRecent = true
 
     var body: some View {
-        let originals = duplicatesOnly ? app.inactiveDuplicateOriginals : [:]
+        let originals = duplicatesOnly ? app.inactiveDuplicateOriginals(keepingRecent: keepingRecent) : [:]
         let recentIDs = app.recentCleanupTabIDs
         let candidates = app.inactiveTabs.filter { !duplicatesOnly || originals[$0.id] != nil }
         let protectedCount = candidates.filter { recentIDs.contains($0.id) }.count
@@ -30,7 +30,8 @@ struct TabCleanupView: View {
                     Toggle("Keep Recently Used Tabs", isOn: $keepingRecent)
                         .clickableCursor()
                         .onChange(of: keepingRecent) { _, enabled in
-                            if enabled { included.subtract(recentIDs) }
+                            if duplicatesOnly { included.removeAll() }
+                            else if enabled { included.subtract(recentIDs) }
                         }
                     Toggle("Exact Duplicates Only", isOn: $duplicatesOnly).clickableCursor()
                         .onChange(of: duplicatesOnly) {
@@ -65,8 +66,10 @@ struct TabCleanupView: View {
                                     Text(tab.navigationLabel)
                                     Text(tab.navigationDetail).font(.caption).foregroundStyle(.secondary)
                                     if let original = originals[tab.id] {
-                                        Label(original.isPinned ? "Pinned copy stays open" : "Matching copy stays open",
-                                              systemImage: original.isPinned ? "pin" : "square.on.square")
+                                        let keepsRecentCopy = keepingRecent && recentIDs.contains(original.id)
+                                        let reason = original.isPinned ? "Pinned copy stays open"
+                                            : keepsRecentCopy ? "Recently used copy stays open" : "Matching copy stays open"
+                                        Label(reason, systemImage: original.isPinned ? "pin" : "square.on.square")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
