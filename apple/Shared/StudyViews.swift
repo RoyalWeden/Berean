@@ -122,6 +122,13 @@ struct LexiconEntryView: View {
         if !gloss.isEmpty { Button("Copy \(id) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard("Strong's \(id) — \(gloss)") } }
     }
 
+    /// "H1285 בְּרִית (bᵉrîyth) — confederacy, …" — original "Copy number and definition".
+    private func entrySummary(_ e: LexiconEntry) -> String {
+        let translit = e.transliteration.isEmpty ? "" : " (\(e.transliteration))"
+        let gloss = displayGloss(e)
+        return "\(e.strongsNum) \(e.lemma)\(translit)" + (gloss.isEmpty ? "" : " — \(gloss)")
+    }
+
     private func copyToPasteboard(_ s: String) {
         #if os(macOS)
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
@@ -151,11 +158,20 @@ struct LexiconEntryView: View {
                                 HStack {
                                     Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
                                     Spacer()
+                                    Button { copyToPasteboard(entrySummary(e)) } label: {
+                                        Image(systemName: "doc.on.doc").frame(width: entryControlHeight, height: entryControlHeight).contentShape(.rect)
+                                    }
+                                    .buttonStyle(.interactivePlain).accessibilityLabel("Copy \(e.strongsNum) and gloss").help("Copy \(e.strongsNum) and gloss")
                                     entryNavigation
                                 }
                             }
                             Text(e.lemma).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
                             Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
+                        }
+                        .contextMenu {
+                            Button("Copy \(e.strongsNum)", systemImage: "number") { copyToPasteboard(e.strongsNum) }
+                            Button("Copy \(e.strongsNum) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard(entrySummary(e)) }
+                            Button("Copy \(e.lemma)", systemImage: "character") { copyToPasteboard(e.lemma) }
                         }
                         if !e.gloss.isEmpty { linkedText(displayGloss(e), lang: e.strongsNum.first ?? "H").font(.headline).textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }
                         if !e.definition.isEmpty { section("Definition") { linkedText(replaced(e.definition), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
