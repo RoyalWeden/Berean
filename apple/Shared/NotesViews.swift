@@ -442,6 +442,34 @@ func noteListReturnEdit(in text: NSString, selection: NSRange)
     return (selection, replacement, NSRange(location: contentEnd + replacement.utf16.count, length: 0))
 }
 
+/// Prints the note as plain text with its title (Mac print panel / iPhone AirPrint) — original Print/PDF.
+@MainActor func printNote(title: String, body: String) {
+    let text = (title.isEmpty ? "" : title + "\n\n") + body
+    #if os(macOS)
+    // Let a native menu finish dismissing before the print operation presents a sheet.
+    DispatchQueue.main.async {
+        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 468, height: 648))
+        view.string = text
+        view.font = NSFont.systemFont(ofSize: 12)
+        let op = NSPrintOperation(view: view)
+        op.jobTitle = title.isEmpty ? "Note" : title
+        if let window = NSApp.mainWindow ?? NSApp.keyWindow {
+            op.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        } else {
+            op.run()
+        }
+    }
+    #else
+    let controller = UIPrintInteractionController.shared
+    let info = UIPrintInfo(dictionary: nil)
+    info.jobName = title.isEmpty ? "Note" : title
+    info.outputType = .general
+    controller.printInfo = info
+    controller.printFormatter = UISimpleTextPrintFormatter(text: text)
+    controller.present(animated: true)
+    #endif
+}
+
 /// One note with a native rich editor and version history.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app
@@ -459,6 +487,8 @@ struct NoteDetailView: View {
     @State private var loadedId: String?
     @State private var showingHistory = false
     @State private var confirmingTrash = false
+    @State private var choosingNoteIcon = false
+    @State private var noteIconInput = ""
     @State private var insertingReference = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
@@ -472,16 +502,19 @@ struct NoteDetailView: View {
         Group {
             if let note {
                 VStack(alignment: .leading, spacing: 10) {
-                    if let daily = dailyHeader(note) {
-                        // A daily note's stored title ("Daily — 2026-11-14") is its calendar key; show the date
-                        // instead and keep it read-only so renaming can't detach the note from its day.
-                        Text(daily).font(.largeTitle.bold()).textSelection(.enabled)
-                            .accessibilityAddTraits(.isHeader)
-                    } else {
-                        TextField("Untitled", text: $title).font(.largeTitle.bold()).textFieldStyle(.plain)
-                            .focused($focus, equals: .title)
-                            .onSubmit { focus = .body }
-                            .onChange(of: title) { scheduleSave() }
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        if let icon = note.icon { Text(icon).font(.largeTitle).accessibilityHidden(true) }
+                        if let daily = dailyHeader(note) {
+                            // A daily note's stored title ("Daily — 2026-11-14") is its calendar key; show the date
+                            // instead and keep it read-only so renaming can't detach the note from its day.
+                            Text(daily).font(.largeTitle.bold()).textSelection(.enabled)
+                                .accessibilityAddTraits(.isHeader)
+                        } else {
+                            TextField("Untitled", text: $title).font(.largeTitle.bold()).textFieldStyle(.plain)
+                                .focused($focus, equals: .title)
+                                .onSubmit { focus = .body }
+                                .onChange(of: title) { scheduleSave() }
+                        }
                     }
                     if let ref = note.verseRef {
                         let attachments = ref.split(separator: ",").compactMap { part -> ResolvedPassage? in
@@ -631,6 +664,19 @@ struct NoteDetailView: View {
                             Text("None").tag("")
                             ForEach(NotesHomeView.statuses, id: \.id) { Text($0.label).tag($0.id) }
                         }
+                        Menu("Icon", systemImage: "face.smiling") {
+                            ForEach(Self.noteIcons, id: \.emoji) { icon in
+                                Button(icon.emoji + " " + icon.name) { setNoteIcon(icon.emoji) }
+                            }
+                            Divider()
+                            Button("Custom Emoji…") {
+                                noteIconInput = note.icon ?? ""
+                                choosingNoteIcon = true
+                            }
+                            if note.icon != nil {
+                                Button("Remove Icon") { setNoteIcon(nil) }
+                            }
+                        }
                         Menu("Folder", systemImage: "folder") {
                             Button("No Folder") { app.attempt("Couldn’t move the note") { try app.notes?.setFolder(note.id, nil) }; reload() }
                             ForEach((try? app.notes?.folders()) ?? [], id: \.id) { folder in
@@ -664,6 +710,16 @@ struct NoteDetailView: View {
                     } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
+        }
+        .alert("Custom Note Icon", isPresented: $choosingNoteIcon) {
+            TextField("Emoji", text: $noteIconInput)
+            Button("Set Icon") {
+                if let customNoteIcon { setNoteIcon(customNoteIcon) }
+            }
+            .disabled(customNoteIcon == nil)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter one emoji.")
         }
         .alert("Move Note to Trash?", isPresented: $confirmingTrash) {
             Button("Move to Trash", role: .destructive) { moveToTrash() }
@@ -711,6 +767,27 @@ struct NoteDetailView: View {
             saveNow()
             if !JSText.trim(content).isEmpty { snapshot() }
         }
+    }
+
+    private static let noteIcons: [(emoji: String, name: String)] = [
+        ("📖", "Book"), ("📚", "Books"), ("📜", "Scroll"), ("🙏", "Prayer"),
+        ("👑", "Crown"), ("🕊️", "Dove"), ("🌿", "Herb"), ("✨", "Sparkles"),
+    ]
+
+    private var customNoteIcon: String? {
+        let value = JSText.trim(noteIconInput)
+        guard value.count == 1,
+              value.unicodeScalars.contains(where: { ($0.properties.isEmoji && $0.value > 127) || $0.value == 0x20E3 })
+        else { return nil }
+        return value
+    }
+
+    private func setNoteIcon(_ icon: String?) {
+        saveNow()
+        app.attempt("Couldn’t change the note icon") {
+            _ = try app.notes?.update(noteId, .init(icon: .some(icon)))
+        }
+        reload()
     }
 
     private func moveToTrash() {
@@ -764,27 +841,6 @@ struct NoteDetailView: View {
         Button(title, systemImage: symbol) {
             formatRequest = NoteFormatRequest(action: .inline(prefix, suffix))
         }
-    }
-
-    /// Prints the note as plain text with its title (Mac print panel / iPhone AirPrint) — original Print/PDF.
-    func printNote(title: String, body: String) {
-        let text = (title.isEmpty ? "" : title + "\n\n") + body
-        #if os(macOS)
-        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 468, height: 648))
-        view.string = text
-        view.font = NSFont.systemFont(ofSize: 12)
-        let op = NSPrintOperation(view: view)
-        op.jobTitle = title.isEmpty ? "Note" : title
-        op.runModal(for: NSApp.keyWindow ?? NSApp.mainWindow ?? NSWindow(), delegate: nil, didRun: nil, contextInfo: nil)
-        #else
-        let controller = UIPrintInteractionController.shared
-        let info = UIPrintInfo(dictionary: nil)
-        info.jobName = title.isEmpty ? "Note" : title
-        info.outputType = .general
-        controller.printInfo = info
-        controller.printFormatter = UISimpleTextPrintFormatter(text: text)
-        controller.present(animated: true)
-        #endif
     }
 
     func copyMarkdown() {

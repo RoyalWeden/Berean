@@ -608,6 +608,13 @@ struct NotesHomeView: View {
         return n.displayTitle
     }
 
+    private static func noteTitle(_ note: Note) -> some View {
+        HStack(spacing: 6) {
+            if let icon = note.icon { Text(icon).accessibilityHidden(true) }
+            Text(rowTitle(note))
+        }
+    }
+
     /// Floating actions for the selected notes.
     func bulkBar(_ visible: [Note]) -> some View {
         let ids = visible.map(\.id).filter(selectedNotes.contains)
@@ -674,7 +681,7 @@ struct NotesHomeView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
                     if n.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange) }
-                    Text(Self.rowTitle(n)).font(.headline).lineLimit(1)
+                    Self.noteTitle(n).font(.headline).lineLimit(1)
                     Spacer()
                     if let st = Self.statuses.first(where: { $0.id == n.status }) {
                         Text(st.label).font(.caption2.weight(.medium)).foregroundStyle(st.color).padding(.horizontal, 6).padding(.vertical, 1).background(st.color.opacity(0.15), in: .capsule)
@@ -709,7 +716,7 @@ struct NotesHomeView: View {
 
     func notePeek(_ n: Note) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(Self.rowTitle(n)).font(.headline)
+            Self.noteTitle(n).font(.headline)
             Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
             Divider()
             Text(n.content.isEmpty ? "Empty note" : String(n.content.prefix(900)))
@@ -727,6 +734,7 @@ struct NotesHomeView: View {
         ShareLink(item: n.content.isEmpty ? n.displayTitle : "\(n.displayTitle)\n\n\(n.content)", subject: Text(n.displayTitle)) {
             Label("Share…", systemImage: "square.and.arrow.up")
         }
+        Button("Print…", systemImage: "printer") { printNote(title: Self.rowTitle(n), body: n.content) }
         Divider()
         Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }
         if NotesService.systemFolder(n) == nil || n.folderId != nil {
@@ -775,7 +783,7 @@ struct NotesHomeView: View {
                 } footer: { Text("Restored notes go back to their folder, or to the top level if the folder is gone.") }
                 ForEach(trash) { n in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(Self.rowTitle(n)).font(.body.weight(.semibold))
+                        Self.noteTitle(n).font(.body.weight(.semibold))
                         Text("Deleted \(n.deletedAt.map { Self.dateLabel($0) } ?? "")").font(.caption).foregroundStyle(.secondary)
                     }
                     .contextMenu {

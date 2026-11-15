@@ -1076,3 +1076,8 @@
 
 - Both native Notes editors can use a font selected in Settings → Notes. The font changes the editor display and leaves the saved Markdown intact.
 - Both Dev builds and all 132 tests passed. Live Mac scratch QA verified the open note restyled in Monospace.
+
+### 2026-11-15 — I4 / I10 — Notes icons and list printing
+
+- Both apps support editing the legacy note emoji icon and opening Print from a Notes row.
+- Both native builds and 132 tests passed, as did the final Mac build. Isolated Mac QA verified saving and displaying Dove, plus opening and canceling the print sheet.
