@@ -59,6 +59,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .highlight(let color): tv.setHighlight(color)
                 case .heading(let level): tv.setHeading(level)
                 case .list(let style): tv.setList(style)
+                case .callout(let kind): tv.insertCallout(kind)
                 case .insertTable: tv.insertTable()
                 case .addTableRow: tv.addTableRow()
                 case .addTableColumn: tv.addTableColumn()
@@ -442,6 +443,10 @@ final class NoteUITextView: UITextView {
     func insertTable() {
         guard let edit = noteTableInsertion(in: (text ?? "") as NSString, selection: selectedRange) else { return }
         applyFormatEdit(edit)
+    }
+
+    func insertCallout(_ kind: NoteCalloutKind) {
+        applyFormatEdit(noteCalloutEdit(in: (text ?? "") as NSString, selection: selectedRange, kind: kind))
     }
 
     func setList(_ style: NoteListStyle) {

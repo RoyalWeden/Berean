@@ -71,6 +71,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .highlight(let color): editor.setHighlight(color)
                 case .heading(let level): editor.setHeading(level)
                 case .list(let style): editor.setList(style)
+                case .callout(let kind): editor.insertCallout(kind)
                 case .insertTable: editor.insertTable()
                 case .addTableRow: editor.addTableRow()
                 case .addTableColumn: editor.addTableColumn()
@@ -325,6 +326,11 @@ final class NoteTextView: NSTextView {
 
     func insertTable() {
         guard let edit = noteTableInsertion(in: string as NSString, selection: selectedRange()) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func insertCallout(_ kind: NoteCalloutKind) {
+        guard let edit = noteCalloutEdit(in: string as NSString, selection: selectedRange(), kind: kind) else { return }
         replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 

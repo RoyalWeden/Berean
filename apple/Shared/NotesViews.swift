@@ -37,6 +37,7 @@ struct NoteFormatRequest: Equatable {
         case highlight(String?)
         case heading(Int)
         case list(NoteListStyle)
+        case callout(NoteCalloutKind)
         case insertTable
         case addTableRow
         case addTableColumn
@@ -133,6 +134,30 @@ func noteHeadingEdit(in text: NSString, selection: NSRange, level: Int)
     }
     let length = replacement.utf16.count - (replacement.hasSuffix("\n") ? 1 : 0)
     return (range, replacement, NSRange(location: range.location, length: length))
+}
+
+func noteCalloutEdit(in text: NSString, selection: NSRange, kind: NoteCalloutKind)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.location <= text.length,
+          selection.length <= text.length - selection.location else { return nil }
+    let covered = NSRange(location: selection.location, length: max(0, selection.length - 1))
+    var start = 0, end = 0, contentEnd = 0
+    text.getLineStart(&start, end: &end, contentsEnd: &contentEnd, for: covered)
+    let range = NSRange(location: start, length: contentEnd - start)
+    let lines = text.substring(with: range).replacingOccurrences(of: "\r\n", with: "\n")
+        .components(separatedBy: "\n")
+    let header = "> [!\(kind.rawValue.uppercased())]\n"
+    let body = lines.map { "> " + $0 }.joined(separator: "\n")
+
+    // Keep the new block separate from neighboring paragraphs and quotes.
+    let leading = start > 0 ? "\n" : ""
+    let trailing = end < text.length ? "\n" : ""
+    let replacement = leading + header + body + trailing
+    let bodyStart = start + leading.utf16.count + header.utf16.count
+    let cursor = selection.length == 0
+        ? NSRange(location: bodyStart + body.utf16.count, length: 0)
+        : NSRange(location: bodyStart, length: body.utf16.count)
+    return (range, replacement, cursor)
 }
 
 enum NoteListStyle: CaseIterable {
@@ -656,6 +681,13 @@ struct NoteDetailView: View {
                         Button("Scripture Reference…", systemImage: "book") { insertingReference = true }
                         Button("Link", systemImage: "link") { formatRequest = NoteFormatRequest(action: .inline("[", "](https://)")) }
                         Button("Quote", systemImage: "text.quote") { formatRequest = NoteFormatRequest(action: .inline("\n> ", "")) }
+                        Menu("Callout", systemImage: "exclamationmark.bubble") {
+                            ForEach(NoteCalloutKind.allCases, id: \.self) { kind in
+                                Button(kind.label, systemImage: kind.symbol) {
+                                    formatRequest = NoteFormatRequest(action: .callout(kind))
+                                }
+                            }
+                        }
                         Button("Checklist", systemImage: "checklist") { formatRequest = NoteFormatRequest(action: .list(.checklist)) }
                         Button("Divider", systemImage: "minus") { formatRequest = NoteFormatRequest(action: .inline("\n\n---\n\n", "")) }
                     } label: {
@@ -1126,7 +1158,7 @@ private struct NotePreviewTable {
     }
 }
 
-private enum NoteCalloutKind: String {
+enum NoteCalloutKind: String, CaseIterable {
     case note, tip, warning, important, caution
 
     var label: String { rawValue.capitalized }
