@@ -165,18 +165,25 @@ struct CompareView: View {
         app.findTab(tabId)?.state["compareSyncScroll"]?.boolValue ?? true
     }
 
+    private func canShowIndependentPanes(width: CGFloat, count: Int) -> Bool {
+        guard count > 1, !prefersStackedComparison else { return false }
+        #if os(iOS)
+        if count == 2 { return width >= 320 }
+        #endif
+        return width >= CGFloat(count) * 260
+    }
+
     var body: some View {
         let st = state, cols = columns
         let passage = passageKey(st, cols)
         GeometryReader { geometry in
             if loadedPassage != passage {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if canShowIndependentPanes(width: geometry.size.width, count: cols.count),
+                      !syncScrolling || !cols.allSatisfy({ $0.follows(st) }) {
+                independentPanes(cols, compact: geometry.size.width < CGFloat(cols.count) * 260)
             } else if !cols.allSatisfy({ $0.follows(st) }) {
-                if !prefersStackedComparison, geometry.size.width >= CGFloat(cols.count) * 260 {
-                    independentPanes(cols)
-                } else {
-                    ScrollView { independentComparison(cols) }
-                }
+                ScrollView { independentComparison(cols) }
             } else {
                 alignedComparison(st, cols)
             }
@@ -267,8 +274,7 @@ struct CompareView: View {
 
     private func manageTranslations(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
         Menu {
-            if !cols.allSatisfy({ $0.follows(st) }), !prefersStackedComparison,
-               compareWidth >= CGFloat(cols.count) * 260 {
+            if canShowIndependentPanes(width: compareWidth, count: cols.count) {
                 Toggle("Sync Scrolling", isOn: Binding(get: { syncScrolling }, set: { enabled in
                     app.update(tabId, recordHistory: false) { tab in
                         tab.state["compareSyncScroll"] = .bool(enabled)
@@ -453,7 +459,7 @@ struct CompareView: View {
         }
     }
 
-    private func independentPanes(_ columns: [CompareColumn]) -> some View {
+    private func independentPanes(_ columns: [CompareColumn], compact: Bool) -> some View {
         #if os(macOS)
         let space = compareWidth - 12 * CGFloat(columns.count - 1)
         #endif
@@ -463,15 +469,15 @@ struct CompareView: View {
                 if column.id != columns.first?.id { Divider() }
                 #endif
                 VStack(spacing: 0) {
-                    independentHeader(column, columns: columns)
-                        .padding(.horizontal, 12)
+                    independentHeader(column, columns: columns, compact: compact)
+                        .padding(.horizontal, compact ? 4 : 12)
                     Divider()
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 12) {
-                            independentVerses(column)
+                            independentVerses(column, compact: compact)
                         }
                         .scrollTargetLayout()
-                        .padding(16)
+                        .padding(compact ? 8 : 16)
                     }
                     .scrollPosition(id: independentPosition(for: column, in: columns), anchor: .top)
                     .onScrollPhaseChange { _, phase in
@@ -527,15 +533,15 @@ struct CompareView: View {
         .padding(16)
     }
 
-    private func independentHeader(_ column: CompareColumn, columns: [CompareColumn]) -> some View {
+    private func independentHeader(_ column: CompareColumn, columns: [CompareColumn], compact: Bool = false) -> some View {
         HStack {
-            columnPassageButton(column, title: column.label)
+            columnPassageButton(column, title: column.label, compact: compact)
             columnActions(column, columns: columns)
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, compact ? 2 : 8)
     }
 
-    private func columnPassageButton(_ column: CompareColumn, title: String) -> some View {
+    private func columnPassageButton(_ column: CompareColumn, title: String, compact: Bool = false) -> some View {
         HStack(spacing: 4) {
             #if os(macOS)
             Image(systemName: "line.3.horizontal")
@@ -551,10 +557,19 @@ struct CompareView: View {
             Button {
                 editingColumn = column
             } label: {
-                Label(title, systemImage: "book")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: controlSize, alignment: .leading)
-                    .contentShape(.rect)
+                Group {
+                    if compact {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(textInfo(column.text).short).font(.subheadline.weight(.semibold))
+                            Text(Reference.readerChapterLabel(column.book, column.chapter, textId: column.text))
+                                .font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                    } else {
+                        Label(title, systemImage: "book").font(.subheadline.weight(.semibold))
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: controlSize, alignment: .leading)
+                .contentShape(.rect)
             }
             .buttonStyle(.interactivePlain)
             .accessibilityLabel("Change passage for \(column.label)")
@@ -643,25 +658,23 @@ struct CompareView: View {
         moveColumn(column, to: source + delta, in: current)
     }
 
-    @ViewBuilder private func independentVerses(_ column: CompareColumn) -> some View {
+    @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false) -> some View {
         if let verses = independentRows[column.id], !verses.isEmpty {
             ForEach(verses, id: \.verseNum) { row in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    if showVerseNumbers {
-                        Button {
-                            openReader(row, in: column)
-                        } label: {
-                            Text("\(row.verseNum)")
-                                .font(.caption.monospacedDigit().weight(.semibold))
-                                .foregroundStyle(Color.accentColor)
-                                .frame(minWidth: controlSize, minHeight: controlSize)
-                                .contentShape(.rect)
+                if compact {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 2) {
+                            if showVerseNumbers { independentVerseButton(row, column: column) }
+                            Spacer(minLength: 0)
+                            comparisonVerseControls(row, column: column)
                         }
-                        .buttonStyle(.interactivePlain)
-                        .accessibilityLabel("Open verse \(row.verseNum) in Reader")
-                        .help("Open verse \(row.verseNum) in Reader")
+                        comparisonVerseBody(row, column: column, state: state, showsControls: false)
                     }
-                    comparisonVerseBody(row, column: column, state: state)
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        if showVerseNumbers { independentVerseButton(row, column: column) }
+                        comparisonVerseBody(row, column: column, state: state)
+                    }
                 }
             }
         } else {
@@ -669,6 +682,20 @@ struct CompareView: View {
         }
     }
 
+    private func independentVerseButton(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
+        Button {
+            openReader(row, in: column)
+        } label: {
+            Text("\(row.verseNum)")
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(minWidth: controlSize, minHeight: controlSize)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel("Open verse \(row.verseNum) in Reader")
+        .help("Open verse \(row.verseNum) in Reader")
+    }
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
         let reference = comparisonVerseReference(row, column: column)
         Button("Copy Verse", systemImage: "doc.on.doc") {
