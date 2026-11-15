@@ -190,30 +190,63 @@ struct CommandPalette: View {
         return Array(matches.prefix(6))
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-                TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 21, weight: .medium))
-                .focused($focused)
-                .onSubmit { activateSelected() }
-                .onKeyPress(.return, phases: .down) { press in
-                    guard press.modifiers.contains(.shift) else { return .ignored }
-                    activateSelected(inNewTab: true)
-                    return .handled
-                }
-                .onKeyPress(.downArrow) { index = min(index + 1, max(0, items.count - 1)); return .handled }
-                .onKeyPress(.upArrow) { index = max(index - 1, 0); return .handled }
+    private func actionTitle(_ item: Item) -> String {
+        switch item.group {
+        case "Open in Other Workspaces": return "Switch to Tab"
+        case "Workspaces": return "Open Workspace"
+        case "Commands": return "Run Command"
+        default:
+            if newTab && item.offersOpenMenu { return "Open in New Tab" }
+            switch item.id {
+            case "search", "strongs": return "Search Scripture"
+            case "notes-search": return "Search Notes"
+            case "lexicon-search": return "Search Lexicon"
+            case "lex": return "Look Up"
+            default: return "Open"
             }
-            .padding(.horizontal, 20)
-            .frame(height: 58)
-            Divider()
-            ScrollViewReader { proxy in
+        }
+    }
+
+    private func selectedIndex(in list: [Item]) -> Int? {
+        return list.indices.contains(index) ? index : list.indices.last
+    }
+
+    private func moveSelection(_ delta: Int, in list: [Item], proxy: ScrollViewProxy) {
+        guard let current = selectedIndex(in: list) else { return }
+        index = min(max(current + delta, 0), list.count - 1)
+        if index == 0 {
+            proxy.scrollTo("paletteResultsStart", anchor: .top)
+        } else {
+            proxy.scrollTo(list[index].id)
+        }
+    }
+
+    var body: some View {
+        let list = items
+        let selection = selectedIndex(in: list)
+        let selected = selection.map { list[$0] }
+        ScrollViewReader { proxy in
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+                    TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 18))
+                    .focused($focused)
+                    .onSubmit { if let selected { activate(selected, inNewTab: newTab) } }
+                    .onKeyPress(.return, phases: .down) { press in
+                        guard press.modifiers.contains(.shift) else { return .ignored }
+                        if let selected { activate(selected, inNewTab: true) }
+                        return .handled
+                    }
+                    .onKeyPress(.downArrow) { moveSelection(1, in: list, proxy: proxy); return .handled }
+                    .onKeyPress(.upArrow) { moveSelection(-1, in: list, proxy: proxy); return .handled }
+                }
+                .padding(.horizontal, 20)
+                .frame(height: 58)
+                Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        let list = items
                         ForEach(Array(list.enumerated()), id: \.element.id) { i, it in
                             if i == 0 || list[i - 1].group != it.group {
                                 Text(it.group).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, i == 0 ? 4 : 10)
@@ -221,16 +254,25 @@ struct CommandPalette: View {
                             Button { activate(it, inNewTab: newTab) } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: it.symbol).frame(width: 20).foregroundStyle(.secondary)
-                                    Text(it.title).font(.system(size: 15)).lineLimit(1)
-                                    Spacer()
-                                    Text(it.detail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                                    Text(it.title).font(.system(size: 14)).lineLimit(1)
+                                    if !it.detail.isEmpty {
+                                        Text(it.detail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                    Spacer(minLength: 4)
+                                    if i == selection || it.group == "Open in Other Workspaces" {
+                                        Text(actionTitle(it)).font(.callout).foregroundStyle(.secondary)
+                                            .lineLimit(1).layoutPriority(1)
+                                    }
                                 }
                                 .padding(.horizontal, 10).padding(.vertical, 7)
                                 .foregroundStyle(.primary)
-                                .background(i == index ? Color.primary.opacity(0.09) : .clear, in: .rect(cornerRadius: 8))
+                                .background(i == selection ? Color.primary.opacity(0.09) : .clear, in: .rect(cornerRadius: 8))
                                 .contentShape(.rect)
                             }
                             .buttonStyle(.interactivePlain)
+                            .onHover { inside in
+                                if inside { index = i }
+                            }
                             .contextMenu {
                                 if it.offersOpenMenu {
                                     Button("Open", systemImage: "arrow.right") { activate(it, inNewTab: false) }
@@ -248,27 +290,43 @@ struct CommandPalette: View {
                     index = 0
                     proxy.scrollTo("paletteResultsStart", anchor: .top)
                 }
-                .onChange(of: index) { _, i in
-                    guard i != 0 else {
-                        proxy.scrollTo("paletteResultsStart", anchor: .top)
-                        return
+                .frame(height: resultsHeight)
+                Divider()
+                HStack {
+                    Spacer()
+                    if let selected {
+                        HStack(spacing: 4) {
+                            Button {
+                                activate(selected, inNewTab: newTab)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(actionTitle(selected))
+                                    Image(systemName: "return").font(.caption.weight(.semibold))
+                                        .padding(4).background(.quaternary, in: .rect(cornerRadius: 4))
+                                        .accessibilityHidden(true)
+                                }
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .contentShape(.capsule)
+                            }
+                            .buttonStyle(.interactivePlain)
+
+                            if selected.offersOpenMenu {
+                                Menu("Actions") {
+                                    Button("Open", systemImage: "arrow.right") { activate(selected, inNewTab: false) }
+                                    Button("Open in New Tab", systemImage: "plus.square") { activate(selected, inNewTab: true) }
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .padding(.trailing, 6)
+                            }
+                        }
+                        .background(.quaternary.opacity(0.65), in: .capsule)
                     }
-                    let list = items
-                    if list.indices.contains(i) { proxy.scrollTo(list[i].id) }
                 }
+                .font(.callout)
+                .padding(.horizontal, 10)
+                .frame(height: 42)
             }
-            .frame(height: resultsHeight)
-            Divider()
-            HStack(spacing: 8) {
-                Spacer()
-                Text("Open").foregroundStyle(.secondary)
-                Text("↩").font(.caption.monospaced())
-                Text("Close").foregroundStyle(.secondary).padding(.leading, 8)
-                Text("Esc").font(.caption.monospaced())
-            }
-            .font(.caption)
-            .padding(.horizontal, 16)
-            .frame(height: 32)
         }
         .clipShape(.rect(cornerRadius: 20))
         .modifier(CommandPaletteSurface())
@@ -283,12 +341,6 @@ struct CommandPalette: View {
         .task(id: trimmed) {
             noteHits = trimmed.count < 2 ? [] : ((try? app.notes?.search(trimmed, limit: 6)) ?? [])
         }
-    }
-
-    private func activateSelected(inNewTab: Bool = false) {
-        let list = items
-        guard list.indices.contains(index) else { return }
-        activate(list[index], inNewTab: newTab || inNewTab)
     }
 
     private func activate(_ item: Item, inNewTab: Bool) {
