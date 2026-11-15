@@ -141,6 +141,8 @@ struct CompareView: View {
     @State private var localVerseSelection: Int?
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
+    @State private var independentVisibleVerses: [Int: Int] = [:]
+    @State private var scrollingColumn: Int?
     #if os(macOS)
     @State private var columnDragToken = UUID()
     @State private var columnWeights: [Int: CGFloat] = [:]
@@ -157,6 +159,10 @@ struct CompareView: View {
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
     var columns: [CompareColumn] {
         CompareColumn.resolved(in: app.findTab(tabId)?.state ?? JSObject())
+    }
+
+    private var syncScrolling: Bool {
+        app.findTab(tabId)?.state["compareSyncScroll"]?.boolValue ?? true
     }
 
     var body: some View {
@@ -176,6 +182,10 @@ struct CompareView: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
+        .onChange(of: passage) {
+            independentVisibleVerses = [:]
+            scrollingColumn = nil
+        }
         #if os(iOS)
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(spacing: 2) {
@@ -257,6 +267,14 @@ struct CompareView: View {
 
     private func manageTranslations(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
         Menu {
+            if !cols.allSatisfy({ $0.follows(st) }), !prefersStackedComparison,
+               compareWidth >= CGFloat(cols.count) * 260 {
+                Toggle("Sync Scrolling", isOn: Binding(get: { syncScrolling }, set: { enabled in
+                    app.update(tabId, recordHistory: false) { tab in
+                        tab.state["compareSyncScroll"] = .bool(enabled)
+                    }
+                }))
+            }
             Menu("Add Translation", systemImage: "plus") {
                 ForEach(availableTexts.filter { text in !cols.contains { $0.text == text.id && $0.follows(st) } }) { text in
                     Button(text.name) { setColumns(cols + [CompareColumn(id: (cols.last?.id ?? -1) + 1, text: text.id, anchor: st)]) }
@@ -452,7 +470,17 @@ struct CompareView: View {
                         LazyVStack(alignment: .leading, spacing: 12) {
                             independentVerses(column)
                         }
+                        .scrollTargetLayout()
                         .padding(16)
+                    }
+                    .scrollPosition(id: independentPosition(for: column, in: columns), anchor: .top)
+                    .onScrollPhaseChange { _, phase in
+                        switch phase {
+                        case .interacting: scrollingColumn = column.id
+                        case .idle:
+                            if scrollingColumn == column.id { scrollingColumn = nil }
+                        default: break
+                        }
                     }
                     .id(column.label)
                 }
@@ -469,6 +497,20 @@ struct CompareView: View {
                 #endif
             }
         }
+    }
+
+    private func independentPosition(for column: CompareColumn, in columns: [CompareColumn]) -> Binding<Int?> {
+        Binding(get: { independentVisibleVerses[column.id] }, set: { verse in
+            independentVisibleVerses[column.id] = verse
+            guard syncScrolling, scrollingColumn == column.id, let verse else { return }
+            for destination in columns where destination.id != column.id {
+                guard let rows = independentRows[destination.id], let first = rows.first else { continue }
+                let match = rows.last(where: { $0.verseNum <= verse })?.verseNum ?? first.verseNum
+                if independentVisibleVerses[destination.id] != match {
+                    independentVisibleVerses[destination.id] = match
+                }
+            }
+        })
     }
 
     private func independentComparison(_ columns: [CompareColumn]) -> some View {
