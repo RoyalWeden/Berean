@@ -87,6 +87,16 @@ final class AppModel {
         UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
     }
     private(set) var recentTabIDs = Array((UserDefaults.standard.stringArray(forKey: "nativeRecentTabIDs") ?? []).prefix(20))
+    private var workspaceRecentTabIDs = UserDefaults.standard.dictionary(forKey: "nativeWorkspaceRecentTabIDs") as? [String: [String]] ?? [:]
+
+    /// Older installs have only the global recent list. Keep its entries until a workspace has
+    /// enough locally recorded visits, and ignore references to tabs that have moved or closed.
+    var recentCleanupTabIDs: Set<String> {
+        let open = Set(orderedTabs.map(\.id))
+        let recorded = workspaceRecentTabIDs[currentSessionId, default: []]
+        var seen = Set<String>()
+        return Set((recorded + recentTabIDs).filter { open.contains($0) && seen.insert($0).inserted }.prefix(5))
+    }
     var displayOrders: [String: [String]] = [:]
     var archivedGroups: [ArchivedGroup] = []
     var books: [String: [BookRow]] = [:]
@@ -292,6 +302,8 @@ final class AppModel {
         guard sessions.count > 1, let i = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions.remove(at: i)
         workspaceSpaces.removeValue(forKey: id)
+        workspaceRecentTabIDs.removeValue(forKey: id)
+        UserDefaults.standard.set(workspaceRecentTabIDs, forKey: "nativeWorkspaceRecentTabIDs")
         UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
         if currentSessionId == id {
             switchSession(sessions[0].id, rememberPrevious: false)
@@ -422,6 +434,10 @@ final class AppModel {
         recentTabIDs.insert(id, at: 0)
         if recentTabIDs.count > 20 { recentTabIDs.removeLast() }
         UserDefaults.standard.set(recentTabIDs, forKey: "nativeRecentTabIDs")
+        let open = Set(session.allTabs.map(\.id))
+        let previous = workspaceRecentTabIDs[currentSessionId, default: []]
+        workspaceRecentTabIDs[currentSessionId] = Array(([id] + previous.filter { $0 != id && open.contains($0) }).prefix(10))
+        UserDefaults.standard.set(workspaceRecentTabIDs, forKey: "nativeWorkspaceRecentTabIDs")
     }
 
     func select(_ tabId: String, in space: SpaceId, rememberPrevious: Bool = true) {

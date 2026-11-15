@@ -194,12 +194,6 @@ extension AppModel {
         return duplicates
     }
 
-    /// Recent use is tracked across workspaces. Count only tabs still open in this workspace.
-    var recentCleanupTabIDs: Set<String> {
-        let open = Set(orderedTabs.map(\.id))
-        return Set(recentTabIDs.lazy.filter { open.contains($0) }.prefix(5))
-    }
-
     func archiveInactiveTabs(_ ids: [String], duplicatesOnly: Bool = false, keepingRecent: Bool = false) {
         var requested = Set(ids)
         if keepingRecent { requested.subtract(recentCleanupTabIDs) }
