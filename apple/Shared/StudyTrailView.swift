@@ -3,6 +3,11 @@ import BereanReference
 import BereanStore
 import BereanWorkspace
 
+struct StudyTrailRecording: Equatable {
+    let trailID: String
+    var isPaused: Bool
+}
+
 struct StudyTrailView: View {
     @Environment(AppModel.self) private var app
     @State private var trails: [StudyTrailService.Trail] = []
@@ -317,6 +322,18 @@ private struct StudyTrailStopsView: View {
                 } else {
                     Button("Resume Trail", systemImage: "play.circle") { transition(.resume) }
                 }
+                Toggle("Record Chapters Automatically", isOn: Binding(
+                    get: { app.studyTrailRecording?.trailID == trail.id },
+                    set: { enabled in
+                        if enabled {
+                            app.studyTrailRecording = StudyTrailRecording(trailID: trail.id, isPaused: currentStatus == "paused")
+                        } else if app.studyTrailRecording?.trailID == trail.id {
+                            app.studyTrailRecording = nil
+                        }
+                    }
+                ))
+                .toggleStyle(.switch)
+                .help("Record chapters you keep open during this app session")
                 Button("Finish Trail", systemImage: "stop.circle") { confirmFinish = true }
             }
             .buttonStyle(.bordered)
@@ -347,6 +364,13 @@ private struct StudyTrailStopsView: View {
             case .pause: status = "paused"
             case .resume: status = "live"
             case .finish: status = "ended"
+            }
+            if app.studyTrailRecording?.trailID == trail.id {
+                switch transition {
+                case .pause: app.studyTrailRecording?.isPaused = true
+                case .resume: app.studyTrailRecording?.isPaused = false
+                case .finish: app.studyTrailRecording = nil
+                }
             }
             reloadTrails()
         } catch {
@@ -491,9 +515,49 @@ private struct StudyTrailNoteEditor: View {
     }
 }
 
+private struct StudyTrailRecorder: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    let app: AppModel
+
+    private struct Target: Equatable {
+        let trailID: String
+        let chapter: ChapterEdition
+    }
+
+    private var target: Target? {
+        guard scenePhase == .active, !app.showStudyTrail,
+              let recording = app.studyTrailRecording, !recording.isPaused,
+              let tab = app.activeTab, tab.tabType == .bible else { return nil }
+        let state = BibleState(tab.state)
+        guard !state.compareMode else { return nil }
+        return Target(trailID: recording.trailID, chapter: ChapterEdition(state))
+    }
+
+    func body(content: Content) -> some View {
+        let pending = target
+        content.task(id: pending) {
+            guard let pending else { return }
+            let arrival = StudyTrailView.now()
+            // Use the original recorder's dwell so rapid chapter browsing does not create stops.
+            do { try await Task.sleep(for: .milliseconds(1200)) }
+            catch { return }
+            guard !Task.isCancelled, target == pending, let service = app.studyTrailService else { return }
+            do {
+                let chapter = pending.chapter
+                try service.recordStop(trailId: pending.trailID, id: AppModel.newId(), bookId: chapter.book,
+                                       chapter: chapter.chapter, translation: chapter.text, at: arrival)
+            } catch {
+                app.studyTrailRecording = nil
+                app.userMessage = "Automatic Study Trail recording stopped because the chapter could not be saved."
+            }
+        }
+    }
+}
+
 extension View {
     func studyTrailSheet(app: AppModel) -> some View {
-        sheet(isPresented: Binding(get: { app.showStudyTrail }, set: { app.showStudyTrail = $0 })) {
+        modifier(StudyTrailRecorder(app: app))
+        .sheet(isPresented: Binding(get: { app.showStudyTrail }, set: { app.showStudyTrail = $0 })) {
             StudyTrailView()
                 .environment(app)
                 .safeAreaInset(edge: .bottom) {

@@ -162,6 +162,7 @@ final class AppModel {
     private(set) var workspaces: WorkspacesService?
     private(set) var verseTags: VerseTagsService?
     var showStudyTrail = false
+    var studyTrailRecording: StudyTrailRecording?
     private(set) var studyTrailService: StudyTrailService?
     private(set) var historyService: HistoryService?
     var historyRevision = 0
