@@ -1051,3 +1051,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 > for real times.
 - iPhone Notes ⋯ menu: Sort / Group as submenus (was a long inline list). Simulator verified. Full native:check at `c5fb27fd`+: 117 tests / 43 suites, both builds pass.
 - Palette: Duplicate Tab and Close Other Tabs commands (verified "duplicate" → command first).
+- **Palette "Search Notes for …"** (Search group): opens Notes Home searching all notes (`AppModel.openNotesSearch` + `notesSearchSeed`). Mac verified "grace" → 2 notes.

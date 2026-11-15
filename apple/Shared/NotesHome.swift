@@ -173,6 +173,9 @@ struct NotesHomeView: View {
         .onChange(of: browseOptions) { _, options in
             app.notesBrowseOptions[tabId] = options
         }
+        .onChange(of: app.notesSearchSeed) { _, _ in
+            if let seeded = app.notesBrowseOptions[tabId] { browseOptions = seeded }
+        }
         .task(id: app.notesRevision) { load(); loadedNotes = true }
         .task(id: request) { await runSearch(request) }
         .alert("New Folder", isPresented: Binding(get: { newFolderParent != nil }, set: { if !$0 { newFolderParent = nil } })) {

@@ -850,6 +850,20 @@ final class AppModel {
     }
 
     /// Global Notes navigation leaves existing editors and their folder return paths intact.
+    /// Bumped when something outside Notes Home seeds its search (palette "Search Notes for …").
+    var notesSearchSeed = 0
+
+    /// Opens Notes Home searching every note for `query` (original Floating Search "Search Notes").
+    func openNotesSearch(_ query: String) {
+        openNotesHome()
+        guard let tab = activeTab else { return }
+        var options = notesBrowseOptions[tab.id] ?? NotesHomeView.BrowseOptions()
+        options.query = query
+        options.searchEverywhere = true
+        notesBrowseOptions[tab.id] = options
+        notesSearchSeed += 1
+    }
+
     func openNotesHome(newTab: Bool = false) {
         if !newTab {
             let homeTabs = tabs(in: .notes).filter {

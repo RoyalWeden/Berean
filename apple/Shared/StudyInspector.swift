@@ -109,6 +109,8 @@ struct CommandPalette: View {
         }
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil {
             out.append(Item(id: "search", group: "Search", title: "Search all texts for “\(trimmed)”", detail: "Scripture and other writings", symbol: "magnifyingglass") { app.openSearch(trimmed, reuseTab: !opensNewTab) })
+            out.append(Item(id: "notes-search", group: "Search", title: "Search Notes for “\(trimmed)”", detail: "Titles and text",
+                            symbol: "note.text") { app.openNotesSearch(trimmed) })
         }
         for n in noteHits.filter({ hit in !exactNotes.contains { $0.id == hit.id } }).prefix(6) {
             out.append(Item(id: "note-\(n.id)", group: "Notes", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text") { app.openNote(n.id, newTab: opensNewTab) })
