@@ -1,11 +1,6 @@
 import SwiftUI
 import UIKit
 
-struct IOSChapterPull: Equatable {
-    let direction: Int
-    let ready: Bool
-}
-
 /// A chapter is one selectable document. Inline controls participate in UIKit link hit testing
 /// but are excluded from copied text and from persisted highlight offsets.
 struct IOSChapterTextView: UIViewRepresentable {
@@ -36,7 +31,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onHighlight: (Piece, String) -> Void
     var onStep: (Int) -> Void
     var canPullChapter: (Int) -> Bool = { _ in false }
-    var onChapterPull: (IOSChapterPull?) -> Void = { _ in }
+    var onChapterPull: (ChapterPullCue?) -> Void = { _ in }
     var onPinchPreview: (Double?) -> Void
     var onPinchCommit: (Double) -> Void
     /// Scrolling down hides the reader chrome (passage capsule, dock); scrolling up or reaching the top shows it.
@@ -353,10 +348,10 @@ struct IOSChapterTextView: UIViewRepresentable {
         private var scrollTravel: CGFloat = 0
         private var chromeHidden = false
 
-        private var chapterPull: IOSChapterPull?
+        private var chapterPull: ChapterPullCue?
         private let chapterPullThreshold: CGFloat = 68
 
-        private func publishChapterPull(_ pull: IOSChapterPull?) {
+        private func publishChapterPull(_ pull: ChapterPullCue?) {
             guard pull != chapterPull else { return }
             chapterPull = pull
             parent.onChapterPull(pull)
@@ -383,7 +378,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 publishChapterPull(nil)
                 return
             }
-            publishChapterPull(IOSChapterPull(direction: direction, ready: distance >= chapterPullThreshold))
+            publishChapterPull(ChapterPullCue(direction: direction, ready: distance >= chapterPullThreshold))
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {

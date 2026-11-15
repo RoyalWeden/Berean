@@ -242,6 +242,8 @@ struct ScriptureView: View {
     @State private var copiedAction: CopyAction?
     @State private var copyFeedbackID = UUID()
     @State private var loadedChapter: String?
+    @State private var chapterPull: ChapterPullCue?
+    @AppStorage("chapterPullNavigation") private var chapterPullNavigation = true
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
     private struct SelectionDestination: Equatable {
@@ -441,6 +443,21 @@ struct ScriptureView: View {
             }
             #endif
         }
+        .overlay(alignment: chapterPull?.direction == -1 ? .top : .bottom) {
+            if let pull = chapterPull {
+                let destination = pull.direction < 0 ? "previous chapter" : "next chapter"
+                Label(pull.ready ? "Release to open \(destination)" : "Pull for \(destination)",
+                      systemImage: pull.direction < 0 ? "chevron.up" : "chevron.down")
+                    .font(.callout.weight(.medium))
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .glassEffectCompat()
+                    .padding(pull.direction < 0 ? .top : .bottom, 16)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: ChapterEdition(st)) { chapterPull = nil }
         .overlay(alignment: .bottom) {
             if showActions { selectionBar(st) }
         }
@@ -934,8 +951,6 @@ struct ScriptureView: View {
 
     #if os(iOS)
     @State private var pinchFontSize: Double?
-    @State private var chapterPull: IOSChapterPull?
-    @AppStorage("chapterPullNavigation") private var chapterPullNavigation = true
     @ScaledMetric(relativeTo: .body) private var scriptureTypeScale = 1.0
 
     func iosReader(_ st: BibleState, actionClearance: CGFloat) -> some View {
@@ -990,21 +1005,6 @@ struct ScriptureView: View {
             onBookSearch: { app.openBookSearch($0, bookId: st.bookId, textId: st.translation, returningTo: tabId) },
             bookName: Reference.bookName(st.bookId)
         )
-        .overlay(alignment: chapterPull?.direction == -1 ? .top : .bottom) {
-            if let pull = chapterPull {
-                let destination = pull.direction < 0 ? "previous chapter" : "next chapter"
-                Label(pull.ready ? "Release to open \(destination)" : "Pull for \(destination)",
-                      systemImage: pull.direction < 0 ? "chevron.up" : "chevron.down")
-                    .font(.callout.weight(.medium))
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .glassEffectCompat()
-                    .padding(pull.direction < 0 ? .top : .bottom, 16)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .transition(.opacity)
-            }
-        }
-        .onChange(of: ChapterEdition(st)) { chapterPull = nil }
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet
             afterVerseSheet = nil
@@ -1698,6 +1698,9 @@ extension ScriptureView {
             },
             onVerseClick: { v, shift in verseClick(v, shift: shift) },
             onCopySelectedVerses: { confirmSelectionCopy(.verses) },
+            canPullChapter: { chapterPullNavigation && canStep($0, from: st) },
+            onChapterPull: { pull in withAnimation(.easeOut(duration: 0.15)) { chapterPull = pull } },
+            onChapterPullCommit: { step($0) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) },
             onSearchSelection: { app.openSearch($0, returningTo: tabId) },
             onBookSearch: { app.openBookSearch($0, bookId: st.bookId, textId: st.translation, returningTo: tabId) },

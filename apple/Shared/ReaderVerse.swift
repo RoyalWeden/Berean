@@ -1,5 +1,10 @@
 import Foundation
 
+struct ChapterPullCue: Equatable {
+    let direction: Int
+    let ready: Bool
+}
+
 /// Keeps the native selection endpoints on readable text while preserving a continuous drag across verses.
 func readerTextSelection(_ range: NSRange, in storage: NSAttributedString, excluding marker: NSAttributedString.Key) -> NSRange {
     guard range.location != NSNotFound, range.length > 0, NSMaxRange(range) <= storage.length else { return range }

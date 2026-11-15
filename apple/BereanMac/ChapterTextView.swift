@@ -1,6 +1,61 @@
 import SwiftUI
 import AppKit
 
+/// Only a direct, phased trackpad gesture can trigger chapter navigation.
+private final class ChapterPullScrollView: NSScrollView {
+    var reader: ChapterTextView.Coordinator?
+    private var travel: CGFloat = 0
+    private var pull: ChapterPullCue?
+
+    private func publish(_ cue: ChapterPullCue?) {
+        guard cue != pull else { return }
+        pull = cue
+        reader?.parent?.onChapterPull(cue)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        if event.phase.contains(.cancelled) || event.phase.contains(.began) {
+            travel = 0
+            publish(nil)
+        }
+
+        if event.phase.contains(.ended) {
+            let requested = pull
+            travel = 0
+            publish(nil)
+            super.scrollWheel(with: event)
+            if let requested, requested.ready, let parent = reader?.parent,
+               parent.canPullChapter(requested.direction) {
+                parent.onChapterPullCommit(requested.direction)
+            }
+            return
+        }
+
+        if event.hasPreciseScrollingDeltas, event.momentumPhase.isEmpty, event.phase.contains(.changed),
+           let reader, let parent = reader.parent, let text = reader.textView,
+           text.selectedRange().length == 0, parent.selectedVerses.isEmpty {
+            let delta = event.scrollingDeltaY
+            let bounds = contentView.bounds
+            let top = text.frame.minY
+            let bottom = max(top, text.frame.maxY - bounds.height)
+            let direction = delta > 0 ? -1 : 1
+            let againstEdge = direction < 0 ? bounds.minY <= top + 2 : bounds.minY >= bottom - 2
+            let vertical = abs(delta) > abs(event.scrollingDeltaX)
+            if againstEdge, vertical, parent.canPullChapter(direction) {
+                if (travel > 0) != (delta > 0) { travel = 0 }
+                travel += delta
+                let distance = abs(travel)
+                publish(distance >= 18 ? ChapterPullCue(direction: direction, ready: distance >= 112) : nil)
+            } else {
+                travel = 0
+                publish(nil)
+            }
+        }
+
+        super.scrollWheel(with: event)
+    }
+}
+
 /// The Mac Scripture reader: ONE TextKit text view for the whole chapter, so a selection can run across verses
 /// (VERSE rows as separate SwiftUI Texts could not). Verse numbers, Strong's numbers and tag chips are links with
 /// a pointing-hand cursor and a hover tint; right-click gives the verse actions; ⌘C copies like the existing
@@ -27,6 +82,9 @@ struct ChapterTextView: NSViewRepresentable {
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
     var onCopySelectedVerses: () -> Void
+    var canPullChapter: (Int) -> Bool = { _ in false }
+    var onChapterPull: (ChapterPullCue?) -> Void = { _ in }
+    var onChapterPullCommit: (Int) -> Void = { _ in }
     /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
     var onHighlightRange: (Int, Int, Int, String) -> Void = { _, _, _, _ in }
     var onSearchSelection: (String) -> Void = { _ in }
@@ -37,7 +95,8 @@ struct ChapterTextView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView()
+        let scroll = ChapterPullScrollView()
+        scroll.reader = context.coordinator
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
