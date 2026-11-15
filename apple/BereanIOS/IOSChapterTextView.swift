@@ -27,6 +27,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var findRequest: Int
     var reference: (Int, Int) -> String
     var onStrongs: (String) -> Void
+    var onOpenStrongsTab: (String) -> Void
     var onNotes: (Int) -> Void
     var onVerseTap: (Int) -> Void
     var onVerseActions: (Int) -> Void
@@ -634,8 +635,18 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         func textView(_ textView: UITextView, menuConfigurationFor textItem: UITextItem,
                       defaultMenu: UIMenu) -> UITextItem.MenuConfiguration? {
-            // The link's tap opens an in-app destination. Avoid system preview/copy-link for internal URLs.
-            nil
+            guard case let .link(url) = textItem.content, url.scheme == "strongs" else { return nil }
+            let id = String(url.absoluteString.dropFirst("strongs:".count))
+            let open = UIAction(title: "Open", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
+                self?.parent.onStrongs(id)
+            }
+            let newTab = UIAction(title: "Open in New Tab", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
+                self?.parent.onOpenStrongsTab(id)
+            }
+            let copy = UIAction(title: "Copy Strong’s Number", image: UIImage(systemName: "doc.on.doc")) { _ in Clipboard.copy(id) }
+            let reference = UIAction(title: "Copy Reference", image: UIImage(systemName: "number")) { _ in Clipboard.copy("Strong's \(id)") }
+            let copies = UIMenu(options: .displayInline, children: [copy, reference])
+            return UITextItem.MenuConfiguration(preview: nil, menu: UIMenu(title: id, children: [open, newTab, copies]))
         }
 
         func plainSelection(in view: UITextView) -> String? {

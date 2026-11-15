@@ -48,6 +48,13 @@ enum ScriptureLayout: String, CaseIterable, Identifiable {
         }
     }
 
+    var showsLexicon: Bool {
+        switch self {
+        case .reading, .scriptureFocus, .notesBottom, .notesRight, .notesTop, .compareNotes, .commentary: false
+        default: true
+        }
+    }
+
     /// The standard layout uses the window's native inspector; everything else is laid out here.
     var usesInspector: Bool { self == .standard }
 }

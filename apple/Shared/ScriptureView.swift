@@ -1112,6 +1112,10 @@ struct ScriptureView: View {
                 return label + (first == last ? "" : "-\(last)") + suffix
             },
             onStrongs: { showLexicon($0) },
+            onOpenStrongsTab: { id in
+                app.openLexicon(id, from: app.findTab(tabId))
+                app.recordTabReturn(to: tabId)
+            },
             onNotes: { openInspector("notes", verse: $0) },
             onVerseTap: { verseClick($0, shift: false) },
             onVerseActions: { number in
@@ -1879,6 +1883,10 @@ extension ScriptureView {
             tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
             strongsTooltips: st.showStrongs ? strongsTooltips : [:],
             onStrongs: { showLexicon($0) },
+            onOpenStrongsTab: { id in
+                app.openLexicon(id, from: app.findTab(tabId))
+                app.recordTabReturn(to: tabId)
+            },
             onNotes: { openInspector("notes", verse: $0) },
             onCitations: { verse in
                 crossRefSource = "notes"

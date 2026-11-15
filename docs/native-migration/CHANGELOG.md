@@ -1086,3 +1086,8 @@
 
 - Fixed Mac Scripture layouts share the inspector’s Selected Verses return flow. Superseded verse lookups cannot replace the current selection.
 - Both Dev builds and all 132 tests passed. Mac scratch QA verified Genesis 2:1 LXX → G3772 → Selected Verses in the fixed Lexicon layout.
+
+### 2026-11-15 — D3 — Inline Strong’s commands
+
+- Scripture numbers offer native open and copy commands on Mac and iPhone. Mac layouts without a Lexicon open the study panel when a number is activated.
+- Both Dev builds and 132 tests passed. The Mac Reading layout opened G2316 in the inspector during scratch QA. Context menu actions still need live verification.

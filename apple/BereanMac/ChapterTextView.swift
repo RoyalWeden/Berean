@@ -81,6 +81,7 @@ struct ChapterTextView: NSViewRepresentable {
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
     var strongsTooltips: [String: String] = [:]
     var onStrongs: (String) -> Void
+    var onOpenStrongsTab: (String) -> Void
     var onNotes: (Int) -> Void
     var onCitations: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
@@ -751,7 +752,23 @@ final class ReaderTextView: NSTextView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        guard let c = coordinator, let i = charIndex(at: event), let v = c.verse(at: i) else { return super.menu(for: event) }
+        guard let c = coordinator, let i = charIndex(at: event) else { return super.menu(for: event) }
+        if let storage = textStorage, i < storage.length,
+           let url = storage.attribute(.link, at: i, effectiveRange: nil) as? URL, url.scheme == "strongs" {
+            let id = String(url.absoluteString.dropFirst("strongs:".count))
+            let menu = NSMenu()
+            let title = NSMenuItem(title: id, action: nil, keyEquivalent: "")
+            title.isEnabled = false
+            menu.addItem(title)
+            menu.addItem(.separator())
+            menu.addItem(ClosureMenuItem("Open", image: "character.book.closed") { c.parent.onStrongs(id) })
+            menu.addItem(ClosureMenuItem("Open in New Tab", image: "plus.square.on.square") { c.parent.onOpenStrongsTab(id) })
+            menu.addItem(.separator())
+            menu.addItem(ClosureMenuItem("Copy Strong’s Number", image: "doc.on.doc") { Clipboard.copy(id) })
+            menu.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy("Strong's \(id)") })
+            return menu
+        }
+        guard let v = c.verse(at: i) else { return super.menu(for: event) }
         let menu = c.parent.verseMenu(v)
         // Look up the clicked (or the single selected) word in the Lexicon — the original's untagged-word click.
         let wordRange = selectedRange().length > 0 ? selectedRange() : selectionRange(forProposedRange: NSRange(location: i, length: 0), granularity: .selectByWord)

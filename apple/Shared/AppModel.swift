@@ -943,6 +943,11 @@ final class AppModel {
         recordHistory(type: "strongs-click", title: id, bookId: bookId, chapter: chapter, verse: verse, strongsNum: id)
         update(tabId, recordHistory: false) { tab in
             var reader = BibleState(tab.state)
+            #if os(macOS)
+            if let layout = ScriptureLayout(rawValue: reader.scriptureLayout), !layout.showsLexicon {
+                reader.scriptureLayout = ScriptureLayout.standard.rawValue
+            }
+            #endif
             reader.rightPanelOpen = true
             tab.state = reader.merged(into: tab.state)
             StudyPanelSlots.focus(.lexicon, in: &tab.state)
