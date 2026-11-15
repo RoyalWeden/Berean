@@ -442,32 +442,44 @@ func noteListReturnEdit(in text: NSString, selection: NSRange)
     return (selection, replacement, NSRange(location: contentEnd + replacement.utf16.count, length: 0))
 }
 
-/// Prints the note as plain text with its title (Mac print panel / iPhone AirPrint) — original Print/PDF.
+/// Presents the system print preview for the same Markdown structure used by Notes previews.
 @MainActor func printNote(title: String, body: String) {
-    let text = (title.isEmpty ? "" : title + "\n\n") + body
-    #if os(macOS)
-    // Let a native menu finish dismissing before the print operation presents a sheet.
+    let markup = NotePrintMarkup.document(title: title, body: body)
+    // Let the originating menu dismiss before the system presents its print panel.
     DispatchQueue.main.async {
-        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 468, height: 648))
-        view.string = text
-        view.font = NSFont.systemFont(ofSize: 12)
-        let op = NSPrintOperation(view: view)
+        #if os(macOS)
+        let printInfo = NSPrintInfo.shared.copy() as? NSPrintInfo ?? NSPrintInfo.shared
+        printInfo.isVerticallyCentered = false
+        let width = max(1, printInfo.paperSize.width - printInfo.leftMargin - printInfo.rightMargin)
+        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 1))
+        view.isVerticallyResizable = true
+        view.isHorizontallyResizable = false
+        view.textContainer?.widthTracksTextView = true
+        view.textContainer?.lineFragmentPadding = 0
+        let formatted = try? NSAttributedString(data: Data(markup.utf8), options: [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue
+        ], documentAttributes: nil)
+        if let formatted { view.textStorage?.setAttributedString(formatted) }
+        else { view.string = ([title, body].filter { !$0.isEmpty }).joined(separator: "\n\n") }
+        view.sizeToFit()
+        let op = NSPrintOperation(view: view, printInfo: printInfo)
         op.jobTitle = title.isEmpty ? "Note" : title
-        if let window = NSApp.mainWindow ?? NSApp.keyWindow {
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
             op.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
         } else {
             op.run()
         }
+        #else
+        let controller = UIPrintInteractionController.shared
+        let info = UIPrintInfo(dictionary: nil)
+        info.jobName = title.isEmpty ? "Note" : title
+        info.outputType = .general
+        controller.printInfo = info
+        controller.printFormatter = UIMarkupTextPrintFormatter(markupText: markup)
+        controller.present(animated: true)
+        #endif
     }
-    #else
-    let controller = UIPrintInteractionController.shared
-    let info = UIPrintInfo(dictionary: nil)
-    info.jobName = title.isEmpty ? "Note" : title
-    info.outputType = .general
-    controller.printInfo = info
-    controller.printFormatter = UISimpleTextPrintFormatter(text: text)
-    controller.present(animated: true)
-    #endif
 }
 
 /// One note with a native rich editor and version history.
@@ -694,7 +706,7 @@ struct NoteDetailView: View {
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
                         Button("Copy as Markdown") { copyMarkdown() }
-                        Button("Print…") { saveNow(); printNote(title: title, body: content) }
+                        Button("Print…") { saveNow(); printNote(title: dailyHeader(note) ?? title, body: content) }
                         ShareLink(item: NoteMarkdownFile.markdown(for: note)) { Text("Share…") }
                     } label: { Label("Share", systemImage: "square.and.arrow.up") }
                     .menuIndicator(.hidden)
@@ -1081,6 +1093,75 @@ private enum NotePreviewBlock {
             index += 1
         }
         return blocks
+    }
+}
+
+/// Print markup is built only from parsed text. Raw HTML and resource URLs in notes are never loaded.
+private enum NotePrintMarkup {
+    static func document(title: String, body: String) -> String {
+        let heading = title.isEmpty ? "" : "<h1>\(escape(title))</h1>"
+        let contents = NotePreviewBlock.parse(body).map(block).joined(separator: "\n")
+        return """
+            <!doctype html><html><head><meta charset="utf-8"><style>
+            body { font: 12pt -apple-system, Helvetica, sans-serif; color: #111; }
+            p { margin: 0 0 6pt; } h1, h2, h3 { margin: 10pt 0 6pt; }
+            blockquote { border-left: 2pt solid #999; margin: 4pt 0; padding-left: 9pt; }
+            pre, code { font-family: monospace; } pre { white-space: pre-wrap; }
+            table { border-collapse: collapse; margin: 8pt 0; }
+            td, th { border: 1px solid #bbb; padding: 4pt 6pt; text-align: left; }
+            </style></head><body>\(heading)\(contents)</body></html>
+            """
+    }
+
+    private static func block(_ block: NotePreviewBlock) -> String {
+        switch block {
+        case .code(let lines):
+            return "<pre>\(escape(lines.joined(separator: "\n")))</pre>"
+        case .table(let table):
+            let rows = table.rows.enumerated().map { index, cells in
+                let tag = index == 0 ? "th" : "td"
+                return "<tr>" + cells.map { "<\(tag)>\(inline($0))</\(tag)>" }.joined() + "</tr>"
+            }
+            return "<table>\(rows.joined())</table>"
+        case .line(let line):
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { return "<br>" }
+            if trimmed == "---" || trimmed == "***" { return "<hr>" }
+            let headingLevel = trimmed.prefix { $0 == "#" }.count
+            if (1...3).contains(headingLevel), trimmed.dropFirst(headingLevel).first == " " {
+                return "<h\(headingLevel)>\(inline(String(trimmed.dropFirst(headingLevel + 1))))</h\(headingLevel)>"
+            }
+            if trimmed.hasPrefix(">") {
+                return "<blockquote>\(inline(String(trimmed.dropFirst().trimmingCharacters(in: .whitespaces))))</blockquote>"
+            }
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                return "<p>• \(inline(String(trimmed.dropFirst(2))))</p>"
+            }
+            return "<p>\(inline(line))</p>"
+        }
+    }
+
+    private static func inline(_ source: String) -> String {
+        guard let text = try? AttributedString(markdown: source, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else {
+            return escape(source)
+        }
+        return text.runs.map { run in
+            var value = escape(String(text[run.range].characters))
+            if let intent = run.inlinePresentationIntent {
+                if intent.contains(.code) { value = "<code>\(value)</code>" }
+                if intent.contains(.stronglyEmphasized) { value = "<strong>\(value)</strong>" }
+                if intent.contains(.emphasized) { value = "<em>\(value)</em>" }
+                if intent.contains(.strikethrough) { value = "<s>\(value)</s>" }
+            }
+            if run.link != nil { value = "<u>\(value)</u>" }
+            return value
+        }.joined()
+    }
+
+    private static func escape(_ source: String) -> String {
+        source.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 }
 
