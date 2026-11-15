@@ -60,7 +60,7 @@ struct DailyNoteCalendar: View {
                 HStack {
                     Button { step(-1, from: month) } label: { Label("Previous Month", systemImage: "chevron.left").labelStyle(.iconOnly) }
                     Spacer()
-                    Text(month.formatted(.dateTime.month(.wide).year())).font(.headline)
+                    Text(month.formatted(.dateTime.month(.wide).year())).font(.title2.weight(.semibold))
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
                     Button { step(1, from: month) } label: { Label("Next Month", systemImage: "chevron.right").labelStyle(.iconOnly) }
@@ -105,9 +105,12 @@ struct DailyNoteCalendar: View {
             app.openDailyNote(key)
         } label: {
             VStack(spacing: 2) {
+                // Today: white number on an accent circle (as in Calendar); other days plain.
                 Text(Self.calendar.component(.day, from: date), format: .number)
                     .fontWeight(today || selected ? .semibold : .regular)
-                    .foregroundStyle(inMonth ? .primary : .secondary)
+                    .foregroundStyle(today ? AnyShapeStyle(.white) : inMonth ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    .frame(width: 30, height: 30)
+                    .background(today ? Color.accentColor : Color.clear, in: .circle)
                 Circle()
                     .fill(notes[key] == nil ? Color.clear : Color.accentColor.opacity(notes[key] == 0 ? 0.45 : 1))
                     .frame(width: 5, height: 5)
