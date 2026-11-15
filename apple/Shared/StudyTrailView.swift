@@ -100,6 +100,9 @@ private struct StudyTrailStopsView: View {
     @State private var actionMessage: String?
     @State private var confirmFinish = false
     @State private var editTarget: NoteTarget?
+    @State private var presentation: Presentation = .list
+
+    private enum Presentation { case list, map }
 
     private enum NoteTarget: Identifiable {
         case stop(StudyTrailService.Stop), connection(StudyTrailService.Connection)
@@ -129,6 +132,41 @@ private struct StudyTrailStopsView: View {
     let reloadTrails: () -> Void
 
     var body: some View {
+        Group {
+            if presentation == .map { mapContent }
+            else { listContent }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                Picker("Trail View", selection: $presentation) {
+                    Text("List").tag(Presentation.list)
+                    Text("Map").tag(Presentation.map)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 260)
+                .padding(8)
+                if presentation == .list { trailControls }
+            }
+            .frame(maxWidth: .infinity)
+            .background(.regularMaterial)
+        }
+        .navigationTitle(trail.name.isEmpty ? "Untitled Trail" : trail.name)
+        .task(id: trail.id) { load() }
+        .sheet(item: $editTarget) { target in
+            StudyTrailNoteEditor(title: target.title, text: target.text) { try saveNote($0, target: target) }
+        }
+        .confirmationDialog("Finish this trail?", isPresented: $confirmFinish, titleVisibility: .visible) {
+            Button("Finish Trail") { transition(.finish) }
+        }
+        .alert("Study Trail", isPresented: Binding(
+            get: { actionMessage != nil }, set: { if !$0 { actionMessage = nil } }
+        )) {
+            Button("OK") { actionMessage = nil }
+        } message: { Text(actionMessage ?? "") }
+    }
+
+    private var listContent: some View {
         List {
             if let recap = trail.recap, !recap.isEmpty { Section("Recap") { Text(recap) } }
             if loadFailed {
@@ -138,26 +176,7 @@ private struct StudyTrailStopsView: View {
             } else {
                 Section("Stops") {
                     ForEach(stops) { stop in
-                        HStack {
-                            Button {
-                                app.showStudyTrail = false
-                                let textId = stop.translation ?? app.bookCatalog.first {
-                                    $0.book.id == stop.bookId
-                                }?.textId
-                                app.openScripture(bookId: stop.bookId, chapter: stop.chapter,
-                                                  textId: textId, reuseTab: true)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(Reference.bookChapterLabel(stop.bookId, chapter: Double(stop.chapter)))
-                                    if let subnote = stop.subnote, !subnote.isEmpty {
-                                        Text(subnote).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.borderless)
-                            Spacer()
-                            editNoteButton(.stop(stop))
-                        }
+                        stopRow(stop, editable: true)
                     }
                 }
             }
@@ -189,20 +208,58 @@ private struct StudyTrailStopsView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) { trailControls }
-        .navigationTitle(trail.name.isEmpty ? "Untitled Trail" : trail.name)
-        .task(id: trail.id) { load() }
-        .sheet(item: $editTarget) { target in
-            StudyTrailNoteEditor(title: target.title, text: target.text) { try saveNote($0, target: target) }
+    }
+
+    private var mapContent: some View {
+        let graph = StudyTrailService.map(stops: stops, connections: connections)
+        return List {
+            if loadFailed {
+                Text("Couldn’t load the trail map.")
+            } else if graph.stops.isEmpty && graph.unplaced.isEmpty {
+                Text("Record a stop to start the trail map.").foregroundStyle(.secondary)
+            }
+            ForEach(graph.stops) { node in
+                Section {
+                    stopRow(node.stop, editable: false)
+                    ForEach(node.branches) { branch in mapBranch(branch) }
+                }
+            }
+            if !graph.unplaced.isEmpty {
+                Section("Connections Without a Stop") {
+                    ForEach(graph.unplaced) { branch in mapBranch(branch) }
+                }
+            }
         }
-        .confirmationDialog("Finish this trail?", isPresented: $confirmFinish, titleVisibility: .visible) {
-            Button("Finish Trail") { transition(.finish) }
+    }
+
+    private func mapBranch(_ branch: StudyTrailService.MapConnection) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "arrow.turn.down.right")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            connectionRow(branch.connection, showOrigin: false)
         }
-        .alert("Study Trail", isPresented: Binding(
-            get: { actionMessage != nil }, set: { if !$0 { actionMessage = nil } }
-        )) {
-            Button("OK") { actionMessage = nil }
-        } message: { Text(actionMessage ?? "") }
+        .padding(.leading, CGFloat(min(branch.depth, 4)) * 18)
+    }
+
+    private func stopRow(_ stop: StudyTrailService.Stop, editable: Bool) -> some View {
+        HStack {
+            Button {
+                app.showStudyTrail = false
+                let textId = stop.translation ?? app.bookCatalog.first { $0.book.id == stop.bookId }?.textId
+                app.openScripture(bookId: stop.bookId, chapter: stop.chapter, textId: textId, reuseTab: true)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(stopLabel(stop)).fontWeight(editable ? .regular : .semibold)
+                    if let subnote = stop.subnote, !subnote.isEmpty {
+                        Text(subnote).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                }
+            }
+            .buttonStyle(.borderless)
+            Spacer()
+            if editable { editNoteButton(.stop(stop)) }
+        }
     }
 
     private var currentPassage: BibleState? {
@@ -325,10 +382,10 @@ private struct StudyTrailStopsView: View {
         }
     }
 
-    private func connectionRow(_ connection: StudyTrailService.Connection) -> some View {
+    private func connectionRow(_ connection: StudyTrailService.Connection, showOrigin: Bool = true) -> some View {
         let origin = stops.first { $0.id == connection.fromStopId }
         return VStack(alignment: .leading, spacing: 4) {
-            if let origin {
+            if showOrigin, let origin {
                 Text("From \(Reference.bookChapterLabel(origin.bookId, chapter: Double(origin.chapter)))")
                     .font(.caption)
                     .foregroundStyle(.secondary)

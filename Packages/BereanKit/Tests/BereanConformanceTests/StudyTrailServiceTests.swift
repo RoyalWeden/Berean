@@ -74,6 +74,12 @@ import Testing
     if case .scripture("JHN", 1, 1, 4) = savedRange.destination {} else { Issue.record("Expected the saved verse range") }
     if case .note("note-id") = savedNote.destination {} else { Issue.record("Expected the saved note") }
     #expect(new.last?.parentId == "branch")
+    let graph = StudyTrailService.map(stops: stops, connections: new)
+    #expect(graph.stops.map(\.id) == ["first", "second"])
+    #expect(graph.stops.first?.branches.map(\.id) == ["lex", "chapter", "range", "branch", "nested"])
+    #expect(graph.stops.first?.branches.map(\.depth) == [0, 1, 0, 1, 2])
+    #expect(graph.stops.last?.branches.map(\.id) == ["note"])
+    #expect(graph.unplaced.isEmpty)
 }
 
 @Test func recordsAndFinishesTrailWithLegacyRows() throws {

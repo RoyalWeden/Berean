@@ -34,6 +34,54 @@ public struct StudyTrailService {
         public let userNote: String?
     }
 
+    public struct MapConnection: Identifiable, Sendable {
+        public let connection: Connection
+        public let depth: Int
+        public var id: String { connection.id }
+    }
+
+    public struct MapStop: Identifiable, Sendable {
+        public let stop: Stop
+        public let branches: [MapConnection]
+        public var id: String { stop.id }
+    }
+
+    /// Keeps recorded stop and sibling order. Invalid parent references remain visible at the
+    /// stop level, and a cycle in imported data cannot prevent the remaining rows from loading.
+    public static func map(stops: [Stop], connections: [Connection])
+        -> (stops: [MapStop], unplaced: [MapConnection]) {
+        let byStop = Dictionary(grouping: connections, by: \.fromStopId)
+        let knownStops = Set(stops.map(\.id))
+        func branches(_ rows: [Connection]) -> [MapConnection] {
+            let ids = Set(rows.map(\.id))
+            let children = Dictionary(grouping: rows) { row in
+                row.parentId.flatMap { ids.contains($0) ? $0 : nil }
+            }
+            var stack = (children[nil] ?? []).reversed().map { ($0, 0) }
+            var seen = Set<String>()
+            var ordered: [MapConnection] = []
+            func visitPending() {
+                while let (connection, depth) = stack.popLast() {
+                    guard seen.insert(connection.id).inserted else { continue }
+                    ordered.append(MapConnection(connection: connection, depth: depth))
+                    stack.append(contentsOf: (children[connection.id] ?? []).reversed().map { ($0, depth + 1) })
+                }
+            }
+            visitPending()
+            for row in rows where !seen.contains(row.id) {
+                stack.append((row, 0))
+                visitPending()
+            }
+            return ordered
+        }
+        let placed = stops.map { MapStop(stop: $0, branches: branches(byStop[$0.id] ?? [])) }
+        let unplaced = connections.filter { !knownStops.contains($0.fromStopId) }
+        let byMissingStop = Dictionary(grouping: unplaced, by: \.fromStopId)
+        var seenMissingStops = Set<String>()
+        return (placed, unplaced.filter { seenMissingStops.insert($0.fromStopId).inserted }
+            .flatMap { branches(byMissingStop[$0.fromStopId] ?? []) })
+    }
+
     public enum Transition {
         case pause, resume, finish
     }

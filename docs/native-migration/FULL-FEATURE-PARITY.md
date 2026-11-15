@@ -670,8 +670,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/store/studyTrailSlice.ts` (1091), `src/platform/services/studyTrailService.ts` (1223), `electron/ipc/studyTrail.ts`, `src/components/studyTrail/*` (MapView, StudyTrailApp, …), `src/lib/studyTrail/arrivalEligibility.ts`, `src/mobile/trail/*`, migrations v28–40.
 - **Known original defects:** Several `stub` mentions inside trail components (grep) — INFERRED placeholders. Not in CLAUDE.md.
-- **Native Mac / iPhone:** ❌ / ❌ — Study Trail not ported (1223-line service)
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — Trail browsing, manual recording, lifecycle, editable stop and connection notes, explicit connections, and a navigable branch map using the legacy tables. Automatic recording, recorder prompts, and the full graph workspace remain open.
+- **Native files:** StudyTrailView.swift, StudyTrailService.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### U15 Tasks panel and first steps
