@@ -962,7 +962,15 @@ struct MarkdownText: View {
     }
 
     func inline(_ s: String) -> Text {
-        Text((try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(s))
+        var text = AttributedString()
+        for (var segment, highlight) in notePreviewInline(s) {
+            if let highlight {
+                segment.backgroundColor = Color.highlight(highlight).opacity(0.35)
+                segment.foregroundColor = .primary
+            }
+            text += segment
+        }
+        return Text(text)
     }
     private func standaloneScriptureLink(_ line: String) -> (label: String, url: URL)? {
         guard let parsed = try? AttributedString(markdown: line, options: .init(interpretedSyntax: .inlineOnly)),
@@ -1101,8 +1109,74 @@ private enum NotePreviewBlock {
     }
 }
 
+/// Feed the editor's custom highlight syntax through Foundation Markdown without
+/// breaking emphasis or links that span a highlight boundary.
+private func notePreviewInline(_ source: String) -> [(AttributedString, String?)] {
+    func parse(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(text)
+    }
+
+    guard source.contains("==") || source.contains("<mark class=\"hl-") else { return [(parse(source), nil)] }
+    let candidates = MarkdownLiveSpans.spans(source).compactMap { span -> (NSRange, String?)? in
+        if case .highlight(let color) = span.kind { return (span.range, color) }
+        return nil
+    }.sorted { $0.0.location < $1.0.location }
+    var highlights: [(NSRange, String?)] = []
+    var previousEnd = 0
+    for (range, color) in candidates {
+        let prefixLength = color.map { "<mark class=\"hl-\($0)\">".utf16.count } ?? 2
+        let suffixLength = color == nil ? 2 : 7
+        guard range.location - prefixLength >= previousEnd else { continue }
+        highlights.append((range, color))
+        previousEnd = NSMaxRange(range) + suffixLength
+    }
+    guard !highlights.isEmpty else { return [(parse(source), nil)] }
+
+    // Private-use characters survive inline Markdown parsing and never enter the saved note.
+    var marker = "\u{E000}"
+    while source.contains(marker) { marker += "\u{E001}" }
+    let opening = marker + "\u{E002}"
+    let closing = marker + "\u{E003}"
+    let marked = NSMutableString(string: source)
+    for (range, color) in highlights.reversed() {
+        let prefix = color.map { "<mark class=\"hl-\($0)\">" } ?? "=="
+        let suffix = color == nil ? "==" : "</mark>"
+        marked.replaceCharacters(in: NSRange(location: NSMaxRange(range), length: suffix.utf16.count), with: closing)
+        marked.replaceCharacters(in: NSRange(location: range.location - prefix.utf16.count, length: prefix.utf16.count), with: opening)
+    }
+    let parsed = parse(marked as String)
+    let plain = String(parsed.characters)
+    func segment(_ range: Range<String.Index>) -> AttributedString? {
+        guard let start = AttributedString.Index(range.lowerBound, within: parsed),
+              let end = AttributedString.Index(range.upperBound, within: parsed) else { return nil }
+        return AttributedString(parsed[start..<end])
+    }
+
+    var result: [(AttributedString, String?)] = []
+    var cursor = plain.startIndex
+    for (_, color) in highlights {
+        guard let open = plain.range(of: opening, range: cursor..<plain.endIndex),
+              let close = plain.range(of: closing, range: open.upperBound..<plain.endIndex),
+              let before = segment(cursor..<open.lowerBound),
+              let highlighted = segment(open.upperBound..<close.lowerBound) else { return [(parse(source), nil)] }
+        result.append((before, nil))
+        result.append((highlighted, color ?? "yellow"))
+        cursor = close.upperBound
+    }
+    if let tail = segment(cursor..<plain.endIndex) { result.append((tail, nil)) }
+    return result
+}
+
 /// Print markup is built only from parsed text. Raw HTML and resource URLs in notes are never loaded.
 private enum NotePrintMarkup {
+    private static let backgrounds = [
+        "yellow": "#fff0a3", "orange": "#ffd5ae", "pink": "#fbcfe8",
+        "red": "#ffc7c7", "green": "#c7ebc0", "blue": "#c7e2ff", "purple": "#e4d1fb",
+        "amber": "#fce9ad", "rose": "#ffd5df", "violet": "#e4d8fd", "indigo": "#d4d7fd",
+        "sky": "#c5edfc", "cyan": "#bdf1f6", "teal": "#c1f1e9", "lime": "#e0f6b7"
+    ]
+
     static func document(title: String, body: String) -> String {
         let heading = title.isEmpty ? "" : "<h1>\(escape(title))</h1>"
         let contents = NotePreviewBlock.parse(body).map(block).joined(separator: "\n")
@@ -1147,19 +1221,20 @@ private enum NotePrintMarkup {
     }
 
     private static func inline(_ source: String) -> String {
-        guard let text = try? AttributedString(markdown: source, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else {
-            return escape(source)
-        }
-        return text.runs.map { run in
-            var value = escape(String(text[run.range].characters))
-            if let intent = run.inlinePresentationIntent {
-                if intent.contains(.code) { value = "<code>\(value)</code>" }
-                if intent.contains(.stronglyEmphasized) { value = "<strong>\(value)</strong>" }
-                if intent.contains(.emphasized) { value = "<em>\(value)</em>" }
-                if intent.contains(.strikethrough) { value = "<s>\(value)</s>" }
-            }
-            if run.link != nil { value = "<u>\(value)</u>" }
-            return value
+        notePreviewInline(source).map { text, highlight in
+            let rendered = text.runs.map { run in
+                var value = escape(String(text[run.range].characters))
+                if let intent = run.inlinePresentationIntent {
+                    if intent.contains(.code) { value = "<code>\(value)</code>" }
+                    if intent.contains(.stronglyEmphasized) { value = "<strong>\(value)</strong>" }
+                    if intent.contains(.emphasized) { value = "<em>\(value)</em>" }
+                    if intent.contains(.strikethrough) { value = "<s>\(value)</s>" }
+                }
+                if run.link != nil { value = "<u>\(value)</u>" }
+                return value
+            }.joined()
+            guard let highlight else { return rendered }
+            return "<span style=\"background-color: \(backgrounds[highlight] ?? "#fff0a3")\">\(rendered)</span>"
         }.joined()
     }
 
