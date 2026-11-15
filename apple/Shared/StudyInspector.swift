@@ -320,7 +320,7 @@ struct CommandPalette: View {
                                 .padding(.trailing, 6)
                             }
                         }
-                        .background(.quaternary.opacity(0.65), in: .capsule)
+                        .glassEffectCompat(interactive: true)
                     }
                 }
                 .font(.callout)
