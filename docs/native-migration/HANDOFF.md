@@ -1030,7 +1030,7 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 
 #### 01:12 — next picks for Codex / next session (refreshed)
 
-1. **I6 follow-up:** card previews (first verse words / note snippet) in the iPhone tab grid; Recent/Custom sort; select mode + bulk close.
+1. **I6 follow-up:** (previews DONE 01:16) Recent/Custom sort; select mode + bulk close.
 2. **I4 rest:** Print/PDF of a note; note icon picker; ref-chip long-press.
 3. **I24 platform integrations (gated):** App Intents (Open Scripture, Search Berean, Open Daily Note), Spotlight indexing, widget, Share
    Extension, `berean://` deep links — needs Dev entitlements/provisioning first; never touch production identities.

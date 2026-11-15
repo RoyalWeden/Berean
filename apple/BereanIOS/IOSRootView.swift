@@ -2,6 +2,7 @@ import SwiftUI
 import BereanCore
 import BereanWorkspace
 import BereanReference
+import BereanText
 
 /// The native iPhone shell, following the existing iPhone navigation (docs/mobile/mobile-navigation.md):
 /// bottom-left tabs, bottom-centre Go (reference / Strong's / search), bottom-right More with the
@@ -414,9 +415,8 @@ struct TabCardsSheet: View {
                     if !detail.isEmpty, detail != kind, detail != tab.spaceId.title, detail != tab.navigationLabel {
                         Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     }
+                    TabCardPreview(tab: tab)
                     Spacer(minLength: 0)
-                    Image(systemName: tab.symbol).font(.system(size: 34, weight: .light)).foregroundStyle(tab.tint.opacity(0.25))
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
@@ -668,5 +668,32 @@ struct ArchivedTabsPage: View {
         }
         .navigationTitle("Archived Tabs")
         .scrollDismissesKeyboard(.interactively)
+    }
+}
+
+
+/// A few words of what the tab shows (first verse of a Scripture tab, opening of a note) — original TabPreview.
+private struct TabCardPreview: View {
+    @Environment(AppModel.self) private var app
+    let tab: BereanWorkspace.Tab
+    @State private var text = ""
+
+    var body: some View {
+        Text(text).font(.caption).foregroundStyle(.secondary).lineLimit(3).multilineTextAlignment(.leading)
+            .task(id: tab.id + tab.title) {
+                switch tab.tabType {
+                case .bible:
+                    let st = BibleState(tab.state)
+                    if let row = await app.bible.queryVerse(st.bookId, st.chapter, st.verse ?? 1, textId: st.translation) {
+                        text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: st.translation,
+                                                 replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+                    }
+                case .note:
+                    if let id = tab.state["noteId"]?.stringValue?.string, let note = try? app.notes?.one(id) {
+                        text = note.content.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+                    }
+                default: text = ""
+                }
+            }
     }
 }
