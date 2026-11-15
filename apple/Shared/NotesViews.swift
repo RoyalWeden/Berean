@@ -910,6 +910,7 @@ struct VerseNotesView: View {
     @State private var loadedScope: String?
     @State private var chapterScope: String?
     @State private var allNotesScope = false
+    @State private var studyQuery = ""
     @AppStorage("studyNotesSort") private var studySort = StudySort.verse
 
     private enum StudySort: String, CaseIterable {
@@ -944,11 +945,18 @@ struct VerseNotesView: View {
     private var scopedSelection: Set<Int> { showingChapter ? [] : selectedVerses }
     private var attachment: String { showingChapter ? "\(bookId).\(chapter)" : selectionAttachment }
     private var loadKey: String { "\(textId)|\(attachment)|\(allNotesScope)|\(app.notesRevision)" }
+    private var searchTerm: String { studyQuery.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private var displayedNotes: [Note] {
         guard loadedScope == loadKey else { return [] }
-        let visible = allNotesScope ? Array(notes.prefix(500)) : notes
+        var visible = allNotesScope ? Array(notes.prefix(500)) : notes
         guard allowsChapterScope else { return visible }
+        let query = searchTerm
+        if !query.isEmpty {
+            visible = visible.filter {
+                $0.displayTitle.localizedCaseInsensitiveContains(query) || $0.content.localizedCaseInsensitiveContains(query)
+            }
+        }
         switch studySort {
         case .modified:
             return visible.sorted { $0.updatedAt > $1.updatedAt }
@@ -987,13 +995,15 @@ struct VerseNotesView: View {
                     studyNotesMenu
                 }
                 .padding(.horizontal, 12)
+                studyNotesSearch
             }
             List {
+                let results = displayedNotes
                 if allNotesScope, loadedScope == loadKey, notes.count > 500 {
                     Text("Showing the 500 most recently edited notes")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                ForEach(displayedNotes) { note in
+                ForEach(results) { note in
                     Button {
                         if let editInSheet {
                             editInSheet(note.id)
@@ -1010,7 +1020,9 @@ struct VerseNotesView: View {
                     }
                     .buttonStyle(.interactivePlain)
                 }
-                if loadedScope == loadKey, notes.isEmpty, allNotesScope || (scopedVerse == nil && scopedSelection.isEmpty) {
+                if loadedScope == loadKey, results.isEmpty, !searchTerm.isEmpty {
+                    ContentUnavailableView.search(text: searchTerm)
+                } else if loadedScope == loadKey, notes.isEmpty, allNotesScope || (scopedVerse == nil && scopedSelection.isEmpty) {
                     ContentUnavailableView(allNotesScope ? "No notes" : "No chapter notes", systemImage: "note.text")
                 }
                 Button {
@@ -1044,6 +1056,31 @@ struct VerseNotesView: View {
             }
             loadedScope = loadKey
         }
+    }
+
+    private var studyNotesSearch: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+            TextField("Search Notes", text: $studyQuery)
+                .textFieldStyle(.plain)
+                #if os(macOS)
+                .onExitCommand { studyQuery = "" }
+                #endif
+            if !studyQuery.isEmpty {
+                Button("Clear Search", systemImage: "xmark.circle.fill") { studyQuery = "" }
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 32, minHeight: 32)
+                    .contentShape(.rect)
+                    .buttonStyle(.interactivePlain)
+            }
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 10)
+        .frame(minHeight: 36)
+        .background(.quaternary, in: .rect(cornerRadius: 9))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 6)
     }
 
     private var studyNotesMenu: some View {
