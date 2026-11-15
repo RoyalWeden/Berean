@@ -1005,3 +1005,15 @@ The study Notes inspector now filters the active scope by case-insensitive title
 - **01:01 palette Top Hit:** a note whose title exactly matches the query ranks first ("Top Hit"), so Return opens it instead of searching Scripture; palette note rows use daily long titles. Mac verified.
 - **01:06 I3 iPhone format bar:** note editor keyboard accessory (bold, italic, highlight, heading, list, checklist, quote, link, hide keyboard) calling the editor's existing commands. Simulator: bar appears when editing. Follow-up: hide the bottom dock while editing (it sits above the bar).
 - **01:12 dock hides while editing (iPhone):** note editor posts `.bereanNoteEditing`; root hides the dock (keyboard frame notifications also observed; with the simulator's hardware keyboard they don't fire, hence the editor signal). Simulator verified hide + return.
+
+#### 01:15 progress summary (Claude, 2026-11-15 session)
+
+Done this session so far (all built for Mac + iOS; verification noted per line above): iPhone multi-verse notes check, SF Symbol audit
++ invalid icon fix, I25 dark check, iPhone tab card grid (I6), dock swipe (I7), note Insert menu (I3) + iPhone keyboard format bar +
+dock hides while editing, note reference auto-linking (`NoteVerseRefs.linkSpans`), Lexicon ⌘F (D16), Mac Settings panes, Calendar today
+circle, History current note titles, Notes select mode + bulk actions (I9), daily long-date titles in lists/tabs, search result Share/Add
+Note (I22), iPhone compact Notes toolbar, note-return pill (I17), palette Top Hit. Audit statuses updated, including Codex's I1/I2/D11–D13.
+
+Still open, best next picks: I4 rest (Undo/Redo, Print/PDF), I16 whole-book find, I18 compare sync scroll on iPhone, I19 Notes settings,
+I20 tab-type switcher, D10 search tag filter, D14 two-slot inspector, D20/D21 continuous scroll, I24 platform integrations (App Intents,
+Spotlight, widget, Share Extension — needs entitlements; gated for production), I15 themes.
