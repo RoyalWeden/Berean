@@ -2,6 +2,13 @@ import Testing
 import BereanReference
 
 struct DeepLinkTests {
+    @Test func parsesDedicatedNativeDevLinks() {
+        #expect(DeepLink.parse("berean-native-dev://open?ref=John+3%3A16")
+            == .verse(bookId: "JHN", chapter: 3, verse: 16))
+        #expect(DeepLink.parse("berean-native-dev://search?q=grace+and+mercy")
+            == .search(query: "grace and mercy"))
+    }
+
     @Test(arguments: [
         ("berean://verse/Gen/1/1", DeepLinkRoute.verse(bookId: "GEN", chapter: 1, verse: 1)),
         ("berean://verse/Genesis/1/1-5?text=lxx", .verse(bookId: "GEN", chapter: 1, verse: 1, endVerse: 5, textId: "lxx")),

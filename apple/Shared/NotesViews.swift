@@ -660,10 +660,10 @@ struct NoteDetailView: View {
             return
         }
         let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
-        let internalSchemes = ["berean", "berean-dev", "berean-pdf", "berean-dev-pdf"]
+        let internalSchemes = ["berean", "berean-dev", "berean-pdf", "berean-dev-pdf", DeepLink.nativeDevScheme]
         if route != nil || internalSchemes.contains(url.scheme?.lowercased() ?? "") {
             saveNow()
-            routeFromEditor { openBereanLink(route) }
+            routeFromEditor { app.openBereanLink(route) }
             return
         }
         #if os(macOS)
@@ -671,39 +671,6 @@ struct NoteDetailView: View {
         #else
         UIApplication.shared.open(url)
         #endif
-    }
-
-    private func openBereanLink(_ route: DeepLinkRoute?) {
-        switch route {
-        case .verse(let book, let chapter, let verse, let endVerse, let text, _):
-            if let text, !availableTexts.contains(where: { $0.id == text }) {
-                app.userMessage = "This Scripture text is unavailable."
-                return
-            }
-            let textId = text ?? app.bookCatalog.first {
-                $0.book.id == book && $0.textId == app.defaultText
-            }?.textId ?? app.bookCatalog.first { $0.book.id == book }?.textId
-                ?? Reference.translation(forBook: book, hermas: app.hermasEdition)
-            if let edition = HermasText(rawValue: text ?? app.hermasEdition.rawValue), Reference.isHermasBook(book) {
-                app.openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: edition.rawValue, reuseTab: true)
-            } else {
-                app.openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: textId, reuseTab: true)
-            }
-        case .note(let id):
-            guard (try? app.notes?.one(id)) != nil else {
-                app.userMessage = "This note is unavailable."
-                return
-            }
-            app.openNote(id)
-        case .lexicon(let id):
-            app.openLexicon(id, reuseTab: true)
-        case .search(let query):
-            app.openSearch(query, reuseTab: true)
-        case .daily:
-            app.openTodayDailyNote()
-        default:
-            app.userMessage = "This Berean link can’t be opened here."
-        }
     }
 
     private func formatButton(_ title: String, symbol: String, prefix: String, suffix: String) -> some View {

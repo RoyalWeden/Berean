@@ -18,7 +18,8 @@ public enum DeepLinkRoute: Equatable, Sendable {
 }
 
 public enum DeepLink {
-    private static let routeSchemes: Set<String> = ["berean", "berean-dev"]
+    public static let nativeDevScheme = "berean-native-dev"
+    private static let routeSchemes: Set<String> = ["berean", "berean-dev", nativeDevScheme]
     private static let pdfSchemes: Set<String> = ["berean-pdf", "berean-dev-pdf"]
     private static let verseSpec = JSRegex(#"^(\d+)(?:-(\d+))?$"#)
     private static let strongsID = JSRegex(#"^[HG]\d{1,5}[A-Z]?$"#)

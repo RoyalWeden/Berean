@@ -18,6 +18,7 @@ struct BereanMacApp: App {
                 .environment(app)
                 .preferredColorScheme(app.colorScheme)
                 .frame(minWidth: 820, minHeight: 520)
+                .onOpenURL(perform: app.openNativeDevURL)
         }
         Settings {
             SettingsView().environment(app).preferredColorScheme(app.colorScheme)

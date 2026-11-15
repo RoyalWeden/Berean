@@ -982,6 +982,56 @@ final class AppModel {
         }
     }
 
+    func openNativeDevURL(_ url: URL) {
+        guard url.scheme?.lowercased() == DeepLink.nativeDevScheme else { return }
+        openBereanLink(DeepLink.parse(url.absoluteString, hermas: hermasEdition))
+    }
+
+    func openBereanLink(_ route: DeepLinkRoute?) {
+        switch route {
+        case .verse(let book, let chapter, let verse, let endVerse, let text, _):
+            if let text, !availableTexts.contains(where: { $0.id == text }) {
+                userMessage = "This Scripture text is unavailable."
+                return
+            }
+            let textId = text ?? bookCatalog.first {
+                $0.book.id == book && $0.textId == defaultText
+            }?.textId ?? bookCatalog.first { $0.book.id == book }?.textId
+                ?? Reference.translation(forBook: book, hermas: hermasEdition)
+            if let edition = HermasText(rawValue: text ?? hermasEdition.rawValue), Reference.isHermasBook(book) {
+                openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: edition.rawValue, reuseTab: true)
+            } else {
+                openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: textId, reuseTab: true)
+            }
+        case .note(let id):
+            guard (try? notes?.one(id)) != nil else {
+                userMessage = "This note is unavailable."
+                return
+            }
+            openNote(id)
+        case .lexicon(let id):
+            openLexicon(id, reuseTab: true)
+        case .search(let query):
+            openSearch(query, reuseTab: true)
+        case .daily:
+            openTodayDailyNote()
+        case .workspace(let name):
+            guard let workspace = workspaceItems.first(where: { $0.name.localizedStandardCompare(name) == .orderedSame }) else {
+                userMessage = "This workspace is unavailable."
+                return
+            }
+            open(workspace)
+        case .session(let id):
+            guard sessions.contains(where: { $0.id == id }) else {
+                userMessage = "This workspace is unavailable."
+                return
+            }
+            switchSession(id)
+        default:
+            userMessage = "This Berean link can’t be opened here."
+        }
+    }
+
     /// Opens a passage from a note and remembers the note for the reader's return pill.
     func visitScripture(_ passage: ResolvedPassage, fromNote noteId: String, title: String) {
         visitScripture(passage)
