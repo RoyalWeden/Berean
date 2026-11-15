@@ -601,45 +601,72 @@ struct SessionsPage: View {
     @State private var query = ""
 
     var body: some View {
-        List {
-            TabSearchField(prompt: "Workspace or tab title", query: $query)
-            WorkspaceTabResults(title: "Open Tabs", matches: app.matchingWorkspaceTabs(query), onOpen: closeTabs)
-            Section {
-                ForEach(app.workspaceItems.filter { $0.matches(query.trimmingCharacters(in: .whitespacesAndNewlines)) }) { w in
-                    Button { app.open(w); closeTabs() } label: {
-                        HStack {
-                            Image(systemName: w.icon.map { WorkspaceIcon.symbol($0) } ?? (w.isSaved ? "square.stack.3d.up" : "square.stack")).foregroundStyle(.secondary).frame(width: 24)
-                            VStack(alignment: .leading) {
-                                Text(w.displayName).font(.body.weight(.medium)).foregroundStyle(.primary)
-                                ForEach(w.previewLabels(matching: query).filter { $0 != w.displayName }, id: \.self) { preview in
-                                    Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                                }
-                                Text(w.displayDetail)
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if app.isCurrent(w) { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current workspace") }
-                        }
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let workspaces = app.workspaceItems.filter { $0.matches(search) }
+        let tabs = app.matchingWorkspaceTabs(search)
+        return List {
+            TabSearchField(prompt: "Workspace, passage, or tab title", query: $query)
+                .onSubmit {
+                    guard !search.isEmpty else { return }
+                    if let exact = workspaces.first(where: { $0.name.localizedStandardCompare(search) == .orderedSame }) {
+                        app.open(exact)
+                    } else if let tab = tabs.first {
+                        app.openWorkspaceTab(tab)
+                    } else if let workspace = workspaces.first {
+                        app.open(workspace)
+                    } else {
+                        return
                     }
-                    .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
-                    .contextMenu {
-                        Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
-                        Button("Duplicate", systemImage: "plus.square.on.square") { app.duplicate(w) }
-                        if app.isCurrent(w) {
-                            Button("Save Snapshot…", systemImage: "square.and.arrow.down.on.square") { name = w.name; saving = true }
-                            Button("Archive All Tabs", systemImage: "archivebox") { app.archiveAllTabs() }
-                            Menu("Icon", systemImage: WorkspaceIcon.symbol(w.icon)) {
-                                ForEach(WorkspaceIcon.all, id: \.name) { icon in
-                                    Button(WorkspaceIcon.label(icon.name), systemImage: icon.symbol) { app.setSessionIcon(app.currentSessionId, icon.name) }
-                                }
-                                Button("Default") { app.setSessionIcon(app.currentSessionId, nil) }
-                            }
-                        }
-                        if app.canDelete(w) { Button("Delete…", systemImage: "trash", role: .destructive) { deleting = w } }
-                    }
+                    closeTabs()
                 }
-                Button { app.newWorkspace(); closeTabs() } label: { Label("New Workspace", systemImage: "plus") }
-            } footer: { Text("A workspace is a set of tabs you study with. Switching workspaces swaps the tabs you see. Touch and hold a workspace for more.") }
+            if workspaces.isEmpty && tabs.isEmpty && !search.isEmpty {
+                ContentUnavailableView.search(text: search)
+            }
+            if search.isEmpty || !workspaces.isEmpty {
+                Section {
+                    ForEach(workspaces) { w in
+                        Button { app.open(w); closeTabs() } label: {
+                            HStack {
+                                Image(systemName: w.icon.map { WorkspaceIcon.symbol($0) } ?? (w.isSaved ? "square.stack.3d.up" : "square.stack")).foregroundStyle(.secondary).frame(width: 24)
+                                VStack(alignment: .leading) {
+                                    Text(w.displayName).font(.body.weight(.medium)).foregroundStyle(.primary)
+                                    ForEach(w.previewLabels(matching: query).filter { $0 != w.displayName }, id: \.self) { preview in
+                                        Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                    Text(w.displayDetail)
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if app.isCurrent(w) { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current workspace") }
+                            }
+                        }
+                        .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
+                        .contextMenu {
+                            Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
+                            Button("Duplicate", systemImage: "plus.square.on.square") { app.duplicate(w) }
+                            if app.isCurrent(w) {
+                                Button("Save Snapshot…", systemImage: "square.and.arrow.down.on.square") { name = w.name; saving = true }
+                                Button("Archive All Tabs", systemImage: "archivebox") { app.archiveAllTabs() }
+                                Menu("Icon", systemImage: WorkspaceIcon.symbol(w.icon)) {
+                                    ForEach(WorkspaceIcon.all, id: \.name) { icon in
+                                        Button(WorkspaceIcon.label(icon.name), systemImage: icon.symbol) { app.setSessionIcon(app.currentSessionId, icon.name) }
+                                    }
+                                    Button("Default") { app.setSessionIcon(app.currentSessionId, nil) }
+                                }
+                            }
+                            if app.canDelete(w) { Button("Delete…", systemImage: "trash", role: .destructive) { deleting = w } }
+                        }
+                    }
+                    if search.isEmpty {
+                        Button { app.newWorkspace(); closeTabs() } label: { Label("New Workspace", systemImage: "plus") }
+                    }
+                } header: {
+                    if !search.isEmpty { Text("Workspaces") }
+                } footer: {
+                    if search.isEmpty { Text("Touch and hold a workspace for more actions.") }
+                }
+            }
+            WorkspaceTabResults(title: "Open Tabs", matches: tabs, onOpen: closeTabs)
         }
         .navigationTitle("Workspaces")
         .scrollDismissesKeyboard(.interactively)
