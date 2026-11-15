@@ -9,10 +9,15 @@ struct DailyNoteCalendar: View {
     @State private var notes: [String: Int] = [:]
     @State private var indexError = false
     @State private var showLocation = false
+    @State private var showMonthPicker = false
     @State private var weekAnchor: Date?
     @AppStorage(DailyNotePreferences.locationKey) private var storedLocation = ""
 
-    private static var calendar: Calendar { DailyNoteDay.localCalendar }
+    private static var calendar: Calendar {
+        var calendar = DailyNoteDay.localCalendar
+        calendar.locale = .autoupdatingCurrent
+        return calendar
+    }
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
 
     private func month(for today: Date) -> Date {
@@ -81,9 +86,7 @@ struct DailyNoteCalendar: View {
                 HStack {
                     Button { step(-1, from: month) } label: { Label("Previous \(period)", systemImage: "chevron.left").labelStyle(.iconOnly) }
                     Spacer()
-                    Text(periodTitle(month: month, week: week)).font(.title2.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .accessibilityAddTraits(.isHeader)
+                    periodHeader(month: month, week: week)
                     Spacer()
                     Button { step(1, from: month) } label: { Label("Next \(period)", systemImage: "chevron.right").labelStyle(.iconOnly) }
                 }
@@ -128,6 +131,31 @@ struct DailyNoteCalendar: View {
             .frame(maxWidth: 420)
             .padding()
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder private func periodHeader(month: Date, week: [Date]) -> some View {
+        let title = Text(periodTitle(month: month, week: week))
+            .font(.title2.weight(.semibold))
+            .multilineTextAlignment(.center)
+        if weekAnchor == nil {
+            Button {
+                showMonthPicker = true
+            } label: {
+                title
+                    .padding(.horizontal, 6)
+                    .frame(minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityHint("Choose a month and year")
+            .help("Jump to Month and Year")
+            .popover(isPresented: $showMonthPicker) {
+                CalendarMonthPicker(date: month, calendar: Self.calendar) { saveMonth($0) }
+            }
+        } else {
+            title.accessibilityAddTraits(.isHeader)
         }
     }
 
@@ -178,6 +206,62 @@ struct DailyNoteCalendar: View {
             if let date { tab.state["month"] = .string(JSString(String(DailyNoteDay.dateKey(date).prefix(7)))) }
             if let selected { tab.state["selected"] = .string(JSString(selected)) }
         }
+    }
+}
+
+private struct CalendarMonthPicker: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var month: Int
+    @State private var year: String
+    let calendar: Calendar
+    let onChoose: (Date) -> Void
+
+    init(date: Date, calendar: Calendar, onChoose: @escaping (Date) -> Void) {
+        self.calendar = calendar
+        self.onChoose = onChoose
+        _month = State(initialValue: calendar.component(.month, from: date))
+        _year = State(initialValue: String(calendar.component(.year, from: date)))
+    }
+
+    private var destination: Date? {
+        guard let year = Int(year.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...9999).contains(year) else { return nil }
+        return calendar.date(from: DateComponents(year: year, month: month, day: 1))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Jump to Month").font(.headline).accessibilityAddTraits(.isHeader)
+            Picker("Month", selection: $month) {
+                ForEach(Array(calendar.standaloneMonthSymbols.enumerated()), id: \.offset) { offset, name in
+                    Text(name).tag(offset + 1)
+                }
+            }
+            .pickerStyle(.menu)
+            TextField("Year", text: $year)
+                .accessibilityLabel("Year")
+                .textFieldStyle(.roundedBorder)
+                #if os(iOS)
+                .keyboardType(.numberPad)
+                #endif
+                .onSubmit(choose)
+            HStack {
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Go", action: choose)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(destination == nil)
+            }
+        }
+        .padding(20)
+        .frame(idealWidth: 300)
+    }
+
+    private func choose() {
+        guard let destination else { return }
+        onChoose(destination)
+        dismiss()
     }
 }
 
