@@ -1069,3 +1069,7 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 > and iPhone Proverbs 8:22–24 earlier); (2) pointing-hand cursor on every enabled control (`BereanMac/ClickableCursor.swift` +
 > `clickableCursor()`; verified with `screencapture -C`); (3) floating verse action bar with scroll clearance (`ScriptureView.selectionBar`,
 > `actionClearance`; verified Mac and iPhone). The 01:44 time box itself was missed by ~20 min because of the usage limit.
+
+### 2026-11-15 Codex continuation
+
+Integrated Claude's `696920c6` checkpoint before publication. Its Lexicon Find implementation is the baseline. Codex added a visible Find button on both platforms, headword and pronunciation matching, consistent matching against expanded BDB notes, and previous/next matching-section navigation. Both Dev builds passed on the integrated branch. Mac Dev verified Command-F focus and H1286 “Berith” advancing from 1/2 to 2/2 sections. The check used the bundled corpus in a Dev process without the library lock. iPhone interaction, occurrence/related-term matching, and visual highlight contrast remain open. The superseded local implementation is preserved on local branch `codex/lexicon-find-local`.

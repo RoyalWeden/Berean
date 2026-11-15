@@ -27,6 +27,8 @@ struct LexiconEntryView: View {
     @State private var visibleOccurrences = 40
     /// ⌘F find inside the entry (original LexiconPanel find bar); highlights matches in the entry's prose.
     @State private var findShown = false
+    @State private var findSection = 0
+    private enum FindSection: Hashable { case headword, gloss, definition, derivation, extended }
     @State private var findQuery = ""
     @FocusState private var findFocused: Bool
     @State private var selectedRenderings: Set<String> = []
@@ -88,7 +90,7 @@ struct LexiconEntryView: View {
     /// BDB notes with grammatical abbreviations expanded (italic, accent) — original LexiconPanel BdbNotesText.
     /// Case- and diacritic-insensitive find highlights.
     private func markFind(_ text: AttributedString) -> AttributedString {
-        let q = findQuery.trimmingCharacters(in: .whitespaces)
+        let q = findQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard findShown, q.count >= 2 else { return text }
         var out = text
         var start = out.startIndex
@@ -99,14 +101,36 @@ struct LexiconEntryView: View {
         return out
     }
 
-    private func findMatchCount(_ e: LexiconEntry) -> Int {
-        let q = findQuery.trimmingCharacters(in: .whitespaces)
-        guard q.count >= 2 else { return 0 }
-        return [displayGloss(e), replaced(e.definition), replaced(e.derivation), replaced(e.extendedDef)].reduce(0) { total, s in
-            var n = 0, from = s.startIndex
-            while let r = s.range(of: q, options: [.caseInsensitive, .diacriticInsensitive], range: from..<s.endIndex) { n += 1; from = r.upperBound }
-            return total + n
+    private func findMatches(_ e: LexiconEntry) -> (sections: [FindSection], count: Int) {
+        let query = findQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard findShown, query.count >= 2 else { return ([], 0) }
+        let pronunciation = [e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")
+        let extended = e.strongsNum.hasPrefix("H") ? BdbNotes.tokens(replaced(e.extendedDef)).map { token in
+            switch token {
+            case .text(let text), .number(let text), .abbr(let text, _): text
+            }
+        }.joined() : replaced(e.extendedDef)
+        let fields: [(FindSection, String)] = [
+            (.headword, e.lemma), (.headword, pronunciation), (.gloss, displayGloss(e)),
+            (.definition, replaced(e.definition)), (.derivation, replaced(e.derivation)), (.extended, extended)
+        ]
+        var sections: [FindSection] = []
+        var count = 0
+        for (section, text) in fields {
+            var start = text.startIndex
+            while let match = text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive], range: start..<text.endIndex) {
+                count += 1
+                if sections.last != section { sections.append(section) }
+                start = match.upperBound
+            }
         }
+        return (sections, count)
+    }
+
+    private func moveFind(_ direction: Int, in sections: [FindSection], proxy: ScrollViewProxy) {
+        guard !sections.isEmpty else { return }
+        findSection = (min(findSection, sections.count - 1) + direction + sections.count) % sections.count
+        proxy.scrollTo(sections[findSection], anchor: .top)
     }
 
     private func bdbText(_ text: String) -> Text {
@@ -176,6 +200,8 @@ struct LexiconEntryView: View {
     }
 
     var body: some View {
+        let matches: (sections: [FindSection], count: Int) = (entry?.strongsNum == strongsId.uppercased() ? entry : nil).map(findMatches) ?? ([], 0)
+        let sections = matches.sections
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -192,22 +218,23 @@ struct LexiconEntryView: View {
                                     entryNavigation
                                 }
                             }
-                            Text(e.lemma).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
-                            Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
+                            Text(markFind(AttributedString(e.lemma))).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
+                            Text(markFind(AttributedString([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")))).foregroundStyle(.secondary)
                         }
+                        .id(FindSection.headword)
                         .contextMenu {
                             Button("Copy \(e.strongsNum)", systemImage: "number") { copyToPasteboard(e.strongsNum) }
                             Button("Copy \(e.strongsNum) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard(entrySummary(e)) }
                             Button("Copy \(e.lemma)", systemImage: "character") { copyToPasteboard(e.lemma) }
                         }
-                        if !e.gloss.isEmpty { linkedText(displayGloss(e), lang: e.strongsNum.first ?? "H").font(.headline).textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }
-                        if !e.definition.isEmpty { section("Definition") { linkedText(replaced(e.definition), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
-                        if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
+                        if !e.gloss.isEmpty { linkedText(displayGloss(e), lang: e.strongsNum.first ?? "H").font(.headline).textSelection(.enabled).environment(\.openURL, lexiconLinkAction).id(FindSection.gloss) }
+                        if !e.definition.isEmpty { section("Definition") { linkedText(replaced(e.definition), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }.id(FindSection.definition) }
+                        if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }.id(FindSection.derivation) }
                         if !e.extendedDef.isEmpty, !compact {
                             if e.strongsNum.hasPrefix("H") {
-                                section("BDB Notes") { bdbText(replaced(e.extendedDef)).textSelection(.enabled) }
+                                section("BDB Notes") { bdbText(replaced(e.extendedDef)).textSelection(.enabled) }.id(FindSection.extended)
                             } else {
-                                section("Extended") { Text(markFind(AttributedString(replaced(e.extendedDef)))).textSelection(.enabled) }
+                                section("Extended") { Text(markFind(AttributedString(replaced(e.extendedDef)))).textSelection(.enabled) }.id(FindSection.extended)
                             }
                         }
                         if !related.isEmpty {
@@ -363,30 +390,34 @@ struct LexiconEntryView: View {
                     scrollPosition.scrollTo(edge: .top)
                 }
             }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if findShown, !compact {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Find in entry", text: $findQuery).textFieldStyle(.plain).focused($findFocused)
-                        .onSubmit {}
-                        .onKeyPress(.escape) { findShown = false; findQuery = ""; return .handled }
-                    if let e = entry, findQuery.trimmingCharacters(in: .whitespaces).count >= 2 {
-                        let n = findMatchCount(e)
-                        Text(n == 1 ? "1 match" : "\(n) matches").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if findShown, !compact {
+                    HStack(spacing: 8) {
+                        TextField("Find in Entry", text: $findQuery).textFieldStyle(.plain).focused($findFocused)
+                            .onSubmit { moveFind(1, in: sections, proxy: proxy) }
+                            .onKeyPress(.escape) { findShown = false; findQuery = ""; return .handled }
+                        if findQuery.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 {
+                            Text(sections.count > 1
+                                 ? "\(min(findSection + 1, sections.count))/\(sections.count) sections"
+                                 : matches.count == 1 ? "1 match" : "\(matches.count) matches")
+                                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                        Button("Previous Matching Section", systemImage: "chevron.up") { moveFind(-1, in: sections, proxy: proxy) }
+                            .disabled(sections.count < 2)
+                        Button("Next Matching Section", systemImage: "chevron.down") { moveFind(1, in: sections, proxy: proxy) }
+                            .disabled(sections.count < 2)
+                        Button("Close Find", systemImage: "xmark") { findShown = false; findQuery = "" }
                     }
-                    Button("Done") { findShown = false; findQuery = "" }.buttonStyle(.borderless)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.interactivePlain)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .glassEffectCompat(interactive: true)
+                    .padding(.horizontal, 16).padding(.vertical, 6)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .glassEffectCompat(interactive: true)
-                .padding(.horizontal, 16).padding(.vertical, 6)
             }
-        }
-        .background {
-            // ⌘F opens the entry find bar (full Lexicon tab only).
-            if !compact {
-                Button("Find in Entry") { findShown = true; findFocused = true }
-                    .keyboardShortcut("f").hidden()
+            .onChange(of: findQuery) {
+                findSection = 0
+                if let first = sections.first { proxy.scrollTo(first, anchor: .top) }
             }
         }
         .toolbar {
@@ -396,7 +427,13 @@ struct LexiconEntryView: View {
                     toolbarAdjacentButton(adjacent.previous, title: "Previous Entry", symbol: "chevron.backward")
                     toolbarAdjacentButton(adjacent.next, title: "Next Entry", symbol: "chevron.forward")
                 }
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button("Find in Entry", systemImage: "text.magnifyingglass") {
+                        findShown = true
+                        findFocused = true
+                    }
+                    .keyboardShortcut("f")
+                    .help("Find in this entry (⌘F)")
                     Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
                         .help("Search the Lexicon")
                 }
