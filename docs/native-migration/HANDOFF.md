@@ -967,3 +967,14 @@ The shared study inspector and Mac Notes layouts now use the exact verse selecti
 The shared Notes inspector has a compact Notes Options menu for Current Passage / All Notes and By Verse / Date Edited / Date Created. It keeps the creation target on the current passage. All Notes shows up to the 500 most recently edited notes, matching the legacy panel cap, and labels the limit when more exist. The sort preference is local. Both Dev builds passed. Mac Dev verified that All Notes surfaced a note from another chapter while Exodus 20:10, 12 remained selected, that Date Created moved an older-edited note ahead of a recently edited note, and that Current Passage returned to the original selection. The Mac Dev sort was left on Date Created. iPhone live interaction and legacy panel search remain open.
 
 The study Notes inspector now filters the active scope by case-insensitive title and body text. A clear button and a no-results state are available without changing selection, scope, or sort. The All Notes search covers the same recent 500 notes as the legacy panel. Both Dev builds passed. Mac Dev verified that searching for “exod 20:11” found the synthetic note by its body, a nonmatching query showed No Results, and Clear restored the list while Exodus 20:10, 12 remained selected. iPhone keyboard and narrow inspector interactions remain to verify.
+
+---
+
+## 2026-11-15 00:05 — Claude Code session start (runs until 01:44)
+
+- Fast-forwarded `/Users/roywe/Berean-native` to Codex's `839a362d` (15 Codex commits after Claude's `6fa6deb7`: My Notes parser +
+  inspector source + Mac chapter menu + verse citation arrows; compact iPhone verse sheet with swatches, Notes/Refs pages, in-sheet
+  note editor, copy feedback; action-bar contrast; Notes inspector exact selection / scope / sort / search). Codex's clone is clean at the same SHA.
+- Plan for this session (in order): (1) do the live checks Codex couldn't — iPhone multi-verse Notes for Selected Verses, iPhone My
+  Notes source, I25 in dark mode / red letters; (2) next open parity items from AUDIT-2026-11-14.md (D16 lexicon find, I17 note-back
+  pill, I18 compare sync scroll, I3 note editor insert menu, I6 tab cards); (3) keep this file updated after every commit.
