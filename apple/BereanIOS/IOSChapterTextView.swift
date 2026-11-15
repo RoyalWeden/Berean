@@ -652,7 +652,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let point = gesture.location(in: view)
             if let verse = verseAtTap(point, in: view) { toggleVerse(verse, in: view); return }
             if let step = edgeStep(point, in: view) {
-                selectionFeedback.selectionChanged()
+                if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true { selectionFeedback.selectionChanged() }
                 parent.onStep(step)
             }
         }
@@ -671,7 +671,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         private func toggleVerse(_ verse: Int, in view: UITextView) {
             view.selectedTextRange = nil
             parent.onVerseTap(verse)
-            selectionFeedback.selectionChanged()
+            if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true { selectionFeedback.selectionChanged() }
         }
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {

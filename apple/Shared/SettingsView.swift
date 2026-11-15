@@ -8,6 +8,9 @@ import BereanCore
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
 
+    /// Same key as the original iPhone app's haptics switch (device-local).
+    @AppStorage("berean.haptics.enabled") private var hapticsEnabled = true
+
     var body: some View {
         @Bindable var app = app
         Form {
@@ -23,6 +26,13 @@ struct SettingsView: View {
             Section("Appearance") {
                 Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented).clickableCursor()
             }
+            #if os(iOS)
+            Section {
+                Toggle("Haptic Feedback", isOn: $hapticsEnabled)
+            } footer: {
+                Text("A light tap when you select verses or turn the chapter.")
+            }
+            #endif
             WorkspacesSettingsSection()
             Section("Keyboard Shortcuts") {
                 ForEach(Self.shortcuts, id: \.0) { k, v in LabeledContent(v) { Text(k).font(.body.monospaced()).foregroundStyle(.secondary) } }
