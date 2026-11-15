@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+struct IOSChapterPull: Equatable {
+    let direction: Int
+    let ready: Bool
+}
+
 /// A chapter is one selectable document. Inline controls participate in UIKit link hit testing
 /// but are excluded from copied text and from persisted highlight offsets.
 struct IOSChapterTextView: UIViewRepresentable {
@@ -30,6 +35,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onTagClick: (String, Int?) -> Void
     var onHighlight: (Piece, String) -> Void
     var onStep: (Int) -> Void
+    var canPullChapter: (Int) -> Bool = { _ in false }
+    var onChapterPull: (IOSChapterPull?) -> Void = { _ in }
     var onPinchPreview: (Double?) -> Void
     var onPinchCommit: (Double) -> Void
     /// Scrolling down hides the reader chrome (passage capsule, dock); scrolling up or reaching the top shows it.
@@ -346,7 +353,52 @@ struct IOSChapterTextView: UIViewRepresentable {
         private var scrollTravel: CGFloat = 0
         private var chromeHidden = false
 
+        private var chapterPull: IOSChapterPull?
+        private let chapterPullThreshold: CGFloat = 68
+
+        private func publishChapterPull(_ pull: IOSChapterPull?) {
+            guard pull != chapterPull else { return }
+            chapterPull = pull
+            parent.onChapterPull(pull)
+            if pull?.ready == true,
+               UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+                selectionFeedback.selectionChanged()
+            }
+        }
+
+        private func trackChapterPull(_ scrollView: UIScrollView) {
+            guard scrollView.isDragging,
+                  let view = scrollView as? UITextView, view.selectedRange.length == 0,
+                  parent.selectedVerses.isEmpty else {
+                if scrollView.isDragging { publishChapterPull(nil) }
+                return
+            }
+            let inset = scrollView.adjustedContentInset
+            let top = -inset.top
+            let bottom = max(top, scrollView.contentSize.height + inset.bottom - scrollView.bounds.height)
+            let offset = scrollView.contentOffset.y
+            let direction = offset < top ? -1 : 1
+            let distance = direction < 0 ? top - offset : offset - bottom
+            guard distance >= 18, parent.canPullChapter(direction) else {
+                publishChapterPull(nil)
+                return
+            }
+            publishChapterPull(IOSChapterPull(direction: direction, ready: distance >= chapterPullThreshold))
+        }
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            publishChapterPull(nil)
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            let requested = chapterPull
+            publishChapterPull(nil)
+            guard let requested, requested.ready, parent.canPullChapter(requested.direction) else { return }
+            parent.onStep(requested.direction)
+        }
+
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            trackChapterPull(scrollView)
             let y = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
             defer { lastScrollY = y }
             // Only user scrolling moves the chrome; programmatic jumps and restores leave it alone.

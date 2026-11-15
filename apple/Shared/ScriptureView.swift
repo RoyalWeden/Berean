@@ -934,6 +934,8 @@ struct ScriptureView: View {
 
     #if os(iOS)
     @State private var pinchFontSize: Double?
+    @State private var chapterPull: IOSChapterPull?
+    @AppStorage("chapterPullNavigation") private var chapterPullNavigation = true
     @ScaledMetric(relativeTo: .body) private var scriptureTypeScale = 1.0
 
     func iosReader(_ st: BibleState, actionClearance: CGFloat) -> some View {
@@ -975,6 +977,8 @@ struct ScriptureView: View {
             },
             onHighlight: { piece, color in highlightRange(piece.verse, piece.start, piece.end, color, st, rv) },
             onStep: { step($0) },
+            canPullChapter: { chapterPullNavigation && canStep($0, from: st) },
+            onChapterPull: { pull in withAnimation(.easeOut(duration: 0.15)) { chapterPull = pull } },
             onPinchPreview: { pinchFontSize = $0 },
             onPinchCommit: { size in
                 if app.fontSize != size { app.fontSize = size }
@@ -986,6 +990,21 @@ struct ScriptureView: View {
             onBookSearch: { app.openBookSearch($0, bookId: st.bookId, textId: st.translation, returningTo: tabId) },
             bookName: Reference.bookName(st.bookId)
         )
+        .overlay(alignment: chapterPull?.direction == -1 ? .top : .bottom) {
+            if let pull = chapterPull {
+                let destination = pull.direction < 0 ? "previous chapter" : "next chapter"
+                Label(pull.ready ? "Release to open \(destination)" : "Pull for \(destination)",
+                      systemImage: pull.direction < 0 ? "chevron.up" : "chevron.down")
+                    .font(.callout.weight(.medium))
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .glassEffectCompat()
+                    .padding(pull.direction < 0 ? .top : .bottom, 16)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: ChapterEdition(st)) { chapterPull = nil }
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet
             afterVerseSheet = nil

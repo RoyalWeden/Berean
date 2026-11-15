@@ -104,6 +104,10 @@ struct ScriptureDisplayOptions: View {
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showRedLetters") private var showRedLetters = true
 
+    #if os(iOS)
+    @AppStorage("chapterPullNavigation") private var chapterPullNavigation = true
+    #endif
+
     var body: some View {
         @Bindable var app = app
         LabeledContent("Text size") {
@@ -130,6 +134,9 @@ struct ScriptureDisplayOptions: View {
         }
         Toggle("Verse numbers", isOn: $showVerseNumbers)
         Toggle("Words of Yeshua in red", isOn: $showRedLetters)
+        #if os(iOS)
+        Toggle("Pull to Change Chapters", isOn: $chapterPullNavigation)
+        #endif
     }
 }
 
