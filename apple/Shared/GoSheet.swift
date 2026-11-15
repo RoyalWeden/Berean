@@ -67,6 +67,7 @@ struct GoSheet: View {
             row("Notes", "note.text", .orange) { app.openNotesHome(newTab: newTab) }
             row("History", "clock", .secondary) { app.openHistory(newTab: newTab) }
             row("Tags", "tag", .secondary) { app.openTags(newTab: newTab) }
+            row("Lexicon", "character.book.closed", .green) { app.openLexiconSearch(newTab: newTab) }
         }
         if !recents.isEmpty {
             Section("Recent") {
@@ -117,6 +118,16 @@ struct GoSheet: View {
                 finish { app.openSearch(query, reuseTab: !newTab) }
             } label: {
                 Label("Search for “\(trimmed)”", systemImage: "magnifyingglass")
+            }
+        }
+        if StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber), trimmed.split(separator: " ").count <= 2 {
+            Section("Lexicon") {
+                Button {
+                    let query = trimmed
+                    finish { app.openLexiconSearch(query, newTab: newTab) }
+                } label: {
+                    Label("Search Lexicon for “\(trimmed)”", systemImage: "character.book.closed")
+                }
             }
         }
     }
