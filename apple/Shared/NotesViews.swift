@@ -997,10 +997,61 @@ struct MarkdownText: View {
         else if t.hasPrefix("## ") { inline(String(t.dropFirst(3))).font(.title2.bold()) }
         else if t.hasPrefix("# ") { inline(String(t.dropFirst(2))).font(.title.bold()) }
         else if t.hasPrefix(">") { HStack(spacing: 8) { RoundedRectangle(cornerRadius: 1).fill(.secondary).frame(width: 3); inline(String(t.drop { $0 == ">" || $0 == " " })).foregroundStyle(.secondary) } }
-        else if t.hasPrefix("- ") || t.hasPrefix("* ") { HStack(alignment: .firstTextBaseline) { Text("•"); inline(String(t.dropFirst(2))) } }
+        else if let item = NotePreviewListItem(line) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let checked = item.checked {
+                    Image(systemName: checked ? "checkmark.square" : "square")
+                        .foregroundStyle(checked ? Color.accentColor : Color.secondary)
+                        .accessibilityLabel(checked ? "Completed" : "Unchecked")
+                } else {
+                    Text(item.marker).monospacedDigit()
+                }
+                inline(item.content)
+            }
+            .padding(.leading, CGFloat(item.indent) * 12)
+        }
         else if t == "---" || t == "***" { Divider() }
         else if t.isEmpty { Spacer().frame(height: 2) }
         else { inline(line) }
+    }
+}
+
+/// Recognizes the list markers kept by both native editors and by imported Markdown notes.
+private struct NotePreviewListItem {
+    let marker: String
+    let content: String
+    let checked: Bool?
+    let indent: Int
+
+    init?(_ line: String) {
+        let whitespace = line.prefix { $0 == " " || $0 == "\t" }
+        let body = line.dropFirst(whitespace.count)
+        guard let split = body.firstIndex(where: { $0 == " " || $0 == "\t" }) else { return nil }
+        let prefix = body[..<split]
+        let unordered = prefix == "-" || prefix == "*" || prefix == "+"
+        let digits = prefix.dropLast()
+        let ordered = !digits.isEmpty && digits.allSatisfy { $0.isASCII && $0.isNumber }
+            && (prefix.last == "." || prefix.last == ")")
+        guard unordered || ordered else { return nil }
+
+        let text = body[split...].drop { $0 == " " || $0 == "\t" }
+        let taskMarker = text.prefix(3).lowercased()
+        let remainder = text.dropFirst(3)
+        if unordered, (taskMarker == "[ ]" || taskMarker == "[x]"),
+           remainder.isEmpty || remainder.first == " " || remainder.first == "\t" {
+            checked = taskMarker == "[x]"
+            content = String(remainder.drop { $0 == " " || $0 == "\t" })
+        } else {
+            checked = nil
+            content = String(text)
+        }
+        marker = unordered ? "•" : String(prefix)
+        indent = min(5, whitespace.reduce(0) { $0 + ($1 == "\t" ? 2 : 1) } / 2)
+    }
+
+    var printMarker: String {
+        if let checked { return checked ? "☑" : "☐" }
+        return marker
     }
 }
 
@@ -1213,8 +1264,9 @@ private enum NotePrintMarkup {
             if trimmed.hasPrefix(">") {
                 return "<blockquote>\(inline(String(trimmed.dropFirst().trimmingCharacters(in: .whitespaces))))</blockquote>"
             }
-            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                return "<p>• \(inline(String(trimmed.dropFirst(2))))</p>"
+            if let item = NotePreviewListItem(line) {
+                let margin = 18 + item.indent * 12
+                return "<p style=\"margin-left: \(margin)pt; text-indent: -18pt\">\(item.printMarker) \(inline(item.content))</p>"
             }
             return "<p>\(inline(line))</p>"
         }
