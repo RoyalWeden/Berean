@@ -1,6 +1,8 @@
 import SwiftUI
 import BereanWorkspace
 import BereanReference
+import BereanText
+import BereanCore
 
 /// Native Settings (Mac Settings window / iPhone sheet): reading preferences stored in the settings table.
 struct SettingsView: View {
@@ -73,6 +75,41 @@ struct ScriptureDisplayOptions: View {
         }
         Toggle("Verse numbers", isOn: $showVerseNumbers)
         Toggle("Words of Yeshua in red", isOn: $showRedLetters)
+    }
+}
+
+/// The current reader tab's annotation key with Hide toggles (original: BiblePanel annotation key / Settings → Display).
+struct ScriptureAnnotationOptions: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        if let tab = app.activeTab, tab.tabType == .bible {
+            let textId = BibleState(tab.state).translation
+            if let keys = AnnotationFilters.keys[textId] {
+                let hidden = Set((tab.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
+                Section {
+                    ForEach(keys) { key in
+                        Toggle(isOn: Binding(get: { !hidden.contains(key.id) }, set: { show in
+                            var next = hidden
+                            if show { next.remove(key.id) } else { next.insert(key.id) }
+                            app.update(tab.id, recordHistory: false) {
+                                $0.state["hiddenAnnotations"] = .array(next.sorted().map { .string(JSString($0)) })
+                            }
+                        })) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(key.symbol).font(.body.monospaced())
+                                Text(key.meaning).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .clickableCursor()
+                    }
+                } header: {
+                    Text("Annotations · \(textInfo(textId).short)")
+                } footer: {
+                    Text("Turn a marker off to hide it in this tab.")
+                }
+            }
+        }
     }
 }
 

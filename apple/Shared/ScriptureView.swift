@@ -290,6 +290,11 @@ struct ScriptureView: View {
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
 
+    /// The tab's `hiddenAnnotations` (same key and shape as the original reader's tab state).
+    var hiddenAnnotations: Set<String> {
+        Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
+    }
+
     var body: some View {
         let st = state
         Group {
@@ -395,10 +400,19 @@ struct ScriptureView: View {
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
             highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
         }
-        .task(id: chapter) {
+        .task(id: "\(chapter)|\(hiddenAnnotations.sorted().joined(separator: ","))") {
             // Psalm superscriptions become the title line above the first body verse (original reader behaviour).
-            let loaded = PsalmSuperscription.apply(await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation),
+            var loaded = PsalmSuperscription.apply(await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation),
                                                    textId: st.translation, bookId: st.bookId, chapter: st.chapter)
+            let hidden = hiddenAnnotations
+            if !hidden.isEmpty {
+                loaded = loaded.map { row in
+                    var r = row
+                    r.text = AnnotationFilters.strip(r.text, textId: st.translation, hidden: hidden)
+                    if let t = r.textTagged { r.textTagged = AnnotationFilters.stripTagged(t, textId: st.translation, hidden: hidden) }
+                    return r
+                }
+            }
             let destination = state
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
             noteCounts = [:]
@@ -910,7 +924,7 @@ struct ScriptureView: View {
             .pointerStyle(.link)
             .help("Adjust Scripture font, spacing and width")
             .popover(isPresented: $displayOptionsShown, arrowEdge: .bottom) {
-                Form { ScriptureDisplayOptions() }
+                Form { ScriptureDisplayOptions(); ScriptureAnnotationOptions() }
                     .formStyle(.grouped)
                     .frame(width: 360)
                     .fixedSize(horizontal: false, vertical: true)

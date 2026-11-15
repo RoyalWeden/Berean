@@ -52,7 +52,7 @@ struct IOSRootView: View {
         }
         .sheet(isPresented: $showScriptureDisplay) {
             NavigationStack {
-                Form { ScriptureDisplayOptions() }
+                Form { ScriptureDisplayOptions(); ScriptureAnnotationOptions() }
                     .navigationTitle("Scripture Display")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
