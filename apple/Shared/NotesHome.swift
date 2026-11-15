@@ -140,7 +140,7 @@ struct NotesHomeView: View {
                     Button("Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) }
                     Button("New Folder", systemImage: "folder.badge.plus") { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) }
                     Divider()
-                    viewOptions
+                    Button("Import Markdown…") { app.importMarkdownFiles() }
                 } label: { Label("More", systemImage: "ellipsis") }
             }
             #else
@@ -148,8 +148,6 @@ struct NotesHomeView: View {
                 if location != nil {
                     Button { go(parentLocation) } label: { Label("Back", systemImage: "chevron.backward") }.help("Back to \(Self.title(parentLocation, folders))")
                 }
-                Menu { viewOptions } label: { Label("View Options", systemImage: "line.3.horizontal.decrease.circle") }
-                    .menuIndicator(.hidden).help("Sort, group, import")
                 // Tap: today's note. Right-click: the calendar — original Notes home "Today".
                 Button { app.openTodayDailyNote() } label: { Label("Today's Note", systemImage: "calendar") }
                     .contextMenu { Button("Open Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) } }
@@ -251,43 +249,50 @@ struct NotesHomeView: View {
                     .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
             }
             Menu {
-                if hasFolderScope {
-                    Picker("Search Scope", selection: $browseOptions.searchEverywhere) {
-                        Text("This Folder").tag(false)
-                        Text("All Notes").tag(true)
+                Section("View") { viewOptions }
+                Section("Search and Filters") {
+                    if hasFolderScope {
+                        Picker("Search Scope", selection: $browseOptions.searchEverywhere) {
+                            Text("This Folder").tag(false)
+                            Text("All Notes").tag(true)
+                        }
+                    }
+                    Picker("Match", selection: $browseOptions.searchMode) {
+                        Text("All Words").tag(NotesWordMode.all)
+                        Text("Any Word").tag(NotesWordMode.any)
+                        Text("Exact Phrase").tag(NotesWordMode.phrase)
+                    }
+                    Picker("Type", selection: $browseOptions.typeFilter) {
+                        ForEach(NoteTypeFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    Picker("Status", selection: $browseOptions.statusFilter) {
+                        Text("All Statuses").tag("all")
+                        Text("No Status").tag("no-status")
+                        ForEach(Self.statuses, id: \.id) { Text($0.label).tag($0.id) }
+                    }
+                    if hasFilters || browseOptions.searchMode != .all || browseOptions.searchEverywhere {
+                        Button("Reset Search Options") {
+                            browseOptions.typeFilter = .all
+                            browseOptions.statusFilter = "all"
+                            browseOptions.searchMode = .all
+                            browseOptions.searchEverywhere = false
+                        }
                     }
                 }
-                Picker("Match", selection: $browseOptions.searchMode) {
-                    Text("All Words").tag(NotesWordMode.all)
-                    Text("Any Word").tag(NotesWordMode.any)
-                    Text("Exact Phrase").tag(NotesWordMode.phrase)
-                }
-                Picker("Type", selection: $browseOptions.typeFilter) {
-                    ForEach(NoteTypeFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }
-                Picker("Status", selection: $browseOptions.statusFilter) {
-                    Text("All Statuses").tag("all")
-                    Text("No Status").tag("no-status")
-                    ForEach(Self.statuses, id: \.id) { Text($0.label).tag($0.id) }
-                }
-                if hasFilters || browseOptions.searchMode != .all || browseOptions.searchEverywhere {
-                    Button("Reset Search Options") {
-                        browseOptions.typeFilter = .all
-                        browseOptions.statusFilter = "all"
-                        browseOptions.searchMode = .all
-                        browseOptions.searchEverywhere = false
-                    }
-                }
+                #if os(macOS)
+                Button("Import Markdown…") { app.importMarkdownFiles() }
+                #endif
             } label: {
                 Image(systemName: hasFilters || browseOptions.searchMode != .all || (hasFolderScope && browseOptions.searchEverywhere)
                       ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    .frame(minWidth: 28, minHeight: 28)
+                    .frame(minWidth: 36, minHeight: 36)
             }
             #if os(macOS)
             .menuStyle(.borderlessButton).clickableCursor()
             #endif
             .menuIndicator(.hidden)
-            .accessibilityLabel("Notes Search Options")
+            .accessibilityLabel("Notes Options")
+            .help("Sort, group, and filter notes")
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
@@ -396,6 +401,8 @@ struct NotesHomeView: View {
     func locationRow(_ loc: String, _ name: String, _ symbol: String, _ n: Int) -> some View {
         Button { go(loc) } label: {
             HStack { Label(name, systemImage: symbol); Spacer(); Text("\(n)").foregroundStyle(.secondary).monospacedDigit(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
+                .font(.body)
+                .frame(minHeight: 36)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
@@ -409,7 +416,10 @@ struct NotesHomeView: View {
                 Spacer()
                 Text("\(count(f.id))").foregroundStyle(.secondary).monospacedDigit()
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-            }.contentShape(.rect)
+            }
+            .font(.body)
+            .frame(minHeight: 36)
+            .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
         .contextMenu {
@@ -577,15 +587,9 @@ struct NotesHomeView: View {
 
     @ViewBuilder private var viewOptions: some View {
         Picker("Sort", selection: $sort) { Text("Date Edited").tag("modified"); Text("Date Created").tag("created"); Text("Title").tag("name") }
-            #if os(iOS)
-            .pickerStyle(.menu)   // compact submenus on iPhone
-            #endif
-        Picker("Group", selection: $grouping) { Text("By Date").tag("none"); Text("By Status").tag("status"); Text("By Folder").tag("folder"); Text("By Type").tag("type") }
-            #if os(iOS)
             .pickerStyle(.menu)
-            #endif
-        Divider()
-        Button("Import Markdown…") { app.importMarkdownFiles() }
+        Picker("Group", selection: $grouping) { Text("By Date").tag("none"); Text("By Status").tag("status"); Text("By Folder").tag("folder"); Text("By Type").tag("type") }
+            .pickerStyle(.menu)
     }
 
     /// A daily note reads as its long date ("Sabbath, November 14, 2026"); others use their title.
@@ -659,10 +663,10 @@ struct NotesHomeView: View {
                     .transition(.move(edge: .leading).combined(with: .opacity))
                     .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
                     if n.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange) }
-                    Text(Self.rowTitle(n)).font(.body.weight(.semibold)).lineLimit(1)
+                    Text(Self.rowTitle(n)).font(.headline).lineLimit(1)
                     Spacer()
                     if let st = Self.statuses.first(where: { $0.id == n.status }) {
                         Text(st.label).font(.caption2.weight(.medium)).foregroundStyle(st.color).padding(.horizontal, 6).padding(.vertical, 1).background(st.color.opacity(0.15), in: .capsule)
@@ -670,13 +674,14 @@ struct NotesHomeView: View {
                 }
                 HStack(spacing: 6) {
                     Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
-                    Text(preview(n)).font(.caption).foregroundStyle(.secondary).lineLimit(searchRequest.text.isEmpty ? 1 : 2)
+                    Text(preview(n)).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                 }
                 if location == "all" || location == nil || !browseOptions.query.isEmpty, let f = n.folderId.flatMap({ id in folders.first { $0.id == id } }) {
                     Label(f.name, systemImage: "folder").font(.caption2).foregroundStyle(.tertiary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 5)
             }
             .contentShape(.rect)
         }
