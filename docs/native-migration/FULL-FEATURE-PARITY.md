@@ -52,7 +52,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links and wikilinks clickable; Scripture refs in plain text not auto-linked |
 | N07 | Autosave | implemented | ✅ | ✅ | — | 600 ms autosave + snapshots on idle/leave/close |
 | N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet with a compact iPhone selector and full-width preview; restore with pre-restore snapshot (golden); undo via text system |
-| N09 | Export, import, print | implemented | ✅ | 🟡 | — | Markdown export, import and copy; system note printing with formatted Markdown. Mac print preview verified; live iPhone print and Files checks remain. |
+| N09 | Export, import, print | implemented | ✅ | 🟡 | — | Markdown export, import and copy; system note printing with formatted Markdown. System print preview verified on Mac and iPhone Simulator; Files and multipage output checks remain. |
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
 | N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes home supports folder navigation, sort/group, pin/trash/restore and scoped search. Board and advanced appearance parity remain. |
 | N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have month and week grids, direct month/year navigation, and a scrollable daily-note timeline with previews and calendar return. Date-to-note navigation uses the legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
@@ -436,7 +436,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Mac sandbox build; iPhone share sheet.
 - **Original files:** `src/lib/noteMarkdownFile.ts`, `src/platform/ios/exportNotes.ts`, `electron/main.ts` (`app:printNote`, `app:exportNotePDF`, `app:renderPreviewPDF`), `src/components/notes/PrintPreviewModal.tsx`, `BereanPrintPlugin.swift`, `src/lib/{notePreviewRender,idiomsExport}.ts`.
 - **Known original defects:** Two serializers can drift.
-- **Native Mac / iPhone:** ✅ / 🟡 — Markdown export, import and copy; system note printing with formatted Markdown. Mac print preview verified; live iPhone print and Files checks remain.
+- **Native Mac / iPhone:** ✅ / 🟡 — Markdown export, import and copy; system note printing with formatted Markdown. System print preview verified on Mac and iPhone Simulator; Files and multipage output checks remain.
 - **Native files:** NoteFileTransfer.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
