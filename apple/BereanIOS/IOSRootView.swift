@@ -170,6 +170,7 @@ struct IOSRootView: View {
         .offset(y: app.readerChromeHidden ? 110 : 0)
         .opacity(app.readerChromeHidden ? 0 : 1)
         .allowsHitTesting(!app.readerChromeHidden)
+        .accessibilityHidden(app.readerChromeHidden)
         .frame(maxWidth: .infinity)
     }
 

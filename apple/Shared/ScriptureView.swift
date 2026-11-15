@@ -1255,6 +1255,7 @@ struct ScriptureView: View {
                 .opacity(app.readerChromeHidden ? 0 : 1)
                 .offset(y: app.readerChromeHidden ? -12 : 0)
                 .allowsHitTesting(!app.readerChromeHidden)
+                .accessibilityHidden(app.readerChromeHidden)
                 .sheet(isPresented: $pickerShown) {
                     NavigationStack {
                         picker(st, compact: true)
@@ -2011,11 +2012,34 @@ private extension View {
 
 private struct ReaderGlassCapsule: ViewModifier {
     let interactive: Bool
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     #if os(iOS)
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     #endif
 
-    func body(content: Content) -> some View {
+    @ViewBuilder func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(opaqueBackground, in: .capsule)
+                .overlay {
+                    Capsule().strokeBorder(.primary.opacity(0.18))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+        } else {
+            glassSurface(content)
+        }
+    }
+
+    private var opaqueBackground: Color {
+        #if os(iOS)
+        Color(uiColor: .systemBackground)
+        #else
+        Color(nsColor: .windowBackgroundColor)
+        #endif
+    }
+
+    @ViewBuilder private func glassSurface(_ content: Content) -> some View {
         #if os(iOS)
         if verticalSizeClass == .compact {
             content.background(.regularMaterial, in: .capsule)
