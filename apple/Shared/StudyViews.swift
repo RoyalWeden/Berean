@@ -249,7 +249,7 @@ struct LexiconEntryView: View {
         if !gloss.isEmpty { Button("Copy \(id) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard("Strong's \(id) — \(gloss)") } }
     }
 
-    /// "H1285 בְּרִית (bᵉrîyth) — confederacy, …" — original "Copy number and definition".
+    /// Short form for Copy with Gloss.
     private func entrySummary(_ e: LexiconEntry) -> String {
         let translit = e.transliteration.isEmpty ? "" : " (\(e.transliteration))"
         let gloss = displayGloss(e)
@@ -294,10 +294,9 @@ struct LexiconEntryView: View {
                                 HStack {
                                     Text(e.strongsNum).font(.caption.monospaced()).foregroundStyle(.secondary)
                                     Spacer()
-                                    Button { copyToPasteboard(entrySummary(e)) } label: {
-                                        Image(systemName: "doc.on.doc").frame(width: entryControlHeight, height: entryControlHeight).contentShape(.rect)
-                                    }
-                                    .buttonStyle(.interactivePlain).accessibilityLabel("Copy \(e.strongsNum) and gloss").help("Copy \(e.strongsNum) and gloss")
+                                    copyEntryButton(e)
+                                        .labelStyle(.iconOnly)
+                                        .buttonStyle(.interactivePlain)
                                     entryGuideButton
                                     entryNavigation
                                 }
@@ -307,6 +306,7 @@ struct LexiconEntryView: View {
                         }
                         .id(FindSection.headword)
                         .contextMenu {
+                            copyEntryButton(e)
                             Button("Copy \(e.strongsNum)", systemImage: "number") { copyToPasteboard(e.strongsNum) }
                             Button("Copy \(e.strongsNum) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard(entrySummary(e)) }
                             Button("Copy \(e.lemma)", systemImage: "character") { copyToPasteboard(e.lemma) }
@@ -535,6 +535,9 @@ struct LexiconEntryView: View {
                     .help("Find in this entry (⌘F)")
                     Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
                         .help("Search the Lexicon")
+                    if let entry, entry.strongsNum == strongsId.uppercased() {
+                        copyEntryButton(entry)
+                    }
                     entryGuideButton
                 }
             }
@@ -686,6 +689,17 @@ struct LexiconEntryView: View {
         #else
         .hoverEffect(.highlight)
         #endif
+    }
+
+    private func copyEntryButton(_ entry: LexiconEntry) -> some View {
+        Button {
+            copyToPasteboard(entry.dictionaryCopyText)
+        } label: {
+            Label("Copy Strong’s Number and Definition", systemImage: "doc.on.doc")
+                .frame(minWidth: compact ? entryControlHeight : nil, minHeight: compact ? entryControlHeight : nil)
+                .contentShape(.rect)
+        }
+        .help("Copy Strong’s number and definition")
     }
 
     private var entryGuideButton: some View {
