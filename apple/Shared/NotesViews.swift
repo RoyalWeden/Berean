@@ -537,7 +537,7 @@ struct NoteDetailView: View {
                     .accessibilityLabel("Share note")
                     .help("Export, copy or share this note as Markdown")
                     Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
-                    Button(role: .destructive) { try? app.notes?.delete(note.id); app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
+                    Button(role: .destructive) { app.attempt("Couldn’t move the note to Trash") { try app.notes?.delete(note.id) }; app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
         }

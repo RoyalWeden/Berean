@@ -186,7 +186,7 @@ struct HistoryView: View {
             ToolbarItem { Button("Clear History…", role: .destructive) { confirmClear = true }.disabled(entries.isEmpty).clickableCursor(!entries.isEmpty) }
         }
         .confirmationDialog("Clear all history on this device?", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("Clear History", role: .destructive) { try? app.historyService?.clear(); load() }
+            Button("Clear History", role: .destructive) { app.attempt("Couldn’t clear history") { try app.historyService?.clear() }; load() }
         } message: { Text("Your notes, highlights and tabs are not affected.") }
         .task(id: app.historyRevision) {
             load()

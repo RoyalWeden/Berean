@@ -572,7 +572,7 @@ struct NotesHomeView: View {
         .contextMenu { noteMenu(n) }
         #if os(iOS)
         .swipeActions(edge: .leading) { Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }.tint(.orange) }
-        .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { try? app.notes?.delete(n.id) } }
+        .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { app.attempt("Couldn’t move the note to Trash") { try app.notes?.delete(n.id) } } }
         #endif
     }
 
@@ -592,7 +592,7 @@ struct NotesHomeView: View {
         Button("Duplicate") { _ = try? app.notes?.create(.init(type: n.type, title: n.title + " copy", content: n.content, verseRef: n.verseRef, color: n.color, tags: n.tags, folderId: n.folderId)) }
         Button("Export as Markdown…") { app.exportNote(n.id) }
         Divider()
-        Button("Move to Trash", role: .destructive) { try? app.notes?.delete(n.id) }
+        Button("Move to Trash", role: .destructive) { app.attempt("Couldn’t move the note to Trash") { try app.notes?.delete(n.id) } }
     }
 
     // MARK: trash
@@ -610,11 +610,11 @@ struct NotesHomeView: View {
                         Text("Deleted \(n.deletedAt.map { Self.dateLabel($0) } ?? "")").font(.caption).foregroundStyle(.secondary)
                     }
                     .contextMenu {
-                        Button("Restore") { try? app.notes?.restore(n.id) }
+                        Button("Restore") { app.attempt("Couldn’t restore the note") { try app.notes?.restore(n.id) } }
                         Button("Delete Permanently", role: .destructive) { _ = try? app.notes?.purgeTrashItem(n.id) }
                     }
                     #if os(iOS)
-                    .swipeActions(edge: .leading) { Button("Restore") { try? app.notes?.restore(n.id) }.tint(.blue) }
+                    .swipeActions(edge: .leading) { Button("Restore") { app.attempt("Couldn’t restore the note") { try app.notes?.restore(n.id) } }.tint(.blue) }
                     .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { _ = try? app.notes?.purgeTrashItem(n.id) } }
                     #endif
                 }

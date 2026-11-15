@@ -1148,7 +1148,7 @@ struct ScriptureView: View {
                 ?? m.wholeChapters.contains { $0.bookId == bookId && $0.chapter == chapter }
         }
         ForEach(members) { m in
-            Button("Remove “\(m.label)” from #\(tag.name)", role: .destructive) { try? app.verseTags?.removeMember(m.memberId) }
+            Button("Remove “\(m.label)” from #\(tag.name)", role: .destructive) { app.attempt("Couldn’t remove the verse from the tag") { try app.verseTags?.removeMember(m.memberId) } }
         }
         Button("Search #\(tag.name)") { app.openSearch("#\(tag.name)", reuseTab: true) }
     }
@@ -1471,7 +1471,7 @@ extension ScriptureView {
                 verse.map { v in mem.verses.contains { $0.bookId == st.bookId && $0.chapter == st.chapter && $0.verse == v } }
                     ?? mem.wholeChapters.contains { $0.bookId == st.bookId && $0.chapter == st.chapter }
             }
-            for mem in members { m.addItem(ClosureMenuItem("Remove “\(mem.label)” from #\(name)") { try? app.verseTags?.removeMember(mem.memberId) }) }
+            for mem in members { m.addItem(ClosureMenuItem("Remove “\(mem.label)” from #\(name)") { app.attempt("Couldn’t remove the verse from the tag") { try app.verseTags?.removeMember(mem.memberId) } }) }
         }
         m.addItem(ClosureMenuItem("Search #\(name)", image: "magnifyingglass") { app.openSearch("#\(name)", reuseTab: true) })
         return m
