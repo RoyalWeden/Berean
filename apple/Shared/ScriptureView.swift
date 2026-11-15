@@ -1066,9 +1066,8 @@ struct ScriptureView: View {
         ForEach(highlightColors, id: \.self) { color in
             Button(color.capitalized, systemImage: "circle.fill") {
                 onComplete()
-                for row in selectedRows {
-                    try? app.highlights?.setVerseColor(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
-                                                      color: color, textId: st.translation)
+                app.highlightVerses(selectedRows, color: color, textID: st.translation) {
+                    copySelection(st, plain: false)
                 }
             }
         }
@@ -1493,10 +1492,7 @@ struct ScriptureView: View {
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 0)], spacing: 4) {
             ForEach(highlightColors, id: \.self) { color in
                 Button {
-                    app.attempt("Couldn’t highlight the verse") {
-                        try app.highlights?.setVerseColor(bookId: verse.bookId, chapter: verse.chapter,
-                                                          verse: verse.verseNum, color: color, textId: state.translation)
-                    }
+                    app.highlightVerses([verse], color: color, textID: state.translation) { copy(verse, state) }
                 } label: {
                     Circle()
                         .fill(Color.highlight(color).opacity(0.72))
@@ -1842,7 +1838,16 @@ extension ScriptureView {
         guard let row = verses.first(where: { $0.verseNum == verse }), let shown = rv.first(where: { $0.verse == verse })?.displayText else { return }
         let o = OffsetMap.displayToOriginal(display: shown, original: row.text, offsets: [a, b])
         guard o.count == 2, o[1] > o[0] else { return }
-        _ = try? app.highlights?.toggle(bookId: row.bookId, chapter: row.chapter, verse: verse, color: color, textId: st.translation, startChar: o[0], endChar: o[1])
+        guard let highlights = app.highlights else { return }
+        app.attempt("Couldn’t highlight the selection") {
+            let change = try highlights.toggle(bookId: row.bookId, chapter: row.chapter, verse: verse,
+                                               color: color, textId: st.translation, startChar: o[0], endChar: o[1])
+            guard app.autoCopyOnHighlight else { return }
+            switch change {
+            case .created, .updated: copy(row, st)
+            case .removed: break
+            }
+        }
     }
 
 }
@@ -1933,7 +1938,11 @@ extension ScriptureView {
         m.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy(referenceForCopy(label, textId: st.translation)) })
         let hl = NSMenuItem(title: "Highlight", action: nil, keyEquivalent: ""); hl.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
         let sub = NSMenu()
-        for c in highlightColors { sub.addItem(ClosureMenuItem(c.capitalized) { try? app.highlights?.setVerseColor(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) }) }
+        for color in highlightColors {
+            sub.addItem(ClosureMenuItem(color.capitalized) {
+                app.highlightVerses([v], color: color, textID: st.translation) { copy(v, st) }
+            })
+        }
         sub.addItem(.separator())
         sub.addItem(ClosureMenuItem("Remove Highlights") { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })
         hl.submenu = sub; m.addItem(hl)

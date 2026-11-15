@@ -174,6 +174,7 @@ final class AppModel {
     /// The existing apps' `scriptureFontFamily` setting ('system' = the platform UI font).
     var scriptureFontFamily = "system" { didSet { saveSetting("scriptureFontFamily", .string(JSString(scriptureFontFamily))) } }
     var noteVerseRefsEnabled = true { didSet { saveSetting("noteVerseRefsEnabled", .bool(noteVerseRefsEnabled)) } }
+    var autoCopyOnHighlight = false { didSet { saveSetting("autoCopyOnHighlight", .bool(autoCopyOnHighlight)) } }
     var confirmNoteDelete = false { didSet { saveSetting("confirmNoteDelete", .bool(confirmNoteDelete)) } }
     var noteSpellCheck = true { didSet { saveSetting("noteSpellCheck", .bool(noteSpellCheck)) } }
     var defaultNoteStatus = "none" { didSet { saveSetting("defaultNoteStatus", .string(JSString(defaultNoteStatus))) } }
@@ -258,6 +259,7 @@ final class AppModel {
         if let v = all["theme"]?.stringValue?.string { theme = v }
         if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
         if let v = all["noteVerseRefsEnabled"]?.boolValue { noteVerseRefsEnabled = v }
+        if let v = all["autoCopyOnHighlight"]?.boolValue { autoCopyOnHighlight = v }
         if let v = all["confirmNoteDelete"]?.boolValue { confirmNoteDelete = v }
         if let v = all["noteSpellCheck"]?.boolValue { noteSpellCheck = v }
         if let v = all["defaultNoteStatus"]?.stringValue?.string, !v.isEmpty { defaultNoteStatus = v }
@@ -327,6 +329,17 @@ final class AppModel {
     /// Runs a user-initiated change and reports a failure instead of swallowing it (audit: silent `try?`).
     func attempt(_ failure: String, _ body: () throws -> Void) {
         do { try body() } catch { userMessage = "\(failure) (\(error.localizedDescription))" }
+    }
+
+    func highlightVerses(_ rows: [ChapterVerseRow], color: String, textID: String, copy: () -> Void) {
+        guard let highlights, !rows.isEmpty else { return }
+        attempt("Couldn’t highlight the verses") {
+            for row in rows {
+                try highlights.setVerseColor(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                             color: color, textId: textID)
+            }
+            if autoCopyOnHighlight { copy() }
+        }
     }
 
     func setSessionIcon(_ id: String, _ icon: String?) {

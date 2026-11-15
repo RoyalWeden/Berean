@@ -57,6 +57,7 @@ struct SettingsView: View {
                 Text("Roberts–Donaldson").tag(HermasText.robertsDonaldson)
             }
             ScriptureDisplayOptions()
+            Toggle("Copy Verses When Highlighting", isOn: $app.autoCopyOnHighlight)
             Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
             #if os(macOS)
             Picker("Layout for new Scripture tabs", selection: $defaultLayout) {

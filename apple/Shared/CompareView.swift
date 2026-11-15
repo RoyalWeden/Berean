@@ -769,7 +769,7 @@ struct CompareView: View {
     }
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
         let reference = comparisonVerseReference(row, column: column)
-        Button("Copy Verse", systemImage: "doc.on.doc") {
+        let copyVerse = {
             let visible = row.hidingTextAnnotations(hiddenAnnotations, textId: column.text)
             let text = VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: column.text,
                                          replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules,
@@ -777,6 +777,7 @@ struct CompareView: View {
             Clipboard.copy("\(reference) \(text)")
             AccessibilityNotification.Announcement("Verse copied").post()
         }
+        Button("Copy Verse", systemImage: "doc.on.doc", action: copyVerse)
         Button("Copy Reference", systemImage: "number") {
             Clipboard.copy(reference)
             AccessibilityNotification.Announcement("Reference copied").post()
@@ -791,8 +792,7 @@ struct CompareView: View {
         Menu("Highlight Verse", systemImage: "highlighter") {
             ForEach(highlightColors, id: \.self) { color in
                 Button(color.capitalized, systemImage: "circle.fill") {
-                    try? app.highlights?.setVerseColor(bookId: row.bookId, chapter: row.chapter,
-                                                       verse: row.verseNum, color: color, textId: column.text)
+                    app.highlightVerses([row], color: color, textID: column.text, copy: copyVerse)
                 }
             }
         }

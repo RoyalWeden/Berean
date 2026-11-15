@@ -1066,3 +1066,8 @@
 
 - The editor and Notes list can ask before moving notes with content to Trash, including bulk actions and iPhone swipe. The preference defaults to off and uses the existing setting name.
 - Both Dev builds and all 132 tests passed. Mac scratch QA verified the editor prompt and Cancel.
+
+### 2026-11-15 — I19 — Copy verses when highlighting
+
+- Added the optional copy-on-highlight setting to Reading on Mac and iPhone. Scripture and Compare use their existing verse-copy formatting.
+- Both Dev builds and 132 tests passed. Live Mac scratch QA verified the clipboard contained Romans 8:1–2 and both displayed verses after applying a color.
