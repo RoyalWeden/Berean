@@ -165,6 +165,8 @@ struct CompareView: View {
     @State private var lastScrolledColumn: Int?
     @State private var alignedVersesAboveTop: Set<Int> = []
     @State private var pendingAlignedVerse: Int?
+    @State private var sharedScrollPosition = ScrollPosition()
+    @State private var restoredSharedScrollKey: String?
     #if os(macOS)
     @State private var columnDragToken = UUID()
     @State private var columnDropTarget: Int?
@@ -206,7 +208,10 @@ struct CompareView: View {
                       !syncScrolling || !cols.allSatisfy({ $0.follows(st) }) {
                 independentPanes(cols, compact: geometry.size.width < CGFloat(cols.count) * 260)
             } else if !cols.allSatisfy({ $0.follows(st) }) {
-                ScrollView { independentComparison(cols) }
+                let key = "stacked|" + passage
+                restoredCompareScroll(key: key) {
+                    independentComparison(cols)
+                }
             } else {
                 alignedComparison(st, cols)
             }
@@ -229,6 +234,7 @@ struct CompareView: View {
             lastScrolledColumn = nil
             alignedVersesAboveTop = []
             pendingAlignedVerse = nil
+            restoredSharedScrollKey = nil
         }
         #if os(iOS)
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -505,9 +511,9 @@ struct CompareView: View {
     }
 
     private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                // Side-by-side columns when each gets ~280 pt (MAC-UI-039: ViewThatFits always chose stacked).
+        let key = "aligned|" + passageKey(state, columns)
+        return ScrollViewReader { proxy in
+            restoredCompareScroll(key: key, preferringVerse: pendingAlignedVerse != nil) {
                 if prefersStackedComparison || compareWidth < CGFloat(columns.count) * 280 + 60 {
                     stackedComparison(state, columns)
                 } else {
@@ -515,19 +521,41 @@ struct CompareView: View {
                 }
             }
             .coordinateSpace(name: "aligned-compare")
-            .onChange(of: state.verse, initial: true) {
+            .onChange(of: state.verse, initial: true) { previous, current in
                 if let restored = pendingAlignedVerse {
                     pendingAlignedVerse = nil
                     proxy.scrollTo(restored, anchor: .top)
                     return
                 }
+                if previous == current, app.compareScrollOffsets[tabId]?[key] != nil { return }
                 let selectedHere = localVerseSelection != nil && localVerseSelection == state.verse
                 localVerseSelection = nil
-                if !selectedHere, let verse = state.verse {
+                if !selectedHere, let verse = current {
                     proxy.scrollTo(verse, anchor: .top)
                 }
             }
         }
+    }
+
+    private func restoredCompareScroll<Content: View>(key: String, preferringVerse: Bool = false,
+                                                      @ViewBuilder content: () -> Content) -> some View {
+        ScrollView(content: content)
+            .scrollPosition($sharedScrollPosition)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+            } action: { _, offset in
+                guard app.activeTab?.id == tabId, restoredSharedScrollKey == key else { return }
+                app.compareScrollOffsets[tabId, default: [:]][key] = offset
+            }
+            .task(id: key) {
+                restoredSharedScrollKey = nil
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                if !preferringVerse, let offset = app.compareScrollOffsets[tabId]?[key] {
+                    sharedScrollPosition.scrollTo(y: offset)
+                }
+                restoredSharedScrollKey = key
+            }
     }
 
     private func trackAlignedVerse(_ verse: Int, aboveTop: Bool) {
@@ -572,7 +600,9 @@ struct CompareView: View {
                         }
                         .id(column.label)
                         .task(id: column.historyKey) {
-                            guard let verse = independentVisibleVerses[column.id] else { return }
+                            let key = columnScrollKey(column, columns: columns)
+                            guard let verse = independentVisibleVerses[column.id]
+                                    ?? app.compareColumnScrollVerses[tabId]?[key] else { return }
                             await Task.yield()
                             guard !Task.isCancelled else { return }
                             proxy.scrollTo(verse, anchor: .top)
@@ -597,6 +627,10 @@ struct CompareView: View {
     private func independentPosition(for column: CompareColumn, in columns: [CompareColumn]) -> Binding<Int?> {
         Binding(get: { independentVisibleVerses[column.id] }, set: { verse in
             independentVisibleVerses[column.id] = verse
+            if app.activeTab?.id == tabId, let verse {
+                let key = columnScrollKey(column, columns: columns)
+                app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
+            }
             guard syncScrolling, scrollingColumn == column.id, let verse else { return }
             for destination in columns where destination.id != column.id {
                 guard let match = correspondingVerse(verse, in: destination) else { continue }
@@ -605,6 +639,10 @@ struct CompareView: View {
                 }
             }
         })
+    }
+
+    private func columnScrollKey(_ column: CompareColumn, columns: [CompareColumn]) -> String {
+        passageKey(state, columns) + "|column:\(column.id)"
     }
 
     private func correspondingVerse(_ verse: Int, in column: CompareColumn) -> Int? {

@@ -1119,3 +1119,7 @@
 ### 2026-11-15 — Compare column chapter controls
 
 - Mac and iPhone Compare chapter actions now use the installed chapters and disable unavailable directions. Both Dev builds passed, and Mac QA verified the independent LXX chapter round trip.
+
+### 2026-11-15 — Compare scroll restoration
+
+- Compare remembers shared scroll offsets and separate column verse positions while the app is open. Both Dev builds passed. Mac scratch QA verified the viewport on a tab switch and after opening Scripture and using Back.

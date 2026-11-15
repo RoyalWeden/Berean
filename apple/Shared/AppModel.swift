@@ -554,6 +554,8 @@ final class AppModel {
     }
 
     func close(_ tabId: String) {
+        compareScrollOffsets.removeValue(forKey: tabId)
+        compareColumnScrollVerses.removeValue(forKey: tabId)
         studyVerseFocus.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
         let wasActive = activeTab?.id == tabId
@@ -687,6 +689,8 @@ final class AppModel {
     }
 
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
+    @ObservationIgnored var compareScrollOffsets: [String: [String: CGFloat]] = [:]
+    @ObservationIgnored var compareColumnScrollVerses: [String: [String: Int]] = [:]
     @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
     /// Lexicon tab id → last search (query, language). In memory only: not written to tab state.
     @ObservationIgnored var lexiconSearches: [String: (query: String, lang: String)] = [:]
