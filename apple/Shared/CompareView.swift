@@ -143,8 +143,12 @@ struct CompareView: View {
     @State private var tagging: VerseTagTarget?
     @State private var independentVisibleVerses: [Int: Int] = [:]
     @State private var scrollingColumn: Int?
+    @State private var lastScrolledColumn: Int?
+    @State private var alignedVersesAboveTop: Set<Int> = []
+    @State private var pendingAlignedVerse: Int?
     #if os(macOS)
     @State private var columnDragToken = UUID()
+    @State private var columnDropTarget: Int?
     @State private var columnWeights: [Int: CGFloat] = [:]
     @State private var resizeStart: [Int: CGFloat]?
     #endif
@@ -192,6 +196,9 @@ struct CompareView: View {
         .onChange(of: passage) {
             independentVisibleVerses = [:]
             scrollingColumn = nil
+            lastScrolledColumn = nil
+            alignedVersesAboveTop = []
+            pendingAlignedVerse = nil
         }
         #if os(iOS)
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -276,9 +283,7 @@ struct CompareView: View {
         Menu {
             if canShowIndependentPanes(width: compareWidth, count: cols.count) {
                 Toggle("Sync Scrolling", isOn: Binding(get: { syncScrolling }, set: { enabled in
-                    app.update(tabId, recordHistory: false) { tab in
-                        tab.state["compareSyncScroll"] = .bool(enabled)
-                    }
+                    setSyncScrolling(enabled, state: st, columns: cols)
                 }))
             }
             Menu("Add Translation", systemImage: "plus") {
@@ -324,6 +329,26 @@ struct CompareView: View {
                 #endif
         }
         .help("Add a translation or open one in the reader")
+    }
+
+    private func setSyncScrolling(_ enabled: Bool, state: BibleState, columns: [CompareColumn]) {
+        if enabled != syncScrolling, columns.allSatisfy({ $0.follows(state) }) {
+            if enabled {
+                let source = lastScrolledColumn ?? columns.first?.id
+                pendingAlignedVerse = source.flatMap { independentVisibleVerses[$0] } ?? state.verse
+            } else {
+                let verse = alignedVersesAboveTop.max() ?? state.verse
+                alignedVersesAboveTop = []
+                independentVisibleVerses = [:]
+                if let verse {
+                    for column in columns { independentVisibleVerses[column.id] = correspondingVerse(verse, in: column) }
+                }
+                lastScrolledColumn = nil
+            }
+        }
+        app.update(tabId, recordHistory: false) { tab in
+            tab.state["compareSyncScroll"] = .bool(enabled)
+        }
     }
 
     private func passageKey(_ state: BibleState, _ columns: [CompareColumn]) -> String {
@@ -379,6 +404,11 @@ struct CompareView: View {
                     }
                 }
                 .id(v)
+                .onGeometryChange(for: Bool.self) { geometry in
+                    geometry.frame(in: .named("aligned-compare")).minY <= 1
+                } action: { aboveTop in
+                    trackAlignedVerse(v, aboveTop: aboveTop)
+                }
             }
         }
         .padding(24)
@@ -419,6 +449,11 @@ struct CompareView: View {
                     }
                 }
                 .id(verse)
+                .onGeometryChange(for: Bool.self) { geometry in
+                    geometry.frame(in: .named("aligned-compare")).minY <= 1
+                } action: { aboveTop in
+                    trackAlignedVerse(verse, aboveTop: aboveTop)
+                }
             }
         }
         .padding(16)
@@ -449,13 +484,27 @@ struct CompareView: View {
                     comparisonGrid(state, columns)
                 }
             }
+            .coordinateSpace(name: "aligned-compare")
             .onChange(of: state.verse, initial: true) {
+                if let restored = pendingAlignedVerse {
+                    pendingAlignedVerse = nil
+                    proxy.scrollTo(restored, anchor: .top)
+                    return
+                }
                 let selectedHere = localVerseSelection != nil && localVerseSelection == state.verse
                 localVerseSelection = nil
                 if !selectedHere, let verse = state.verse {
                     proxy.scrollTo(verse, anchor: .top)
                 }
             }
+        }
+    }
+
+    private func trackAlignedVerse(_ verse: Int, aboveTop: Bool) {
+        if aboveTop {
+            alignedVersesAboveTop.insert(verse)
+        } else {
+            alignedVersesAboveTop.remove(verse)
         }
     }
 
@@ -472,23 +521,33 @@ struct CompareView: View {
                     independentHeader(column, columns: columns, compact: compact)
                         .padding(.horizontal, compact ? 4 : 12)
                     Divider()
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            independentVerses(column, compact: compact)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                independentVerses(column, compact: compact)
+                            }
+                            .scrollTargetLayout()
+                            .padding(compact ? 8 : 16)
                         }
-                        .scrollTargetLayout()
-                        .padding(compact ? 8 : 16)
-                    }
-                    .scrollPosition(id: independentPosition(for: column, in: columns), anchor: .top)
-                    .onScrollPhaseChange { _, phase in
-                        switch phase {
-                        case .interacting: scrollingColumn = column.id
-                        case .idle:
-                            if scrollingColumn == column.id { scrollingColumn = nil }
-                        default: break
+                        .scrollPosition(id: independentPosition(for: column, in: columns), anchor: .top)
+                        .onScrollPhaseChange { _, phase in
+                            switch phase {
+                            case .interacting:
+                                scrollingColumn = column.id
+                                lastScrolledColumn = column.id
+                            case .idle:
+                                if scrollingColumn == column.id { scrollingColumn = nil }
+                            default: break
+                            }
+                        }
+                        .id(column.label)
+                        .task(id: column.historyKey) {
+                            guard let verse = independentVisibleVerses[column.id] else { return }
+                            await Task.yield()
+                            guard !Task.isCancelled else { return }
+                            proxy.scrollTo(verse, anchor: .top)
                         }
                     }
-                    .id(column.label)
                 }
                 #if os(macOS)
                 .frame(width: columnWidth(column, columns: columns, space: space))
@@ -510,13 +569,17 @@ struct CompareView: View {
             independentVisibleVerses[column.id] = verse
             guard syncScrolling, scrollingColumn == column.id, let verse else { return }
             for destination in columns where destination.id != column.id {
-                guard let rows = independentRows[destination.id], let first = rows.first else { continue }
-                let match = rows.last(where: { $0.verseNum <= verse })?.verseNum ?? first.verseNum
+                guard let match = correspondingVerse(verse, in: destination) else { continue }
                 if independentVisibleVerses[destination.id] != match {
                     independentVisibleVerses[destination.id] = match
                 }
             }
         })
+    }
+
+    private func correspondingVerse(_ verse: Int, in column: CompareColumn) -> Int? {
+        guard let rows = independentRows[column.id] else { return nil }
+        return rows.last(where: { $0.verseNum <= verse })?.verseNum ?? rows.first?.verseNum
     }
 
     private func independentComparison(_ columns: [CompareColumn]) -> some View {
@@ -543,17 +606,6 @@ struct CompareView: View {
 
     private func columnPassageButton(_ column: CompareColumn, title: String, compact: Bool = false) -> some View {
         HStack(spacing: 4) {
-            #if os(macOS)
-            Image(systemName: "line.3.horizontal")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: controlSize)
-                .contentShape(.rect)
-                .pointerStyle(.link)
-                .help("Drag to reorder this column")
-                .accessibilityLabel("Reorder \(column.label)")
-                .draggable(columnDragPayload(column))
-            #endif
             Button {
                 editingColumn = column
             } label: {
@@ -576,12 +628,24 @@ struct CompareView: View {
             .help("Change column passage")
         }
         #if os(macOS)
+        .background(columnDropTarget == column.id ? Color.accentColor.opacity(0.14) : .clear,
+                    in: .rect(cornerRadius: 8))
+        .contentShape(.rect)
+        .draggable(columnDragPayload(column)) {
+            Label(column.label, systemImage: "book")
+                .font(.subheadline.weight(.semibold))
+                .padding(12)
+                .background(.regularMaterial, in: .rect(cornerRadius: 10))
+        }
         .dropDestination(for: String.self) { items, _ in
             let current = columns
             guard let item = items.first,
                   let source = current.first(where: { item == columnDragPayload($0) }),
                   let target = current.firstIndex(where: { $0.id == column.id && $0.historyKey == column.historyKey }) else { return false }
             return moveColumn(source, to: target, in: current)
+        } isTargeted: { targeted in
+            if targeted { columnDropTarget = column.id }
+            else if columnDropTarget == column.id { columnDropTarget = nil }
         }
         #endif
     }
@@ -939,19 +1003,21 @@ struct CompareView: View {
     func load(_ st: BibleState, _ cols: [CompareColumn], passage: String) async {
         var out: [Int: [Int: ChapterVerseRow]] = [:]
         var independent: [Int: [ChapterVerseRow]] = [:]
-        if !cols.allSatisfy({ $0.follows(st) }) {
-            for column in cols {
-                independent[column.id] = await app.bible.queryChapter(column.book, column.chapter, textId: column.text)
-            }
+        for column in cols {
+            independent[column.id] = await app.bible.queryChapter(column.book, column.chapter, textId: column.text)
         }
-        for column in cols where independent.isEmpty {
+        let aligned = cols.allSatisfy { $0.follows(st) }
+        for column in cols where aligned {
             let c = column.text
             // The tab's chapter is in its own text's numbering; map it for the column's text.
             let ch = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: c)
             let chapters = st.bookId == "JON" && st.chapter == 2
                 && ChapterMap.isLxx(st.translation) && ChapterMap.isKjv(c) ? [1, ch] : [ch]
             for chapter in chapters {
-                for row in await app.bible.queryChapter(st.bookId, chapter, textId: c) {
+                let chapterRows = chapter == column.chapter
+                    ? independent[column.id] ?? []
+                    : await app.bible.queryChapter(st.bookId, chapter, textId: c)
+                for row in chapterRows {
                     let mapped = st.bookId == "JON"
                         ? ChapterMap.jonahCounterpart(chapter: chapter, verse: row.verseNum, from: c, to: st.translation)
                         : nil
