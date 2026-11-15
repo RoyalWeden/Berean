@@ -17,6 +17,7 @@ struct IOSRootView: View {
     @State private var showScriptureDisplay = false
     @State private var chapterTagTarget: ChapterTagTarget?
     @State private var findRequest = 0
+    @State private var editionFlipRequest = 0
     @State private var pendingNewTab = false
     @State private var alternateEdition: ChapterEdition?
     @State private var availableEdition: ChapterEdition?
@@ -160,7 +161,7 @@ struct IOSRootView: View {
             switch tab.tabType {
             case .bible:
                 let st = BibleState(tab.state)
-                ScriptureView(tabId: tab.id, findRequest: findRequest).id(tab.id)
+                ScriptureView(tabId: tab.id, findRequest: findRequest, editionFlipRequest: editionFlipRequest).id(tab.id)
                     .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { v in
                         app.update(tab.id) { t in var s = BibleState(t.state); s.rightPanelOpen = v; t.state = s.merged(into: t.state) }
                     })) { StudyInspector(tabId: tab.id).presentationDetents([.medium, .large]) }
@@ -206,7 +207,7 @@ struct IOSRootView: View {
                         let source = ChapterEdition(st)
                         if let target = alternateEdition, target == source.counterpart {
                             Button("Switch to \(textInfo(target.text).short)", systemImage: "arrow.left.arrow.right") {
-                                app.switchChapterEdition(in: tab.id, from: source, to: target)
+                                editionFlipRequest += 1
                             }
                         }
                     }

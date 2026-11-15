@@ -57,6 +57,18 @@ struct ChapterEdition: Equatable {
     }
 }
 
+private struct ChapterEditionAvailability {
+    let book: String
+    let kjva: Set<Int>
+    let lxx: Set<Int>
+
+    func counterpart(of source: ChapterEdition) -> ChapterEdition? {
+        guard source.book == book, let target = source.counterpart else { return nil }
+        let chapters = ChapterMap.isLxx(target.text) ? lxx : kjva
+        return chapters.contains(target.chapter) ? target : nil
+    }
+}
+
 private struct AdjacentChapters {
     let source: ChapterEdition
     let previous: ChapterEdition?
@@ -293,6 +305,7 @@ struct ScriptureView: View {
     let tabId: String
     #if os(iOS)
     var findRequest: Int = 0
+    var editionFlipRequest: Int = 0
     #endif
     private enum CopyAction {
         case verses, reference
@@ -350,7 +363,7 @@ struct ScriptureView: View {
     @State private var chapterTags: [TagLite] = []
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
 
-    @State private var alternateEdition: ChapterEdition?
+    @State private var editionAvailability: ChapterEditionAvailability?
     @State private var positionReader = ScripturePositionReader()
     #if os(macOS)
     @State private var strongsTooltips: [String: String] = [:]
@@ -432,6 +445,10 @@ struct ScriptureView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+        .onChange(of: editionFlipRequest) {
+            guard !st.compareMode, let target = ChapterEdition(st).counterpart else { return }
+            flipEdition(st, to: target)
+        }
         #endif
         .toolbar { toolbar(st) }
         .onDisappear { chapterStepTask?.cancel() }
@@ -442,15 +459,21 @@ struct ScriptureView: View {
             guard !Task.isCancelled, !state.compareMode, ChapterEdition(state) == source else { return }
             chapterNeighbors = neighbors
         }
-        .task(id: st.compareMode ? nil : ChapterEdition(st)) {
-            guard !st.compareMode else { return }
-            let target = await app.installedCounterpart(of: ChapterEdition(st))
-            guard !Task.isCancelled, !state.compareMode, ChapterEdition(state) == ChapterEdition(st) else { return }
-            alternateEdition = target
+        .task(id: editionAvailabilityBook(st)) {
+            guard let book = editionAvailabilityBook(st), editionAvailability?.book != book else { return }
+            async let kjva = app.bible.chapterNumbers(book, textId: "kjva")
+            async let lxx = app.bible.chapterNumbers(book, textId: "lxx")
+            let availability = await ChapterEditionAvailability(book: book, kjva: Set(kjva), lxx: Set(lxx))
+            guard !Task.isCancelled, editionAvailabilityBook(state) == book else { return }
+            editionAvailability = availability
         }
         .sheet(isPresented: Binding(get: { tagging != nil }, set: { if !$0 { tagging = nil } })) {
             if let t = tagging { TagPickerView(ranges: t.ranges, label: t.label, kind: t.kind) }
         }
+    }
+
+    private func editionAvailabilityBook(_ state: BibleState) -> String? {
+        !state.compareMode && ChapterEdition(state).counterpart != nil ? state.bookId : nil
     }
 
     private func chapterKey(_ state: BibleState) -> String {
@@ -625,7 +648,7 @@ struct ScriptureView: View {
         } actions: {
             Button("Choose Passage") { pickerShown = true }
                 .buttonStyle(.borderedProminent)
-            if let target = alternateEdition, target == source.counterpart {
+            if let target = editionAvailability?.counterpart(of: source) {
                 Button("Open in \(textInfo(target.text).short)") {
                     app.switchChapterEdition(in: tabId, from: source, to: target)
                 }
@@ -1238,7 +1261,7 @@ struct ScriptureView: View {
             #endif
         }
         #if os(iOS)
-        if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
+        if !st.compareMode, let target = editionAvailability?.counterpart(of: ChapterEdition(st)) {
             ToolbarItem(placement: .topBarTrailing) {
                 let isLxx = ChapterMap.isLxx(st.translation)
                 Button {
@@ -1273,7 +1296,7 @@ struct ScriptureView: View {
                     .frame(width: 360)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
+            if !st.compareMode, let target = editionAvailability?.counterpart(of: ChapterEdition(st)) {
                 Toggle(isOn: Binding(get: { ChapterMap.isLxx(st.translation) }, set: { _ in
                     flipEdition(st, to: target)
                 })) {
@@ -1317,7 +1340,6 @@ struct ScriptureView: View {
 
     private func flipEdition(_ state: BibleState, to target: ChapterEdition) {
         let source = ChapterEdition(state)
-        if target.counterpart == source { alternateEdition = source }
         let preferred = selection.count == 1 ? selection.first.flatMap { verse in
             ChapterMap.verseCounterpart(source.book, chapter: source.chapter, verse: verse,
                                         from: source.text, to: target.text) == nil ? nil : verse
