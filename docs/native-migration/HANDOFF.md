@@ -920,3 +920,4 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 - **20:34 final verification at `4152b515`:** `swift test -c release` 111 tests / 40 suites pass; Mac + iOS Dev builds pass. Tree clean, pushed.
 - **Next for Codex (Compare):** MAC-UI-039 — wide windows should show side-by-side columns; replace `ViewThatFits` with a width test.
 - **20:36 — MAC-UI-039 FIXED:** aligned Compare shows side-by-side columns when wide enough (width test replaces ViewThatFits).
+- **20:40 session end:** HEAD `92e6b4ce` (58 commits since `64df1059`); final `swift test -c release` 111/40 pass; Mac + iOS builds pass. Dev app left on the Genesis 1 reader.
