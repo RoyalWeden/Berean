@@ -614,7 +614,8 @@ struct NoteDetailView: View {
     /// Wikilinks open the note with that title; verse references and web links open where they belong.
     private func followAttachment(_ passage: ResolvedPassage) {
         saveNow()
-        routeFromEditor { app.visitScripture(passage) }
+        let id = noteId, name = title
+        routeFromEditor { app.visitScripture(passage, fromNote: id, title: name) }
     }
 
     private func routeFromEditor(_ action: @escaping () -> Void) {
@@ -626,7 +627,8 @@ struct NoteDetailView: View {
             saveNow()
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
             if let passage = app.resolvePassage(title) {
-                routeFromEditor { app.visitScripture(passage) }
+                let id = noteId, name = self.title
+                routeFromEditor { app.visitScripture(passage, fromNote: id, title: name) }
                 return
             }
             if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) {

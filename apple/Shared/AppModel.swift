@@ -548,6 +548,9 @@ final class AppModel {
     var chapterStepRequest: ChapterStepRequest?
     /// iPhone: the reader scrolled down far enough to tuck its passage capsule and the dock away.
     var readerChromeHidden = false
+    /// A reader opened from a note link shows a "‹ Note" pill back to it (original `noteBack`). In memory only.
+    struct NoteReturn: Equatable { let readerTabId: String; let chapterKey: String; let noteId: String; let title: String }
+    var noteReturn: NoteReturn?
     @ObservationIgnored var lexiconOccurrenceOptions: [String: [String: LexiconEntryView.OccurrenceOptions]] = [:]
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
@@ -905,6 +908,15 @@ final class AppModel {
             select(existing.id, in: .scripture)
         } else {
             openTab(.bible, in: .scripture, title: title, state: state)
+        }
+    }
+
+    /// Opens a passage from a note and remembers the note for the reader's return pill.
+    func visitScripture(_ passage: ResolvedPassage, fromNote noteId: String, title: String) {
+        visitScripture(passage)
+        if let tab = activeTab, tab.tabType == .bible {
+            noteReturn = NoteReturn(readerTabId: tab.id, chapterKey: "\(passage.textId)|\(passage.bookId)|\(passage.chapter)",
+                                    noteId: noteId, title: title.isEmpty ? "Note" : title)
         }
     }
 

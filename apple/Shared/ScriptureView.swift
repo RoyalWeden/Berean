@@ -301,6 +301,31 @@ struct ScriptureView: View {
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
 
+    /// "‹ Note title" back to the note whose link opened this passage (original note-back pill). Disappears when the reader
+    /// leaves that chapter or the pill is used.
+    @ViewBuilder func noteReturnPill(_ st: BibleState) -> some View {
+        if let back = app.noteReturn, back.readerTabId == tabId,
+           back.chapterKey == "\(st.translation)|\(st.bookId)|\(st.chapter)" {
+            Button {
+                let id = back.noteId
+                app.noteReturn = nil
+                app.openNote(id)
+            } label: {
+                Label(back.title, systemImage: "chevron.backward")
+                    .font(.callout.weight(.medium)).lineLimit(1)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .frame(maxWidth: 220, alignment: .leading)
+                    .contentShape(.capsule)
+            }
+            .buttonStyle(.interactivePlain)
+            .glassEffectCompat(interactive: true)
+            .padding(.leading, 14).padding(.top, 8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .help("Back to the note “\(back.title)”")
+            .accessibilityLabel("Back to note \(back.title)")
+        }
+    }
+
     /// The tab's `hiddenAnnotations` (same key and shape as the original reader's tab state).
     var hiddenAnnotations: Set<String> {
         Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
@@ -311,6 +336,7 @@ struct ScriptureView: View {
         Group {
             if st.compareMode { CompareView(tabId: tabId) } else { chapterBody(st) }
         }
+        .overlay(alignment: .topLeading) { noteReturnPill(st) }
         .navigationTitle(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
         .navigationSubtitleCompat(st.compareMode ? "Compare" : textInfo(st.translation).name)
         #if os(iOS)
