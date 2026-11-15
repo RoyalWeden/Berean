@@ -28,6 +28,7 @@ struct LexiconEntryView: View {
     /// ⌘F find inside the entry (original LexiconPanel find bar); highlights matches in the entry's prose.
     @State private var findShown = false
     @State private var findSection = 0
+    @State private var pendingFindOccurrence: OccurrenceKey?
     private enum FindSection: Hashable {
         case headword, gloss, definition, derivation, extended
         case related(String), occurrence(OccurrenceKey)
@@ -104,7 +105,7 @@ struct LexiconEntryView: View {
         return out
     }
 
-    private func findMatches(_ e: LexiconEntry, visibleRows: [IndexedOccurrence]) -> (sections: [FindSection], count: Int) {
+    private func findMatches(_ e: LexiconEntry, occurrenceRows: [IndexedOccurrence]) -> (sections: [FindSection], count: Int) {
         let query = findQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard findShown, query.count >= 2 else { return ([], 0) }
         let pronunciation = [e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -120,7 +121,7 @@ struct LexiconEntryView: View {
         for row in related {
             fields += [row.strongsNum, row.lemma, row.gloss].map { (.related(row.strongsNum), $0) }
         }
-        for (_, occurrence, _, preview, key) in visibleRows {
+        for (_, occurrence, _, preview, key) in occurrenceRows {
             let passage = ResolvedPassage(textId: occurrence.textId, bookId: occurrence.bookId,
                                           chapter: occurrence.chapter, verse: occurrence.verseNum)
             fields += [passage.label, textInfo(occurrence.textId).short, preview.words.joined(separator: " ")]
@@ -139,15 +140,22 @@ struct LexiconEntryView: View {
         return (sections, count)
     }
 
-    private func moveFind(_ direction: Int, in sections: [FindSection], proxy: ScrollViewProxy) {
+    private func moveFind(_ direction: Int, in sections: [FindSection], rows: [IndexedOccurrence], proxy: ScrollViewProxy) {
         guard !sections.isEmpty else { return }
         findSection = (min(findSection, sections.count - 1) + direction + sections.count) % sections.count
-        scrollToFind(sections[findSection], proxy: proxy)
+        scrollToFind(sections[findSection], rows: rows, proxy: proxy)
     }
 
-    private func scrollToFind(_ section: FindSection, proxy: ScrollViewProxy) {
+    private func scrollToFind(_ section: FindSection, rows: [IndexedOccurrence], proxy: ScrollViewProxy) {
+        pendingFindOccurrence = nil
         if case .occurrence(let key) = section {
-            proxy.scrollTo(key, anchor: .top)
+            guard let index = rows.firstIndex(where: { $0.4 == key }) else { return }
+            if index >= visibleOccurrences {
+                visibleOccurrences = min(rows.count, (index / 40 + 1) * 40)
+                pendingFindOccurrence = key
+            } else {
+                proxy.scrollTo(key, anchor: .top)
+            }
         } else {
             proxy.scrollTo(section, anchor: .top)
         }
@@ -226,7 +234,7 @@ struct LexiconEntryView: View {
         let occurrenceMatches = matchingOccurrences(indexed)
         let visibleRows = Array(occurrenceMatches.prefix(visibleOccurrences))
         let matches = (entry?.strongsNum == strongsId.uppercased() ? entry : nil)
-            .map { findMatches($0, visibleRows: visibleRows) } ?? (sections: [], count: 0)
+            .map { findMatches($0, occurrenceRows: occurrenceMatches) } ?? (sections: [], count: 0)
         let sections = matches.sections
         let matchingDestinations = Set(sections)
         ScrollViewReader { proxy in
@@ -420,7 +428,7 @@ struct LexiconEntryView: View {
                 if findShown, !compact {
                     HStack(spacing: 8) {
                         TextField("Find in Entry", text: $findQuery).textFieldStyle(.plain).focused($findFocused)
-                            .onSubmit { moveFind(1, in: sections, proxy: proxy) }
+                            .onSubmit { moveFind(1, in: sections, rows: occurrenceMatches, proxy: proxy) }
                             .onKeyPress(.escape) { findShown = false; findQuery = ""; return .handled }
                         if findQuery.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 {
                             Text(sections.count > 1
@@ -428,9 +436,13 @@ struct LexiconEntryView: View {
                                  : matches.count == 1 ? "1 match" : "\(matches.count) matches")
                                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         }
-                        Button("Previous Matching Section", systemImage: "chevron.up") { moveFind(-1, in: sections, proxy: proxy) }
+                        Button("Previous Matching Section", systemImage: "chevron.up") {
+                            moveFind(-1, in: sections, rows: occurrenceMatches, proxy: proxy)
+                        }
                             .disabled(sections.count < 2)
-                        Button("Next Matching Section", systemImage: "chevron.down") { moveFind(1, in: sections, proxy: proxy) }
+                        Button("Next Matching Section", systemImage: "chevron.down") {
+                            moveFind(1, in: sections, rows: occurrenceMatches, proxy: proxy)
+                        }
                             .disabled(sections.count < 2)
                         Button("Close Find", systemImage: "xmark") { findShown = false; findQuery = "" }
                     }
@@ -443,7 +455,19 @@ struct LexiconEntryView: View {
             }
             .onChange(of: sections) { _, updated in
                 findSection = 0
-                if let first = updated.first { scrollToFind(first, proxy: proxy) }
+                if let first = updated.first {
+                    scrollToFind(first, rows: occurrenceMatches, proxy: proxy)
+                } else {
+                    pendingFindOccurrence = nil
+                }
+            }
+            .task(id: pendingFindOccurrence) {
+                guard let key = pendingFindOccurrence, matchingDestinations.contains(.occurrence(key)),
+                      visibleRows.contains(where: { $0.4 == key }) else { return }
+                await Task.yield()
+                guard !Task.isCancelled, pendingFindOccurrence == key else { return }
+                proxy.scrollTo(key, anchor: .top)
+                pendingFindOccurrence = nil
             }
         }
         .toolbar {
