@@ -734,14 +734,22 @@ final class AppModel {
 
     /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
     /// Whole-book find (original Find on Page across the book): a Search tab scoped to one book and text.
-    func openBookSearch(_ query: String, bookId: String, textId: String, returningTo sourceTabID: String? = nil) {
-        recordHistory(type: "search", title: "\"\(query)\"", query: query)
+    func openBookSearch(_ query: String, bookId: String, textId: String, reuseTab: Bool = false,
+                        returningTo sourceTabID: String? = nil) {
+        recordScriptureSearch("\(textId): \(query)", bookId: bookId)
         var o = JSObject()
         o["query"] = .string(JSString(query))
         o["bookIds"] = .array([.string(JSString(bookId))])
         o["scopeTexts"] = .array([.string(JSString(textId))])
         o["nativeSearchFocusText"] = .null
-        _ = openTab(.search, in: .search, title: "Search: \(query)", state: o, origin: activeTab)
+        if reuseTab, let match = tabs(in: .search).first(where: { tab in
+            tab.tabType == .search && tab.state["query"] == o["query"]
+                && tab.state["scopeTexts"] == o["scopeTexts"] && tab.state["bookIds"] == o["bookIds"]
+        }) {
+            select(match.id, in: .search)
+        } else {
+            _ = openTab(.search, in: .search, title: "Search: \(query)", state: o, origin: activeTab)
+        }
         recordTabReturn(to: sourceTabID)
     }
 
@@ -768,9 +776,10 @@ final class AppModel {
         recordTabReturn(to: sourceTabID)
     }
 
-    func recordScriptureSearch(_ query: String) {
+    func recordScriptureSearch(_ query: String, bookId: String? = nil) {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        recordHistory(type: "search", title: "\"\(query)\"", query: query)
+        let bookSuffix = bookId.map { " · \(Reference.bookName($0))" } ?? ""
+        recordHistory(type: "search", title: "\"\(query)\"\(bookSuffix)", bookId: bookId, query: query)
         SearchHistory.record(query)
     }
 

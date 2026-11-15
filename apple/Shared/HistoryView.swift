@@ -343,7 +343,11 @@ struct HistoryView: View {
             app.openLexicon(s, reuseTab: true)
         case "search":
             guard let q = e.query, !q.isEmpty else { return }
-            app.openSearch(q, reuseTab: true)
+            if let book = e.bookId, let qualified = app.editionQualifiedQuery(q) {
+                app.openBookSearch(qualified.query, bookId: book, textId: qualified.text, reuseTab: true)
+            } else {
+                app.openSearch(q, reuseTab: true)
+            }
         default: return
         }
         if let destination = app.activeTab?.id, destination != tabId {
