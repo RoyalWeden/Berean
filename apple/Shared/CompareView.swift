@@ -1098,8 +1098,13 @@ struct CompareView: View {
     private func stepColumn(_ column: CompareColumn, by delta: Int) {
         Task {
             let chapters = await app.bible.chapterNumbers(column.book, textId: column.text)
-            guard let i = chapters.firstIndex(of: column.chapter), chapters.indices.contains(i + delta) else { return }
+            guard !Task.isCancelled, app.activeTab?.id == tabId,
+                  columns.contains(where: { $0.id == column.id && $0.destinationKey == column.destinationKey }),
+                  let i = chapters.firstIndex(of: column.chapter), chapters.indices.contains(i + delta) else { return }
             changePassage(for: column.id, text: column.text, book: column.book, chapter: chapters[i + delta])
+            #if os(iOS)
+            readerNavigationFeedback()
+            #endif
         }
     }
 

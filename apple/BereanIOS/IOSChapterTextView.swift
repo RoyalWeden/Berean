@@ -787,10 +787,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             guard let view = gesture.view as? UITextView else { return }
             let point = gesture.location(in: view)
             if let verse = verseAtTap(point, in: view) { toggleVerse(verse, in: view); return }
-            if let step = edgeStep(point, in: view) {
-                if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true { selectionFeedback.selectionChanged() }
-                parent.onStep(step)
-            }
+            if let step = edgeStep(point, in: view) { parent.onStep(step) }
         }
 
         /// A tap in the empty outer margin turns the chapter (left = previous, right = next), as in the original reader.

@@ -130,6 +130,9 @@ extension AppModel {
             $0.title = Reference.readerChapterLabel(target.book, target.chapter, textId: target.text)
         }
         recordRecent(textId: target.text, bookId: target.book, chapter: target.chapter, verse: nil, endVerse: nil)
+        #if os(iOS)
+        readerNavigationFeedback()
+        #endif
     }
     func restoreScripturePosition(tabId: String, edition: ChapterEdition) -> ScriptureReadingPosition? {
         if let transition = scriptureEditionSources[tabId], transition.target == edition {
@@ -1468,6 +1471,9 @@ struct ScriptureView: View {
                   current.state["nativeSelectedVerses"] == source.state["nativeSelectedVerses"] else { return }
             pullEndDestination = fromPull && delta < 0 ? target : nil
             mutate { $0.bookId = target.book; $0.chapter = target.chapter; $0.verse = nil; $0.endVerse = nil }
+            #if os(iOS)
+            if !fromPull { readerNavigationFeedback() }
+            #endif
         }
     }
 
@@ -1783,6 +1789,13 @@ extension View {
         #endif
     }
 }
+
+#if os(iOS)
+@MainActor func readerNavigationFeedback() {
+    guard UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true else { return }
+    UISelectionFeedbackGenerator().selectionChanged()
+}
+#endif
 
 enum Clipboard {
     static func copy(_ s: String) {

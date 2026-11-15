@@ -1111,3 +1111,7 @@
 
 - Added a native inward swipe that traverses available tab history. Tabs remain open when there is no Back destination.
 - iPhone Dev built and launched. Device Hub verified opening a search result; the edge swipe itself remains unverified.
+
+### 2026-11-15 — I12 — iPhone reader navigation feedback
+
+- Chapter changes, edition flips and Compare column steps now observe the shared haptics preference. Both Dev builds passed and Simulator taps verified chapter and edition navigation.
