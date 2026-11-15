@@ -520,6 +520,12 @@ struct ScriptureSearchView: View {
             Clipboard.copy(reference)
             AccessibilityNotification.Announcement("Reference copied").post()
         }
+        // Original ResultActionSheet: share the verse and start a note on it without leaving the results.
+        ShareLink(item: "\(reference) \(displayText(hit))") { Label("Share Verse…", systemImage: "square.and.arrow.up") }
+        Divider()
+        Button("Add Note", systemImage: "square.and.pencil") {
+            _ = app.newNote(verseRef: "\(hit.bookId).\(hit.chapter).\(hit.verseNum)", textId: hit.textId)
+        }
     }
 
     func displayText(_ h: ScriptureHit) -> String {
