@@ -11,6 +11,7 @@ import BereanNotes
 struct ScriptureReadingPosition {
     let offset: CGFloat
     let verse: Int?
+    var atEnd = false
 }
 
 struct ChapterEdition: Equatable {
@@ -243,6 +244,7 @@ struct ScriptureView: View {
     @State private var copyFeedbackID = UUID()
     @State private var loadedChapter: String?
     @State private var chapterPull: ChapterPullCue?
+    @State private var pullEndDestination: ChapterEdition?
     @AppStorage("chapterPullNavigation") private var chapterPullNavigation = true
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
@@ -401,6 +403,15 @@ struct ScriptureView: View {
         "\(state.translation)|\(state.bookId)|\(state.chapter)"
     }
 
+    private func restoreReaderPosition(_ state: BibleState) -> ScriptureReadingPosition? {
+        let edition = ChapterEdition(state)
+        if pullEndDestination == edition {
+            pullEndDestination = nil
+            return ScriptureReadingPosition(offset: 0, verse: nil, atEnd: true)
+        }
+        return app.restoreScripturePosition(tabId: tabId, edition: edition)
+    }
+
     @ViewBuilder func chapterBody(_ st: BibleState) -> some View {
         let chapter = chapterKey(st)
         let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
@@ -457,7 +468,10 @@ struct ScriptureView: View {
                     .transition(.opacity)
             }
         }
-        .onChange(of: ChapterEdition(st)) { chapterPull = nil }
+        .onChange(of: ChapterEdition(st)) { _, edition in
+            chapterPull = nil
+            if pullEndDestination != edition { pullEndDestination = nil }
+        }
         .overlay(alignment: .bottom) {
             if showActions { selectionBar(st) }
         }
@@ -968,7 +982,7 @@ struct ScriptureView: View {
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
             scrollTarget: scrollTarget,
             actionClearance: actionClearance,
-            restorePosition: { app.restoreScripturePosition(tabId: tabId, edition: ChapterEdition(st)) },
+            restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             findRequest: findRequest,
             reference: { first, last in
@@ -994,6 +1008,7 @@ struct ScriptureView: View {
             onStep: { step($0) },
             canPullChapter: { chapterPullNavigation && canStep($0, from: st) },
             onChapterPull: { pull in withAnimation(.easeOut(duration: 0.15)) { chapterPull = pull } },
+            onChapterPullCommit: { step($0, fromPull: true) },
             onPinchPreview: { pinchFontSize = $0 },
             onPinchCommit: { size in
                 if app.fontSize != size { app.fontSize = size }
@@ -1274,7 +1289,7 @@ struct ScriptureView: View {
 
     /// Previous / next chapter by the chapters the book really has (prologue chapter 0, gaps, Hermas numbering), then the
     /// neighbouring book — like bibleNav.ts getPrev/NextChapterRef, generalised from the actual chapter list.
-    func step(_ delta: Int) {
+    func step(_ delta: Int, fromPull: Bool = false) {
         chapterStepTask?.cancel()
         guard let source = app.findTab(tabId), app.activeTab?.id == tabId else { return }
         let reader = BibleState(source.state)
@@ -1302,6 +1317,8 @@ struct ScriptureView: View {
                   destination.compareMode == reader.compareMode,
                   destination.verse == reader.verse, destination.endVerse == reader.endVerse,
                   current.state["nativeSelectedVerses"] == source.state["nativeSelectedVerses"] else { return }
+            pullEndDestination = fromPull && delta < 0
+                ? ChapterEdition(book: book, chapter: chapter, text: reader.translation) : nil
             mutate { $0.bookId = book; $0.chapter = chapter; $0.verse = nil; $0.endVerse = nil }
         }
     }
@@ -1683,7 +1700,7 @@ extension ScriptureView {
             style: readerStyle(st),
             selectedVerses: selection, scrollTarget: scrollTarget,
             actionClearance: actionClearance,
-            restorePosition: { app.restoreScripturePosition(tabId: tabId, edition: ChapterEdition(st)) },
+            restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
             rangeReference: { a, b in "\(referenceChapterLabel(st)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
@@ -1700,7 +1717,7 @@ extension ScriptureView {
             onCopySelectedVerses: { confirmSelectionCopy(.verses) },
             canPullChapter: { chapterPullNavigation && canStep($0, from: st) },
             onChapterPull: { pull in withAnimation(.easeOut(duration: 0.15)) { chapterPull = pull } },
-            onChapterPullCommit: { step($0) },
+            onChapterPullCommit: { step($0, fromPull: true) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) },
             onSearchSelection: { app.openSearch($0, returningTo: tabId) },
             onBookSearch: { app.openBookSearch($0, bookId: st.bookId, textId: st.translation, returningTo: tabId) },

@@ -32,6 +32,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onStep: (Int) -> Void
     var canPullChapter: (Int) -> Bool = { _ in false }
     var onChapterPull: (ChapterPullCue?) -> Void = { _ in }
+    var onChapterPullCommit: (Int) -> Void = { _ in }
     var onPinchPreview: (Double?) -> Void
     var onPinchCommit: (Double) -> Void
     /// Scrolling down hides the reader chrome (passage capsule, dock); scrolling up or reaching the top shows it.
@@ -191,7 +192,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 let verseTop = position.offset == 0 ? position.verse.flatMap { coordinator.verseRanges[$0] }
                     .flatMap { view.position(from: view.beginningOfDocument, offset: $0.location) }
                     .map { view.caretRect(for: $0).minY } : nil
-                view.setContentOffset(CGPoint(x: 0, y: min((verseTop ?? position.offset) - inset.top, maximum)), animated: false)
+                let y = position.atEnd ? maximum : min((verseTop ?? position.offset) - inset.top, maximum)
+                view.setContentOffset(CGPoint(x: 0, y: y), animated: false)
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
@@ -389,7 +391,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let requested = chapterPull
             publishChapterPull(nil)
             guard let requested, requested.ready, parent.canPullChapter(requested.direction) else { return }
-            parent.onStep(requested.direction)
+            parent.onChapterPullCommit(requested.direction)
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {

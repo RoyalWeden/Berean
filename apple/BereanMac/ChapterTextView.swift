@@ -226,7 +226,7 @@ struct ChapterTextView: NSViewRepresentable {
                 var bounds = clip.bounds
                 let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
                     .flatMap { tv.firstRect(forVerseRange: $0)?.minY } : nil
-                bounds.origin.y = verseTop ?? position.offset
+                bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? position.offset
                 clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                 scroll.reflectScrolledClipView(clip)
             }
