@@ -914,3 +914,5 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 - `ee41bcb2` iPhone text-selection menu: Search for "…" + Look Up in Lexicon (simulator verified "have" → Search: have).
 - `d49fd3ce` iPhone Notes long-press peek (simulator verified); `a79f4937` note menu Open in New Tab + Share… (build only).
 - Task 0 in the list above is now **fix MAC-FUNC-037**. Dev app was left on the Genesis 1 reader (Compare off).
+
+- **20:29 — MAC-FUNC-037 FIXED** (empty macOS `.safeAreaInset` collapsed Compare). Task 0 is done; next verify the per-column Previous/Next Chapter items.

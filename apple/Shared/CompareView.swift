@@ -169,8 +169,8 @@ struct CompareView: View {
                 alignedComparison(st, cols)
             }
         }
+        #if os(iOS)
         .safeAreaInset(edge: .top, spacing: 0) {
-            #if os(iOS)
             HStack(spacing: 2) {
                 manageTranslations(st, cols)
                     .menuStyle(.borderlessButton).clickableCursor()
@@ -187,8 +187,8 @@ struct CompareView: View {
             .glassEffectCompat(interactive: true)
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.horizontal, 16)
-            #endif
         }
+        #endif
         #if os(macOS)
         .toolbar {
             ToolbarItem { manageTranslations(st, cols) }
