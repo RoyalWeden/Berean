@@ -978,3 +978,9 @@
 ### 2026-11-14 — Notes folder scroll restoration
 - Remember a visible row per Notes tab and folder configuration for the current run.
 - Both Dev builds passed. Live folder return and large-library checks remain open.
+
+### 2026-11-14 16:05 PST — Reader controls and Search — BUILD VERIFIED
+
+- Mac Scripture selection controls use regular glass with individual rollover feedback and the standard pointer. The window toolbar still hosts passage navigation.
+- Scripture Search keeps an active edition filter clearable at zero matches and counts results in the focused edition.
+- Xcode 27.2 Mac and iPhone Simulator Dev builds passed, including the Dev bundle identity checks. Live glass appearance and the filter recovery interaction remain pending. No production data touched.

@@ -290,9 +290,13 @@ struct ScriptureSearchView: View {
     }
 
     var summaryRow: some View {
-        ScrollView(.horizontal) {
+        let editionCounts = counts
+        let resultCount = focusText.map { edition in
+            editionCounts.first { $0.0 == edition }?.1 ?? 0
+        } ?? testamentFiltered.count
+        return ScrollView(.horizontal) {
             HStack(spacing: 6) {
-                Text(searchPending ? "Searching…" : "\(testamentFiltered.count) result\(testamentFiltered.count == 1 ? "" : "s")")
+                Text(searchPending ? "Searching…" : "\(resultCount) result\(resultCount == 1 ? "" : "s")")
                     .font(.callout.weight(.semibold)).foregroundStyle(.secondary)
                 #if os(iOS)
                 if scope != nil {
@@ -301,16 +305,26 @@ struct ScriptureSearchView: View {
                         .foregroundStyle(Color.accentColor)
                 }
                 #endif
-                if counts.count > 1 {
-                    ForEach(counts, id: \.0) { id, n in
-                        Button { set("nativeSearchFocusText", focusText == id ? nil : .string(JSString(id))) } label: {
+                if let focusText {
+                    Button { set("nativeSearchFocusText", nil) } label: {
+                        Label(textInfo(focusText).short, systemImage: "xmark")
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Color.accentColor.opacity(0.25), in: .capsule)
+                    }
+                    .buttonStyle(.interactivePlain)
+                    .accessibilityLabel("Clear \(textInfo(focusText).name) result filter")
+                    .help("Show results from all editions in scope")
+                }
+                if editionCounts.count > 1 || focusText != nil {
+                    ForEach(editionCounts.filter { $0.0 != focusText }, id: \.0) { id, n in
+                        Button { set("nativeSearchFocusText", .string(JSString(id))) } label: {
                             Text("\(textInfo(id).short) \(n)").font(.caption.weight(.medium))
                                 .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(focusText == id ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.12), in: .capsule)
+                                .background(Color.secondary.opacity(0.12), in: .capsule)
                         }
                         .buttonStyle(.interactivePlain)
-                        .accessibilityAddTraits(focusText == id ? .isSelected : [])
-                        .help(focusText == id ? "Show all texts again" : "Show only \(textInfo(id).name)")
+                        .help("Show only \(textInfo(id).name)")
                     }
                 }
             }
@@ -325,8 +339,13 @@ struct ScriptureSearchView: View {
             ContentUnavailableView {
                 Label("No results", systemImage: "magnifyingglass")
             } description: {
-                Text(scope == nil ? "Nothing in any text matches “\(query)”." : "Nothing in \(scopeLabel) matches “\(query)”.")
+                if let focusText {
+                    Text("Nothing in \(textInfo(focusText).name) matches “\(query)” with the current filters.")
+                } else {
+                    Text(scope == nil ? "Nothing in any text matches “\(query)”." : "Nothing in \(scopeLabel) matches “\(query)”.")
+                }
             } actions: {
+                if focusText != nil { Button("Clear Edition Filter") { set("nativeSearchFocusText", nil) } }
                 if scope != nil { Button("Search All Texts") { set("scopeTexts", nil) } }
                 if hasActiveOptions { Button("Reset Options") { set("wordMode", nil); set("testament", nil); set("bookIds", nil) } }
             }

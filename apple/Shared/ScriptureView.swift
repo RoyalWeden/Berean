@@ -609,7 +609,11 @@ struct ScriptureView: View {
             adaptiveVerseActions(st)
                 .padding(.horizontal, ReaderFloatingControls.surfaceHorizontalPadding)
                 .padding(.vertical, ReaderFloatingControls.surfacePadding)
+                #if os(macOS)
+                .glassEffectCompat()
+                #else
                 .glassEffectCompat(interactive: true)
+                #endif
                 .padding(.horizontal, 8)
                 .padding(.bottom, ReaderFloatingControls.bottomPadding)
                 #if os(macOS)
@@ -1535,12 +1539,11 @@ private struct VerseActionControlAppearance: ViewModifier {
             .contentShape(.rect)
             #if os(macOS)
             .background {
-                if isEnabled && hovering {
-                    Capsule().fill(.primary.opacity(0.07)).padding(3)
-                }
+                Capsule()
+                    .fill(.primary.opacity(isEnabled && hovering ? 0.08 : 0))
+                    .padding(2)
             }
             .onHover { hovering = $0 }
-            .pointerStyle(isEnabled ? .link : .default)
             #else
             .hoverEffect(.highlight, isEnabled: isEnabled)
             #endif
