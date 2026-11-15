@@ -444,7 +444,12 @@ struct TabCardsSheet: View {
         }
         .buttonStyle(.interactivePlain)
         .overlay(alignment: .topTrailing) {
-            Button { withAnimation(.snappy) { app.close(tab.id) } } label: {
+            Button {
+                if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+                withAnimation(.snappy) { app.close(tab.id) }
+            } label: {
                 Image(systemName: "xmark").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
                     .frame(width: 24, height: 24).background(.thinMaterial, in: .circle)
                     .frame(width: 44, height: 44).contentShape(.rect)
