@@ -280,7 +280,10 @@ struct CommandPalette: View {
             out.append(Item(id: "note-\(n.id)", group: "Top Hit", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab) })
         }
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil {
-            out.append(Item(id: "search", group: "Search", title: "Search all texts for “\(trimmed)”", detail: "Scripture and other writings", symbol: "magnifyingglass", offersOpenMenu: true) { inNewTab in app.openSearch(trimmed, reuseTab: !inNewTab) })
+            let qualified = app.editionQualifiedQuery(trimmed)
+            let scope = qualified.map { textInfo($0.text).short } ?? "all texts"
+            let words = qualified?.query ?? trimmed
+            out.append(Item(id: "search", group: "Search", title: "Search \(scope) for “\(words)”", detail: qualified == nil ? "Scripture and other writings" : "", symbol: "magnifyingglass", offersOpenMenu: true) { inNewTab in app.openSearch(trimmed, reuseTab: !inNewTab) })
             out.append(Item(id: "notes-search", group: "Search", title: "Search Notes for “\(trimmed)”", detail: "Titles and text",
                             symbol: "note.text") { _ in app.openNotesSearch(trimmed) })
         }

@@ -113,11 +113,13 @@ struct GoSheet: View {
             }
         }
         Section("Scripture") {
+            let qualified = app.editionQualifiedQuery(trimmed)
+            let title = qualified.map { "Search \(textInfo($0.text).short) for “\($0.query)”" } ?? "Search for “\(trimmed)”"
             Button {
                 let query = trimmed
                 finish { app.openSearch(query, reuseTab: !newTab) }
             } label: {
-                Label("Search for “\(trimmed)”", systemImage: "magnifyingglass")
+                Label(title, systemImage: "magnifyingglass")
             }
         }
         if StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber), trimmed.split(separator: " ").count <= 2 {

@@ -133,7 +133,9 @@ struct ScriptureSearchView: View {
 
     /// The verse a reference-shaped query names, when cross-reference mode applies.
     private var crossRefTarget: ResolvedPassage? {
-        guard wordsInsteadOf != query, let p = app.resolvePassage(query), p.verse != nil, p.verseGroups.count <= 1 else { return nil }
+        let passageQuery = scope?.count == 1 && app.editionQualifiedQuery(query) == nil
+            ? scope.map { "\($0[0]): \(query)" } ?? query : query
+        guard wordsInsteadOf != query, let p = app.resolvePassage(passageQuery), p.verse != nil, p.verseGroups.count <= 1 else { return nil }
         return p
     }
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
@@ -513,7 +515,9 @@ struct ScriptureSearchView: View {
             return
         }
         SearchHistory.record(q)
-        commitQuery(q)
+        let qualified = app.editionQualifiedQuery(q)
+        if let qualified { field = qualified.query }
+        commitQuery(qualified?.query ?? q, edition: qualified?.text)
     }
 
     private func clearQuery() {
@@ -522,10 +526,11 @@ struct ScriptureSearchView: View {
         if !query.isEmpty { commitQuery("") }
     }
 
-    private func commitQuery(_ q: String) {
+    private func commitQuery(_ q: String, edition: String? = nil) {
         app.update(tabId) { tab in
             tab.state["query"] = .string(JSString(q))
             tab.state.remove("nativeSearchFocusText")
+            if let edition { tab.state["scopeTexts"] = .array([.string(JSString(edition))]) }
             tab.title = q.isEmpty ? "Search" : "Search: \(q)"
         }
     }

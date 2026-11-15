@@ -109,22 +109,20 @@ extension AppModel {
         return first
     }
 
+    func editionQualifiedQuery(_ query: String) -> (text: String, query: String)? {
+        guard let separator = query.firstIndex(of: ":") else { return nil }
+        let source = query[..<separator].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let text = ["septuagint", "brenton"].contains(source) ? "lxx" : source
+        guard text == "kjv" || availableTexts.contains(where: { $0.id == text }) else { return nil }
+        return (text, query[query.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     func resolvePassage(_ raw: String, preferring current: String? = nil) -> ResolvedPassage? {
-        var query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return nil }
-        if query.contains("://") { return resolvePastedPassages(query, preferring: current) }
-        var prefixedText: String?
-        if let separator = query.firstIndex(of: ":") {
-            let source = query[..<separator].trimmingCharacters(in: .whitespaces).lowercased()
-            if ["lxx", "septuagint", "brenton"].contains(source) {
-                prefixedText = "lxx"
-            } else if source == "kjv" || availableTexts.contains(where: { $0.id == source }) {
-                prefixedText = source
-            }
-            if prefixedText != nil {
-                query = query[query.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("://") { return resolvePastedPassages(trimmed, preferring: current) }
+        let qualified = editionQualifiedQuery(trimmed)
+        let prefixedText = qualified?.text
+        let query = qualified?.query ?? trimmed
         guard !query.isEmpty else { return nil }
         let suffix = query.range(of: #"\s+(kjva|kjv|lxx|\[[^\[\]]+\])$"#, options: [.regularExpression, .caseInsensitive])
         let suffixLabel = suffix.map { query[$0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }

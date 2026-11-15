@@ -745,25 +745,28 @@ final class AppModel {
         recordTabReturn(to: sourceTabID)
     }
 
-    func openSearch(_ query: String, reuseTab: Bool = false, returningTo sourceTabID: String? = nil) {
-        recordHistory(type: "search", title: "\"\(query)\"", query: query)
-        var o = JSObject(); o["query"] = .string(JSString(query))
+    func openSearch(_ rawQuery: String, reuseTab: Bool = false, returningTo sourceTabID: String? = nil) {
+        let qualified = editionQualifiedQuery(rawQuery)
+        let query = qualified?.query ?? rawQuery
+        let scope = qualified.map { JSValue.array([.string(JSString($0.text))]) }
+        recordHistory(type: "search", title: "\"\(rawQuery)\"", query: rawQuery)
+        var o = JSObject(); o["query"] = .string(JSString(query)); o["scopeTexts"] = scope
         o["nativeSearchFocusText"] = .null
         if reuseTab {
-            let isAllTextsSearch: (BereanWorkspace.Tab) -> Bool = { tab in
+            let isCompatibleSearch: (BereanWorkspace.Tab) -> Bool = { tab in
                 let state = tab.state
                 return state["nativeSearchFocusText"]?.stringValue == nil
-                    && state["scopeTexts"]?.arrayValue == nil
+                    && state["scopeTexts"]?.arrayValue == scope?.arrayValue
                     && (state["wordMode"]?.stringValue?.string ?? "all") == "all"
                     && (state["testament"]?.stringValue?.string ?? "all") == "all"
                     && (state["bookIds"]?.arrayValue?.isEmpty ?? true)
             }
             openOrReuse(.search, in: .search, title: "Search: \(query)", state: o,
-                        canReplace: isAllTextsSearch,
-                        matches: { isAllTextsSearch($0) && $0.state["query"]?.stringValue?.string == query })
+                        canReplace: isCompatibleSearch,
+                        matches: { isCompatibleSearch($0) && $0.state["query"]?.stringValue?.string == query })
         } else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
         recordTabReturn(to: sourceTabID)
-        SearchHistory.record(query)
+        SearchHistory.record(rawQuery)
     }
 
     func recordTabReturn(to sourceTabID: String?) {
