@@ -514,8 +514,14 @@ struct ScriptureSearchView: View {
             app.visitScripture(passage, returningTo: tabId)
             return
         }
-        SearchHistory.record(q)
         let qualified = app.editionQualifiedQuery(q)
+        let historyQuery: String
+        if qualified == nil, let scope, scope.count == 1, let edition = scope.first {
+            historyQuery = "\(edition): \(q)"
+        } else {
+            historyQuery = q
+        }
+        app.recordScriptureSearch(historyQuery)
         if let qualified { field = qualified.query }
         commitQuery(qualified?.query ?? q, edition: qualified?.text)
     }

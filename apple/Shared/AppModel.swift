@@ -749,7 +749,7 @@ final class AppModel {
         let qualified = editionQualifiedQuery(rawQuery)
         let query = qualified?.query ?? rawQuery
         let scope = qualified.map { JSValue.array([.string(JSString($0.text))]) }
-        recordHistory(type: "search", title: "\"\(rawQuery)\"", query: rawQuery)
+        recordScriptureSearch(rawQuery)
         var o = JSObject(); o["query"] = .string(JSString(query)); o["scopeTexts"] = scope
         o["nativeSearchFocusText"] = .null
         if reuseTab {
@@ -766,7 +766,12 @@ final class AppModel {
                         matches: { isCompatibleSearch($0) && $0.state["query"]?.stringValue?.string == query })
         } else { openTab(.search, in: .search, title: "Search: \(query)", state: o) }
         recordTabReturn(to: sourceTabID)
-        SearchHistory.record(rawQuery)
+    }
+
+    func recordScriptureSearch(_ query: String) {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        recordHistory(type: "search", title: "\"\(query)\"", query: query)
+        SearchHistory.record(query)
     }
 
     func recordTabReturn(to sourceTabID: String?) {
