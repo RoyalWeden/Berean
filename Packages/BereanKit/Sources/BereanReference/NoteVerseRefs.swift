@@ -19,17 +19,44 @@ public enum NoteVerseRefs {
     private static let lxxSuffix = try! NSRegularExpression(pattern: #"(?:[ \t]+LXX)+\s*$"#, options: .caseInsensitive)
 
     public static func extract(content: String, title: String, hermas: HermasText = .robertsDonaldson) -> [NoteVerseRef] {
+        var seen = Set<String>()
+        var references: [NoteVerseRef] = []
+        scan(content, hermas: hermas) { hit in
+            let isChapter = hit.parsed.verse == nil
+            let groups = hit.parsed.verseGroups ?? [.init(verse: hit.parsed.verse ?? 0, endVerse: hit.parsed.endVerse)]
+            for group in groups {
+                let verse = isChapter ? 0 : group.verse
+                let end = isChapter ? nil : group.endVerse
+                let key = "\(hit.parsed.bookId)|\(hit.parsed.chapter)|\(verse)|\(end.map(String.init) ?? "")|\(hit.lxx)"
+                guard seen.insert(key).inserted else { continue }
+                references.append(.init(bookId: hit.parsed.bookId, chapter: hit.parsed.chapter, verse: verse, endVerse: end,
+                                        isChapter: isChapter, lxx: hit.lxx, sourceNoteTitle: title, context: hit.context))
+            }
+        }
+        return references
+    }
+
+    /// Where each recognised reference sits in `content` (UTF-16 range of the reference text, LXX marker included) and the text
+    /// to resolve when it is clicked — used by the note editors to style references as links (original auto-linking).
+    public static func linkSpans(content: String, hermas: HermasText = .robertsDonaldson) -> [(range: NSRange, reference: String)] {
+        var spans: [(range: NSRange, reference: String)] = []
+        scan(content, hermas: hermas) { hit in spans.append((hit.range, hit.reference)) }
+        return spans
+    }
+
+    struct Hit { let parsed: ParsedRef; let lxx: Bool; let context: String; let range: NSRange; let reference: String }
+
+    static func scan(_ content: String, hermas: HermasText, visit: (Hit) -> Void) {
         let normalized = content.replacingOccurrences(of: #"[    ]"#, with: " ", options: .regularExpression)
         let text = normalized as NSString
         var position = 0
-        var seen = Set<String>()
-        var references: [NoteVerseRef] = []
         while position < text.length,
               let match = candidates.firstMatch(in: normalized, options: .withTransparentBounds,
                                                 range: NSRange(location: position, length: text.length - position)) {
             position = NSMaxRange(match.range)
             let isWikilink = match.range(at: 2).location != NSNotFound
-            let captured = text.substring(with: match.range(at: isWikilink ? 2 : 1))
+            let captureRange = match.range(at: isWikilink ? 2 : 1)
+            let captured = text.substring(with: captureRange)
             let raw = String(captured.prefix { $0 != "|" }).trimmingCharacters(in: .whitespacesAndNewlines)
             let marker = isWikilink ? nil : lxxSuffix.firstMatch(in: raw, range: NSRange(location: 0, length: raw.utf16.count))
             let bare = marker.map { (raw as NSString).substring(to: $0.range.location) } ?? raw
@@ -61,18 +88,14 @@ public enum NoteVerseRefs {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "[[", with: "")
                 .replacingOccurrences(of: "]]", with: "")
-            let isChapter = parsed.verse == nil
             let lxx = marker != nil || parsed.forcedTranslation?.lowercased() == "lxx"
-            let groups = parsed.verseGroups ?? [.init(verse: parsed.verse ?? 0, endVerse: parsed.endVerse)]
-            for group in groups {
-                let verse = isChapter ? 0 : group.verse
-                let end = isChapter ? nil : group.endVerse
-                let key = "\(parsed.bookId)|\(parsed.chapter)|\(verse)|\(end.map(String.init) ?? "")|\(lxx)"
-                guard seen.insert(key).inserted else { continue }
-                references.append(.init(bookId: parsed.bookId, chapter: parsed.chapter, verse: verse, endVerse: end,
-                                        isChapter: isChapter, lxx: lxx, sourceNoteTitle: title, context: context))
-            }
+            // Range of the reference text itself (the trailing words that parsed, plus any LXX marker).
+            let shown = candidate + (marker.map { (raw as NSString).substring(with: $0.range) } ?? "")
+            let inCapture = (captured as NSString).range(of: shown, options: .backwards)
+            let range = inCapture.location == NSNotFound ? captureRange
+                : NSRange(location: captureRange.location + inCapture.location, length: inCapture.length)
+            visit(Hit(parsed: parsed, lxx: lxx, context: context, range: range,
+                      reference: candidate + (lxx ? " LXX" : "")))
         }
-        return references
     }
 }

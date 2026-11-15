@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import BereanNotes
+import BereanReference
 
 /// The Mac notes editor (ADR-0014): formatted while you type, no visible Markdown. The text storage holds the note's
 /// Markdown verbatim; `MarkdownLiveSpans` decides the styling, hidden markup becomes null glyphs (no width, no caret
@@ -143,6 +144,12 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .backgroundColor: NSColor.quaternaryLabelColor], range: r)
                 case .structure: break
                 }
+            }
+            // Scripture references written as plain text link to the passage (original note auto-linking; same
+            // berean-note: route the editor already resolves as a passage first).
+            for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
+                guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
+                storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
             }
             storage.endEditing()
             if let lm = tv.layoutManager { lm.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil); lm.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil) }

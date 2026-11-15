@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import BereanNotes
+import BereanReference
 
 /// iPhone notes editor (ADR-0014): same live-preview model as the Mac editor — Markdown kept verbatim in the text
 /// storage, markup hidden as null glyphs, bullets/tasks/callout labels substituted, formatting via the edit menu.
@@ -119,6 +120,12 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .image: storage.addAttributes([.foregroundColor: UIColor.secondaryLabel, .backgroundColor: UIColor.tertiarySystemFill], range: r)
                 case .structure: break
                 }
+            }
+            // Scripture references written as plain text link to the passage (original note auto-linking; same
+            // berean-note: route the editor already resolves as a passage first).
+            for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
+                guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
+                storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
             }
             storage.endEditing()
             tv.layoutManager.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil)

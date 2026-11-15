@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import BereanCore
 import BereanReference
@@ -111,5 +112,15 @@ import BereanReference
             if JSValue.array(got) != c["refs"]! { failures.append("\(text.debugDescription): \(JSON.stringify(.array(got)).string) want \(JSON.stringify(c["refs"]!).string)") }
         }
         #expect(failures.isEmpty, Comment(rawValue: "\(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
+    }
+}
+
+@Suite("note reference link spans") struct NoteLinkSpanTests {
+    @Test func spansCoverReferenceText() {
+        let text = "See John 3:16 and [[Gen 1:1]] plus Isaiah 6:4 LXX here."
+        let spans = NoteVerseRefs.linkSpans(content: text)
+        let ns = text as NSString
+        #expect(spans.map { ns.substring(with: $0.range) } == ["John 3:16", "Gen 1:1", "Isaiah 6:4 LXX"])
+        #expect(spans.map(\.reference) == ["John 3:16", "Gen 1:1", "Isaiah 6:4 LXX"])
     }
 }
