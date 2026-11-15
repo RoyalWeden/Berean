@@ -179,3 +179,27 @@ import Testing
     #expect(searchableTags.map(\.trailId) == ["second"])
     #expect(searchableTags.first?.title == "Wisdom")
 }
+
+@Test func editsLegacyTrailStickiesWithinTheirOwningTrail() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    let service = StudyTrailService(db: db)
+    try service.start(name: "First", id: "first", at: 1)
+    try service.start(name: "Second", id: "second", at: 2)
+    #expect(try service.createSticky(id: "loose", in: "first", kind: .annotation, title: "", body: "Unanchored", at: 3))
+    #expect(try service.recordStop(trailId: "first", id: "gen", bookId: "GEN", chapter: 1, translation: "kjva", at: 4))
+    #expect(try service.recordStop(trailId: "first", id: "psa", bookId: "PSA", chapter: 1, translation: "kjva", at: 5))
+    #expect(try service.createSticky(id: "section", in: "first", kind: .section, title: "Opening", body: "Body", at: 6))
+    #expect(try !service.updateSticky(id: "section", in: "second", title: "Wrong", body: "", at: 7))
+    #expect(try !service.deleteSticky(id: "section", in: "second"))
+    #expect(try service.updateSticky(id: "section", in: "first", title: "Revised", body: "Section body", at: 8))
+    let notes = try service.stickies(in: "first")
+    #expect(notes.map(\.id) == ["loose", "section"])
+    #expect(notes.map(\.anchorID) == [nil, "psa"])
+    #expect(notes.last?.kind == .section)
+    #expect(notes.last?.title == "Revised")
+    try db.exec("INSERT INTO trail_collapse (scope, key, collapsed, updated_at) VALUES ('section', 'section', 1, 9)")
+    #expect(try service.deleteSticky(id: "section", in: "first"))
+    #expect(try db.query("SELECT key FROM trail_collapse WHERE key = 'section'").isEmpty)
+    #expect(try service.stickies(in: "first").map(\.id) == ["loose"])
+}

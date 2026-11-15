@@ -1163,3 +1163,7 @@
 ### 2026-11-15 — Study Trail tags
 - Create and assign tags from Trail Actions. Find saved trails by their assigned tag names.
 - Both Dev builds and all 139 Swift tests passed. Mac scratch QA verified tag creation, assignment, and library search.
+
+### 2026-11-15 — Study Trail sticky notes
+- Add and edit sticky notes and section headers from Trail Actions. The sheet shows each entry’s anchor chapter.
+- Both final Dev builds and 140 Swift tests passed. Mac scratch QA verified creating and editing a section. Live iPhone verification remains open.

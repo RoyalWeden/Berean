@@ -180,6 +180,61 @@ public struct StudyTrailService {
         }
     }
 
+    public struct Sticky: Identifiable, Sendable {
+        public enum Kind: String, Sendable { case annotation, section }
+        public let id: String
+        public let kind: Kind
+        public let anchorID: String?
+        public let title: String
+        public let body: String
+    }
+
+    public func stickies(in trailID: String) throws -> [Sticky] {
+        try db.query("""
+            SELECT id, kind, anchor_node_id, title, body FROM trail_notes
+            WHERE trail_session_id = ? ORDER BY order_index, created_at, id
+            """, [.text(trailID)]).compactMap { row in
+                guard let id = row["id"]?.string else { return nil }
+                let kind = row["kind"]?.string.flatMap(Sticky.Kind.init(rawValue:)) ?? .annotation
+                return Sticky(id: id, kind: kind, anchorID: row["anchor_node_id"]?.string,
+                              title: row["title"]?.string ?? "", body: row["body"]?.string ?? "")
+            }
+    }
+
+    public func createSticky(id: String, in trailID: String, kind: Sticky.Kind, title: String,
+                             body: String, at time: Int64) throws -> Bool {
+        try db.run("""
+            INSERT INTO trail_notes
+              (id, trail_session_id, kind, anchor_node_id, title, body, created_at, updated_at)
+            SELECT ?, s.id, ?,
+                   (SELECT n.id FROM trail_nodes n WHERE n.trail_session_id = s.id
+                    ORDER BY n.order_index DESC, n.id DESC LIMIT 1),
+                   ?, ?, ?, ?
+            FROM trail_sessions s WHERE s.id = ? AND s.id <> '__loose_stops__'
+            """, [.text(id), .text(kind.rawValue), title.isEmpty ? .null : .text(title),
+                  .text(body), .integer(time), .integer(time), .text(trailID)]).changes == 1
+    }
+
+    public func updateSticky(id: String, in trailID: String, title: String,
+                             body: String, at time: Int64) throws -> Bool {
+        try db.run("""
+            UPDATE trail_notes SET title = ?, body = ?, updated_at = ?
+            WHERE id = ? AND trail_session_id = ? AND trail_session_id <> '__loose_stops__'
+            """, [title.isEmpty ? .null : .text(title), .text(body), .integer(time),
+                  .text(id), .text(trailID)]).changes == 1
+    }
+
+    public func deleteSticky(id: String, in trailID: String) throws -> Bool {
+        try transaction {
+            guard try db.run("""
+                DELETE FROM trail_notes
+                WHERE id = ? AND trail_session_id = ? AND trail_session_id <> '__loose_stops__'
+                """, [.text(id), .text(trailID)]).changes == 1 else { return false }
+            try db.run("DELETE FROM trail_collapse WHERE scope = 'section' AND key = ?", [.text(id)])
+            return true
+        }
+    }
+
     public struct SearchRecord: Sendable {
         public let trailId: String
         public let sourceBook: String?

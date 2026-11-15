@@ -235,6 +235,7 @@ private struct StudyTrailStopsView: View {
     @State private var presentation: Presentation = .list
     @State var query: String
     @State private var showsTags = false
+    @State private var showsStickies = false
     @State private var renamingTrail = false
     @State private var draftTrailName = ""
 
@@ -309,6 +310,9 @@ private struct StudyTrailStopsView: View {
                 .disabled(draftTrailName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .task(id: trail.id) { load() }
+        .sheet(isPresented: $showsStickies) {
+            StudyTrailStickiesView(trailID: trail.id, stops: stops)
+        }
         .sheet(isPresented: $showsTags, onDismiss: reloadTrails) {
             StudyTrailTagsView(trailID: trail.id)
         }
@@ -332,6 +336,7 @@ private struct StudyTrailStopsView: View {
                 renamingTrail = true
             }
             Button("Tags", systemImage: "tag") { showsTags = true }
+            Button("Sticky Notes", systemImage: "note.text") { showsStickies = true }
             Button(trail.recap?.isEmpty == false ? "Edit Recap" : "Add Recap", systemImage: "text.alignleft") {
                 editTarget = .recap(trail)
             }
@@ -910,6 +915,160 @@ private struct StudyTrailTagsView: View {
             tags = try service.tags(for: trailID)
         } catch {
             failed = true
+        }
+    }
+}
+
+private struct StudyTrailStickiesView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var notes: [StudyTrailService.Sticky] = []
+    @State private var draft: Draft?
+    @State private var pendingDelete: StudyTrailService.Sticky?
+    @State private var failed = false
+    let trailID: String
+    let stops: [StudyTrailService.Stop]
+
+    private struct Draft: Identifiable {
+        let id: String
+        let kind: StudyTrailService.Sticky.Kind
+        var title = ""
+        var body = ""
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if notes.isEmpty {
+                    ContentUnavailableView("No Sticky Notes", systemImage: "note.text")
+                } else {
+                    List(notes) { note in
+                        Button {
+                            draft = Draft(id: note.id, kind: note.kind, title: note.title, body: note.body)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(note.title.isEmpty ? label(for: note.kind) : note.title)
+                                    .font(.headline)
+                                Text(anchorLabel(note))
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if !note.body.isEmpty {
+                                    Text(note.body).lineLimit(3)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .contextMenu {
+                            Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = note }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Sticky Notes")
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack {
+                    Menu("Add", systemImage: "plus") {
+                        Button("Sticky Note", systemImage: "note.text") { begin(.annotation) }
+                        Button("Section Header", systemImage: "text.alignleft") { begin(.section) }
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.bar)
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+            .sheet(item: $draft) { entry in
+                Editor(draft: entry) { save($0) }
+            }
+            .alert("Delete this sticky note?", isPresented: Binding(
+                get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }
+            ), presenting: pendingDelete) { note in
+                Button("Delete", role: .destructive) {
+                    update { try $0.deleteSticky(id: note.id, in: trailID) }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .alert("Couldn’t Load or Save Sticky Notes", isPresented: $failed) { Button("OK") {} }
+        }
+        #if os(macOS)
+        .frame(minWidth: 400, minHeight: 340)
+        #endif
+        .task { update { _ in true } }
+    }
+
+    private func label(for kind: StudyTrailService.Sticky.Kind) -> String {
+        kind == .section ? "Section Header" : "Sticky Note"
+    }
+
+    private func anchorLabel(_ note: StudyTrailService.Sticky) -> String {
+        guard let stop = stops.first(where: { $0.id == note.anchorID }) else { return "Unanchored" }
+        return trailReference(stop.bookId, chapter: stop.chapter, verse: nil, edition: stop.translation) ?? "Unanchored"
+    }
+
+    private func begin(_ kind: StudyTrailService.Sticky.Kind) {
+        draft = Draft(id: AppModel.newId(), kind: kind)
+    }
+
+    private func save(_ entry: Draft) -> Bool {
+        let title = entry.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return update { service in
+            if notes.contains(where: { $0.id == entry.id }) {
+                return try service.updateSticky(id: entry.id, in: trailID, title: title,
+                                                body: entry.body, at: StudyTrailView.now())
+            }
+            return try service.createSticky(id: entry.id, in: trailID, kind: entry.kind, title: title,
+                                            body: entry.body, at: StudyTrailView.now())
+        }
+    }
+
+    @discardableResult
+    private func update(_ action: (StudyTrailService) throws -> Bool) -> Bool {
+        do {
+            guard let service = app.studyTrailService, try action(service) else {
+                failed = true
+                return false
+            }
+            do { notes = try service.stickies(in: trailID) }
+            catch { failed = true }
+            return true
+        } catch {
+            failed = true
+            return false
+        }
+    }
+
+    private struct Editor: View {
+        @Environment(\.dismiss) private var dismiss
+        @State var draft: Draft
+        let save: (Draft) -> Bool
+
+        var body: some View {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Title", text: $draft.title)
+                    TextEditor(text: $draft.body)
+                        .accessibilityLabel("Body")
+                        .frame(minHeight: 120)
+                }
+                .padding()
+                .navigationTitle(draft.kind == .section ? "Section Header" : "Sticky Note")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") { if save(draft) { dismiss() } }
+                            .disabled([draft.title, draft.body].allSatisfy {
+                                $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            })
+                    }
+                }
+            }
+            #if os(macOS)
+            .frame(minWidth: 360, minHeight: 245)
+            #endif
         }
     }
 }
