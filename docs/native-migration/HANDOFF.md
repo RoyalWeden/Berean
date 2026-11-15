@@ -905,3 +905,12 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 4. D16 ⌘F inside a Lexicon entry; D19 header "N (1000+)"; D4 "How to read an entry".
 5. D15 Compare per-column arrows / reorder; I18 Compare sync scrolling.
 6. D20/D21 continuous chapter scroll (large; needs a design note first).
+
+#### Addendum 20:10–20:26 (session continued to the 8:42 goal)
+
+- `1e017df5` Lexicon occurrences header "Occurrences (N/1000+)" (Mac verified on H1286) + audit DATA-01 (shared BDB articles).
+- `0b180e8c` Compare per-column Previous/Next Chapter (build only) and **MAC-FUNC-037 (Compare renders blank — pre-existing,
+  reproduced on `64df1059`)**; probe results in `3f2fd067`, `dc8ecfcc` (CompareView offered zero height; frame fixes didn't help; probes reverted).
+- `ee41bcb2` iPhone text-selection menu: Search for "…" + Look Up in Lexicon (simulator verified "have" → Search: have).
+- `d49fd3ce` iPhone Notes long-press peek (simulator verified); `a79f4937` note menu Open in New Tab + Share… (build only).
+- Task 0 in the list above is now **fix MAC-FUNC-037**. Dev app was left on the Genesis 1 reader (Compare off).
