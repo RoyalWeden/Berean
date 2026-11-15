@@ -849,3 +849,14 @@ Lexicon tab toolbar (now three nav-bar buttons), iPhone annotation section in th
 - `screencapture` images are 2× (Retina): divide pixel coordinates by 2 (or by the displayed scale) and add the window origin
   {100,60} to get `cliclick` points.
 - `⌘[` only works when the content (not the sidebar) has focus: click into the content first.
+
+#### Later in the same session (19:30–19:50)
+
+Commits after the checkpoint above: iPhone title indent `30fc3d29`, iPhone Lexicon search capsule `05784f3f`, Go-row tint + "Psalm 3"
+labels `3fbbc918`, accent-free lexicon search `639b41ad`, Look Up in Lexicon `c53b32bb`, palette chapter/Strong's commands `77576290`,
+BDB Notes `945689f9`, gloss links/H853 `946a2210`, search context ±1/±2 `ea5ee4eb`, and search cross-reference mode (this commit).
+Each was built for Mac + iOS and checked in the running Mac Dev app (iPhone simulator for the iPhone items); Swift tests 110+/39+ pass.
+
+**Decision to review:** the Search tab's field used to send *every* reference to the passage. Now a **single-verse** reference
+("John 3:16") stays in Search and shows that verse's cross references (the original Search tab's auto mode), with an Open button;
+chapter references ("John 3") still navigate. If Michael prefers the old behaviour, revert the guard in `ScriptureSearchView.submit()`.

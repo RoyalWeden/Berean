@@ -30,6 +30,15 @@ struct ScriptureSearchView: View {
     @State private var field = ""
     /// Verses of context shown around each result (original Compact / ±1 / ±2 modes); a local display preference.
     @AppStorage("searchResultContext") private var resultContext = 0
+    /// Queries that read as a verse reference show that verse's cross references (original search "auto" mode);
+    /// this per-view override switches back to a word search for the same text.
+    @State private var wordsInsteadOf: String?
+
+    /// The verse a reference-shaped query names, when cross-reference mode applies.
+    private var crossRefTarget: ResolvedPassage? {
+        guard wordsInsteadOf != query, let p = app.resolvePassage(query), p.verse != nil, p.verseGroups.count <= 1 else { return nil }
+        return p
+    }
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
     @State private var showOptions = false
@@ -82,7 +91,7 @@ struct ScriptureSearchView: View {
             header
             Divider()
             SwiftUI.Group {
-                if query.isEmpty { historyView } else { resultsView }
+                if query.isEmpty { historyView } else if let target = crossRefTarget { crossRefMode(target) } else { resultsView }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -228,8 +237,11 @@ struct ScriptureSearchView: View {
     func submit() {
         let q = field.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return }
-        // A plain reference in the search field goes to the passage, as everywhere else.
-        if !q.hasPrefix("\""), StrongsId.normalize(q) == nil, let passage = app.resolvePassage(q, preferring: currentText) {
+        // A chapter reference in the search field goes to the passage, as everywhere else. A single-verse reference
+        // stays here and shows that verse's cross references (the original Search tab's auto cross-reference mode),
+        // with an Open button for the passage itself.
+        if !q.hasPrefix("\""), StrongsId.normalize(q) == nil, let passage = app.resolvePassage(q, preferring: currentText),
+           passage.verse == nil || passage.verseGroups.count > 1 {
             app.visitScripture(passage, returningTo: tabId)
             return
         }
@@ -339,6 +351,23 @@ struct ScriptureSearchView: View {
     }
 
     private var searchPending: Bool { loading || completedRequest != request }
+
+    @ViewBuilder private func crossRefMode(_ target: ResolvedPassage) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Label("Cross references for \(target.label)", systemImage: "arrow.triangle.branch")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("Search Words Instead") { wordsInsteadOf = query }
+                    .buttonStyle(.borderless).clickableCursor()
+                Button("Open \(target.label)") { app.visitScripture(target, reuseTab: false, returningTo: tabId) }
+                    .buttonStyle(.borderless).clickableCursor()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            Divider()
+            CrossRefsView(bookId: target.bookId, chapter: target.chapter, verse: target.verse, textId: target.textId)
+        }
+    }
 
     @ViewBuilder var resultsView: some View {
         if !searchPending && shown.isEmpty {
