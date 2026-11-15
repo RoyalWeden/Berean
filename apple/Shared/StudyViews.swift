@@ -745,9 +745,13 @@ struct LexiconEntryView: View {
             .help("How to read a lexicon entry")
             .popover(isPresented: $showsEntryGuide, content: entryGuide)
         } else {
-            Button("How to Read a Lexicon Entry", systemImage: "info.circle") { showsEntryGuide = true }
-                .help("How to read a lexicon entry")
-                .popover(isPresented: $showsEntryGuide, content: entryGuide)
+            Button { showsEntryGuide = true } label: {
+                Label("How to Read a Lexicon Entry", systemImage: "info")
+                    .labelStyle(.iconOnly)
+                    .imageScale(.large)
+            }
+            .help("How to read a lexicon entry")
+            .popover(isPresented: $showsEntryGuide, content: entryGuide)
         }
     }
 
