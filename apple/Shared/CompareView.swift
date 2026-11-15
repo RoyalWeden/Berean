@@ -141,6 +141,9 @@ struct CompareView: View {
     @State private var localVerseSelection: Int?
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
+    #if os(macOS)
+    @State private var columnDragToken = UUID()
+    #endif
 
     private struct VerseTagTarget: Identifiable {
         let id = UUID()
@@ -459,17 +462,61 @@ struct CompareView: View {
     }
 
     private func columnPassageButton(_ column: CompareColumn, title: String) -> some View {
-        Button {
-            editingColumn = column
-        } label: {
-            Label(title, systemImage: "book")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: controlSize, alignment: .leading)
+        HStack(spacing: 4) {
+            #if os(macOS)
+            Image(systemName: "line.3.horizontal")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: controlSize)
                 .contentShape(.rect)
+                .pointerStyle(.link)
+                .help("Drag to reorder this column")
+                .accessibilityLabel("Reorder \(column.label)")
+                .draggable(columnDragPayload(column))
+            #endif
+            Button {
+                editingColumn = column
+            } label: {
+                Label(title, systemImage: "book")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: controlSize, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .accessibilityLabel("Change passage for \(column.label)")
+            .help("Change column passage")
         }
-        .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Change passage for \(column.label)")
-        .help("Change column passage")
+        #if os(macOS)
+        .dropDestination(for: String.self) { items, _ in
+            let current = columns
+            guard let item = items.first,
+                  let source = current.first(where: { item == columnDragPayload($0) }),
+                  let target = current.firstIndex(where: { $0.id == column.id && $0.historyKey == column.historyKey }) else { return false }
+            return moveColumn(source, to: target, in: current)
+        }
+        #endif
+    }
+
+    #if os(macOS)
+    private func columnDragPayload(_ column: CompareColumn) -> String {
+        "\(columnDragToken)|\(column.id)|\(column.historyKey)"
+    }
+    #endif
+
+    @discardableResult
+    private func moveColumn(_ column: CompareColumn, to target: Int, in current: [CompareColumn]) -> Bool {
+        guard let source = current.firstIndex(where: { $0.id == column.id && $0.historyKey == column.historyKey }),
+              current.indices.contains(target), source != target else { return false }
+        var reordered = current
+        reordered.insert(reordered.remove(at: source), at: target)
+        setColumns(reordered)
+        return true
+    }
+
+    private func moveColumn(_ column: CompareColumn, by delta: Int) {
+        let current = columns
+        guard let source = current.firstIndex(where: { $0.id == column.id && $0.historyKey == column.historyKey }) else { return }
+        moveColumn(column, to: source + delta, in: current)
     }
 
     @ViewBuilder private func independentVerses(_ column: CompareColumn) -> some View {
@@ -675,6 +722,11 @@ struct CompareView: View {
             // Per-column chapter stepping (original CompareView column ‹ ›); only this column moves.
             Button { stepColumn(column, by: -1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
             Button { stepColumn(column, by: 1) } label: { Label("Next Chapter", systemImage: "chevron.forward") }
+            Divider()
+            Button("Move Earlier", systemImage: "arrow.backward") { moveColumn(column, by: -1) }
+                .disabled(columns.first?.id == column.id)
+            Button("Move Later", systemImage: "arrow.forward") { moveColumn(column, by: 1) }
+                .disabled(columns.last?.id == column.id)
             Divider()
             Button {
                 setPinned(!pinned, for: column)
