@@ -55,7 +55,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N09 | Export, import, print | implemented | ✅ | 🟡 | — | Export (save panel) / import / copy; iPhone document picker untapped; no print |
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
 | N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes home supports folder navigation, sort/group, pin/trash/restore and scoped search. Board and advanced appearance parity remain. |
-| N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have a month grid and date-to-note navigation using legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
+| N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have month and week grids and date-to-note navigation using legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
 | N13 | Idiom / reference-book editor | implemented, niche | ❌ | ❌ | P3 | Idiom editor not ported |
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
 | N15 | e-Sword import | implemented (Mac only) | ❌ | — | P3 | e-Sword import not ported |
@@ -459,11 +459,11 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### N12 Daily notes, calendar and sunrise day boundary
-- **Original (both):** Daily note per date titled `Daily — YYYY-MM-DD` (title is a de facto key); day boundary at local sunrise via `suncalc` plus location (location once per launch); Sabbath label for Saturday; calendar widget (Mac sidebar), calendar tab (both), continuous daily scroll, today shortcut (Cmd+Shift+D, intent, widget, `berean://daily`).
+- **Original (both):** Daily note per date titled `Daily — YYYY-MM-DD` (title is a de facto key); day boundary at local sunrise via `suncalc` plus location (location once per launch); Sabbath label for Saturday; calendar widget with week view (Mac sidebar), calendar tab (both), continuous daily scroll, today shortcut (Cmd+Shift+D, intent, widget, `berean://daily`).
 - **Mac vs iPhone (original):** Mac uses Electron geolocation path in main (INFERRED: `NSLocationWhenInUseUsageDescription` in `extendInfo`); iPhone plugin.
 - **Original files:** `src/lib/{dailyNotes,dailyNoteUtils,calendarModel,noteUtils}.ts`, `src/components/notes/{CalendarWidget,CalendarTabPanel,ContinuousDailyScroll,DailyNoteEditsSection}.tsx`, `src/mobile/calendar/*`, `BereanLocationPlugin.swift`, `suncalc`.
 - **Known original defects:** Location denied fallback to midnight (INFERRED); title-as-key means renames could break daily detection.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Both apps have a month grid and date-to-note navigation using legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback.
+- **Native Mac / iPhone:** 🟡 / 🟡 — Both apps have month and week grids and date-to-note navigation using legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback.
 - **Native files:** AppModel+Workspaces
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

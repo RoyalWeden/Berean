@@ -9,6 +9,7 @@ struct DailyNoteCalendar: View {
     @State private var notes: [String: Int] = [:]
     @State private var indexError = false
     @State private var showLocation = false
+    @State private var weekAnchor: Date?
     @AppStorage(DailyNotePreferences.locationKey) private var storedLocation = ""
 
     private static var calendar: Calendar { DailyNoteDay.localCalendar }
@@ -35,6 +36,24 @@ struct DailyNoteCalendar: View {
         return (0..<cells).compactMap { calendar.date(byAdding: .day, value: $0 - leading, to: month) }
     }
 
+    private func days(inWeekOf date: Date) -> [Date] {
+        let calendar = Self.calendar
+        let day = calendar.startOfDay(for: date)
+        let leading = calendar.component(.weekday, from: day) - 1
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0 - leading, to: day) }
+    }
+
+    private func periodTitle(month: Date, week: [Date]) -> String {
+        guard let first = week.first, let last = week.last else {
+            return month.formatted(.dateTime.month(.wide).year())
+        }
+        let style: Date.FormatStyle = .dateTime.month(.abbreviated).day()
+        if Self.calendar.isDate(first, equalTo: last, toGranularity: .year) {
+            return "\(first.formatted(style)) – \(last.formatted(style.year()))"
+        }
+        return "\(first.formatted(style.year())) – \(last.formatted(style.year()))"
+    }
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             calendarContent(today: DailyNoteDay.anchor(context.date, location: DailyNotePreferences.location(storedLocation)))
@@ -55,33 +74,50 @@ struct DailyNoteCalendar: View {
 
     private func calendarContent(today: Date) -> some View {
         let month = month(for: today)
+        let week = weekAnchor.map { days(inWeekOf: $0) } ?? []
+        let period = weekAnchor == nil ? "Month" : "Week"
         return ScrollView {
             VStack(spacing: 12) {
                 HStack {
-                    Button { step(-1, from: month) } label: { Label("Previous Month", systemImage: "chevron.left").labelStyle(.iconOnly) }
+                    Button { step(-1, from: month) } label: { Label("Previous \(period)", systemImage: "chevron.left").labelStyle(.iconOnly) }
                     Spacer()
-                    Text(month.formatted(.dateTime.month(.wide).year())).font(.title2.weight(.semibold))
+                    Text(periodTitle(month: month, week: week)).font(.title2.weight(.semibold))
+                        .multilineTextAlignment(.center)
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
-                    Button { step(1, from: month) } label: { Label("Next Month", systemImage: "chevron.right").labelStyle(.iconOnly) }
+                    Button { step(1, from: month) } label: { Label("Next \(period)", systemImage: "chevron.right").labelStyle(.iconOnly) }
                 }
                 LazyVGrid(columns: columns, spacing: 4) {
                     ForEach(Array(Self.calendar.veryShortStandaloneWeekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                         Text(symbol).font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
                     }
-                    ForEach(days(in: month), id: \.self) { day in dayButton(day, in: month, today: today) }
+                    ForEach(week.isEmpty ? days(in: month) : week, id: \.self) { day in
+                        dayButton(day, isInPeriod: !week.isEmpty || Self.calendar.isDate(day, equalTo: month, toGranularity: .month),
+                                  today: today)
+                    }
                 }
                 if indexError {
                     Text("Could not load daily notes.").foregroundStyle(.secondary)
                 }
                 HStack {
-                    Button("Current Month") { saveMonth(DailyNotePreferences.today()) }
+                    Button("Current \(period)") {
+                        let today = DailyNotePreferences.today()
+                        if weekAnchor == nil { saveMonth(today) }
+                        else { weekAnchor = today }
+                    }
                     Button("Today’s Note") {
                         let today = DailyNotePreferences.today()
                         let key = DailyNoteDay.dateKey(today)
-                        saveMonth(today, selected: key)
-                        app.openDailyNote(key)
+                        selectDate(today, key: key)
                     }
+                    Button(weekAnchor == nil ? "Show Week" : "Show Month",
+                           systemImage: weekAnchor == nil ? "calendar.day.timeline.leading" : "calendar") {
+                        weekAnchor = weekAnchor == nil ? today : nil
+                    }
+                    .labelStyle(.iconOnly)
+                    #if os(macOS)
+                    .help(weekAnchor == nil ? "Show Week" : "Show Month")
+                    #endif
                     Button("Sunrise Settings", systemImage: "sunrise") { showLocation = true }
                         .labelStyle(.iconOnly)
                         #if os(macOS)
@@ -95,20 +131,18 @@ struct DailyNoteCalendar: View {
         }
     }
 
-    private func dayButton(_ date: Date, in month: Date, today anchor: Date) -> some View {
+    private func dayButton(_ date: Date, isInPeriod: Bool, today anchor: Date) -> some View {
         let key = DailyNoteDay.dateKey(date)
-        let inMonth = Self.calendar.isDate(date, equalTo: month, toGranularity: .month)
         let selected = app.findTab(tabId)?.state["selected"]?.stringValue?.string == key
         let today = Self.calendar.isDate(date, inSameDayAs: anchor)
         return Button {
-            saveMonth(date, selected: key)
-            app.openDailyNote(key)
+            selectDate(date, key: key)
         } label: {
             VStack(spacing: 2) {
                 // Today: white number on an accent circle (as in Calendar); other days plain.
                 Text(Self.calendar.component(.day, from: date), format: .number)
                     .fontWeight(today || selected ? .semibold : .regular)
-                    .foregroundStyle(today ? AnyShapeStyle(.white) : inMonth ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(today ? AnyShapeStyle(.white) : isInPeriod ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                     .frame(width: 30, height: 30)
                     .background(today ? Color.accentColor : Color.clear, in: .circle)
                 Circle()
@@ -126,14 +160,22 @@ struct DailyNoteCalendar: View {
     }
 
     private func step(_ delta: Int, from month: Date) {
-        if let date = Self.calendar.date(byAdding: .month, value: delta, to: month) {
+        if let weekAnchor {
+            self.weekAnchor = Self.calendar.date(byAdding: .day, value: delta * 7, to: weekAnchor) ?? weekAnchor
+        } else if let date = Self.calendar.date(byAdding: .month, value: delta, to: month) {
             saveMonth(date)
         }
     }
 
-    private func saveMonth(_ date: Date, selected: String? = nil) {
+    private func selectDate(_ date: Date, key: String) {
+        if weekAnchor != nil { weekAnchor = date }
+        saveMonth(weekAnchor == nil ? date : nil, selected: key)
+        app.openDailyNote(key)
+    }
+
+    private func saveMonth(_ date: Date?, selected: String? = nil) {
         app.update(tabId, recordHistory: false) { tab in
-            tab.state["month"] = .string(JSString(String(DailyNoteDay.dateKey(date).prefix(7))))
+            if let date { tab.state["month"] = .string(JSString(String(DailyNoteDay.dateKey(date).prefix(7)))) }
             if let selected { tab.state["selected"] = .string(JSString(selected)) }
         }
     }
