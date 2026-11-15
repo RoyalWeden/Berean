@@ -262,6 +262,8 @@ struct TabCardsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var showTabCleanup = false
+    @State private var isSelecting = false
+    @State private var selectedTabIDs: Set<String> = []
 
     @State private var spaceFilter: SpaceId?
     @State private var typeFilter: TabType?
@@ -272,7 +274,7 @@ struct TabCardsSheet: View {
 
     private var isFiltering: Bool { spaceFilter != nil || typeFilter != nil }
     private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    private var canReorder: Bool { tabSort != "recent" && !isFiltering && !hasQuery }
+    private var canReorder: Bool { !isSelecting && tabSort != "recent" && !isFiltering && !hasQuery }
 
     private func typeTitle(_ type: TabType) -> String {
         type == .bible ? "Scripture" : type.rawValue.capitalized
@@ -287,8 +289,28 @@ struct TabCardsSheet: View {
         app.matchingOpenTabs(query, space: spaceFilter).filter(matchesFilters)
     }
 
+    private var selectableIDs: Set<String> {
+        Set(app.inactiveTabs.map(\.id)).intersection(shown.map(\.id))
+    }
+
+    private func finishSelection() {
+        selectedTabIDs.removeAll()
+        isSelecting = false
+    }
+
+    private func openOrSelect(_ tab: BereanWorkspace.Tab) {
+        if isSelecting {
+            guard selectableIDs.contains(tab.id) else { return }
+            if !selectedTabIDs.insert(tab.id).inserted { selectedTabIDs.remove(tab.id) }
+        } else {
+            app.select(tab.id, in: tab.spaceId)
+            dismiss()
+        }
+    }
+
     var body: some View {
-        NavigationStack {
+        let eligible = selectableIDs
+        return NavigationStack {
             List {
                 VStack(alignment: .leading, spacing: 4) {
                     TabSearchField(prompt: "Search tabs", query: $query)
@@ -300,7 +322,7 @@ struct TabCardsSheet: View {
                         }
                     }
                 }
-                if !hasQuery, !isFiltering {
+                if !isSelecting, !hasQuery, !isFiltering {
                     workspaceActions
                     WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
                                         onOpen: { dismiss() })
@@ -313,29 +335,41 @@ struct TabCardsSheet: View {
                     if layout == "grid" {
                         if !shown.isEmpty {
                             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                                ForEach(sortedTabs(pinned + others)) { card($0) }
+                                ForEach(sortedTabs(pinned + others)) { card($0, eligible: eligible.contains($0.id)) }
                             }
                             .padding(.vertical, 6)
                             .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
                             .listRowBackground(Color.clear)
                         }
                     } else if canReorder {
-                        ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
-                        ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
+                        ForEach(pinned) { row($0, eligible: eligible.contains($0.id)) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
+                        ForEach(others) { row($0, eligible: eligible.contains($0.id)) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
                     } else {
-                        ForEach(sortedTabs(pinned + others)) { row($0) }
+                        ForEach(sortedTabs(pinned + others)) { row($0, eligible: eligible.contains($0.id)) }
                     }
-                    if shown.isEmpty && otherMatches.isEmpty { Text(!hasQuery && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
+                    if shown.isEmpty && (isSelecting || otherMatches.isEmpty) { Text(!hasQuery && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
-                WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() })
+                if !isSelecting { WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() }) }
             }
             .scrollDismissesKeyboard(.interactively)
+            .onChange(of: eligible) { _, eligible in selectedTabIDs.formIntersection(eligible) }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if isSelecting { batchArchiveBar }
+            }
             .sheet(isPresented: $showTabCleanup) { TabCleanupView() }
             .navigationTitle("Tabs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if layout == "list" && canReorder { EditButton() }
+                    if isSelecting {
+                        Button("Cancel", action: finishSelection)
+                    } else {
+                        HStack {
+                            if layout == "list" && canReorder { EditButton() }
+                            Button("Select") { isSelecting = true }
+                                .disabled(eligible.isEmpty)
+                        }
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(layout == "grid" ? "Show as List" : "Show as Grid", systemImage: layout == "grid" ? "list.bullet" : "square.grid.2x2") {
@@ -371,9 +405,36 @@ struct TabCardsSheet: View {
                     }
                     .accessibilityValue([spaceFilter?.title, typeFilter.map(typeTitle)].compactMap { $0 }.joined(separator: ", "))
                 }
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { if !isSelecting { Button("Done") { dismiss() } } }
             }
         }
+    }
+
+    private var batchArchiveBar: some View {
+        let count = selectedTabIDs.count
+        return HStack(spacing: 12) {
+            Text("\(count) selected").font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+            Button("Archive", systemImage: "archivebox") {
+                app.archiveInactiveTabs(Array(selectedTabIDs.intersection(selectableIDs)))
+                finishSelection()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(count == 0)
+        }
+        .padding(6)
+        .padding(.leading, 8)
+        .glassEffectCompat(interactive: true)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func selectionMark(_ tab: BereanWorkspace.Tab) -> some View {
+        Image(systemName: selectedTabIDs.contains(tab.id) ? "checkmark.circle.fill" : "circle")
+            .font(.body)
+            .foregroundStyle(selectedTabIDs.contains(tab.id) ? Color.accentColor : Color.secondary)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -427,8 +488,8 @@ struct TabCardsSheet: View {
         .accessibilityLabel("Remove \(category) filter: \(title)")
     }
 
-    func row(_ tab: BereanWorkspace.Tab) -> some View {
-        Button { app.select(tab.id, in: tab.spaceId); dismiss() } label: {
+    func row(_ tab: BereanWorkspace.Tab, eligible: Bool) -> some View {
+        Button { openOrSelect(tab) } label: {
             HStack {
                 Image(systemName: tab.symbol).foregroundStyle(tab.tint).frame(width: 24)
                 VStack(alignment: .leading, spacing: 1) {
@@ -437,15 +498,25 @@ struct TabCardsSheet: View {
                 }
                 Spacer()
                 if tab.isPinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(.secondary) }
-                if tab.id == app.activeTab?.id { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current tab") }
+                if isSelecting && eligible {
+                    selectionMark(tab)
+                } else if tab.id == app.activeTab?.id {
+                    Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current tab")
+                }
             }
         }
+        .disabled(isSelecting && !eligible)
+        .accessibilityAddTraits(isSelecting && selectedTabIDs.contains(tab.id) ? .isSelected : [])
         .swipeActions(edge: .trailing) {
-            Button("Close", role: .destructive) { app.close(tab.id) }
-            Button("Archive") { app.archive([tab.id]) }.tint(.indigo)
+            if !isSelecting {
+                Button("Close", role: .destructive) { app.close(tab.id) }
+                Button("Archive") { app.archive([tab.id]) }.tint(.indigo)
+            }
         }
-        .swipeActions(edge: .leading) { Button(tab.isPinned ? "Unpin" : "Pin") { app.togglePin(tab.id) }.tint(.orange) }
-        .contextMenu { tabMenu(tab) }
+        .swipeActions(edge: .leading) {
+            if !isSelecting { Button(tab.isPinned ? "Unpin" : "Pin") { app.togglePin(tab.id) }.tint(.orange) }
+        }
+        .contextMenu { if !isSelecting { tabMenu(tab) } }
     }
 
     private func sortedTabs(_ tabs: [BereanWorkspace.Tab]) -> [BereanWorkspace.Tab] {
@@ -458,9 +529,9 @@ struct TabCardsSheet: View {
     }
 
     /// A tab as a card: tinted header with its kind, title and detail, × to close; the current tab is outlined.
-    func card(_ tab: BereanWorkspace.Tab) -> some View {
-        let current = tab.id == app.activeTab?.id
-        return Button { app.select(tab.id, in: tab.spaceId); dismiss() } label: {
+    func card(_ tab: BereanWorkspace.Tab, eligible: Bool) -> some View {
+        let current = isSelecting ? selectedTabIDs.contains(tab.id) : tab.id == app.activeTab?.id
+        return Button { openOrSelect(tab) } label: {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 6) {
                     Image(systemName: tab.symbol).font(.caption.weight(.semibold))
@@ -493,22 +564,29 @@ struct TabCardsSheet: View {
             .contentShape(.rect(cornerRadius: 16))
         }
         .buttonStyle(.interactivePlain)
+        .disabled(isSelecting && !eligible)
         .overlay(alignment: .topTrailing) {
-            Button {
-                if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            if isSelecting {
+                if eligible {
+                    selectionMark(tab).padding(8).allowsHitTesting(false)
                 }
-                withAnimation(.snappy) { app.close(tab.id) }
-            } label: {
-                Image(systemName: "xmark").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24).background(.thinMaterial, in: .circle)
-                    .frame(width: 44, height: 44).contentShape(.rect)
+            } else {
+                Button {
+                    if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                    withAnimation(.snappy) { app.close(tab.id) }
+                } label: {
+                    Image(systemName: "xmark").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24).background(.thinMaterial, in: .circle)
+                        .frame(width: 44, height: 44).contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .offset(x: 8, y: -8)
+                .accessibilityLabel("Close \(tab.navigationLabel)")
             }
-            .buttonStyle(.interactivePlain)
-            .offset(x: 8, y: -8)
-            .accessibilityLabel("Close \(tab.navigationLabel)")
         }
-        .contextMenu { tabMenu(tab) }
+        .contextMenu { if !isSelecting { tabMenu(tab) } }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(current ? .isSelected : [])
     }
