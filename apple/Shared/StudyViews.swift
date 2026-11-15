@@ -498,6 +498,16 @@ struct CrossRefsView: View {
     @State private var groups: [ReferenceGroup] = []
     @State private var expandedVerses: Set<Int> = []
     @State private var failed = false
+    @State private var chapterScopeOverride: String?
+
+    private var selectionKey: String {
+        "\(textId)|\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(selectedVerses)"
+    }
+
+    private var hasVerseScope: Bool { verse != nil || !selectedVerses.isEmpty }
+    private var showingChapter: Bool { !hasVerseScope || chapterScopeOverride == selectionKey }
+    private var scopedVerse: Int? { showingChapter ? nil : verse }
+    private var scopedSelection: [Int] { showingChapter ? [] : selectedVerses }
 
     private struct ReferenceGroup {
         let verse: Int
@@ -526,14 +536,27 @@ struct CrossRefsView: View {
     }
 
     var body: some View {
-        let reference = "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(selectedVerses)|\(textId)|\(source)"
+        let reference = "\(selectionKey)|\(showingChapter)|\(source)"
         VStack(spacing: 0) {
             HStack {
                 Text(ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter,
-                                     verse: verse, verseGroups: consecutiveVerseRuns(Set(selectedVerses))).label)
+                                     verse: scopedVerse, verseGroups: consecutiveVerseRuns(Set(scopedSelection))).label)
                     .font(.subheadline.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
+                if hasVerseScope {
+                    let label = showingChapter ? "Show selected verses" : "Show whole chapter"
+                    Button {
+                        chapterScopeOverride = showingChapter ? nil : selectionKey
+                    } label: {
+                        Label(label, systemImage: showingChapter ? "list.number" : "list.bullet")
+                            .labelStyle(.iconOnly)
+                            .frame(minWidth: controlHeight, minHeight: controlHeight)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.interactivePlain)
+                    .help(label)
+                }
                 Menu {
                     Button { source = "tske" } label: {
                         Label("TSKe", systemImage: source == "tske" ? "checkmark" : "book")
@@ -545,7 +568,7 @@ struct CrossRefsView: View {
                     Label(source == "classic" ? "Classic" : "TSKe", systemImage: "line.3.horizontal.decrease")
                         .font(.subheadline.weight(.medium))
                         .padding(.horizontal, 8)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: controlHeight)
                         .contentShape(.rect)
                 }
                 .menuStyle(.borderlessButton)
@@ -567,7 +590,7 @@ struct CrossRefsView: View {
                 ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch")
             } else {
                 List {
-                    if verse == nil || selectedVerses.count > 1 {
+                    if showingChapter || scopedSelection.count > 1 {
                         let byVerse = Dictionary(grouping: groups, by: \.verse)
                         ForEach(byVerse.keys.sorted(), id: \.self) { number in
                             verseSection(number, groups: byVerse[number] ?? [])
@@ -583,6 +606,15 @@ struct CrossRefsView: View {
             expandedVerses = []
             await load(reference)
         }
+        .onChange(of: selectionKey) { chapterScopeOverride = nil }
+    }
+
+    private var controlHeight: CGFloat {
+        #if os(macOS)
+        32
+        #else
+        44
+        #endif
     }
 
     @ViewBuilder private func verseSection(_ number: Int, groups: [ReferenceGroup]) -> some View {
@@ -607,7 +639,7 @@ struct CrossRefsView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 }
-                .frame(minHeight: 32)
+                .frame(minHeight: controlHeight)
                 .contentShape(.rect)
             }
             .buttonStyle(.interactivePlain)
@@ -635,7 +667,7 @@ struct CrossRefsView: View {
 
     private func load(_ reference: String) async {
         let result: (groups: [ReferenceGroup], error: Bool)
-        let targets = selectedVerses.isEmpty ? verse.map { [$0] } ?? [] : selectedVerses
+        let targets = scopedSelection.isEmpty ? scopedVerse.map { [$0] } ?? [] : scopedSelection
         let classic = source == "classic"
         if !targets.isEmpty {
             var selectedGroups: [ReferenceGroup] = []

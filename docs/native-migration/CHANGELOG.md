@@ -989,3 +989,8 @@
 
 - Chapter and multi-verse cross references use one expandable row per verse with a reference count. TSKe headings and reciprocal links appear inside that verse.
 - Mac and iPhone Simulator Dev builds passed. Mac Dev Ephesians 2 verified expansion in Classic and TSKe. iPhone interaction and discontinuous selection remain pending.
+
+### 2026-11-14 — Cross-reference scope — MAC LIVE VERIFIED
+
+- Both native inspectors can toggle between chapter and selected-verse references while preserving the reader selection. iPhone disclosure and scope controls have 44-point minimum heights.
+- Both Dev builds passed. The 2 Samuel 22:10 scope round trip passed in the running Mac Dev app.
