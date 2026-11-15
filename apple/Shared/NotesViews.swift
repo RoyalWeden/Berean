@@ -903,11 +903,22 @@ struct VerseNotesView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
+    var selectedVerses: Set<Int> = []
     var editInSheet: ((String) -> Void)?
     @State private var notes: [Note] = []
 
     private var passageLabel: String {
-        Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: selectedVerses.min() ?? verse,
+                        verseGroups: consecutiveVerseRuns(selectedVerses)).label
+    }
+
+    private var attachment: String {
+        let prefix = "\(bookId).\(chapter)"
+        if selectedVerses.isEmpty { return prefix + (verse.map { ".\($0)" } ?? "") }
+        return consecutiveVerseRuns(selectedVerses).map { range in
+            let start = "\(prefix).\(range.lowerBound)"
+            return range.lowerBound == range.upperBound ? start : "\(start)-\(range.upperBound)"
+        }.joined(separator: ",")
     }
 
     var body: some View {
@@ -929,11 +940,11 @@ struct VerseNotesView: View {
                 }
                 .buttonStyle(.interactivePlain)
             }
-            if verse == nil, notes.isEmpty {
+            if verse == nil, selectedVerses.isEmpty, notes.isEmpty {
                 ContentUnavailableView("No chapter notes", systemImage: "note.text")
             }
             Button {
-                let ref = "\(bookId).\(chapter)" + (verse.map { ".\($0)" } ?? "")
+                let ref = attachment
                 if let editInSheet {
                     if let id = app.newNote(verseRef: ref, textId: textId, title: passageLabel, openEditor: false) {
                         editInSheet(id)
@@ -949,8 +960,10 @@ struct VerseNotesView: View {
                 Label("New Note for \(passageLabel)", systemImage: "plus")
             }
         }
-        .task(id: "\(bookId)|\(chapter)|\(verse.map(String.init) ?? "chapter")|\(textId)|\(app.notesRevision)") {
-            if let verse {
+        .task(id: "\(attachment)|\(textId)|\(app.notesRevision)") {
+            if !selectedVerses.isEmpty {
+                notes = (try? app.notes?.coveringVerses(bookId, chapter, selectedVerses, textId: textId)) ?? []
+            } else if let verse {
                 notes = (try? app.notes?.coveringVerse(bookId, chapter, verse, textId: textId)) ?? []
             } else {
                 notes = (try? app.notes?.attachedNotes(bookId, chapter, textId: textId)) ?? []

@@ -157,6 +157,8 @@ func noteJSON(_ n: Note) -> JSValue {
                                        verseRef: "JHN.3.14-15, JHN.3.15, JHN.3.17, JHN.4.2", textId: "kjva")).note
         #expect(try svc.coveringVerse("JHN", 3, 17, textId: "kjva").contains { $0.id == note.id })
         #expect(!(try svc.coveringVerse("JHN", 3, 16, textId: "kjva")).contains { $0.id == note.id })
+        #expect(try svc.coveringVerses("JHN", 3, [14, 17], textId: "kjva").filter { $0.id == note.id }.count == 1)
+        #expect(try svc.coveringVerses("JHN", 3, [13, 16], textId: "kjva").allSatisfy { $0.id != note.id })
         #expect(try svc.coveringVerse("JHN", 4, 2, textId: "kjva").contains { $0.id == note.id })
         let matching = try svc.coveringVerse("JHN", 3, 15, textId: "kjva")
         #expect(matching.filter { $0.id == note.id }.count == 1)

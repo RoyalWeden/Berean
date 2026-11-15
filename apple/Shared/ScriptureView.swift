@@ -272,6 +272,7 @@ struct ScriptureView: View {
     }
     private struct TappedVerse: Identifiable {
         let row: ChapterVerseRow
+        var notesSelection: Set<Int> = []
         var id: Int { row.verseNum }
     }
     @State private var tappedTag: TappedTag?
@@ -798,6 +799,12 @@ struct ScriptureView: View {
                 tappedVerse = TappedVerse(row: row)
             }
         }
+        if selectedRows.count > 1, let row = selectedRows.first {
+            Button("Notes for Selected Verses", systemImage: "note.text") {
+                verseSheetDetent = .large
+                tappedVerse = TappedVerse(row: row, notesSelection: Set(selectedRows.map(\.verseNum)))
+            }
+        }
         #endif
         if includesTag {
             Button("Tag Verses", systemImage: "tag") {
@@ -929,55 +936,37 @@ struct ScriptureView: View {
             action?()
         }) { item in
             NavigationStack(path: $verseSheetPath) {
-                List {
-                    Section("Highlight") { verseHighlightSwatches(item.row, st) }
-                    Section {
-                        HStack(spacing: 8) {
-                            verseSheetShortcut("Notes", icon: "note.text", page: .notes)
-                            verseSheetShortcut("Cross References", icon: "arrow.triangle.branch", page: .crossReferences)
-                        }
-                    }
-                    Section {
-                        verseActions(item.row, st, perform: finishVerseSheet)
+                Group {
+                    if !item.notesSelection.isEmpty {
+                        VerseNotesView(bookId: item.row.bookId, chapter: item.row.chapter, verse: nil,
+                                       textId: st.translation, selectedVerses: item.notesSelection,
+                                       editInSheet: { verseSheetPath.append(.noteEditor($0)) })
+                    } else {
+                        verseSheetActions(item.row, st)
                     }
                 }
-                    .navigationTitle(Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: item.row.verseNum, hermas: HermasText(textId: st.translation)))
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } }
-                        ToolbarItem(placement: .primaryAction) {
-                            Button {
-                                copy(item.row, st)
-                                verseSheetCopyFeedback = UUID()
-                                AccessibilityNotification.Announcement("Verse copied").post()
-                            } label: {
-                                Label("Copy Verse", systemImage: verseSheetCopyFeedback == nil ? "doc.on.doc" : "checkmark")
-                            }
-                            .accessibilityValue(verseSheetCopyFeedback == nil ? "" : "Copied")
-                        }
+                .navigationTitle(item.notesSelection.isEmpty
+                    ? Reference.bookChapterVerseLabel(item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
+                                                      hermas: HermasText(textId: st.translation))
+                    : "Verse Notes")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } } }
+                .navigationDestination(for: VerseSheetPage.self) { page in
+                    switch page {
+                    case .notes:
+                        VerseNotesView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
+                                       textId: st.translation, editInSheet: { verseSheetPath.append(.noteEditor($0)) })
+                            .navigationTitle("Verse Notes")
+                            .navigationBarTitleDisplayMode(.inline)
+                    case .crossReferences:
+                        CrossRefsView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
+                                      textId: st.translation, performDestination: finishVerseSheet)
+                            .navigationTitle("Cross References")
+                            .navigationBarTitleDisplayMode(.inline)
+                    case .noteEditor(let id):
+                        NoteDetailView(noteId: id, performDestination: finishVerseSheet)
                     }
-                    .task(id: verseSheetCopyFeedback) {
-                        guard let feedback = verseSheetCopyFeedback else { return }
-                        try? await Task.sleep(for: .seconds(1.4))
-                        guard !Task.isCancelled, verseSheetCopyFeedback == feedback else { return }
-                        verseSheetCopyFeedback = nil
-                    }
-                    .navigationDestination(for: VerseSheetPage.self) { page in
-                        switch page {
-                        case .notes:
-                            VerseNotesView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
-                                           textId: st.translation, editInSheet: { verseSheetPath.append(.noteEditor($0)) })
-                                .navigationTitle("Verse Notes")
-                                .navigationBarTitleDisplayMode(.inline)
-                        case .crossReferences:
-                            CrossRefsView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
-                                          textId: st.translation, performDestination: finishVerseSheet)
-                                .navigationTitle("Cross References")
-                                .navigationBarTitleDisplayMode(.inline)
-                        case .noteEditor(let id):
-                            NoteDetailView(noteId: id, performDestination: finishVerseSheet)
-                        }
-                    }
+                }
             }
             .presentationDetents([Self.verseSheetCompactDetent, .large], selection: $verseSheetDetent)
             .presentationDragIndicator(.visible)
@@ -990,6 +979,39 @@ struct ScriptureView: View {
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedTag = nil } } }
             }
             .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func verseSheetActions(_ row: ChapterVerseRow, _ st: BibleState) -> some View {
+        List {
+            Section("Highlight") { verseHighlightSwatches(row, st) }
+            Section {
+                HStack(spacing: 8) {
+                    verseSheetShortcut("Notes", icon: "note.text", page: .notes)
+                    verseSheetShortcut("Cross References", icon: "arrow.triangle.branch", page: .crossReferences)
+                }
+            }
+            Section {
+                verseActions(row, st, perform: finishVerseSheet)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    copy(row, st)
+                    verseSheetCopyFeedback = UUID()
+                    AccessibilityNotification.Announcement("Verse copied").post()
+                } label: {
+                    Label("Copy Verse", systemImage: verseSheetCopyFeedback == nil ? "doc.on.doc" : "checkmark")
+                }
+                .accessibilityValue(verseSheetCopyFeedback == nil ? "" : "Copied")
+            }
+        }
+        .task(id: verseSheetCopyFeedback) {
+            guard let feedback = verseSheetCopyFeedback else { return }
+            try? await Task.sleep(for: .seconds(1.4))
+            guard !Task.isCancelled, verseSheetCopyFeedback == feedback else { return }
+            verseSheetCopyFeedback = nil
         }
     }
     #endif

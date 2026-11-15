@@ -248,6 +248,16 @@ public final class NotesService: @unchecked Sendable {
         try attachedNotes(bookId, chapter, textId: textId, verse: verse)
     }
 
+    public func coveringVerses(_ bookId: String, _ chapter: Int, _ verses: Set<Int>, textId: String) throws -> [Note] {
+        let matches = try attachedNotes(bookId, chapter, textId: textId).filter { note in
+            Self.attachments(note, bookId: bookId, chapter: chapter, textId: textId).contains { attachment in
+                guard let first = attachment.verse else { return false }
+                return verses.contains(where: (first...(attachment.endVerse ?? first)).contains)
+            }
+        }
+        return Self.stableSort(matches) { $0.createdAt < $1.createdAt }
+    }
+
     /// Counts the same attachments the inspector displays, bounded by the installed chapter's verses.
     public func coveringVerseCounts(_ bookId: String, _ chapter: Int, verses: Set<Int>, textId: String) throws -> [Int: Int] {
         var counts: [Int: Int] = [:]
