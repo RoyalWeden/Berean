@@ -95,8 +95,17 @@ struct CommandPalette: View {
             ("Tags", "tag", { app.openTags(newTab: newTab) }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
         ]
+        var leading: [Item] = []
         for (t, sym, run) in commands where trimmed.isEmpty || t.localizedCaseInsensitiveContains(trimmed) {
-            out.append(Item(id: "cmd-\(t)", group: "Commands", title: t, detail: "", symbol: sym, run: run))
+            let item = Item(id: "cmd-\(t)", group: "Commands", title: t, detail: "", symbol: sym, run: run)
+            // Typing a command's name (or its start, 3+ letters) means the command: it goes first, so Return runs it
+            // instead of searching Scripture for those words. A passage ("Go to") still wins over a command.
+            let lower = t.lowercased(), q = trimmed.lowercased()
+            if !q.isEmpty, lower == q || (q.count >= 3 && lower.hasPrefix(q)) { leading.append(item) } else { out.append(item) }
+        }
+        if !leading.isEmpty {
+            let at = out.firstIndex { $0.group != "Recent" && $0.group != "Go to" && $0.group != "Open in Other Workspaces" } ?? out.count
+            out.insert(contentsOf: leading, at: at)
         }
         return out
     }
