@@ -1221,7 +1221,29 @@ struct ScriptureView: View {
                 }
             #endif
         }
-        #if os(macOS)
+        #if os(iOS)
+        if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
+            ToolbarItem(placement: .topBarTrailing) {
+                let isLxx = ChapterMap.isLxx(st.translation)
+                Button {
+                    flipEdition(st, to: target)
+                } label: {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .foregroundStyle(isLxx ? Color.accentColor : Color.primary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .glassEffectCompat(interactive: true)
+                .opacity(app.readerChromeHidden ? 0 : 1)
+                .offset(y: app.readerChromeHidden ? -12 : 0)
+                .allowsHitTesting(!app.readerChromeHidden)
+                .accessibilityHidden(app.readerChromeHidden)
+                .accessibilityLabel("Switch to \(textInfo(target.text).name)")
+                .accessibilityAddTraits(isLxx ? .isSelected : [])
+            }
+        }
+        #else
         let hasText = st.compareMode || (loadedChapter == chapterKey(st) && !verses.isEmpty)
         ToolbarItemGroup {
             Button("Scripture Display", systemImage: "textformat.size") {
@@ -1237,9 +1259,7 @@ struct ScriptureView: View {
             }
             if !st.compareMode, let target = alternateEdition, target == ChapterEdition(st).counterpart {
                 Toggle(isOn: Binding(get: { ChapterMap.isLxx(st.translation) }, set: { _ in
-                    let source = ChapterEdition(st)
-                    if target.counterpart == source { alternateEdition = source }
-                    app.switchChapterEdition(in: tabId, from: source, to: target)
+                    flipEdition(st, to: target)
                 })) {
                     Label("LXX", systemImage: "arrow.left.arrow.right")
                 }
@@ -1277,6 +1297,12 @@ struct ScriptureView: View {
             .help("Tag, copy, or share the chapter")
         }
         #endif
+    }
+
+    private func flipEdition(_ state: BibleState, to target: ChapterEdition) {
+        let source = ChapterEdition(state)
+        if target.counterpart == source { alternateEdition = source }
+        app.switchChapterEdition(in: tabId, from: source, to: target)
     }
 
     @ViewBuilder private func passageControls(_ st: BibleState) -> some View {

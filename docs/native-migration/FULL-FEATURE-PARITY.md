@@ -26,7 +26,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S06 | Interlinear | deferred | — | — | — | Deferred in original too |
 | S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Both readers use a single selectable chapter. iPhone long-press word selection and its copy menu verified in Simulator; cross-verse handle drag and clipboard output need touch QA. |
 | S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Copy Reference and Compare This Verse also available. Play Audio from Here remains open. |
-| S09 | Multiple translations and editions | implemented | ✅ | ✅ | — | Text switching in navigator; Compare mode for parallel texts |
+| S09 | Multiple translations and editions | implemented | ✅ | ✅ | — | Text switching in the navigator, a direct KJV/LXX control, and Compare mode for parallel texts |
 | S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Search and Notes folders keep row anchors per tab and view configuration for the current run. Mac Search and Notes folder history round trips passed live. Exact offsets, relaunch persistence, and full tab coverage remain open. |
 | S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size and family, line spacing, text width, verse-number visibility, red lettering, word replacer and theme. The reader exposes display options on both platforms. Mac View commands adjust Scripture text size with the original zoom shortcuts. iPhone Scripture supports pinch-to-resize, pending gesture QA. App-wide zoom remains open. Paragraph mode and per-text options remain open. |
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
@@ -202,7 +202,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Same.
 - **Original files:** `src/lib/bibleTexts.ts`, `translationChapterMap.ts`, `passageDestinations.ts`, `src/components/bible/BiblePanel.tsx`, `src/mobile/reader/*`.
 - **Known original defects:** LXX numbering is chapter-level only; Hermas has two translations with different versification and `hermasMap.ts` bridging.
-- **Native Mac / iPhone:** ✅ / ✅ — Text switching in navigator; Compare mode for parallel texts
+- **Native Mac / iPhone:** ✅ / ✅ — Text switching in the navigator, a direct KJV/LXX control, and Compare mode for parallel texts
 - **Native files:** PassagePicker.swift, CompareView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
