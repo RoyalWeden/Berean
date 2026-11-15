@@ -1061,3 +1061,8 @@
 
 - Mac and iPhone Notes settings support Scripture reference detection, spell check, and the default status for new notes. The native editor applies the writing settings in place.
 - Full native check passed. Mac scratch QA exercised the controls and confirmed a newly created note inherited In Progress. Updated the migration audit and handoff.
+
+### 2026-11-15 — I19 — Optional Notes Trash confirmation
+
+- The editor and Notes list can ask before moving notes with content to Trash, including bulk actions and iPhone swipe. The preference defaults to off and uses the existing setting name.
+- Both Dev builds and all 132 tests passed. Mac scratch QA verified the editor prompt and Cancel.

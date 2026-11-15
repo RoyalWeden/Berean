@@ -458,6 +458,7 @@ struct NoteDetailView: View {
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
     @State private var showingHistory = false
+    @State private var confirmingTrash = false
     @State private var insertingReference = false
     @FocusState private var focus: Field?
     enum Field { case title, body }
@@ -655,14 +656,20 @@ struct NoteDetailView: View {
                     .help("Export, copy or share this note as Markdown")
                     Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
                     Button(role: .destructive) {
-                        saveNow()
-                        app.attempt("Couldn’t move the note to Trash") {
-                            try app.notes?.delete(note.id)
-                            if performDestination != nil { dismiss() } else { app.openNote(nil) }
+                        if app.confirmNoteDelete && !JSText.trim(content).isEmpty {
+                            confirmingTrash = true
+                        } else {
+                            moveToTrash()
                         }
                     } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
+        }
+        .alert("Move Note to Trash?", isPresented: $confirmingTrash) {
+            Button("Move to Trash", role: .destructive) { moveToTrash() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You can restore this note from Trash.")
         }
         .sheet(isPresented: $insertingReference) {
             NavigationStack {
@@ -703,6 +710,14 @@ struct NoteDetailView: View {
         .onDisappear {
             saveNow()
             if !JSText.trim(content).isEmpty { snapshot() }
+        }
+    }
+
+    private func moveToTrash() {
+        saveNow()
+        app.attempt("Couldn’t move the note to Trash") {
+            try app.notes?.delete(noteId)
+            if performDestination != nil { dismiss() } else { app.openNote(nil) }
         }
     }
 

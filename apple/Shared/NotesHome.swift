@@ -31,6 +31,7 @@ struct NotesHomeView: View {
     @State private var deletingFolder: NoteFolder?
     @State private var folderName = ""
     @State private var confirmEmptyTrash = false
+    @State private var pendingTrash: [String] = []
     @State private var searchScroll = ScrollPosition()
     @State private var restoredSearchPosition: SearchPosition?
     @State private var visibleFolderRow: String?
@@ -190,6 +191,14 @@ struct NotesHomeView: View {
             Button("Delete Folder, Keep Notes") { if let f = deletingFolder { try? app.notes?.deleteFolder(f.id); if location == f.id { go(nil) } }; deletingFolder = nil }
             Button("Delete Folder and Its Notes", role: .destructive) { if let f = deletingFolder { _ = try? app.notes?.deleteFolderDeep(f.id); if location == f.id { go(nil) } }; deletingFolder = nil }
         } message: { Text("Kept notes move to the top level. Deleted notes go to Trash, where you can restore them.") }
+        .alert(pendingTrash.count == 1 ? "Move Note to Trash?" : "Move \(pendingTrash.count) Notes to Trash?",
+               isPresented: Binding(get: { !pendingTrash.isEmpty }, set: { if !$0 { pendingTrash = [] } }),
+               presenting: pendingTrash) { ids in
+            Button("Move to Trash", role: .destructive) { moveToTrash(ids) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("You can restore notes from Trash.")
+        }
         .confirmationDialog("Empty Trash?", isPresented: $confirmEmptyTrash, titleVisibility: .visible) {
             Button("Delete \(trash.count) Notes Permanently", role: .destructive) { _ = try? app.notes?.emptyTrash() }
         } message: { Text("This cannot be undone.") }
@@ -630,8 +639,7 @@ struct NotesHomeView: View {
             }
             .disabled(ids.isEmpty)
             Button("Move to Trash", systemImage: "trash", role: .destructive) {
-                app.attempt("Couldn’t move the notes to Trash") { for id in ids { try app.notes?.delete(id) } }
-                selectedNotes = []
+                requestTrash(chosen)
             }
             .disabled(ids.isEmpty)
         }
@@ -695,7 +703,7 @@ struct NotesHomeView: View {
         #endif
         #if os(iOS)
         .swipeActions(edge: .leading) { Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }.tint(.orange) }
-        .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { app.attempt("Couldn’t move the note to Trash") { try app.notes?.delete(n.id) } } }
+        .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { requestTrash([n]) } }
         #endif
     }
 
@@ -734,7 +742,26 @@ struct NotesHomeView: View {
         Button("Duplicate") { _ = try? app.notes?.create(.init(type: n.type, title: n.title + " copy", content: n.content, verseRef: n.verseRef, color: n.color, tags: n.tags, folderId: n.folderId)) }
         Button("Export as Markdown…") { app.exportNote(n.id) }
         Divider()
-        Button("Move to Trash", role: .destructive) { app.attempt("Couldn’t move the note to Trash") { try app.notes?.delete(n.id) } }
+        Button("Move to Trash", role: .destructive) { requestTrash([n]) }
+    }
+
+    private func requestTrash(_ chosen: [Note]) {
+        guard !chosen.isEmpty else { return }
+        let ids = chosen.map(\.id)
+        if app.confirmNoteDelete && chosen.contains(where: { !JSText.trim($0.content).isEmpty }) {
+            pendingTrash = ids
+        } else {
+            moveToTrash(ids)
+        }
+    }
+
+    private func moveToTrash(_ ids: [String]) {
+        app.attempt("Couldn’t move the notes to Trash") {
+            for id in ids {
+                try app.notes?.delete(id)
+                selectedNotes.remove(id)
+            }
+        }
     }
 
     // MARK: trash

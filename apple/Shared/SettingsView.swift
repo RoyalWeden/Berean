@@ -79,6 +79,7 @@ struct SettingsView: View {
         return Section {
             Toggle("Detect Scripture References", isOn: $app.noteVerseRefsEnabled)
             Toggle("Check Spelling", isOn: $app.noteSpellCheck)
+            Toggle("Confirm Before Moving Notes to Trash", isOn: $app.confirmNoteDelete)
             Toggle("Typing -- makes an em dash (—)", isOn: $autoEmDash)
             Picker("Default Status for New Notes", selection: $app.defaultNoteStatus) {
                 Text("No Status").tag("none")
