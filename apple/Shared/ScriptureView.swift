@@ -180,7 +180,7 @@ struct ChapterExportActions: View {
             Clipboard.copy(referenceForCopy(chapterLabel, textId: state.translation))
             AccessibilityNotification.Announcement("Reference copied").post()
         }
-        Button("Save Chapter as Text…", systemImage: "doc.badge.arrow.down") {
+        Button("Save Chapter as Text…", systemImage: "square.and.arrow.down") {
             Task {
                 do {
                     let text = try await chapter.formattedText()
@@ -606,7 +606,7 @@ struct ScriptureView: View {
         let rows = selectedRows
         if !rows.isEmpty {
             let selection = shareSelection(state, rows: rows)
-            Button("Save Verses as Text…", systemImage: "doc.badge.arrow.down") {
+            Button("Save Verses as Text…", systemImage: "square.and.arrow.down") {
                 NoteFileTransfer.export(selection.formattedText, suggestedName: selection.fileName,
                                         title: "Save Verses as Text", type: .plainText) { outcome in
                     if case .failed(let message) = outcome {

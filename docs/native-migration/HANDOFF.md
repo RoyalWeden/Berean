@@ -978,3 +978,12 @@ The study Notes inspector now filters the active scope by case-insensitive title
 - Plan for this session (in order): (1) do the live checks Codex couldn't — iPhone multi-verse Notes for Selected Verses, iPhone My
   Notes source, I25 in dark mode / red letters; (2) next open parity items from AUDIT-2026-11-14.md (D16 lexicon find, I17 note-back
   pill, I18 compare sync scroll, I3 note editor insert menu, I6 tab cards); (3) keep this file updated after every commit.
+
+### 00:10 — live checks + SF Symbol audit (Claude)
+- **Verified on iPhone 18 Pro simulator** (the check Codex couldn't run): Proverbs 8, tap verses 2 and 4 → two separate dashed
+  outlines → ⋯ → Notes for Selected Verses → "New Note for Proverbs 8:2, 4" → typed a body → Back → card shows attachments
+  "Proverbs 8:2, Proverbs 8:4" (verse 3 excluded). Synthetic note left in the simulator Dev library.
+- **Fixed:** "Save Verses as Text…" / "Save Chapter as Text…" showed no icon — `doc.badge.arrow.down` is not an SF Symbol; now `square.and.arrow.down`.
+- **Audit:** every SF Symbol string in `apple/` now resolves (82 literal + data-table names). Re-run any time:
+  `grep -rhoE '"[a-z0-9]+(\.[a-z0-9]+){1,4}"' apple | tr -d '"' | sort -u > /tmp/s.txt` then a 3-line Swift script that prints names
+  where `NSImage(systemSymbolName:accessibilityDescription:) == nil` (script body in this commit's message history).
