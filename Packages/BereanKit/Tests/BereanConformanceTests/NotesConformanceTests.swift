@@ -442,6 +442,13 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(spans.filter { $0.kind == .tableRule }.count == 1)
     }
 
+    @Test func tableHeaderRequiresMatchingAdjacentSeparator() {
+        let markdown = "| 📝 | a\\|b |\r\n| :--- | ---: |\r\n| one | two |\r\n\r\n| malformed | row |\r\n| --- |"
+        let source = markdown as NSString
+        let headers = MarkdownLiveSpans.spans(markdown).filter { $0.kind == .tableHeader }
+        #expect(headers.map { source.substring(with: $0.range) } == ["| 📝 | a\\|b |"])
+    }
+
     @Test func rangesStayInsideTheString() throws {
         let g = try Golden.load("note-markdown")
         for n in g.arr("notes") {

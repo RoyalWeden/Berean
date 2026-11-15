@@ -104,6 +104,7 @@ final class AppModel {
     var commandPaletteShown = false
     #if os(macOS)
     var commandPaletteCreatesTab = false
+    var commandPaletteActionsRequest = 0
 
     func showCommandPalette(newTab: Bool = false) {
         commandPaletteCreatesTab = newTab

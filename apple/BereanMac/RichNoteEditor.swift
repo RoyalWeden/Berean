@@ -136,11 +136,19 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.9, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor.withAlphaComponent(0.5)], range: r)
                 case .tableRow:
                     storage.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular), range: r)
-                    let line = (text as NSString).substring(with: r) as NSString
-                    var i = 0
-                    while i < line.length { if line.character(at: i) == 124 { storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: NSRange(location: r.location + i, length: 1)) }; i += 1 }
+                    let cells = MarkdownLiveSpans.tableCells(in: text as NSString, range: r)
+                    if !cells.isEmpty {
+                        for delimiter in [r.location] + cells.map(\.upperBound) {
+                            storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor,
+                                                 range: NSRange(location: delimiter, length: 1))
+                        }
+                    }
+                case .tableHeader:
+                    storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .semibold),
+                                           .backgroundColor: NSColor.labelColor.withAlphaComponent(0.07)], range: r)
                 case .tableRule, .rule:
-                    storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor, .font: NSFont.monospacedSystemFont(ofSize: size * 0.7, weight: .regular)], range: r)
+                    storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor,
+                                           .font: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular)], range: r)
                 case .image:
                     storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .backgroundColor: NSColor.quaternaryLabelColor], range: r)
                 case .structure: break

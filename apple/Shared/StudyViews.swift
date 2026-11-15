@@ -526,6 +526,9 @@ struct LexiconEntryView: View {
                     toolbarAdjacentButton(adjacent.previous, title: "Previous Entry", symbol: "chevron.backward")
                     toolbarAdjacentButton(adjacent.next, title: "Next Entry", symbol: "chevron.forward")
                 }
+                #if os(macOS)
+                if #available(macOS 26.0, *) { ToolbarSpacer(.fixed, placement: .primaryAction) }
+                #endif
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button("Find in Entry", systemImage: "text.magnifyingglass") {
                         findShown = true

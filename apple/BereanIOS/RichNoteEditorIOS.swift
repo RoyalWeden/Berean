@@ -178,8 +178,21 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     substitutions[r.location] = (r.length, on ? "☑" : "□")
                     storage.addAttribute(Self.taskAttribute, value: NoteTaskLink.url(for: r), range: NSRange(location: r.location, length: 1))
                 case .codeBlock: storage.addAttributes([.font: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular), .backgroundColor: UIColor.secondarySystemFill], range: r)
-                case .tableRow: storage.addAttribute(.font, value: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular), range: r)
-                case .tableRule, .rule: storage.addAttribute(.foregroundColor, value: UIColor.tertiaryLabel, range: r)
+                case .tableRow:
+                    storage.addAttribute(.font, value: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular), range: r)
+                    let cells = MarkdownLiveSpans.tableCells(in: text as NSString, range: r)
+                    if !cells.isEmpty {
+                        for delimiter in [r.location] + cells.map(\.upperBound) {
+                            storage.addAttribute(.foregroundColor, value: UIColor.tertiaryLabel,
+                                                 range: NSRange(location: delimiter, length: 1))
+                        }
+                    }
+                case .tableHeader:
+                    storage.addAttributes([.font: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .semibold),
+                                           .backgroundColor: UIColor.tertiarySystemFill], range: r)
+                case .tableRule, .rule:
+                    storage.addAttributes([.foregroundColor: UIColor.tertiaryLabel,
+                                           .font: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular)], range: r)
                 case .image: storage.addAttributes([.foregroundColor: UIColor.secondaryLabel, .backgroundColor: UIColor.tertiarySystemFill], range: r)
                 case .structure: break
                 }

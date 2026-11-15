@@ -928,16 +928,16 @@ struct ScriptureView: View {
     }
 
     private func verseMenuLabel(_ title: String, symbol: String) -> some View {
-        Label(title, systemImage: symbol)
-            .foregroundStyle(.primary)
+        Image(systemName: symbol)
+            .imageScale(.large)
             .modifier(VerseActionControlAppearance())
+            .accessibilityLabel(title)
     }
 
     private var clearSelectionButton: some View {
         Button("Clear Selection", systemImage: "xmark") { clearVerseSelection() }
             .buttonStyle(VerseActionButtonStyle())
             .accessibilityHint("Clears \(selectionLabel(state))")
-            .foregroundStyle(.secondary)
             #if os(macOS)
             .keyboardShortcut(.cancelAction)
             .help("Clear selection (Esc)")
@@ -1182,13 +1182,9 @@ struct ScriptureView: View {
                 .pointerStyle(.link)
                 .help("Switch to \(textInfo(target.text).name)")
             }
-            Button("Tag Chapter", systemImage: "tag") {
-                let target = ChapterTagTarget(st)
-                tagging = (target.ranges, target.label, "chapter")
-            }
-            .pointerStyle(.link)
-            .help("Tag this chapter")
-            .disabled(!hasText)
+        }
+        if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
+        ToolbarItemGroup {
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
                 .pointerStyle(.link)
                 .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
@@ -1199,15 +1195,22 @@ struct ScriptureView: View {
                 .pointerStyle(.link)
                 .keyboardShortcut("i", modifiers: [.command, .option]).help("Study panel: notes, lexicon, cross references (⌥⌘I)")
         }
+        if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
         ToolbarItem {
             Menu {
+                Button("Tag Chapter", systemImage: "tag") {
+                    let target = ChapterTagTarget(st)
+                    tagging = (target.ranges, target.label, "chapter")
+                }
+                .disabled(!hasText)
+                Divider()
                 ChapterExportActions(state: st, tabId: tabId, hasText: hasText)
             } label: {
-                Label("Chapter Export", systemImage: "square.and.arrow.up")
+                Label("Chapter Actions", systemImage: "square.and.arrow.up")
             }
             .menuIndicator(.hidden)
             .pointerStyle(.link)
-            .help("Copy or share the chapter")
+            .help("Tag, copy, or share the chapter")
         }
         #endif
     }
@@ -1901,6 +1904,8 @@ private struct VerseActionControlAppearance: ViewModifier {
     func body(content: Content) -> some View {
         content
             .labelStyle(.iconOnly)
+            .symbolRenderingMode(.monochrome)
+            .foregroundStyle(.primary)
             .font(.system(size: 15, weight: .medium))
             .frame(width: width, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)

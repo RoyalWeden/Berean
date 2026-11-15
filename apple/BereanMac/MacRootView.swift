@@ -25,7 +25,7 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
-        .toolbarBackground(app.commandPaletteShown ? AnyShapeStyle(Color.black.opacity(paletteDimOpacity)) : AnyShapeStyle(.bar),
+        .toolbarBackground(Color.black.opacity(app.commandPaletteShown ? paletteDimOpacity : 0),
                            for: .windowToolbar)
         .toolbarBackground(app.commandPaletteShown ? .visible : .automatic, for: .windowToolbar)
         .disabled(app.commandPaletteShown)

@@ -19,6 +19,7 @@ public enum MarkdownLiveSpans {
         case task(Bool)                  // "[ ]" / "[x]" drawn as a box
         case codeBlock                   // fenced code (whole line, fences included)
         case tableRow, tableRule         // "| a | b |" rows; the "|---|" separator row
+        case tableHeader
         case rule                        // horizontal rule line
         case image(String)               // alt text (the image source is hidden)
         case structure                   // berean:* comment lines (columns/threads/trail) — hidden but kept
@@ -88,16 +89,41 @@ public enum MarkdownLiveSpans {
         var out: [Span] = []
         var inFence = false
         var lineStart = 0
+        var previousTableRow: (range: NSRange, spanIndex: Int)?
         while lineStart <= s.length {
             var end = 0, contentsEnd = 0
             s.getLineStart(nil, end: &end, contentsEnd: &contentsEnd, for: NSRange(location: lineStart, length: 0))
             let lineRange = NSRange(location: lineStart, length: contentsEnd - lineStart)
-            out += lineSpans(s, lineRange, inFence: &inFence)
+            let line = lineSpans(s, lineRange, inFence: &inFence)
+            if line.first?.kind == .tableRule, let previousTableRow {
+                let columns = tableCells(in: s, range: previousTableRow.range).count
+                if columns > 0, columns == tableCells(in: s, range: lineRange).count {
+                    out.insert(Span(previousTableRow.range, .tableHeader), at: previousTableRow.spanIndex + 1)
+                }
+            }
+            previousTableRow = line.first?.kind == .tableRow ? (lineRange, out.count) : nil
+            out += line
             if end <= lineStart { break }
             lineStart = end
             if lineStart == s.length { break }
         }
         return out
+    }
+
+    /// UTF-16 cell ranges for the outer-pipe format written by both Berean editors.
+    public static func tableCells(in text: NSString, range: NSRange) -> [NSRange] {
+        guard range.location <= text.length, range.length <= text.length - range.location else { return [] }
+        var pipes: [Int] = []
+        var escaped = false
+        for offset in range.location..<range.upperBound {
+            let character = text.character(at: offset)
+            if character == 124, !escaped { pipes.append(offset) }
+            escaped = character == 92 && !escaped
+        }
+        guard pipes.first == range.location, pipes.last == range.upperBound - 1 else { return [] }
+        return zip(pipes, pipes.dropFirst()).map { start, end in
+            NSRange(location: start + 1, length: end - start - 1)
+        }
     }
 
     static func lineSpans(_ s: NSString, _ r: NSRange, inFence: inout Bool) -> [Span] {

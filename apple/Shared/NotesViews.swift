@@ -206,24 +206,10 @@ private func noteTableContext(in text: NSString, selection: NSRange)
     return (block, row)
 }
 
-private func noteTableCells(in text: NSString, range: NSRange) -> [NSRange] {
-    var pipes: [Int] = []
-    var escaped = false
-    for offset in range.location..<range.upperBound {
-        let character = text.character(at: offset)
-        if character == 124, !escaped { pipes.append(offset) }
-        escaped = character == 92 && !escaped
-    }
-    guard pipes.first == range.location, pipes.last == range.upperBound - 1 else { return [] }
-    return zip(pipes, pipes.dropFirst()).map { start, end in
-        NSRange(location: start + 1, length: end - start - 1)
-    }
-}
-
 func noteTableRowInsertion(in text: NSString, selection: NSRange)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
     guard let (block, row) = noteTableContext(in: text, selection: selection) else { return nil }
-    let columns = noteTableCells(in: text, range: block[0].range).count
+    let columns = MarkdownLiveSpans.tableCells(in: text, range: block[0].range).count
     guard columns > 0 else { return nil }
     // A new body row goes below the alignment rule when the caret is in the header.
     let anchor = block[row == 0 ? 1 : row].range
@@ -240,7 +226,7 @@ func noteTableColumnInsertion(in text: NSString, selection: NSRange)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
     guard let (block, row) = noteTableContext(in: text, selection: selection),
           let first = block.first, let last = block.last else { return nil }
-    let rows = block.map { noteTableCells(in: text, range: $0.range) }
+    let rows = block.map { MarkdownLiveSpans.tableCells(in: text, range: $0.range) }
     let width = rows[0].count
     guard rows[1].count == width,
           rows.allSatisfy({ !$0.isEmpty && $0.count <= width }),
@@ -272,8 +258,8 @@ func noteWholeTableDeletion(in text: NSString, selection: NSRange)
     guard let (block, _) = noteTableContext(in: text, selection: selection),
           let first = block.first, let last = block.last,
           block.dropFirst(2).allSatisfy({ $0.kind == .tableRow }) else { return nil }
-    let width = noteTableCells(in: text, range: first.range).count
-    guard width > 0, noteTableCells(in: text, range: block[1].range).count == width else { return nil }
+    let width = MarkdownLiveSpans.tableCells(in: text, range: first.range).count
+    guard width > 0, MarkdownLiveSpans.tableCells(in: text, range: block[1].range).count == width else { return nil }
     let start = first.range.location
     let end = text.lineRange(for: last.range).upperBound
     let range = NSRange(location: start, length: end - start)
@@ -284,7 +270,7 @@ func noteTableDeletion(in text: NSString, selection: NSRange, columnOnly: Bool)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
     guard let (block, row) = noteTableContext(in: text, selection: selection),
           let first = block.first, let last = block.last else { return nil }
-    let rows = block.map { noteTableCells(in: text, range: $0.range) }
+    let rows = block.map { MarkdownLiveSpans.tableCells(in: text, range: $0.range) }
     guard let column = rows[row].firstIndex(where: {
         $0.location <= selection.location && selection.upperBound <= $0.upperBound
     }) else { return nil }
@@ -333,7 +319,7 @@ func noteTableDeletion(in text: NSString, selection: NSRange, columnOnly: Bool)
 /// Navigate the cells of the pipe tables written by the Electron and native editors.
 func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: Bool) -> NSRange? {
     guard let (block, row) = noteTableContext(in: text, selection: selection) else { return nil }
-    let current = noteTableCells(in: text, range: block[row].range)
+    let current = MarkdownLiveSpans.tableCells(in: text, range: block[row].range)
     guard let column = current.firstIndex(where: {
         $0.location <= selection.location && selection.upperBound <= $0.upperBound
     }) else { return nil }
@@ -345,7 +331,7 @@ func noteTableCellDestination(in text: NSString, selection: NSRange, backwards: 
     } else {
         let nextRow = backwards ? (row == 2 ? 0 : row - 1) : (row == 0 ? 2 : row + 1)
         guard block.indices.contains(nextRow), block[nextRow].kind == .tableRow else { return nil }
-        let nextCells = noteTableCells(in: text, range: block[nextRow].range)
+        let nextCells = MarkdownLiveSpans.tableCells(in: text, range: block[nextRow].range)
         guard let cell = backwards ? nextCells.last : nextCells.first else { return nil }
         target = cell
     }
@@ -509,7 +495,12 @@ struct NoteDetailView: View {
                     Button { saveNow(); app.returnToNotesList() } label: { Label("All Notes", systemImage: "chevron.backward") }
                         .help("Back to the notes list")
                 }
-                if let note {
+            }
+            #if os(macOS)
+            if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
+            #endif
+            if let note {
+                ToolbarItemGroup {
                     Menu {
                         Section("Paragraph") {
                             Button("Body") { formatRequest = NoteFormatRequest(action: .heading(0)) }
@@ -566,6 +557,11 @@ struct NoteDetailView: View {
                     }
                     .menuIndicator(.hidden)
                     .help("Insert a Scripture reference, link, quote, checklist or divider")
+                }
+                #if os(macOS)
+                if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
+                #endif
+                ToolbarItemGroup {
                     // Note details (original editor chrome): status, folder and statistics in one menu.
                     Menu {
                         Picker("Status", selection: Binding(get: { note.status ?? "" }, set: { value in

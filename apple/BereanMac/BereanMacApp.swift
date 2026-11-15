@@ -26,7 +26,13 @@ struct BereanMacApp: App {
         .commands {
             CommandGroup(after: .newItem) {
                 Button("New Tab…") { app.showCommandPalette(newTab: true) }.keyboardShortcut("t")
-                Button("Open Reference or Search…") { app.showCommandPalette() }.keyboardShortcut("k")
+                Button(app.commandPaletteShown ? "Search Result Actions" : "Open Reference or Search…") {
+                    if app.commandPaletteShown {
+                        app.commandPaletteActionsRequest += 1
+                    } else {
+                        app.showCommandPalette()
+                    }
+                }.keyboardShortcut("k")
                 Button("Go to Reference…") { app.showCommandPalette() }.keyboardShortcut("l")
                 Button("Close Tab") { app.closeActiveTab() }.keyboardShortcut("w")
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])

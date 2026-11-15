@@ -240,6 +240,7 @@ struct CommandPalette: View {
     @State private var text = ""
     @State private var index = 0
     @State private var noteHits: [Note] = []
+    @State private var actionsShown = false
     @FocusState private var focused: Bool
 
     struct Item: Identifiable {
@@ -467,30 +468,46 @@ struct CommandPalette: View {
                                 HStack(spacing: 6) {
                                     Text(actionTitle(selected))
                                     Image(systemName: "return").font(.caption.weight(.semibold))
-                                        .padding(4).background(.quaternary, in: .rect(cornerRadius: 4))
+                                        .frame(width: 20, height: 20)
+                                        .background(.quaternary, in: .rect(cornerRadius: 5))
                                         .accessibilityHidden(true)
                                 }
-                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .padding(.horizontal, 11).padding(.vertical, 6)
                                 .contentShape(.capsule)
                             }
                             .buttonStyle(.interactivePlain)
 
                             if selected.offersOpenMenu {
-                                Menu("Actions") {
-                                    Button("Open", systemImage: "arrow.right") { activate(selected, inNewTab: false) }
-                                    Button("Open in New Tab", systemImage: "plus.square") { activate(selected, inNewTab: true) }
+                                Button {
+                                    actionsShown.toggle()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("Actions")
+                                        shortcutKey("⌘")
+                                        shortcutKey("K")
+                                    }
+                                    .padding(.horizontal, 11).padding(.vertical, 6)
+                                    .contentShape(.capsule)
                                 }
-                                .menuStyle(.borderlessButton)
-                                .fixedSize()
-                                .padding(.trailing, 6)
+                                .buttonStyle(.interactivePlain)
+                                .help("Search result actions (⌘K)")
+                                .popover(isPresented: $actionsShown, arrowEdge: .bottom) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Button("Open", systemImage: "arrow.right") { activate(selected, inNewTab: false) }
+                                        Button("Open in New Tab", systemImage: "plus.square") { activate(selected, inNewTab: true) }
+                                    }
+                                    .controlSize(.large)
+                                    .padding(8)
+                                    .onExitCommand { actionsShown = false; focused = true }
+                                }
                             }
                         }
                         .glassEffectCompat(interactive: true)
                     }
                 }
-                .font(.callout)
+                .font(.system(size: 14))
                 .padding(.horizontal, 10)
-                .frame(height: 42)
+                .frame(height: 50)
             }
         }
         .clipShape(.rect(cornerRadius: 20))
@@ -498,7 +515,20 @@ struct CommandPalette: View {
         .defaultFocus($focused, true, priority: .userInitiated)
         .onAppear { focused = true }
         .accessibilityElement(children: .contain)
-        .onExitCommand(perform: close)
+        .onExitCommand {
+            if actionsShown {
+                actionsShown = false
+                focused = true
+            } else {
+                close()
+            }
+        }
+        .onChange(of: app.commandPaletteActionsRequest) {
+            guard selected?.offersOpenMenu == true else { return }
+            actionsShown.toggle()
+            if !actionsShown { focused = true }
+        }
+        .onChange(of: selected?.id) { actionsShown = false }
         .task {
             await Task.yield()
             guard !Task.isCancelled else { return }
@@ -507,6 +537,13 @@ struct CommandPalette: View {
         .task(id: trimmed) {
             noteHits = trimmed.count < 2 ? [] : ((try? app.notes?.search(trimmed, limit: 6)) ?? [])
         }
+    }
+
+    private func shortcutKey(_ label: String) -> some View {
+        Text(label).font(.caption.weight(.semibold))
+            .frame(width: 20, height: 20)
+            .background(.quaternary, in: .rect(cornerRadius: 5))
+            .accessibilityHidden(true)
     }
 
     private func activate(_ item: Item, inNewTab: Bool) {

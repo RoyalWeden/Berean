@@ -48,6 +48,10 @@ struct BereanSidebar: View {
                 .scrollIndicators(.never)
             }
         }
+        .background {
+            Rectangle().fill(.regularMaterial)
+                .ignoresSafeArea(.container, edges: .top)
+        }
         .onChange(of: app.currentSessionId) { _, _ in
             tabQuery = ""
             tabTypeFilter = nil
