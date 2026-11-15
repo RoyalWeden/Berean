@@ -198,6 +198,15 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             return n
         }
 
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            guard let dash = NoteAutoEmDash.dashRange(in: textView.text as NSString, range: range, replacement: text),
+                  let start = textView.position(from: textView.beginningOfDocument, offset: dash.location),
+                  let end = textView.position(from: start, offset: dash.length),
+                  let span = textView.textRange(from: start, to: end) else { return true }
+            textView.replace(span, withText: "—")
+            return false
+        }
+
         func textViewDidBeginEditing(_ textView: UITextView) {
             NotificationCenter.default.post(name: .bereanNoteEditing, object: true)
         }

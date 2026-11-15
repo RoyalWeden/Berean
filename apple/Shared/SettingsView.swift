@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     /// Same key as the original iPhone app's haptics switch (device-local).
     @AppStorage("berean.haptics.enabled") private var hapticsEnabled = true
+    @AppStorage("berean.notes.autoEmDash") private var autoEmDash = true
 
     var body: some View {
         #if os(macOS)
@@ -17,6 +18,7 @@ struct SettingsView: View {
         TabView {
             Tab("Reading", systemImage: "book") { pane { readingSection } }
             Tab("Appearance", systemImage: "paintbrush") { pane { appearanceSection } }
+            Tab("Notes", systemImage: "note.text") { pane { notesSection } }
             Tab("Workspaces", systemImage: "square.stack") { pane { WorkspacesSettingsSection() } }
             Tab("Shortcuts", systemImage: "keyboard") { pane { shortcutsSection } }
             Tab("About", systemImage: "info.circle") { pane { aboutSections } }
@@ -27,6 +29,7 @@ struct SettingsView: View {
         Form {
             readingSection
             appearanceSection
+            notesSection
             Section {
                 Toggle("Haptic Feedback", isOn: $hapticsEnabled)
             } footer: {
@@ -62,6 +65,12 @@ struct SettingsView: View {
         Section("Appearance") {
             Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented).clickableCursor()
         }
+    }
+
+    private var notesSection: some View {
+        Section {
+            Toggle("Typing -- makes an em dash (—)", isOn: $autoEmDash)
+        } header: { Text("Notes") }
     }
 
     private var shortcutsSection: some View {

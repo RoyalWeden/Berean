@@ -204,6 +204,12 @@ struct RichNoteEditor: NSViewRepresentable {
         }
 
         /// Keeps the caret off hidden markup: it moves past it in the direction of travel.
+        func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString text: String?) -> Bool {
+            guard let text, let dash = NoteAutoEmDash.dashRange(in: textView.string as NSString, range: range, replacement: text) else { return true }
+            textView.insertText("—", replacementRange: dash)
+            return false
+        }
+
         func textView(_ textView: NSTextView, willChangeSelectionFromCharacterRange old: NSRange, toCharacterRange new: NSRange) -> NSRange {
             guard new.length == 0, hidden.contains(new.location) || (new.location > 0 && hidden.contains(new.location - 1) && hidden.contains(new.location)) else { return new }
             var loc = new.location
