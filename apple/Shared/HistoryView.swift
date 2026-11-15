@@ -43,6 +43,8 @@ struct HistoryView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
     @State private var entries: [HistoryEntry] = []
+    /// Current titles of notes in history (a note renamed or titled after it was opened shows its real name).
+    @State private var noteTitles: [String: String] = [:]
     @State private var options = BrowseOptions()
     @State private var restoreEntryID: String?
     @State private var visibleEntries: Set<String> = []
@@ -93,7 +95,7 @@ struct HistoryView: View {
         return entries.filter { e in
             category.includes(e.type)
                 && !(category == .scripture && studyOnly && e.type == "bible" && (e.verse ?? 0) == 0)
-                && (query.isEmpty || e.title.localizedStandardContains(query)
+                && (query.isEmpty || displayTitle(e).localizedStandardContains(query)
                     || (e.type == "search" && (e.query ?? "").localizedStandardContains(query))
                     || (compareDestination(e)?.columns.contains { $0.label.localizedStandardContains(query) } ?? false))
         }
@@ -217,6 +219,15 @@ struct HistoryView: View {
 
     func load() {
         entries = (try? app.historyService?.all(limit: AppModel.historyEntryLimit)) ?? []
+        var titles: [String: String] = [:]
+        for id in Set(entries.compactMap(\.noteId)) {
+            if let n = try? app.notes?.one(id) { titles[id] = n.displayTitle }
+        }
+        noteTitles = titles
+    }
+
+    private func displayTitle(_ e: HistoryEntry) -> String {
+        e.noteId.flatMap { noteTitles[$0] } ?? e.title
     }
 
     static func symbol(_ type: String) -> String {
@@ -228,7 +239,7 @@ struct HistoryView: View {
             Image(systemName: Self.symbol(e.type)).frame(width: 20).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
-                    Text(e.title).lineLimit(1)
+                    Text(displayTitle(e)).lineLimit(1)
                     if let passage = scriptureDestination(e) ?? compareDestination(e)?.passage {
                         let text = textInfo(passage.textId)
                         Text(text.short)
