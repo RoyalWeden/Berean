@@ -1124,3 +1124,7 @@ Tagged-only Scripture Search now shows a three-line verse preview and the chosen
 Advanced Scripture Search now applies the selected verse and chapter tags before the full-text result cap. SQLite rows remain in rank order, and the reader stops collecting once the matching-row cap is reached. Unfiltered searches still use the original SQL limit. Strong’s queries and word-replacer bridge results use the same passage predicate. The test `passageFilterAppliesBeforeSearchLimit` verifies that searching “the” recovers Revelation 22:21 when it is the only allowed verse, even though it falls outside the unfiltered first 2,000. Search refreshes when selected tags or their memberships change. Live Mac and iPhone tag-filter interaction, including Back to a tagged-only result, remains open.
 
 Both Dev builds and all 120 Swift tests passed, including the existing search-order fixtures.
+
+Tagged-only and word-based Scripture search now share scroll restoration. Opening a tagged verse or chapter saves its stable result ID before navigation. Back targets that row at the center, and an ordinary tab switch restores the last visible row for the same search and filters. Tagged-only results use a lazy scroll layout to support these anchors. Live Mac and iPhone QA remains. With a Dev tag that contains several screens of results, open a middle verse and a middle chapter, then verify Back after each and test switching tabs without opening a result.
+
+Both Dev builds and bundle identity checks passed after the shared restoration change.

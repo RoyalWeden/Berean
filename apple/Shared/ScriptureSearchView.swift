@@ -51,6 +51,35 @@ private struct TaggedSearchResultRow: View {
     }
 }
 
+private struct SearchResultScrollRestoration: ViewModifier {
+    @Environment(AppModel.self) private var app
+    @State private var visibleRow: String?
+    let tabId: String
+    let context: ScriptureSearchScrollContext?
+    let proxy: ScrollViewProxy
+    let containsRow: (String) -> Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scrollPosition(id: $visibleRow, anchor: .top)
+            .task(id: context) {
+                guard !Task.isCancelled, let context else { return }
+                visibleRow = nil
+                let clicked = app.searchResultAnchors[tabId]?.removeValue(forKey: context)
+                let remembered = app.searchVisibleRows[tabId]?[context]
+                if let clicked, containsRow(clicked) {
+                    proxy.scrollTo(clicked, anchor: .center)
+                } else if let remembered, containsRow(remembered) {
+                    proxy.scrollTo(remembered, anchor: .top)
+                }
+            }
+            .onScrollPhaseChange { old, new in
+                guard old != .idle, new == .idle, let visibleRow, let context else { return }
+                app.searchVisibleRows[tabId, default: [:]][context] = visibleRow
+            }
+    }
+}
+
 struct ScriptureSearchRequest: Hashable {
     let query: String
     let texts: [String]
@@ -110,7 +139,6 @@ struct ScriptureSearchView: View {
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
     @State private var showOptions = false
-    @State private var visibleRow: String?
     @FocusState private var fieldFocused: Bool
 
     @State private var completedRequest: ScriptureSearchRequest?
@@ -416,18 +444,33 @@ struct ScriptureSearchView: View {
             guard let edition = preferredEditions.first(where: { installed.contains($0) }) else { return nil }
             return ResolvedPassage(textId: edition, bookId: chapter.book, chapter: chapter.number, verse: verse)
         }
-        return List {
-            if loadedTagIDs != filter.ids {
-                ProgressView()
-            } else if passages.isEmpty {
-                ContentUnavailableView("No tagged passages", systemImage: "tag")
-            }
-            ForEach(passages.map { TaggedSearchResult(passage: $0) }, id: \.id) { result in
-                TaggedSearchResultRow(passage: result.passage) {
-                    app.visitScripture(result.passage, returningTo: tabId)
+        let rowsToShow = passages.map { TaggedSearchResult(passage: $0) }
+        let context = app.activeTab?.id == tabId && loadedTagIDs == filter.ids && !rowsToShow.isEmpty
+            ? scrollContext : nil
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if loadedTagIDs != filter.ids {
+                        ProgressView().frame(maxWidth: .infinity).padding()
+                    } else if rowsToShow.isEmpty {
+                        ContentUnavailableView("No tagged passages", systemImage: "tag")
+                    }
+                    ForEach(rowsToShow, id: \.id) { result in
+                        TaggedSearchResultRow(passage: result.passage) {
+                            app.searchResultAnchors[tabId, default: [:]][scrollContext] = result.id
+                            app.visitScripture(result.passage, returningTo: tabId)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 6)
+                        .overlay(alignment: .bottom) { Divider().padding(.leading, 16) }
+                        .id(result.id)
+                    }
                 }
+                .scrollTargetLayout()
             }
+            .modifier(SearchResultScrollRestoration(tabId: tabId, context: context, proxy: proxy,
+                                                    containsRow: { id in rowsToShow.contains { $0.id == id } }))
         }
+        .id(scrollContext)
     }
 
     // MARK: running
@@ -651,23 +694,8 @@ struct ScriptureSearchView: View {
                         .help("Jump to a \(grouping == "book" ? "book" : "text") in the results")
                     }
                 }
-                .scrollPosition(id: $visibleRow, anchor: .top)
-                .task(id: restorationContext) { [restorationContext] in
-                    guard !Task.isCancelled, let context = restorationContext else { return }
-                    visibleRow = nil
-                    let clicked = app.searchResultAnchors[tabId]?.removeValue(forKey: context)
-                    let remembered = app.searchVisibleRows[tabId]?[context]
-                    if let clicked, shown.contains(where: { resultID($0) == clicked }) {
-                        proxy.scrollTo(clicked, anchor: .center)
-                    } else if let remembered, shown.contains(where: { resultID($0) == remembered }) {
-                        proxy.scrollTo(remembered, anchor: .top)
-                    }
-                }
-                .onScrollPhaseChange { old, new in
-                    guard old != .idle, new == .idle, let visibleRow,
-                          let context = restorationContext else { return }
-                    app.searchVisibleRows[tabId, default: [:]][context] = visibleRow
-                }
+                .modifier(SearchResultScrollRestoration(tabId: tabId, context: restorationContext, proxy: proxy,
+                                                        containsRow: { id in shown.contains { resultID($0) == id } }))
             }
             .id(scrollContext)
         }
