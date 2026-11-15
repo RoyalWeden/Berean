@@ -70,6 +70,7 @@ struct ChapterTextView: NSViewRepresentable {
     var scrollTarget: Int?
     var actionClearance: CGFloat = 0
     var animateOutline = true
+    var scrollRevision: UUID?
     var titleBarClearance: CGFloat = 0
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
@@ -134,7 +135,8 @@ struct ChapterTextView: NSViewRepresentable {
         guard let parent = coordinator.parent, coordinator.lastPassage == parent.passageId else { return }
         let top = scroll.contentView.bounds.minY
         let verse = coordinator.textView.flatMap { coordinator.readingAnchor(at: top, in: $0)?.verse }
-        parent.savePosition(ScriptureReadingPosition(offset: max(0, top - scroll.contentView.documentRect.minY), verse: verse))
+        parent.savePosition(ScriptureReadingPosition(offset: max(0, top - scroll.contentView.documentRect.minY),
+                                                      verse: verse, selectedVerses: parent.selectedVerses))
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -237,7 +239,8 @@ struct ChapterTextView: NSViewRepresentable {
                 let clip = scroll.contentView
                 var bounds = clip.bounds
                 let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
-                    .flatMap { tv.firstRect(forVerseRange: $0).map { tv.convert($0, to: clip).minY } } : nil
+                    .flatMap { tv.firstVerseLineTop(in: $0) }
+                    .map { tv.convert(NSPoint(x: 0, y: $0), to: clip).y - tv.visibleTitleBarClearance - 12 } : nil
                 bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? (clip.documentRect.minY + position.offset)
                 clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                 scroll.reflectScrolledClipView(clip)
@@ -245,7 +248,7 @@ struct ChapterTextView: NSViewRepresentable {
         }
         if scrollTarget == nil { c.scrolledTo = nil }
         if let target = scrollTarget, c.verseRanges[target] != nil {
-            let request = ScriptureScrollTarget(verse: target, lastSelectedVerse: selectedVerses.max())
+            let request = ScriptureScrollTarget(verse: target, lastSelectedVerse: selectedVerses.max(), revision: scrollRevision)
             guard request != c.scrolledTo else { return }
             c.scrolledTo = request
             let destination = passageId
@@ -499,12 +502,13 @@ struct ChapterTextView: NSViewRepresentable {
             menu.popUp(positioning: nil, at: NSPoint(x: rect.minX, y: rect.maxY + 2), in: tv)
         }
 
-        func readingAnchor(at top: CGFloat, in view: NSTextView) -> (verse: Int, offsetFromTop: CGFloat)? {
+        func readingAnchor(at top: CGFloat, in view: ReaderTextView) -> (verse: Int, offsetFromTop: CGFloat)? {
             guard let clip = view.enclosingScrollView?.contentView, let layout = view.layoutManager,
                   let container = view.textContainer, layout.numberOfGlyphs > 0 else { return nil }
             let localTop = view.convert(NSPoint(x: 0, y: top), from: clip).y
-            guard localTop > view.textContainerOrigin.y else { return nil }
-            let point = CGPoint(x: container.lineFragmentPadding, y: localTop - view.textContainerOrigin.y)
+            let readableTop = localTop + view.visibleTitleBarClearance
+            guard readableTop > view.textContainerOrigin.y else { return nil }
+            let point = CGPoint(x: container.lineFragmentPadding, y: readableTop - view.textContainerOrigin.y)
             let glyph = layout.glyphIndex(for: point, in: container)
             guard glyph < layout.numberOfGlyphs,
                   let verse = verse(at: layout.characterIndexForGlyph(at: glyph)),

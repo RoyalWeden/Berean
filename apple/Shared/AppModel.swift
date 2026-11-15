@@ -601,6 +601,7 @@ final class AppModel {
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
     @ObservationIgnored var scriptureReadingPositions: [String: [String: ScriptureReadingPosition]] = [:]
+    var scriptureJumpRequest: (tabID: String, revision: UUID)?
     @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition)] = [:]
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesSearchOffsets: [String: [NotesHomeView.SearchPosition: CGFloat]] = [:]
@@ -1070,6 +1071,10 @@ final class AppModel {
                 state["scriptureLayout"] = .string(JSString(layout))
             }
             openTab(.bible, in: .scripture, title: title, state: state)
+        }
+        if verse != nil, let tab = activeTab, tab.tabType == .bible, passage.isShown(in: tab) {
+            scriptureReadingPositions[tab.id]?.removeValue(forKey: ChapterEdition(st).key)
+            scriptureJumpRequest = (tab.id, UUID())
         }
     }
 }

@@ -12,6 +12,7 @@ struct ScriptureReadingPosition {
     let offset: CGFloat
     let verse: Int?
     var atEnd = false
+    var selectedVerses: Set<Int> = []
 }
 
 struct ChapterEdition: Equatable {
@@ -315,6 +316,7 @@ struct ScriptureView: View {
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showRedLetters") private var showRedLetters = true
     @State private var scrollTarget: Int?
+    @State private var scrollRevision: UUID?
     @State private var chapterStepTask: Task<Void, Never>?
     @State private var verseTags: [Int: [TagLite]] = [:]
     @State private var chapterTags: [TagLite] = []
@@ -517,6 +519,11 @@ struct ScriptureView: View {
             guard loadedChapter == chapter, pendingSelectionDestination == nil else { return }
             applyPassageSelection(st, onlyIfChanged: true)
         }
+        .onChange(of: app.scriptureJumpRequest?.revision) { _, revision in
+            guard app.scriptureJumpRequest?.tabID == tabId, loadedChapter == chapter else { return }
+            scrollRevision = revision
+            applyPassageSelection(st)
+        }
         .task(id: "\(chapter)|\(loadedChapter ?? "")|\(app.notesRevision)") {
             guard loadedChapter == chapter else { return }
             noteCounts = (try? app.notes?.coveringVerseCounts(st.bookId, st.chapter,
@@ -554,7 +561,7 @@ struct ScriptureView: View {
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
             noteCounts = [:]
             verses = loaded
-            applyPassageSelection(destination)
+            applyPassageSelection(destination, restoringReader: true)
             loadedChapter = chapter
         }
     }
@@ -600,12 +607,13 @@ struct ScriptureView: View {
 
     // MARK: verse selection (click / ⇧-click verse numbers)
 
-    private func applyPassageSelection(_ state: BibleState, onlyIfChanged: Bool = false) {
+    private func applyPassageSelection(_ state: BibleState, onlyIfChanged: Bool = false, restoringReader: Bool = false) {
         let next = passageSelection(state)
         if onlyIfChanged && next == selection { return }
         selectedVerse = state.verse
         anchor = state.verse
-        scrollTarget = state.verse
+        let saved = app.scriptureReadingPositions[tabId]?[chapterKey(state)]
+        scrollTarget = restoringReader && saved?.selectedVerses == next ? nil : state.verse
         selection = next
     }
 
@@ -1042,6 +1050,7 @@ struct ScriptureView: View {
             scrollTarget: scrollTarget,
             actionClearance: actionClearance,
             animateOutline: !reduceMotion && scenePhase == .active,
+            scrollRevision: scrollRevision,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             findRequest: findRequest,
@@ -1755,6 +1764,7 @@ extension ScriptureView {
             selectedVerses: selection, scrollTarget: scrollTarget,
             actionClearance: actionClearance,
             animateOutline: !reduceMotion && scenePhase == .active,
+            scrollRevision: scrollRevision,
             titleBarClearance: titleBarClearance,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
@@ -1979,6 +1989,7 @@ private struct VerseActionPopover<Actions: View>: View {
 struct ScriptureScrollTarget: Equatable {
     let verse: Int
     let lastSelectedVerse: Int?
+    let revision: UUID?
 }
 
 private struct VerseActionMenuChrome: ViewModifier {

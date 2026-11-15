@@ -20,6 +20,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var scrollTarget: Int?
     var actionClearance: CGFloat = 0
     var animateOutline = true
+    var scrollRevision: UUID?
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var findRequest: Int
@@ -88,7 +89,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     static func dismantleUIView(_ view: ReaderTextView, coordinator: Coordinator) {
         guard coordinator.passageId == coordinator.parent.passageId else { return }
         let offset = max(0, view.contentOffset.y + view.adjustedContentInset.top)
-        coordinator.parent.savePosition(ScriptureReadingPosition(offset: offset, verse: coordinator.readingAnchor(in: view)?.verse))
+        coordinator.parent.savePosition(ScriptureReadingPosition(offset: offset, verse: coordinator.readingAnchor(in: view)?.verse,
+                                                                 selectedVerses: coordinator.parent.selectedVerses))
     }
 
     func updateUIView(_ view: ReaderTextView, context: Context) {
@@ -201,7 +203,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
         if let target = scrollTarget, let range = coordinator.verseRanges[target] {
-            let request = ScriptureScrollTarget(verse: target, lastSelectedVerse: selectedVerses.max())
+            let request = ScriptureScrollTarget(verse: target, lastSelectedVerse: selectedVerses.max(), revision: scrollRevision)
             guard request != coordinator.lastTarget else { return }
             coordinator.lastTarget = request
             let currentPassage = passageId
