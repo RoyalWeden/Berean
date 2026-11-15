@@ -93,6 +93,7 @@ struct CommandPalette: View {
             ("Notes Home", "tray.full", { app.openNotesHome(newTab: newTab) }),
             ("History", "clock", { app.openHistory(newTab: newTab) }),
             ("Tags", "tag", { app.openTags(newTab: newTab) }),
+            ("Search Lexicon", "character.book.closed", { app.openLexiconSearch(newTab: newTab) }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
         ]
         var leading: [Item] = []
@@ -102,6 +103,10 @@ struct CommandPalette: View {
             // instead of searching Scripture for those words. A passage ("Go to") still wins over a command.
             let lower = t.lowercased(), q = trimmed.lowercased()
             if !q.isEmpty, lower == q || (q.count >= 3 && lower.hasPrefix(q)) { leading.append(item) } else { out.append(item) }
+        }
+        if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber) {
+            out.append(Item(id: "lexicon-search", group: "Lexicon", title: "Search Lexicon for “\(trimmed)”", detail: "",
+                            symbol: "character.book.closed") { app.openLexiconSearch(trimmed, newTab: newTab) })
         }
         if !leading.isEmpty {
             let at = out.firstIndex { $0.group != "Recent" && $0.group != "Go to" && $0.group != "Open in Other Workspaces" } ?? out.count

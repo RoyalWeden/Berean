@@ -532,6 +532,8 @@ final class AppModel {
 
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
     @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
+    /// Lexicon tab id → last search (query, language). In memory only: not written to tab state.
+    @ObservationIgnored var lexiconSearches: [String: (query: String, lang: String)] = [:]
     @ObservationIgnored var lexiconOccurrenceOptions: [String: [String: LexiconEntryView.OccurrenceOptions]] = [:]
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
@@ -765,6 +767,19 @@ final class AppModel {
             return
         }
         recordHistory(type: "lexicon", title: strongs, strongsNum: strongs)
+    }
+
+    /// A Lexicon tab on the search view (no entry yet), optionally seeded with a query.
+    func openLexiconSearch(_ query: String = "", newTab: Bool = false) {
+        if !query.isEmpty { lexiconSearches.removeAll() }
+        if !newTab, let tab = activeTab, tab.tabType == .lexicon {
+            update(tab.id) { $0.state["strongsNum"] = .string(""); $0.title = "Lexicon" }
+            if !query.isEmpty { lexiconSearches[tab.id] = (query, "all") }
+            return
+        }
+        var o = JSObject(); o["strongsNum"] = .string("")
+        let id = openTab(.lexicon, in: .lexicon, title: "Lexicon", state: o, origin: nil)
+        if !query.isEmpty { lexiconSearches[id] = (query, "all") }
     }
 
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false) {
