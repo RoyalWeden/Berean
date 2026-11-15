@@ -123,6 +123,17 @@ private struct SharedVerseSelection: Transferable {
     }
 }
 
+extension ChapterVerseRow {
+    func hidingTextAnnotations(_ hidden: Set<String>, textId: String) -> Self {
+        guard textId != "kjva",
+              AnnotationFilters.keys[textId]?.contains(where: { hidden.contains($0.id) }) == true else { return self }
+        var row = self
+        row.text = AnnotationFilters.strip(text, textId: textId, hidden: hidden)
+        row.textTagged = textTagged.map { AnnotationFilters.stripTagged($0, textId: textId, hidden: hidden) }
+        return row
+    }
+}
+
 private struct SharedScriptureChapter: Transferable {
     let reference: String
     let bookId: String
@@ -130,12 +141,15 @@ private struct SharedScriptureChapter: Transferable {
     let textId: String
     let replacerEnabled: Bool
     let bible: BibleService
+    let hiddenAnnotations: Set<String>
 
     func formattedText() async throws -> String {
         let rows = await bible.queryChapter(bookId, chapter, textId: textId)
         guard !rows.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
-        return SharedVerseSelection(reference: reference, rows: rows, textId: textId,
-                                    replacerEnabled: replacerEnabled).formattedText
+        let visibleRows = rows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: textId) }
+        return SharedVerseSelection(reference: reference, rows: visibleRows, textId: textId,
+                                    replacerEnabled: replacerEnabled,
+                                    hideSuppliedWords: hiddenAnnotations.contains(AnnotationFilters.kjvaSuppliedWords)).formattedText
     }
 
     static var transferRepresentation: some TransferRepresentation {
@@ -158,14 +172,16 @@ func referenceForCopy(_ label: String, textId: String) -> String {
 struct ChapterExportActions: View {
     @Environment(AppModel.self) private var app
     let state: BibleState
+    let tabId: String
     var hasText = true
 
     var body: some View {
         let chapterLabel = Reference.readerChapterLabel(state.bookId, state.chapter, textId: state.translation)
         let reference = chapterLabel + (state.translation == "lxx" ? " LXX" : "")
+        let hidden = Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
         let chapter = SharedScriptureChapter(reference: reference, bookId: state.bookId, chapter: state.chapter,
                                             textId: state.translation, replacerEnabled: app.wordReplacerEnabled,
-                                            bible: app.bible)
+                                            bible: app.bible, hiddenAnnotations: hidden)
         Button("Copy Chapter", systemImage: "doc.on.doc") {
             Task {
                 do {
@@ -472,12 +488,7 @@ struct ScriptureView: View {
             }
             let hidden = chapterAnnotationFilters
             if !hidden.isEmpty {
-                loaded = loaded.map { row in
-                    var r = row
-                    r.text = AnnotationFilters.strip(r.text, textId: st.translation, hidden: hidden)
-                    if let t = r.textTagged { r.textTagged = AnnotationFilters.stripTagged(t, textId: st.translation, hidden: hidden) }
-                    return r
-                }
+                loaded = loaded.map { $0.hidingTextAnnotations(hidden, textId: st.translation) }
             }
             let destination = state
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
@@ -1128,7 +1139,7 @@ struct ScriptureView: View {
         }
         ToolbarItem {
             Menu {
-                ChapterExportActions(state: st, hasText: hasText)
+                ChapterExportActions(state: st, tabId: tabId, hasText: hasText)
             } label: {
                 Label("Chapter Export", systemImage: "square.and.arrow.up")
             }

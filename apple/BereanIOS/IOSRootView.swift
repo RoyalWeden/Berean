@@ -226,7 +226,7 @@ struct IOSRootView: View {
                     Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                     Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
                     Button("Scripture Display…", systemImage: "textformat.size") { showScriptureDisplay = true }
-                    Menu("Chapter Export", systemImage: "square.and.arrow.up") { ChapterExportActions(state: st, hasText: hasText) }
+                    Menu("Chapter Export", systemImage: "square.and.arrow.up") { ChapterExportActions(state: st, tabId: tab.id, hasText: hasText) }
                 }
             }
             if let tab = app.activeTab {
