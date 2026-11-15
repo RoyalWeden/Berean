@@ -576,12 +576,15 @@ struct TabCardsSheet: View {
 
     @ViewBuilder
     private var workspaceActions: some View {
+        let workspace = app.currentWorkspace
         Section {
             NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
                 LabeledContent {
-                    Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
+                    Text(workspace?.tabCountLabel ?? "")
                 } label: {
-                    Label(app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon)).fontWeight(.semibold)
+                    Label(workspace?.displayName ?? app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon))
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
                 }
             }
             .accessibilityHint("Switch, create or manage workspaces")
@@ -857,7 +860,7 @@ struct SessionsPage: View {
                         }
                         .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
                         .contextMenu {
-                            Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
+                            Button("Rename…", systemImage: "pencil") { name = w.displayName; renaming = w }
                             Button("Duplicate", systemImage: "plus.square.on.square") { app.duplicate(w) }
                             if app.isCurrent(w) {
                                 Button("Save Snapshot…", systemImage: "square.and.arrow.down.on.square") { name = w.name; saving = true }

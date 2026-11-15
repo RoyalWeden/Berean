@@ -306,6 +306,8 @@ struct BereanSidebar: View {
     /// One Workspace control: the current workspace; its menu lists every workspace (live and saved) and the actions.
     var workspaceSwitcher: some View {
         let workspaces = app.workspaceItems
+        let current = workspaces.first { app.isCurrent($0) }
+        let currentLabel = current?.displayName ?? app.session.name
         let duplicatePreviews = Set(Dictionary(grouping: workspaces, by: \.displayName)
             .filter { $0.value.count > 1 }.keys)
         return Menu {
@@ -328,8 +330,8 @@ struct BereanSidebar: View {
             Divider()
             Button("New Workspace") { app.newWorkspace() }
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
-            if let cur = app.currentWorkspace {
-                Button("Rename “\(cur.name)”…") { name = cur.name; renaming = cur }
+            if let cur = current {
+                Button("Rename Workspace…") { name = cur.displayName; renaming = cur }
                 Button("Duplicate “\(cur.name)”") { app.duplicate(cur) }
                 Menu("Icon") {
                     ForEach(WorkspaceIcon.all, id: \.name) { icon in
@@ -355,13 +357,16 @@ struct BereanSidebar: View {
                 }
             }
         } label: {
-            Label(app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon)).fontWeight(.semibold)
+            Label(currentLabel, systemImage: WorkspaceIcon.symbol(app.session.icon))
+                .fontWeight(.semibold)
+                .lineLimit(1)
+                .frame(maxWidth: 156, alignment: .leading)
         }
         .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
         .padding(.horizontal, 10).padding(.vertical, 5)
         .background(.quaternary.opacity(0.35), in: .capsule)
-        .help("Workspace: \(app.session.name) — switch, create, rename, duplicate or delete workspaces")
-        .accessibilityLabel("Workspace \(app.session.name), \(app.tabCount(app.currentSessionId)) tabs")
+        .help("Workspace: \(current?.menuLabel ?? app.session.name) — switch, create, rename, duplicate or delete workspaces")
+        .accessibilityLabel("Workspace \(currentLabel), \(current?.displayDetail ?? "")")
     }
 
     // MARK: tabs

@@ -1128,3 +1128,7 @@
 
 - Shared scrolling stays in place when columns are reordered. Unchanged independent columns carry their verse positions into the updated comparison.
 - Both Dev builds passed. Mac QA verified a swap at Genesis 1:10 without moving the viewport.
+
+### 2026-11-15 — Recognize unnamed workspaces by their tabs
+
+- Mac and iPhone show the passage-based name on the current workspace control and use it as an editable rename suggestion. Mac scratch QA verified the label and cancel path.

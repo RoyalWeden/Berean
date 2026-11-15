@@ -182,7 +182,9 @@ extension AppModel {
 
     func canDelete(_ item: WorkspaceItem) -> Bool { item.isSaved || sessions.count > 1 }
 
-    var currentWorkspace: WorkspaceItem? { workspaceItems.first { isCurrent($0) } }
+    var currentWorkspace: WorkspaceItem? {
+        sessions.first(where: { $0.id == currentSessionId }).map(WorkspaceItem.init(session:))
+    }
 }
 
 extension AppModel {
