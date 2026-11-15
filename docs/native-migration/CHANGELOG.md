@@ -1027,3 +1027,17 @@
 
 - Citation arrows preview linked passages and note titles and open My Notes for the verse. Abbreviated incoming verse citations now resolve in the Notes service.
 - Full native check passed with 113 Swift tests and both Dev builds. Live visual and interaction testing remains pending.
+
+### 2026-11-15 01:10 PST — Parity/polish batch on Codex's 839a362d — MAC LIVE + iPhone SIMULATOR VERIFIED
+- **Agent/session context:** Claude Code, continuing after Codex's 15 commits (My Notes, compact verse sheet, notes inspector).
+- **Repository/worktree/branch and SHA before:** `/Users/roywe/Berean-native`, `native/reader-notes` at `839a362d`.
+- **Actual behavior delivered:** tab card grid + dock swipe + tab-type switcher (iPhone); note Insert menu, keyboard format bar with
+  undo/redo, dock hidden while editing, Note Details menu, reference auto-linking, auto em dash; Lexicon ⌘F; Mac Settings panes;
+  calendar today circle; history/daily titles; Notes select mode + bulk actions; search result Share/Add Note, Jump to, book-scoped
+  search; note-return pill; palette Top Hit; missing-LXX-verse markers; selected-verses Strong's strip; invalid SF Symbol fix.
+- **Commands and results:** `native:check` passed at 00:50 (114 tests / 41 suites, both Dev builds); later commits built for both
+  platforms; final check recorded in HANDOFF.
+- **Data touched:** isolated Dev libraries only (synthetic notes "Insert menu QA", "Proverbs 8:2, 4"; status in-progress on the first).
+- **Known failures, regressions and their fixes:** em dash initially broke `---` dividers (fixed `62102592`); scanner refactor flattened
+  Unicode spaces in NoteVerseRefs (caught by golden, fixed before commit).
+- **Next exact action:** see HANDOFF "Still open, best next picks".

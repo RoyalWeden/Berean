@@ -334,3 +334,13 @@ show their content without the side-by-side or thread chrome. A full structured 
   from the TS sources; regenerate rather than hand-edit.
 - **D-2026-11-14-f Compare layout:** grid vs stacked is chosen by measured width (≥ 280 pt per column), not `ViewThatFits`; iOS-only
   modifiers must be wrapped as whole modifiers (an empty macOS `.safeAreaInset` collapsed Compare — MAC-FUNC-037).
+
+## 2026-11-15 (Claude Code, 00:00–01:44)
+
+- **D-2026-11-15-a In-memory UI state, no new tab keys:** note-return pill (`AppModel.noteReturn`), lexicon search query, iPhone tab
+  layout (`@AppStorage("tabCardsLayout")`) and chrome hiding are local; synced tab state only uses keys the Electron app already knows
+  (`bookIds`, `scopeTexts`, `hiddenAnnotations`, `status`, `folderId`).
+- **D-2026-11-15-b Tab-type switch = open new + close old** (`AppModel.switchTab`), never mutating a tab's `type` in storage.
+- **D-2026-11-15-c Display-only daily titles:** daily notes/tabs/history show long or compact dates; stored titles unchanged.
+- **D-2026-11-15-d Note references auto-link** by reusing the `berean-note:` route (passage first, then note title) instead of a new scheme.
+- **D-2026-11-15-e Auto em dash** follows the original: on by default, never converts dashes that start a line (keeps `---` dividers).
