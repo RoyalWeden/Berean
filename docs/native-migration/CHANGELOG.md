@@ -1146,3 +1146,7 @@
 ### 2026-11-15 — Archive workspace labels
 
 - Archived tabs can be found using the workspace passage label or stored workspace name. Both Dev builds passed. Mac QA verified both searches and restored the tab.
+
+### 2026-11-15 — Archived results ranking
+
+- Go gives exact archived titles priority over partial matches and workspace labels. Both Dev builds passed, and Mac QA verified an older exact passage ranked above a newer contextual match.

@@ -253,22 +253,35 @@ extension AppModel {
     }
 
     func matchingArchivedTabs(_ query: String, limit: Int = 6) -> [ArchivedTabMatch] {
-        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
-        guard !terms.isEmpty else { return [] }
+        let normalized = query.replacingOccurrences(of: "–", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let terms = normalized.split(whereSeparator: \.isWhitespace)
+        guard limit > 0, !terms.isEmpty else { return [] }
+
         let titles = archiveTitles()
         let searchTitles = archiveTitles(includeAliases: true)
         let sourceNames = archiveSourceNames()
-        var matches: [ArchivedTabMatch] = []
+        var exact: [ArchivedTabMatch] = []
+        var direct: [ArchivedTabMatch] = []
+        var contextual: [ArchivedTabMatch] = []
         for group in archivedGroups {
             let title = titles[group.id] ?? group.label
             for tab in archivedTabs(group) {
-                let searchable = "\(tab.navigationSearchText) \(searchTitles[group.id] ?? title)"
-                guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { continue }
-                matches.append(ArchivedTabMatch(groupID: group.id, groupTitle: title, sourceName: sourceNames[group.id], tab: tab))
-                if matches.count >= limit { return matches }
+                let match = ArchivedTabMatch(groupID: group.id, groupTitle: title, sourceName: sourceNames[group.id], tab: tab)
+                let tabTitle = tab.navigationLabel.replacingOccurrences(of: "–", with: "-")
+                let tabText = tab.navigationSearchText
+                if tabTitle.localizedStandardCompare(normalized) == .orderedSame {
+                    exact.append(match)
+                    if exact.count == limit { return exact }
+                } else if direct.count < limit, terms.allSatisfy({ tabText.localizedStandardContains(String($0)) }) {
+                    direct.append(match)
+                } else if contextual.count < limit {
+                    let text = "\(tabText) \(searchTitles[group.id] ?? title)"
+                    if terms.allSatisfy({ text.localizedStandardContains(String($0)) }) { contextual.append(match) }
+                }
             }
         }
-        return matches
+        return Array((exact + direct + contextual).prefix(limit))
     }
 
     /// Restore saved sidebar placement when available and keep the current reading position.
