@@ -300,26 +300,8 @@ struct TabCardsSheet: View {
                         }
                     }
                 }
-                Section {
-                    NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
-                        LabeledContent {
-                            Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
-                        } label: {
-                            Label(app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon)).fontWeight(.semibold)
-                        }
-                    }
-                    .accessibilityHint("Switch, create or manage workspaces")
-                }
-                Section {
-                    Button(action: onNewTab) { Label("New Tab", systemImage: "plus") }
-                    if !app.inactiveTabs.isEmpty {
-                        Button { showTabCleanup = true } label: { Label("Archive Inactive Tabs…", systemImage: "archivebox") }
-                    }
-                    if !app.archivedGroups.isEmpty {
-                        NavigationLink { ArchivedTabsPage(onOpen: { dismiss() }) } label: { Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count) }
-                    }
-                }
                 if !hasQuery, !isFiltering {
+                    workspaceActions
                     WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
                                         onOpen: { dismiss() })
                 }
@@ -390,6 +372,31 @@ struct TabCardsSheet: View {
                     .accessibilityValue([spaceFilter?.title, typeFilter.map(typeTitle)].compactMap { $0 }.joined(separator: ", "))
                 }
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var workspaceActions: some View {
+        Section {
+            NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
+                LabeledContent {
+                    Text("\(app.tabCount(app.currentSessionId)) tab\(app.tabCount(app.currentSessionId) == 1 ? "" : "s")")
+                } label: {
+                    Label(app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon)).fontWeight(.semibold)
+                }
+            }
+            .accessibilityHint("Switch, create or manage workspaces")
+        }
+        Section {
+            Button(action: onNewTab) { Label("New Tab", systemImage: "plus") }
+            if !app.inactiveTabs.isEmpty {
+                Button { showTabCleanup = true } label: { Label("Archive Inactive Tabs…", systemImage: "archivebox") }
+            }
+            if !app.archivedGroups.isEmpty {
+                NavigationLink { ArchivedTabsPage(onOpen: { dismiss() }) } label: {
+                    Label("Archived Tabs", systemImage: "archivebox").badge(app.archivedGroups.count)
+                }
             }
         }
     }
