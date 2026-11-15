@@ -909,6 +909,20 @@ struct VerseNotesView: View {
     @State private var notes: [Note] = []
     @State private var loadedScope: String?
     @State private var chapterScope: String?
+    @State private var allNotesScope = false
+    @AppStorage("studyNotesSort") private var studySort = StudySort.verse
+
+    private enum StudySort: String, CaseIterable {
+        case verse, modified, created
+
+        var label: String {
+            switch self {
+            case .verse: "By Verse"
+            case .modified: "Date Edited"
+            case .created: "Date Created"
+            }
+        }
+    }
 
     private var passageLabel: String {
         ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: scopedSelection.min() ?? scopedVerse,
@@ -929,30 +943,57 @@ struct VerseNotesView: View {
     private var scopedVerse: Int? { showingChapter ? nil : verse }
     private var scopedSelection: Set<Int> { showingChapter ? [] : selectedVerses }
     private var attachment: String { showingChapter ? "\(bookId).\(chapter)" : selectionAttachment }
-    private var loadKey: String { "\(textId)|\(attachment)|\(app.notesRevision)" }
+    private var loadKey: String { "\(textId)|\(attachment)|\(allNotesScope)|\(app.notesRevision)" }
+
+    private var displayedNotes: [Note] {
+        guard loadedScope == loadKey else { return [] }
+        let visible = allNotesScope ? Array(notes.prefix(500)) : notes
+        guard allowsChapterScope else { return visible }
+        switch studySort {
+        case .modified:
+            return visible.sorted { $0.updatedAt > $1.updatedAt }
+        case .created:
+            return visible.sorted { $0.createdAt > $1.createdAt }
+        case .verse:
+            return visible.map { note in
+                let ref = note.verseRef?.split(separator: ",").first
+                    .flatMap { Reference.parseNoteAttachment(String($0)) }
+                let order = ref.map { (Reference.bookOrder($0.bookId), $0.chapter, $0.verse ?? 0) }
+                    ?? (Int.max, Int.max, Int.max)
+                return (note, order)
+            }.sorted { $0.1 < $1.1 }.map(\.0)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            if allowsChapterScope, verse != nil || !selectedVerses.isEmpty {
+            if allowsChapterScope {
                 HStack {
-                    Text(passageLabel).font(.subheadline.weight(.semibold))
+                    Text(allNotesScope ? "All Notes" : passageLabel).font(.subheadline.weight(.semibold))
                     Spacer(minLength: 8)
-                    Button {
-                        chapterScope = showingChapter ? nil : scopeKey
-                    } label: {
-                        Label(showingChapter ? "Show Selected Verse Notes" : "Show Chapter Notes",
-                              systemImage: showingChapter ? "list.number" : "list.bullet")
-                            .labelStyle(.iconOnly)
-                            .frame(width: 44, height: 44)
-                            .contentShape(.rect)
+                    if !allNotesScope, verse != nil || !selectedVerses.isEmpty {
+                        Button {
+                            chapterScope = showingChapter ? nil : scopeKey
+                        } label: {
+                            Label(showingChapter ? "Show Selected Verse Notes" : "Show Chapter Notes",
+                                  systemImage: showingChapter ? "list.number" : "list.bullet")
+                                .labelStyle(.iconOnly)
+                                .frame(width: 44, height: 44)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .help(showingChapter ? "Show selected verse notes" : "Show chapter notes")
                     }
-                    .buttonStyle(.interactivePlain)
-                    .help(showingChapter ? "Show selected verse notes" : "Show chapter notes")
+                    studyNotesMenu
                 }
                 .padding(.horizontal, 12)
             }
             List {
-                ForEach(loadedScope == loadKey ? notes : []) { note in
+                if allNotesScope, loadedScope == loadKey, notes.count > 500 {
+                    Text("Showing the 500 most recently edited notes")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach(displayedNotes) { note in
                     Button {
                         if let editInSheet {
                             editInSheet(note.id)
@@ -969,8 +1010,8 @@ struct VerseNotesView: View {
                     }
                     .buttonStyle(.interactivePlain)
                 }
-                if loadedScope == loadKey, scopedVerse == nil, scopedSelection.isEmpty, notes.isEmpty {
-                    ContentUnavailableView("No chapter notes", systemImage: "note.text")
+                if loadedScope == loadKey, notes.isEmpty, allNotesScope || (scopedVerse == nil && scopedSelection.isEmpty) {
+                    ContentUnavailableView(allNotesScope ? "No notes" : "No chapter notes", systemImage: "note.text")
                 }
                 Button {
                     let ref = attachment
@@ -992,7 +1033,9 @@ struct VerseNotesView: View {
         }
         .onChange(of: scopeKey) { chapterScope = nil }
         .task(id: loadKey) {
-            if !scopedSelection.isEmpty {
+            if allNotesScope {
+                notes = (try? app.notes?.all(limit: 501)) ?? []
+            } else if !scopedSelection.isEmpty {
                 notes = (try? app.notes?.coveringVerses(bookId, chapter, scopedSelection, textId: textId)) ?? []
             } else if let verse = scopedVerse {
                 notes = (try? app.notes?.coveringVerse(bookId, chapter, verse, textId: textId)) ?? []
@@ -1001,6 +1044,32 @@ struct VerseNotesView: View {
             }
             loadedScope = loadKey
         }
+    }
+
+    private var studyNotesMenu: some View {
+        Menu {
+            Section("Scope") {
+                Picker("Scope", selection: $allNotesScope) {
+                    Text("Current Passage").tag(false)
+                    Text("All Notes").tag(true)
+                }
+            }
+            Section("Sort") {
+                Picker("Sort", selection: $studySort) {
+                    ForEach(StudySort.allCases, id: \.self) { option in Text(option.label).tag(option) }
+                }
+            }
+        } label: {
+            Label("Notes Options", systemImage: "line.3.horizontal.decrease")
+                .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .clickableCursor()
+        .help("Notes scope and sort")
     }
 }
 
