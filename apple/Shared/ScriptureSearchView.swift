@@ -241,6 +241,24 @@ struct ScriptureSearchView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .navigationTitle(query.isEmpty ? "Search" : "Search: \(query)")
+        #if os(iOS)
+        .sheet(isPresented: $showOptions) {
+            NavigationStack {
+                ScrollView {
+                    options.frame(maxWidth: 520, alignment: .leading)
+                        .padding(20)
+                        .frame(maxWidth: .infinity)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .navigationTitle("Search Options")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { showOptions = false } }
+                }
+            }
+            .presentationDetents([.large])
+        }
+        #endif
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
         .onChange(of: query) { _, newQuery in field = newQuery }
         .task(id: request) { [request] in await runSearch(request) }
@@ -277,7 +295,12 @@ struct ScriptureSearchView: View {
                 .frame(minHeight: headerControlSize)
                 .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
                 scopeMenu
-                Button { showOptions.toggle() } label: {
+                Button {
+                    #if os(iOS)
+                    fieldFocused = false
+                    #endif
+                    showOptions.toggle()
+                } label: {
                     Image(systemName: hasActiveOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                         .foregroundStyle(hasActiveOptions ? Color.accentColor : Color.primary)
                         .frame(width: headerControlSize, height: headerControlSize)
@@ -287,12 +310,12 @@ struct ScriptureSearchView: View {
                 .accessibilityLabel("Search Options")
                 .accessibilityHint(hasActiveOptions ? "Filters are active" : "Match, testament, books, and order")
                 .help(hasActiveOptions ? "Search options · filters active" : "Search options")
+                #if os(macOS)
                 .popover(isPresented: $showOptions, arrowEdge: .bottom) {
                     ScrollView { options.frame(maxWidth: .infinity, alignment: .leading).padding(14) }
-                        #if os(macOS)
                         .frame(width: 340, height: 420)
-                        #endif
                 }
+                #endif
             }
             if !tagSelection.ids.isEmpty { activeTagFilter }
             if query.utf16.count >= 2 { summaryRow }
