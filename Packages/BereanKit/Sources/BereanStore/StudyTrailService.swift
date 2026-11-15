@@ -110,6 +110,49 @@ public struct StudyTrailService {
         }
     }
 
+    public struct SearchRecord: Sendable {
+        public let trailId: String
+        public let sourceBook: String?
+        public let sourceChapter: Int?
+        public let sourceVerse: Int?
+        public let sourceEdition: String?
+        public let destinationBook: String?
+        public let destinationChapter: Int?
+        public let destinationVerse: Int?
+        public let destinationEndVerse: Int?
+        public let title: String?
+        public let annotation: String?
+        public let reason: String?
+    }
+
+    /// Read searchable stop and connection fields in one pass without opening each trail.
+    public func librarySearchRecords() throws -> [SearchRecord] {
+        try db.query("""
+            SELECT n.trail_session_id AS trail, n.book_id AS source_book, n.chapter AS source_chapter,
+                   NULL AS source_verse, n.translation AS source_edition, NULL AS destination_book,
+                   NULL AS destination_chapter, NULL AS destination_verse, NULL AS destination_end,
+                   NULL AS title, n.cached_subnote AS annotation, NULL AS reason
+            FROM trail_nodes n JOIN trail_sessions s ON s.id = n.trail_session_id
+            WHERE s.id <> '__loose_stops__'
+            UNION ALL
+            SELECT c.trail_session_id, n.book_id, n.chapter, c.origin_verse_pin_from, n.translation,
+                   c.to_book_id, c.to_chapter, c.to_verse, c.to_verse_end,
+                   COALESCE(c.to_strongs_num, note.title), c.user_note, c.reason_text
+            FROM trail_connections c JOIN trail_sessions s ON s.id = c.trail_session_id
+            LEFT JOIN trail_nodes n ON n.id = c.from_node_id AND n.trail_session_id = s.id
+            LEFT JOIN notes note ON note.id = c.to_note_id AND note.deleted_at IS NULL
+            WHERE s.id <> '__loose_stops__'
+            """).compactMap { row in
+                guard let trail = row["trail"]?.string else { return nil }
+                return SearchRecord(trailId: trail, sourceBook: row["source_book"]?.string,
+                                    sourceChapter: row["source_chapter"]?.int, sourceVerse: row["source_verse"]?.int,
+                                    sourceEdition: row["source_edition"]?.string, destinationBook: row["destination_book"]?.string,
+                                    destinationChapter: row["destination_chapter"]?.int, destinationVerse: row["destination_verse"]?.int,
+                                    destinationEndVerse: row["destination_end"]?.int, title: row["title"]?.string,
+                                    annotation: row["annotation"]?.string, reason: row["reason"]?.string)
+            }
+    }
+
     public func stops(in trailId: String) throws -> [Stop] {
         let rows = try db.query("""
             SELECT id, book_id, chapter, translation, cached_subnote

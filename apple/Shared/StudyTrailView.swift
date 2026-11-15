@@ -15,7 +15,36 @@ struct StudyTrailView: View {
     @State private var showNewTrail = false
     @State private var newTrailName = ""
     @State private var errorMessage: String?
-    @State private var path: [String] = []
+    @State private var path: [TrailRoute] = []
+    @State private var query = ""
+    @State private var index: [IndexedTrailItem]?
+    @State private var indexFailed = false
+
+    private struct TrailRoute: Hashable {
+        let trailID: String
+        var filter = ""
+    }
+
+    private struct IndexedTrailItem {
+        let trailID: String
+        let title: String?
+        let source: String?
+        let annotation: String?
+        let reason: String?
+    }
+
+    private var searchActive: Bool { !query.split(whereSeparator: \.isWhitespace).isEmpty }
+
+    private var matchingItems: [String: IndexedTrailItem] {
+        guard searchActive, let index else { return [:] }
+        var result: [String: IndexedTrailItem] = [:]
+        for item in index where result[item.trailID] == nil {
+            if trailSearchMatches(query, fields: [item.title, item.source, item.annotation, item.reason]) {
+                result[item.trailID] = item
+            }
+        }
+        return result
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -26,17 +55,11 @@ struct StudyTrailView: View {
                     ContentUnavailableView("No Study Trails", systemImage: "point.topleft.down.to.point.bottomright.curvepath",
                                            description: Text("Saved trails from this library appear here."))
                 } else {
-                    List(trails) { trail in
-                        NavigationLink(value: trail.id) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(trail.name.isEmpty ? "Untitled Trail" : trail.name)
-                                Text("\(trail.stopCount) \(trail.stopCount == 1 ? "stop" : "stops") · \(trail.status.capitalized)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+                    trailList
                 }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !trails.isEmpty { librarySearchField }
             }
             .navigationTitle("Study Trail")
             .safeAreaInset(edge: .bottom) {
@@ -47,9 +70,9 @@ struct StudyTrailView: View {
                 .buttonStyle(.borderedProminent)
                 .padding(8)
             }
-            .navigationDestination(for: String.self) { trailId in
-                if let trail = trails.first(where: { $0.id == trailId }) {
-                    StudyTrailStopsView(trail: trail, reloadTrails: load)
+            .navigationDestination(for: TrailRoute.self) { route in
+                if let trail = trails.first(where: { $0.id == route.trailID }) {
+                    StudyTrailStopsView(query: route.filter, trail: trail, reloadTrails: load)
                 }
             }
             .alert("New Study Trail", isPresented: $showNewTrail) {
@@ -65,12 +88,83 @@ struct StudyTrailView: View {
             } message: { Text(errorMessage ?? "") }
         }
         .task { load() }
+        .onChange(of: searchActive) { _, active in
+            if active && index == nil { loadSearchIndex() }
+        }
+    }
+
+    private var librarySearchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField("Find a Study Trail", text: $query)
+                .textFieldStyle(.plain)
+            if !query.isEmpty {
+                Button("Clear Search", systemImage: "xmark.circle.fill") { query = "" }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.interactivePlain)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    @ViewBuilder private var trailList: some View {
+        let matches = matchingItems
+        let visible = searchActive ? trails.filter {
+            trailSearchMatches(query, fields: [$0.name, $0.recap]) || matches[$0.id] != nil
+        } : trails
+        if visible.isEmpty {
+            if indexFailed { ContentUnavailableView("Couldn’t Search Trail Contents", systemImage: "exclamationmark.circle") }
+            else { ContentUnavailableView.search(text: query) }
+        } else {
+            List(visible) { trail in
+                let trailNameMatches = trailSearchMatches(query, fields: [trail.name])
+                let item = matches[trail.id]
+                let excerpt = trailNameMatches ? nil : item?.title ?? item?.source ?? trail.recap
+                NavigationLink(value: TrailRoute(trailID: trail.id, filter: trailNameMatches ? "" : query)) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(trail.name.isEmpty ? "Untitled Trail" : trail.name)
+                        Text("\(trail.stopCount) \(trail.stopCount == 1 ? "stop" : "stops") · \(trail.status.capitalized)")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if let excerpt, !excerpt.isEmpty {
+                            Text(excerpt).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func loadSearchIndex() {
+        do {
+            guard let service = app.studyTrailService else { indexFailed = true; return }
+            index = try service.librarySearchRecords().map { record in
+                let source = trailReference(record.sourceBook, chapter: record.sourceChapter, verse: record.sourceVerse,
+                                            edition: record.sourceEdition)
+                let destination = trailReference(record.destinationBook, chapter: record.destinationChapter,
+                                                 verse: record.destinationVerse, endVerse: record.destinationEndVerse)
+                return IndexedTrailItem(trailID: record.trailId, title: destination ?? record.title,
+                                       source: source, annotation: record.annotation, reason: record.reason)
+            }
+            indexFailed = false
+        } catch {
+            indexFailed = true
+        }
     }
 
     private func load() {
         do {
             guard let reader = app.studyTrailService else { loadFailed = true; return }
             trails = try reader.trails()
+            index = nil
+            if searchActive { loadSearchIndex() }
             loadFailed = false
         } catch {
             loadFailed = true
@@ -86,7 +180,7 @@ struct StudyTrailView: View {
             let name = newTrailName.trimmingCharacters(in: .whitespacesAndNewlines)
             let id = try service.start(name: name, id: AppModel.newId(), at: Self.now())
             load()
-            path.append(id)
+            path.append(TrailRoute(trailID: id))
         } catch {
             errorMessage = "The trail could not be saved."
         }
@@ -94,6 +188,20 @@ struct StudyTrailView: View {
 
     fileprivate static func now() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
 
+}
+
+private func trailSearchMatches(_ query: String, fields: [String?]) -> Bool {
+    let searchable = fields.compactMap { $0 }.joined(separator: " ")
+    return query.split(whereSeparator: \.isWhitespace).allSatisfy { searchable.localizedStandardContains(String($0)) }
+}
+
+private func trailReference(_ book: String?, chapter: Int?, verse: Int?, endVerse: Int? = nil,
+                            edition: String? = nil) -> String? {
+    guard let book, let chapter else { return nil }
+    if verse == nil, let edition { return Reference.readerChapterLabel(book, chapter, textId: edition) }
+    let first = Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse, hermas: edition.map(HermasText.init(textId:)) ?? .robertsDonaldson)
+    if let verse, let endVerse, endVerse > verse { return "\(first)–\(endVerse)" }
+    return first
 }
 
 private struct StudyTrailStopsView: View {
@@ -106,7 +214,7 @@ private struct StudyTrailStopsView: View {
     @State private var confirmFinish = false
     @State private var editTarget: NoteTarget?
     @State private var presentation: Presentation = .list
-    @State private var query = ""
+    @State var query: String
     @State private var renamingTrail = false
     @State private var draftTrailName = ""
 
@@ -141,6 +249,12 @@ private struct StudyTrailStopsView: View {
     }
     let trail: StudyTrailService.Trail
     let reloadTrails: () -> Void
+
+    init(query: String, trail: StudyTrailService.Trail, reloadTrails: @escaping () -> Void) {
+        _query = State(initialValue: query)
+        self.trail = trail
+        self.reloadTrails = reloadTrails
+    }
 
     var body: some View {
         Group {
@@ -210,9 +324,7 @@ private struct StudyTrailStopsView: View {
     private var searchActive: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     private func matches(_ fields: String?...) -> Bool {
-        let words = query.split(whereSeparator: \.isWhitespace)
-        let searchable = fields.compactMap { $0 }.joined(separator: " ")
-        return words.allSatisfy { searchable.localizedStandardContains(String($0)) }
+        trailSearchMatches(query, fields: fields)
     }
 
     private var matchingStops: [StudyTrailService.Stop] {
@@ -399,6 +511,7 @@ private struct StudyTrailStopsView: View {
                 return
             }
             load()
+            reloadTrails()
         } catch {
             actionMessage = "The connection could not be saved."
         }
@@ -492,9 +605,7 @@ private struct StudyTrailStopsView: View {
     private func connectionLabel(_ destination: StudyTrailService.Connection.Destination) -> String {
         switch destination {
         case .scripture(let book, let chapter, let verse, let endVerse):
-            let first = Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse)
-            if let verse, let endVerse, endVerse > verse { return "\(first)–\(endVerse)" }
-            return first
+            return trailReference(book, chapter: chapter, verse: verse, endVerse: endVerse) ?? book
         case .lexicon(let id): return id
         case .note(let id): return (try? app.notes?.one(id))?.displayTitle ?? "Unavailable Note"
         case .other(let kind): return kind.capitalized
@@ -592,8 +703,8 @@ private struct StudyTrailStopsView: View {
             saved = try service.updateRecap(note, trailId: trail.id, at: StudyTrailView.now())
         }
         guard saved else { throw TrailNoteIssue.unavailable }
-        if case .recap = target { reloadTrails() }
-        else { load() }
+        load()
+        reloadTrails()
     }
 
     private enum TrailNoteIssue: Error { case unavailable }

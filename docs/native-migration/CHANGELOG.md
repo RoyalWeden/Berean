@@ -1150,3 +1150,8 @@
 ### 2026-11-15 — Archived results ranking
 
 - Go gives exact archived titles priority over partial matches and workspace labels. Both Dev builds passed, and Mac QA verified an older exact passage ranked above a newer contextual match.
+
+### 2026-11-15 — Lexicon and Study Trail
+- The full Lexicon tab uses a circled Info symbol sized by the native toolbar.
+- Find a Study Trail searches saved content and opens the matched trail with the search carried into its detail view.
+- Both Dev builds and 138 Swift tests passed. The migrated SQLite search assertions passed in a focused rerun. Mac interactions were verified in the isolated QA library. Live iPhone verification remains open.

@@ -81,6 +81,11 @@ import Testing
     if case .scripture("JHN", 1, 1, 4) = savedRange.destination {} else { Issue.record("Expected the saved verse range") }
     if case .note("note-id") = savedNote.destination {} else { Issue.record("Expected the saved note") }
     #expect(new.last?.parentId == "branch")
+    let searchRecords = try reader.librarySearchRecords()
+    #expect(Set(searchRecords.map(\.trailId)) == ["pinned", "recent"])
+    #expect(searchRecords.contains { $0.sourceBook == "GEN" && $0.annotation == "A revised subnote" })
+    #expect(searchRecords.contains { $0.title == "H7225" && $0.reason == "Beginning" && $0.annotation == "Compare the opening words" })
+    #expect(searchRecords.contains { $0.destinationBook == "JHN" && $0.destinationVerse == 1 && $0.destinationEndVerse == 4 })
     let graph = StudyTrailService.map(stops: stops, connections: new)
     #expect(graph.stops.map(\.id) == ["first", "second"])
     #expect(graph.stops.first?.branches.map(\.id) == ["lex", "chapter", "range", "branch", "nested"])
