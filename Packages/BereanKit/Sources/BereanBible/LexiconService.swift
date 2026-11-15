@@ -1,3 +1,4 @@
+import Foundation
 import BereanCore
 import BereanSQLite
 import BereanText
@@ -24,6 +25,7 @@ public actor LexiconService {
     private let lexiconPath: @Sendable (Character) -> String?   // "H" / "G"
     private let textPath: @Sendable (String) -> String?
     private var open: [String: SQLiteConnection] = [:]
+    private var foldedIndex: [Character: [(id: String, folded: String)]] = [:]
     static let occurrenceTexts: [Character: [String]] = ["H": ["kjva"], "G": ["kjva", "lxx"]]
     static let pageMax = 50
 
@@ -113,6 +115,37 @@ public actor LexiconService {
     }
 
     /// `search` — gloss/definition search over one or both lexicons (30 per lexicon).
+    /// Transliteration spelling as people type it: no accents or breathing marks, ç → s, ᵉ → e, and the vowel letters
+    /// Strong's writes after long vowels dropped ("shâlôwm" → "shalom", "cheçed" → "chesed", "bᵉrîyth" → "berith").
+    public static func foldTransliteration(_ s: String) -> String {
+        var t = s.lowercased().replacingOccurrences(of: "ç", with: "s").replacingOccurrences(of: "ᵉ", with: "e")
+        t = t.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
+        t = t.filter { $0.isLetter }
+        for (a, b) in [("ow", "o"), ("iy", "i"), ("uw", "u")] { t = t.replacingOccurrences(of: a, with: b) }
+        return t
+    }
+
+    /// Native addition (no TypeScript counterpart): entries whose folded transliteration contains the folded query,
+    /// for searches the shared SQL `LIKE` misses because of diacritics. Exact Strong's / SQL matches stay in `search`.
+    public func searchFoldedTransliteration(_ query: String, lang: String, limit: Int = 20) -> [LexiconEntry] {
+        let q = Self.foldTransliteration(query)
+        guard q.count >= 3 else { return [] }
+        var out: [LexiconEntry] = []
+        for l: Character in ["H", "G"] where lang == String(l) || lang == "all" {
+            if foldedIndex[l] == nil {
+                guard let db = lexicon(l), let rows = try? db.query("SELECT strongs_id, transliteration FROM entries", []) else { continue }
+                foldedIndex[l] = rows.compactMap { r in
+                    guard let id = r["strongs_id"]?.string, let tr = r["transliteration"]?.string else { return nil }
+                    return (id, Self.foldTransliteration(tr))
+                }
+            }
+            let hits = (foldedIndex[l] ?? []).filter { $0.folded.contains(q) }
+                .sorted { ($0.folded == q ? 0 : $0.folded.hasPrefix(q) ? 1 : 2, $0.folded.count) < ($1.folded == q ? 0 : $1.folded.hasPrefix(q) ? 1 : 2, $1.folded.count) }
+            out += hits.prefix(limit).compactMap { entry($0.id) }
+        }
+        return out
+    }
+
     public func search(_ query: String, lang: String) -> [LexiconEntry] {
         let q = SQLiteValue.text("%\(JSText.trim(query))%")
         let sql = """

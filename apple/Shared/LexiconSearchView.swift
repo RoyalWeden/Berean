@@ -78,7 +78,11 @@ struct LexiconSearchView: View {
             searching = true
             try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled else { return }
-            let found = await app.lexicon.search(trimmed, lang: lang)
+            var found = await app.lexicon.search(trimmed, lang: lang)
+            // Accent-free spellings ("shalom", "chesed") also match Strong's transliterations (shâlôwm, cheçed).
+            let seen = Set(found.map(\.strongsNum))
+            let folded = await app.lexicon.searchFoldedTransliteration(trimmed, lang: lang).filter { !seen.contains($0.strongsNum) }
+            found = folded + found
             guard !Task.isCancelled else { return }
             results = found; searching = false
         }

@@ -96,3 +96,12 @@ extension LexiconEntry {
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
     }
 }
+
+@Suite("lexicon transliteration folding") struct LexiconFoldingTests {
+    @Test func foldsStrongsSpellings() {
+        #expect(LexiconService.foldTransliteration("shâlôwm") == "shalom")
+        #expect(LexiconService.foldTransliteration("cheçed") == "chesed")
+        #expect(LexiconService.foldTransliteration("bᵉrîyth") == "berith")
+        #expect(LexiconService.foldTransliteration("Yᵉhôvâh") == "yehovah")
+    }
+}
