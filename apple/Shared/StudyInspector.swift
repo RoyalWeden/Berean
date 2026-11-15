@@ -98,6 +98,11 @@ struct StudyInspector: View {
     @Environment(AppModel.self) private var app
     let tabId: String
 
+    #if os(macOS)
+    @State private var dragToken = UUID()
+    @State private var dropOnSecondary: Bool?
+    #endif
+
     private func strongsVerses(_ st: BibleState) -> [Int] {
         let selected = app.studySelectedVerses(in: tabId, state: st)
         if !selected.isEmpty { return selected }
@@ -135,31 +140,77 @@ struct StudyInspector: View {
 
     private func pane(_ panel: InspectorTool, tabs: [InspectorTool], reader: BibleState, lexiconKey: JSString, secondary: Bool) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                if tabs.count == 1 {
-                    Text(panel.title).font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    Picker(secondary ? "Second study pane" : "Study pane", selection: Binding(get: { panel }, set: { next in
-                        app.update(tabId, recordHistory: false) { StudyPanelSlots.focus(next, in: &$0.state) }
-                    })) {
-                        ForEach(tabs) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden().clickableCursor()
-                }
-                #if os(macOS)
-                paneActions(secondary: secondary)
-                #endif
+            #if os(macOS)
+            macPaneHeader(panel, tabs: tabs, secondary: secondary)
+            #else
+            Picker("Study pane", selection: Binding(get: { panel }, set: focusTool)) {
+                ForEach(tabs) { Text($0.title).tag($0) }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(10)
+            #endif
             Divider()
             panelContent(panel, st: reader, lexiconKey: lexiconKey)
                 .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 
+    private func focusTool(_ tool: InspectorTool) {
+        app.update(tabId, recordHistory: false) { StudyPanelSlots.focus(tool, in: &$0.state) }
+    }
+
     #if os(macOS)
+    private func macPaneHeader(_ panel: InspectorTool, tabs: [InspectorTool], secondary: Bool) -> some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 2) {
+                ForEach(tabs) { tool in
+                    Button { focusTool(tool) } label: {
+                        Text(tool.title)
+                            .font(.callout.weight(tool == panel ? .semibold : .regular))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 5)
+                            .background(tool == panel ? Color.accentColor.opacity(0.16) : .clear, in: .rect(cornerRadius: 6))
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.interactivePlain)
+                    .accessibilityAddTraits(tool == panel ? .isSelected : [])
+                    .draggable(dragPayload(tool)) {
+                        Text(tool.title).font(.callout.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(.regularMaterial, in: .capsule)
+                    }
+                }
+            }
+            .padding(2)
+            .background(.quaternary.opacity(0.55), in: .rect(cornerRadius: 8))
+            paneActions(secondary: secondary)
+        }
+        .padding(10)
+        .background(dropOnSecondary == secondary ? Color.accentColor.opacity(0.13) : .clear)
+        .contentShape(.rect)
+        .dropDestination(for: String.self) { items, _ in
+            guard let payload = items.first,
+                  let tool = InspectorTool.allCases.first(where: { dragPayload($0) == payload }) else { return false }
+            let slots = StudyPanelSlots(app.findTab(tabId)?.state ?? JSObject())
+            if secondary {
+                guard slots.primaryTabs.contains(tool), slots.primaryTabs.count > 1 else { return false }
+            } else {
+                guard slots.secondaryTabs.contains(tool) else { return false }
+            }
+            changeSlots { $0.move(tool, toSecondary: secondary) }
+            return true
+        } isTargeted: { targeted in
+            if targeted { dropOnSecondary = secondary }
+            else if dropOnSecondary == secondary { dropOnSecondary = nil }
+        }
+    }
+
+    private func dragPayload(_ tool: InspectorTool) -> String {
+        "\(dragToken)|\(tabId)|\(tool.rawValue)"
+    }
+
     private func paneActions(secondary: Bool) -> some View {
         let slots = StudyPanelSlots(app.findTab(tabId)?.state ?? JSObject())
         return Menu {
