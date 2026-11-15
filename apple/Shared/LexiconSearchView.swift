@@ -22,8 +22,7 @@ struct LexiconSearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
-                TextField("Strong's number, Hebrew or Greek word, or English meaning", text: $query)
-                    .textFieldStyle(.roundedBorder)
+                field
                     .focused($focused)
                     .onSubmit { if let first = results.first { open(first.strongsNum) } }
                     .autocorrectionDisabled()
@@ -91,6 +90,26 @@ struct LexiconSearchView: View {
     }
 
     private func open(_ id: String) { app.navigateLexicon(id, in: tabId) }
+
+    @ViewBuilder private var field: some View {
+        #if os(iOS)
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Strong's number, word or meaning", text: $query)
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button("Clear", systemImage: "xmark.circle.fill") { query = "" }
+                    .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+        }
+        .padding(.leading, 12).frame(minHeight: 44)
+        .background(.fill.tertiary, in: .capsule)
+        #else
+        TextField("Strong's number, Hebrew or Greek word, or English meaning", text: $query)
+            .textFieldStyle(.roundedBorder)
+        #endif
+    }
 }
 
 /// A Lexicon tab: the search view until an entry is chosen, then the entry (its toolbar has ‹ › and Search).
