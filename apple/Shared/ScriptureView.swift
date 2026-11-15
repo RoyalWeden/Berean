@@ -42,7 +42,36 @@ struct ChapterEdition: Equatable {
     }
 }
 
+private struct AdjacentChapters {
+    let source: ChapterEdition
+    let previous: ChapterEdition?
+    let next: ChapterEdition?
+
+    func destination(_ direction: Int) -> ChapterEdition? { direction < 0 ? previous : next }
+}
+
 extension AppModel {
+    fileprivate func adjacentChapters(to source: ChapterEdition) async -> AdjacentChapters {
+        let chapters = await bible.chapterNumbers(source.book, textId: source.text)
+        let index = chapters.firstIndex(of: source.chapter)
+        let previous = index.flatMap { $0 > 0 ? chapters[$0 - 1] : nil }
+        let next = index.flatMap { chapters.indices.contains($0 + 1) ? chapters[$0 + 1] : nil }
+        let siblings = previous == nil || next == nil ? await books(for: source.text) : []
+        let bookIndex = siblings.firstIndex { $0.id == source.book }
+
+        func destination(_ chapter: Int?, delta: Int) async -> ChapterEdition? {
+            if let chapter { return ChapterEdition(book: source.book, chapter: chapter, text: source.text) }
+            guard !Task.isCancelled, let bookIndex, siblings.indices.contains(bookIndex + delta) else { return nil }
+            let book = siblings[bookIndex + delta].id
+            let chapters = await bible.chapterNumbers(book, textId: source.text)
+            guard let number = delta < 0 ? chapters.last : chapters.first else { return nil }
+            return ChapterEdition(book: book, chapter: number, text: source.text)
+        }
+
+        return await AdjacentChapters(source: source, previous: destination(previous, delta: -1),
+                                      next: destination(next, delta: 1))
+    }
+
     func installedCounterpart(of source: ChapterEdition) async -> ChapterEdition? {
         guard let target = source.counterpart else { return nil }
         let chapters = await bible.chapterNumbers(target.book, textId: target.text)
@@ -313,18 +342,16 @@ struct ScriptureView: View {
     @State private var verseSheetDetent = Self.verseSheetCompactDetent
     #endif
 
-    private struct ChapterBounds {
-        let book: String
-        let text: String
-        let first: Int?
-        let last: Int?
-    }
-
-    @State private var chapterBounds: ChapterBounds?
+    @State private var chapterNeighbors: AdjacentChapters?
 
     private func canStep(_ delta: Int, from reader: BibleState) -> Bool {
-        guard let bounds = chapterBounds, bounds.book == reader.bookId, bounds.text == reader.translation else { return true }
-        return reader.chapter != (delta < 0 ? bounds.first : bounds.last)
+        guard let chapterNeighbors, chapterNeighbors.source == ChapterEdition(reader) else { return true }
+        return chapterNeighbors.destination(delta) != nil
+    }
+
+    private func pullDestination(_ direction: Int, from reader: BibleState) -> ChapterEdition? {
+        guard chapterPullNavigation, chapterNeighbors?.source == ChapterEdition(reader) else { return nil }
+        return chapterNeighbors?.destination(direction)
     }
 
     var state: BibleState { BibleState(app.findTab(tabId)?.state ?? JSObject()) }
@@ -373,20 +400,12 @@ struct ScriptureView: View {
         #endif
         .toolbar { toolbar(st) }
         .onDisappear { chapterStepTask?.cancel() }
-        .task(id: "\(st.translation)|\(st.bookId)") {
-            let books = await app.books(for: st.translation)
-            guard !Task.isCancelled else { return }
-            let isFirst = books.first?.id == st.bookId
-            let isLast = books.last?.id == st.bookId
-            let chapters = if isFirst || isLast {
-                await app.bible.chapterNumbers(st.bookId, textId: st.translation)
-            } else {
-                [Int]()
-            }
-            guard !Task.isCancelled else { return }
-            chapterBounds = ChapterBounds(book: st.bookId, text: st.translation,
-                                          first: isFirst ? chapters.first : nil,
-                                          last: isLast ? chapters.last : nil)
+        .task(id: st.compareMode ? nil : ChapterEdition(st)) {
+            guard !st.compareMode else { return }
+            let source = ChapterEdition(st)
+            let neighbors = await app.adjacentChapters(to: source)
+            guard !Task.isCancelled, !state.compareMode, ChapterEdition(state) == source else { return }
+            chapterNeighbors = neighbors
         }
         .task(id: st.compareMode ? nil : ChapterEdition(st)) {
             guard !st.compareMode else { return }
@@ -455,8 +474,8 @@ struct ScriptureView: View {
             #endif
         }
         .overlay(alignment: chapterPull?.direction == -1 ? .top : .bottom) {
-            if let pull = chapterPull {
-                let destination = pull.direction < 0 ? "previous chapter" : "next chapter"
+            if let pull = chapterPull, let target = pullDestination(pull.direction, from: st) {
+                let destination = Reference.readerChapterLabel(target.book, target.chapter, textId: target.text)
                 Label(pull.ready ? "Release to open \(destination)" : "Pull for \(destination)",
                       systemImage: pull.direction < 0 ? "chevron.up" : "chevron.down")
                     .font(.callout.weight(.medium))
@@ -1006,7 +1025,7 @@ struct ScriptureView: View {
             },
             onHighlight: { piece, color in highlightRange(piece.verse, piece.start, piece.end, color, st, rv) },
             onStep: { step($0) },
-            canPullChapter: { chapterPullNavigation && canStep($0, from: st) },
+            canPullChapter: { pullDestination($0, from: st) != nil },
             onChapterPull: { pull in withAnimation(.easeOut(duration: 0.15)) { chapterPull = pull } },
             onChapterPullCommit: { step($0, fromPull: true) },
             onPinchPreview: { pinchFontSize = $0 },
@@ -1295,31 +1314,22 @@ struct ScriptureView: View {
         let reader = BibleState(source.state)
         guard canStep(delta, from: reader) else { return }
         chapterStepTask = Task {
-            let chapters = await app.bible.chapterNumbers(reader.bookId, textId: reader.translation)
-            guard !Task.isCancelled else { return }
-            let book: String
-            let chapter: Int
-            if let index = chapters.firstIndex(of: reader.chapter), chapters.indices.contains(index + delta) {
-                book = reader.bookId
-                chapter = chapters[index + delta]
+            let sourceEdition = ChapterEdition(reader)
+            let neighbors: AdjacentChapters
+            if let chapterNeighbors, chapterNeighbors.source == sourceEdition {
+                neighbors = chapterNeighbors
             } else {
-                let books = await app.books(for: reader.translation)
-                guard !Task.isCancelled, let index = books.firstIndex(where: { $0.id == reader.bookId }),
-                      books.indices.contains(index + delta) else { return }
-                book = books[index + delta].id
-                let list = await app.bible.chapterNumbers(book, textId: reader.translation)
-                guard let destination = delta > 0 ? list.first : list.last else { return }
-                chapter = destination
+                neighbors = await app.adjacentChapters(to: sourceEdition)
             }
+            guard let target = neighbors.destination(delta) else { return }
             guard !Task.isCancelled, let current = app.activeTab, current.id == source.id else { return }
             let destination = BibleState(current.state)
             guard ChapterEdition(destination) == ChapterEdition(reader),
                   destination.compareMode == reader.compareMode,
                   destination.verse == reader.verse, destination.endVerse == reader.endVerse,
                   current.state["nativeSelectedVerses"] == source.state["nativeSelectedVerses"] else { return }
-            pullEndDestination = fromPull && delta < 0
-                ? ChapterEdition(book: book, chapter: chapter, text: reader.translation) : nil
-            mutate { $0.bookId = book; $0.chapter = chapter; $0.verse = nil; $0.endVerse = nil }
+            pullEndDestination = fromPull && delta < 0 ? target : nil
+            mutate { $0.bookId = target.book; $0.chapter = target.chapter; $0.verse = nil; $0.endVerse = nil }
         }
     }
 
@@ -1715,7 +1725,7 @@ extension ScriptureView {
             },
             onVerseClick: { v, shift in verseClick(v, shift: shift) },
             onCopySelectedVerses: { confirmSelectionCopy(.verses) },
-            canPullChapter: { chapterPullNavigation && canStep($0, from: st) },
+            canPullChapter: { pullDestination($0, from: st) != nil },
             onChapterPull: { pull in withAnimation(.easeOut(duration: 0.15)) { chapterPull = pull } },
             onChapterPullCommit: { step($0, fromPull: true) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) },
