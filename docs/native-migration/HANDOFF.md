@@ -987,3 +987,5 @@ The study Notes inspector now filters the active scope by case-insensitive title
 - **Audit:** every SF Symbol string in `apple/` now resolves (82 literal + data-table names). Re-run any time:
   `grep -rhoE '"[a-z0-9]+(\.[a-z0-9]+){1,4}"' apple | tr -d '"' | sort -u > /tmp/s.txt` then a 3-line Swift script that prints names
   where `NSImage(systemSymbolName:accessibilityDescription:) == nil` (script body in this commit's message history).
+- **00:08 I25 dark-mode check (simulator):** John 3, verse 2 selected, action bar over red-letter verse 7 in dark appearance —
+  icons clearly legible with Codex's adaptive background layer. Remaining for I25: physical iPhone only. Simulator set back to light.
