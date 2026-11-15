@@ -401,6 +401,7 @@ struct ScriptureSearchView: View {
                                     .foregroundStyle(.secondary)
                                     .padding(.horizontal, 16).padding(.vertical, 8)
                                     .accessibilityAddTraits(.isHeader)
+                                    .id("group:" + group.title)
                             }
                             ForEach(group.hits, id: \.self) { hit in
                                 row(hit)
@@ -411,6 +412,31 @@ struct ScriptureSearchView: View {
                         }
                     }
                     .scrollTargetLayout()
+                }
+                // Jump to a book (or text) in long grouped results — original jump-to-book popover.
+                .overlay(alignment: .bottomTrailing) {
+                    let list = groups
+                    if grouping != "none", list.count > 3 {
+                        Menu {
+                            ForEach(list, id: \.title) { group in
+                                Button("\(group.title) — \(group.hits.count)") {
+                                    withAnimation(.snappy) { proxy.scrollTo("group:" + group.title, anchor: .top) }
+                                }
+                            }
+                        } label: {
+                            Label("Jump to", systemImage: "list.bullet.indent")
+                                .font(.callout.weight(.medium))
+                                .padding(.horizontal, 14).padding(.vertical, 9)
+                        }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).clickableCursor()
+                        .glassEffectCompat(interactive: true)
+                        .fixedSize()
+                        .padding(16)
+                        #if os(iOS)
+                        .padding(.bottom, 56)
+                        #endif
+                        .help("Jump to a \(grouping == "book" ? "book" : "text") in the results")
+                    }
                 }
                 .scrollPosition(id: $visibleRow, anchor: .top)
                 .task(id: restorationContext) { [restorationContext] in
