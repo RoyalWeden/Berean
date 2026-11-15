@@ -34,6 +34,8 @@ struct ResolvedPassage: Equatable {
     }
 
     var label: String {
+        // A whole chapter reads as the reader titles it ("Psalm 3", not "Psalms 3").
+        if verse == nil, verseGroups.isEmpty { return Reference.readerChapterLabel(bookId, chapter, textId: textId) }
         let start = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
         if let first = verseGroups.first {
             let base = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: first.lowerBound, hermas: HermasText(textId: textId))

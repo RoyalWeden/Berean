@@ -32,11 +32,16 @@ struct GoSheet: View {
                 } footer: {
                     if trimmed.isEmpty { Text("For example: John 3:16 · Ps 23 · Isaiah 53 LXX · H3068 · grace") }
                 }
-                if trimmed.isEmpty {
-                    shortcuts.clickableCursor()
-                } else {
-                    results.clickableCursor()
+                Group {
+                    if trimmed.isEmpty {
+                        shortcuts.clickableCursor()
+                    } else {
+                        results.clickableCursor()
+                    }
                 }
+                #if os(iOS)
+                .tint(.primary)   // navigation rows read as list items (primary text), not accent-coloured links
+                #endif
             }
             .navigationTitle(newTab ? "New Tab" : "Go")
             #if os(iOS)
