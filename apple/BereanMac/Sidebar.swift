@@ -215,52 +215,83 @@ struct BereanSidebar: View {
     }
 
     private var workspaceTabSearch: some View {
-        let matches = app.matchingWorkspaceTabs(workspaceQuery)
+        let query = workspaceQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let workspaces = app.workspaceItems.filter { $0.matches(query) }
+        let matches = app.matchingWorkspaceTabs(query)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Tab title, Space or workspace", text: $workspaceQuery)
+                TextField("Workspace, passage, or tab title", text: $workspaceQuery)
                     .textFieldStyle(.plain)
                     .focused($workspaceSearchFocused)
                     .onSubmit {
-                        if let first = matches.first { openWorkspaceTab(first) }
+                        guard !query.isEmpty else { return }
+                        if let exact = workspaces.first(where: { $0.name.localizedStandardCompare(query) == .orderedSame }) {
+                            openWorkspaceSearchResult(exact)
+                        } else if let first = matches.first {
+                            openWorkspaceTab(first)
+                        } else if let first = workspaces.first {
+                            openWorkspaceSearchResult(first)
+                        }
                     }
                 Button("Cancel") { showsWorkspaceSearch = false }
                     .keyboardShortcut(.cancelAction)
             }
             Divider()
-            if matches.isEmpty {
-                Text(workspaceQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                     ? "Search open tabs across workspaces." : "No matching open tabs.")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if workspaces.isEmpty && matches.isEmpty {
+                ContentUnavailableView.search(text: query)
             } else {
-                List(matches) { match in
-                    Button {
-                        openWorkspaceTab(match)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: match.tab.symbol).foregroundStyle(match.tab.tint)
-                            VStack(alignment: .leading) {
-                                Text(match.tab.navigationLabel)
-                                Text(match.workspaceName + " · " + match.tab.navigationDetail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                List {
+                    if !workspaces.isEmpty {
+                        Section("Workspaces") {
+                            ForEach(workspaces) { workspace in
+                                Button { openWorkspaceSearchResult(workspace) } label: {
+                                    searchResultLabel(title: workspace.displayName, detail: workspace.displayDetail,
+                                                      symbol: workspace.isSaved ? "square.stack.3d.up" : WorkspaceIcon.symbol(workspace.icon),
+                                                      tint: .secondary)
+                                }
+                                .buttonStyle(.interactivePlain)
                             }
-                            Spacer()
-                            Image(systemName: "arrow.right").foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 4)
-                        .contentShape(.rect)
                     }
-                    .buttonStyle(.interactivePlain)
+                    if !matches.isEmpty {
+                        Section("Open Tabs") {
+                            ForEach(matches) { match in
+                                Button { openWorkspaceTab(match) } label: {
+                                    searchResultLabel(title: match.tab.navigationLabel,
+                                                      detail: match.workspaceName + " · " + match.tab.navigationDetail,
+                                                      symbol: match.tab.symbol, tint: match.tab.tint)
+                                }
+                                .buttonStyle(.interactivePlain)
+                            }
+                        }
+                    }
                 }
                 .listStyle(.plain)
             }
         }
         .padding(16)
-        .frame(width: 440, height: 350)
+        .frame(width: 460, height: 390)
         .onAppear { workspaceSearchFocused = true }
+    }
+
+    private func searchResultLabel(title: String, detail: String, symbol: String, tint: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).foregroundStyle(tint).frame(width: 20)
+            VStack(alignment: .leading) {
+                Text(title).lineLimit(1)
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Image(systemName: "arrow.right").foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+        .contentShape(.rect)
+    }
+
+    private func openWorkspaceSearchResult(_ workspace: WorkspaceItem) {
+        app.open(workspace)
+        showsWorkspaceSearch = false
     }
 
     private func openWorkspaceTab(_ match: AppModel.WorkspaceTabMatch) {
@@ -270,20 +301,23 @@ struct BereanSidebar: View {
 
     /// One Workspace control: the current workspace; its menu lists every workspace (live and saved) and the actions.
     var workspaceSwitcher: some View {
-        Menu {
+        let workspaces = app.workspaceItems
+        let duplicatePreviews = Set(Dictionary(grouping: workspaces, by: \.displayName)
+            .filter { $0.value.count > 1 }.keys)
+        return Menu {
             if let previous = app.recentWorkspaceTabs.first {
                 Button("Return to \(previous.tab.title.isEmpty ? "Untitled" : previous.tab.title)", systemImage: "arrow.uturn.backward") {
                     app.openWorkspaceTab(previous)
                 }
             }
-            Button("Find Open Tab…", systemImage: "magnifyingglass") {
+            Button("Find Workspace or Tab…", systemImage: "magnifyingglass") {
                 workspaceQuery = ""
                 showsWorkspaceSearch = true
             }
             Divider()
-            ForEach(app.workspaceItems) { w in
+            ForEach(workspaces) { w in
                 Toggle(isOn: Binding(get: { app.isCurrent(w) }, set: { if $0 { app.open(w) } })) {
-                    Text(w.displayName == w.name ? w.menuLabel : w.displayName)
+                    Text(w.displayName == w.name || duplicatePreviews.contains(w.displayName) ? w.menuLabel : w.displayName)
                     Text(w.displayDetail)
                 }
             }
