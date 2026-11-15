@@ -2,11 +2,13 @@ import Foundation
 
 /// Per-tab "hide this annotation" toggles — port of src/lib/annotationFilters.ts and the regex-backed entries of
 /// `ANNOTATION_KEYS` (src/lib/bibleTexts.ts). Keys are stored in the tab's existing `hiddenAnnotations` array.
-/// KJV italics (`kjva_italics`) are token-level in the original and are not handled here yet.
 public enum AnnotationFilters {
     public struct Key: Identifiable, Sendable, Equatable { public let id: String, symbol: String, meaning: String }
 
+    public static let kjvaSuppliedWords = "kjva_italics"
+
     public static let keys: [String: [Key]] = [
+        "kjva": [Key(id: kjvaSuppliedWords, symbol: "Italic words", meaning: "Words supplied by the KJV translators. Shown in italics when visible.")],
         "lxx": [Key(id: "lxx_supply", symbol: "[word]", meaning: "Word supplied by the translator — not present in the Greek Septuagint text.")],
         "enoch": [
             Key(id: "enoch_supply", symbol: "(word)", meaning: "Word supplied or paraphrased for clarity by the translator."),

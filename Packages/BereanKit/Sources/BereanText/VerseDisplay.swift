@@ -46,11 +46,12 @@ public enum VerseDisplay {
     }
 
     /// `buildVerseDisplayText`.
-    public static func text(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule]) -> String {
+    public static func text(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule], hideSuppliedWords: Bool = false) -> String {
         let replace = replacerEnabled && !rules.isEmpty
         let tokens = textId == "kjva" && !(tagged ?? "").isEmpty ? TaggedText.parse(tagged!) : []
-        if textId == "kjva", !(tagged ?? "").isEmpty, replace, !tokens.isEmpty {
-            return processed(tokens, replace: true, rules: rules).map(\.word).joined(separator: " ")
+        if !tokens.isEmpty, replace || hideSuppliedWords {
+            return kjvaTokens(tokens, replace: replace, rules: rules, hideSuppliedWords: hideSuppliedWords)
+                .map(\.word).joined(separator: " ")
         }
         return replace ? WordReplacer.apply(text, rules: rules) : text
     }
@@ -58,11 +59,17 @@ public enum VerseDisplay {
     /// The rendered tokens of a KJVA tagged verse — exactly the words `buildVerseDisplayTokens` shows (replacer,
     /// Strong's restorations, "the" suppression) but keeping each token's Strong's numbers, for renderers that
     /// draw Strong's chips. Other texts: the parsed tokens unchanged.
-    public static func renderTokens(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule]) -> [TaggedToken] {
+    public static func renderTokens(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule], hideSuppliedWords: Bool = false) -> [TaggedToken] {
         guard let tagged, !tagged.isEmpty else { return [] }
         let tokens = TaggedText.parse(tagged)
-        if textId == "kjva" { return processed(tokens, replace: replacerEnabled && !rules.isEmpty, rules: rules) }
+        if textId == "kjva" {
+            return kjvaTokens(tokens, replace: replacerEnabled && !rules.isEmpty, rules: rules, hideSuppliedWords: hideSuppliedWords)
+        }
         return tokens.filter { !$0.hasNoPlainText }
+    }
+
+    private static func kjvaTokens(_ tokens: [TaggedToken], replace: Bool, rules: [WordReplacerRule], hideSuppliedWords: Bool) -> [TaggedToken] {
+        processed(hideSuppliedWords ? tokens.filter { !$0.isItalic } : tokens, replace: replace, rules: rules)
     }
 
     /// `buildVerseDisplayTokens` (red-letter / italic flags for renderers without Strong's chips).

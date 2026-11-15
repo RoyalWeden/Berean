@@ -19,3 +19,15 @@ import BereanText
         #expect(AnnotationFilters.strip("In the beginning [x]", textId: "kjva", hidden: ["lxx_supply"]) == "In the beginning [x]")
     }
 }
+
+@Test func kjvaSuppliedWordsKeepStrongsAndUntaggedText() {
+    let tagged = "God{H430} *was{} good.{H2896}"
+    let tokens = VerseDisplay.renderTokens("God was good.", tagged: tagged, textId: "kjva",
+                                           replacerEnabled: false, rules: [], hideSuppliedWords: true)
+    #expect(tokens.map(\.word) == ["God", "good."])
+    #expect(tokens.first?.strongs == .one("H430"))
+    #expect(VerseDisplay.text("God was good.", tagged: tagged, textId: "kjva",
+                              replacerEnabled: false, rules: [], hideSuppliedWords: true) == "God good.")
+    #expect(VerseDisplay.text("All wisdom cometh.", tagged: nil, textId: "kjva",
+                              replacerEnabled: false, rules: [], hideSuppliedWords: true) == "All wisdom cometh.")
+}

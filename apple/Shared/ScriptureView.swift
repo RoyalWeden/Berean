@@ -103,6 +103,7 @@ private struct SharedVerseSelection: Transferable {
     let rows: [ChapterVerseRow]
     let textId: String
     let replacerEnabled: Bool
+    var hideSuppliedWords = false
 
     var fileName: String {
         reference.replacingOccurrences(of: ":", with: " ") + ".txt"
@@ -111,7 +112,7 @@ private struct SharedVerseSelection: Transferable {
     var formattedText: String {
         ([reference] + rows.map { row in
             let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: textId,
-                                         replacerEnabled: replacerEnabled, rules: WordReplacer.defaultRules)
+                                         replacerEnabled: replacerEnabled, rules: WordReplacer.defaultRules, hideSuppliedWords: hideSuppliedWords)
             return "\(row.verseNum) \(text)"
         }).joined(separator: "\n")
     }
@@ -331,6 +332,10 @@ struct ScriptureView: View {
         Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
     }
 
+    private var chapterAnnotationFilters: Set<String> {
+        hiddenAnnotations.subtracting([AnnotationFilters.kjvaSuppliedWords])
+    }
+
     var body: some View {
         let st = state
         Group {
@@ -456,7 +461,7 @@ struct ScriptureView: View {
             app.chapterStepRequest = nil
             step(request.delta)
         }
-        .task(id: "\(chapter)|\(hiddenAnnotations.sorted().joined(separator: ","))") {
+        .task(id: "\(chapter)|\(chapterAnnotationFilters.sorted().joined(separator: ","))") {
             // Psalm superscriptions become the title line above the first body verse (original reader behaviour).
             var loaded = PsalmSuperscription.apply(await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation),
                                                    textId: st.translation, bookId: st.bookId, chapter: st.chapter)
@@ -473,7 +478,7 @@ struct ScriptureView: View {
                     }
                 }
             }
-            let hidden = hiddenAnnotations
+            let hidden = chapterAnnotationFilters
             if !hidden.isEmpty {
                 loaded = loaded.map { row in
                     var r = row
@@ -638,7 +643,8 @@ struct ScriptureView: View {
     private func shareSelection(_ state: BibleState, rows: [ChapterVerseRow]) -> SharedVerseSelection {
         SharedVerseSelection(reference: selectionLabel(state) + (state.translation == "lxx" ? " LXX" : ""),
                              rows: rows, textId: state.translation,
-                             replacerEnabled: app.wordReplacerEnabled)
+                             replacerEnabled: app.wordReplacerEnabled,
+                             hideSuppliedWords: hideKJVASuppliedWords)
     }
 
     @ViewBuilder private func selectedVerseExportActions(_ state: BibleState) -> some View {
@@ -1396,9 +1402,14 @@ struct ScriptureView: View {
         }
     }
 
+    private var hideKJVASuppliedWords: Bool {
+        hiddenAnnotations.contains(AnnotationFilters.kjvaSuppliedWords)
+    }
+
     private func clipboardVerseText(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
         VerseDisplay.text(verse.text, tagged: verse.textTagged, textId: state.translation,
-                          replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+                          replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules,
+                          hideSuppliedWords: hideKJVASuppliedWords)
     }
 
     private func verseWithReference(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
@@ -1561,10 +1572,12 @@ enum Clipboard {
 extension ScriptureView {
     func readerVerses(_ st: BibleState) -> [ReaderVerse] {
         let rules = app.wordReplacerEnabled ? WordReplacer.defaultRules : []
+        let hideSuppliedWords = hideKJVASuppliedWords
         return verses.map { v in
             var words: [ReaderVerse.Word]
             if let tagged = v.textTagged, !tagged.isEmpty, st.translation == "kjva" || st.translation == "lxx" {
-                words = VerseDisplay.renderTokens(v.text, tagged: tagged, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules).map { t in
+                words = VerseDisplay.renderTokens(v.text, tagged: tagged, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules,
+                                                  hideSuppliedWords: hideSuppliedWords).map { t in
                     let nums: [String] = { switch t.strongs { case .none: return []; case .one(let s): return [s]; case .many(let a): return a } }()
                     return .init(text: t.word, italic: t.isItalic, red: t.isRedLetter, strongs: nums)
                 }
