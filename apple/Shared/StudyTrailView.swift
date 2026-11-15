@@ -106,6 +106,7 @@ private struct StudyTrailStopsView: View {
     @State private var confirmFinish = false
     @State private var editTarget: NoteTarget?
     @State private var presentation: Presentation = .list
+    @State private var query = ""
 
     private enum Presentation { case list, map }
 
@@ -156,6 +157,7 @@ private struct StudyTrailStopsView: View {
             .frame(maxWidth: .infinity)
             .background(.regularMaterial)
         }
+        .searchable(text: $query, prompt: "Find in This Trail")
         .navigationTitle(trail.name.isEmpty ? "Untitled Trail" : trail.name)
         .task(id: trail.id) { load() }
         .sheet(item: $editTarget) { target in
@@ -171,23 +173,49 @@ private struct StudyTrailStopsView: View {
         } message: { Text(actionMessage ?? "") }
     }
 
+    private var searchActive: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    private func matches(_ fields: String?...) -> Bool {
+        let words = query.split(whereSeparator: \.isWhitespace)
+        let searchable = fields.compactMap { $0 }.joined(separator: " ")
+        return words.allSatisfy { searchable.localizedStandardContains(String($0)) }
+    }
+
+    private var matchingStops: [StudyTrailService.Stop] {
+        stops.filter { matches(stopLabel($0), $0.subnote) }
+    }
+
+    private var matchingConnections: [StudyTrailService.Connection] {
+        guard searchActive else { return connections }
+        let stopsByID = Dictionary(uniqueKeysWithValues: stops.map { ($0.id, $0) })
+        return connections.filter { connection in
+            let origin = stopsByID[connection.fromStopId].map { originLabel($0, verse: connection.originVerse) }
+            return matches(connectionLabel(connection.destination), origin, connection.reason, connection.userNote)
+        }
+    }
+
     private var listContent: some View {
-        List {
-            if let recap = trail.recap, !recap.isEmpty { Section("Recap") { Text(recap) } }
+        let visibleStops = matchingStops
+        let visibleConnections = matchingConnections
+        let showConnect = !searchActive && !stops.isEmpty && currentDestination != nil
+        return List {
+            if let recap = trail.recap, !recap.isEmpty, matches(recap) { Section("Recap") { Text(recap) } }
             if loadFailed {
                 Text("Couldn’t load stops.")
-            } else if stops.isEmpty {
+            } else if searchActive && visibleStops.isEmpty && visibleConnections.isEmpty && !matches(trail.recap) {
+                ContentUnavailableView.search(text: query)
+            } else if !searchActive && stops.isEmpty {
                 Text("No stops in this trail.").foregroundStyle(.secondary)
-            } else {
+            } else if !visibleStops.isEmpty {
                 Section("Stops") {
-                    ForEach(stops) { stop in
+                    ForEach(visibleStops) { stop in
                         stopRow(stop, editable: true)
                     }
                 }
             }
-            if !connections.isEmpty || (!stops.isEmpty && currentDestination != nil) {
+            if !visibleConnections.isEmpty || showConnect {
                 Section("Connections") {
-                    if let destination = currentDestination, !stops.isEmpty {
+                    if showConnect, let destination = currentDestination {
                         Menu {
                             Section("From a Stop") {
                                 ForEach(stops) { stop in
@@ -209,7 +237,7 @@ private struct StudyTrailStopsView: View {
                             Label("Connect \(destination.label)", systemImage: "link.badge.plus")
                         }
                     }
-                    ForEach(connections) { connection in connectionRow(connection) }
+                    ForEach(visibleConnections) { connection in connectionRow(connection) }
                 }
             }
         }
@@ -217,24 +245,45 @@ private struct StudyTrailStopsView: View {
 
     private var mapContent: some View {
         let graph = StudyTrailService.map(stops: stops, connections: connections)
+        let matchedStops = Set(matchingStops.map(\.id))
+        let retained = mapSearchConnectionIDs()
+        let displayedStops = graph.stops.filter { matchedStops.contains($0.id) || $0.branches.contains { retained.contains($0.id) } }
+        let unplaced = graph.unplaced.filter { retained.contains($0.id) }
         return List {
             if loadFailed {
                 Text("Couldn’t load the trail map.")
-            } else if graph.stops.isEmpty && graph.unplaced.isEmpty {
-                Text("Record a stop to start the trail map.").foregroundStyle(.secondary)
+            } else if displayedStops.isEmpty && unplaced.isEmpty {
+                if searchActive { ContentUnavailableView.search(text: query) }
+                else { Text("Record a stop to start the trail map.").foregroundStyle(.secondary) }
             }
-            ForEach(graph.stops) { node in
+            ForEach(displayedStops) { node in
                 Section {
                     stopRow(node.stop, editable: false)
-                    ForEach(node.branches) { branch in mapBranch(branch) }
+                    ForEach(node.branches.filter { matchedStops.contains(node.id) || retained.contains($0.id) }) { branch in
+                        mapBranch(branch)
+                    }
                 }
             }
-            if !graph.unplaced.isEmpty {
+            if !unplaced.isEmpty {
                 Section("Connections Without a Stop") {
-                    ForEach(graph.unplaced) { branch in mapBranch(branch) }
+                    ForEach(unplaced) { branch in mapBranch(branch) }
                 }
             }
         }
+    }
+
+    private func mapSearchConnectionIDs() -> Set<String> {
+        let byID = Dictionary(uniqueKeysWithValues: connections.map { ($0.id, $0) })
+        var retained = Set<String>()
+        for match in matchingConnections {
+            var branch: StudyTrailService.Connection? = match
+            while let current = branch, retained.insert(current.id).inserted {
+                branch = current.parentId.flatMap { byID[$0] }.flatMap { parent in
+                    parent.fromStopId == match.fromStopId ? parent : nil
+                }
+            }
+        }
+        return retained
     }
 
     private func mapBranch(_ branch: StudyTrailService.MapConnection) -> some View {
@@ -406,11 +455,17 @@ private struct StudyTrailStopsView: View {
         }
     }
 
+    private func originLabel(_ stop: StudyTrailService.Stop, verse: Int?) -> String {
+        guard let verse else { return stopLabel(stop) }
+        return Reference.bookChapterVerseLabel(stop.bookId, chapter: stop.chapter, verse: verse,
+                                               hermas: HermasText(textId: stop.translation ?? app.defaultText))
+    }
+
     private func connectionRow(_ connection: StudyTrailService.Connection, showOrigin: Bool = true) -> some View {
         let origin = stops.first { $0.id == connection.fromStopId }
         return VStack(alignment: .leading, spacing: 4) {
-            if showOrigin, let origin {
-                Text("From \(Reference.bookChapterLabel(origin.bookId, chapter: Double(origin.chapter)))")
+            if let origin, showOrigin || connection.originVerse != nil {
+                Text("From \(originLabel(origin, verse: connection.originVerse))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

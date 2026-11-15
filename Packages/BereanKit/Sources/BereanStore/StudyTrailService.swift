@@ -32,6 +32,7 @@ public struct StudyTrailService {
         public let destination: Destination
         public let reason: String?
         public let userNote: String?
+        public let originVerse: Int?
     }
 
     public struct MapConnection: Identifiable, Sendable {
@@ -125,7 +126,7 @@ public struct StudyTrailService {
     public func connections(in trailId: String) throws -> [Connection] {
         let rows = try db.query("""
             SELECT id, from_node_id, from_connection_id, to_kind, to_book_id, to_chapter,
-                   to_verse, to_verse_end, to_strongs_num, to_note_id, reason_text, user_note
+                   to_verse, to_verse_end, to_strongs_num, to_note_id, reason_text, user_note, origin_verse_pin_from
             FROM trail_connections WHERE trail_session_id = ? ORDER BY created_at, id
             """, [.text(trailId)])
         return rows.compactMap { row in
@@ -149,7 +150,7 @@ public struct StudyTrailService {
             }
             return Connection(id: id, fromStopId: from, parentId: row["from_connection_id"]?.string,
                               destination: destination, reason: row["reason_text"]?.string,
-                              userNote: row["user_note"]?.string)
+                              userNote: row["user_note"]?.string, originVerse: row["origin_verse_pin_from"]?.int)
         }
     }
     @discardableResult
