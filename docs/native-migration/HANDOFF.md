@@ -921,3 +921,9 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 - **Next for Codex (Compare):** MAC-UI-039 — wide windows should show side-by-side columns; replace `ViewThatFits` with a width test.
 - **20:36 — MAC-UI-039 FIXED:** aligned Compare shows side-by-side columns when wide enough (width test replaces ViewThatFits).
 - **20:40 session end:** HEAD `92e6b4ce` (58 commits since `64df1059`); final `swift test -c release` 111/40 pass; Mac + iOS builds pass. Dev app left on the Genesis 1 reader.
+
+### My Notes cross-reference parser
+
+Codex fast-forwarded the review checkout to Claude's `6fa6deb7`. The first My Notes slice ports legacy note reference extraction to `BereanReference/NoteVerseRefs.swift` and generates Swift conformance fixtures from the running TypeScript implementation. The read-only parser covers wiki links, verse groups and ranges, edition markers, numbered books, chapter references, and ambiguous plain-text tokens. The TypeScript export now imports the two pure reference-text helpers without initializing the desktop store. Legacy note-reference tests passed (164), and Swift reference conformance passed.
+
+Next, implement the read-only aggregation in `NotesService` using `byChapter` and the existing notes search. Check outgoing links, incoming verse-note links, indirect general-note mentions, and exact selection filtering with synthetic SQLite fixtures before wiring the third inspector source. The reader indicator and chapter banner remain open.

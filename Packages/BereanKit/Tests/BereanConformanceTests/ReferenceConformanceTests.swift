@@ -13,6 +13,19 @@ import BereanReference
         switch fn {
         case "resolveBookToken": return s(Reference.resolveBookToken(str(0)))
         case "isExactBookToken": return .bool(Reference.isExactBookToken(str(0)))
+        case "extractRefsFromNote":
+            return .array(NoteVerseRefs.extract(content: str(0), title: str(1), hermas: hermas).map { ref in
+                var object = JSObject()
+                object["bookId"] = s(ref.bookId)
+                object["chapter"] = .number(Double(ref.chapter))
+                object["verse"] = .number(Double(ref.verse))
+                if let end = ref.endVerse { object["endVerse"] = .number(Double(end)) }
+                object["isChapter"] = .bool(ref.isChapter)
+                if ref.lxx { object["lxx"] = .bool(true) }
+                object["sourceNoteTitle"] = s(ref.sourceNoteTitle)
+                object["context"] = s(ref.context)
+                return .object(object)
+            })
         case "parseRef": return Reference.parseJSON(str(0), hermas: hermas)
         case "toCanonical": return s(Reference.toCanonical(str(0)))
         case "toFilename": return s(Reference.toFilename(str(0)))

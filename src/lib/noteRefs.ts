@@ -3,7 +3,7 @@
  * Used by BibleRightPanel (cross-ref panel) and VerseRow (hover tooltip).
  */
 import { parseRef, AMBIGUOUS_PATTERNS, isExactBookToken } from './parseRef'
-import { stripLxxMarker, normalizeRefWhitespace } from './noteTextBlocks'
+import { stripLxxMarker, normalizeRefWhitespace } from './noteRefText'
 
 export interface NoteVerseRef {
   bookId: string

@@ -25,6 +25,7 @@ import {
 import { compareOrder, isValidOrderKey, keyBetween, keysAfter } from '../../src/platform/sync/fractional'
 import type { SyncOp } from '../../src/platform/sync/types'
 import * as ref from '../../src/lib/parseRef'
+import { extractRefsFromNote } from '../../src/lib/noteRefs'
 import { normalizeStrongsId, parseStrongsIds } from '../../src/lib/research/strongsId'
 import { findReferencesInText } from '../../src/lib/research/references'
 
@@ -38,7 +39,7 @@ const SOURCES: Record<string, string[]> = {
   hlc: ['src/platform/sync/hlc.ts'],
   journal: ['src/platform/sync/journal.ts', 'src/platform/sync/types.ts'],
   fractional: ['src/platform/sync/fractional.ts'],
-  reference: ['src/lib/parseRef.ts', 'src/lib/hermasMap.ts', 'src/lib/chapterNumbering.ts'],
+  reference: ['src/lib/noteRefs.ts', 'src/lib/noteRefText.ts', 'src/lib/parseRef.ts', 'src/lib/hermasMap.ts', 'src/lib/chapterNumbering.ts'],
   strongs: ['src/lib/research/strongsId.ts', 'src/lib/research/references.ts'],
 }
 
@@ -399,6 +400,20 @@ function reference(): GoldenFile {
   for (const s of inputs) {
     call('parseRef', [s])
     if (/her|shep/i.test(s)) call('parseRef', [s], 'hermas_taylor')
+  }
+
+  for (const body of [
+    'See [[John 3:16|love]] and John 3:16.',
+    'Compare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX.',
+    'Her 5 children and her 5 friends. My job 3 days. See Job 3.',
+    'Compare Romans 9:21–22 and Isaiah 63:17-64:3.',
+    'Quoting 1 Kings 8 and [[Romans 8:28]].',
+    'Psalm 23 and Psalm 23. Isaiah 6:4 and Isaiah 6:4 LXX.',
+    'Shepherd of Hermas, Vision 3:2 and Recognitions, Book 10 41:8.',
+    '',
+  ]) {
+    const args = [body, 'Study fixture'] as const
+    calls.push({ fn: 'extractRefsFromNote', args: [...args], out: norm(extractRefsFromNote(...args)) })
   }
 
   // Canonical conversions.

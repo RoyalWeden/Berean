@@ -4,7 +4,7 @@
  "sources": {
   "src/platform/services/bibleService.ts": "985d5f20fc3c1dc9d777b32598d70af30697f73c6f0f0bdaad62a092cea84319",
   "src/lib/numberWords.ts": "82d8466d83ba159a4d5f139e8897b4a20b4ce0487287447b26c901e9ac19624e",
-  "src/lib/parseRef.ts": "3ab5c9828271af79a81d46bdd5f75ce94a2a341c83c835411d448f973f2a5ef1",
+  "src/lib/parseRef.ts": "4ff548a57b3e7b895a5107f7c796f9efd79bd62077ad18da2fdaf9385b5a07de",
   "scripts/golden/bible.ts": "4b6e025a71a6c8b835139dfd66c09bec63218c4ef446cd92c9b6ff92d64e2550"
  },
  "texts": {
