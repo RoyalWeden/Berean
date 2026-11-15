@@ -1052,3 +1052,14 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 - iPhone Notes ⋯ menu: Sort / Group as submenus (was a long inline list). Simulator verified. Full native:check at `c5fb27fd`+: 117 tests / 43 suites, both builds pass.
 - Palette: Duplicate Tab and Close Other Tabs commands (verified "duplicate" → command first).
 - **Palette "Search Notes for …"** (Search group): opens Notes Home searching all notes (`AppModel.openNotesSearch` + `notesSearchSeed`). Mac verified "grace" → 2 notes.
+
+#### Session end (Claude, 2026-11-15)
+
+- Work stopped at **01:25** (Claude usage limit), before the 01:44 target; resumed only to write this note at 05:02. Tree clean and
+  pushed; HEAD = this docs commit on top of `58de0d8c`. **52 commits** since Codex's `839a362d` this session.
+- Last full `native:check` (117 tests / 43 suites, Mac + iOS builds) passed at `1bbcd025`; the four later commits (palette Duplicate /
+  Close Other Tabs, card-close haptic, palette Search Notes) were each built for Mac + iOS and the palette items were checked live on Mac.
+- Dev data left behind (isolated Dev libraries only): notes "Insert menu QA" (status in-progress, text with a—b / x—y / dividers) and
+  "Proverbs 8:2, 4"; extra Search tabs in the simulator workspace; macOS local-network permission for BereanMac answered "Don't Allow".
+- Next picks: see "01:12 — next picks" above (I24 platform integrations, D14 two-slot inspector, D20/D21 continuous scroll, I15 themes,
+  I6 select/bulk close) plus a physical-iPhone pass of everything marked simulator-verified.
