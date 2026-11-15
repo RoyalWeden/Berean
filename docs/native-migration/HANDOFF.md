@@ -760,3 +760,92 @@ Live Mac Dev verified that “grace” showed 50 results after focusing LXX. App
 Chapter and multi-verse Cross Refs now use one full-width disclosure per verse with the reference count. Expanding it reveals the source group headings inside the verse, including Reciprocal. The list keeps independent expansion per verse and resets when the source or passage changes. Both Dev builds passed. In Mac Dev, Ephesians 2 showed one Verse 1 row, which expanded to Classic references while Verse 2 remained collapsed. Switching to TSKe reset the disclosure, and reopening Verse 1 revealed a Reciprocal section. Verify the equivalent interaction on iPhone and a discontinuous multi-verse selection.
 
 Cross Refs now lets the reader switch between the selected verses and the whole chapter without changing Scripture selection. The override resets on a passage or selection change. iPhone controls use at least 44 points of height. Mac and iPhone Simulator Dev builds passed. In Mac Dev, 2 Samuel 22:10 → Cross References → Show Whole Chapter displayed chapter verse rows while the verse action bar still showed 22:10 selected. Show Selected Verses restored the original inspector scope. Verify the same round trip on iPhone. The legacy My Notes source remains a separate parity gap. Its direct links, backlinks and indirect note mentions are defined in `src/lib/notesCrossRefs.ts`.
+
+---
+
+## 2026-11-14 evening checkpoint (Claude Code session, 18:49–20:42 PST) — READ THIS FIRST, Codex
+
+### Where the code is
+
+- Branch **`native/reader-notes`** (draft PR #24), pushed to origin. This session added commits on top of Codex's `64df1059`:
+  `68c75906` palette command ranking · `ca4d7f84` hand cursor + Search for selection · `f823bf30` lexicon links + Strong's menu ·
+  `936bfb13` Lexicon search view · `f1af041f` lexicon ‹ › in the toolbar · `5ad9dc2f` daily "Sabbath" title ·
+  `25b87351` Psalm superscriptions · `6de94d0b` annotation Hide toggles (+ any later commits in `git log`).
+- Claude worked in the worktree `/Users/roywe/Berean-native`. **Codex's clone `/Users/roywe/Documents/ChatGPT/Berean/repo` is behind:
+  run `git fetch && git status` there and fast-forward `native/reader-notes` (`git pull --ff-only`) before editing.** Nothing was
+  force-pushed and no history was rewritten.
+- PR stack is unchanged: #22 → main, #23 → #22's branch, #24 (this branch) → #23's branch. Michael merges (the classifier blocks
+  `gh pr merge` for agents). After #22 merges, wait for GitHub to retarget #23 to main, then #24 likewise.
+- **New audit:** `docs/native-migration/AUDIT-2026-11-14.md` — three complete audits (A: iPhone gaps I1–I24; B: Mac cursor/polish;
+  C: desktop parity D1–D28) each with original source file references, native evidence, size, data contract and status. Statuses
+  were updated as items landed in this session. Use it as the prioritized work list; it supersedes guessing from the long log above.
+
+### Verified this session (real UI, Dev identity only)
+
+All checks used the Mac Dev app (`com.berean.native.mac.dev`, `build/apple/DerivedData/Build/Products/Debug/BereanMac.app`) driven
+with `cliclick` + System Events keystrokes, captured with `screencapture -R` limited to the app window.
+
+| Feature | How verified |
+|---|---|
+| Hand cursor on native controls | `screencapture -C` with the pointer over: sidebar Study menu, toolbar filter button, toolbar sidebar toggle → pointing hand. **The app must be frontmost** (`set frontmost of process "BereanMac" to true`) or cursor rects never apply and every capture shows the arrow. |
+| ⌘K "notes home" / "hist" | Typed command ranks first; Return runs it. |
+| Search for "selection" (D7) | John 3:1, double-click "Pharisees" → right-click → item present → run via ↓×4 + Return → "Search: Pharisees" tab (92 results), Back enabled. |
+| Lexicon links (D2) | H5703 Derivation "from H5710" rendered as link; click → H5710. |
+| Strong's context menu (D3) | Right-click a Related row → Open / Open in New Tab / Copy H497 / Copy with Gloss. |
+| Lexicon search (D1) | ⌘K "search lexicon" → Lexicon tab search view; "covenant" → H1285 first; Return opens it; ⌘[ returns to search with the query kept ("shalom" retest). |
+| Lexicon toolbar | ‹ › and Search sit together top right; › moved H1285 → H1286; the empty band under the toolbar is gone. |
+| Daily title | ⌘⇧D → header and toolbar "Sabbath, November 14, 2026" (dev DB; stored title stays "Daily — 2026-11-14"). |
+| Psalm superscriptions (D5) | KJV Ps 3 shows "A Psalm of David, when he fled from Absalom his son." above v1; LXX Ps 23 shows "A Psalm for David on the first day of the week." and v1 starts "The earth is…". |
+| Annotation toggles (D6) | LXX Gen 2 → Aa popover → Annotations · LXX → turn off [word] → v7 "the man dust", v18 "said, not good" live; toggled back on. |
+
+Automated: `npm run native:build:mac` and `npm run native:build:ios` passed after every commit; `cd Packages/BereanKit && swift test -c release`
+→ **106 tests / 37 suites pass** (new suites: Strong's reference tokens, Psalm superscriptions, annotation filters, daily display title).
+`npm run native:check` / `golden:export` were not rerun (no golden-pinned TS changed; `queryChapter` itself was not modified —
+superscriptions are applied in the reader after loading).
+
+**Not verified:** anything on iPhone beyond a launch screenshot of the reader on the iPhone 18 Pro simulator (iOS 27); the iPhone
+Lexicon tab toolbar (now three nav-bar buttons), iPhone annotation section in the Scripture Display sheet, iPhone daily title.
+
+### Design decisions made this session (record in DECISIONS.md if you disagree)
+
+1. **Global Mac cursor hook** — `apple/BereanMac/ClickableCursor.swift` swizzles `resetCursorRects` on `NSButton`, `NSSegmentedControl`
+   and AppKit's private `NSToolbarItemViewer` (looked up with `NSClassFromString`; skipped if missing). Toolbar items are SwiftUI
+   `ToolbarItemHostingView`s inside the viewer, so per-view `pointerStyle` cannot reach them. Viewers containing an editable text
+   field/view are skipped. Known limitation: a *disabled* toolbar button (e.g. Back with no history) still shows the hand, because
+   the viewer can't see SwiftUI's disabled state. A DEBUG-only, env-gated dump (`BEREAN_CURSOR_DEBUG=1`) writes the window view tree to
+   the sandbox tmp (`~/Library/Containers/com.berean.native.mac.dev/Data/tmp/berean-views.txt`) — useful for any future AppKit
+   hosting question.
+2. **`clickableCursor()`** modifier (in `ScriptureView.swift` next to `InteractivePlainButtonStyle`) for SwiftUI menus/pickers that keep
+   their native look; plain buttons keep `.buttonStyle(.interactivePlain)`. Don't apply it to containers that hold text fields.
+3. **Lexicon search query is not persisted** (`AppModel.lexiconSearches`, in memory) to avoid writing a new tab-state key that the
+   Electron app doesn't know. A Lexicon tab with `strongsNum: ""` shows the search view (the original app accepts an empty entry too).
+4. **Daily notes' title is read-only** in the editor and shows the long date. Renaming a daily note would detach it from its day.
+5. **Psalm superscription data is generated** (`Packages/BereanKit/Sources/BereanBible/PsalmTitleData.swift`) from
+   `src/lib/psalmTitles.ts` with a small Node script (`node --experimental-strip-types` importing the TS module and printing Swift
+   dictionaries). Regenerate the same way if the TS changes; do not hand-edit.
+6. **Annotation hiding** writes the existing tab-state key `hiddenAnnotations` (string array, same as Electron). `kjva_italics` is not
+   implemented (token-level in the original).
+
+### Next executable tasks (in order; each is small/medium and has a source reference in AUDIT-2026-11-14.md)
+
+1. **iPhone QA of this session's work** in the iPhone 18 Pro simulator via Xcode MCP `DeviceInteraction*` (see memory
+   `reference_visual_qa_limits`): Lexicon tab toolbar (‹ › Search fit in the nav bar?), Scripture Display → Annotations on an LXX tab,
+   Today's note title, Psalm 3 title line.
+2. **I1 iPhone verse sheet** (compact detent with highlight swatches + notes) — largest iPhone gap; original `src/mobile/reader/verseSheets.tsx`.
+3. **D2 follow-up:** linkify Strong's numbers in Related-row glosses ("Compare 4153 .") and Extended text; add D3's menu to inline links.
+4. **D1 follow-up:** clicking a plain (untagged) reader word opens Lexicon search for it (`BiblePanel.tsx handleWordClick` ~2561);
+   diacritic-insensitive lexicon matching ("shalom" misses H7965 *shâlôwm* — the SQL is shared with the golden-pinned TS search, so
+   add folding in Swift as a second pass rather than changing the SQL).
+5. **D9 Cross-reference search mode** and **D8 result context modes** in Scripture Search.
+6. **Remaining cursor sites** from AUDIT section B that are plain SwiftUI `Button`s inside Lists/Forms (GoSheet rows already done via
+   `shortcuts.clickableCursor()` / `results.clickableCursor()`); the AppKit hook already covers bordered buttons, menus, pickers,
+   toggles and toolbar items.
+7. **"Search: Notes Home"** tab left in Michael's Dev sidebar by the pre-fix palette bug — harmless; close it if it bothers QA screenshots.
+
+### Gotchas learned
+
+- Synthetic right-click menus: open with `cliclick rc:x,y`, drive with arrow keys + Return (clicking menu items synthetically is
+  unreliable); press Escape (`key code 53`) when done or AppKit tracking can hang the next command.
+- `screencapture` images are 2× (Retina): divide pixel coordinates by 2 (or by the displayed scale) and add the window origin
+  {100,60} to get `cliclick` points.
+- `⌘[` only works when the content (not the sidebar) has focus: click into the content first.

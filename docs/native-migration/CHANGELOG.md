@@ -2,6 +2,20 @@
 
 > **Do not rewrite older entries** to conceal errors. Record supersessions/corrections with new entries. No user note content or secrets.
 
+## 2026-11-14 (evening, Claude Code)
+
+- Mac: pointing-hand cursor on every native control (AppKit hook for buttons, pop-ups, segmented pickers, toolbar items) and
+  `clickableCursor()` for SwiftUI menus/pickers; note-editor links show the hand without recolouring task boxes.
+- Mac reader: "Search for "selection"" in the text-selection context menu (audit D7).
+- Command palette: a typed command name ranks first; "Search Lexicon" / "Search Lexicon for …" commands.
+- Lexicon: search view (All / Hebrew / Greek) in Lexicon tabs; Strong's numbers in Definition/Derivation are links (⌘-click = new
+  tab); Related rows have a Strong's context menu; ‹ › entry arrows moved into the toolbar beside Search.
+- Daily notes show "Sabbath, November 14, 2026"-style titles (read-only, stored key unchanged).
+- Reader: Psalm superscriptions as a title line (KJV/KJVA/Brenton); per-tab annotation Hide toggles for LXX, Enoch and Jubilees.
+- Settings wording: Workspace instead of Session; new workspace default name "New Workspace".
+- New audit document AUDIT-2026-11-14.md (iPhone, cursor/polish, desktop parity).
+- Tests: 106 Swift tests / 37 suites (4 new suites).
+
 ## Template entry (copy for each meaningful increment)
 
 ### YYYY-MM-DD HH:MM TZ — Task Mx-yy — STATUS
