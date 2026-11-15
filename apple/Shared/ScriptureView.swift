@@ -919,16 +919,20 @@ struct ScriptureView: View {
         }) { item in
             NavigationStack {
                 List {
-                    verseActions(item.row, st, perform: { action in
-                        afterVerseSheet = action
-                        tappedVerse = nil
-                    })
+                    Section("Highlight") { verseHighlightSwatches(item.row, st) }
+                    Section {
+                        verseActions(item.row, st, perform: { action in
+                            afterVerseSheet = action
+                            tappedVerse = nil
+                        })
+                    }
                 }
                     .navigationTitle(Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: item.row.verseNum, hermas: HermasText(textId: st.translation)))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } } }
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.height(300), .large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: $tappedTag) { item in
             NavigationStack {
@@ -1154,7 +1158,50 @@ struct ScriptureView: View {
         }
     }
 
-    /// The verse actions (the existing app's verse action popover): verse-number menu and row context menu.
+    #if os(iOS)
+    private func verseHighlightSwatches(_ verse: ChapterVerseRow, _ state: BibleState) -> some View {
+        let marks = highlights[verse.verseNum] ?? []
+        let current = marks.last { $0.startChar == nil && $0.startWord == nil }?.color
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 0)], spacing: 4) {
+            ForEach(highlightColors, id: \.self) { color in
+                Button {
+                    app.attempt("Couldn’t highlight the verse") {
+                        try app.highlights?.setVerseColor(bookId: verse.bookId, chapter: verse.chapter,
+                                                          verse: verse.verseNum, color: color, textId: state.translation)
+                    }
+                } label: {
+                    Circle()
+                        .fill(Color.highlight(color).opacity(0.72))
+                        .frame(width: 26, height: 26)
+                        .overlay {
+                            if current == color {
+                                Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(.black)
+                            }
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityLabel("\(color.capitalized) highlight")
+                .accessibilityAddTraits(current == color ? .isSelected : [])
+            }
+            Button {
+                app.attempt("Couldn’t remove the verse highlights") {
+                    try app.highlights?.remove(bookId: verse.bookId, chapter: verse.chapter,
+                                               verse: verse.verseNum, textId: state.translation)
+                }
+            } label: {
+                Image(systemName: "eraser")
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .disabled(marks.isEmpty)
+            .accessibilityLabel("Remove highlights")
+        }
+    }
+
+    /// The iPhone verse sheet's actions below the highlight palette.
     @ViewBuilder func verseActions(_ v: ChapterVerseRow, _ st: BibleState,
                                     perform: @escaping (@escaping () -> Void) -> Void = { $0() }) -> some View {
         let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum, hermas: HermasText(textId: st.translation))
@@ -1164,13 +1211,6 @@ struct ScriptureView: View {
         }
         Button("Copy Reference", systemImage: "number") {
             perform { Clipboard.copy(referenceForCopy(label, textId: st.translation)) }
-        }
-        Menu("Highlight") {
-            ForEach(highlightColors, id: \.self) { c in
-                Button { perform { try? app.highlights?.setVerseColor(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, color: c, textId: st.translation) } } label: { Label(c.capitalized, systemImage: "circle.fill") }
-            }
-            Divider()
-            Button("Remove Highlights") { perform { try? app.highlights?.remove(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
         }
         Button("Tag Verse…") {
             perform {
@@ -1188,6 +1228,7 @@ struct ScriptureView: View {
         Button("Compare This Verse") { perform { mutate { $0.verse = v.verseNum; $0.endVerse = nil; $0.compareMode = true } } }
         Button("Open in New Tab") { perform { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
     }
+    #endif
 
     /// A chip's menu: remove the tag group(s) that cover this verse (or chapter).
     @ViewBuilder func removeMenu(_ tag: TagLite, bookId: String, chapter: Int, verse: Int?) -> some View {
