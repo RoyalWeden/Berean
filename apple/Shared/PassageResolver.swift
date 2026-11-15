@@ -67,9 +67,52 @@ extension AppModel {
         }
     }
 
+    func resolveLinkedPassage(_ route: DeepLinkRoute?, preferring current: String? = nil) -> ResolvedPassage? {
+        guard case .verse(let book, let chapter, let verse, let end, let requestedText, _) = route,
+              verse.map({ (0...999).contains($0) }) ?? true,
+              end.map({ value in verse.map { value >= $0 && value <= 999 } ?? false }) ?? true else { return nil }
+
+        let text: String
+        if let requestedText {
+            let normalized = requestedText.lowercased()
+            guard normalized == "kjv" || availableTexts.contains(where: { $0.id == normalized }) else { return nil }
+            text = normalized
+        } else if Reference.isHermasBook(book) {
+            text = hermasEdition.rawValue
+        } else {
+            let preferred = current ?? defaultText
+            text = bookCatalog.first { $0.book.id == book && $0.textId == preferred }?.textId
+                ?? bookCatalog.first { $0.book.id == book }?.textId
+                ?? Reference.translation(forBook: book, hermas: hermasEdition) ?? preferred
+        }
+        return ResolvedPassage(textId: text, bookId: book, chapter: chapter, verse: verse, endVerse: end)
+    }
+
+    private func resolvePastedPassages(_ query: String, preferring current: String?) -> ResolvedPassage? {
+        let links = query.split(whereSeparator: \.isWhitespace)
+        let passages = links.compactMap {
+            resolveLinkedPassage(DeepLink.parse(String($0), hermas: hermasEdition), preferring: current)
+        }
+        guard passages.count == links.count, var first = passages.first else { return nil }
+        guard passages.count > 1 else { return first }
+        var selected = Set<Int>()
+        for passage in passages {
+            guard passage.bookId == first.bookId, passage.chapter == first.chapter, passage.textId == first.textId,
+                  let verse = passage.verse, verse > 0 else { return nil }
+            selected.formUnion(verse...(passage.endVerse ?? verse))
+        }
+        let runs = consecutiveVerseRuns(selected)
+        guard let range = runs.first else { return nil }
+        first.verse = range.lowerBound
+        first.endVerse = runs.count == 1 && range.count > 1 ? range.upperBound : nil
+        first.verseGroups = runs.count > 1 ? runs : []
+        return first
+    }
+
     func resolvePassage(_ raw: String, preferring current: String? = nil) -> ResolvedPassage? {
         let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return nil }
+        if query.contains("://") { return resolvePastedPassages(query, preferring: current) }
         let suffix = query.range(of: #"\s+(kjva|kjv|\[[^\[\]]+\])$"#, options: [.regularExpression, .caseInsensitive])
         let suffixLabel = suffix.map { query[$0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
         let requestedText: String?

@@ -989,20 +989,12 @@ final class AppModel {
 
     func openBereanLink(_ route: DeepLinkRoute?) {
         switch route {
-        case .verse(let book, let chapter, let verse, let endVerse, let text, _):
-            if let text, !availableTexts.contains(where: { $0.id == text }) {
-                userMessage = "This Scripture text is unavailable."
+        case .verse:
+            guard let passage = resolveLinkedPassage(route) else {
+                userMessage = "This Scripture link is unavailable."
                 return
             }
-            let textId = text ?? bookCatalog.first {
-                $0.book.id == book && $0.textId == defaultText
-            }?.textId ?? bookCatalog.first { $0.book.id == book }?.textId
-                ?? Reference.translation(forBook: book, hermas: hermasEdition)
-            if let edition = HermasText(rawValue: text ?? hermasEdition.rawValue), Reference.isHermasBook(book) {
-                openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: edition.rawValue, reuseTab: true)
-            } else {
-                openScripture(bookId: book, chapter: chapter, verse: verse, endVerse: endVerse, textId: textId, reuseTab: true)
-            }
+            visitScripture(passage)
         case .note(let id):
             guard (try? notes?.one(id)) != nil else {
                 userMessage = "This note is unavailable."
