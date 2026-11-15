@@ -639,6 +639,10 @@ struct ScriptureView: View {
                 #endif
                 .padding(.horizontal, 8)
                 .padding(.bottom, ReaderFloatingControls.bottomPadding)
+                #if os(iOS)
+                // When the dock tucks away while scrolling, the verse actions settle into the space it frees.
+                .offset(y: app.readerChromeHidden ? 52 : 0)
+                #endif
                 #if os(macOS)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Selected \(selectionLabel(st))")
