@@ -35,6 +35,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         tv.text = text
         tv.accessibilityLabel = "Note text"
         context.coordinator.textView = tv
+        tv.inputAccessoryView = context.coordinator.formatBar()
         context.coordinator.restyle()
         return tv
     }
@@ -68,6 +69,36 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         var parent: RichNoteEditorIOS
         weak var textView: NoteUITextView?
         var editing = false
+
+        /// Format bar docked above the keyboard (original iPhone note editor): bold, italic, highlight, heading, list,
+        /// checklist, quote, link, and a key to hide the keyboard.
+        @MainActor func formatBar() -> UIToolbar {
+            let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
+            func item(_ symbol: String, _ label: String, _ run: @escaping (NoteUITextView) -> Void) -> UIBarButtonItem {
+                let action = UIAction(title: label, image: UIImage(systemName: symbol)) { [weak self] _ in
+                    guard let tv = self?.textView else { return }
+                    run(tv)
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+                let b = UIBarButtonItem(primaryAction: action)
+                b.accessibilityLabel = label
+                return b
+            }
+            let flex = UIBarButtonItem.flexibleSpace()
+            bar.items = [
+                item("bold", "Bold") { $0.wrap("**", "**") }, flex,
+                item("italic", "Italic") { $0.wrap("*", "*") }, flex,
+                item("highlighter", "Highlight") { $0.wrap("==", "==") }, flex,
+                item("textformat.size", "Heading") { $0.setHeading(2) }, flex,
+                item("list.bullet", "Bulleted List") { $0.setList(.bullet) }, flex,
+                item("checklist", "Checklist") { $0.setList(.checklist) }, flex,
+                item("text.quote", "Quote") { $0.wrap("\n> ", "") }, flex,
+                item("link", "Link") { $0.wrap("[", "](https://)") }, flex,
+                item("keyboard.chevron.compact.down", "Hide Keyboard") { $0.resignFirstResponder() },
+            ]
+            bar.sizeToFit()
+            return bar
+        }
         var hidden = IndexSet()
         var substitutions: [Int: (len: Int, glyph: String)] = [:]
         init(_ p: RichNoteEditorIOS) { parent = p }
