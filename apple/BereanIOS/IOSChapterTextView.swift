@@ -378,8 +378,15 @@ struct IOSChapterTextView: UIViewRepresentable {
             for verse in parent.verses {
                 let start = out.length
                 if let title = verse.title, !title.isEmpty {
+                    // Titles (Psalm superscriptions, section headings) align with the verse text column, not the gutter.
+                    let titleParagraph = (paragraph.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+                    titleParagraph.firstLineHeadIndent = paragraph.headIndent
+                    titleParagraph.headIndent = paragraph.headIndent
+                    titleParagraph.tabStops = []
+                    titleParagraph.paragraphSpacing = size * 0.35
+                    let titleFont = italic.withSize(size * 0.85)
                     out.append(NSAttributedString(string: title + "\n", attributes: base.merging([
-                        .font: italic, .foregroundColor: UIColor.secondaryLabel, Self.skip: true,
+                        .font: titleFont, .foregroundColor: UIColor.secondaryLabel, .paragraphStyle: titleParagraph, Self.skip: true,
                     ]) { _, new in new }))
                 }
                 if parent.style.showVerseNumbers {
