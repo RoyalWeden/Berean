@@ -277,6 +277,7 @@ struct ScriptureView: View {
     @State private var tappedTag: TappedTag?
     @State private var tappedVerse: TappedVerse?
     @State private var afterVerseSheet: (() -> Void)?
+    @State private var verseSheetCopyFeedback: UUID?
     private enum VerseSheetPage: Hashable { case notes, crossReferences }
     private static let verseSheetCompactDetent = PresentationDetent.height(300)
     @State private var verseSheetPath: [VerseSheetPage] = []
@@ -922,6 +923,7 @@ struct ScriptureView: View {
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet
             afterVerseSheet = nil
+            verseSheetCopyFeedback = nil
             verseSheetPath = []
             verseSheetDetent = Self.verseSheetCompactDetent
             action?()
@@ -941,7 +943,25 @@ struct ScriptureView: View {
                 }
                     .navigationTitle(Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: item.row.verseNum, hermas: HermasText(textId: st.translation)))
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } } }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } }
+                        ToolbarItem(placement: .primaryAction) {
+                            Button {
+                                copy(item.row, st)
+                                verseSheetCopyFeedback = UUID()
+                                AccessibilityNotification.Announcement("Verse copied").post()
+                            } label: {
+                                Label("Copy Verse", systemImage: verseSheetCopyFeedback == nil ? "doc.on.doc" : "checkmark")
+                            }
+                            .accessibilityValue(verseSheetCopyFeedback == nil ? "" : "Copied")
+                        }
+                    }
+                    .task(id: verseSheetCopyFeedback) {
+                        guard let feedback = verseSheetCopyFeedback else { return }
+                        try? await Task.sleep(for: .seconds(1.4))
+                        guard !Task.isCancelled, verseSheetCopyFeedback == feedback else { return }
+                        verseSheetCopyFeedback = nil
+                    }
                     .navigationDestination(for: VerseSheetPage.self) { page in
                         switch page {
                         case .notes:
@@ -1249,7 +1269,6 @@ struct ScriptureView: View {
     @ViewBuilder func verseActions(_ v: ChapterVerseRow, _ st: BibleState,
                                     perform: @escaping (@escaping () -> Void) -> Void = { $0() }) -> some View {
         let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum, hermas: HermasText(textId: st.translation))
-        Button("Copy Verse") { perform { copy(v, st) } }
         ShareLink(item: verseWithReference(v, st)) {
             Label("Share Verse…", systemImage: "square.and.arrow.up")
         }
