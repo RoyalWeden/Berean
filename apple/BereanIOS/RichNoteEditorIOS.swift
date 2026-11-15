@@ -395,7 +395,7 @@ final class NoteUITextView: UITextView {
 
     override func insertText(_ text: String) {
         guard text == "\n", markedTextRange == nil,
-              let edit = noteListReturnEdit(in: (self.text ?? "") as NSString, selection: selectedRange) else {
+              let edit = noteBlockReturnEdit(in: (self.text ?? "") as NSString, selection: selectedRange) else {
             super.insertText(text)
             return
         }

@@ -438,22 +438,37 @@ enum NoteTaskLink {
     }
 }
 
-/// Return continues a list at the end of an item and exits it on an empty item.
-func noteListReturnEdit(in text: NSString, selection: NSRange)
+/// Return continues a Markdown list item or quote, and removes one level on an empty line.
+func noteBlockReturnEdit(in text: NSString, selection: NSRange)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
     guard selection.length == 0, selection.location <= text.length else { return nil }
     var start = 0, end = 0, contentEnd = 0
     text.getLineStart(&start, end: &end, contentsEnd: &contentEnd, for: selection)
     guard selection.location == contentEnd else { return nil }
     let line = text.substring(with: NSRange(location: start, length: contentEnd - start))
-    let indent = String(line.prefix { $0 == " " || $0 == "\t" })
-    let body = String(line.dropFirst(indent.count))
+    let quoteRange = line.range(of: #"^(?:[ \t]*> ?)+"#, options: .regularExpression)
+    let quote = quoteRange.map { String(line[$0]) } ?? ""
+    let afterQuote = line.dropFirst(quote.count)
+    let indent = String(afterQuote.prefix { $0 == " " || $0 == "\t" })
+    let body = String(afterQuote.dropFirst(indent.count))
     let pattern = #"^(?:[-+*] \[[ xX]\] |[-+*] |[0-9]+[.)] )"#
-    guard let markerRange = body.range(of: pattern, options: .regularExpression) else { return nil }
+    guard let markerRange = body.range(of: pattern, options: .regularExpression) else {
+        guard let lastMarker = quote.lastIndex(of: ">") else { return nil }
+        if body.allSatisfy(\.isWhitespace) {
+            let outer = String(quote[..<lastMarker])
+            // An empty line separates the following paragraph from a top-level quote.
+            let replacement = outer.contains(">") ? outer : "\n"
+            return (NSRange(location: start, length: contentEnd - start), replacement,
+                    NSRange(location: start + replacement.utf16.count, length: 0))
+        }
+        let replacement = "\n" + quote
+        return (selection, replacement, NSRange(location: contentEnd + replacement.utf16.count, length: 0))
+    }
     let marker = String(body[markerRange])
     let remainder = body[markerRange.upperBound...]
     if remainder.allSatisfy(\.isWhitespace) {
-        return (NSRange(location: start, length: contentEnd - start), "", NSRange(location: start, length: 0))
+        return (NSRange(location: start, length: contentEnd - start), quote,
+                NSRange(location: start + quote.utf16.count, length: 0))
     }
     let next: String
     if marker.contains("[") {
@@ -463,7 +478,7 @@ func noteListReturnEdit(in text: NSString, selection: NSRange)
     } else {
         next = marker
     }
-    let replacement = "\n" + indent + next
+    let replacement = "\n" + quote + indent + next
     return (selection, replacement, NSRange(location: contentEnd + replacement.utf16.count, length: 0))
 }
 

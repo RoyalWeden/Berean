@@ -279,7 +279,7 @@ final class NoteTextView: NSTextView {
 
     override func insertNewline(_ sender: Any?) {
         guard !hasMarkedText(),
-              let edit = noteListReturnEdit(in: string as NSString, selection: selectedRange()) else {
+              let edit = noteBlockReturnEdit(in: string as NSString, selection: selectedRange()) else {
             super.insertNewline(sender)
             return
         }
