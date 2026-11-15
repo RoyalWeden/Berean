@@ -134,7 +134,7 @@ struct ChapterTextView: NSViewRepresentable {
         guard let parent = coordinator.parent, coordinator.lastPassage == parent.passageId else { return }
         let top = scroll.contentView.bounds.minY
         let verse = coordinator.textView.flatMap { coordinator.readingAnchor(at: top, in: $0)?.verse }
-        parent.savePosition(ScriptureReadingPosition(offset: max(0, top), verse: verse))
+        parent.savePosition(ScriptureReadingPosition(offset: max(0, top - scroll.contentView.documentRect.minY), verse: verse))
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -183,14 +183,21 @@ struct ChapterTextView: NSViewRepresentable {
                 } else if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
                     tv.layoutManager?.ensureLayout(for: container)
                     if let marker = tv.firstRect(forVerseRange: range) {
-                        proposed.origin.y = marker.minY - readingAnchor.offsetFromTop
+                        proposed.origin.y = tv.convert(marker, to: clip).minY - readingAnchor.offsetFromTop
                     }
                 }
                 clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
                 scroll.reflectScrolledClipView(clip)
             }
             c.lastKey = key
-            if c.lastPassage != passageId { c.lastPassage = passageId; scroll.contentView.scroll(to: .zero); scroll.reflectScrolledClipView(scroll.contentView); c.scrolledTo = nil }
+            if passageChanged {
+                c.lastPassage = passageId
+                var start = clip.bounds
+                start.origin.y = clip.documentRect.minY
+                clip.scroll(to: clip.constrainBoundsRect(start).origin)
+                scroll.reflectScrolledClipView(clip)
+                c.scrolledTo = nil
+            }
         }
         if c.renderedSelection != selectedVerses {
             if let storage = tv.textStorage {
@@ -211,7 +218,8 @@ struct ChapterTextView: NSViewRepresentable {
                 tv.layoutManager?.ensureLayout(for: container)
                 guard let bottom = tv.lastVerseLineBottom(in: range) else { return }
                 let clip = scroll.contentView
-                let overlap = bottom + ReaderFloatingControls.readingGap - (clip.bounds.maxY - c.parent.actionClearance)
+                let lineBottom = tv.convert(NSPoint(x: 0, y: bottom), to: clip).y
+                let overlap = lineBottom + ReaderFloatingControls.readingGap - (clip.bounds.maxY - c.parent.actionClearance)
                 if overlap > 0 {
                     var proposed = clip.bounds
                     proposed.origin.y += overlap
@@ -229,8 +237,8 @@ struct ChapterTextView: NSViewRepresentable {
                 let clip = scroll.contentView
                 var bounds = clip.bounds
                 let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
-                    .flatMap { tv.firstRect(forVerseRange: $0)?.minY } : nil
-                bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? position.offset
+                    .flatMap { tv.firstRect(forVerseRange: $0).map { tv.convert($0, to: clip).minY } } : nil
+                bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? (clip.documentRect.minY + position.offset)
                 clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                 scroll.reflectScrolledClipView(clip)
             }
@@ -246,16 +254,19 @@ struct ChapterTextView: NSViewRepresentable {
                       c.parent.passageId == destination, c.parent.scrollTarget == target,
                       c.scrolledTo == request, c.parent.selectedVerses.max() == request.lastSelectedVerse,
                       let range = c.verseRanges[target], let container = tv.textContainer else { return }
+                scroll.layoutSubtreeIfNeeded()
                 tv.layoutManager?.ensureLayout(for: container)
-                if let top = tv.firstVerseLineTop(in: range) {
+                if let firstLine = tv.firstVerseLineTop(in: range) {
                     let clip = scroll.contentView
+                    let top = tv.convert(NSPoint(x: 0, y: firstLine), to: clip).y
                     var proposed = clip.bounds
                     let titleBarClearance = tv.visibleTitleBarClearance
-                    proposed.origin.y = top - titleBarClearance - 12
+                    // Opening the first verse keeps the chapter header and top inset in view.
+                    proposed.origin.y = target == c.parent.verses.first?.verse ? clip.documentRect.minY : top - titleBarClearance - 12
                     if let lastVerse = request.lastSelectedVerse,
                        lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
                        let bottom = tv.lastVerseLineBottom(in: lastRange) {
-                        let lastLine = bottom + ReaderFloatingControls.readingGap
+                        let lastLine = tv.convert(NSPoint(x: 0, y: bottom), to: clip).y + ReaderFloatingControls.readingGap
                         let readingHeight = proposed.height - c.parent.actionClearance
                         if lastLine - top <= readingHeight - titleBarClearance {
                             proposed.origin.y = max(proposed.origin.y, lastLine - readingHeight)
@@ -489,14 +500,16 @@ struct ChapterTextView: NSViewRepresentable {
         }
 
         func readingAnchor(at top: CGFloat, in view: NSTextView) -> (verse: Int, offsetFromTop: CGFloat)? {
-            guard top > view.textContainerOrigin.y, let layout = view.layoutManager,
+            guard let clip = view.enclosingScrollView?.contentView, let layout = view.layoutManager,
                   let container = view.textContainer, layout.numberOfGlyphs > 0 else { return nil }
-            let point = CGPoint(x: container.lineFragmentPadding, y: top - view.textContainerOrigin.y)
+            let localTop = view.convert(NSPoint(x: 0, y: top), from: clip).y
+            guard localTop > view.textContainerOrigin.y else { return nil }
+            let point = CGPoint(x: container.lineFragmentPadding, y: localTop - view.textContainerOrigin.y)
             let glyph = layout.glyphIndex(for: point, in: container)
             guard glyph < layout.numberOfGlyphs,
                   let verse = verse(at: layout.characterIndexForGlyph(at: glyph)),
                   let range = verseRanges[verse], let marker = view.firstRect(forVerseRange: range) else { return nil }
-            return (verse, marker.minY - top)
+            return (verse, marker.minY - localTop)
         }
 
         func verse(at index: Int) -> Int? {
