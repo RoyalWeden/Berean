@@ -206,7 +206,7 @@ struct CompareView: View {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if canShowIndependentPanes(width: geometry.size.width, count: cols.count),
                       !syncScrolling || !cols.allSatisfy({ $0.follows(st) }) {
-                independentPanes(cols, compact: geometry.size.width < CGFloat(cols.count) * 260)
+                independentPanes(cols, passage: passage, compact: geometry.size.width < CGFloat(cols.count) * 260)
             } else if !cols.allSatisfy({ $0.follows(st) }) {
                 let key = "stacked|" + passage
                 restoredCompareScroll(key: key) {
@@ -566,7 +566,7 @@ struct CompareView: View {
         }
     }
 
-    private func independentPanes(_ columns: [CompareColumn], compact: Bool) -> some View {
+    private func independentPanes(_ columns: [CompareColumn], passage: String, compact: Bool) -> some View {
         #if os(macOS)
         let space = compareWidth - 12 * CGFloat(columns.count - 1)
         #endif
@@ -587,7 +587,7 @@ struct CompareView: View {
                             .scrollTargetLayout()
                             .padding(compact ? 8 : 16)
                         }
-                        .scrollPosition(id: independentPosition(for: column, in: columns), anchor: .top)
+                        .scrollPosition(id: independentPosition(for: column, in: columns, passage: passage), anchor: .top)
                         .onScrollPhaseChange { _, phase in
                             switch phase {
                             case .interacting:
@@ -600,7 +600,7 @@ struct CompareView: View {
                         }
                         .id(column.label)
                         .task(id: column.historyKey) {
-                            let key = columnScrollKey(column, columns: columns)
+                            let key = columnScrollKey(column.id, passage: passage)
                             guard let verse = independentVisibleVerses[column.id]
                                     ?? app.compareColumnScrollVerses[tabId]?[key] else { return }
                             await Task.yield()
@@ -624,11 +624,12 @@ struct CompareView: View {
         }
     }
 
-    private func independentPosition(for column: CompareColumn, in columns: [CompareColumn]) -> Binding<Int?> {
+    private func independentPosition(for column: CompareColumn, in columns: [CompareColumn], passage: String) -> Binding<Int?> {
         Binding(get: { independentVisibleVerses[column.id] }, set: { verse in
+            guard passage == passageKey(state, self.columns) else { return }
             independentVisibleVerses[column.id] = verse
             if app.activeTab?.id == tabId, let verse {
-                let key = columnScrollKey(column, columns: columns)
+                let key = columnScrollKey(column.id, passage: passage)
                 app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
             }
             guard syncScrolling, scrollingColumn == column.id, let verse else { return }
@@ -641,8 +642,8 @@ struct CompareView: View {
         })
     }
 
-    private func columnScrollKey(_ column: CompareColumn, columns: [CompareColumn]) -> String {
-        passageKey(state, columns) + "|column:\(column.id)"
+    private func columnScrollKey(_ id: Int, passage: String) -> String {
+        passage + "|column:\(id)"
     }
 
     private func correspondingVerse(_ verse: Int, in column: CompareColumn) -> Int? {
@@ -1232,8 +1233,40 @@ struct CompareView: View {
             openReader(readerPassage(for: column, source: state))
             return
         }
+        preserveReadingPositions(for: cols)
         app.update(tabId) { tab in
             tab.state["compareColumns"] = .array(cols.map { .object($0.record) })
+        }
+    }
+
+    private func preserveReadingPositions(for next: [CompareColumn]) {
+        let previous = columns
+        let anchor = state
+        let reindexed = next.enumerated().compactMap { CompareColumn(id: $0.offset, record: $0.element.record, anchor: anchor) }
+        guard reindexed.count == next.count else { return }
+        let oldPassage = passageKey(anchor, previous)
+        let newPassage = passageKey(anchor, reindexed)
+        guard oldPassage != newPassage else { return }
+
+        let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
+        let alignedVerse = previous.allSatisfy { $0.follows(anchor) } && syncScrolling
+            ? alignedVersesAboveTop.max() ?? anchor.verse : nil
+        var survivors = 0
+        for (index, column) in next.enumerated() {
+            guard let source = previousByID[column.id], source.destinationKey == column.destinationKey else { continue }
+            survivors += 1
+            let oldKey = columnScrollKey(source.id, passage: oldPassage)
+            if let verse = independentVisibleVerses[source.id] ?? app.compareColumnScrollVerses[tabId]?[oldKey] ?? alignedVerse {
+                let newKey = columnScrollKey(reindexed[index].id, passage: newPassage)
+                app.compareColumnScrollVerses[tabId, default: [:]][newKey] = verse
+            }
+        }
+        if survivors == previous.count, survivors == next.count {
+            for prefix in ["aligned|", "stacked|"] {
+                if let offset = app.compareScrollOffsets[tabId]?[prefix + oldPassage] {
+                    app.compareScrollOffsets[tabId, default: [:]][prefix + newPassage] = offset
+                }
+            }
         }
     }
 }

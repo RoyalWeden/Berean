@@ -1123,3 +1123,8 @@
 ### 2026-11-15 — Compare scroll restoration
 
 - Compare remembers shared scroll offsets and separate column verse positions while the app is open. Both Dev builds passed. Mac scratch QA verified the viewport on a tab switch and after opening Scripture and using Back.
+
+### 2026-11-15 — Compare column changes keep their reading position
+
+- Shared scrolling stays in place when columns are reordered. Unchanged independent columns carry their verse positions into the updated comparison.
+- Both Dev builds passed. Mac QA verified a swap at Genesis 1:10 without moving the viewport.
