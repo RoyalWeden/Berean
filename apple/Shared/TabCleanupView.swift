@@ -11,6 +11,7 @@ struct TabCleanupView: View {
     @State private var tabType: TabType?
     @State private var archivedGroupID: String?
     @State private var nothingArchived = false
+    @State private var moveMessage: String?
 
     var body: some View {
         let originals = duplicatesOnly ? app.inactiveDuplicateOriginals(keepingRecent: keepingRecent) : [:]
@@ -21,6 +22,7 @@ struct TabCleanupView: View {
         let selected = tabs.filter { included.contains($0.id) }
         let kinds = TabType.allCases.filter { kind in tabs.contains { $0.tabType == kind } || tabType == kind }
         let receipt = app.archivedGroups.first { $0.id == archivedGroupID }
+        let destinations = app.tabMoveDestinations
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let matches = tabs.filter { tab in
             (tabType == nil || tab.tabType == tabType)
@@ -30,6 +32,7 @@ struct TabCleanupView: View {
         let hiddenSelection = selected.filter { !visibleIDs.contains($0.id) }
         NavigationStack {
             List {
+                if let moveMessage { Text(moveMessage).foregroundStyle(.secondary) }
                 if let receipt {
                     Section {
                         Label("Archived \(receipt.tabs.count) tab\(receipt.tabs.count == 1 ? "" : "s")", systemImage: "archivebox")
@@ -88,6 +91,17 @@ struct TabCleanupView: View {
                         .buttonStyle(.borderless)
                         .clickableCursor()
                     }
+                    if !destinations.isEmpty {
+                        Menu("Move Selection to Workspace", systemImage: "square.stack") {
+                            ForEach(destinations) { workspace in
+                                Button(workspace.menuLabel) {
+                                    move(selected.map(\.id), to: workspace)
+                                }
+                            }
+                        }
+                        .disabled(selected.isEmpty)
+                        .clickableCursor()
+                    }
                 }
                 Section {
                     if matches.isEmpty {
@@ -140,7 +154,7 @@ struct TabCleanupView: View {
             #if os(iOS)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack {
-                    Button(receipt == nil ? "Cancel" : "Done") { dismiss() }
+                    Button(receipt == nil && moveMessage == nil ? "Cancel" : "Done") { dismiss() }
                         .buttonStyle(.bordered)
                     Button("Archive \(selected.count)", systemImage: "archivebox") {
                         archive(selected.map(\.id))
@@ -158,7 +172,9 @@ struct TabCleanupView: View {
             #else
             .navigationTitle("Archive Inactive Tabs")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(receipt == nil ? "Cancel" : "Done") { dismiss() }.clickableCursor() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(receipt == nil && moveMessage == nil ? "Cancel" : "Done") { dismiss() }.clickableCursor()
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Archive \(selected.count)") {
                         archive(selected.map(\.id))
@@ -174,6 +190,13 @@ struct TabCleanupView: View {
         let group = app.archiveInactiveTabs(ids, duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
         if let group { archivedGroupID = group.id }
         nothingArchived = group == nil
+        included.removeAll()
+    }
+
+    private func move(_ ids: [String], to workspace: WorkspaceItem) {
+        let count = app.moveInactiveTabs(ids, to: workspace, duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
+        moveMessage = count == 0 ? "No selected tabs were moved."
+            : "Moved \(count) tab\(count == 1 ? "" : "s") to \(workspace.name)."
         included.removeAll()
     }
 }

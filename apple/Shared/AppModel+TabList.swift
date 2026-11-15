@@ -202,10 +202,19 @@ extension AppModel {
 
     @discardableResult
     func archiveInactiveTabs(_ ids: [String], duplicatesOnly: Bool = false, keepingRecent: Bool = false) -> ArchivedGroup? {
+        archive(eligibleInactiveTabIDs(ids, duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent))
+    }
+
+    func moveInactiveTabs(_ ids: [String], to workspace: WorkspaceItem, duplicatesOnly: Bool, keepingRecent: Bool) -> Int {
+        guard case .live(let target) = workspace.kind else { return 0 }
+        return moveTabs(eligibleInactiveTabIDs(ids, duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent), toSession: target)
+    }
+
+    private func eligibleInactiveTabIDs(_ ids: [String], duplicatesOnly: Bool, keepingRecent: Bool) -> [String] {
         var requested = Set(ids)
         if keepingRecent { requested.subtract(recentCleanupTabIDs) }
         if duplicatesOnly { requested.formIntersection(inactiveDuplicateOriginals(keepingRecent: keepingRecent).keys) }
-        return archive(inactiveTabs.filter { requested.contains($0.id) }.map(\.id))
+        return inactiveTabs.filter { requested.contains($0.id) }.map(\.id)
     }
 
     func archiveAllTabs() { archive(orderedTabs.map(\.id)) }

@@ -529,11 +529,51 @@ final class AppModel {
     }
 
     func moveTab(_ tabId: String, toSession target: String) {
-        guard target != currentSessionId, let t = findTab(tabId), let ti = sessions.firstIndex(where: { $0.id == target }) else { return }
-        close(tabId)
-        sessions[ti].tabs[t.spaceId, default: []].append(t)
-        if (sessions[ti].activeTabId[t.spaceId] ?? nil) == nil { sessions[ti].activeTabId[t.spaceId] = t.id }
+        moveTabs([tabId], toSession: target)
+    }
+
+    @discardableResult
+    func moveTabs(_ ids: [String], toSession target: String) -> Int {
+        let sourceID = currentSessionId
+        guard target != sourceID, let targetIndex = sessions.firstIndex(where: { $0.id == target }) else { return 0 }
+        let sourceIndex = sessionIndex
+        var source = sessions[sourceIndex]
+        var destination = sessions[targetIndex]
+        let requested = Set(ids).subtracting(destination.allTabs.map(\.id))
+        let order = orderedTabs
+        let moving = order.filter { requested.contains($0.id) }
+        guard !moving.isEmpty else { return 0 }
+        let movedIDs = Set(moving.map(\.id))
+        let sourceOrder = displayOrder(for: sourceID).filter { !movedIDs.contains($0) }
+        let targetOrder = displayOrder(for: target) + moving.map(\.id)
+
+        for space in SpaceId.allCases {
+            let original = source.tabs(in: space)
+            let remaining = original.filter { !movedIDs.contains($0.id) }
+            let additions = moving.filter { $0.spaceId == space }
+            guard !additions.isEmpty else { continue }
+            source.tabs[space] = remaining
+            if let current = source.activeTabId[space] ?? nil, movedIDs.contains(current),
+               let index = original.firstIndex(where: { $0.id == current }) {
+                source.activeTabId[space] = remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
+            }
+            destination.tabs[space, default: []].append(contentsOf: additions)
+            if (destination.activeTabId[space] ?? nil) == nil { destination.activeTabId[space] = additions.first?.id }
+        }
+        let next = activeTab.flatMap { active -> BereanWorkspace.Tab? in
+            guard movedIDs.contains(active.id), let index = order.firstIndex(where: { $0.id == active.id }) else { return nil }
+            return order.dropFirst(index + 1).first { !movedIDs.contains($0.id) }
+                ?? order.prefix(index).last { !movedIDs.contains($0.id) }
+        }
+        var updated = sessions
+        updated[sourceIndex] = source
+        updated[targetIndex] = destination
+        sessions = updated
+        displayOrders[sourceID] = sourceOrder
+        displayOrders[target] = targetOrder
+        if let next { select(next.id, in: next.spaceId, rememberPrevious: false) }
         scheduleSave()
+        return moving.count
     }
 
     func findTab(_ id: String) -> BereanWorkspace.Tab? { session.allTabs.first { $0.id == id } }
