@@ -949,3 +949,7 @@ The single-verse sheet opens at 300 points and can expand to full height. Its pa
 ### iPhone verse sheet study navigation
 
 The compact sheet now includes Notes and Cross References shortcuts. Both push full-height pages inside the same sheet, and Back returns to the palette and actions. Following a passage or opening/creating a note schedules navigation after dismissal to avoid dismissing only the pushed page. Both Dev builds passed. iPhone 18 Pro Simulator verified Genesis 1:1 → Notes (New Note for Genesis 1:1), Back → Cross References (TSKe) → Proverbs 8. The linked range began near the bottom of the first settled viewport rather than above the action bar, so range reveal needs follow-up. In-sheet note editing, creating/opening an actual note through this route, and the My Notes source require additional checks.
+
+### iPhone linked-range positioning
+
+The iPhone reader now measures both ends of an explicit verse jump with the same laid-out TextKit line fragments used for the selection outline. The jump uses the first line's actual position and the last selected verse's lower edge when checking available room above the action bar. The iPhone Dev build passed. On iPhone 18 Pro Simulator, relaunching on the Proverbs 8:22–24 cross-reference destination displayed all three verses inside one dashed outline near the top, above both floating controls. A fresh link traversal at this revision, chapter-end ranges, and large type remain to verify.

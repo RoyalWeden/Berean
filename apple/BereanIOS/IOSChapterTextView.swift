@@ -197,14 +197,17 @@ struct IOSChapterTextView: UIViewRepresentable {
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
                       coordinator.parent.scrollTarget == target, coordinator.lastTarget == target,
-                      NSMaxRange(range) <= view.textStorage.length,
-                      let position = view.position(from: view.beginningOfDocument, offset: range.location) else { return }
+                      NSMaxRange(range) <= view.textStorage.length else { return }
                 let lastRange = coordinator.parent.selectedVerses.max().flatMap { verse in
                     verse >= target ? coordinator.verseRanges[verse] : nil
                 }
                 coordinator.layoutThroughEnd(of: lastRange.map { NSUnionRange(range, $0) } ?? range, in: view)
+                guard let targetLines = coordinator.renderedLineBounds(of: range, in: view) else {
+                    coordinator.lastTarget = nil
+                    return
+                }
                 let inset = view.adjustedContentInset
-                let top = view.caretRect(for: position).minY
+                let top = targetLines.lowerBound
                 var y = top - inset.top - 12
                 if let lastRange, lastRange.length > 1 {
                     let lastLine = coordinator.lastLineBottom(of: lastRange, in: view) + ReaderFloatingControls.readingGap
@@ -316,12 +319,19 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         // Use the final rendered glyph, excluding the paragraph break, just like the selection outline.
         func lastLineBottom(of range: NSRange, in view: UITextView) -> CGFloat {
+            renderedLineBounds(of: range, in: view)?.upperBound ?? view.textContainerInset.top
+        }
+
+        func renderedLineBounds(of range: NSRange, in view: UITextView) -> ClosedRange<CGFloat>? {
+            guard range.length > 1 else { return nil }
             let layout = view.layoutManager
             let text = NSRange(location: range.location, length: range.length - 1)
             let glyphs = layout.glyphRange(forCharacterRange: text, actualCharacterRange: nil)
-            guard glyphs.length > 0 else { return view.textContainerInset.top }
-            return layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY
-                + view.textContainerInset.top
+            guard glyphs.length > 0 else { return nil }
+            let inset = view.textContainerInset.top
+            let first = layout.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil).minY + inset
+            let last = layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil).maxY + inset
+            return first...last
         }
 
         private static let skip = NSAttributedString.Key("bereanSkip")
