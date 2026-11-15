@@ -345,7 +345,10 @@ struct ScriptureSearchView: View {
         .accessibilityValue(title)
     }
 
-    var hasActiveOptions: Bool { mode != .all || testament != "all" || !bookFilter.isEmpty || !tagSelection.ids.isEmpty }
+    var hasActiveOptions: Bool {
+        mode != .all || testament != "all" || !bookFilter.isEmpty || !tagSelection.ids.isEmpty
+            || sort != "bookOrder" || grouping != "text" || resultContext != 0
+    }
 
     var scopeMenu: some View {
         Menu {
@@ -401,11 +404,11 @@ struct ScriptureSearchView: View {
             Text("Match").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Match", selection: Binding(get: { mode }, set: { set("wordMode", .string(JSString($0.rawValue))) })) {
                 Text("All words").tag(WordMode.all); Text("Any word").tag(WordMode.any); Text("Exact phrase").tag(WordMode.phrase)
-            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
+            }.modifier(SearchOptionsPickerStyle())
             Text("Testament").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Testament", selection: Binding(get: { testament }, set: { set("testament", .string(JSString($0))) })) {
                 Text("All").tag("all"); Text("Old Testament").tag("OT"); Text("New Testament").tag("NT"); Text("Apocrypha").tag("Apocrypha"); Text("Other writings").tag("Pseudepigrapha")
-            }.labelsHidden().clickableCursor()
+            }.pickerStyle(.menu).labelsHidden().clickableCursor()
             Text("Books").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             BookFilterField(selected: bookFilter) { ids in set("bookIds", ids.isEmpty ? nil : .array(ids.map { .string(JSString($0)) })) }
             Text("Verse Tags").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -433,19 +436,19 @@ struct ScriptureSearchView: View {
                 Picker("Match Tags", selection: Binding(get: { tagSelection.all }, set: { set("tagFilterAll", $0 ? .bool(true) : nil) })) {
                     Text("Any selected tag").tag(false)
                     Text("All selected tags").tag(true)
-                }.pickerStyle(.segmented).labelsHidden().clickableCursor()
+                }.modifier(SearchOptionsPickerStyle())
             }
             Text("Results").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Order", selection: Binding(get: { sort }, set: { set("sort", .string(JSString($0))) })) {
                 Text("Scripture order").tag("bookOrder"); Text("Best match first").tag("relevance")
-            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
+            }.modifier(SearchOptionsPickerStyle())
             Picker("Group by", selection: Binding(get: { grouping }, set: { set("grouping", .string(JSString($0))) })) {
                 Text("By text").tag("text"); Text("By book").tag("book"); Text("No groups").tag("none")
-            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
+            }.modifier(SearchOptionsPickerStyle())
             Text("Context").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Context", selection: $resultContext) {
                 Text("Verse only").tag(0); Text("±1 verse").tag(1); Text("±2 verses").tag(2)
-            }.pickerStyle(.segmented).labelsHidden().clickableCursor()
+            }.modifier(SearchOptionsPickerStyle())
             if hasActiveOptions {
                 Button("Reset Options", action: resetOptions)
             }
@@ -461,10 +464,11 @@ struct ScriptureSearchView: View {
 
     private func resetOptions() {
         app.update(tabId, recordHistory: false) { tab in
-            for key in ["wordMode", "testament", "bookIds", "tagFilter", "tagFilterAll"] {
+            for key in ["wordMode", "testament", "bookIds", "tagFilter", "tagFilterAll", "sort", "grouping"] {
                 tab.state.remove(JSString(key))
             }
         }
+        resultContext = 0
     }
 
     private var taggedResults: some View {
@@ -968,6 +972,17 @@ private struct SearchResultContext: View {
             }
             lines = found
         }
+    }
+}
+
+/// Menus keep the full choice labels available in the iPhone sheet at large text sizes.
+private struct SearchOptionsPickerStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.pickerStyle(.menu).labelsHidden()
+        #else
+        content.pickerStyle(.segmented).labelsHidden().clickableCursor()
+        #endif
     }
 }
 
