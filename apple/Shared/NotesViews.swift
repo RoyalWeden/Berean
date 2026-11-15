@@ -904,15 +904,18 @@ struct VerseNotesView: View {
     @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
     var selectedVerses: Set<Int> = []
+    var allowsChapterScope = false
     var editInSheet: ((String) -> Void)?
     @State private var notes: [Note] = []
+    @State private var loadedScope: String?
+    @State private var chapterScope: String?
 
     private var passageLabel: String {
-        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: selectedVerses.min() ?? verse,
-                        verseGroups: consecutiveVerseRuns(selectedVerses)).label
+        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: scopedSelection.min() ?? scopedVerse,
+                        verseGroups: consecutiveVerseRuns(scopedSelection)).label
     }
 
-    private var attachment: String {
+    private var selectionAttachment: String {
         let prefix = "\(bookId).\(chapter)"
         if selectedVerses.isEmpty { return prefix + (verse.map { ".\($0)" } ?? "") }
         return consecutiveVerseRuns(selectedVerses).map { range in
@@ -921,53 +924,82 @@ struct VerseNotesView: View {
         }.joined(separator: ",")
     }
 
+    private var scopeKey: String { "\(textId)|\(selectionAttachment)" }
+    private var showingChapter: Bool { allowsChapterScope && chapterScope == scopeKey }
+    private var scopedVerse: Int? { showingChapter ? nil : verse }
+    private var scopedSelection: Set<Int> { showingChapter ? [] : selectedVerses }
+    private var attachment: String { showingChapter ? "\(bookId).\(chapter)" : selectionAttachment }
+    private var loadKey: String { "\(textId)|\(attachment)|\(app.notesRevision)" }
+
     var body: some View {
-        List {
-            ForEach(notes) { note in
+        VStack(spacing: 0) {
+            if allowsChapterScope, verse != nil || !selectedVerses.isEmpty {
+                HStack {
+                    Text(passageLabel).font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Button {
+                        chapterScope = showingChapter ? nil : scopeKey
+                    } label: {
+                        Label(showingChapter ? "Show Selected Verse Notes" : "Show Chapter Notes",
+                              systemImage: showingChapter ? "list.number" : "list.bullet")
+                            .labelStyle(.iconOnly)
+                            .frame(width: 44, height: 44)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.interactivePlain)
+                    .help(showingChapter ? "Show selected verse notes" : "Show chapter notes")
+                }
+                .padding(.horizontal, 12)
+            }
+            List {
+                ForEach(loadedScope == loadKey ? notes : []) { note in
+                    Button {
+                        if let editInSheet {
+                            editInSheet(note.id)
+                            return
+                        }
+                        #if os(iOS)
+                        dismiss()
+                        #endif
+                        app.openNote(note.id)
+                    } label: {
+                        NoteRowView(note: note)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.interactivePlain)
+                }
+                if loadedScope == loadKey, scopedVerse == nil, scopedSelection.isEmpty, notes.isEmpty {
+                    ContentUnavailableView("No chapter notes", systemImage: "note.text")
+                }
                 Button {
+                    let ref = attachment
                     if let editInSheet {
-                        editInSheet(note.id)
+                        if let id = app.newNote(verseRef: ref, textId: textId, title: passageLabel, openEditor: false) {
+                            editInSheet(id)
+                        }
                         return
                     }
-                    #if os(iOS)
-                    dismiss()
-                    #endif
-                    app.openNote(note.id)
-                } label: {
-                    NoteRowView(note: note)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.interactivePlain)
-            }
-            if verse == nil, selectedVerses.isEmpty, notes.isEmpty {
-                ContentUnavailableView("No chapter notes", systemImage: "note.text")
-            }
-            Button {
-                let ref = attachment
-                if let editInSheet {
-                    if let id = app.newNote(verseRef: ref, textId: textId, title: passageLabel, openEditor: false) {
-                        editInSheet(id)
+                    if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
+                        #if os(iOS)
+                        dismiss()
+                        #endif
                     }
-                    return
+                } label: {
+                    Label("New Note for \(passageLabel)", systemImage: "plus")
                 }
-                if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
-                    #if os(iOS)
-                    dismiss()
-                    #endif
-                }
-            } label: {
-                Label("New Note for \(passageLabel)", systemImage: "plus")
             }
         }
-        .task(id: "\(attachment)|\(textId)|\(app.notesRevision)") {
-            if !selectedVerses.isEmpty {
-                notes = (try? app.notes?.coveringVerses(bookId, chapter, selectedVerses, textId: textId)) ?? []
-            } else if let verse {
+        .onChange(of: scopeKey) { chapterScope = nil }
+        .task(id: loadKey) {
+            if !scopedSelection.isEmpty {
+                notes = (try? app.notes?.coveringVerses(bookId, chapter, scopedSelection, textId: textId)) ?? []
+            } else if let verse = scopedVerse {
                 notes = (try? app.notes?.coveringVerse(bookId, chapter, verse, textId: textId)) ?? []
             } else {
                 notes = (try? app.notes?.attachedNotes(bookId, chapter, textId: textId)) ?? []
             }
+            loadedScope = loadKey
         }
     }
 }

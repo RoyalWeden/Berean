@@ -62,7 +62,9 @@ struct StudyPanel: View {
         Group {
             switch kind {
             case .tabbed: StudyInspector(tabId: tabId)
-            case .notes: VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st), textId: st.translation)
+            case .notes: VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
+                                       textId: st.translation, selectedVerses: Set(app.studySelectedVerses(in: tabId, state: st)),
+                                       allowsChapterScope: true)
             case .lexicon:
                 if let id = st.rightPanelLexiconEntry { LexiconEntryView(strongsId: id, tabId: tabId, compact: true) }
                 else { ContentUnavailableView("No word selected", systemImage: "character.book.closed", description: Text("Click a Strong's number.")) }

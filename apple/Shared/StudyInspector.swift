@@ -23,7 +23,9 @@ struct StudyInspector: View {
             .padding(10)
             Divider()
             if st.rightPanelTab == "notes" {
-                VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st), textId: st.translation)
+                VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
+                               textId: st.translation, selectedVerses: Set(app.studySelectedVerses(in: tabId, state: st)),
+                               allowsChapterScope: true)
             } else if st.rightPanelTab == "crossrefs" {
                 CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
                               textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
