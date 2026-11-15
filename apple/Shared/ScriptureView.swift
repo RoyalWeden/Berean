@@ -699,7 +699,7 @@ struct ScriptureView: View {
                              hideSuppliedWords: hideKJVASuppliedWords)
     }
 
-    @ViewBuilder private func selectedVerseExportActions(_ state: BibleState) -> some View {
+    @ViewBuilder private func selectedVerseExportActions(_ state: BibleState, onComplete: @escaping () -> Void = {}) -> some View {
         let rows = selectedRows
         if !rows.isEmpty {
             let selection = shareSelection(state, rows: rows)
@@ -709,11 +709,13 @@ struct ScriptureView: View {
             }
             if !links.isEmpty {
                 Button(links.count == 1 ? "Copy Native Dev Link" : "Copy Native Dev Links", systemImage: "link") {
+                    onComplete()
                     Clipboard.copy(links.joined(separator: "\n"))
                     AccessibilityNotification.Announcement(links.count == 1 ? "Verse link copied" : "Verse links copied").post()
                 }
             }
             Button("Save Verses as Text…", systemImage: "square.and.arrow.down") {
+                onComplete()
                 NoteFileTransfer.export(selection.formattedText, suggestedName: selection.fileName,
                                         title: "Save Verses as Text", type: .plainText) { outcome in
                     if case .failed(let message) = outcome {
@@ -871,12 +873,9 @@ struct ScriptureView: View {
             .buttonStyle(VerseActionButtonStyle())
             .help("Cross references")
             if !selectedRows.isEmpty {
-                Menu {
-                    selectedVerseExportActions(st)
-                } label: {
-                    verseMenuLabel("Export Selected Verses", symbol: "square.and.arrow.up")
+                VerseActionPopover(title: "Export Selected Verses", symbol: "square.and.arrow.up", selection: selection) { close in
+                    selectedVerseExportActions(st, onComplete: close)
                 }
-                .modifier(VerseActionMenuChrome())
                 .help("Save or share selected verses")
             }
             #else
@@ -952,22 +951,17 @@ struct ScriptureView: View {
     }
 
     @ViewBuilder private func highlightMenu(_ st: BibleState, iconOnly: Bool = true) -> some View {
+        #if os(macOS)
+        if iconOnly {
+            VerseActionPopover(title: "Highlight", symbol: "highlighter", selection: selection) { close in
+                highlightActions(st, onComplete: close)
+            }
+        } else {
+            Menu("Highlight", systemImage: "highlighter") { highlightActions(st) }
+        }
+        #else
         let menu = Menu {
-            ForEach(highlightColors, id: \.self) { color in
-                Button(color.capitalized, systemImage: "circle.fill") {
-                    for row in selectedRows {
-                        try? app.highlights?.setVerseColor(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
-                                                          color: color, textId: st.translation)
-                    }
-                }
-            }
-            Divider()
-            Button("Remove Highlights") {
-                for row in selectedRows {
-                    try? app.highlights?.remove(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
-                                                textId: st.translation)
-                }
-            }
+            highlightActions(st)
         } label: {
             if iconOnly {
                 verseMenuLabel("Highlight", symbol: "highlighter")
@@ -979,6 +973,27 @@ struct ScriptureView: View {
             menu.modifier(VerseActionMenuChrome())
         } else {
             menu
+        }
+        #endif
+    }
+
+    @ViewBuilder private func highlightActions(_ st: BibleState, onComplete: @escaping () -> Void = {}) -> some View {
+        ForEach(highlightColors, id: \.self) { color in
+            Button(color.capitalized, systemImage: "circle.fill") {
+                onComplete()
+                for row in selectedRows {
+                    try? app.highlights?.setVerseColor(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                                      color: color, textId: st.translation)
+                }
+            }
+        }
+        Divider()
+        Button("Remove Highlights") {
+            onComplete()
+            for row in selectedRows {
+                try? app.highlights?.remove(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                            textId: st.translation)
+            }
         }
     }
 
@@ -1876,6 +1891,29 @@ enum ReaderFloatingControls {
     static let readingGap: CGFloat = outlinePadding + 5
     static var selectionHeight: CGFloat { actionHeight + 2 * surfacePadding + bottomPadding }
 }
+
+#if os(macOS)
+private struct VerseActionPopover<Actions: View>: View {
+    let title: String
+    let symbol: String
+    let selection: Set<Int>
+    @ViewBuilder let actions: (@escaping () -> Void) -> Actions
+    @State private var presented = false
+
+    var body: some View {
+        Button(title, systemImage: symbol) { presented.toggle() }
+            .buttonStyle(VerseActionButtonStyle())
+            .popover(isPresented: $presented, arrowEdge: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    actions { presented = false }
+                }
+                .padding(10)
+                .onExitCommand { presented = false }
+            }
+            .onChange(of: selection) { presented = false }
+    }
+}
+#endif
 
 private struct VerseActionMenuChrome: ViewModifier {
     func body(content: Content) -> some View {

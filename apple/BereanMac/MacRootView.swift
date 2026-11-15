@@ -25,7 +25,7 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
-        .toolbarBackground(Color.black.opacity(app.commandPaletteShown ? paletteDimOpacity : 0),
+        .toolbarBackground(Color.black.opacity(app.commandPaletteShown ? 0.07 : 0),
                            for: .windowToolbar)
         .toolbarBackground(app.commandPaletteShown ? .visible : .automatic, for: .windowToolbar)
         .disabled(app.commandPaletteShown)
@@ -35,12 +35,11 @@ struct MacRootView: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .top) {
                         Color.black.opacity(paletteDimOpacity)
-                            .ignoresSafeArea(.container, edges: .top)
                             .contentShape(.rect)
                             .onTapGesture { app.commandPaletteShown = false }
                             .accessibilityHidden(true)
                         CommandPalette(newTab: app.commandPaletteCreatesTab,
-                                       resultsHeight: min(390, max(100, geometry.size.height - 148)),
+                                       resultsHeight: min(390, max(100, geometry.size.height - 156)),
                                        close: { app.commandPaletteShown = false })
                             .frame(maxWidth: 680)
                             .padding(.horizontal, 20)

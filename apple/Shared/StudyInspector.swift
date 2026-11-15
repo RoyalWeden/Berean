@@ -467,12 +467,12 @@ struct CommandPalette: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Text(actionTitle(selected))
-                                    Image(systemName: "return").font(.caption.weight(.semibold))
-                                        .frame(width: 20, height: 20)
+                                    Image(systemName: "return").font(.system(size: 13, weight: .semibold))
+                                        .frame(width: 23, height: 23)
                                         .background(.quaternary, in: .rect(cornerRadius: 5))
                                         .accessibilityHidden(true)
                                 }
-                                .padding(.horizontal, 11).padding(.vertical, 6)
+                                .padding(.horizontal, 11).padding(.vertical, 8)
                                 .contentShape(.capsule)
                             }
                             .buttonStyle(.interactivePlain)
@@ -486,7 +486,7 @@ struct CommandPalette: View {
                                         shortcutKey("⌘")
                                         shortcutKey("K")
                                     }
-                                    .padding(.horizontal, 11).padding(.vertical, 6)
+                                    .padding(.horizontal, 11).padding(.vertical, 8)
                                     .contentShape(.capsule)
                                 }
                                 .buttonStyle(.interactivePlain)
@@ -507,7 +507,7 @@ struct CommandPalette: View {
                 }
                 .font(.system(size: 14))
                 .padding(.horizontal, 10)
-                .frame(height: 50)
+                .frame(height: 58)
             }
         }
         .clipShape(.rect(cornerRadius: 20))
@@ -540,8 +540,8 @@ struct CommandPalette: View {
     }
 
     private func shortcutKey(_ label: String) -> some View {
-        Text(label).font(.caption.weight(.semibold))
-            .frame(width: 20, height: 20)
+        Text(label).font(.system(size: 14, weight: .semibold))
+            .frame(width: 23, height: 23)
             .background(.quaternary, in: .rect(cornerRadius: 5))
             .accessibilityHidden(true)
     }
