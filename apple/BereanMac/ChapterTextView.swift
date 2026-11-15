@@ -222,10 +222,16 @@ struct ChapterTextView: NSViewRepresentable {
                       let range = c.verseRanges[revealVerse],
                       let container = tv.textContainer else { return }
                 tv.layoutManager?.ensureLayout(for: container)
-                guard let bottom = tv.lastVerseLineBottom(in: range) else { return }
+                guard let top = tv.firstVerseLineTop(in: range),
+                      let bottom = tv.lastVerseLineBottom(in: range) else { return }
                 let clip = scroll.contentView
+                let readingHeight = clip.bounds.height - c.parent.actionClearance - tv.visibleTitleBarClearance
+                let lineTop = tv.convert(NSPoint(x: 0, y: top), to: clip).y
                 let lineBottom = tv.convert(NSPoint(x: 0, y: bottom), to: clip).y
-                let overlap = lineBottom + ReaderFloatingControls.readingGap - (clip.bounds.maxY - c.parent.actionClearance)
+                let gap = ReaderFloatingControls.readingGap
+                // A verse taller than the viewport remains where the reader selected it.
+                guard lineBottom - lineTop + gap <= readingHeight else { return }
+                let overlap = lineBottom + gap - (clip.bounds.maxY - c.parent.actionClearance)
                 if overlap > 0 {
                     var proposed = clip.bounds
                     proposed.origin.y += overlap

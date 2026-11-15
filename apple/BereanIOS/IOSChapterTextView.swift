@@ -182,9 +182,14 @@ struct IOSChapterTextView: UIViewRepresentable {
                       coordinator.parent.selectedVerses == selectedVerses,
                       let range = coordinator.verseRanges[revealVerse], range.length > 1 else { return }
                 coordinator.layoutThroughEnd(of: range, in: view)
+                guard let lines = coordinator.renderedLineBounds(of: range, in: view) else { return }
                 let inset = view.adjustedContentInset
+                let readingHeight = view.bounds.height - inset.top - inset.bottom
+                let gap = ReaderFloatingControls.readingGap
+                // A verse taller than the viewport remains where the reader selected it.
+                guard lines.upperBound - lines.lowerBound + gap <= readingHeight else { return }
                 let visibleBottom = view.bounds.maxY - inset.bottom
-                let overlap = coordinator.lastLineBottom(of: range, in: view) + ReaderFloatingControls.readingGap - visibleBottom
+                let overlap = lines.upperBound + gap - visibleBottom
                 if overlap > 0 {
                     let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
                     let y = min(view.contentOffset.y + overlap, bottom)
