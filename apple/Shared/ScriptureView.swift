@@ -1523,6 +1523,7 @@ private struct VerseActionButtonStyle: ButtonStyle {
 }
 
 private struct VerseActionControlAppearance: ViewModifier {
+    var width = ReaderFloatingControls.actionWidth
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
@@ -1530,7 +1531,7 @@ private struct VerseActionControlAppearance: ViewModifier {
         content
             .labelStyle(.iconOnly)
             .font(.system(size: 15, weight: .medium))
-            .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
+            .frame(width: width, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)
             #if os(macOS)
             .background {
@@ -1598,23 +1599,12 @@ struct VerseActionsMenu<Actions: View>: View {
     var body: some View {
         Menu(content: actions) {
             Image(systemName: "ellipsis")
-                .font(.callout.weight(.semibold))
-                #if os(iOS)
-                .frame(width: 44, height: 44)
-                #else
-                .frame(width: 32, height: 32)
-                #endif
-                .contentShape(.rect)
+                .foregroundStyle(.primary)
+                .modifier(VerseActionControlAppearance(width: ReaderFloatingControls.actionHeight))
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .modifier(VerseActionMenuChrome())
         .fixedSize()
         .accessibilityLabel(label)
         .help("Verse actions")
-        #if os(macOS)
-        .pointerStyle(.link)
-        #else
-        .hoverEffect(.highlight)
-        #endif
     }
 }
