@@ -916,3 +916,4 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 - Task 0 in the list above is now **fix MAC-FUNC-037**. Dev app was left on the Genesis 1 reader (Compare off).
 
 - **20:29 — MAC-FUNC-037 FIXED** (empty macOS `.safeAreaInset` collapsed Compare). Task 0 is done; next verify the per-column Previous/Next Chapter items.
+- **20:31 — SHARED-UI-038 FIXED:** stacked Compare skipped verse 1 (LazyVStack id collision between column headers and verse rows).

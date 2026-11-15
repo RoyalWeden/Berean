@@ -342,12 +342,17 @@ struct CompareView: View {
         let available = availableColumnIDs
         let selected = selectedVerses(in: state)
         return LazyVStack(alignment: .leading, spacing: 14) {
-            ForEach(columns) { text in
-                HStack {
-                    alignedColumnHeading(text, available: available.contains(text.id))
-                    columnActions(text, columns: columns)
+            // Headers share one container: as siblings their column ids (0, 1, …) collided with the verse rows'
+            // `.id(verse)` and verse 1 vanished, leaving a gap under the headers.
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(columns) { text in
+                    HStack {
+                        alignedColumnHeading(text, available: available.contains(text.id))
+                        columnActions(text, columns: columns)
+                    }
                 }
             }
+            .id("compare-headers")
             ForEach(rows.keys.sorted(), id: \.self) { verse in
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
