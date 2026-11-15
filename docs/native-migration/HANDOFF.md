@@ -1020,3 +1020,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 - **01:20 I4 Note Details menu:** editor toolbar ⓘ → Status picker, Folder, word/character count, edited time (both platforms). Mac verified: status set to in-progress on the Dev note "Insert menu QA" (left set).
 - **01:22 iPhone Undo/Redo** in the note format bar (UITextView undoManager); simulator verified typed text undone.
 - **01:28 D10 Jump to:** grouped Scripture Search results with >3 groups get a floating "Jump to" glass menu that scrolls to a text/book header. Mac verified.
+- **01:33 D28 missing-LXX markers:** `MissingLxxVerses` (port + tests) adds "— v.N not in LXX —" before the next LXX verse (skips PSA/JOL/MAL/JER 26+, as the original). Mac verified Exodus 32.
