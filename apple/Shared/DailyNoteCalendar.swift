@@ -6,10 +6,16 @@ import BereanNotes
 struct DailyNoteCalendar: View {
     @Environment(AppModel.self) private var app
     let tabId: String
-    @State private var notes: [String: Int] = [:]
+    @State private var notes: [String: DailyEntry] = [:]
+
+    private struct DailyEntry {
+        let noteId: String
+        let length: Int
+    }
     @State private var indexError = false
     @State private var showLocation = false
     @State private var showMonthPicker = false
+    @State private var timelineStart: Date?
     @State private var weekAnchor: Date?
     @AppStorage(DailyNotePreferences.locationKey) private var storedLocation = ""
 
@@ -61,14 +67,20 @@ struct DailyNoteCalendar: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
-            calendarContent(today: DailyNoteDay.anchor(context.date, location: DailyNotePreferences.location(storedLocation)))
+            let today = DailyNoteDay.anchor(context.date, location: DailyNotePreferences.location(storedLocation))
+            if let timelineStart {
+                dailyTimeline(start: timelineStart, today: today)
+            } else {
+                calendarContent(today: today)
+            }
         }
+        .onAppear { timelineStart = app.dailyTimelinePositions[tabId] }
         .sheet(isPresented: $showLocation) { DailyNoteLocationSettings(storedLocation: $storedLocation) }
         .navigationTitle("Calendar")
         .task(id: app.notesRevision) {
             do {
                 let dates = try app.notes?.dailyDates() ?? []
-                notes = Dictionary(uniqueKeysWithValues: dates.map { ($0.dateKey, $0.length) })
+                notes = Dictionary(uniqueKeysWithValues: dates.map { ($0.dateKey, DailyEntry(noteId: $0.noteId, length: $0.length)) })
                 indexError = app.notes == nil
             } catch {
                 notes = [:]
@@ -121,6 +133,13 @@ struct DailyNoteCalendar: View {
                     #if os(macOS)
                     .help(weekAnchor == nil ? "Show Week" : "Show Month")
                     #endif
+                    Button("Browse Daily Notes", systemImage: "list.bullet") {
+                        let start = timelineDate(today: today, month: month)
+                        app.dailyTimelinePositions[tabId] = start
+                        timelineStart = start
+                    }
+                    .labelStyle(.iconOnly)
+                    .help("Browse Daily Notes")
                     Button("Sunrise Settings", systemImage: "sunrise") { showLocation = true }
                         .labelStyle(.iconOnly)
                         #if os(macOS)
@@ -131,6 +150,37 @@ struct DailyNoteCalendar: View {
             .frame(maxWidth: 420)
             .padding()
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func timelineDate(today: Date, month: Date) -> Date {
+        if let weekAnchor { return weekAnchor }
+        let calendar = Self.calendar
+        if let key = app.findTab(tabId)?.state["selected"]?.stringValue?.string {
+            let parts = key.split(separator: "-").compactMap { Int($0) }
+            if parts.count == 3,
+               let selected = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])),
+               DailyNoteDay.dateKey(selected) == key,
+               calendar.isDate(selected, equalTo: month, toGranularity: .month) {
+                return selected
+            }
+        }
+        return calendar.isDate(today, equalTo: month, toGranularity: .month) ? today : month
+    }
+
+    private func dailyTimeline(start: Date, today: Date) -> some View {
+        DailyNotesTimeline(start: start, today: today, calendar: Self.calendar, close: {
+            app.dailyTimelinePositions[tabId] = nil
+            timelineStart = nil
+        }, positionChanged: { app.dailyTimelinePositions[tabId] = $0 }) { date in
+            let key = DailyNoteDay.dateKey(date)
+            let entry = notes[key]
+            DailyTimelineRow(date: date, isToday: Self.calendar.isDate(date, inSameDayAs: today),
+                             noteId: entry?.noteId, indexError: indexError) {
+                app.dailyTimelinePositions[tabId] = date
+                saveMonth(nil, selected: key)
+                app.openDailyNote(key, fromCalendar: tabId)
+            }
         }
     }
 
@@ -174,7 +224,7 @@ struct DailyNoteCalendar: View {
                     .frame(width: 30, height: 30)
                     .background(today ? Color.accentColor : Color.clear, in: .circle)
                 Circle()
-                    .fill(notes[key] == nil ? Color.clear : Color.accentColor.opacity(notes[key] == 0 ? 0.45 : 1))
+                    .fill(notes[key] == nil ? Color.clear : Color.accentColor.opacity(notes[key]?.length == 0 ? 0.45 : 1))
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity, minHeight: 44)
@@ -198,13 +248,134 @@ struct DailyNoteCalendar: View {
     private func selectDate(_ date: Date, key: String) {
         if weekAnchor != nil { weekAnchor = date }
         saveMonth(weekAnchor == nil ? date : nil, selected: key)
-        app.openDailyNote(key)
+        app.openDailyNote(key, fromCalendar: tabId)
     }
 
     private func saveMonth(_ date: Date?, selected: String? = nil) {
         app.update(tabId, recordHistory: false) { tab in
             if let date { tab.state["month"] = .string(JSString(String(DailyNoteDay.dateKey(date).prefix(7)))) }
             if let selected { tab.state["selected"] = .string(JSString(selected)) }
+        }
+    }
+}
+
+private struct DailyNotesTimeline<Row: View>: View {
+    let start: Date
+    let today: Date
+    let calendar: Calendar
+    let close: () -> Void
+    let positionChanged: (Date) -> Void
+    @ViewBuilder let row: (Date) -> Row
+    @State private var visibleDay: Date?
+    @State private var earliest = -14
+    @State private var latest = 2
+
+    init(start: Date, today: Date, calendar: Calendar, close: @escaping () -> Void,
+         positionChanged: @escaping (Date) -> Void, @ViewBuilder row: @escaping (Date) -> Row) {
+        self.start = calendar.startOfDay(for: start)
+        self.today = today
+        self.calendar = calendar
+        self.close = close
+        self.positionChanged = positionChanged
+        self.row = row
+        _visibleDay = State(initialValue: calendar.startOfDay(for: start))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Show Calendar", systemImage: "calendar", action: close)
+                Spacer()
+                Button("Today") { showToday() }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            Divider()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    Button("Show Later Days") { latest += 7 }
+                        .frame(maxWidth: .infinity)
+                    ForEach((earliest...latest).reversed(), id: \.self) { offset in
+                        if let day = calendar.date(byAdding: .day, value: offset, to: start) {
+                            row(day).id(day)
+                        }
+                    }
+                    Button("Show Earlier Days") { earliest -= 7 }
+                        .frame(maxWidth: .infinity)
+                }
+                .scrollTargetLayout()
+                .padding(16)
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
+            }
+            .scrollPosition(id: $visibleDay, anchor: .top)
+            .onChange(of: visibleDay) { _, day in
+                guard let day, let offset = calendar.dateComponents([.day], from: start, to: day).day else { return }
+                positionChanged(day)
+                if offset <= earliest + 2 { earliest -= 7 }
+                if offset >= latest - 1 { latest += 7 }
+            }
+        }
+    }
+
+    private func showToday() {
+        let day = calendar.startOfDay(for: today)
+        guard let offset = calendar.dateComponents([.day], from: start, to: day).day else { return }
+        if !(earliest...latest).contains(offset) {
+            earliest = offset - 14
+            latest = offset + 2
+        }
+        visibleDay = day
+    }
+}
+
+private struct DailyTimelineRow: View {
+    @Environment(AppModel.self) private var app
+    let date: Date
+    let isToday: Bool
+    let noteId: String?
+    let indexError: Bool
+    let open: () -> Void
+    @State private var note: Note?
+    @State private var failed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(date.formatted(date: .complete, time: .omitted))
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                    .foregroundStyle(isToday ? Color.accentColor : Color.primary)
+                Spacer()
+                Button(noteId == nil ? "Create Daily Note" : "Open Daily Note",
+                       systemImage: noteId == nil ? "plus" : "square.and.pencil", action: open)
+                    .labelStyle(.iconOnly)
+                    .disabled(indexError)
+            }
+            if let note, !note.content.isEmpty {
+                MarkdownText(note.content).textSelection(.enabled)
+            } else if failed || indexError {
+                Text("Could not load daily note.").foregroundStyle(.secondary)
+            } else if noteId == nil {
+                Text("No note for this day").foregroundStyle(.secondary)
+            } else if note == nil {
+                ProgressView().controlSize(.small)
+            } else {
+                Text("Empty note").foregroundStyle(.secondary)
+            }
+            Divider()
+        }
+        .task(id: noteId) { loadNote() }
+        .onChange(of: app.notesRevision) { _, _ in loadNote() }
+    }
+
+    private func loadNote() {
+        do {
+            note = try noteId.flatMap { try app.notes?.one($0) }
+            failed = noteId != nil && note == nil
+        } catch {
+            note = nil
+            failed = true
         }
     }
 }

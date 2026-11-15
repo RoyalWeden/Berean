@@ -557,6 +557,7 @@ final class AppModel {
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
         studyVerseFocus.removeValue(forKey: tabId)
+        dailyTimelinePositions.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
         let wasActive = activeTab?.id == tabId
         let ordered = orderedTabs
@@ -711,6 +712,7 @@ final class AppModel {
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesSearchOffsets: [String: [NotesHomeView.SearchPosition: CGFloat]] = [:]
     @ObservationIgnored var notesSearchReturnRows: [String: [NotesHomeView.SearchPosition: String]] = [:]
+    @ObservationIgnored var dailyTimelinePositions: [String: Date] = [:]
     @ObservationIgnored var notesBrowseOptions: [String: NotesHomeView.BrowseOptions] = [:]
     @ObservationIgnored var notesFolderPositions: [String: [NotesFolderScrollContext: String]] = [:]
     @ObservationIgnored var searchVisibleRows: [String: [ScriptureSearchScrollContext: String]] = [:]
