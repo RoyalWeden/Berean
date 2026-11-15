@@ -1002,3 +1002,4 @@ The study Notes inspector now filters the active scope by case-insensitive title
 - **00:48 I22 search result menu:** + Share Verse… and Add Note (both platforms; Mac verified menu).
 - **00:51 iPhone Notes toolbar:** compact (leading Back; trailing Select · New Note · ⋯ with Today's Note / Calendar / New Folder / sort-group-import) — the crowded bar had squeezed the title to one letter. Mac toolbar unchanged. Simulator verified Notes home.
 - **00:58 I17 note-return pill:** links/attachments clicked in a note open the reader with a "‹ Note title" glass pill back to the note (`AppModel.noteReturn`, in memory). Mac verified.
+- **01:01 palette Top Hit:** a note whose title exactly matches the query ranks first ("Top Hit"), so Return opens it instead of searching Scripture; palette note rows use daily long titles. Mac verified.
