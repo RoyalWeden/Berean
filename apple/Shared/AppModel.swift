@@ -771,14 +771,13 @@ final class AppModel {
 
     /// A Lexicon tab on the search view (no entry yet), optionally seeded with a query.
     func openLexiconSearch(_ query: String = "", newTab: Bool = false) {
-        if !query.isEmpty { lexiconSearches.removeAll() }
         if !newTab, let tab = activeTab, tab.tabType == .lexicon {
             update(tab.id) { $0.state["strongsNum"] = .string(""); $0.title = "Lexicon" }
             if !query.isEmpty { lexiconSearches[tab.id] = (query, "all") }
             return
         }
         var o = JSObject(); o["strongsNum"] = .string("")
-        let id = openTab(.lexicon, in: .lexicon, title: "Lexicon", state: o, origin: nil)
+        let id = openTab(.lexicon, in: .lexicon, title: "Lexicon", state: o, origin: activeTab)
         if !query.isEmpty { lexiconSearches[id] = (query, "all") }
     }
 

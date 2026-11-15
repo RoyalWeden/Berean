@@ -29,6 +29,7 @@ struct ChapterTextView: NSViewRepresentable {
     /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
     var onHighlightRange: (Int, Int, Int, String) -> Void = { _, _, _, _ in }
     var onSearchSelection: (String) -> Void = { _ in }
+    var onLexiconSearch: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -607,6 +608,15 @@ final class ReaderTextView: NSTextView {
     override func menu(for event: NSEvent) -> NSMenu? {
         guard let c = coordinator, let i = charIndex(at: event), let v = c.verse(at: i) else { return super.menu(for: event) }
         let menu = c.parent.verseMenu(v)
+        // Look up the clicked (or the single selected) word in the Lexicon — the original's untagged-word click.
+        let wordRange = selectedRange().length > 0 ? selectedRange() : selectionRange(forProposedRange: NSRange(location: i, length: 0), granularity: .selectByWord)
+        let word = (string as NSString).substring(with: wordRange).trimmingCharacters(in: .punctuationCharacters.union(.whitespacesAndNewlines))
+        if !word.isEmpty, word.count <= 40, !word.contains(where: { $0.isWhitespace || $0.isNumber }) {
+            let look = ClosureMenuItem("Look Up “\(word)” in Lexicon") { c.parent.onLexiconSearch(word.lowercased()) }
+            look.image = NSImage(systemSymbolName: "character.book.closed", accessibilityDescription: nil)
+            menu.insertItem(look, at: 0)
+            menu.insertItem(.separator(), at: 1)
+        }
         if selectedRange().length > 0 {
             let pieces = c.selectedPieces()
             if !pieces.isEmpty {

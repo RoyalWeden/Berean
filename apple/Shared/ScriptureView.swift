@@ -1382,7 +1382,8 @@ extension ScriptureView {
             onVerseClick: { v, shift in verseClick(v, shift: shift) },
             onCopySelectedVerses: { confirmSelectionCopy(.verses) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) },
-            onSearchSelection: { app.openSearch($0, returningTo: tabId) })
+            onSearchSelection: { app.openSearch($0, returningTo: tabId) },
+            onLexiconSearch: { app.openLexiconSearch($0, newTab: true) })
             .task(id: strongsIDs(in: rv, enabled: st.showStrongs)) {
                 let ids = strongsIDs(in: rv, enabled: st.showStrongs)
                 var next: [String: String] = [:]
