@@ -57,12 +57,6 @@ struct StudyInspector: View {
     @State private var dropOnSecondary: Bool?
     #endif
 
-    private func strongsVerses(_ st: BibleState) -> [Int] {
-        let selected = app.studySelectedVerses(in: tabId, state: st)
-        if !selected.isEmpty { return selected }
-        return app.studyVerse(in: tabId, state: st).map { [$0] } ?? []
-    }
-
     var body: some View {
         let state = app.findTab(tabId)?.state ?? JSObject()
         let reader = BibleState(state)
@@ -86,7 +80,7 @@ struct StudyInspector: View {
             #endif
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .onChange(of: strongsVerses(reader)) { _, verses in
+        .onChange(of: app.studyStrongsVerses(in: tabId, state: reader)) { _, verses in
             guard !verses.isEmpty, app.findTab(tabId)?.state[lexiconKey] != nil else { return }
             app.update(tabId, recordHistory: false) { $0.state.remove(lexiconKey) }
         }
@@ -209,22 +203,40 @@ struct StudyInspector: View {
         } else if panel == .crossrefs {
             CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
                           textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
-        } else if let id = app.findTab(tabId)?.state[lexiconKey]?.stringValue?.string {
-            if !strongsVerses(st).isEmpty {
-                Button { app.update(tabId, recordHistory: false) { $0.state.remove(lexiconKey) } } label: {
-                    Label("Selected Verses", systemImage: "chevron.backward").font(.callout)
+        } else {
+            StudyLexiconContent(tabId: tabId, reader: st, lexiconKey: lexiconKey)
+        }
+    }
+}
+
+struct StudyLexiconContent: View {
+    @Environment(AppModel.self) private var app
+    let tabId: String
+    let reader: BibleState
+    let lexiconKey: JSString
+
+    var body: some View {
+        let verses = app.studyStrongsVerses(in: tabId, state: reader)
+        if let id = app.findTab(tabId)?.state[lexiconKey]?.stringValue?.string {
+            VStack(spacing: 0) {
+                if !verses.isEmpty {
+                    Button {
+                        app.update(tabId, recordHistory: false) { $0.state.remove(lexiconKey) }
+                    } label: {
+                        Label("Selected Verses", systemImage: "chevron.backward").font(.callout)
+                    }
+                    .buttonStyle(.interactivePlain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.top, 8)
                 }
-                .buttonStyle(.interactivePlain)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12).padding(.top, 8)
+                LexiconEntryView(strongsId: id, tabId: tabId, compact: true)
             }
-            LexiconEntryView(strongsId: id, tabId: tabId, compact: true)
-        } else if !strongsVerses(st).isEmpty {
-            SelectedVersesStrongsView(tabId: tabId, bookId: st.bookId, chapter: st.chapter, textId: st.translation,
-                                      verses: strongsVerses(st))
+        } else if !verses.isEmpty {
+            SelectedVersesStrongsView(tabId: tabId, bookId: reader.bookId, chapter: reader.chapter,
+                                      textId: reader.translation, verses: verses)
         } else {
             ContentUnavailableView("No word selected", systemImage: "character.book.closed",
-                                   description: Text("Turn on Strong's numbers and click one to look it up."))
+                                   description: Text("Select a verse or tap a Strong’s number."))
                 .frame(maxHeight: .infinity, alignment: .top)
         }
     }
@@ -656,9 +668,12 @@ struct SelectedVersesStrongsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: "\(textId)|\(bookId)|\(chapter)|\(verses)|\(app.wordReplacerEnabled)") {
+            rows = []
             var out: [(Int, [StudyToken])] = []
             for v in verses.sorted().prefix(Self.limit) {
-                guard let row = await app.bible.queryVerse(bookId, chapter, v, textId: textId) else { continue }
+                let row = await app.bible.queryVerse(bookId, chapter, v, textId: textId)
+                guard !Task.isCancelled else { return }
+                guard let row else { continue }
                 out.append((v, VerseDisplay.studyTokens(row.text, tagged: row.textTagged, textId: textId,
                                                         replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)))
             }

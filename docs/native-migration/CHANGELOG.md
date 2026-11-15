@@ -1081,3 +1081,8 @@
 
 - Both apps support editing the legacy note emoji icon and opening Print from a Notes row.
 - Both native builds and 132 tests passed, as did the final Mac build. Isolated Mac QA verified saving and displaying Dove, plus opening and canceling the print sheet.
+
+### 2026-11-15 — D25 — Fixed Lexicon study panes
+
+- Fixed Mac Scripture layouts share the inspector’s Selected Verses return flow. Superseded verse lookups cannot replace the current selection.
+- Both Dev builds and all 132 tests passed. Mac scratch QA verified Genesis 2:1 LXX → G3772 → Selected Verses in the fixed Lexicon layout.

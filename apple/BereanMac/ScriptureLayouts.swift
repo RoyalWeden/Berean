@@ -1,5 +1,6 @@
 import SwiftUI
 import BereanCore
+import BereanWorkspace
 
 /// The legacy `ScriptureLayout` presets (src/types `ScriptureLayout`, synced as `scriptureLayout`) rendered with
 /// native resizable split views. Every preset the existing app offers is supported; panels are the same
@@ -58,7 +59,8 @@ struct StudyPanel: View {
     let tabId: String
     let kind: StudyPanelKind
     var body: some View {
-        let st = BibleState(app.findTab(tabId)?.state ?? JSObject())
+        let state = app.findTab(tabId)?.state ?? JSObject()
+        let st = BibleState(state)
         Group {
             switch kind {
             case .tabbed: StudyInspector(tabId: tabId)
@@ -66,13 +68,12 @@ struct StudyPanel: View {
                                        textId: st.translation, selectedVerses: Set(app.studySelectedVerses(in: tabId, state: st)),
                                        allowsChapterScope: true)
             case .lexicon:
-                if let id = st.rightPanelLexiconEntry { LexiconEntryView(strongsId: id, tabId: tabId, compact: true) }
-                else if let verses = Optional(app.studySelectedVerses(in: tabId, state: st).isEmpty
-                            ? (app.studyVerse(in: tabId, state: st).map { [$0] } ?? []) : app.studySelectedVerses(in: tabId, state: st)),
-                        !verses.isEmpty {
-                    SelectedVersesStrongsView(tabId: tabId, bookId: st.bookId, chapter: st.chapter, textId: st.translation, verses: verses)
-                }
-                else { ContentUnavailableView("No word selected", systemImage: "character.book.closed", description: Text("Select a verse or click a Strong's number.")) }
+                let key = StudyPanelSlots.lexiconKey(in: state)
+                StudyLexiconContent(tabId: tabId, reader: st, lexiconKey: key)
+                    .onChange(of: app.studyStrongsVerses(in: tabId, state: st)) { _, verses in
+                        guard !verses.isEmpty, app.findTab(tabId)?.state[key] != nil else { return }
+                        app.update(tabId, recordHistory: false) { $0.state.remove(key) }
+                    }
             case .crossrefs: CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
                               textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
             }

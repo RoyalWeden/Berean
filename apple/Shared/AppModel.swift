@@ -932,6 +932,12 @@ final class AppModel {
         return ResolvedPassage.savedVerses(in: tab, reader: state).sorted()
     }
 
+    func studyStrongsVerses(in tabId: String, state: BibleState) -> [Int] {
+        let selected = studySelectedVerses(in: tabId, state: state)
+        if !selected.isEmpty { return selected }
+        return studyVerse(in: tabId, state: state).map { [$0] } ?? []
+    }
+
     func inspectStrongs(_ id: String, in tabId: String, bookId: String, chapter: Int, verse: Int? = nil) {
         guard !id.isEmpty else { return }
         recordHistory(type: "strongs-click", title: id, bookId: bookId, chapter: chapter, verse: verse, strongsNum: id)
