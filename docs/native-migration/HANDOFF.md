@@ -877,3 +877,29 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 3. **UI:** add "My Notes" as a third source in `CrossRefsView` (`apple/Shared/StudyViews.swift`, `@AppStorage("crossrefSource")`
    currently `tske`/`classic`; the original value is `notes`), with an "Indirect mentions" section; then the reader indicator (D11:
    sized dot by count, `VerseRow.tsx` ~202-240) and the chapter banner (D12, `ChapterView.tsx` ~1214).
+
+#### Final state at session end (20:10 PST) — start here, Codex
+
+- Branch `native/reader-notes`, pushed; HEAD is the last commit in `git log` (docs commit after `22f6dc90`). **50 commits** this
+  session on top of Codex's `64df1059`; nothing force-pushed. PR #24 (draft) carries all of it — Michael merges #22 → #23 → #24.
+- **Last full check:** `npm run native:check` at `b6223db3` → Swift Testing **111 tests / 40 suites pass**, Mac + iOS Simulator Debug
+  builds with Dev identity assertions pass. Every later commit was built for Mac and iOS individually.
+- **Added after 19:50 (all verified as noted in AUDIT-2026-11-14.md):** iPhone hide-on-scroll chrome + selection capsule settling
+  (`7c313ac6`, `b01bbc13`, simulator), lexicon Show All/Fewer + BDB replacer + "Derived Terms" (`6498a058`, build only), palette
+  Shift-Return new tab (`3938693a`, Mac via Back state), disabled toolbar cursor (`7c8ca6e8`, Mac `screencapture -C`), iPhone edge taps
+  (`432efad3`, simulator), Notes Home Today's Note (`29f0a4f6`, Mac), workspace icons Mac + iPhone (`2d1bf32e`, `caa1b7a8`; Mac live,
+  iPhone build), iPhone Haptic Feedback toggle (`829c0e89`, build), destructive-action error reporting (`b6223db3`, build), iPhone Go
+  Lexicon entries (`7e75ef1c`, simulator), lexicon copy actions (`58f46652`, Mac clipboard), iPhone verse grid in the passage picker
+  (`22f6dc90`, simulator John 5 → 5:25).
+- Dev data touched (isolated Dev libraries only): a daily note for 2026-11-14, a few extra Scripture / Lexicon / Search tabs in the
+  "Study" workspace, workspace icon set and reset to default. No production data, no iCloud, no schema change, no new tab-state keys
+  except existing ones (`hiddenAnnotations`, `showStrongs`, `strongsNum: ""`, `sessions.icon` with original names).
+
+**Next executable tasks, in order (each has its source reference in AUDIT-2026-11-14.md):**
+1. Physical-iPhone pass (`npm run native:ios:device`, Dev identity): hide-on-scroll feel, edge taps vs the system back swipe, verse
+   capsule legibility over red letters (I25), verse grid, haptics toggle.
+2. "My Notes" cross references — follow the task spec above (golden-first).
+3. I1 iPhone compact verse sheet with highlight swatches, I2 in-sheet notes.
+4. D16 ⌘F inside a Lexicon entry; D19 header "N (1000+)"; D4 "How to read an entry".
+5. D15 Compare per-column arrows / reorder; I18 Compare sync scrolling.
+6. D20/D21 continuous chapter scroll (large; needs a design note first).
