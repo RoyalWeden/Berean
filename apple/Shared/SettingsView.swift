@@ -11,6 +11,7 @@ struct SettingsView: View {
     /// Same key as the original iPhone app's haptics switch (device-local).
     @AppStorage("berean.haptics.enabled") private var hapticsEnabled = true
     @AppStorage("berean.notes.autoEmDash") private var autoEmDash = true
+    @AppStorage("defaultScriptureLayout") private var defaultLayout = "standard"
 
     var body: some View {
         #if os(macOS)
@@ -57,6 +58,12 @@ struct SettingsView: View {
             }
             ScriptureDisplayOptions()
             Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
+            #if os(macOS)
+            Picker("Layout for new Scripture tabs", selection: $defaultLayout) {
+                ForEach(ScriptureLayout.allCases) { Text($0.title).tag($0.rawValue) }
+            }
+            .clickableCursor()
+            #endif
         }
     }
 

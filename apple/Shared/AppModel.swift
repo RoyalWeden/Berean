@@ -985,6 +985,10 @@ final class AppModel {
         } else {
             var state = st.object
             if !verseGroups.isEmpty { state["nativeSelectedVerses"] = passage.savedSelection }
+            // New reader tabs start in the chosen default layout (original `defaultScriptureLayout`, Mac).
+            if let layout = UserDefaults.standard.string(forKey: "defaultScriptureLayout"), !layout.isEmpty {
+                state["scriptureLayout"] = .string(JSString(layout))
+            }
             openTab(.bible, in: .scripture, title: title, state: state)
         }
     }

@@ -1044,3 +1044,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 - **01:28 Close Other Tabs** (Mac sidebar tab menu, iPhone tab card/row menu; keeps pinned tabs). Mac verified in a throwaway Workspace 7 (3 tabs → 1), then deleted that workspace; Study untouched.
 - **01:30 iPhone select mode verified** (All Notes → Select → checkmark, '1 selected', bulk bar above the dock; Done, no changes). Simulator now has 14 tabs (test Search tabs from book-search checks).
 - **01:33 notes bulk Share** (combined Markdown of selected notes via ShareLink). Mac bar shows it.
+- **01:37 D20 default layout (Mac):** Settings → Reading → Layout for new Scripture tabs (`defaultScriptureLayout`, original key name). Verified via saved tab state; test default removed afterwards.
