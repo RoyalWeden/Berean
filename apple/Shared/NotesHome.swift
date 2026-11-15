@@ -129,7 +129,11 @@ struct NotesHomeView: View {
                     Button("Import Markdown…") { app.importMarkdownFiles() }
                 } label: { Label("View Options", systemImage: "line.3.horizontal.decrease.circle") }
                 .menuIndicator(.hidden).help("Sort, group, import")
-                Button { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
+                // Tap: today's note. Long-press / right-click: the calendar — original Notes home "Today".
+                Button { app.openTodayDailyNote() } label: { Label("Today's Note", systemImage: "calendar") }
+                    .contextMenu { Button("Open Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) } }
+                    .help("Today's note (right-click or hold for the calendar)")
+                                Button { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) } label: { Label("New Folder", systemImage: "folder.badge.plus") }
                     .help("New folder")
                 Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
                     .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
