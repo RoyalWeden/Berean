@@ -195,7 +195,7 @@ struct CommandPalette: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
                 TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text)
                 .textFieldStyle(.plain)
-                .font(.title2)
+                .font(.system(size: 21, weight: .medium))
                 .focused($focused)
                 .onSubmit { activate() }
                 .onKeyPress(.return, phases: .down) { press in
@@ -221,11 +221,11 @@ struct CommandPalette: View {
                             Button { index = i; activate() } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: it.symbol).frame(width: 20).foregroundStyle(.secondary)
-                                    Text(it.title).lineLimit(1)
+                                    Text(it.title).font(.system(size: 15)).lineLimit(1)
                                     Spacer()
-                                    Text(it.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    Text(it.detail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
                                 }
-                                .padding(.horizontal, 10).padding(.vertical, 6)
+                                .padding(.horizontal, 10).padding(.vertical, 7)
                                 .foregroundStyle(.primary)
                                 .background(i == index ? Color.primary.opacity(0.09) : .clear, in: .rect(cornerRadius: 8))
                                 .contentShape(.rect)
@@ -264,13 +264,16 @@ struct CommandPalette: View {
             .padding(.horizontal, 16)
             .frame(height: 32)
         }
-        .background(.regularMaterial, in: .rect(cornerRadius: 18))
-        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(.primary.opacity(0.14)).allowsHitTesting(false) }
-        .clipShape(.rect(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.24), radius: 22, y: 8)
+        .clipShape(.rect(cornerRadius: 20))
+        .modifier(CommandPaletteSurface())
+        .defaultFocus($focused, true, priority: .userInitiated)
         .accessibilityElement(children: .contain)
         .onExitCommand(perform: close)
-        .onAppear { focused = true }
+        .task {
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            focused = true
+        }
         .task(id: trimmed) {
             noteHits = trimmed.count < 2 ? [] : ((try? app.notes?.search(trimmed, limit: 6)) ?? [])
         }
@@ -283,6 +286,21 @@ struct CommandPalette: View {
         close()
     }
 }
+
+private struct CommandPaletteSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 20)
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(.thinMaterial, in: shape)
+                .overlay { shape.strokeBorder(.primary.opacity(0.14)).allowsHitTesting(false) }
+                .shadow(color: .black.opacity(0.24), radius: 22, y: 8)
+        }
+    }
+}
+
 #endif
 
 import BereanReference
