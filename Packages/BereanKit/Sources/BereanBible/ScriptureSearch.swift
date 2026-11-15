@@ -41,7 +41,7 @@ public struct ScriptureHit: Equatable, Sendable, Hashable {
                     words.append(contentsOf: parts)
                 }
                 let rendered = words.joined(separator: " ")
-                if rendered != replaced, !indices.isEmpty { return (rendered, indices) }
+                if !indices.isEmpty { return (rendered, indices) }
             }
         }
         return (replaced, matchWordIndices)

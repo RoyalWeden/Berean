@@ -36,7 +36,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S16 | Word replacer (display rules for divine names and search expansion) | implemented | ✅ | ✅ | — | Word replacer display + search variants + Strong's bridge |
 | Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Both app bundles carry all 19 supported Scripture IDs. All Texts searches the bundled corpus; Mac opened Didache via ⌘K. |
 | Q02 | Reference search | implemented | ✅ | ✅ | — | References in ⌘K/New/search field go to passage |
-| Q03 | Strong's search | implemented | ✅ | 🟡 | — | Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap) |
+| Q03 | Strong's search | implemented | ✅ | 🟡 | — | Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap), and matched-word snippet highlighting with Word Replacer remapping |
 | Q04 | Lexicon search | implemented | 🟡 | 🟡 | P2 | Lexicon search service ported; no UI entry other than Strong's numbers |
 | Q05 | Notes search | implemented | 🟡 | 🟡 | P1 | Notes home supports folder/global scope, type/status, three FTS match modes, excerpts and live refresh. Mac ⌘K includes notes. |
 | Q06 | Indexing | implemented (FTS), partial (others) | ✅ | ✅ | — | FTS5 per text; deterministic ordering (ADR-0008) |
@@ -292,7 +292,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/lib/strongsSearch.ts`, `scriptureSearch.ts` (`runStrongsSearch`), `lexiconService.getOccurrences`.
 - **Known original defects:** —
-- **Native Mac / iPhone:** ✅ / 🟡 — Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap)
+- **Native Mac / iPhone:** ✅ / 🟡 — Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap), and matched-word snippet highlighting with Word Replacer remapping
 - **Native files:** ScriptureSearch.strongs
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

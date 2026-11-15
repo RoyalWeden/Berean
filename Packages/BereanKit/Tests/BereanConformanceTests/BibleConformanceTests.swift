@@ -3,6 +3,7 @@ import BereanCore
 import BereanSync
 import BereanSQLite
 import BereanBible
+import BereanText
 
 /// Repository `data/` (symlinked in worktrees; downloaded in CI). Tests skip when absent.
 let repoDataDir: String = {
@@ -239,5 +240,22 @@ func digest(_ rows: [JSValue]) -> JSObject {
         let rendered = try #require(hit.strongsSnippet(replacerEnabled: true))
         #expect(rendered.text == "Yehovah is my shepherd.")
         #expect(rendered.indices == [0, 3])
+    }
+
+    @Test func matchingRenderedAndPlainSnippetsStillRemapIndices() throws {
+        let rules = [
+            WordReplacerRule(id: "phrase", queries: ["The Lord"], replacement: "Yehovah",
+                             wholeWord: true, enabled: true),
+            WordReplacerRule(id: "name", queries: [], replacement: "Yehovah",
+                             wholeWord: true, enabled: true, strongsNum: "H3068")
+        ]
+        let hit = ScriptureHit(textId: "kjva", bookId: "PSA", chapter: 23, verseNum: 1,
+                               text: "The Lord is my shepherd.",
+                               textTagged: "The{} LORD{H3068} *is{} my{} shepherd.{H7462}",
+                               matchWordIndices: [1, 4], matchedStrongs: ["H3068", "H7462"])
+        #expect(WordReplacer.apply(hit.text, rules: rules) == "Yehovah is my shepherd.")
+        let snippet = try #require(hit.strongsSnippet(replacerEnabled: true, rules: rules))
+        #expect(snippet.text == "Yehovah is my shepherd.")
+        #expect(snippet.indices == [0, 3])
     }
 }
