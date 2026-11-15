@@ -13,6 +13,16 @@ struct ScriptureReadingPosition {
     let verse: Int?
     var atEnd = false
     var selectedVerses: Set<Int> = []
+    var returnEdition: String?
+}
+
+struct ScriptureEditionArrival {
+    let edition: String
+    let offset: CGFloat
+
+    func returnEdition(at currentOffset: CGFloat) -> String? {
+        abs(currentOffset - offset) <= 1 ? edition : nil
+    }
 }
 
 struct ChapterEdition: Equatable {
@@ -99,13 +109,17 @@ extension AppModel {
         if let transition = scriptureEditionSources[tabId], transition.target == edition {
             scriptureEditionSources.removeValue(forKey: tabId)
             guard let saved = scriptureReadingPositions[tabId]?[transition.source.key] else { return nil }
+            if saved.returnEdition == edition.key, var original = scriptureReadingPositions[tabId]?[edition.key] {
+                original.returnEdition = transition.source.key
+                return original
+            }
             var verse = saved.verse
             if edition.book == "JON", let number = verse,
                let mapped = ChapterMap.jonahCounterpart(chapter: transition.source.chapter, verse: number,
                                                         from: transition.source.text, to: edition.text) {
                 verse = mapped.chapter == edition.chapter ? mapped.verse : nil
             }
-            return ScriptureReadingPosition(offset: 0, verse: verse)
+            return ScriptureReadingPosition(offset: 0, verse: verse, returnEdition: transition.source.key)
         }
         scriptureEditionSources.removeValue(forKey: tabId)
         return scriptureReadingPositions[tabId]?[edition.key]

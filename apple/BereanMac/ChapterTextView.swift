@@ -134,9 +134,10 @@ struct ChapterTextView: NSViewRepresentable {
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         guard let parent = coordinator.parent, coordinator.lastPassage == parent.passageId else { return }
         let top = scroll.contentView.bounds.minY
+        let offset = max(0, top - scroll.contentView.documentRect.minY)
         let verse = coordinator.textView.flatMap { coordinator.readingAnchor(at: top, in: $0)?.verse }
-        parent.savePosition(ScriptureReadingPosition(offset: max(0, top - scroll.contentView.documentRect.minY),
-                                                      verse: verse, selectedVerses: parent.selectedVerses))
+        parent.savePosition(ScriptureReadingPosition(offset: offset, verse: verse, selectedVerses: parent.selectedVerses,
+                                                      returnEdition: coordinator.editionArrival?.returnEdition(at: offset)))
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -194,6 +195,7 @@ struct ChapterTextView: NSViewRepresentable {
             c.lastKey = key
             if passageChanged {
                 c.lastPassage = passageId
+                c.editionArrival = nil
                 var start = clip.bounds
                 start.origin.y = clip.documentRect.minY
                 clip.scroll(to: clip.constrainBoundsRect(start).origin)
@@ -244,6 +246,9 @@ struct ChapterTextView: NSViewRepresentable {
                 bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? (clip.documentRect.minY + position.offset)
                 clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                 scroll.reflectScrolledClipView(clip)
+                c.editionArrival = position.returnEdition.map {
+                    ScriptureEditionArrival(edition: $0, offset: max(0, clip.bounds.minY - clip.documentRect.minY))
+                }
             }
         }
         if scrollTarget == nil { c.scrolledTo = nil }
@@ -294,6 +299,7 @@ struct ChapterTextView: NSViewRepresentable {
         var lastKey: Key?
         var lastPassage = ""
         var scrolledTo: ScriptureScrollTarget?
+        var editionArrival: ScriptureEditionArrival?
         /// verse → range of its paragraph (number + text) in the text storage.
         var renderedSelection: Set<Int> = []
         private var markerRanges: [Int: NSRange] = [:]

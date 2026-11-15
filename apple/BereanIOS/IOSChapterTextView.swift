@@ -90,7 +90,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         guard coordinator.passageId == coordinator.parent.passageId else { return }
         let offset = max(0, view.contentOffset.y + view.adjustedContentInset.top)
         coordinator.parent.savePosition(ScriptureReadingPosition(offset: offset, verse: coordinator.readingAnchor(in: view)?.verse,
-                                                                 selectedVerses: coordinator.parent.selectedVerses))
+                                                                 selectedVerses: coordinator.parent.selectedVerses,
+                                                                 returnEdition: coordinator.editionArrival?.returnEdition(at: offset)))
     }
 
     func updateUIView(_ view: ReaderTextView, context: Context) {
@@ -154,6 +155,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                     view.setContentOffset(previousOffset, animated: false)
                 }
             } else {
+                coordinator.editionArrival = nil
                 view.selectedRange = NSRange(location: 0, length: 0)
                 view.setContentOffset(CGPoint(x: 0, y: -view.adjustedContentInset.top), animated: false)
                 coordinator.lastTarget = nil
@@ -199,6 +201,9 @@ struct IOSChapterTextView: UIViewRepresentable {
                     .map { view.caretRect(for: $0).minY } : nil
                 let y = position.atEnd ? maximum : min((verseTop ?? position.offset) - inset.top, maximum)
                 view.setContentOffset(CGPoint(x: 0, y: y), animated: false)
+                coordinator.editionArrival = position.returnEdition.map {
+                    ScriptureEditionArrival(edition: $0, offset: max(0, view.contentOffset.y + view.adjustedContentInset.top))
+                }
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
@@ -441,6 +446,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         var passageId: String?
         var lastTarget: ScriptureScrollTarget?
+        var editionArrival: ScriptureEditionArrival?
         var verseRanges: [Int: NSRange] = [:]
         var renderedSelection: Set<Int> = []
         private var markerRanges: [Int: NSRange] = [:]
