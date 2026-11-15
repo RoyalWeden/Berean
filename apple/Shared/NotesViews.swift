@@ -926,11 +926,30 @@ struct MarkdownText: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(.quaternary, in: .rect(cornerRadius: 6))
                 case .table(let table): tableView(table)
+                case .callout(let kind, let title, let body): calloutView(kind, title: title, body: body)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+    private func calloutView(_ kind: NoteCalloutKind, title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Image(systemName: kind.symbol)
+                    .foregroundStyle(kind.color)
+                    .accessibilityHidden(true)
+                Text(kind.label).fontWeight(.semibold)
+                if !title.isEmpty { inline(title).fontWeight(.semibold) }
+            }
+            .accessibilityAddTraits(.isHeader)
+            if !body.isEmpty { MarkdownText(body) }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(kind.color.opacity(0.09), in: .rect(cornerRadius: 9))
+        .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(kind.color.opacity(0.25)) }
+    }
+
     private func tableView(_ table: NotePreviewTable) -> some View {
         ScrollView(.horizontal) {
             Grid(horizontalSpacing: 0, verticalSpacing: 0) {
@@ -1107,10 +1126,44 @@ private struct NotePreviewTable {
     }
 }
 
+private enum NoteCalloutKind: String {
+    case note, tip, warning, important, caution
+
+    var label: String { rawValue.capitalized }
+
+    var symbol: String {
+        switch self {
+        case .note: "info.circle"
+        case .tip: "lightbulb"
+        case .warning: "exclamationmark.triangle"
+        case .important: "exclamationmark.circle"
+        case .caution: "xmark.octagon"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .note: .blue
+        case .tip: .green
+        case .warning: .orange
+        case .important: .purple
+        case .caution: .red
+        }
+    }
+}
+
 private enum NotePreviewBlock {
     case line(String)
     case code([String])
     case table(NotePreviewTable)
+    case callout(NoteCalloutKind, title: String, body: String)
+
+    private static func quotedContent(_ line: String) -> Substring? {
+        let trimmed = line.drop { $0 == " " || $0 == "\t" }
+        guard trimmed.first == ">" else { return nil }
+        let body = trimmed.dropFirst()
+        return body.first == " " ? body.dropFirst() : body
+    }
 
     static func parse(_ source: String) -> [Self] {
         let lines = source.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
@@ -1136,6 +1189,20 @@ private enum NotePreviewBlock {
                     blocks.append(.code(code))
                     continue
                 }
+            }
+            if let quote = quotedContent(line), quote.hasPrefix("[!"),
+               let end = quote.firstIndex(of: "]"),
+               let kind = NoteCalloutKind(rawValue: quote.dropFirst(2).prefix { $0 != "]" }.lowercased()) {
+                let title = quote[quote.index(after: end)...].trimmingCharacters(in: .whitespaces)
+                var body: [Substring] = []
+                index += 1
+                while index < lines.count, let next = quotedContent(lines[index]) {
+                    if next.hasPrefix("[!") { break }
+                    body.append(next)
+                    index += 1
+                }
+                blocks.append(.callout(kind, title: title, body: body.joined(separator: "\n")))
+                continue
             }
             if index + 1 < lines.count,
                let header = NotePreviewTable.cells(line),
@@ -1236,6 +1303,7 @@ private enum NotePrintMarkup {
             body { font: 12pt -apple-system, Helvetica, sans-serif; color: #111; }
             p { margin: 0 0 6pt; } h1, h2, h3 { margin: 10pt 0 6pt; }
             blockquote { border-left: 2pt solid #999; margin: 4pt 0; padding-left: 9pt; }
+            .callout { padding: 7pt 9pt; margin: 8pt 0; border-left: 2pt solid #999; background: #f4f4f4; }
             pre, code { font-family: monospace; } pre { white-space: pre-wrap; }
             table { border-collapse: collapse; margin: 8pt 0; }
             td, th { border: 1px solid #bbb; padding: 4pt 6pt; text-align: left; }
@@ -1253,6 +1321,10 @@ private enum NotePrintMarkup {
                 return "<tr>" + cells.map { "<\(tag)>\(inline($0))</\(tag)>" }.joined() + "</tr>"
             }
             return "<table>\(rows.joined())</table>"
+        case .callout(let kind, let title, let body):
+            let heading = title.isEmpty ? kind.label : kind.label + " — " + inline(title)
+            let contents = body.isEmpty ? "" : NotePreviewBlock.parse(body).map(Self.block).joined()
+            return "<div class=\"callout\"><p><strong>\(heading)</strong></p>\(contents)</div>"
         case .line(let line):
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { return "<br>" }
