@@ -1326,7 +1326,7 @@ struct NoteVersionHistoryView: View {
             }
             .confirmationDialog("Restore this version?", isPresented: $confirmRestore) {
                 Button("Restore Version") {
-                    if let v = selected, case .restored(let c)? = try? app.notes?.restoreVersion(noteId: noteId, versionId: v.id) { onRestore(c); dismiss() }
+                    restoreSelectedVersion()
                 }
             } message: { Text("The current text is saved as a version first, so you can undo this.") }
         }
@@ -1334,6 +1334,26 @@ struct NoteVersionHistoryView: View {
         .frame(minWidth: 640, minHeight: 440)
         #endif
         .task { load() }
+    }
+
+    private func restoreSelectedVersion() {
+        guard let selected else { return }
+        guard let notes = app.notes else {
+            app.userMessage = "The notes library is unavailable."
+            return
+        }
+        app.attempt("Couldn’t restore the note version") {
+            switch try notes.restoreVersion(noteId: noteId, versionId: selected.id) {
+            case .restored(let content):
+                onRestore(content)
+                dismiss()
+            case .versionNotFound:
+                app.userMessage = "This version is no longer available."
+                load()
+            case .noteNotFound:
+                app.userMessage = "This note is no longer available."
+            }
+        }
     }
 
     @ViewBuilder private var historyContent: some View {

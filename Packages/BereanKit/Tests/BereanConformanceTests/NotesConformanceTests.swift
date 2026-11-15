@@ -529,3 +529,33 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(try h.all().isEmpty)
     }
 }
+
+
+@Suite("note version restore safety") struct NoteVersionRestoreSafetyTests {
+    @Test func rejectsForeignVersionsAndRollsBackFailedRestore() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let service = NotesService(db: db)
+        let note = try service.create(.init(title: "First", content: "Original")).note
+        let other = try service.create(.init(title: "Second", content: "Unrelated")).note
+        try service.createVersion(noteId: note.id, title: note.title, content: "Older text")
+        let version = try #require(try service.versions(of: note.id).first)
+        #expect(try service.restoreVersion(noteId: other.id, versionId: version.id) == .versionNotFound)
+        #expect(try service.one(other.id)?.content == "Unrelated")
+        #expect(try service.versions(of: other.id).isEmpty)
+
+        try db.exec("""
+            CREATE TRIGGER reject_restore BEFORE UPDATE OF content ON notes
+            BEGIN SELECT RAISE(ABORT, 'test restore failure'); END;
+            """)
+        #expect(throws: (any Error).self) {
+            try service.restoreVersion(noteId: note.id, versionId: version.id)
+        }
+        #expect(try service.one(note.id)?.content == "Original")
+        #expect(try service.versions(of: note.id).map(\.id) == [version.id])
+
+        try db.exec("DROP TRIGGER reject_restore")
+        #expect(try service.restoreVersion(noteId: note.id, versionId: version.id) == .restored(content: "Older text"))
+        #expect(try service.versions(of: note.id).first(where: { $0.kind == "pre-restore" })?.content == "Original")
+    }
+}

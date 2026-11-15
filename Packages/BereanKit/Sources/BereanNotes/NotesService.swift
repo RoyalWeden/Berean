@@ -475,19 +475,33 @@ public final class NotesService: @unchecked Sendable {
     /// Restores a version's content, first snapshotting the current content as `pre-restore` so it can be undone.
     @discardableResult
     public func restoreVersion(noteId: String, versionId: String) throws -> NoteRestoreResult {
-        guard let ver = try db.query("SELECT * FROM note_versions WHERE id = ?", [.text(versionId)]).first else { return .versionNotFound }
-        guard let cur = try db.query("SELECT title, content FROM notes WHERE id = ?", [.text(noteId)]).first else { return .noteNotFound }
-        let content = ver["content"]?.string ?? ""
-        if cur["content"]?.string != ver["content"]?.string {
+        try db.exec("BEGIN IMMEDIATE")
+        var committed = false
+        defer { if !committed { try? db.exec("ROLLBACK") } }
+
+        guard let ver = try db.query("SELECT note_id, content FROM note_versions WHERE id = ?", [.text(versionId)]).first else {
+            return .versionNotFound
+        }
+        guard let cur = try db.query("SELECT title, content FROM notes WHERE id = ? AND deleted_at IS NULL", [.text(noteId)]).first else {
+            return .noteNotFound
+        }
+        guard ver["note_id"]?.string == noteId else { return .versionNotFound }
+
+        let content = ver["content"]?.string
+        var snapshotID: String?
+        if cur["content"]?.string != content {
             let pre = uuid()
             try db.run("INSERT INTO note_versions (id, note_id, title, content, kind, created_at) VALUES (?, ?, ?, ?, 'pre-restore', ?)",
-                       [.text(pre), .text(noteId), cur["title"]?.string.map { .text($0) } ?? .null, Self.t(cur["content"]?.string), .integer(now())])
-            onChange("note_version", pre, "upsert")
+                       [.text(pre), .text(noteId), Self.t(cur["title"]?.string), Self.t(cur["content"]?.string), .integer(now())])
+            snapshotID = pre
         }
-        try db.run("UPDATE notes SET content = ?, updated_at = ? WHERE id = ?", [Self.t(ver["content"]?.string), .integer(now()), .text(noteId)])
+        try db.run("UPDATE notes SET content = ?, updated_at = ? WHERE id = ?", [Self.t(content), .integer(now()), .text(noteId)])
         try pruneVersions(noteId)
+        try db.exec("COMMIT")
+        committed = true
+        if let snapshotID { onChange("note_version", snapshotID, "upsert") }
         onChange("note", noteId, "upsert")
-        return .restored(content: content)
+        return .restored(content: content ?? "")
     }
 
     /// Keep everything from the last 7 days, then one (newest) per UTC day, always the newest and manual /
