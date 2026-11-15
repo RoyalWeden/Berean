@@ -1060,3 +1060,24 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Native Mac / iPhone:** — / — — not started
 - **Native files:** 
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
+
+---
+
+## 2026-11-14 evening parity updates (Claude Code)
+
+Statuses below supersede the per-feature rows above where they conflict; evidence is in AUDIT-2026-11-14.md (section C/D rows) and
+HANDOFF.md "2026-11-14 evening checkpoint".
+
+| Area | Now native | Verified |
+|---|---|---|
+| Lexicon search / browse (D1) | Lexicon tab search view (All/Hebrew/Greek), palette "Search Lexicon", accent-free transliteration matching, reader "Look Up in Lexicon" | Mac live; iPhone simulator |
+| Lexicon entry (D2, D3, D17, D18, D19) | Strong's links in gloss/definition/derivation, Strong's context menu on Derived Terms, BDB Notes with expanded abbreviations, word replacer on lexicon prose, H853 explanation, Show All / Show Fewer occurrences, ‹ › + Search in the toolbar | Mac live (D19 build only) |
+| Psalm superscriptions (D5) | Title line above the first body verse for KJV/KJVA/Brenton (generated tables) | Mac live; iPhone simulator |
+| Annotation hide toggles (D6) | LXX / Enoch / Jubilees via the tab's `hiddenAnnotations` | Mac live |
+| Search (D7, D8, D9) | Search for selection (reader menu), ±1/±2 verse context, single-verse query → cross references | Mac live |
+| Palette (D22, D23) | Next/Previous Chapter, Show/Hide Strong's, typed-command ranking, Shift-Return = new tab | Mac live |
+| Daily notes | Long date titles with "Sabbath"; Notes Home Today's Note button | Mac live |
+| iPhone reader (I5, I14) | Hide-on-scroll capsule + dock; edge taps turn the chapter | iPhone simulator |
+| Workspaces (I21) | Icon picker (original Lucide names in `sessions.icon`) | Mac live; iPhone build |
+| Settings (I12) | iPhone Haptic Feedback toggle (`berean.haptics.enabled`) | build |
+| Mac pointer | Hand cursor on every native control | Mac live (`screencapture -C`) |

@@ -16,7 +16,9 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | SHARED-DATA-001 | No native sync; native libraries are isolated dev copies (by design until the M4 gates). | both | P1 | A01 | OPEN (gated, OD-5) |
 | IOS-FUNC-002 | Verify cross-verse touch handles, copy output, highlight/reopen and swipe arbitration on device. | iOS | P2 | S07/H02 | IN PROGRESS: single TextKit document shipped on review branch; word selection, Strong’s, nonconsecutive whole-verse Copy and Highlight verified on iPhone 18 Pro Simulator. |
 | MAC-UI-008 | Strong's search results do not highlight the matched words (the occurrence word indices are available). | both | P3 | Q03 | OPEN |
-| MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | OPEN |
+| MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | FIXED earlier (ChapterTextView `.toolTip` from `strongsTooltips`) — status corrected 2026-11-14 by the audit |
+| IOS-UI-030 | Verse action capsule: words behind the regular Liquid Glass read through the icons over red-letter text (simulator). | iOS | P3 | S08 | OPEN — verify on device first (AUDIT D/I25) |
+| MAC-FUNC-030 | Native Lexicon search misses multi-word glosses only partly; untagged-word dashed underline + click (original Strong's mode) not reproduced — replaced by the reader context-menu “Look Up in Lexicon”. | Mac | P3 | D1 | OPEN (design difference, recorded) |
 | SHARED-FUNC-010 | Verse actions lack Play Audio From Here (Copy Reference and Compare This Verse added). | both | P3 | S08 | OPEN (waits for Read Aloud) |
 | SHARED-FUNC-011 | Notes editor: tables as source text, images as captions, columns/threads without chrome (ADR-0014 limits). | both | P2 | N04/N05 | OPEN |
 | SHARED-FUNC-017 | Today’s Note still uses local midnight; port legacy sunrise anchor with no-location fallback. | both | P2 | N12 | OPEN |
@@ -65,3 +67,15 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 - MAC-FUNC-013 — Calendar opened from Mac Go/⌘K and iPhone More. Selected month and date use existing tab-state keys. Mac opened an existing daily note; iPhone opened a newly created Dev daily note. Sunrise parity tracked separately.
 - SHARED-FUNC-018 — Both targets now bundle the full Scripture catalog via explicit read-only lists. Mac ⌘K opened Didache 1 and rendered its text.
 - IOS-UI-020 — Scripture link underlines removed. Compact dock labels its three controls and shows the open-tab count. Go reuses compatible unpinned tabs.
+
+### 2026-11-14 evening (Claude Code, `native/reader-notes`)
+
+- MAC-UI-031 — FIXED: native controls (buttons, pop-ups, segmented pickers, toolbar items) showed the arrow; now the pointing hand,
+  disabled toolbar items keep the arrow and update when enabled (`ClickableCursor.swift`; verified with `screencapture -C`).
+- MAC-FUNC-031 — FIXED: ⌘K ran a Scripture search for a typed command name ("notes home"); commands now rank first (`68c75906`).
+- SHARED-UI-032 — FIXED: whole-chapter labels said "Psalms 3" in Go/palette history; now "Psalm 3" (`3fbbc918`).
+- IOS-UI-033 — FIXED: Go sheet rows rendered as blue links; now primary text with tinted icons (`3fbbc918`, simulator).
+- IOS-UI-034 — FIXED: Psalm title line used the verse hanging indent on iPhone (`30fc3d29`, simulator).
+- SHARED-FUNC-035 — FIXED: lexicon search missed accent-free spellings (shalom, chesed) (`639b41ad`).
+- SHARED-UI-036 — FIXED: destructive note/history/tag actions swallowed errors; now reported through `userMessage` (`b6223db3`).
+- Full list of the session's features and their verification: HANDOFF.md "2026-11-14 evening checkpoint" + AUDIT-2026-11-14.md.
