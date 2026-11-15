@@ -396,7 +396,9 @@ struct ScriptureView: View {
             highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
         }
         .task(id: chapter) {
-            let loaded = await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation)
+            // Psalm superscriptions become the title line above the first body verse (original reader behaviour).
+            let loaded = PsalmSuperscription.apply(await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation),
+                                                   textId: st.translation, bookId: st.bookId, chapter: st.chapter)
             let destination = state
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
             noteCounts = [:]

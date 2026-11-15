@@ -12,6 +12,11 @@ public struct ChapterVerseRow: Equatable, Sendable {
     public var textTagged: String?, title: String?
     /// Which optional columns the text database has (they appear in TypeScript rows even when NULL).
     public var hasTaggedColumn = false, hasTitleColumn = false
+    public init(bookId: String, chapter: Int, verseNum: Int, text: String, textTagged: String?, title: String?,
+                hasTaggedColumn: Bool = false, hasTitleColumn: Bool = false) {
+        self.bookId = bookId; self.chapter = chapter; self.verseNum = verseNum; self.text = text
+        self.textTagged = textTagged; self.title = title; self.hasTaggedColumn = hasTaggedColumn; self.hasTitleColumn = hasTitleColumn
+    }
 }
 public struct VerseSearchRow: Equatable, Sendable {
     public var bookId: String, chapter: Int, verseNum: Int, text: String, textTagged: String?
