@@ -185,7 +185,15 @@ struct HistoryView: View {
         }
         .navigationTitle("History")
         .toolbar {
-            ToolbarItem { Button("Clear History…", role: .destructive) { confirmClear = true }.disabled(entries.isEmpty).clickableCursor(!entries.isEmpty) }
+            ToolbarItem {
+                Button("Clear History…", systemImage: "trash", role: .destructive) { confirmClear = true }
+                    #if os(iOS)
+                    .labelStyle(.iconOnly)
+                    #else
+                    .labelStyle(.titleOnly)
+                    #endif
+                    .disabled(entries.isEmpty).clickableCursor(!entries.isEmpty)
+            }
         }
         .confirmationDialog("Clear all history on this device?", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Clear History", role: .destructive) { app.attempt("Couldn’t clear history") { try app.historyService?.clear() }; load() }
