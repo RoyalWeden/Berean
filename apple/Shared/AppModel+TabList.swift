@@ -95,6 +95,26 @@ extension AppModel {
         return direct + workspaceMatches
     }
 
+    func openPassageMatches(_ passage: ResolvedPassage) -> [WorkspaceTabMatch] {
+        var matches: [WorkspaceTabMatch] = []
+        for workspace in sessions where workspace.id != currentSessionId {
+            let candidates = workspace.tabs(in: .scripture).filter(passage.isShown(in:))
+            let active = workspace.activeTabId[.scripture] ?? nil
+            guard let tab = candidates.first(where: { $0.id == active }) ?? candidates.first else { continue }
+            let label = WorkspaceItem(session: workspace).displayName
+            matches.append(.init(workspaceID: workspace.id, workspaceName: label, tab: tab))
+            if matches.count == 6 { break }
+        }
+        return matches
+    }
+
+    func openWorkspacePassage(_ passage: ResolvedPassage, match: WorkspaceTabMatch) {
+        openWorkspaceTab(match)
+        guard currentSessionId == match.workspaceID, activeTab?.id == match.tab.id else { return }
+        recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
+                     verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
+    }
+
     func openWorkspaceTab(_ match: WorkspaceTabMatch) {
         guard let tab = sessions.first(where: { $0.id == match.workspaceID })?.allTabs.first(where: { $0.id == match.tab.id }) else { return }
         let sameWorkspace = match.workspaceID == currentSessionId

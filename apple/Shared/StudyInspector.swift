@@ -371,18 +371,12 @@ struct CommandPalette: View {
     }
 
     private func openTabs(for ref: ResolvedPassage) -> [Item] {
-        let matches: [Item] = app.sessions.filter { $0.id != app.currentSessionId }.compactMap { workspace in
-            let exact = workspace.tabs(in: .scripture).filter(ref.isShown(in:))
-            let activeId = workspace.activeTabId[.scripture] ?? nil
-            guard let tab = exact.first(where: { $0.id == activeId }) ?? exact.first else { return nil }
-            return Item(id: "open-\(workspace.id)-\(tab.id)", group: "Open in Other Workspaces",
-                        title: workspace.name, detail: tab.title, symbol: "book") { _ in
-                app.switchSession(workspace.id)
-                app.select(tab.id, in: .scripture)
-                app.recordRecent(textId: ref.textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse, verseGroups: ref.verseGroups)
+        app.openPassageMatches(ref).map { match in
+            Item(id: "open-\(match.id)", group: "Open in Other Workspaces",
+                 title: match.workspaceName, detail: match.tab.navigationLabel, symbol: "book") { _ in
+                app.openWorkspacePassage(ref, match: match)
             }
         }
-        return Array(matches.prefix(6))
     }
 
     private func actionTitle(_ item: Item) -> String {

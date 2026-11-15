@@ -98,6 +98,24 @@ struct GoSheet: View {
                     } icon: { Image(systemName: "book") }
                 }
             }
+            let matches = newTab ? [] : app.openPassageMatches(ref)
+            if !matches.isEmpty {
+                Section("Open in Other Workspaces") {
+                    ForEach(matches) { match in
+                        Button {
+                            finish { app.openWorkspacePassage(ref, match: match) }
+                        } label: {
+                            Label {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(match.tab.navigationLabel)
+                                    Text(match.workspaceName).font(.caption).foregroundStyle(.secondary)
+                                }
+                            } icon: { Image(systemName: "square.stack") }
+                        }
+                        .accessibilityHint("Switch to the existing tab")
+                    }
+                }
+            }
         } else if let id = StrongsId.normalize(trimmed) {
             Section("Lexicon") {
                 Button { go() } label: { Label("Look up \(id)", systemImage: "character.book.closed") }
