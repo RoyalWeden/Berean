@@ -1091,3 +1091,8 @@
 
 - Scripture numbers offer native open and copy commands on Mac and iPhone. Mac layouts without a Lexicon open the study panel when a number is activated.
 - Both Dev builds and 132 tests passed. The Mac Reading layout opened G2316 in the inspector during scratch QA. Context menu actions still need live verification.
+
+### 2026-11-15 — D3 — Lexicon occurrence actions
+
+- Occurrence menus now open in the current reading workflow or explicitly in a new tab, and copy the verse or reference. Mac scratch QA verified the clipboard, fresh tab, and Back flow.
+- Both Dev builds and all 132 tests passed.

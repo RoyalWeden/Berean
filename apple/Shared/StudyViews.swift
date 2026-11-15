@@ -246,6 +246,7 @@ struct LexiconEntryView: View {
         Button("Open in New Tab", systemImage: "plus.square.on.square") { app.openLexicon(id) }
         Divider()
         Button("Copy \(id)", systemImage: "doc.on.doc") { copyToPasteboard(id) }
+        Button("Copy Reference", systemImage: "number") { copyToPasteboard("Strong's \(id)") }
         if !gloss.isEmpty { Button("Copy \(id) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard("Strong's \(id) — \(gloss)") } }
     }
 
@@ -388,33 +389,8 @@ struct LexiconEntryView: View {
                             }
                             LazyVStack(alignment: .leading, spacing: 8) {
                                 ForEach(visibleRows, id: \.4) { _, o, _, preview, key in
-                                    let passage = ResolvedPassage(textId: o.textId, bookId: o.bookId, chapter: o.chapter, verse: o.verseNum)
-                                    Button {
-                                        if !compact {
-                                            app.lexiconOccurrenceReturns[tabId, default: [:]][strongsId] = key
-                                        }
-                                        leaveInspector()
-                                        app.visitScripture(passage, returningTo: tabId)
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            HStack {
-                                                Text(markFind(AttributedString(passage.label))).font(.subheadline.weight(.semibold))
-                                                    .foregroundStyle(Color.accentColor)
-                                                Text(markFind(AttributedString(textInfo(passage.textId).short)))
-                                                    .font(.caption).foregroundStyle(.secondary)
-                                                Spacer()
-                                                Image(systemName: "chevron.forward")
-                                                    .font(.caption2.weight(.semibold))
-                                                    .foregroundStyle(.secondary)
-                                                    .accessibilityHidden(true)
-                                            }
-                                            Text(markFind(highlighted(preview))).font(.callout).foregroundStyle(.secondary)
-                                                .lineLimit(matchingDestinations.contains(.occurrence(key)) ? nil : 3)
-                                        }
-                                        .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
-                                        .padding(.vertical, 4)
-                                        .contentShape(.rect)
-                                    }.buttonStyle(.interactivePlain).id(key)
+                                    occurrenceRow(o, preview: preview, key: key,
+                                                  expanded: matchingDestinations.contains(.occurrence(key)))
                                 }
                             }
                             if occurrenceMatches.count > visibleOccurrences {
@@ -602,6 +578,58 @@ struct LexiconEntryView: View {
             }
             occurrencesLoading = false
         }
+    }
+
+    private func occurrenceRow(_ occurrence: LexiconOccurrence, preview: OccurrencePreview,
+                               key: OccurrenceKey, expanded: Bool) -> some View {
+        let passage = ResolvedPassage(textId: occurrence.textId, bookId: occurrence.bookId,
+                                      chapter: occurrence.chapter, verse: occurrence.verseNum)
+        let reference = passage.label + (passage.textId == "lxx" ? " LXX" : "")
+        return Button {
+            openOccurrence(passage, key: key)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(markFind(AttributedString(passage.label))).font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    Text(markFind(AttributedString(textInfo(passage.textId).short)))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "chevron.forward")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                Text(markFind(highlighted(preview))).font(.callout).foregroundStyle(.secondary)
+                    .lineLimit(expanded ? nil : 3)
+            }
+            .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
+            .padding(.vertical, 4)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .contextMenu {
+            Button("Open Verse", systemImage: "book") { openOccurrence(passage, key: key) }
+            Button("Open in New Tab", systemImage: "plus.square") { openOccurrence(passage, key: key, newTab: true) }
+            Divider()
+            if !preview.words.isEmpty {
+                Button("Copy Verse", systemImage: "doc.on.doc") {
+                    Clipboard.copy(reference + " " + preview.words.joined(separator: " "))
+                    AccessibilityNotification.Announcement("Verse copied").post()
+                }
+            }
+            Button("Copy Reference", systemImage: "number") {
+                Clipboard.copy(reference)
+                AccessibilityNotification.Announcement("Reference copied").post()
+            }
+        }
+        .id(key)
+    }
+
+    private func openOccurrence(_ passage: ResolvedPassage, key: OccurrenceKey, newTab: Bool = false) {
+        if !compact { app.lexiconOccurrenceReturns[tabId, default: [:]][strongsId] = key }
+        leaveInspector()
+        app.visitScripture(passage, reuseTab: !newTab, returningTo: tabId)
     }
 
     private func leaveInspector() {
