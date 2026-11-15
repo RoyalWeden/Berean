@@ -1026,3 +1026,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 - **02:02 I19 auto em dash:** typing "--" in either note editor makes "—" (skips inline code and a leading "-" rule start); Settings → Notes toggle `berean.notes.autoEmDash` (default on, matches the original). Mac verified on the Dev note "Insert menu QA" (text "a—b" left there).
   - fix 02:05: "---" typed at line start stays a divider (dashes at line start never convert); verified "---" → rule and "x--y" → "x—y".
 - **02:12 I16 book-scoped search:** reader selection → "Search for … in John" (Mac context menu, iPhone edit menu) opens a Search tab limited to that book and text via existing `bookIds`/`scopeTexts` keys (`AppModel.openBookSearch`). Mac verified.
+  - iPhone verified too: John 5 "was" → Search in John → 156 results, all John.
