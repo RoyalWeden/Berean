@@ -70,6 +70,11 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         var parent: RichNoteEditorIOS
         weak var textView: NoteUITextView?
         var editing = false
+        private var proseItems: [UIBarButtonItem] = []
+        private var cellItems: [UIBarButtonItem] = []
+        private weak var previousCellItem: UIBarButtonItem?
+        private weak var nextCellItem: UIBarButtonItem?
+        private var showingCellNavigation = false
 
         /// Format bar docked above the keyboard (original iPhone note editor): bold, italic, highlight, heading, list,
         /// checklist, quote, link, and a key to hide the keyboard.
@@ -86,7 +91,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 return b
             }
             let flex = UIBarButtonItem.flexibleSpace()
-            bar.items = [
+            let formatting = [
                 item("arrow.uturn.backward", "Undo") { $0.undoManager?.undo() }, flex,
                 item("arrow.uturn.forward", "Redo") { $0.undoManager?.redo() }, flex,
                 item("bold", "Bold") { $0.wrap("**", "**") }, flex,
@@ -95,12 +100,36 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 item("textformat.size", "Heading") { $0.setHeading(2) }, flex,
                 item("list.bullet", "Bulleted List") { $0.setList(.bullet) }, flex,
                 item("checklist", "Checklist") { $0.setList(.checklist) }, flex,
+            ]
+            let dismiss = item("keyboard.chevron.compact.down", "Hide Keyboard") { $0.resignFirstResponder() }
+            proseItems = formatting + [
                 item("text.quote", "Quote") { $0.wrap("\n> ", "") }, flex,
                 item("link", "Link") { $0.wrap("[", "](https://)") }, flex,
-                item("keyboard.chevron.compact.down", "Hide Keyboard") { $0.resignFirstResponder() },
+                dismiss,
             ]
+            let next = item("chevron.forward", "Next Cell") { $0.moveTableCell(from: $0.selectedRange, backwards: false) }
+            let previous = item("chevron.backward", "Previous Cell") { $0.moveTableCell(from: $0.selectedRange, backwards: true) }
+            previousCellItem = previous
+            nextCellItem = next
+            cellItems = formatting + [previous, flex, next, flex, dismiss]
+            bar.items = proseItems
             bar.sizeToFit()
             return bar
+        }
+
+        private func updateTableNavigation() {
+            guard let tv = textView, let bar = tv.inputAccessoryView as? UIToolbar else { return }
+            let previous = tv.tableCellDestination(backwards: true) != nil
+            let next = tv.tableCellDestination(backwards: false) != nil
+            let showCells = previous || next
+            if showCells != showingCellNavigation {
+                showingCellNavigation = showCells
+                bar.setItems(showCells ? cellItems : proseItems, animated: false)
+            }
+            if showCells {
+                previousCellItem?.isEnabled = previous
+                nextCellItem?.isEnabled = next
+            }
         }
         var hidden = IndexSet()
         var substitutions: [Int: (len: Int, glyph: String)] = [:]
@@ -210,6 +239,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
 
         func textViewDidBeginEditing(_ textView: UITextView) {
             NotificationCenter.default.post(name: .bereanNoteEditing, object: true)
+            updateTableNavigation()
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
@@ -221,9 +251,11 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             parent.text = textView.text
             restyle()
             editing = false
+            updateTableNavigation()
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            defer { updateTableNavigation() }
             let r = textView.selectedRange
             guard r.length == 0, hidden.contains(r.location) else { return }
             var loc = r.location
@@ -303,7 +335,7 @@ final class NoteUITextView: UITextView {
         return commands
     }
 
-    private func tableCellDestination(backwards: Bool) -> NSRange? {
+    func tableCellDestination(backwards: Bool) -> NSRange? {
         guard markedTextRange == nil else { return nil }
         return noteTableCellDestination(in: (text ?? "") as NSString, selection: selectedRange,
                                         backwards: backwards)
@@ -328,7 +360,7 @@ final class NoteUITextView: UITextView {
         moveTableCell(from: selectedRange, backwards: command.modifierFlags.contains(.shift))
     }
 
-    private func moveTableCell(from selection: NSRange, backwards: Bool) {
+    func moveTableCell(from selection: NSRange, backwards: Bool) {
         guard markedTextRange == nil,
               let destination = noteTableCellDestination(in: (text ?? "") as NSString, selection: selection,
                                                          backwards: backwards) else { return }
