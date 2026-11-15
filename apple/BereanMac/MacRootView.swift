@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import BereanCore
 import BereanWorkspace
 import BereanReference
@@ -25,9 +26,9 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
-        .toolbarBackground(Color.black.opacity(app.commandPaletteShown ? paletteDimOpacity : 0),
-                           for: .windowToolbar)
-        .toolbarBackground(app.commandPaletteShown ? .visible : scriptureToolbarBackground, for: .windowToolbar)
+        .toolbarBackground(scriptureToolbarBackground, for: .windowToolbar)
+        // Match the content scrim above the native toolbar glass.
+        .background { ToolbarDimOverlay(isVisible: app.commandPaletteShown, opacity: paletteDimOpacity) }
         .disabled(app.commandPaletteShown)
         .studyTrailSheet(app: app)
         .overlay(alignment: .top) {
@@ -127,6 +128,99 @@ struct MacRootView: View {
                                    description: Text("Press ⌘T to open a passage, a Strong's number or a search."))
         }
     }
+}
+
+/// Adds a pass-through tint over the native titlebar, where the SwiftUI content overlay cannot
+/// reach the toolbar's glass buttons. The frame is derived from the public contentLayoutRect and
+/// converted into the window frame view's coordinates; no titlebar implementation classes are
+/// inspected.
+private struct ToolbarDimOverlay: NSViewRepresentable {
+    let isVisible: Bool
+    let opacity: Double
+
+    func makeNSView(context: Context) -> ToolbarDimOverlayHostView {
+        ToolbarDimOverlayHostView()
+    }
+
+    func updateNSView(_ view: ToolbarDimOverlayHostView, context: Context) {
+        view.configure(isVisible: isVisible, opacity: opacity)
+    }
+}
+
+private final class ToolbarDimOverlayHostView: NSView {
+    private let tintView = PassThroughTintView()
+    private var isVisible = false
+    private var opacity: Double = 0
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if let window {
+            NotificationCenter.default.removeObserver(self, name: NSWindow.didResizeNotification, object: window)
+        }
+        tintView.removeFromSuperview()
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let window {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidResize(_:)),
+                                                   name: NSWindow.didResizeNotification, object: window)
+        }
+        layoutTitlebarTint()
+    }
+
+    @objc private func windowDidResize(_ notification: Notification) {
+        layoutTitlebarTint()
+    }
+
+    func configure(isVisible: Bool, opacity: Double) {
+        self.isVisible = isVisible
+        self.opacity = opacity
+        layoutTitlebarTint()
+    }
+
+    override func layout() {
+        super.layout()
+        layoutTitlebarTint()
+    }
+
+    private func layoutTitlebarTint() {
+        guard let window, let frameView = window.contentView?.superview else {
+            tintView.removeFromSuperview()
+            return
+        }
+        guard isVisible else {
+            tintView.removeFromSuperview()
+            return
+        }
+
+        // contentLayoutRect is in window coordinates and ends where the titlebar begins.
+        let contentRect = window.contentLayoutRect
+        let titlebarRect = CGRect(x: 0, y: contentRect.maxY,
+                                  width: window.frame.width,
+                                  height: max(0, window.frame.height - contentRect.maxY))
+        guard titlebarRect.height > 0 else {
+            tintView.removeFromSuperview()
+            return
+        }
+        tintView.frame = frameView.convert(titlebarRect, from: nil)
+        tintView.layer?.backgroundColor = NSColor.black.withAlphaComponent(opacity).cgColor
+        if tintView.superview !== frameView {
+            tintView.removeFromSuperview()
+            frameView.addSubview(tintView, positioned: .above, relativeTo: nil)
+        }
+    }
+}
+
+private final class PassThroughTintView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 
