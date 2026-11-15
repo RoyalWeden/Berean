@@ -123,6 +123,20 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(chapter.byVerse[16]?.contains { $0.bookId == "JHN" && $0.verse == 16 && $0.endVerse == nil } == false)
     }
 
+    @Test func wholeChapterCitationsUseAliasesAndExcludeVerseOnlyAndTrashedNotes() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        for (id, content) in [("alias", "See Exod 20."), ("verse", "Exodus 20:11"),
+                              ("different", "Leviticus 20"), ("trash", "Exodus 20")] {
+            _ = try notes.create(.init(id: id, type: "verse", title: id, content: content,
+                                       verseRef: "JHN.3.16", textId: "kjva"))
+        }
+        _ = try notes.create(.init(id: "general", title: "General", content: "Exodus 20"))
+        try notes.delete("trash")
+        #expect(try notes.notesCitingChapter("EXO", 20, textId: "kjva").map(\.id) == ["alias"])
+    }
+
     @Test func verseInspectorIncludesRangeAttachments() throws {
         let range = try svc.create(.init(type: "verse", title: "Range", verseRef: "JHN.3.14-16", textId: "kjva")).note
         let chapter = try svc.create(.init(type: "verse", title: "Chapter", verseRef: "JHN.3", textId: "kjva")).note

@@ -931,3 +931,7 @@ Next, implement the read-only aggregation in `NotesService` using `byChapter` an
 ### My Notes in Cross Refs
 
 The shared Mac and iPhone inspector now offers My Notes alongside TSKe and Classic. The read-only NotesService gathers attached-note links, reverse verse-note links, and indirect note mentions. Passage actions can open the source note. The inspector refreshes after Notes changes, distinguishes LXX links, and preserves chapter/selected-verse scope switching. The backlink candidate search follows the legacy canonical chapter query and 80-note cap. Reader dots and the chapter banner remain open. Run the Mac and iPhone interaction checks with a synthetic direct verse note, a reverse verse note, and an indirect general note before calling live parity verified.
+
+### Mac chapter citation menu
+
+Mac Scripture offers a compact “notes cite this chapter” menu above the reader when live verse notes cite the whole chapter. Each entry opens its source note. Lookup narrows candidates by chapter number, then uses the legacy-compatible parser so book abbreviations work and verse-only references do not appear. The reader refreshes after Notes changes. iPhone matches the legacy reader's banner-free layout. Next live check: create a synthetic verse note containing “Exod 20”, open Exodus 20, open the source from the menu, edit the citation to “Exod 20:11”, and verify the menu disappears on return. Per-verse citation dots and hover previews are still open.

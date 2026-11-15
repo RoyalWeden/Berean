@@ -1017,3 +1017,8 @@
 
 - My Notes is a Cross Refs source on Mac and iPhone. It shows attached-note citations, reverse verse-note links, and a separate Indirect Mentions section. Links retain their edition and provide a source-note action.
 - `npm run native:check` passed with 112 Swift tests across 40 suites and both Dev builds. The synthetic database fixture checks verse ranges, LXX identity, deduplication, and exclusion of trashed notes. Live UI verification remains pending.
+
+### 2026-11-14 — Mac Scripture chapter citations — BUILD VERIFIED
+
+- A compact menu lists verse notes that cite the whole chapter and opens the source note. The synthetic SQLite test covers abbreviated book names, verse-only references, other chapters, general notes, and trashed notes.
+- `npm run native:check` passed with 113 Swift tests and both Dev builds. Live menu and edit-refresh checks remain pending.

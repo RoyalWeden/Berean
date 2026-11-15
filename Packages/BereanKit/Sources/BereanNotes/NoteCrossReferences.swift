@@ -1,4 +1,5 @@
 import BereanReference
+import BereanSQLite
 
 public struct NoteCrossReferences: Sendable {
     public struct Link: Sendable {
@@ -21,6 +22,26 @@ public struct NoteCrossReferences: Sendable {
 }
 
 extension NotesService {
+    /// Verse notes that cite the whole chapter. Match the chapter number first so aliases
+    /// and abbreviated book names are left to the reference parser.
+    public func notesCitingChapter(_ bookId: String, _ chapter: Int, textId: String) throws -> [Note] {
+        let hermas = HermasText(textId: textId)
+        let number = Int(Reference.displayChapter(bookId, Double(chapter)))
+        let candidates = try db.query("""
+            SELECT n.* FROM notes_fts
+            JOIN notes n ON n.rowid = notes_fts.rowid
+            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL AND n.verse_ref IS NOT NULL
+            ORDER BY n.updated_at DESC, n.id
+            """, [.text(Self.ftsQuery(String(number), phrase: false))])
+        return candidates.map(Self.note).filter { note in
+            guard let attachment = note.verseRef,
+                  attachment.split(separator: ",").contains(where: { Reference.parseNoteAttachment(String($0))?.verse != nil })
+            else { return false }
+            return NoteVerseRefs.extract(content: note.content, title: note.title, hermas: hermas)
+                .contains { $0.bookId == bookId && $0.chapter == chapter && $0.isChapter }
+        }
+    }
+
     /// Read-only counterpart of the legacy My Notes cross-reference source.
     public func crossReferences(bookId: String, chapter: Int, textId: String, selected: Set<Int> = []) throws -> NoteCrossReferences {
         let attached = try attachedNotes(bookId, chapter, textId: textId)

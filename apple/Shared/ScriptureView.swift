@@ -240,6 +240,9 @@ struct ScriptureView: View {
     @State private var selection: Set<Int> = []
     @State private var anchor: Int?
     @State private var noteCounts: [Int: Int] = [:]
+    #if os(macOS)
+    @State private var chapterCitations: (key: String, notes: [Note])?
+    #endif
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
     #if os(macOS)
@@ -343,6 +346,12 @@ struct ScriptureView: View {
         let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
         let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
         VStack(spacing: 0) {
+            #if os(macOS)
+            if loadedChapter == chapter, !verses.isEmpty,
+               let chapterCitations, chapterCitations.key == chapter, !chapterCitations.notes.isEmpty {
+                chapterCitationMenu(chapterCitations.notes)
+            }
+            #endif
             Group {
                 if loadedChapter != chapter {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -393,6 +402,10 @@ struct ScriptureView: View {
             guard loadedChapter == chapter else { return }
             noteCounts = (try? app.notes?.coveringVerseCounts(st.bookId, st.chapter,
                                                               verses: Set(verses.map(\.verseNum)), textId: st.translation)) ?? [:]
+            #if os(macOS)
+            let citations = (try? app.notes?.notesCitingChapter(st.bookId, st.chapter, textId: st.translation)) ?? []
+            chapterCitations = (chapter, citations)
+            #endif
         }
         .task(id: "\(st.bookId)|\(st.chapter)|\(app.tagsRevision)") {
             if let r = try? app.verseTags?.forChapter(st.bookId, st.chapter) { verseTags = r.verseTags; chapterTags = r.chapterTags } else { verseTags = [:]; chapterTags = [] }
@@ -428,6 +441,27 @@ struct ScriptureView: View {
             loadedChapter = chapter
         }
     }
+
+    #if os(macOS)
+    private func chapterCitationMenu(_ notes: [Note]) -> some View {
+        Menu {
+            ForEach(notes) { note in
+                Button(note.title.isEmpty ? "Untitled" : note.title, systemImage: "note.text") {
+                    app.openNote(note.id)
+                }
+            }
+        } label: {
+            Label(notes.count == 1 ? "1 note cites this chapter" : "\(notes.count) notes cite this chapter",
+                  systemImage: "link")
+                .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .clickableCursor()
+        .fixedSize()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+    }
+    #endif
 
     private func unavailablePassage(_ st: BibleState) -> some View {
         let source = ChapterEdition(st)
