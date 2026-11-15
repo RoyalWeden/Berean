@@ -122,6 +122,22 @@ struct GoSheet: View {
                 Label(title, systemImage: "magnifyingglass")
             }
         }
+        let archived = newTab ? [] : app.matchingArchivedTabs(trimmed)
+        if !archived.isEmpty {
+            Section("Archived Tabs") {
+                ForEach(archived) { match in
+                    Button { finish { app.restoreArchivedTab(match.tab.id, from: match.groupID) } } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(match.tab.navigationLabel)
+                                Text(match.groupTitle).font(.caption).foregroundStyle(.secondary)
+                            }
+                        } icon: { Image(systemName: "archivebox") }
+                    }
+                    .accessibilityHint("Restore and open this tab")
+                }
+            }
+        }
         if StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber), trimmed.split(separator: " ").count <= 2 {
             Section("Lexicon") {
                 Button {

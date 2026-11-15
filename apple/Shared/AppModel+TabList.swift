@@ -2,6 +2,13 @@ import Foundation
 import BereanCore
 import BereanWorkspace
 
+struct ArchivedTabMatch: Identifiable {
+    let groupID: String
+    let groupTitle: String
+    let tab: BereanWorkspace.Tab
+    var id: String { "\(groupID)/\(tab.id)" }
+}
+
 /// The sidebar's tab list, as the existing desktop shows it (TabBar.tsx): ONE list per session in the
 /// user's own order (`sessionDisplayOrders` ⇄ the synced `display_order_key`), pinned tabs first, every
 /// tab type mixed; plus tab archiving (ArchivedGroup rows, `tabs_json` = the archived tabs as JS objects).
@@ -221,6 +228,23 @@ extension AppModel {
 
     func archivedTabs(_ g: ArchivedGroup) -> [BereanWorkspace.Tab] {
         g.tabs
+    }
+
+    func matchingArchivedTabs(_ query: String, limit: Int = 6) -> [ArchivedTabMatch] {
+        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
+        guard !terms.isEmpty else { return [] }
+        let titles = archiveTitles()
+        var matches: [ArchivedTabMatch] = []
+        for group in archivedGroups {
+            let title = titles[group.id] ?? group.label
+            for tab in archivedTabs(group) {
+                let searchable = "\(tab.navigationSearchText) \(title)"
+                guard terms.allSatisfy({ searchable.localizedStandardContains(String($0)) }) else { continue }
+                matches.append(ArchivedTabMatch(groupID: group.id, groupTitle: title, tab: tab))
+                if matches.count >= limit { return matches }
+            }
+        }
+        return matches
     }
 
     /// Restore saved sidebar placement when available and keep the current reading position.

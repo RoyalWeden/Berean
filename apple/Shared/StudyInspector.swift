@@ -291,6 +291,12 @@ struct CommandPalette: View {
             out.append(Item(id: "note-\(n.id)", group: "Notes", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab) })
         }
         if !trimmed.isEmpty && !newTab {
+            for match in app.matchingArchivedTabs(trimmed) {
+                out.append(Item(id: "archived-\(match.id)", group: "Archived Tabs", title: match.tab.navigationLabel,
+                                detail: match.groupTitle, symbol: "archivebox") { _ in
+                    app.restoreArchivedTab(match.tab.id, from: match.groupID)
+                })
+            }
             for workspace in app.workspaceItems.filter({ $0.matches(trimmed) }).prefix(6) {
                 let detail = workspace.tabTitles.first { $0.localizedCaseInsensitiveContains(trimmed) } ?? workspace.preview ?? ""
                 out.append(Item(id: workspace.id, group: "Workspaces", title: workspace.displayName, detail: detail == workspace.displayName ? workspace.displayDetail : detail,
@@ -363,6 +369,7 @@ struct CommandPalette: View {
         switch item.group {
         case "Open in Other Workspaces": return "Switch to Tab"
         case "Workspaces": return "Open Workspace"
+        case "Archived Tabs": return "Restore Tab"
         case "Commands": return "Run Command"
         default:
             if newTab && item.offersOpenMenu { return "Open in New Tab" }
