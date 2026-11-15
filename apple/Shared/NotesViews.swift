@@ -1300,6 +1300,9 @@ struct VerseNotesView: View {
 struct NoteVersionHistoryView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     let noteId: String
     let currentTitle: String
     let currentContent: String
@@ -1312,33 +1315,11 @@ struct NoteVersionHistoryView: View {
 
     var body: some View {
         NavigationStack {
-            HStack(spacing: 0) {
-                List(selection: $selection) {
-                    if versions.isEmpty { Text("No versions yet. Versions are saved while you edit, or with Save Version Now.").foregroundStyle(.secondary) }
-                    ForEach(versions) { v in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(Date(timeIntervalSince1970: Double(v.createdAt) / 1000), format: .dateTime.month().day().year().hour().minute())
-                            Text(Self.kindLabel(v.kind)).font(.caption).foregroundStyle(.secondary)
-                        }.tag(v.id)
-                    }
-                }
-                .frame(minWidth: 220, idealWidth: 240, maxWidth: 280)
-                .safeAreaInset(edge: .bottom) {
-                    Button { try? app.notes?.createVersion(noteId: noteId, title: currentTitle, content: currentContent, kind: "manual"); load() } label: {
-                        Label("Save Version Now", systemImage: "plus.circle").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderless).padding(10).clickableCursor()
-                }
-                Divider()
-                Group {
-                    if let v = selected {
-                        ScrollView { MarkdownText(v.content).textSelection(.enabled).padding(20) }
-                    } else {
-                        ContentUnavailableView("Select a version", systemImage: "clock.arrow.circlepath")
-                    }
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            historyContent
             .navigationTitle("Version History")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Restore") { confirmRestore = true }.disabled(selected == nil) }
@@ -1349,8 +1330,97 @@ struct NoteVersionHistoryView: View {
                 }
             } message: { Text("The current text is saved as a version first, so you can undo this.") }
         }
+        #if os(macOS)
         .frame(minWidth: 640, minHeight: 440)
+        #endif
         .task { load() }
+    }
+
+    @ViewBuilder private var historyContent: some View {
+        #if os(iOS)
+        if horizontalSizeClass == .compact { compactHistory }
+        else { splitHistory }
+        #else
+        splitHistory
+        #endif
+    }
+
+    private var splitHistory: some View {
+        HStack(spacing: 0) {
+            List(selection: $selection) {
+                if versions.isEmpty { emptyHistoryMessage }
+                ForEach(versions) { version in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(versionDate(version))
+                        Text(Self.kindLabel(version.kind)).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .tag(version.id)
+                }
+            }
+            .frame(minWidth: 220, idealWidth: 240, maxWidth: 280)
+            .safeAreaInset(edge: .bottom) { saveVersionButton.padding(10) }
+            Divider()
+            preview.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    #if os(iOS)
+    private var compactHistory: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if versions.isEmpty {
+                emptyHistoryMessage.padding(20)
+                Spacer()
+            } else {
+                Picker("Version", selection: $selection) {
+                    ForEach(versions) { version in
+                        Text("\(versionDate(version)) · \(Self.kindLabel(version.kind))")
+                            .tag(Optional(version.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                Divider()
+                preview
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .safeAreaInset(edge: .bottom) {
+            saveVersionButton.padding(12).background(.bar)
+        }
+    }
+    #endif
+
+    private var emptyHistoryMessage: some View {
+        Text("No versions yet. Versions are saved while you edit, or with Save Version Now.")
+            .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder private var preview: some View {
+        if let selected {
+            ScrollView { MarkdownText(selected.content).textSelection(.enabled).padding(20) }
+                .id(selected.id)
+        } else {
+            ContentUnavailableView("Select a version", systemImage: "clock.arrow.circlepath")
+        }
+    }
+
+    private var saveVersionButton: some View {
+        Button {
+            app.attempt("Couldn’t save the note version") {
+                try app.notes?.createVersion(noteId: noteId, title: currentTitle, content: currentContent, kind: "manual")
+            }
+            load()
+        } label: {
+            Label("Save Version Now", systemImage: "plus.circle").frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderless)
+        .clickableCursor()
+    }
+
+    private func versionDate(_ version: NoteVersion) -> String {
+        Date(timeIntervalSince1970: Double(version.createdAt) / 1000)
+            .formatted(.dateTime.month().day().year().hour().minute())
     }
 
     func load() { versions = (try? app.notes?.versions(of: noteId)) ?? []; selection = versions.first?.id }

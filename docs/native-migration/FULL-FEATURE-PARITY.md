@@ -51,7 +51,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N05 | Images and attachments | partial | ❌ | ❌ | P2 | Images shown as alt-text caption only |
 | N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links and wikilinks clickable; Scripture refs in plain text not auto-linked |
 | N07 | Autosave | implemented | ✅ | ✅ | — | 600 ms autosave + snapshots on idle/leave/close |
-| N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet, restore with pre-restore snapshot (golden); undo via text system |
+| N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet with a compact iPhone selector and full-width preview; restore with pre-restore snapshot (golden); undo via text system |
 | N09 | Export, import, print | implemented | ✅ | 🟡 | — | Export (save panel) / import / copy; iPhone document picker untapped; no print |
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
 | N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes home supports folder navigation, sort/group, pin/trash/restore and scoped search. Board and advanced appearance parity remain. |
@@ -427,7 +427,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `notesService` (`createVersion`, `pruneNoteVersions`, `getVersions`, `restoreVersion`), `src/components/notes/NoteVersionHistory.tsx`, `prosemirror-history` in `keymap.ts`.
 - **Known original defects:** Undo stack is in-memory; lost on reload.
-- **Native Mac / iPhone:** ✅ / 🟡 — Version history sheet, restore with pre-restore snapshot (golden); undo via text system
+- **Native Mac / iPhone:** ✅ / 🟡 — Version history sheet with a compact iPhone selector and full-width preview; restore with pre-restore snapshot (golden); undo via text system
 - **Native files:** NotesViews.swift NoteVersionHistoryView
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
