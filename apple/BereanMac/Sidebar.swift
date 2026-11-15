@@ -316,6 +316,9 @@ struct BereanSidebar: View {
 
     @ViewBuilder func tabMenu(_ tab: BereanWorkspace.Tab) -> some View {
         Button("Duplicate Tab") { app.duplicate(tab.id) }
+        Menu("Change Tab To") {
+            ForEach(AppModel.TabKind.allCases, id: \.self) { kind in Button(kind.rawValue) { app.switchTab(tab.id, to: kind) } }
+        }
         Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") { app.togglePin(tab.id) }
         let destinations = app.tabMoveDestinations
         if !destinations.isEmpty {
