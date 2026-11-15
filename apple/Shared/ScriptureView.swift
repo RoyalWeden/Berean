@@ -1380,7 +1380,7 @@ struct ScriptureView: View {
         .pointerStyle(.link)
         #endif
         .accessibilityLabel("\(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)), \(textInfo(st.translation).name). Choose passage or text")
-        .help("Choose book, chapter or text — search every text, see history (⌘L)")
+        .help("Choose book, chapter or text — search every text or see history")
         Button { step(1) } label: { passageArrow("Next Chapter", "chevron.forward") }
             .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
             #if os(macOS)
@@ -1626,7 +1626,24 @@ let highlightColors = ["yellow", "red", "green", "blue", "purple"]
 
 extension Color {
     static func highlight(_ name: String) -> Color {
-        switch name { case "red": return .red; case "green": return .green; case "blue": return .blue; case "purple": return .purple; case "orange": return .orange; default: return .yellow }
+        switch name {
+        case "red": return .red
+        case "green": return .green
+        case "blue": return .blue
+        case "purple": return .purple
+        case "orange": return .orange
+        // Existing notes can carry the additional color names from the web editor.
+        case "amber": return Color(red: 251 / 255, green: 191 / 255, blue: 36 / 255)
+        case "rose": return Color(red: 251 / 255, green: 113 / 255, blue: 133 / 255)
+        case "pink": return Color(red: 244 / 255, green: 114 / 255, blue: 182 / 255)
+        case "violet": return Color(red: 167 / 255, green: 139 / 255, blue: 250 / 255)
+        case "indigo": return Color(red: 129 / 255, green: 140 / 255, blue: 248 / 255)
+        case "sky": return Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
+        case "cyan": return Color(red: 34 / 255, green: 211 / 255, blue: 238 / 255)
+        case "teal": return Color(red: 45 / 255, green: 212 / 255, blue: 191 / 255)
+        case "lime": return Color(red: 163 / 255, green: 230 / 255, blue: 53 / 255)
+        default: return .yellow
+        }
     }
 }
 

@@ -1051,3 +1051,8 @@
 
 - Command-L prefills and selects the current location, prefers the active compatible tab, and records a Back route for destinations in another space. Renamed the palette command to Notes and made the title-bar dimming use the same strength as the content.
 - Mac Dev build and scratch UI verified same-tab Scripture navigation, Back, Strong’s prefill, and Notes. Dark mode, fullscreen, and additional tab types remain open.
+
+### 2026-11-15 — N03 — Notes highlight colors
+
+- Format → Highlight offers six colors on both native apps. The editor renders existing legacy colors and preserves Markdown compatibility.
+- Both Dev builds passed. Mac scratch QA applied Blue to selected text and verified its markup. The 17 focused Swift selection checks and the full package suite (128 Swift tests and 4 XCTest tests) passed. iPhone interaction remains open.

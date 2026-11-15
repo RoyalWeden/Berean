@@ -61,6 +61,7 @@ struct RichNoteEditor: NSViewRepresentable {
                       let window = editor.window else { return }
                 switch request.action {
                 case .inline(let open, let close): editor.wrapSelection(open, close)
+                case .highlight(let color): editor.setHighlight(color)
                 case .heading(let level): editor.setHeading(level)
                 case .list(let style): editor.setList(style)
                 case .insertTable: editor.insertTable()
@@ -254,6 +255,11 @@ final class NoteTextView: NSTextView {
         replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
+    func setHighlight(_ color: String?) {
+        guard let edit = noteHighlightEdit(in: string as NSString, selection: selectedRange(), color: color) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
     func setHeading(_ level: Int) {
         guard let edit = noteHeadingEdit(in: string as NSString, selection: selectedRange(), level: level) else { return }
         replace(edit.range, with: edit.replacement, select: edit.selection)
@@ -332,7 +338,7 @@ final class NoteTextView: NSTextView {
         case ([.command], "i"): wrapSelection("*", "*"); return true
         case ([.command], "u"): wrapSelection("<u>", "</u>"); return true
         case ([.command, .shift], "x"): wrapSelection("~~", "~~"); return true
-        case ([.command, .shift], "h"): wrapSelection("==", "=="); return true
+        case ([.command, .shift], "h"): setHighlight(nil); return true
         case ([.command], "c"): copy(nil); return true
         case ([.command, .option, .shift], "c"): copyPlainText(nil); return true
         case ([.command], "v"): paste(nil); return true

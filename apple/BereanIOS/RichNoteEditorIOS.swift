@@ -49,6 +49,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 guard coordinator?.parent.formatRequest == request, let tv, tv.window != nil else { return }
                 switch request.action {
                 case .inline(let open, let close): tv.wrap(open, close)
+                case .highlight(let color): tv.setHighlight(color)
                 case .heading(let level): tv.setHeading(level)
                 case .list(let style): tv.setList(style)
                 case .insertTable: tv.insertTable()
@@ -96,7 +97,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 item("arrow.uturn.forward", "Redo") { $0.undoManager?.redo() }, flex,
                 item("bold", "Bold") { $0.wrap("**", "**") }, flex,
                 item("italic", "Italic") { $0.wrap("*", "*") }, flex,
-                item("highlighter", "Highlight") { $0.wrap("==", "==") }, flex,
+                item("highlighter", "Highlight") { $0.setHighlight(nil) }, flex,
                 item("textformat.size", "Heading") { $0.setHeading(2) }, flex,
                 item("list.bullet", "Bulleted List") { $0.setList(.bullet) }, flex,
                 item("checklist", "Checklist") { $0.setList(.checklist) }, flex,
@@ -318,7 +319,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 UIAction(title: "Italic", image: UIImage(systemName: "italic")) { _ in tv.wrap("*", "*") },
                 UIAction(title: "Underline", image: UIImage(systemName: "underline")) { _ in tv.wrap("<u>", "</u>") },
                 UIAction(title: "Strikethrough", image: UIImage(systemName: "strikethrough")) { _ in tv.wrap("~~", "~~") },
-                UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { _ in tv.wrap("==", "==") },
+                UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { _ in tv.setHighlight(nil) },
             ])
             var items = suggestedActions
             if range.length > 0 { items.insert(UIAction(title: "Copy as Plain Text", image: UIImage(systemName: "doc.plaintext")) { _ in tv.copyPlain() }, at: 0) }
@@ -392,6 +393,10 @@ final class NoteUITextView: UITextView {
 
     func wrap(_ open: String, _ close: String) {
         applyFormatEdit(noteFormatEdit(in: (text ?? "") as NSString, selection: selectedRange, opening: open, closing: close))
+    }
+
+    func setHighlight(_ color: String?) {
+        applyFormatEdit(noteHighlightEdit(in: (text ?? "") as NSString, selection: selectedRange, color: color))
     }
 
     func setHeading(_ level: Int) {

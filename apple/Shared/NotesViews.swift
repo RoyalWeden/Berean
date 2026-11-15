@@ -34,6 +34,7 @@ struct NoteFormatRequest: Equatable {
     let id = UUID()
     enum Action: Equatable {
         case inline(String, String)
+        case highlight(String?)
         case heading(Int)
         case list(NoteListStyle)
         case insertTable
@@ -66,6 +67,49 @@ func noteFormatEdit(in text: NSString, selection: NSRange, opening: String, clos
     }
     return (selection, opening + inner + closing,
             NSRange(location: selection.location + prefixLength, length: selection.length))
+}
+
+private let noteHighlightPattern = try! NSRegularExpression(
+    pattern: #"<mark class="hl-[a-z]+">(.+?)</mark>|==(?=\S)(.+?)(?<=\S)=="#
+)
+
+func noteHighlightEdit(in text: NSString, selection: NSRange, color: String?)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.location <= text.length,
+          selection.length <= text.length - selection.location else { return nil }
+    let line = text.lineRange(for: NSRange(location: selection.location, length: 0))
+    let selectedText = text.substring(with: selection)
+    guard NSMaxRange(selection) <= NSMaxRange(line),
+          selectedText.rangeOfCharacter(from: .newlines) == nil else { return nil }
+    if color != nil, selectedText.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+
+    var range = selection
+    var content = selectedText
+    // The selection may include the hidden delimiters when made with a keyboard.
+    for match in noteHighlightPattern.matches(in: text as String, range: line) {
+        if selection.length == 0, selection.location > match.range.location,
+           selection.location < NSMaxRange(match.range) { return nil }
+        guard NSIntersectionRange(match.range, selection).length > 0 else { continue }
+        let coloredContent = match.range(at: 1)
+        let inner = coloredContent.location == NSNotFound ? match.range(at: 2) : coloredContent
+        guard NSIntersectionRange(inner, selection) == inner,
+              NSIntersectionRange(match.range, selection) == selection else { return nil }
+        if color == nil, coloredContent.location == NSNotFound {
+            return (match.range, text.substring(with: inner), NSRange(location: match.range.location, length: inner.length))
+        }
+        range = match.range
+        content = text.substring(with: inner)
+    }
+
+    if color == nil, range == selection, content == selectedText {
+        return noteFormatEdit(in: text, selection: selection, opening: "==", closing: "==")
+    }
+    if color == nil, content.trimmingCharacters(in: .whitespaces) != content { return nil }
+    let opening = color.map { "<mark class=\"hl-\($0)\">" } ?? "=="
+    let closing = color == nil ? "==" : "</mark>"
+    let replacement = opening + content + closing
+    guard replacement != text.substring(with: range) else { return nil }
+    return (range, replacement, NSRange(location: range.location + opening.utf16.count, length: content.utf16.count))
 }
 
 func noteHeadingEdit(in text: NSString, selection: NSRange, level: Int)
@@ -539,7 +583,22 @@ struct NoteDetailView: View {
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")
                         formatButton("Underline", symbol: "underline", prefix: "<u>", suffix: "</u>")
                         formatButton("Strikethrough", symbol: "strikethrough", prefix: "~~", suffix: "~~")
-                        formatButton("Highlight", symbol: "highlighter", prefix: "==", suffix: "==")
+                        Menu("Highlight", systemImage: "highlighter") {
+                            Button("Default", systemImage: "highlighter") {
+                                formatRequest = NoteFormatRequest(action: .highlight(nil))
+                            }
+                            ForEach(highlightColors + ["orange"], id: \.self) { color in
+                                Button {
+                                    formatRequest = NoteFormatRequest(action: .highlight(color))
+                                } label: {
+                                    Label {
+                                        Text(color.capitalized)
+                                    } icon: {
+                                        Image(systemName: "circle.fill").foregroundStyle(Color.highlight(color))
+                                    }
+                                }
+                            }
+                        }
                     } label: {
                         Label("Format", systemImage: "textformat")
                     }

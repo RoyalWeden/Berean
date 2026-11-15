@@ -46,7 +46,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | Q10 | YouTube transcript search | implemented (see M04) | ❌ | ❌ | P3 | Depends on YouTube (M01) |
 | N01 | General, verse and daily notes | implemented | 🟡 | 🟡 | P1 | General and verse notes create/edit; Today’s Note and the Calendar open daily notes on both platforms. |
 | N02 | Markdown model and ProseMirror structure | implemented | 🟡 | 🟡 | P1 | Live-preview editor over verbatim Markdown (ADR-0014) — no data loss by construction; structures shown simplified |
-| N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings and lists. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open. |
+| N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings, lists, and six named highlight colors. Existing legacy highlight colors render in the native editor. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open. |
 | N04 | Tables | implemented | 🟡 | 🟡 | P2 | Markdown tables support insertion, row and column add/delete, whole-table deletion, keyboard cell navigation, and iPhone cell controls in the edit menu and above the software keyboard. Mac whole-table deletion, undo, redo, and note reopening passed live QA. Grid rendering and broader editing QA remain open. |
 | N05 | Images and attachments | partial | ❌ | ❌ | P2 | Images shown as alt-text caption only |
 | N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links and wikilinks clickable; Scripture refs in plain text not auto-linked |
@@ -382,7 +382,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/*`, `src/lib/noteTextBlocks.ts`, `bereanMigrations.ts` v24/v27 collapse tables.
 - **Known original defects:** Alignment is PM attr, stored how in markdown? UNVERIFIED (not read).
-- **Native Mac / iPhone:** 🟡 / 🟡 — Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings and lists. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open.
+- **Native Mac / iPhone:** 🟡 / 🟡 — Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings, lists, and six named highlight colors. Existing legacy highlight colors render in the native editor. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open.
 - **Native files:** RichNoteEditor.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
