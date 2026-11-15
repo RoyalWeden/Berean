@@ -348,10 +348,6 @@ struct ScriptureView: View {
         Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
     }
 
-    private var chapterAnnotationFilters: Set<String> {
-        hiddenAnnotations.subtracting([AnnotationFilters.kjvaSuppliedWords])
-    }
-
     var body: some View {
         let st = state
         Group {
@@ -477,7 +473,7 @@ struct ScriptureView: View {
             app.chapterStepRequest = nil
             step(request.delta)
         }
-        .task(id: "\(chapter)|\(chapterAnnotationFilters.sorted().joined(separator: ","))") {
+        .task(id: chapter) {
             // Psalm superscriptions become the title line above the first body verse (original reader behaviour).
             var loaded = PsalmSuperscription.apply(await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation),
                                                    textId: st.translation, bookId: st.bookId, chapter: st.chapter)
@@ -485,10 +481,6 @@ struct ScriptureView: View {
             if st.translation == "lxx", MissingLxxVerses.eligible(bookId: st.bookId, chapter: st.chapter) {
                 let kjv = await app.bible.queryChapter(st.bookId, st.chapter, textId: "kjva")
                 loaded = MissingLxxVerses.annotate(loaded, comparingTo: kjv)
-            }
-            let hidden = chapterAnnotationFilters
-            if !hidden.isEmpty {
-                loaded = loaded.map { $0.hidingTextAnnotations(hidden, textId: st.translation) }
             }
             let destination = state
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
@@ -645,8 +637,8 @@ struct ScriptureView: View {
 
     private func shareSelection(_ state: BibleState, rows: [ChapterVerseRow]) -> SharedVerseSelection {
         SharedVerseSelection(reference: selectionLabel(state) + (state.translation == "lxx" ? " LXX" : ""),
-                             rows: rows, textId: state.translation,
-                             replacerEnabled: app.wordReplacerEnabled,
+                             rows: rows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: state.translation) },
+                             textId: state.translation, replacerEnabled: app.wordReplacerEnabled,
                              hideSuppliedWords: hideKJVASuppliedWords)
     }
 
@@ -1410,7 +1402,8 @@ struct ScriptureView: View {
     }
 
     private func clipboardVerseText(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
-        VerseDisplay.text(verse.text, tagged: verse.textTagged, textId: state.translation,
+        let visible = verse.hidingTextAnnotations(hiddenAnnotations, textId: state.translation)
+        return VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: state.translation,
                           replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules,
                           hideSuppliedWords: hideKJVASuppliedWords)
     }
@@ -1437,22 +1430,29 @@ extension Color {
 
 private func displayedHighlightRanges(_ highlights: [Highlight], words: [String], original: String) -> [ReaderVerse.Mark] {
     var offset = 0
-    let bounds = words.map { word in
+    let originalWords = original.components(separatedBy: " ")
+    let bounds = originalWords.map { word in
         let start = offset
         offset += word.utf16.count + 1
         return start..<(offset - 1)
     }
     let shown = words.joined(separator: " ")
     return highlights.compactMap { highlight in
-        if let start = highlight.startChar, let end = highlight.endChar {
-            let mapped = OffsetMap.originalToDisplay(display: shown, original: original, offsets: [start, end])
-            guard mapped[0] < mapped[1] else { return nil }
-            return .init(start: mapped[0], end: mapped[1], color: highlight.color)
+        let start: Int
+        let end: Int
+        if let startChar = highlight.startChar, let endChar = highlight.endChar {
+            start = startChar
+            end = endChar
+        } else {
+            guard let startWord = highlight.startWord, bounds.indices.contains(startWord) else { return nil }
+            let endWord = min(highlight.endWord ?? startWord, bounds.count - 1)
+            guard endWord >= startWord else { return nil }
+            start = bounds[startWord].lowerBound
+            end = bounds[endWord].upperBound
         }
-        guard let start = highlight.startWord, bounds.indices.contains(start) else { return nil }
-        let end = min(highlight.endWord ?? start, bounds.count - 1)
-        guard end >= start, bounds[start].lowerBound < bounds[end].upperBound else { return nil }
-        return .init(start: bounds[start].lowerBound, end: bounds[end].upperBound, color: highlight.color)
+        let mapped = OffsetMap.originalToDisplay(display: shown, original: original, offsets: [start, end])
+        guard mapped[0] < mapped[1] else { return nil }
+        return .init(start: mapped[0], end: mapped[1], color: highlight.color)
     }
 }
 
@@ -1578,8 +1578,10 @@ enum Clipboard {
 extension ScriptureView {
     func readerVerses(_ st: BibleState) -> [ReaderVerse] {
         let rules = app.wordReplacerEnabled ? WordReplacer.defaultRules : []
-        let hideSuppliedWords = hideKJVASuppliedWords
-        return verses.map { v in
+        let hidden = hiddenAnnotations
+        let hideSuppliedWords = hidden.contains(AnnotationFilters.kjvaSuppliedWords)
+        return verses.map { original in
+            let v = original.hidingTextAnnotations(hidden, textId: st.translation)
             var words: [ReaderVerse.Word]
             if let tagged = v.textTagged, !tagged.isEmpty, st.translation == "kjva" || st.translation == "lxx" {
                 words = VerseDisplay.renderTokens(v.text, tagged: tagged, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules,
@@ -1591,7 +1593,7 @@ extension ScriptureView {
                 let plain = VerseDisplay.text(v.text, tagged: nil, textId: st.translation, replacerEnabled: app.wordReplacerEnabled, rules: rules)
                 words = plain.split(separator: " ", omittingEmptySubsequences: false).map { .init(text: String($0), italic: false, red: false, strongs: []) }
             }
-            let marks = displayedHighlightRanges(highlights[v.verseNum] ?? [], words: words.map(\.text), original: v.text)
+            let marks = displayedHighlightRanges(highlights[v.verseNum] ?? [], words: words.map(\.text), original: original.text)
             let whole = highlights[v.verseNum]?.last { $0.startChar == nil && $0.startWord == nil }
             var rendered = ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                        tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
