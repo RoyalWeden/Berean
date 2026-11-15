@@ -1045,3 +1045,7 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 - **01:30 iPhone select mode verified** (All Notes → Select → checkmark, '1 selected', bulk bar above the dock; Done, no changes). Simulator now has 14 tabs (test Search tabs from book-search checks).
 - **01:33 notes bulk Share** (combined Markdown of selected notes via ShareLink). Mac bar shows it.
 - **01:37 D20 default layout (Mac):** Settings → Reading → Layout for new Scripture tabs (`defaultScriptureLayout`, original key name). Verified via saved tab state; test default removed afterwards.
+
+> **Correction (real time 01:21):** the "HH:MM" labels on the 2026-11-15 Claude bullets above drifted ahead of the clock (some read
+> 01:3x–02:1x but were written between 00:40 and 01:20). Treat them as order only; use `git log --format='%h %cd %s' --date=format:%H:%M`
+> for real times.
