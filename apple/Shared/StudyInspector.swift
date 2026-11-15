@@ -86,7 +86,7 @@ struct CommandPalette: View {
                                 symbol: "square.stack") { app.open(workspace) })
             }
         }
-        let commands: [(String, String, () -> Void)] = [
+        var commands: [(String, String, () -> Void)] = [
             ("New Note", "square.and.pencil", { app.newNote() }),
             ("Today's Note", "calendar", { app.openTodayDailyNote() }),
             ("Calendar", "calendar", { app.openCalendar(newTab: newTab) }),
@@ -96,6 +96,17 @@ struct CommandPalette: View {
             ("Search Lexicon", "character.book.closed", { app.openLexiconSearch(newTab: newTab) }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
         ]
+        // Reader commands (original lib/commands.ts) when a Scripture tab is active.
+        if let tab = app.activeTab, tab.tabType == .bible {
+            let strongs = BibleState(tab.state).showStrongs
+            commands += [
+                ("Next Chapter", "chevron.forward", { app.chapterStepRequest = .init(tabId: tab.id, delta: 1) }),
+                ("Previous Chapter", "chevron.backward", { app.chapterStepRequest = .init(tabId: tab.id, delta: -1) }),
+                (strongs ? "Hide Strong's Numbers" : "Show Strong's Numbers", "number", {
+                    app.update(tab.id, recordHistory: false) { $0.state["showStrongs"] = .bool(!strongs) }
+                }),
+            ]
+        }
         var leading: [Item] = []
         for (t, sym, run) in commands where trimmed.isEmpty || t.localizedCaseInsensitiveContains(trimmed) {
             let item = Item(id: "cmd-\(t)", group: "Commands", title: t, detail: "", symbol: sym, run: run)

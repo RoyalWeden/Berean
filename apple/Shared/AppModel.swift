@@ -534,6 +534,9 @@ final class AppModel {
     @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
     /// Lexicon tab id → last search (query, language). In memory only: not written to tab state.
     @ObservationIgnored var lexiconSearches: [String: (query: String, lang: String)] = [:]
+    /// A chapter step asked for outside the reader (command palette); the reader for `tabId` performs it.
+    struct ChapterStepRequest: Equatable { let tabId: String; let delta: Int; let nonce = UUID() }
+    var chapterStepRequest: ChapterStepRequest?
     @ObservationIgnored var lexiconOccurrenceOptions: [String: [String: LexiconEntryView.OccurrenceOptions]] = [:]
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]

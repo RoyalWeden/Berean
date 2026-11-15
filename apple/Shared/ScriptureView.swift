@@ -400,6 +400,11 @@ struct ScriptureView: View {
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
             highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
         }
+        .onChange(of: app.chapterStepRequest) { _, request in
+            guard let request, request.tabId == tabId else { return }
+            app.chapterStepRequest = nil
+            step(request.delta)
+        }
         .task(id: "\(chapter)|\(hiddenAnnotations.sorted().joined(separator: ","))") {
             // Psalm superscriptions become the title line above the first body verse (original reader behaviour).
             var loaded = PsalmSuperscription.apply(await app.bible.queryChapter(st.bookId, st.chapter, textId: st.translation),
