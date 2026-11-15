@@ -294,6 +294,8 @@ struct ScriptureView: View {
 
     @State private var pendingSelectionDestination: SelectionDestination?
     /// Verses selected by clicking verse numbers (⇧-click extends from `anchor`), as in the existing reader.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Set<Int> = []
     @State private var anchor: Int?
     @State private var noteCounts: [Int: Int] = [:]
@@ -451,15 +453,22 @@ struct ScriptureView: View {
                     unavailablePassage(st)
                 } else {
                     #if os(macOS)
-                    macReader(st, actionClearance: actionSpace)
+                    GeometryReader { geometry in
+                        GeometryReader { underlap in
+                            let titleBar = max(0, geometry.frame(in: .global).minY - underlap.frame(in: .global).minY)
+                            macReader(st, actionClearance: actionSpace, titleBarClearance: titleBar)
+                                .clipped()
+                        }
+                        .ignoresSafeArea(.container, edges: .top)
+                    }
                     #else
                     iosReader(st, actionClearance: actionSpace)
                     #endif
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
             #if os(iOS)
+            .clipped()
             .overlay(alignment: .topTrailing) {
                 if let pinchFontSize {
                     Text("\(Int(pinchFontSize)) pt")
@@ -1032,6 +1041,7 @@ struct ScriptureView: View {
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
             scrollTarget: scrollTarget,
             actionClearance: actionClearance,
+            animateOutline: !reduceMotion && scenePhase == .active,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             findRequest: findRequest,
@@ -1734,7 +1744,7 @@ import AppKit
 
 extension ScriptureView {
     /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
-    func macReader(_ st: BibleState, actionClearance: CGFloat) -> some View {
+    func macReader(_ st: BibleState, actionClearance: CGFloat, titleBarClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
         let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
         let suffix = st.translation == "lxx" ? " LXX" : ""
@@ -1744,6 +1754,8 @@ extension ScriptureView {
             style: readerStyle(st),
             selectedVerses: selection, scrollTarget: scrollTarget,
             actionClearance: actionClearance,
+            animateOutline: !reduceMotion && scenePhase == .active,
+            titleBarClearance: titleBarClearance,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
@@ -1931,6 +1943,43 @@ private struct VerseActionPopover<Actions: View>: View {
     }
 }
 #endif
+
+/// Drives the outline only while a reader with selected verses is on screen.
+@MainActor final class ReaderOutlineMotion {
+    private var timer: Timer?
+    private(set) var phase: CGFloat = 0
+
+    func update(active: Bool, redraw: @escaping @MainActor () -> Void) {
+        guard active else {
+            timer?.invalidate()
+            timer = nil
+            if phase != 0 {
+                phase = 0
+                redraw()
+            }
+            return
+        }
+        guard timer == nil else { return }
+        let started = ProcessInfo.processInfo.systemUptime
+        let timer = Timer(timeInterval: 1.0 / 20, repeats: true) { [weak self] timer in
+            let active = MainActor.assumeIsolated {
+                guard let self else { return false }
+                let travel = (ProcessInfo.processInfo.systemUptime - started) * 3
+                self.phase = -travel.truncatingRemainder(dividingBy: 7)
+                redraw()
+                return true
+            }
+            if !active { timer.invalidate() }
+        }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+}
+
+struct ScriptureScrollTarget: Equatable {
+    let verse: Int
+    let lastSelectedVerse: Int?
+}
 
 private struct VerseActionMenuChrome: ViewModifier {
     func body(content: Content) -> some View {

@@ -37,7 +37,8 @@ extension NSView {
         let enabled = toolbarItemEnabled
         ToolbarCursorWatch.record(self, enabled: enabled)
         if enabled == false { return }
-        addCursorRect(bounds, cursor: .pointingHand)
+        discardCursorRects()
+        addCursorRect(visibleRect, cursor: .pointingHand)
     }
 
     /// The hosted NSToolbarItem's enabled state, when the private viewer exposes `item` (nil if it doesn't).
@@ -57,7 +58,9 @@ extension NSView {
 extension NSControl {
     @objc func berean_resetCursorRects() {
         berean_resetCursorRects()   // the original implementation after the exchange
-        if isEnabled, !isHidden, bounds.width > 0 { addCursorRect(bounds, cursor: .pointingHand) }
+        guard isEnabled, !isHidden, !visibleRect.isEmpty else { return }
+        discardCursorRects()
+        addCursorRect(visibleRect, cursor: .pointingHand)
     }
 }
 

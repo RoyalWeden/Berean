@@ -19,6 +19,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var selectedVerses: Set<Int>
     var scrollTarget: Int?
     var actionClearance: CGFloat = 0
+    var animateOutline = true
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var findRequest: Int
@@ -46,7 +47,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeUIView(context: Context) -> UITextView {
+    func makeUIView(context: Context) -> ReaderTextView {
         let storage = NSTextStorage()
         let layout = OutlineLayoutManager()
         let container = NSTextContainer(size: .zero)
@@ -54,6 +55,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         layout.addTextContainer(container)
         let view = ReaderTextView(frame: .zero, textContainer: container)
         layout.reader = context.coordinator
+        layout.view = view
         view.reader = context.coordinator
         view.isEditable = false
         view.isSelectable = true
@@ -83,13 +85,13 @@ struct IOSChapterTextView: UIViewRepresentable {
         return view
     }
 
-    static func dismantleUIView(_ view: UITextView, coordinator: Coordinator) {
+    static func dismantleUIView(_ view: ReaderTextView, coordinator: Coordinator) {
         guard coordinator.passageId == coordinator.parent.passageId else { return }
         let offset = max(0, view.contentOffset.y + view.adjustedContentInset.top)
         coordinator.parent.savePosition(ScriptureReadingPosition(offset: offset, verse: coordinator.readingAnchor(in: view)?.verse))
     }
 
-    func updateUIView(_ view: UITextView, context: Context) {
+    func updateUIView(_ view: ReaderTextView, context: Context) {
         let coordinator = context.coordinator
         let shouldFind = coordinator.parent.findRequest != findRequest
         coordinator.parent = self
@@ -100,6 +102,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) },
                       verses: verses, style: style, dark: colorScheme == .dark)
+        view.updateOutlineMotion()
         let samePassage = coordinator.passageId == passageId
         let previousSelection = coordinator.renderedSelection
         let revealVerse = samePassage ? selectedVerses.subtracting(previousSelection).max() : nil
@@ -197,14 +200,17 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
-        if let target = scrollTarget, target != coordinator.lastTarget, let range = coordinator.verseRanges[target] {
-            coordinator.lastTarget = target
+        if let target = scrollTarget, let range = coordinator.verseRanges[target] {
+            let request = ScriptureScrollTarget(verse: target, lastSelectedVerse: selectedVerses.max())
+            guard request != coordinator.lastTarget else { return }
+            coordinator.lastTarget = request
             let currentPassage = passageId
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
-                      coordinator.parent.scrollTarget == target, coordinator.lastTarget == target,
+                      coordinator.parent.scrollTarget == target, coordinator.lastTarget == request,
+                      coordinator.parent.selectedVerses.max() == request.lastSelectedVerse,
                       NSMaxRange(range) <= view.textStorage.length else { return }
-                let lastRange = coordinator.parent.selectedVerses.max().flatMap { verse in
+                let lastRange = request.lastSelectedVerse.flatMap { verse in
                     verse >= target ? coordinator.verseRanges[verse] : nil
                 }
                 coordinator.layoutThroughEnd(of: lastRange.map { NSUnionRange(range, $0) } ?? range, in: view)
@@ -245,6 +251,23 @@ struct IOSChapterTextView: UIViewRepresentable {
     final class ReaderTextView: UITextView {
         weak var reader: Coordinator?
 
+        let outlineMotion = ReaderOutlineMotion()
+
+        func updateOutlineMotion() {
+            let parent = reader?.parent
+            outlineMotion.update(active: window != nil && parent?.animateOutline == true && parent?.selectedVerses.isEmpty == false) { [weak self] in
+                guard let self, let reader else { return }
+                for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges) {
+                    layoutManager.invalidateDisplay(forCharacterRange: range)
+                }
+            }
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            updateOutlineMotion()
+        }
+
         override func copy(_ sender: Any?) {
             if let copy = reader?.plainSelection(in: self) {
                 Clipboard.copy(copy)
@@ -256,6 +279,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
     private final class OutlineLayoutManager: NSLayoutManager {
         weak var reader: Coordinator?
+        weak var view: ReaderTextView?
 
         override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
             defer { super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin) }
@@ -266,6 +290,8 @@ struct IOSChapterTextView: UIViewRepresentable {
             defer { context.restoreGState() }
             UIColor.tintColor.withAlphaComponent(ReaderFloatingControls.outlineOpacity).setStroke()
             UIColor.tintColor.withAlphaComponent(ReaderFloatingControls.fillOpacity).setFill()
+            let textView = view
+            let phase = MainActor.assumeIsolated { textView?.outlineMotion.phase ?? 0 }
             for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges) {
                 let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
                 guard glyphs.length > 0, NSIntersectionRange(glyphs, glyphsToShow).length > 0 else { continue }
@@ -277,7 +303,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 guard !rect.isEmpty else { continue }
                 let outline = UIBezierPath(roundedRect: rect, cornerRadius: ReaderFloatingControls.outlineRadius)
                 outline.lineWidth = 1
-                outline.setLineDash([4, 3], count: 2, phase: 0)
+                outline.setLineDash([4, 3], count: 2, phase: phase)
                 outline.fill()
                 outline.stroke()
             }
@@ -412,7 +438,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         var passageId: String?
-        var lastTarget: Int?
+        var lastTarget: ScriptureScrollTarget?
         var verseRanges: [Int: NSRange] = [:]
         var renderedSelection: Set<Int> = []
         private var markerRanges: [Int: NSRange] = [:]

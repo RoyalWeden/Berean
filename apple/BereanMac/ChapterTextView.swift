@@ -69,6 +69,8 @@ struct ChapterTextView: NSViewRepresentable {
     var selectedVerses: Set<Int> = []
     var scrollTarget: Int?
     var actionClearance: CGFloat = 0
+    var animateOutline = true
+    var titleBarClearance: CGFloat = 0
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
@@ -139,6 +141,8 @@ struct ChapterTextView: NSViewRepresentable {
         let c = context.coordinator
         c.parent = self
         guard let tv = c.textView else { return }
+        tv.titleBarClearance = titleBarClearance
+        tv.updateOutlineMotion()
         let clip = scroll.contentView
         if scroll.contentInsets.bottom != actionClearance {
             let bounds = clip.bounds
@@ -232,24 +236,28 @@ struct ChapterTextView: NSViewRepresentable {
             }
         }
         if scrollTarget == nil { c.scrolledTo = nil }
-        if let target = scrollTarget, target != c.scrolledTo, c.verseRanges[target] != nil {
-            c.scrolledTo = target
+        if let target = scrollTarget, c.verseRanges[target] != nil {
+            let request = ScriptureScrollTarget(verse: target, lastSelectedVerse: selectedVerses.max())
+            guard request != c.scrolledTo else { return }
+            c.scrolledTo = request
             let destination = passageId
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll, let c,
                       c.parent.passageId == destination, c.parent.scrollTarget == target,
+                      c.scrolledTo == request, c.parent.selectedVerses.max() == request.lastSelectedVerse,
                       let range = c.verseRanges[target], let container = tv.textContainer else { return }
                 tv.layoutManager?.ensureLayout(for: container)
-                if let rect = tv.firstRect(forVerseRange: range) {
+                if let top = tv.firstVerseLineTop(in: range) {
                     let clip = scroll.contentView
                     var proposed = clip.bounds
-                    proposed.origin.y = rect.minY - 12
-                    if let lastVerse = c.parent.selectedVerses.max(),
+                    let titleBarClearance = tv.visibleTitleBarClearance
+                    proposed.origin.y = top - titleBarClearance - 12
+                    if let lastVerse = request.lastSelectedVerse,
                        lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
                        let bottom = tv.lastVerseLineBottom(in: lastRange) {
                         let lastLine = bottom + ReaderFloatingControls.readingGap
                         let readingHeight = proposed.height - c.parent.actionClearance
-                        if lastLine - rect.minY <= readingHeight {
+                        if lastLine - top <= readingHeight - titleBarClearance {
                             proposed.origin.y = max(proposed.origin.y, lastLine - readingHeight)
                         }
                     }
@@ -271,7 +279,7 @@ struct ChapterTextView: NSViewRepresentable {
         weak var textView: ReaderTextView?
         var lastKey: Key?
         var lastPassage = ""
-        var scrolledTo: Int?
+        var scrolledTo: ScriptureScrollTarget?
         /// verse → range of its paragraph (number + text) in the text storage.
         var renderedSelection: Set<Int> = []
         private var markerRanges: [Int: NSRange] = [:]
@@ -550,6 +558,21 @@ struct ChapterTextView: NSViewRepresentable {
 /// NSTextView with verse-aware context menu, copy and link hover underline.
 final class ReaderTextView: NSTextView {
     weak var coordinator: ChapterTextView.Coordinator?
+    private let outlineMotion = ReaderOutlineMotion()
+
+    func updateOutlineMotion() {
+        let parent = coordinator?.parent
+        outlineMotion.update(active: window != nil && parent?.animateOutline == true && parent?.selectedVerses.isEmpty == false) { [weak self] in
+            self?.needsDisplay = true
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateReadingInset(for: frame.width)
+        updateOutlineMotion()
+    }
+
     private var hovered: NSRange?
     private var tracking: NSTrackingArea?
 
@@ -564,7 +587,20 @@ final class ReaderTextView: NSTextView {
 
     private func updateReadingInset(for width: CGFloat) {
         let inset = max(20, (width - readerWidth.macMaximum) / 2)
-        if abs(textContainerInset.width - inset) > 0.5 { textContainerInset = NSSize(width: inset, height: 18) }
+        let next = NSSize(width: inset, height: 18 + visibleTitleBarClearance)
+        if textContainerInset != next { textContainerInset = next }
+    }
+
+    fileprivate var titleBarClearance: CGFloat = 0 {
+        didSet { if oldValue != titleBarClearance { updateReadingInset(for: frame.width) } }
+    }
+
+    fileprivate var visibleTitleBarClearance: CGFloat {
+        guard window?.styleMask.contains(.fullScreen) != true else {
+            return titleBarClearance
+        }
+        // Hidden toolbar backgrounds can make SwiftUI report no top safe-area inset.
+        return max(52, titleBarClearance)
     }
 
     override var acceptsFirstResponder: Bool { true }
@@ -591,7 +627,7 @@ final class ReaderTextView: NSTextView {
             let radius = ReaderFloatingControls.outlineRadius
             let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
             path.lineWidth = 1
-            path.setLineDash([4, 3], count: 2, phase: 0)
+            path.setLineDash([4, 3], count: 2, phase: outlineMotion.phase)
             path.fill()
             path.stroke()
         }
@@ -773,6 +809,15 @@ extension NSTextView {
         var rect = lm.boundingRect(forGlyphRange: g, in: tc)
         rect.origin.y += textContainerOrigin.y
         return rect
+    }
+
+    fileprivate func firstVerseLineTop(in range: NSRange) -> CGFloat? {
+        guard range.length > 0, let layoutManager else { return nil }
+        let first = NSRange(location: range.location, length: 1)
+        let glyphs = layoutManager.glyphRange(forCharacterRange: first, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return nil }
+        return layoutManager.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil).minY
+            + textContainerOrigin.y
     }
 
     fileprivate func lastVerseLineBottom(in range: NSRange) -> CGFloat? {

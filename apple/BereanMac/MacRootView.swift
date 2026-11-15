@@ -25,9 +25,9 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                 }
         }
-        .toolbarBackground(Color.black.opacity(app.commandPaletteShown ? 0.07 : 0),
+        .toolbarBackground(Color.black.opacity(app.commandPaletteShown ? paletteDimOpacity : 0),
                            for: .windowToolbar)
-        .toolbarBackground(app.commandPaletteShown ? .visible : .automatic, for: .windowToolbar)
+        .toolbarBackground(app.commandPaletteShown ? .visible : scriptureToolbarBackground, for: .windowToolbar)
         .disabled(app.commandPaletteShown)
         .studyTrailSheet(app: app)
         .overlay(alignment: .top) {
@@ -56,6 +56,11 @@ struct MacRootView: View {
         .alert("Library", isPresented: Binding(get: { app.libraryError != nil }, set: { if !$0 { app.libraryError = nil } })) {
             Button("OK") { app.libraryError = nil }
         } message: { Text(app.libraryError ?? "") }
+    }
+
+    private var scriptureToolbarBackground: Visibility {
+        guard let tab = app.activeTab, tab.tabType == .bible, !BibleState(tab.state).compareMode else { return .automatic }
+        return .hidden
     }
 
     /// [sidebar] [‹] [›] — one group, the same order whether the sidebar is shown or hidden.
@@ -98,6 +103,7 @@ struct MacRootView: View {
                                 })) { ForEach(ScriptureLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) } }
                                     .pickerStyle(.inline)
                             } label: { Label("Layout", systemImage: layout.symbol) }
+                            .menuIndicator(.hidden)
                         }
                     }
             case .lexicon:
