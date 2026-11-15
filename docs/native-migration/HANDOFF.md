@@ -1063,3 +1063,9 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
   "Proverbs 8:2, 4"; extra Search tabs in the simulator workspace; macOS local-network permission for BereanMac answered "Don't Allow".
 - Next picks: see "01:12 — next picks" above (I24 platform integrations, D14 two-slot inspector, D20/D21 continuous scroll, I15 themes,
   I6 select/bulk close) plus a physical-iPhone pass of everything marked simulator-verified.
+
+> **Status of the three headline requests (re-confirmed 05:05):** all implemented and on this branch —
+> (1) one rounded dashed outline around adjacent selected verses (`ChapterTextView` / `IOSChapterTextView`; verified Mac John 3:5–8
+> and iPhone Proverbs 8:22–24 earlier); (2) pointing-hand cursor on every enabled control (`BereanMac/ClickableCursor.swift` +
+> `clickableCursor()`; verified with `screencapture -C`); (3) floating verse action bar with scroll clearance (`ScriptureView.selectionBar`,
+> `actionClearance`; verified Mac and iPhone). The 01:44 time box itself was missed by ~20 min because of the usage limit.
