@@ -9,6 +9,14 @@ struct DeepLinkTests {
             == .search(query: "grace and mercy"))
     }
 
+    @Test func nativePassageLinkRoundTripsRangeAndEdition() throws {
+        let range = try #require(DeepLink.nativeDevPassageURL(bookId: "Genesis", chapter: 1, verse: 2, endVerse: 4, textId: "lxx"))
+        #expect(DeepLink.parse(range.absoluteString) == .verse(bookId: "GEN", chapter: 1, verse: 2, endVerse: 4, textId: "lxx"))
+        let chapter = try #require(DeepLink.nativeDevPassageURL(bookId: "SIR", chapter: 0, textId: "some+edition"))
+        #expect(DeepLink.parse(chapter.absoluteString) == .verse(bookId: "SIR", chapter: 0, textId: "some+edition"))
+        #expect(DeepLink.nativeDevPassageURL(bookId: "GEN", chapter: 0, textId: "kjva") == nil)
+    }
+
     @Test(arguments: [
         ("berean://verse/Gen/1/1", DeepLinkRoute.verse(bookId: "GEN", chapter: 1, verse: 1)),
         ("berean://verse/Genesis/1/1-5?text=lxx", .verse(bookId: "GEN", chapter: 1, verse: 1, endVerse: 5, textId: "lxx")),

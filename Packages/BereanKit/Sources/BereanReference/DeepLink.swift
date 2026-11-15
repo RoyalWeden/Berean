@@ -24,6 +24,30 @@ public enum DeepLink {
     private static let verseSpec = JSRegex(#"^(\d+)(?:-(\d+))?$"#)
     private static let strongsID = JSRegex(#"^[HG]\d{1,5}[A-Z]?$"#)
 
+    /// Creates a native Dev passage link that includes its edition and optional verse range.
+    public static func nativeDevPassageURL(bookId: String, chapter: Int, verse: Int? = nil,
+                                           endVerse: Int? = nil, textId: String) -> URL? {
+        guard let book = Reference.resolveBookToken(bookId),
+              chapter > 0 || (chapter == 0 && ["SIR", "1CL"].contains(book)),
+              verse.map({ $0 >= 0 }) ?? true,
+              endVerse.map({ end in verse.map { end >= $0 } ?? false }) ?? true,
+              !textId.isEmpty else { return nil }
+        var path = "/\(book)/\(chapter)"
+        if let verse {
+            path += "/\(verse)"
+            if let endVerse, endVerse != verse { path += "-\(endVerse)" }
+        }
+        var components = URLComponents()
+        components.scheme = nativeDevScheme
+        components.host = "verse"
+        components.path = path
+        // The route parser follows URLSearchParams, which interprets literal plus as space.
+        components.queryItems = [URLQueryItem(name: "text", value: textId)]
+        let query = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        components.percentEncodedQuery = query
+        return components.url
+    }
+
     /// Port of src/lib/deepLinks.ts. Transport and destination handling belong to the caller.
     public static func parse(_ href: String, hermas: HermasText = .robertsDonaldson) -> DeepLinkRoute? {
         guard let url = URLComponents(string: JSText.trim(href)), let scheme = url.scheme?.lowercased() else {

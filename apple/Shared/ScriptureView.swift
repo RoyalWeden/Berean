@@ -197,6 +197,13 @@ struct ChapterExportActions: View {
             Clipboard.copy(referenceForCopy(chapterLabel, textId: state.translation))
             AccessibilityNotification.Announcement("Reference copied").post()
         }
+        if let url = DeepLink.nativeDevPassageURL(bookId: state.bookId, chapter: state.chapter, textId: state.translation) {
+            Button("Copy Native Dev Link", systemImage: "link") {
+                Clipboard.copy(url.absoluteString)
+                AccessibilityNotification.Announcement("Chapter link copied").post()
+            }
+            .disabled(!hasText)
+        }
         Button("Save Chapter as Text…", systemImage: "square.and.arrow.down") {
             Task {
                 do {
@@ -646,6 +653,16 @@ struct ScriptureView: View {
         let rows = selectedRows
         if !rows.isEmpty {
             let selection = shareSelection(state, rows: rows)
+            let links = consecutiveVerseRuns(self.selection).compactMap { run in
+                DeepLink.nativeDevPassageURL(bookId: state.bookId, chapter: state.chapter, verse: run.lowerBound,
+                                             endVerse: run.upperBound, textId: state.translation)?.absoluteString
+            }
+            if !links.isEmpty {
+                Button(links.count == 1 ? "Copy Native Dev Link" : "Copy Native Dev Links", systemImage: "link") {
+                    Clipboard.copy(links.joined(separator: "\n"))
+                    AccessibilityNotification.Announcement(links.count == 1 ? "Verse link copied" : "Verse links copied").post()
+                }
+            }
             Button("Save Verses as Text…", systemImage: "square.and.arrow.down") {
                 NoteFileTransfer.export(selection.formattedText, suggestedName: selection.fileName,
                                         title: "Save Verses as Text", type: .plainText) { outcome in

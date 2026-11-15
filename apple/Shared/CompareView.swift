@@ -781,6 +781,13 @@ struct CompareView: View {
             Clipboard.copy(reference)
             AccessibilityNotification.Announcement("Reference copied").post()
         }
+        if let url = DeepLink.nativeDevPassageURL(bookId: row.bookId, chapter: row.chapter,
+                                                  verse: row.verseNum, textId: column.text) {
+            Button("Copy Native Dev Link", systemImage: "link") {
+                Clipboard.copy(url.absoluteString)
+                AccessibilityNotification.Announcement("Verse link copied").post()
+            }
+        }
         Menu("Highlight Verse", systemImage: "highlighter") {
             ForEach(highlightColors, id: \.self) { color in
                 Button(color.capitalized, systemImage: "circle.fill") {
