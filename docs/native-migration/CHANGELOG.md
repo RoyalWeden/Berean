@@ -984,3 +984,8 @@
 - Mac Scripture selection controls use regular glass with individual rollover feedback and the standard pointer. The window toolbar still hosts passage navigation.
 - Scripture Search keeps an active edition filter clearable at zero matches and counts results in the focused edition.
 - Xcode 27.2 Mac and iPhone Simulator Dev builds passed, including the Dev bundle identity checks. Live glass appearance and the filter recovery interaction remain pending. No production data touched.
+
+### 2026-11-14 — Cross-reference sidebar — MAC LIVE VERIFIED
+
+- Chapter and multi-verse cross references use one expandable row per verse with a reference count. TSKe headings and reciprocal links appear inside that verse.
+- Mac and iPhone Simulator Dev builds passed. Mac Dev Ephesians 2 verified expansion in Classic and TSKe. iPhone interaction and discontinuous selection remain pending.

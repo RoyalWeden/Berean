@@ -496,7 +496,7 @@ struct CrossRefsView: View {
     @AppStorage("crossrefSource") private var source = "tske"
     @State private var loadedReference: String?
     @State private var groups: [ReferenceGroup] = []
-    @State private var expandedGroups: Set<Int> = []
+    @State private var expandedVerses: Set<Int> = []
     @State private var failed = false
 
     private struct ReferenceGroup {
@@ -567,47 +567,64 @@ struct CrossRefsView: View {
                 ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch")
             } else {
                 List {
-                    ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
-                        if group.rows.isEmpty {
-                            LabeledContent("Verse \(group.verse)",
-                                           value: group.unavailable ? "Unavailable" : "No cross references")
-                        } else if verse == nil || selectedVerses.count > 1 {
-                            let expanded = expandedGroups.contains(index)
-                            Button {
-                                if expanded { expandedGroups.remove(index) } else { expandedGroups.insert(index) }
-                            } label: {
-                                HStack {
-                                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text(groupTitle(group))
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.vertical, 7)
-                                .contentShape(.rect)
-                            }
-                            .buttonStyle(.interactivePlain)
-                            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
-                            if expanded { referenceRows(group.rows) }
-                        } else if let heading = group.heading {
-                            Section(heading) { referenceRows(group.rows) }
-                        } else {
-                            referenceRows(group.rows)
+                    if verse == nil || selectedVerses.count > 1 {
+                        let byVerse = Dictionary(grouping: groups, by: \.verse)
+                        ForEach(byVerse.keys.sorted(), id: \.self) { number in
+                            verseSection(number, groups: byVerse[number] ?? [])
                         }
+                    } else {
+                        groupedReferenceRows(groups)
                     }
                 }
                 .id(reference)
             }
         }
         .task(id: reference) {
-            expandedGroups = []
+            expandedVerses = []
             await load(reference)
         }
     }
 
-    private func groupTitle(_ group: ReferenceGroup) -> String {
-        let label = "Verse \(group.verse)"
-        return group.heading.map { "\(label) · \($0)" } ?? label
+    @ViewBuilder private func verseSection(_ number: Int, groups: [ReferenceGroup]) -> some View {
+        let count = groups.reduce(0) { $0 + $1.rows.count }
+        if count == 0 {
+            LabeledContent("Verse \(number)",
+                           value: groups.contains(where: \.unavailable) ? "Unavailable" : "No cross references")
+        } else {
+            let expanded = expandedVerses.contains(number)
+            Button {
+                if expanded { expandedVerses.remove(number) } else { expandedVerses.insert(number) }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                    Text("Verse \(number)").font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 0)
+                    Text(count, format: .number)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .frame(minHeight: 32)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            .accessibilityHint("Contains \(count) cross references")
+            if expanded { groupedReferenceRows(groups) }
+        }
+    }
+
+    private func groupedReferenceRows(_ groups: [ReferenceGroup]) -> some View {
+        ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+            if let heading = group.heading {
+                Section(heading) { referenceRows(group.rows) }
+            } else {
+                referenceRows(group.rows)
+            }
+        }
     }
 
     private func referenceRows(_ rows: [ReferenceRow]) -> some View {
