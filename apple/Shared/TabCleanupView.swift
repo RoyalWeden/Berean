@@ -26,6 +26,8 @@ struct TabCleanupView: View {
             (tabType == nil || tab.tabType == tabType)
                 && terms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
         }
+        let visibleIDs = Set(matches.map(\.id))
+        let hiddenSelection = selected.filter { !visibleIDs.contains($0.id) }
         NavigationStack {
             List {
                 if let receipt {
@@ -35,6 +37,8 @@ struct TabCleanupView: View {
                             app.restoreArchived(receipt.id, toSource: true)
                             if !app.archivedGroups.contains(where: { $0.id == receipt.id }) { archivedGroupID = nil }
                         }
+                        .buttonStyle(.borderless)
+                        .clickableCursor()
                     }
                 } else if nothingArchived {
                     Text("No selected tabs are still eligible to archive.").foregroundStyle(.secondary)
@@ -70,9 +74,20 @@ struct TabCleanupView: View {
                     Button(terms.isEmpty && tabType == nil ? "Select All" : "Select Matches", systemImage: "checkmark.circle") {
                         included.formUnion(matches.map(\.id))
                     }
+                    .buttonStyle(.borderless)
+                    .clickableCursor()
                     .disabled(matches.allSatisfy { included.contains($0.id) })
-                    Button("Clear Selection", systemImage: "xmark.circle") { included.removeAll() }.clickableCursor()
+                    Button("Clear Selection", systemImage: "xmark.circle") { included.removeAll() }
+                        .buttonStyle(.borderless)
+                        .clickableCursor()
                         .disabled(selected.isEmpty)
+                    if !hiddenSelection.isEmpty {
+                        Button("Deselect Hidden Tabs", systemImage: "eye.slash") {
+                            included.subtract(hiddenSelection.map(\.id))
+                        }
+                        .buttonStyle(.borderless)
+                        .clickableCursor()
+                    }
                 }
                 Section {
                     if matches.isEmpty {
@@ -110,7 +125,11 @@ struct TabCleanupView: View {
                         }
                     }
                 } header: {
-                    Text("Choose tabs to archive · \(selected.count) selected")
+                    if hiddenSelection.isEmpty {
+                        Text("\(selected.count) selected")
+                    } else {
+                        Text("\(selected.count) selected · \(hiddenSelection.count) hidden by filters")
+                    }
                 } footer: {
                     if keepingRecent && protectedCount > 0 {
                         Text("\(protectedCount) recently used tab\(protectedCount == 1 ? "" : "s") kept open.")
