@@ -293,7 +293,11 @@ struct TabCardsSheet: View {
     }
 
     private var selectableIDs: Set<String> {
-        Set(app.inactiveTabs.map(\.id)).intersection(shown.map(\.id))
+        selectableIDs(in: shown)
+    }
+
+    private func selectableIDs(in tabs: [BereanWorkspace.Tab]) -> Set<String> {
+        Set(app.inactiveTabs.map(\.id)).intersection(tabs.map(\.id))
     }
 
     private func finishSelection() {
@@ -301,9 +305,9 @@ struct TabCardsSheet: View {
         isSelecting = false
     }
 
-    private func openOrSelect(_ tab: BereanWorkspace.Tab) {
+    private func openOrSelect(_ tab: BereanWorkspace.Tab, eligible: Bool) {
         if isSelecting {
-            guard selectableIDs.contains(tab.id) else { return }
+            guard eligible else { return }
             if !selectedTabIDs.insert(tab.id).inserted { selectedTabIDs.remove(tab.id) }
         } else {
             app.select(tab.id, in: tab.spaceId)
@@ -312,7 +316,11 @@ struct TabCardsSheet: View {
     }
 
     var body: some View {
-        let eligible = selectableIDs
+        let visibleTabs = shown
+        let eligible = selectableIDs(in: visibleTabs)
+        let otherMatches = isSelecting ? [] : app.matchingWorkspaceTabs(query).filter {
+            $0.workspaceID != app.currentSessionId && matchesFilters($0.tab)
+        }
         return NavigationStack {
             List {
                 VStack(alignment: .leading, spacing: 4) {
@@ -325,18 +333,24 @@ struct TabCardsSheet: View {
                         }
                     }
                 }
+                if isSelecting && !eligible.isEmpty {
+                    let allSelected = eligible.isSubset(of: selectedTabIDs)
+                    let title = allSelected ? "Deselect All" : (isFiltering || hasQuery ? "Select Matches" : "Select All")
+                    Button(title, systemImage: allSelected ? "circle" : "checkmark.circle") {
+                        if allSelected { selectedTabIDs.subtract(eligible) }
+                        else { selectedTabIDs.formUnion(eligible) }
+                    }
+                    .accessibilityHint("\(eligible.count) eligible tabs in this view")
+                }
                 if !isSelecting, !hasQuery, !isFiltering {
                     workspaceActions
                     WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
                                         onOpen: { dismiss() })
                 }
-                let otherMatches = app.matchingWorkspaceTabs(query).filter {
-                    $0.workspaceID != app.currentSessionId && matchesFilters($0.tab)
-                }
                 Section {
-                    let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
+                    let pinned = visibleTabs.filter(\.isPinned), others = visibleTabs.filter { !$0.isPinned }
                     if layout == "grid" {
-                        if !shown.isEmpty {
+                        if !visibleTabs.isEmpty {
                             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                                 ForEach(sortedTabs(pinned + others)) { card($0, eligible: eligible.contains($0.id)) }
                             }
@@ -350,7 +364,7 @@ struct TabCardsSheet: View {
                     } else {
                         ForEach(sortedTabs(pinned + others)) { row($0, eligible: eligible.contains($0.id)) }
                     }
-                    if shown.isEmpty && (isSelecting || otherMatches.isEmpty) { Text(!hasQuery && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
+                    if visibleTabs.isEmpty && (isSelecting || otherMatches.isEmpty) { Text(!hasQuery && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
                 if !isSelecting { WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() }) }
             }
@@ -572,7 +586,7 @@ struct TabCardsSheet: View {
     }
 
     func row(_ tab: BereanWorkspace.Tab, eligible: Bool) -> some View {
-        Button { openOrSelect(tab) } label: {
+        Button { openOrSelect(tab, eligible: eligible) } label: {
             HStack {
                 Image(systemName: tab.symbol).foregroundStyle(tab.tint).frame(width: 24)
                 VStack(alignment: .leading, spacing: 1) {
@@ -614,7 +628,7 @@ struct TabCardsSheet: View {
     /// A tab as a card: tinted header with its kind, title and detail, × to close; the current tab is outlined.
     func card(_ tab: BereanWorkspace.Tab, eligible: Bool) -> some View {
         let current = isSelecting ? selectedTabIDs.contains(tab.id) : tab.id == app.activeTab?.id
-        return Button { openOrSelect(tab) } label: {
+        return Button { openOrSelect(tab, eligible: eligible) } label: {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 6) {
                     Image(systemName: tab.symbol).font(.caption.weight(.semibold))
