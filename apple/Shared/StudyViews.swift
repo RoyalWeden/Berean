@@ -68,6 +68,19 @@ struct LexiconEntryView: View {
         } : filtered
     }
 
+    /// The reader's word replacer (e.g. LORD → Yehovah) applied to lexicon prose, as the original does.
+    private func replaced(_ text: String) -> String {
+        app.wordReplacerEnabled ? WordReplacer.apply(text, rules: WordReplacer.defaultRules) : text
+    }
+
+    /// Gloss shown for an entry; Strong's "unrepresented in English" (H853) gets the original's plain explanation.
+    private func displayGloss(_ e: LexiconEntry) -> String {
+        if e.gloss.lowercased().contains("unrepresented in english") {
+            return replaced("Untranslated particle (\(e.strongsNum)) — marks the definite direct object in Hebrew; has no English equivalent and is not rendered in translation")
+        }
+        return replaced(e.gloss)
+    }
+
     /// BDB notes with grammatical abbreviations expanded (italic, accent) — original LexiconPanel BdbNotesText.
     private func bdbText(_ text: String) -> Text {
         var out = AttributedString()
@@ -144,9 +157,9 @@ struct LexiconEntryView: View {
                             Text(e.lemma).font(.system(size: compact ? 28 : 36, weight: .regular, design: .serif))
                             Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
                         }
-                        if !e.gloss.isEmpty { Text(e.gloss).font(.headline) }
-                        if !e.definition.isEmpty { section("Definition") { linkedText(e.definition, lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
-                        if !e.derivation.isEmpty { section("Derivation") { linkedText(e.derivation, lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
+                        if !e.gloss.isEmpty { linkedText(displayGloss(e), lang: e.strongsNum.first ?? "H").font(.headline).textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }
+                        if !e.definition.isEmpty { section("Definition") { linkedText(replaced(e.definition), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
+                        if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
                         if !e.extendedDef.isEmpty, !compact {
                             if e.strongsNum.hasPrefix("H") {
                                 section("BDB Notes") { bdbText(e.extendedDef).textSelection(.enabled) }
