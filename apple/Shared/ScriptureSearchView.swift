@@ -57,6 +57,10 @@ struct ScriptureSearchRequest: Hashable {
     let mode: WordMode
     let books: [String]
     let replacer: Bool
+    let tagIDs: [String]
+    let matchAllTags: Bool
+    let tagRevision: Int?
+    let tagMembershipReady: Bool
 }
 
 private struct ScriptureTagSelection: Hashable {
@@ -64,9 +68,9 @@ private struct ScriptureTagSelection: Hashable {
     let all: Bool
 }
 
-private struct ScriptureTagMembership {
-    struct Chapter: Hashable { let book: String; let number: Int }
-    struct Verse: Hashable { let chapter: Chapter; let number: Int }
+private struct ScriptureTagMembership: Sendable {
+    struct Chapter: Hashable, Sendable { let book: String; let number: Int }
+    struct Verse: Hashable, Sendable { let chapter: Chapter; let number: Int }
 
     var chapters: Set<Chapter> = []
     var verses: Set<Verse> = []
@@ -82,8 +86,6 @@ struct ScriptureSearchScrollContext: Hashable {
     let edition: String?
     let sort: String
     let grouping: String
-    let tagIDs: [String]
-    let matchAllTags: Bool
 }
 
 /// The Search tab: one field, an obvious scope (All Texts by default — every installed text), readable results.
@@ -115,6 +117,7 @@ struct ScriptureSearchView: View {
 
     @State private var verseTags: [VerseTagSummary] = []
     @State private var loadedTagIDs: [String] = []
+    @State private var loadedTagRevision = 0
     @State private var tagMembership: [String: ScriptureTagMembership] = [:]
 
     private var tagSelection: ScriptureTagSelection {
@@ -145,11 +148,15 @@ struct ScriptureSearchView: View {
         }
         tagMembership = membership
         loadedTagIDs = ids
+        loadedTagRevision = app.tagsRevision
     }
 
     private var request: ScriptureSearchRequest {
-        ScriptureSearchRequest(query: query, texts: targets, mode: mode, books: bookFilter,
-                      replacer: app.wordReplacerEnabled)
+        let filter = tagSelection
+        return ScriptureSearchRequest(query: query, texts: targets, mode: mode, books: bookFilter,
+                                     replacer: app.wordReplacerEnabled, tagIDs: filter.ids, matchAllTags: filter.all,
+                                     tagRevision: filter.ids.isEmpty ? nil : app.tagsRevision,
+                                     tagMembershipReady: filter.ids.isEmpty || (loadedTagIDs == filter.ids && loadedTagRevision == app.tagsRevision))
     }
 
     // MARK: tab state
@@ -452,13 +459,28 @@ struct ScriptureSearchView: View {
             completedRequest = request
             return
         }
+        guard request.tagMembershipReady else { return }
+        let passageFilter: ScriptureSearch.PassageFilter?
+        if request.tagIDs.isEmpty {
+            passageFilter = nil
+        } else {
+            let memberships = request.tagIDs.map { tagMembership[$0, default: .init()] }
+            passageFilter = { book, chapter, verse in
+                let key = ScriptureTagMembership.Chapter(book: book, number: chapter)
+                if request.matchAllTags { return memberships.allSatisfy { $0.contains(key, verse: verse) } }
+                return memberships.contains { $0.contains(key, verse: verse) }
+            }
+        }
         loading = true
         defer { if !Task.isCancelled { loading = false } }
         let targetTexts = Set(request.texts)
         let books = Set(request.books)
         if let strongs = await ScriptureSearch.strongs(q, lexicon: app.lexicon) {
             guard !Task.isCancelled else { return }
-            let hits = strongs.filter { targetTexts.contains($0.textId) && (books.isEmpty || books.contains($0.bookId)) }
+            let hits = strongs.filter {
+                targetTexts.contains($0.textId) && (books.isEmpty || books.contains($0.bookId))
+                    && (passageFilter?($0.bookId, $0.chapter, $0.verseNum) ?? true)
+            }
             result = ScriptureSearchResult(hits: hits, truncatedTexts: [])
             completedRequest = request
             return
@@ -467,7 +489,7 @@ struct ScriptureSearchView: View {
         if text.hasPrefix("\""), text.hasSuffix("\""), text.count > 2 { text = String(text.dropFirst().dropLast()); m = .phrase }
         guard !Task.isCancelled else { return }
         let found = await ScriptureSearch.run(text, in: request.texts, mode: m, bookIds: request.books.isEmpty ? nil : request.books,
-                                              replacer: request.replacer, bible: app.bible, lexicon: app.lexicon)
+                                              replacer: request.replacer, bible: app.bible, lexicon: app.lexicon, matching: passageFilter)
         guard !Task.isCancelled else { return }
         result = found
         completedRequest = request
@@ -477,13 +499,9 @@ struct ScriptureSearchView: View {
 
     var testamentFiltered: [ScriptureHit] {
         guard completedRequest == request else { return [] }
-        let filter = tagSelection
-        let tagged = filter.ids.isEmpty ? result.hits : result.hits.filter {
-            matchesTags(book: $0.bookId, chapter: $0.chapter, verse: $0.verseNum, filter: filter)
-        }
-        guard testament != "all" else { return tagged }
+        guard testament != "all" else { return result.hits }
         let ids = Set(app.bookCatalog.filter { $0.book.testament == testament }.map { "\($0.textId)|\($0.book.id)" })
-        return tagged.filter { ids.contains("\($0.textId)|\($0.bookId)") }
+        return result.hits.filter { ids.contains("\($0.textId)|\($0.bookId)") }
     }
 
     var shown: [ScriptureHit] {
@@ -674,7 +692,7 @@ struct ScriptureSearchView: View {
 
     private var scrollContext: ScriptureSearchScrollContext {
         ScriptureSearchScrollContext(request: request, testament: testament, edition: focusText,
-                                     sort: sort, grouping: grouping, tagIDs: tagSelection.ids, matchAllTags: tagSelection.all)
+                                     sort: sort, grouping: grouping)
     }
 
     private var restorationContext: ScriptureSearchScrollContext? {

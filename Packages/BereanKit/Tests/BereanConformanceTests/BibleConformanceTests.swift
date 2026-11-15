@@ -107,6 +107,18 @@ func digest(_ rows: [JSValue]) -> JSObject {
         #expect(failures.isEmpty, Comment(rawValue: "SQLite \(SQLiteConnection.libraryVersion) — \(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
     }
 
+    @Test func passageFilterAppliesBeforeSearchLimit() async {
+        let unfiltered = await svc.searchText("the")
+        #expect(unfiltered.count == ScriptureSearch.perTextLimit)
+        #expect(!unfiltered.contains { $0.bookId == "REV" && $0.chapter == 22 && $0.verseNum == 21 })
+
+        let filtered = await ScriptureSearch.run("the", in: ["kjva"], mode: .all, replacer: false, bible: svc) {
+            $0 == "REV" && $1 == 22 && $2 == 21
+        }
+        #expect(filtered.hits.map(\.verseNum) == [21])
+        #expect(filtered.truncatedTexts.isEmpty)
+    }
+
     @Test func queryHelpers() {
         for c in g.arr("fts") {
             #expect(BibleText.safeFtsQuery(c["query"]!.str, phrase: c["mode"]!.str == "phrase") == c["result"]!.str, "\(c["query"]!.str)")

@@ -63,17 +63,19 @@ public struct ScriptureSearchResult: Sendable {
 /// `ORDER BY rank, v.id` order (ADR-0008).
 public enum ScriptureSearch {
     public static let perTextLimit = 2000
+    public typealias PassageFilter = @Sendable (_ book: String, _ chapter: Int, _ verse: Int) -> Bool
 
     public static func run(_ query: String, in targets: [String], mode: WordMode, bookIds: [String]? = nil,
                            replacer: Bool = true, rules: [WordReplacerRule] = WordReplacer.defaultRules, bible: BibleService,
-                           lexicon: LexiconService? = nil) async -> ScriptureSearchResult {
+                           lexicon: LexiconService? = nil, matching passageFilter: PassageFilter? = nil) async -> ScriptureSearchResult {
         let trimmed = JSText.trim(query)
         guard trimmed.utf16.count >= 2 else { return ScriptureSearchResult(hits: [], truncatedTexts: []) }
         let variants = replacer ? WordReplacer.searchVariants(trimmed, rules: rules) : [trimmed]
         var hitIndices: [String: Int] = [:], hits: [ScriptureHit] = [], truncated = Set<String>()
         for textId in targets {
             for variant in variants {
-                let rows = await bible.searchText(variant, textId: textId, mode: mode, bookIds: bookIds)
+                if Task.isCancelled { return ScriptureSearchResult(hits: [], truncatedTexts: []) }
+                let rows = await bible.searchText(variant, textId: textId, mode: mode, bookIds: bookIds, matching: passageFilter)
                 let limit = (bookIds ?? []).isEmpty ? perTextLimit : 5000
                 if rows.count >= limit { truncated.insert(textId) }
                 for r in rows {
@@ -90,7 +92,8 @@ public enum ScriptureSearch {
         if replacer, let lexicon, !bridgeTargets.isEmpty, let bridge = WordReplacer.strongsSearch(trimmed, rules: rules) {
             let found = await occurrences(bridge.strongsNums, words: bridge.residualWords, requireAll: false, lexicon: lexicon)
             let scope = bookIds.flatMap { $0.isEmpty ? nil : Set($0) }
-            for h in found where bridgeTargets.contains(h.textId) && (scope?.contains(h.bookId) ?? true) {
+            for h in found where bridgeTargets.contains(h.textId) && (scope?.contains(h.bookId) ?? true)
+                && (passageFilter?(h.bookId, h.chapter, h.verseNum) ?? true) {
                 let key = "\(h.textId)|\(h.bookId)|\(h.chapter)|\(h.verseNum)"
                 if let index = hitIndices[key] {
                     hits[index].matchWordIndices = h.matchWordIndices

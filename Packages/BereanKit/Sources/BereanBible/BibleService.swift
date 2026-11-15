@@ -128,7 +128,8 @@ public actor BibleService {
     }
 
     /// FTS5 verse search (`searchText`). FTS syntax errors yield no rows, as in TypeScript.
-    public func searchText(_ query: String, textId: String = "kjva", mode: WordMode = .all, bookIds: [String]? = nil, chapter: Int? = nil) -> [VerseSearchRow] {
+    public func searchText(_ query: String, textId: String = "kjva", mode: WordMode = .all, bookIds: [String]? = nil, chapter: Int? = nil,
+                           matching passageFilter: ScriptureSearch.PassageFilter? = nil) -> [VerseSearchRow] {
         let trimmed = JSText.trim(query)
         if trimmed.isEmpty { return [] }
         guard let db = db(textId) else { return [] }
@@ -145,14 +146,17 @@ public actor BibleService {
               JOIN verses v ON v.id = f.rowid
               WHERE verses_fts MATCH ?\(bookClause)\(chapterClause)
               ORDER BY rank, v.id
-              LIMIT \(limit)
+              \(passageFilter == nil ? "LIMIT \(limit)" : "")
 
             """
         func params(_ fts: String) -> [SQLiteValue] {
             scoped ? [.text(fts)] + bookIds!.map { .text($0) } + (chapterScoped ? [.integer(Int64(chapter!))] : []) : [.text(fts)]
         }
         func run(_ fts: String) throws(SQLiteError) -> [VerseSearchRow] {
-            try db.query(sql, params(fts)).map { r in
+            let predicate = passageFilter.map { filter in
+                { (row: SQLiteRow) in filter(row.values[0].string ?? "", row.values[1].int ?? 0, row.values[2].int ?? 0) }
+            }
+            return try db.query(sql, params(fts), matching: predicate, limit: limit).map { r in
                 VerseSearchRow(bookId: r.values[0].string ?? "", chapter: r.values[1].int ?? 0, verseNum: r.values[2].int ?? 0,
                                text: r.values[3].string ?? "", textTagged: tagged ? r.values[4].string : nil, hasTaggedColumn: tagged)
             }

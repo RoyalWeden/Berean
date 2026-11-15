@@ -85,7 +85,9 @@ public final class SQLiteConnection: @unchecked Sendable {
 
     public static var libraryVersion: String { String(cString: sqlite3_libversion()) }
 
-    public func query(_ sql: String, _ params: [SQLiteValue] = []) throws(SQLiteError) -> [SQLiteRow] {
+    public func query(_ sql: String, _ params: [SQLiteValue] = [],
+                      matching predicate: ((SQLiteRow) -> Bool)? = nil, limit: Int? = nil) throws(SQLiteError) -> [SQLiteRow] {
+        if let limit, limit <= 0 { return [] }
         guard let handle else { throw SQLiteError(code: SQLITE_MISUSE, message: "closed") }
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &stmt, nil) == SQLITE_OK, let stmt else {
@@ -124,7 +126,10 @@ public final class SQLiteConnection: @unchecked Sendable {
                 default: values.append(.null)
                 }
             }
-            rows.append(SQLiteRow(columns: columns, values: values))
+            let row = SQLiteRow(columns: columns, values: values)
+            guard predicate?(row) ?? true else { continue }
+            rows.append(row)
+            if rows.count == limit { break }
         }
         return rows
     }
