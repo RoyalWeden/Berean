@@ -267,6 +267,8 @@ struct TabCardsSheet: View {
     @State private var typeFilter: TabType?
     /// "grid" shows Safari-style tab cards (original TabCardsSheet grid); "list" keeps the compact rows. Device-local.
     @AppStorage("tabCardsLayout") private var layout = "grid"
+    /// "custom" = workspace order (drag in list mode); "recent" = most recently used first (original Recent/Custom sort).
+    @AppStorage("tabCardsSort") private var tabSort = "custom"
 
     private var isFiltering: Bool { spaceFilter != nil || typeFilter != nil }
 
@@ -314,7 +316,7 @@ struct TabCardsSheet: View {
                     if layout == "grid" {
                         if !shown.isEmpty {
                             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                                ForEach(pinned + others) { card($0) }
+                                ForEach(sortedForGrid(pinned + others)) { card($0) }
                             }
                             .padding(.vertical, 6)
                             .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
@@ -348,6 +350,10 @@ struct TabCardsSheet: View {
                             ForEach(SpaceId.allCases) { space in
                                 Text(space.title).tag(Optional(space))
                             }
+                        }
+                        Picker("Sort", selection: $tabSort) {
+                            Text("Custom Order").tag("custom")
+                            Text("Recently Used").tag("recent")
                         }
                         Picker("Tab Type", selection: $typeFilter) {
                             Text("All Types").tag(nil as TabType?)
@@ -390,6 +396,15 @@ struct TabCardsSheet: View {
         }
         .swipeActions(edge: .leading) { Button(tab.isPinned ? "Unpin" : "Pin") { app.togglePin(tab.id) }.tint(.orange) }
         .contextMenu { tabMenu(tab) }
+    }
+
+    private func sortedForGrid(_ tabs: [BereanWorkspace.Tab]) -> [BereanWorkspace.Tab] {
+        guard tabSort == "recent" else { return tabs }
+        let rank = Dictionary((([app.activeTab?.id].compactMap { $0 }) + app.recentTabIDs).enumerated().map { ($1, $0) },
+                              uniquingKeysWith: { first, _ in first })
+        return tabs.enumerated().sorted { a, b in
+            (rank[a.element.id] ?? Int.max, a.offset) < (rank[b.element.id] ?? Int.max, b.offset)
+        }.map(\.element)
     }
 
     /// A tab as a card: tinted header with its kind, title and detail, × to close; the current tab is outlined.

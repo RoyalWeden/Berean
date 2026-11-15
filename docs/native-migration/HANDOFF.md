@@ -1039,3 +1039,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 6. **I12 haptics** for tab swipe already added; extend to sheet detents and toggles.
 7. Physical-iPhone pass of everything marked "simulator" above (gestures, keyboard bar, dock hiding, edge taps).
 - **01:15 full native:check at `b4ba2f6c`:** 117 tests / 43 suites pass; Mac + iOS Dev builds pass.
+- **01:18 I6 sort:** tab grid Filter menu → Sort: Custom Order / Recently Used (`tabCardsSort`, uses `recentTabIDs`). Simulator verified; set back to Custom.
