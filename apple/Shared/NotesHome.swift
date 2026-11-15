@@ -597,6 +597,11 @@ struct NotesHomeView: View {
 
     @ViewBuilder func noteMenu(_ n: Note) -> some View {
         Button("Open") { app.openNote(n.id) }
+        Button("Open in New Tab", systemImage: "plus.square.on.square") { app.openNote(n.id, newTab: true) }
+        ShareLink(item: n.content.isEmpty ? n.displayTitle : "\(n.displayTitle)\n\n\(n.content)", subject: Text(n.displayTitle)) {
+            Label("Share…", systemImage: "square.and.arrow.up")
+        }
+        Divider()
         Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }
         if NotesService.systemFolder(n) == nil || n.folderId != nil {
             Menu("Move to Folder") {
