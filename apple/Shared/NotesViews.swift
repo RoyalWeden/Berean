@@ -549,6 +549,28 @@ struct NoteDetailView: View {
                     }
                     .menuIndicator(.hidden)
                     .help("Insert a Scripture reference, link, quote, checklist or divider")
+                    // Note details (original editor chrome): status, folder and statistics in one menu.
+                    Menu {
+                        Picker("Status", selection: Binding(get: { note.status ?? "" }, set: { value in
+                            app.attempt("Couldn’t change the status") { _ = try app.notes?.update(note.id, .init(status: .some(value))) }
+                            reload()
+                        })) {
+                            Text("None").tag("")
+                            ForEach(NotesHomeView.statuses, id: \.id) { Text($0.label).tag($0.id) }
+                        }
+                        Menu("Folder", systemImage: "folder") {
+                            Button("No Folder") { app.attempt("Couldn’t move the note") { try app.notes?.setFolder(note.id, nil) }; reload() }
+                            ForEach((try? app.notes?.folders()) ?? [], id: \.id) { folder in
+                                Button(folder.name) { app.attempt("Couldn’t move the note") { try app.notes?.setFolder(note.id, folder.id) }; reload() }
+                            }
+                        }
+                        Divider()
+                        let words = content.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+                        Text("\(words) word\(words == 1 ? "" : "s") · \(content.count) characters")
+                        Text("Edited \(NotesHomeView.dateLabel(note.updatedAt))")
+                    } label: { Label("Note Details", systemImage: "info.circle") }
+                    .menuIndicator(.hidden)
+                    .help("Status, folder and statistics")
                     Button { saveNow(); showingHistory = true } label: { Label("Version History", systemImage: "clock.arrow.circlepath") }
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
