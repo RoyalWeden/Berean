@@ -1137,3 +1137,8 @@
 
 - Workspace search accepts displayed passage names, prioritizes direct tab matches, and keeps unrelated tabs out of passage-only results.
 - Both Dev builds passed. Mac scratch QA verified the result list and exact-label Return.
+
+### 2026-11-15 — Archive restore with existing tabs
+
+- Restoring a group resolves existing tab IDs and restores the remaining tabs. Future-format records are retained.
+- Both Dev builds and the focused mixed-record regression passed.

@@ -279,6 +279,14 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     #expect(afterBulk.tabs.isEmpty)
     #expect(afterBulk.label == "Archived tabs")
 
+    let plan = group.restorePlan(openTabIDs: [first.id])
+    #expect(plan.tabs.map(\.id) == [last.id])
+    let planRemainder = try #require(plan.remaining)
+    #expect(try JSON.parse(planRemainder.tabsJSON) == .array([future]))
+    let duplicateOnly = group.restorePlan(openTabIDs: [first.id], only: first.id)
+    #expect(duplicateOnly.tabs.isEmpty)
+    #expect(duplicateOnly.remaining == remaining)
+
     let single = ArchivedGroup(id: "single", label: last.title, archivedAt: 42,
                                tabsJSON: JSON.stringifyString(.array([.object(last.jsObject)])))
     #expect(single.afterRestoring(tabID: last.id) == nil)

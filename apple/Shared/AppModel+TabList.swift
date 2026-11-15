@@ -270,12 +270,11 @@ extension AppModel {
               let destination = sessions.firstIndex(where: { $0.id == workspace }) else { return }
         // Tab IDs are unique in SQLite across all workspaces. An archived copy may
         // already be open elsewhere after a restore on another device.
-        var openIds = Set(sessions.flatMap { $0.allTabs.map(\.id) })
+        let plan = group.restorePlan(openTabIDs: Set(sessions.flatMap { $0.allTabs.map(\.id) }), only: tabID)
+        guard plan.remaining != group else { return }
         let hadActiveTab = activeTab != nil
         var firstRestoredSpace: SpaceId?
-        var restoredIDs = Set<String>()
-        for tab in archivedTabs(group) where (tabID == nil || tab.id == tabID) && openIds.insert(tab.id).inserted {
-            restoredIDs.insert(tab.id)
+        for tab in plan.tabs {
             sessions[destination].tabs[tab.spaceId, default: []].append(tab)
             if (sessions[destination].activeTabId[tab.spaceId] ?? nil) == nil {
                 sessions[destination].activeTabId[tab.spaceId] = tab.id
@@ -283,8 +282,7 @@ extension AppModel {
             placeRestoredTab(tab.id, in: workspace, using: placement)
             if firstRestoredSpace == nil { firstRestoredSpace = tab.spaceId }
         }
-        guard !restoredIDs.isEmpty else { return }
-        if let remaining = group.afterRestoring(tabIDs: restoredIDs) {
+        if let remaining = plan.remaining {
             archivedGroups[index] = remaining
         } else {
             archivedGroups.remove(at: index)

@@ -34,6 +34,14 @@ public struct ArchivedGroup: Equatable, Sendable, Identifiable {
         (try? JSON.parse(tabsJSON))?.arrayValue ?? []
     }
 
+    /// Existing live IDs count as restored without replacing the live tab.
+    public func restorePlan(openTabIDs: Set<String>, only tabID: String? = nil) -> (tabs: [Tab], remaining: ArchivedGroup?) {
+        let requested = tabs.filter { tabID == nil || $0.id == tabID }
+        var seen = openTabIDs
+        return (requested.filter { seen.insert($0.id).inserted },
+                afterRestoring(tabIDs: Set(requested.map(\.id))))
+    }
+
     /// Remove only the restored record, preserving records this version cannot decode.
     public func afterRestoring(tabID: String) -> ArchivedGroup? {
         afterRestoring(tabIDs: [tabID])
