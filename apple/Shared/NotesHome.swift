@@ -611,6 +611,11 @@ struct NotesHomeView: View {
                 }
             } label: { Label("Move", systemImage: "folder") }
             .disabled(ids.isEmpty)
+            let chosen = visible.filter { selectedNotes.contains($0.id) }
+            ShareLink(item: chosen.map { "# \(Self.rowTitle($0))\n\n\($0.content)" }.joined(separator: "\n\n---\n\n")) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            .disabled(ids.isEmpty)
             Button("Move to Trash", systemImage: "trash", role: .destructive) {
                 app.attempt("Couldn’t move the notes to Trash") { for id in ids { try app.notes?.delete(id) } }
                 selectedNotes = []
