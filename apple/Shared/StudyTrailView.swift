@@ -516,6 +516,18 @@ private struct StudyTrailNoteEditor: View {
 }
 
 extension AppModel {
+    func recordStudyStrongsLookup(_ id: String, from chapter: ChapterEdition, verse: Int?) {
+        guard let recording = studyTrailRecording, !recording.isPaused,
+              let service = studyTrailService else { return }
+        do {
+            try service.recordStrongsLookup(id, id: AppModel.newId(), trailId: recording.trailID,
+                                          fromBook: chapter.book, chapter: chapter.chapter,
+                                          translation: chapter.text, verse: verse, at: StudyTrailView.now())
+        } catch {
+            userMessage = "Study Trail could not save this Strong’s lookup."
+        }
+    }
+
     func recordStudyCrossReference(_ passage: ResolvedPassage, sourceBook: String, chapter: Int,
                                    edition: String, verse: Int?) {
         guard let recording = studyTrailRecording, !recording.isPaused,

@@ -125,3 +125,22 @@ import Testing
     #expect(try db.query("SELECT origin_verse_pin_from FROM trail_connections ORDER BY id")
         .map { $0["origin_verse_pin_from"]?.int } == [1, 2])
 }
+
+
+@Test func recordsStrongsLookupsWithTheLegacyOriginAndDepth() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    let trail = StudyTrailService(db: db)
+    try trail.start(name: "Word study", id: "trail", at: 10)
+    try trail.recordStop(trailId: "trail", id: "stop", bookId: "GEN", chapter: 2, translation: "lxx", at: 20)
+    func record(_ id: String, verse: Int) throws -> Bool {
+        try trail.recordStrongsLookup("G2316", id: id, trailId: "trail", fromBook: "GEN", chapter: 2,
+                                    translation: "lxx", verse: verse, at: 30)
+    }
+    #expect(try record("lookup", verse: 1))
+    #expect(try !record("duplicate", verse: 1))
+    #expect(try record("later", verse: 2))
+    let rows = try trail.connections(in: "trail")
+    #expect(rows.map(\.reason) == ["Strong's word · G2316", "Strong's word · G2316"])
+    #expect(try db.query("SELECT strongs_depth FROM trail_connections").map { $0["strongs_depth"]?.string } == ["click", "click"])
+}

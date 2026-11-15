@@ -244,6 +244,22 @@ public struct StudyTrailService {
                                      fromBook: String, chapter: Int, translation: String,
                                      verse: Int?, at time: Int64) throws -> Bool {
         guard case .scripture = destination else { return false }
+        return try recordReaderConnection(destination, id: id, trailId: trailId, fromBook: fromBook,
+                                          chapter: chapter, translation: translation, verse: verse,
+                                          reason: "Cross reference", at: time)
+    }
+
+    @discardableResult
+    public func recordStrongsLookup(_ strongs: String, id: String, trailId: String, fromBook: String,
+                                   chapter: Int, translation: String, verse: Int?, at time: Int64) throws -> Bool {
+        try recordReaderConnection(.lexicon(strongs), id: id, trailId: trailId, fromBook: fromBook,
+                                   chapter: chapter, translation: translation, verse: verse,
+                                   reason: "Strong's word · \(strongs)", at: time)
+    }
+
+    private func recordReaderConnection(_ destination: Connection.Destination, id: String, trailId: String,
+                                        fromBook: String, chapter: Int, translation: String, verse: Int?,
+                                        reason: String, at time: Int64) throws -> Bool {
         let source = try db.query("""
             SELECT n.id FROM trail_nodes n
             JOIN trail_sessions s ON s.id = n.trail_session_id
@@ -253,7 +269,7 @@ public struct StudyTrailService {
             """, [.text(trailId), .text(fromBook), .integer(Int64(chapter)), .text(translation)]).first?["id"]?.string
         guard let source else { return false }
         return try addConnection(destination, id: id, fromStopId: source, trailId: trailId,
-                                 after: nil, at: time, reason: "Cross reference", originVerse: verse)
+                                 after: nil, at: time, reason: reason, originVerse: verse)
     }
 
     /// Adds an explicit connection, optionally continuing an existing legacy chain.
@@ -268,6 +284,7 @@ public struct StudyTrailService {
                                trailId: String, after parentId: String?, at time: Int64,
                                reason: String?, originVerse: Int?) throws -> Bool {
         let fields: [SQLiteValue]
+        var strongsDepth: SQLiteValue = .null
         switch destination {
         case .scripture(let book, let chapter, let verse, let endVerse):
             guard !book.isEmpty, chapter >= 0, verse.map({ $0 > 0 }) ?? true,
@@ -278,6 +295,7 @@ public struct StudyTrailService {
         case .lexicon(let strongs):
             guard !strongs.isEmpty else { return false }
             fields = [.text("lexicon"), .null, .null, .null, .null, .text(strongs), .null]
+            if reason != nil { strongsDepth = .text("click") }
         case .note(let note):
             guard !note.isEmpty else { return false }
             fields = [.text("note"), .null, .null, .null, .null, .null, .text(note)]
@@ -287,15 +305,15 @@ public struct StudyTrailService {
         let parent = parentId.map(SQLiteValue.text) ?? .null
         let parameters: [SQLiteValue] = [.text(id), .text(trailId), .text(fromStopId)]
             + fields + [.integer(time), parent, reason.map(SQLiteValue.text) ?? .null,
-                        originVerse.map { .integer(Int64($0)) } ?? .null]
+                        originVerse.map { .integer(Int64($0)) } ?? .null, strongsDepth]
         return try db.run("""
             INSERT INTO trail_connections (
                 id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
                 to_verse_end, to_strongs_num, to_note_id, clarity_tier, created_at,
-                from_connection_id, chain_depth, reason_text, origin_verse_pin_from
+                from_connection_id, chain_depth, reason_text, origin_verse_pin_from, strongs_depth
             )
             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11,
-                   p.id, COALESCE(p.chain_depth + 1, 0), ?13, ?14
+                   p.id, COALESCE(p.chain_depth + 1, 0), ?13, ?14, ?15
             FROM trail_nodes n
             JOIN trail_sessions s ON s.id = n.trail_session_id
             LEFT JOIN trail_connections p

@@ -80,8 +80,8 @@ struct ChapterTextView: NSViewRepresentable {
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
     var strongsTooltips: [String: String] = [:]
-    var onStrongs: (String) -> Void
-    var onOpenStrongsTab: (String) -> Void
+    var onStrongs: (String, Int?) -> Void
+    var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
     var onCitations: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
@@ -486,7 +486,7 @@ struct ChapterTextView: NSViewRepresentable {
             case "berean-verse-citations":
                 if let verse = Int(url.absoluteString.dropFirst("berean-verse-citations:".count)) { parent.onCitations(verse) }
             case "strongs":
-                parent.onStrongs(String(url.absoluteString.dropFirst("strongs:".count)))
+                parent.onStrongs(String(url.absoluteString.dropFirst("strongs:".count)), verse(at: charIndex))
             case "berean-tag":
                 let s = url.absoluteString.dropFirst("berean-tag:".count)
                 let parts = s.split(separator: "?v=", maxSplits: 1).map(String.init)
@@ -767,8 +767,8 @@ final class ReaderTextView: NSTextView {
             title.isEnabled = false
             menu.addItem(title)
             menu.addItem(.separator())
-            menu.addItem(ClosureMenuItem("Open", image: "character.book.closed") { c.parent.onStrongs(id) })
-            menu.addItem(ClosureMenuItem("Open in New Tab", image: "plus.square.on.square") { c.parent.onOpenStrongsTab(id) })
+            menu.addItem(ClosureMenuItem("Open", image: "character.book.closed") { c.parent.onStrongs(id, c.verse(at: i)) })
+            menu.addItem(ClosureMenuItem("Open in New Tab", image: "plus.square.on.square") { c.parent.onOpenStrongsTab(id, c.verse(at: i)) })
             menu.addItem(.separator())
             menu.addItem(ClosureMenuItem("Copy Strong’s Number", image: "doc.on.doc") { Clipboard.copy(id) })
             menu.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy("Strong's \(id)") })

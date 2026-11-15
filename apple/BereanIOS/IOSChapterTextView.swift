@@ -26,8 +26,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var findRequest: Int
     var reference: (Int, Int) -> String
-    var onStrongs: (String) -> Void
-    var onOpenStrongsTab: (String) -> Void
+    var onStrongs: (String, Int?) -> Void
+    var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
     var onVerseTap: (Int) -> Void
     var onVerseActions: (Int) -> Void
@@ -627,7 +627,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 return UIAction { [weak self] _ in self?.parent.onNotes(verse) }
             case "strongs":
                 let id = String(url.absoluteString.dropFirst("strongs:".count))
-                return UIAction { [weak self] _ in self?.parent.onStrongs(id) }
+                let verse = verseRanges.first { NSLocationInRange(textItem.range.location, $0.value) }?.key
+                return UIAction { [weak self] _ in self?.parent.onStrongs(id, verse) }
             case "berean-tag":
                 let fields = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
                 guard let name = fields?.first(where: { $0.name == "name" })?.value else { return nil }
@@ -642,11 +643,12 @@ struct IOSChapterTextView: UIViewRepresentable {
                       defaultMenu: UIMenu) -> UITextItem.MenuConfiguration? {
             guard case let .link(url) = textItem.content, url.scheme == "strongs" else { return nil }
             let id = String(url.absoluteString.dropFirst("strongs:".count))
+            let verse = verseRanges.first { NSLocationInRange(textItem.range.location, $0.value) }?.key
             let open = UIAction(title: "Open", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
-                self?.parent.onStrongs(id)
+                self?.parent.onStrongs(id, verse)
             }
             let newTab = UIAction(title: "Open in New Tab", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
-                self?.parent.onOpenStrongsTab(id)
+                self?.parent.onOpenStrongsTab(id, verse)
             }
             let copy = UIAction(title: "Copy Strong’s Number", image: UIImage(systemName: "doc.on.doc")) { _ in Clipboard.copy(id) }
             let reference = UIAction(title: "Copy Reference", image: UIImage(systemName: "number")) { _ in Clipboard.copy("Strong's \(id)") }

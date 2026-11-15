@@ -1114,11 +1114,8 @@ struct ScriptureView: View {
                 let label = Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: first, hermas: HermasText(textId: st.translation))
                 return label + (first == last ? "" : "-\(last)") + suffix
             },
-            onStrongs: { showLexicon($0) },
-            onOpenStrongsTab: { id in
-                app.openLexicon(id, from: app.findTab(tabId))
-                app.recordTabReturn(to: tabId)
-            },
+            onStrongs: { id, verse in showLexicon(id, verse: verse) },
+            onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
             onVerseTap: { verseClick($0, shift: false) },
             onVerseActions: { number in
@@ -1574,9 +1571,15 @@ struct ScriptureView: View {
         Button("Search #\(tag.name)") { app.openSearch("#\(tag.name)", reuseTab: true) }
     }
 
-    func showLexicon(_ id: String) {
+    func showLexicon(_ id: String, verse: Int?, newTab: Bool = false) {
         let reader = state
-        app.inspectStrongs(id, in: tabId, bookId: reader.bookId, chapter: reader.chapter)
+        app.recordStudyStrongsLookup(id, from: ChapterEdition(reader), verse: verse)
+        if newTab {
+            app.openLexicon(id, from: app.findTab(tabId))
+            app.recordTabReturn(to: tabId)
+        } else {
+            app.inspectStrongs(id, in: tabId, bookId: reader.bookId, chapter: reader.chapter)
+        }
     }
     func openInspector(_ tab: String, verse: Int? = nil, selectedVerses: [Int] = []) {
         if tab == "crossrefs" || tab == "notes" {
@@ -1896,11 +1899,8 @@ extension ScriptureView {
             verseMenu: { verseNSMenu($0, st) },
             tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
             strongsTooltips: st.showStrongs ? strongsTooltips : [:],
-            onStrongs: { showLexicon($0) },
-            onOpenStrongsTab: { id in
-                app.openLexicon(id, from: app.findTab(tabId))
-                app.recordTabReturn(to: tabId)
-            },
+            onStrongs: { id, verse in showLexicon(id, verse: verse) },
+            onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
             onCitations: { verse in
                 crossRefSource = "notes"
