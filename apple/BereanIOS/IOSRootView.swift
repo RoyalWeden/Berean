@@ -98,6 +98,17 @@ struct IOSRootView: View {
         .frame(maxWidth: 260)
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
+        // Swipe across the dock to move to the neighbouring tab (original BottomNav: >60 pt, mostly horizontal).
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24).onEnded { value in
+                let dx = value.translation.width, dy = value.translation.height
+                guard abs(dx) > 60, abs(dx) > abs(dy) * 1.5 else { return }
+                if withAnimation(.snappy, { app.stepTab(dx < 0 ? 1 : -1) }),
+                   UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+            }
+        )
         .offset(y: app.readerChromeHidden ? 110 : 0)
         .opacity(app.readerChromeHidden ? 0 : 1)
         .allowsHitTesting(!app.readerChromeHidden)

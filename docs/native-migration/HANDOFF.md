@@ -990,3 +990,4 @@ The study Notes inspector now filters the active scope by case-insensitive title
 - **00:08 I25 dark-mode check (simulator):** John 3, verse 2 selected, action bar over red-letter verse 7 in dark appearance —
   icons clearly legible with Codex's adaptive background layer. Remaining for I25: physical iPhone only. Simulator set back to light.
 - **00:11 I6 tab cards (iPhone):** Tabs sheet now defaults to a two-column card grid (toolbar toggles list/grid, `@AppStorage("tabCardsLayout")`); list mode keeps Edit/reorder. Simulator: grid renders, card tap opened John 7. Next for I6: preview snippets, sort, select mode.
+- **00:12 I7 dock swipe (iPhone):** swiping across the dock moves to the previous/next tab in display order (`AppModel.stepTab`); simulator verified both directions.

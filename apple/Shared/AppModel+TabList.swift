@@ -18,6 +18,16 @@ extension AppModel {
     }
 
     /// The current session's tabs in display order (pinned first, as in the existing sidebar).
+    /// iPhone dock swipe (original BottomNav step): moves to the previous / next tab in display order.
+    func stepTab(_ delta: Int) -> Bool {
+        let list = orderedTabs
+        guard let current = activeTab, let i = list.firstIndex(where: { $0.id == current.id }),
+              list.indices.contains(i + delta) else { return false }
+        let target = list[i + delta]
+        select(target.id, in: target.spaceId)
+        return true
+    }
+
     var orderedTabs: [BereanWorkspace.Tab] {
         let byId = Dictionary(uniqueKeysWithValues: session.allTabs.map { ($0.id, $0) })
         let list = displayOrder(for: currentSessionId).compactMap { byId[$0] }
