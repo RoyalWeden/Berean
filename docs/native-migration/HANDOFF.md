@@ -896,6 +896,8 @@ Not started natively; it was judged too large to finish safely in the Claude ses
   except existing ones (`hiddenAnnotations`, `showStrongs`, `strongsNum: ""`, `sessions.icon` with original names).
 
 **Next executable tasks, in order (each has its source reference in AUDIT-2026-11-14.md):**
+0. **Fix MAC-FUNC-037 first — Mac Compare renders blank** (pre-existing; repro + state in UX-AND-FUNCTIONAL-ISSUES.md). Then verify
+   the new per-column Previous/Next Chapter items in Compare's column menu.
 1. Physical-iPhone pass (`npm run native:ios:device`, Dev identity): hide-on-scroll feel, edge taps vs the system back swipe, verse
    capsule legibility over red letters (I25), verse grid, haptics toggle.
 2. "My Notes" cross references — follow the task spec above (golden-first).

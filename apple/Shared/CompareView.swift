@@ -667,6 +667,10 @@ struct CompareView: View {
             } label: {
                 Label("Change Passage", systemImage: "book")
             }
+            // Per-column chapter stepping (original CompareView column ‹ ›); only this column moves.
+            Button { stepColumn(column, by: -1) } label: { Label("Previous Chapter", systemImage: "chevron.backward") }
+            Button { stepColumn(column, by: 1) } label: { Label("Next Chapter", systemImage: "chevron.forward") }
+            Divider()
             Button {
                 setPinned(!pinned, for: column)
             } label: {
@@ -778,6 +782,14 @@ struct CompareView: View {
         }
         guard let updated = CompareColumn(id: column.id, record: record, anchor: anchor) else { return }
         setColumns(columns.map { $0.id == column.id ? updated : $0 })
+    }
+
+    private func stepColumn(_ column: CompareColumn, by delta: Int) {
+        Task {
+            let chapters = await app.bible.chapterNumbers(column.book, textId: column.text)
+            guard let i = chapters.firstIndex(of: column.chapter), chapters.indices.contains(i + delta) else { return }
+            changePassage(for: column.id, text: column.text, book: column.book, chapter: chapters[i + delta])
+        }
     }
 
     private func changePassage(for id: Int, text: String, book: String, chapter: Int) {
