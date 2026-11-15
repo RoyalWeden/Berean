@@ -5,6 +5,52 @@ import BereanText
 import BereanReference
 import BereanNotes
 
+private struct TaggedSearchResult {
+    let passage: ResolvedPassage
+
+    var id: String {
+        "\(passage.textId)|\(passage.bookId)|\(passage.chapter)|\(passage.verse.map(String.init) ?? "chapter")"
+    }
+}
+
+private struct TaggedSearchResultRow: View {
+    @Environment(AppModel.self) private var app
+    let passage: ResolvedPassage
+    let open: () -> Void
+    @State private var preview: String?
+
+    var body: some View {
+        let replaceWords = app.wordReplacerEnabled
+        Button(action: open) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: passage.verse == nil ? "book" : "text.quote")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(passage.label).font(.subheadline.weight(.semibold))
+                    Text(textInfo(passage.textId).name).font(.caption).foregroundStyle(.secondary)
+                    if let preview {
+                        Text(preview).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 4)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .task(id: replaceWords) {
+            guard let verse = passage.verse else { return }
+            let row = await app.bible.queryVerse(passage.bookId, passage.chapter, verse, textId: passage.textId)
+            guard !Task.isCancelled else { return }
+            preview = row.map {
+                VerseDisplay.text($0.text, tagged: $0.textTagged, textId: passage.textId,
+                                  replacerEnabled: replaceWords, rules: WordReplacer.defaultRules)
+            }
+        }
+    }
+}
+
 struct ScriptureSearchRequest: Hashable {
     let query: String
     let texts: [String]
@@ -369,11 +415,10 @@ struct ScriptureSearchView: View {
             } else if passages.isEmpty {
                 ContentUnavailableView("No tagged passages", systemImage: "tag")
             }
-            ForEach(Array(passages.enumerated()), id: \.offset) { _, passage in
-                Button { app.visitScripture(passage, returningTo: tabId) } label: {
-                    Label(passage.label, systemImage: passage.verse == nil ? "book" : "text.quote")
+            ForEach(passages.map { TaggedSearchResult(passage: $0) }, id: \.id) { result in
+                TaggedSearchResultRow(passage: result.passage) {
+                    app.visitScripture(result.passage, returningTo: tabId)
                 }
-                .buttonStyle(.interactivePlain)
             }
         }
     }
