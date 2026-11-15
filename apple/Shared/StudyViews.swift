@@ -733,18 +733,26 @@ struct LexiconEntryView: View {
         .help("Copy Strong’s number and definition")
     }
 
-    private var entryGuideButton: some View {
-        Button { showsEntryGuide = true } label: {
-            Label("How to Read a Lexicon Entry", systemImage: "info.circle")
-                .labelStyle(.iconOnly)
-                .frame(minWidth: compact ? entryControlHeight : nil, minHeight: compact ? entryControlHeight : nil)
-                .contentShape(.rect)
+    @ViewBuilder private var entryGuideButton: some View {
+        if compact {
+            Button { showsEntryGuide = true } label: {
+                Label("How to Read a Lexicon Entry", systemImage: "info.circle")
+                    .labelStyle(.iconOnly)
+                    .frame(width: entryControlHeight, height: entryControlHeight)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .help("How to read a lexicon entry")
+            .popover(isPresented: $showsEntryGuide, content: entryGuide)
+        } else {
+            Button("How to Read a Lexicon Entry", systemImage: "info.circle") { showsEntryGuide = true }
+                .help("How to read a lexicon entry")
+                .popover(isPresented: $showsEntryGuide, content: entryGuide)
         }
-        .buttonStyle(.interactivePlain)
-        .help("How to read a lexicon entry")
-        .popover(isPresented: $showsEntryGuide) {
-            LexiconEntryGuide { showsEntryGuide = false }
-        }
+    }
+
+    private func entryGuide() -> some View {
+        LexiconEntryGuide { showsEntryGuide = false }
     }
 
     private var entryNavigation: some View {
