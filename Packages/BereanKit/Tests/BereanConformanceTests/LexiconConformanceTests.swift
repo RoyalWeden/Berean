@@ -105,3 +105,11 @@ extension LexiconEntry {
         #expect(LexiconService.foldTransliteration("Yᵉhôvâh") == "yehovah")
     }
 }
+
+@Suite("BDB notes tokens") struct BdbNotesTests {
+    @Test func expandsAbbreviationsAndTagsNumbers() {
+        #expect(BdbNotes.tokens("n.f., covenant 285") == [.abbr(expanded: "noun, feminine", raw: "n.f."), .text(","), .text(" "),
+                                                       .text("covenant"), .text(" "), .number("285")])
+        #expect(BdbNotes.tokens("vb. pass on") == [.abbr(expanded: "verb", raw: "vb."), .text(" "), .text("pass"), .text(" "), .text("on")])
+    }
+}

@@ -68,6 +68,21 @@ struct LexiconEntryView: View {
         } : filtered
     }
 
+    /// BDB notes with grammatical abbreviations expanded (italic, accent) — original LexiconPanel BdbNotesText.
+    private func bdbText(_ text: String) -> Text {
+        var out = AttributedString()
+        for token in BdbNotes.tokens(text) {
+            switch token {
+            case .text(let t): out += AttributedString(t)
+            case .number(let n):
+                var a = AttributedString(n); a.foregroundColor = .secondary; out += a
+            case .abbr(let expanded, _):
+                var a = AttributedString(expanded); a.font = .body.italic(); a.foregroundColor = Color.accentColor.opacity(0.85); out += a
+            }
+        }
+        return Text(out)
+    }
+
     /// Definition / derivation text with Strong's cross-references as links (⌘-click opens a new tab on the Mac).
     private func linkedText(_ text: String, lang: Character) -> Text {
         var out = AttributedString()
@@ -132,7 +147,13 @@ struct LexiconEntryView: View {
                         if !e.gloss.isEmpty { Text(e.gloss).font(.headline) }
                         if !e.definition.isEmpty { section("Definition") { linkedText(e.definition, lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
                         if !e.derivation.isEmpty { section("Derivation") { linkedText(e.derivation, lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
-                        if !e.extendedDef.isEmpty, !compact { section("Extended") { Text(e.extendedDef).textSelection(.enabled) } }
+                        if !e.extendedDef.isEmpty, !compact {
+                            if e.strongsNum.hasPrefix("H") {
+                                section("BDB Notes") { bdbText(e.extendedDef).textSelection(.enabled) }
+                            } else {
+                                section("Extended") { Text(e.extendedDef).textSelection(.enabled) }
+                            }
+                        }
                         if !related.isEmpty {
                             section("Related") {
                                 ForEach(related, id: \.strongsNum) { r in
