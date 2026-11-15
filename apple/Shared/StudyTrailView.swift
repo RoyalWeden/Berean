@@ -81,7 +81,7 @@ struct StudyTrailView: View {
                 Button("Start") { startTrail() }
                     .disabled(newTrailName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            .alert("Couldn’t Start Trail", isPresented: Binding(
+            .alert("Study Trail", isPresented: Binding(
                 get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
             )) {
                 Button("OK") { errorMessage = nil }
@@ -138,7 +138,24 @@ struct StudyTrailView: View {
                         }
                     }
                 }
+                .contextMenu {
+                    if !searchActive {
+                        Button("Move Up", systemImage: "arrow.up") { moveTrail(trail.id, .earlier) }
+                            .disabled(trail.id == trails.first?.id)
+                        Button("Move Down", systemImage: "arrow.down") { moveTrail(trail.id, .later) }
+                            .disabled(trail.id == trails.last?.id)
+                    }
+                }
             }
+        }
+    }
+
+    private func moveTrail(_ id: String, _ direction: StudyTrailService.TrailMove) {
+        do {
+            guard let service = app.studyTrailService, try service.moveTrail(id, direction) else { return }
+            load()
+        } catch {
+            errorMessage = "The trail order could not be saved."
         }
     }
 

@@ -110,6 +110,24 @@ public struct StudyTrailService {
         }
     }
 
+    public enum TrailMove { case earlier, later }
+
+    /// Save dense positions so the legacy Study Trail rail opens in the same order.
+    public func moveTrail(_ id: String, _ direction: TrailMove) throws -> Bool {
+        try transaction {
+            var ids = try trails().map(\.id)
+            guard let index = ids.firstIndex(of: id) else { return false }
+            let destination = index + (direction == .earlier ? -1 : 1)
+            guard ids.indices.contains(destination) else { return false }
+            ids.swapAt(index, destination)
+            for (order, trailId) in ids.enumerated() {
+                try db.run("UPDATE trail_sessions SET sort_order = ? WHERE id = ?",
+                           [.integer(Int64(order)), .text(trailId)])
+            }
+            return true
+        }
+    }
+
     public struct SearchRecord: Sendable {
         public let trailId: String
         public let sourceBook: String?

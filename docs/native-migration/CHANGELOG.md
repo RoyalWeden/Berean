@@ -1155,3 +1155,7 @@
 - The full Lexicon tab uses a circled Info symbol sized by the native toolbar.
 - Find a Study Trail searches saved content and opens the matched trail with the search carried into its detail view.
 - Both Dev builds and 138 Swift tests passed. The migrated SQLite search assertions passed in a focused rerun. Mac interactions were verified in the isolated QA library. Live iPhone verification remains open.
+
+### 2026-11-15 — Study Trail library ordering
+- Added Move Up and Move Down to saved trail rows. The order persists in the original trail session rows.
+- Both Dev builds and all 138 Swift tests passed. Mac scratch QA verified the order after reopening the library. Live iPhone verification remains open.
