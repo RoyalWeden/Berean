@@ -880,7 +880,7 @@ Not started natively; it was judged too large to finish safely in the Claude ses
 
 #### Final state at session end (20:10 PST) — start here, Codex
 
-- Branch `native/reader-notes`, pushed; HEAD is the last commit in `git log` (docs commit after `22f6dc90`). **50 commits** this
+- Branch `native/reader-notes`, pushed; HEAD is the last commit in `git log` (docs commit after `22f6dc90`). **39 commits** (incl. this docs fix) this
   session on top of Codex's `64df1059`; nothing force-pushed. PR #24 (draft) carries all of it — Michael merges #22 → #23 → #24.
 - **Last full check:** `npm run native:check` at `b6223db3` → Swift Testing **111 tests / 40 suites pass**, Mac + iOS Simulator Debug
   builds with Dev identity assertions pass. Every later commit was built for Mac and iOS individually.
