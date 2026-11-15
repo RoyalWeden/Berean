@@ -236,8 +236,20 @@ struct CommandPalette: View {
                         if list.isEmpty { Text("No matches").foregroundStyle(.secondary).padding(10) }
                     }
                     .padding(8)
+                    .id("paletteResultsStart")
                 }
-                .onChange(of: index) { _, i in let l = items; if l.indices.contains(i) { proxy.scrollTo(l[i].id) } }
+                .onChange(of: text) {
+                    index = 0
+                    proxy.scrollTo("paletteResultsStart", anchor: .top)
+                }
+                .onChange(of: index) { _, i in
+                    guard i != 0 else {
+                        proxy.scrollTo("paletteResultsStart", anchor: .top)
+                        return
+                    }
+                    let list = items
+                    if list.indices.contains(i) { proxy.scrollTo(list[i].id) }
+                }
             }
             .frame(height: resultsHeight)
             Divider()
@@ -259,7 +271,6 @@ struct CommandPalette: View {
         .accessibilityElement(children: .contain)
         .onExitCommand(perform: close)
         .onAppear { focused = true }
-        .onChange(of: text) { index = 0 }
         .task(id: trimmed) {
             noteHits = trimmed.count < 2 ? [] : ((try? app.notes?.search(trimmed, limit: 6)) ?? [])
         }

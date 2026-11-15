@@ -30,6 +30,7 @@ struct MacRootView: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .top) {
                         Color.black.opacity(0.12)
+                            .ignoresSafeArea(.container, edges: .top)
                             .contentShape(.rect)
                             .onTapGesture { app.commandPaletteShown = false }
                             .accessibilityHidden(true)
