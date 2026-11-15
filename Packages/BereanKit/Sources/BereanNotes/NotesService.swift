@@ -304,6 +304,16 @@ public final class NotesService: @unchecked Sendable {
 
     static let longDate: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMMM d, yyyy"; return f }()
 
+    /// `dailyNoteDisplayTitle` (dailyNoteUtils.ts): "Friday, November 13, 2026", with Saturday shown as "Sabbath".
+    public static func dailyDisplayTitle(_ dateKey: String) -> String? {
+        let p = dateKey.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3, let date = Calendar(identifier: .gregorian).date(from: DateComponents(year: p[0], month: p[1], day: p[2])) else { return nil }
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US"); f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "EEEE, MMMM d, yyyy"
+        let text = f.string(from: date)
+        return Calendar(identifier: .gregorian).component(.weekday, from: date) == 7 ? text.replacingOccurrences(of: "Saturday", with: "Sabbath") : text
+    }
+
     /// `dailyTitleDateKey` ("Daily — 2026-01-09" or the older "Daily — January 9, 2026").
     public static func dailyDateKey(_ title: String) -> String? {
         var s = title

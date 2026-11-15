@@ -415,14 +415,26 @@ struct NoteDetailView: View {
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
+    private func dailyHeader(_ note: Note) -> String? {
+        guard note.type == "daily" || note.type == "journal", let key = NotesService.dailyDateKey(note.title) else { return nil }
+        return NotesService.dailyDisplayTitle(key)
+    }
+
     var body: some View {
         Group {
             if let note {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("Untitled", text: $title).font(.largeTitle.bold()).textFieldStyle(.plain)
-                        .focused($focus, equals: .title)
-                        .onSubmit { focus = .body }
-                        .onChange(of: title) { scheduleSave() }
+                    if let daily = dailyHeader(note) {
+                        // A daily note's stored title ("Daily — 2026-11-14") is its calendar key; show the date
+                        // instead and keep it read-only so renaming can't detach the note from its day.
+                        Text(daily).font(.largeTitle.bold()).textSelection(.enabled)
+                            .accessibilityAddTraits(.isHeader)
+                    } else {
+                        TextField("Untitled", text: $title).font(.largeTitle.bold()).textFieldStyle(.plain)
+                            .focused($focus, equals: .title)
+                            .onSubmit { focus = .body }
+                            .onChange(of: title) { scheduleSave() }
+                    }
                     if let ref = note.verseRef {
                         let attachments = ref.split(separator: ",").compactMap { part -> ResolvedPassage? in
                             guard let link = Reference.parseNoteAttachment(String(part)) else { return nil }
@@ -465,7 +477,7 @@ struct NoteDetailView: View {
                 ContentUnavailableView("Note not found", systemImage: "note.text")
             }
         }
-        .navigationTitle(title.isEmpty ? "Untitled" : title)
+        .navigationTitle(note.flatMap(dailyHeader) ?? (title.isEmpty ? "Untitled" : title))
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

@@ -33,3 +33,11 @@ struct DailyNoteDayTests {
         #expect(DailyNoteDay.Location(latitude: 0, longitude: .nan) == nil)
     }
 }
+
+@Suite("daily note display title") struct DailyDisplayTitleTests {
+    @Test func weekdayAndSabbath() {
+        #expect(NotesService.dailyDisplayTitle("2026-11-13") == "Friday, November 13, 2026")
+        #expect(NotesService.dailyDisplayTitle("2026-11-14") == "Sabbath, November 14, 2026")
+        #expect(NotesService.dailyDisplayTitle("nope") == nil)
+    }
+}
