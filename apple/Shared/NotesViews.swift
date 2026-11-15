@@ -824,8 +824,7 @@ struct NoteDetailView: View {
             return
         }
         let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
-        let internalSchemes = ["berean", "berean-dev", "berean-pdf", "berean-dev-pdf", DeepLink.nativeDevScheme]
-        if route != nil || internalSchemes.contains(url.scheme?.lowercased() ?? "") {
+        if route != nil || AppModel.isBereanLink(url) {
             saveNow()
             routeFromEditor { app.openBereanLink(route) }
             return

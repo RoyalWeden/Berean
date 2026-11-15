@@ -1197,24 +1197,31 @@ final class AppModel {
         openBereanLink(DeepLink.parse(url.absoluteString, hermas: hermasEdition))
     }
 
-    func openBereanLink(_ route: DeepLinkRoute?) {
+    static func isBereanLink(_ url: URL) -> Bool {
+        let schemes = ["berean", "berean-dev", "berean-pdf", "berean-dev-pdf", DeepLink.nativeDevScheme]
+        return schemes.contains(url.scheme?.lowercased() ?? "")
+    }
+
+    func openBereanLink(_ route: DeepLinkRoute?, returningTo sourceTabID: String? = nil) {
         switch route {
         case .verse:
             guard let passage = resolveLinkedPassage(route) else {
                 userMessage = "This Scripture link is unavailable."
                 return
             }
-            visitScripture(passage)
+            visitScripture(passage, returningTo: sourceTabID)
         case .note(let id):
             guard (try? notes?.one(id)) != nil else {
                 userMessage = "This note is unavailable."
                 return
             }
-            openNote(id)
+            openNote(id, fromList: sourceTabID)
         case .lexicon(let id):
             openLexicon(id, reuseTab: true)
+            recordTabReturn(to: sourceTabID)
         case .search(let query):
             openSearch(query, reuseTab: true)
+            recordTabReturn(to: sourceTabID)
         case .daily:
             openTodayDailyNote()
         case .workspace(let name):

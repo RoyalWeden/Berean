@@ -1,6 +1,7 @@
 import SwiftUI
 import BereanCore
 import BereanNotes
+import BereanReference
 
 /// Calendar tabs read and write the legacy local-date "month" and "selected" keys.
 struct DailyNoteCalendar: View {
@@ -176,7 +177,7 @@ struct DailyNoteCalendar: View {
             let key = DailyNoteDay.dateKey(date)
             let entry = notes[key]
             DailyTimelineRow(date: date, isToday: Self.calendar.isDate(date, inSameDayAs: today),
-                             noteId: entry?.noteId, indexError: indexError) {
+                             noteId: entry?.noteId, indexError: indexError, calendarTabID: tabId) {
                 app.dailyTimelinePositions[tabId] = date
                 saveMonth(nil, selected: key)
                 app.openDailyNote(key, fromCalendar: tabId)
@@ -338,6 +339,7 @@ private struct DailyTimelineRow: View {
     let isToday: Bool
     let noteId: String?
     let indexError: Bool
+    let calendarTabID: String
     let open: () -> Void
     @State private var note: Note?
     @State private var failed = false
@@ -365,7 +367,15 @@ private struct DailyTimelineRow: View {
                 .disabled(indexError)
             }
             if let note, !note.content.isEmpty {
-                MarkdownText(note.content).textSelection(.enabled)
+                MarkdownText(note.content)
+                    .textSelection(.enabled)
+                    .environment(\.openURL, OpenURLAction { url in
+                        let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
+                        guard route != nil || AppModel.isBereanLink(url) else { return .systemAction }
+                        app.dailyTimelinePositions[calendarTabID] = date
+                        app.openBereanLink(route, returningTo: calendarTabID)
+                        return .handled
+                    })
             } else if failed || indexError {
                 Text("Could not load daily note.").foregroundStyle(.secondary)
             } else if noteId == nil {
