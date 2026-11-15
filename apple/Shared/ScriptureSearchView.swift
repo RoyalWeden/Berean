@@ -266,8 +266,8 @@ struct ScriptureSearchView: View {
                         .focused($fieldFocused)
                         .onSubmit(submit)
                         .autocorrectionDisabled()
-                    if !field.isEmpty {
-                        Button { field = ""; fieldFocused = true } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                    if !field.isEmpty || !query.isEmpty {
+                        Button(action: clearQuery) { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
                             .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
                     }
                 }
@@ -292,9 +292,32 @@ struct ScriptureSearchView: View {
                         #endif
                 }
             }
-            if !query.isEmpty, query.utf16.count >= 2 { summaryRow }
+            if !tagSelection.ids.isEmpty { activeTagFilter }
+            if query.utf16.count >= 2 { summaryRow }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
+    }
+
+    private var activeTagFilter: some View {
+        let selection = tagSelection
+        let count = selection.ids.count
+        let name = verseTags.first { count == 1 && $0.id == selection.ids.first }?.name
+        let title = name ?? (count == 1 ? "1 tag" : "\(selection.all ? "All" : "Any of") \(count) tags")
+        return Button {
+            setTagIDs([])
+        } label: {
+            HStack(spacing: 6) {
+                Label(title, systemImage: "tag").lineLimit(1)
+                Image(systemName: "xmark").font(.caption2.weight(.semibold))
+            }
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 9).padding(.vertical, 5)
+            .background(.quaternary, in: .capsule)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel("Clear verse tag filters")
+        .accessibilityValue(title)
     }
 
     var hasActiveOptions: Bool { mode != .all || testament != "all" || !bookFilter.isEmpty || !tagSelection.ids.isEmpty }
@@ -476,8 +499,11 @@ struct ScriptureSearchView: View {
     // MARK: running
 
     func submit() {
-        let q = field.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return }
+        let q = field.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else {
+            clearQuery()
+            return
+        }
         // A chapter reference in the search field goes to the passage, as everywhere else. A single-verse reference
         // stays here and shows that verse's cross references (the original Search tab's auto cross-reference mode),
         // with an Open button for the passage itself.
@@ -487,10 +513,20 @@ struct ScriptureSearchView: View {
             return
         }
         SearchHistory.record(q)
+        commitQuery(q)
+    }
+
+    private func clearQuery() {
+        field = ""
+        fieldFocused = true
+        if !query.isEmpty { commitQuery("") }
+    }
+
+    private func commitQuery(_ q: String) {
         app.update(tabId) { tab in
             tab.state["query"] = .string(JSString(q))
             tab.state.remove("nativeSearchFocusText")
-            tab.title = "Search: \(q)"
+            tab.title = q.isEmpty ? "Search" : "Search: \(q)"
         }
     }
 
