@@ -12,6 +12,7 @@ struct IOSRootView: View {
     @State private var showGo = false
     @State private var explicitNewTab = false
     @State private var showSettings = false
+    @State private var keyboardUp = false
     @State private var showScriptureDisplay = false
     @State private var chapterTagTarget: ChapterTagTarget?
     @State private var findRequest = 0
@@ -29,7 +30,22 @@ struct IOSRootView: View {
         @Bindable var app = app
         NavigationStack {
             content
-                .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
+                .safeAreaInset(edge: .bottom, spacing: 0) { if !keyboardUp { bottomBar } }
+                // The dock steps aside while typing (the note editor's format bar docks above the keyboard).
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+                    // Covers the software keyboard and the accessory-only bar shown with a hardware keyboard.
+                    guard let end = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
+                    let screen = (note.object as? UIScreen)?.bounds ?? UIScreen.main.bounds
+                    let up = end.minY < screen.maxY - 1 && end.height > 0
+                    if up != keyboardUp { withAnimation(.snappy(duration: 0.2)) { keyboardUp = up } }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .bereanNoteEditing)) { note in
+                    let up = note.object as? Bool ?? false
+                    if up != keyboardUp { withAnimation(.snappy(duration: 0.2)) { keyboardUp = up } }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                    withAnimation(.snappy(duration: 0.2)) { keyboardUp = false }
+                }
         }
         .studyTrailSheet(app: app)
         .task(id: readerEdition) {

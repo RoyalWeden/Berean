@@ -196,6 +196,14 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             return n
         }
 
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            NotificationCenter.default.post(name: .bereanNoteEditing, object: true)
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            NotificationCenter.default.post(name: .bereanNoteEditing, object: false)
+        }
+
         func textViewDidChange(_ textView: UITextView) {
             editing = true
             parent.text = textView.text
@@ -389,4 +397,10 @@ final class NoteUITextView: UITextView {
         guard let s = md ?? pb.string, !s.isEmpty else { return }
         super.insertText(s)
     }
+}
+
+
+extension Notification.Name {
+    /// Posted with `true` / `false` when the note editor starts / stops editing (the root view hides the dock meanwhile).
+    static let bereanNoteEditing = Notification.Name("bereanNoteEditing")
 }
