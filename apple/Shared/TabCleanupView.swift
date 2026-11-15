@@ -1,4 +1,5 @@
 import SwiftUI
+import BereanWorkspace
 
 struct TabCleanupView: View {
     @Environment(AppModel.self) private var app
@@ -7,6 +8,9 @@ struct TabCleanupView: View {
     @State private var query = ""
     @State private var duplicatesOnly = false
     @State private var keepingRecent = true
+    @State private var tabType: TabType?
+    @State private var archivedGroupID: String?
+    @State private var nothingArchived = false
 
     var body: some View {
         let originals = duplicatesOnly ? app.inactiveDuplicateOriginals(keepingRecent: keepingRecent) : [:]
@@ -15,17 +19,43 @@ struct TabCleanupView: View {
         let protectedCount = candidates.filter { recentIDs.contains($0.id) }.count
         let tabs = candidates.filter { !keepingRecent || !recentIDs.contains($0.id) }
         let selected = tabs.filter { included.contains($0.id) }
+        let kinds = TabType.allCases.filter { kind in tabs.contains { $0.tabType == kind } || tabType == kind }
+        let receipt = app.archivedGroups.first { $0.id == archivedGroupID }
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let matches = tabs.filter { tab in
-            return terms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
+            (tabType == nil || tab.tabType == tabType)
+                && terms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
         }
         NavigationStack {
             List {
+                if let receipt {
+                    Section {
+                        Label("Archived \(receipt.tabs.count) tab\(receipt.tabs.count == 1 ? "" : "s")", systemImage: "archivebox")
+                        Button("Undo Archive", systemImage: "arrow.uturn.backward") {
+                            app.restoreArchived(receipt.id, toSource: true)
+                            if !app.archivedGroups.contains(where: { $0.id == receipt.id }) { archivedGroupID = nil }
+                        }
+                    }
+                } else if nothingArchived {
+                    Text("No selected tabs are still eligible to archive.").foregroundStyle(.secondary)
+                }
                 Section {
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                         TextField("Filter inactive tabs", text: $query)
                             .textFieldStyle(.plain)
+                    }
+                    if !kinds.isEmpty {
+                        Picker("Tab Type", selection: $tabType) {
+                            Text("All Types").tag(nil as TabType?)
+                            ForEach(kinds, id: \.self) { kind in
+                                let count = tabs.count { $0.tabType == kind }
+                                Text("\(kind == .bible ? "Scripture" : kind.rawValue.capitalized) (\(count))")
+                                    .tag(Optional(kind))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .clickableCursor()
                     }
                     Toggle("Keep Recently Used Tabs", isOn: $keepingRecent)
                         .clickableCursor()
@@ -37,7 +67,7 @@ struct TabCleanupView: View {
                         .onChange(of: duplicatesOnly) {
                             included.removeAll()
                         }
-                    Button(terms.isEmpty ? "Select All" : "Select Matches", systemImage: "checkmark.circle") {
+                    Button(terms.isEmpty && tabType == nil ? "Select All" : "Select Matches", systemImage: "checkmark.circle") {
                         included.formUnion(matches.map(\.id))
                     }
                     .disabled(matches.allSatisfy { included.contains($0.id) })
@@ -91,11 +121,10 @@ struct TabCleanupView: View {
             #if os(iOS)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack {
-                    Button("Cancel") { dismiss() }
+                    Button(receipt == nil ? "Cancel" : "Done") { dismiss() }
                         .buttonStyle(.bordered)
                     Button("Archive \(selected.count)", systemImage: "archivebox") {
-                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
-                        dismiss()
+                        archive(selected.map(\.id))
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(selected.isEmpty)
@@ -110,16 +139,22 @@ struct TabCleanupView: View {
             #else
             .navigationTitle("Archive Inactive Tabs")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.clickableCursor() }
+                ToolbarItem(placement: .cancellationAction) { Button(receipt == nil ? "Cancel" : "Done") { dismiss() }.clickableCursor() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Archive \(selected.count)") {
-                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
-                        dismiss()
+                        archive(selected.map(\.id))
                     }
                     .disabled(selected.isEmpty)
                 }
             }
             #endif
         }
+    }
+
+    private func archive(_ ids: [String]) {
+        let group = app.archiveInactiveTabs(ids, duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
+        if let group { archivedGroupID = group.id }
+        nothingArchived = group == nil
+        included.removeAll()
     }
 }
