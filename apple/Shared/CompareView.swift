@@ -137,6 +137,7 @@ struct CompareView: View {
     @State private var chapterNoteCounts: [EditionChapter: [Int: Int]] = [:]
     @State private var chapterHighlights: [EditionChapter: [Int: [Highlight]]] = [:]
     @State private var loadedPassage: String?
+    @State private var compareWidth: CGFloat = 0
     @State private var localVerseSelection: Int?
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
@@ -396,15 +397,14 @@ struct CompareView: View {
     private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                if prefersStackedComparison {
+                // Side-by-side columns when each gets ~280 pt (MAC-UI-039: ViewThatFits always chose stacked).
+                if prefersStackedComparison || compareWidth < CGFloat(columns.count) * 280 + 60 {
                     stackedComparison(state, columns)
                 } else {
-                    ViewThatFits(in: .horizontal) {
-                        comparisonGrid(state, columns)
-                        stackedComparison(state, columns)
-                    }
+                    comparisonGrid(state, columns)
                 }
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
             .onChange(of: state.verse, initial: true) {
                 let selectedHere = localVerseSelection != nil && localVerseSelection == state.verse
                 localVerseSelection = nil
