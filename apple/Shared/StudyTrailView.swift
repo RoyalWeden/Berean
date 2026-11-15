@@ -165,11 +165,24 @@ private struct StudyTrailStopsView: View {
                 Section("Connections") {
                     if let destination = currentDestination, !stops.isEmpty {
                         Menu {
-                            ForEach(stops) { stop in
-                                Button(stopLabel(stop)) { addConnection(destination.value, from: stop) }
+                            Section("From a Stop") {
+                                ForEach(stops) { stop in
+                                    Button(stopLabel(stop)) { addConnection(destination.value, from: stop.id) }
+                                }
+                            }
+                            if !connections.isEmpty {
+                                Menu("Continue from a Connection") {
+                                    ForEach(connections) { parent in
+                                        let title = connectionLabel(parent.destination)
+                                        let origin = stops.first { $0.id == parent.fromStopId }
+                                        Button(origin.map { "\(title) · \(stopLabel($0))" } ?? title) {
+                                            addConnection(destination.value, from: parent.fromStopId, after: parent.id)
+                                        }
+                                    }
+                                }
                             }
                         } label: {
-                            Label("Connect \(destination.label) to a Stop", systemImage: "link.badge.plus")
+                            Label("Connect \(destination.label)", systemImage: "link.badge.plus")
                         }
                     }
                     ForEach(connections) { connection in connectionRow(connection) }
@@ -219,11 +232,12 @@ private struct StudyTrailStopsView: View {
         Reference.readerChapterLabel(stop.bookId, stop.chapter, textId: stop.translation ?? app.defaultText)
     }
 
-    private func addConnection(_ destination: StudyTrailService.Connection.Destination, from stop: StudyTrailService.Stop) {
+    private func addConnection(_ destination: StudyTrailService.Connection.Destination, from stopId: String,
+                               after parentId: String? = nil) {
         guard let service = app.studyTrailService else { return }
         do {
-            guard try service.addConnection(destination, id: AppModel.newId(), fromStopId: stop.id,
-                                            trailId: trail.id, at: StudyTrailView.now()) else {
+            guard try service.addConnection(destination, id: AppModel.newId(), fromStopId: stopId,
+                                            trailId: trail.id, after: parentId, at: StudyTrailView.now()) else {
                 actionMessage = "This connection already exists or the stop is unavailable."
                 return
             }
@@ -299,6 +313,18 @@ private struct StudyTrailStopsView: View {
         }
     }
 
+    private func connectionLabel(_ destination: StudyTrailService.Connection.Destination) -> String {
+        switch destination {
+        case .scripture(let book, let chapter, let verse, let endVerse):
+            let first = Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse)
+            if let verse, let endVerse, endVerse > verse { return "\(first)–\(endVerse)" }
+            return first
+        case .lexicon(let id): return id
+        case .note(let id): return (try? app.notes?.one(id))?.displayTitle ?? "Unavailable Note"
+        case .other(let kind): return kind.capitalized
+        }
+    }
+
     private func connectionRow(_ connection: StudyTrailService.Connection) -> some View {
         let origin = stops.first { $0.id == connection.fromStopId }
         return VStack(alignment: .leading, spacing: 4) {
@@ -307,11 +333,14 @@ private struct StudyTrailStopsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let parent = connections.first(where: { $0.id == connection.parentId }) {
+                Label("Via \(connectionLabel(parent.destination))", systemImage: "arrow.turn.down.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             switch connection.destination {
             case let .scripture(book, chapter, verse, endVerse):
-                let first = Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse)
-                let label = endVerse.map { end in verse.map { end > $0 ? "\(first)–\(end)" : first } ?? first } ?? first
-                Button(label, systemImage: "book") {
+                Button(connectionLabel(connection.destination), systemImage: "book") {
                     app.showStudyTrail = false
                     let translation = origin?.translation
                     let textId = app.bookCatalog.first {

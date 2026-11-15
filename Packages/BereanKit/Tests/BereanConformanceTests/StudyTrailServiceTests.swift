@@ -55,10 +55,25 @@ import Testing
     #expect(try reader.addConnection(range, id: "range", fromStopId: "first", trailId: "pinned", at: 7))
     #expect(try !reader.addConnection(range, id: "duplicate", fromStopId: "first", trailId: "pinned", at: 8))
     #expect(try reader.addConnection(.note("note-id"), id: "note", fromStopId: "second", trailId: "pinned", at: 9))
+    #expect(try reader.addConnection(.lexicon("G3056"), id: "branch", fromStopId: "first",
+                                     trailId: "pinned", after: "range", at: 10))
+    #expect(try reader.addConnection(.note("branch-note"), id: "nested", fromStopId: "first",
+                                     trailId: "pinned", after: "branch", at: 11))
+    #expect(try !reader.addConnection(.lexicon("G3056"), id: "duplicate-branch", fromStopId: "first",
+                                      trailId: "pinned", after: "range", at: 12))
+    #expect(try !reader.addConnection(.lexicon("G1"), id: "bad-stop", fromStopId: "second",
+                                      trailId: "pinned", after: "range", at: 13))
+    #expect(try !reader.addConnection(.lexicon("G1"), id: "bad-trail", fromStopId: "first",
+                                      trailId: "pinned", after: "other", at: 14))
+    #expect(try db.query("SELECT chain_depth FROM trail_connections WHERE id IN ('branch', 'nested') ORDER BY created_at")
+        .map { $0["chain_depth"]?.int } == [1, 2])
     let new = try reader.connections(in: "pinned")
-    #expect(new.map(\.id) == ["lex", "chapter", "range", "note"])
-    if case .scripture("JHN", 1, 1, 4) = new[2].destination {} else { Issue.record("Expected the saved verse range") }
-    if case .note("note-id") = new[3].destination {} else { Issue.record("Expected the saved note") }
+    #expect(new.map(\.id) == ["lex", "chapter", "range", "note", "branch", "nested"])
+    let savedRange = try #require(new.first { $0.id == "range" })
+    let savedNote = try #require(new.first { $0.id == "note" })
+    if case .scripture("JHN", 1, 1, 4) = savedRange.destination {} else { Issue.record("Expected the saved verse range") }
+    if case .note("note-id") = savedNote.destination {} else { Issue.record("Expected the saved note") }
+    #expect(new.last?.parentId == "branch")
 }
 
 @Test func recordsAndFinishesTrailWithLegacyRows() throws {

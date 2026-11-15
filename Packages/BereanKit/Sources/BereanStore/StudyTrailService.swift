@@ -190,10 +190,10 @@ public struct StudyTrailService {
         }
     }
 
-    /// Adds an explicit, top-level connection using the legacy destination fields.
+    /// Adds an explicit connection, optionally continuing an existing legacy chain.
     @discardableResult
     public func addConnection(_ destination: Connection.Destination, id: String, fromStopId: String,
-                              trailId: String, at time: Int64) throws -> Bool {
+                              trailId: String, after parentId: String? = nil, at time: Int64) throws -> Bool {
         let fields: [SQLiteValue]
         switch destination {
         case .scripture(let book, let chapter, let verse, let endVerse):
@@ -211,25 +211,30 @@ public struct StudyTrailService {
         case .other:
             return false
         }
-        let trail = SQLiteValue.text(trailId)
-        let stop = SQLiteValue.text(fromStopId)
+        let parent = parentId.map(SQLiteValue.text) ?? .null
+        let parameters: [SQLiteValue] = [.text(id), .text(trailId), .text(fromStopId)]
+            + fields + [.integer(time), parent]
         return try db.run("""
             INSERT INTO trail_connections (
                 id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
-                to_verse_end, to_strongs_num, to_note_id, clarity_tier, created_at
+                to_verse_end, to_strongs_num, to_note_id, clarity_tier, created_at,
+                from_connection_id, chain_depth
             )
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?
-            WHERE EXISTS (
-                SELECT 1 FROM trail_nodes n JOIN trail_sessions s ON s.id = n.trail_session_id
-                WHERE n.id = ? AND s.id = ? AND s.id <> '__loose_stops__'
-            )
-            AND NOT EXISTS (
+            SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11,
+                   p.id, COALESCE(p.chain_depth + 1, 0)
+            FROM trail_nodes n
+            JOIN trail_sessions s ON s.id = n.trail_session_id
+            LEFT JOIN trail_connections p
+                ON p.id = ?12 AND p.trail_session_id = s.id AND p.from_node_id = n.id
+            WHERE n.id = ?3 AND s.id = ?2 AND s.id <> '__loose_stops__'
+              AND (?12 IS NULL OR p.id IS NOT NULL)
+              AND NOT EXISTS (
                 SELECT 1 FROM trail_connections
-                WHERE trail_session_id = ? AND from_node_id = ? AND from_connection_id IS NULL
-                  AND to_kind = ? AND to_book_id IS ? AND to_chapter IS ? AND to_verse IS ?
-                  AND to_verse_end IS ? AND to_strongs_num IS ? AND to_note_id IS ?
-            )
-            """, [.text(id), trail, stop] + fields + [.integer(time), stop, trail, trail, stop] + fields).changes == 1
+                WHERE trail_session_id = ?2 AND from_node_id = ?3 AND from_connection_id IS ?12
+                  AND to_kind = ?4 AND to_book_id IS ?5 AND to_chapter IS ?6 AND to_verse IS ?7
+                  AND to_verse_end IS ?8 AND to_strongs_num IS ?9 AND to_note_id IS ?10
+              )
+            """, parameters).changes == 1
     }
 
     @discardableResult
