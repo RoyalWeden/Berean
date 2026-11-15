@@ -870,7 +870,9 @@ struct ScriptureView: View {
                 if app.fontSize != size { app.fontSize = size }
                 pinchFontSize = nil
             },
-            onChromeHidden: { hidden in withAnimation(.snappy(duration: 0.25)) { app.readerChromeHidden = hidden } }
+            onChromeHidden: { hidden in withAnimation(.snappy(duration: 0.25)) { app.readerChromeHidden = hidden } },
+            onSearchText: { app.openSearch($0, returningTo: tabId) },
+            onLexiconSearch: { app.openLexiconSearch($0, newTab: true) }
         )
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet

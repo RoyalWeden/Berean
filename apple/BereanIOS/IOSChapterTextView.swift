@@ -34,6 +34,9 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onPinchCommit: (Double) -> Void
     /// Scrolling down hides the reader chrome (passage capsule, dock); scrolling up or reaching the top shows it.
     var onChromeHidden: (Bool) -> Void = { _ in }
+    /// "Search for …" / "Look Up in Lexicon" from a text selection (Mac reader parity).
+    var onSearchText: (String) -> Void = { _ in }
+    var onLexiconSearch: (String) -> Void = { _ in }
     @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -595,6 +598,20 @@ struct IOSChapterTextView: UIViewRepresentable {
                 }
             })
             var actions: [UIMenuElement] = [copy, copyWithReference, highlight]
+            let words = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+            if !words.isEmpty, words.count <= 12 {
+                let query = words.joined(separator: " ")
+                let shown = query.count > 24 ? String(query.prefix(23)) + "…" : query
+                actions.append(UIAction(title: "Search for “\(shown)”", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
+                    self?.parent.onSearchText(query)
+                })
+                if words.count == 1 {
+                    let word = query.trimmingCharacters(in: .punctuationCharacters).lowercased()
+                    actions.append(UIAction(title: "Look Up in Lexicon", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
+                        self?.parent.onLexiconSearch(word)
+                    })
+                }
+            }
             if first.0.verse == last.0.verse {
                 actions.append(UIAction(title: "Verse Actions", image: UIImage(systemName: "ellipsis.circle")) { [weak self, weak view] _ in
                     view?.selectedRange = NSRange(location: range.location, length: 0)
