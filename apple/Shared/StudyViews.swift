@@ -68,6 +68,51 @@ struct LexiconEntryView: View {
         } : filtered
     }
 
+    /// Definition / derivation text with Strong's cross-references as links (⌘-click opens a new tab on the Mac).
+    private func linkedText(_ text: String, lang: Character) -> Text {
+        var out = AttributedString()
+        for token in StrongsRefTokens.tokens(text, lang: lang) {
+            switch token {
+            case .text(let t): out += AttributedString(t)
+            case .ref(let id):
+                var a = AttributedString(id)
+                a.link = URL(string: "berean-lexicon:\(id)")
+                a.font = .body.monospaced()
+                a.foregroundColor = .accentColor
+                out += a
+            }
+        }
+        return Text(out)
+    }
+
+    /// Context menu for a Strong's number (original StrongsContextMenu.tsx).
+    @ViewBuilder private func strongsMenu(_ id: String, gloss: String) -> some View {
+        Button("Open", systemImage: "character.book.closed") { app.navigateLexicon(id, in: tabId) }
+        Button("Open in New Tab", systemImage: "plus.square.on.square") { app.openLexicon(id) }
+        Divider()
+        Button("Copy \(id)", systemImage: "doc.on.doc") { copyToPasteboard(id) }
+        if !gloss.isEmpty { Button("Copy \(id) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard("Strong's \(id) — \(gloss)") } }
+    }
+
+    private func copyToPasteboard(_ s: String) {
+        #if os(macOS)
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(s, forType: .string)
+        #else
+        UIPasteboard.general.string = s
+        #endif
+    }
+
+    private var lexiconLinkAction: OpenURLAction {
+        OpenURLAction { url in
+            guard url.scheme == "berean-lexicon", let id = StrongsId.normalize(url.absoluteString.replacingOccurrences(of: "berean-lexicon:", with: "")) else { return .systemAction }
+            #if os(macOS)
+            if NSEvent.modifierFlags.contains(.command) { app.openLexicon(id); return .handled }
+            #endif
+            app.navigateLexicon(id, in: tabId)
+            return .handled
+        }
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -85,8 +130,8 @@ struct LexiconEntryView: View {
                             Text([e.transliteration, e.pronunciation].filter { !$0.isEmpty }.joined(separator: " · ")).foregroundStyle(.secondary)
                         }
                         if !e.gloss.isEmpty { Text(e.gloss).font(.headline) }
-                        if !e.definition.isEmpty { section("Definition") { Text(e.definition).textSelection(.enabled) } }
-                        if !e.derivation.isEmpty { section("Derivation") { Text(e.derivation).textSelection(.enabled) } }
+                        if !e.definition.isEmpty { section("Definition") { linkedText(e.definition, lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
+                        if !e.derivation.isEmpty { section("Derivation") { linkedText(e.derivation, lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) } }
                         if !e.extendedDef.isEmpty, !compact { section("Extended") { Text(e.extendedDef).textSelection(.enabled) } }
                         if !related.isEmpty {
                             section("Related") {
@@ -105,6 +150,7 @@ struct LexiconEntryView: View {
                                         .frame(minHeight: entryControlHeight)
                                         .contentShape(.rect)
                                     }.buttonStyle(.interactivePlain)
+                                    .contextMenu { strongsMenu(r.strongsNum, gloss: r.gloss) }
                                 }
                             }
                         }
