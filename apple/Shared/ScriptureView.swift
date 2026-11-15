@@ -1050,7 +1050,15 @@ struct ScriptureView: View {
                 $0.endVerse = passage.endVerse
             }
             pickerShown = false
-        }, compact: compact)
+        }, compact: compact, onPreview: compact ? { passage in
+            mutate(passage: passage) {
+                $0.translation = passage.textId
+                $0.bookId = passage.bookId
+                $0.chapter = passage.chapter
+                $0.verse = nil
+                $0.endVerse = nil
+            }
+        } : nil)
     }
 
     func mutate(recordHistory: Bool = true, passage: ResolvedPassage? = nil, _ f: (inout BibleState) -> Void) {
