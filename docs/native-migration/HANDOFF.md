@@ -1027,3 +1027,14 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
   - fix 02:05: "---" typed at line start stays a divider (dashes at line start never convert); verified "---" → rule and "x--y" → "x—y".
 - **02:12 I16 book-scoped search:** reader selection → "Search for … in John" (Mac context menu, iPhone edit menu) opens a Search tab limited to that book and text via existing `bookIds`/`scopeTexts` keys (`AppModel.openBookSearch`). Mac verified.
   - iPhone verified too: John 5 "was" → Search in John → 156 results, all John.
+
+#### 01:12 — next picks for Codex / next session (refreshed)
+
+1. **I6 follow-up:** card previews (first verse words / note snippet) in the iPhone tab grid; Recent/Custom sort; select mode + bulk close.
+2. **I4 rest:** Print/PDF of a note; note icon picker; ref-chip long-press.
+3. **I24 platform integrations (gated):** App Intents (Open Scripture, Search Berean, Open Daily Note), Spotlight indexing, widget, Share
+   Extension, `berean://` deep links — needs Dev entitlements/provisioning first; never touch production identities.
+4. **D14 two-slot inspector** (pop a pane out / merge) and **D20/D21 continuous chapter scroll** (large; write a design note first).
+5. **I15 themes** (colour presets / custom themes) — needs a settings key decision compatible with the original `themePreset`.
+6. **I12 haptics** for tab swipe already added; extend to sheet detents and toggles.
+7. Physical-iPhone pass of everything marked "simulator" above (gestures, keyboard bar, dock hiding, edge taps).
