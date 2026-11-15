@@ -99,6 +99,32 @@ private struct StudyTrailStopsView: View {
     @State private var status: String?
     @State private var actionMessage: String?
     @State private var confirmFinish = false
+    @State private var editTarget: NoteTarget?
+
+    private enum NoteTarget: Identifiable {
+        case stop(StudyTrailService.Stop), connection(StudyTrailService.Connection)
+
+        var id: String {
+            switch self {
+            case .stop(let stop): "stop-\(stop.id)"
+            case .connection(let connection): "connection-\(connection.id)"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .stop: "Stop Note"
+            case .connection: "Connection Note"
+            }
+        }
+
+        var text: String {
+            switch self {
+            case .stop(let stop): stop.subnote ?? ""
+            case .connection(let connection): connection.userNote ?? ""
+            }
+        }
+    }
     let trail: StudyTrailService.Trail
     let reloadTrails: () -> Void
 
@@ -112,20 +138,25 @@ private struct StudyTrailStopsView: View {
             } else {
                 Section("Stops") {
                     ForEach(stops) { stop in
-                        Button {
-                            app.showStudyTrail = false
-                            let textId = stop.translation ?? app.bookCatalog.first {
-                                $0.book.id == stop.bookId
-                            }?.textId
-                            app.openScripture(bookId: stop.bookId, chapter: stop.chapter,
-                                              textId: textId, reuseTab: true)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(Reference.bookChapterLabel(stop.bookId, chapter: Double(stop.chapter)))
-                                if let subnote = stop.subnote, !subnote.isEmpty {
-                                    Text(subnote).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        HStack {
+                            Button {
+                                app.showStudyTrail = false
+                                let textId = stop.translation ?? app.bookCatalog.first {
+                                    $0.book.id == stop.bookId
+                                }?.textId
+                                app.openScripture(bookId: stop.bookId, chapter: stop.chapter,
+                                                  textId: textId, reuseTab: true)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(Reference.bookChapterLabel(stop.bookId, chapter: Double(stop.chapter)))
+                                    if let subnote = stop.subnote, !subnote.isEmpty {
+                                        Text(subnote).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                    }
                                 }
                             }
+                            .buttonStyle(.borderless)
+                            Spacer()
+                            editNoteButton(.stop(stop))
                         }
                     }
                 }
@@ -139,6 +170,9 @@ private struct StudyTrailStopsView: View {
         .safeAreaInset(edge: .top, spacing: 0) { trailControls }
         .navigationTitle(trail.name.isEmpty ? "Untitled Trail" : trail.name)
         .task(id: trail.id) { load() }
+        .sheet(item: $editTarget) { target in
+            StudyTrailNoteEditor(title: target.title, text: target.text) { try saveNote($0, target: target) }
+        }
         .confirmationDialog("Finish this trail?", isPresented: $confirmFinish, titleVisibility: .visible) {
             Button("Finish Trail") { transition(.finish) }
         }
@@ -258,9 +292,70 @@ private struct StudyTrailStopsView: View {
             if let reason = connection.reason, !reason.isEmpty {
                 Text(reason).font(.callout).foregroundStyle(.secondary)
             }
+            HStack {
+                if let note = connection.userNote, !note.isEmpty { Text(note).font(.callout) }
+                Spacer()
+                editNoteButton(.connection(connection))
+            }
         }
     }
 
+    private func editNoteButton(_ target: NoteTarget) -> some View {
+        Button(target.text.isEmpty ? "Add \(target.title)" : "Edit \(target.title)", systemImage: "square.and.pencil") {
+            editTarget = target
+        }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.borderless)
+        .help(target.text.isEmpty ? "Add \(target.title)" : "Edit \(target.title)")
+    }
+
+    private func saveNote(_ note: String, target: NoteTarget) throws {
+        guard let service = app.studyTrailService else { throw TrailNoteIssue.unavailable }
+        let saved: Bool
+        switch target {
+        case .stop(let stop): saved = try service.updateStopNote(note, stopId: stop.id, trailId: trail.id)
+        case .connection(let connection):
+            saved = try service.updateConnectionNote(note, connectionId: connection.id, trailId: trail.id)
+        }
+        guard saved else { throw TrailNoteIssue.unavailable }
+        load()
+    }
+
+    private enum TrailNoteIssue: Error { case unavailable }
+}
+
+private struct StudyTrailNoteEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    @State var text: String
+    let save: (String) throws -> Void
+    @State private var saveFailed = false
+
+    var body: some View {
+        NavigationStack {
+            TextEditor(text: $text)
+                .accessibilityLabel(title)
+                .padding()
+                .navigationTitle(title)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            do {
+                                try save(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                                dismiss()
+                            } catch {
+                                saveFailed = true
+                            }
+                        }
+                    }
+                }
+                .alert("Couldn’t Save Note", isPresented: $saveFailed) { Button("OK", role: .cancel) {} }
+        }
+        #if os(macOS)
+        .frame(minWidth: 360, minHeight: 220)
+        #endif
+    }
 }
 
 extension View {

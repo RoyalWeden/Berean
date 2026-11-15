@@ -33,6 +33,14 @@ import Testing
     #expect(connections.map(\.id) == ["lex", "chapter"])
     #expect(connections.last?.parentId == "lex")
     #expect(connections.first?.reason == "Beginning")
+    #expect(try !reader.updateConnectionNote("Wrong trail", connectionId: "lex", trailId: "recent"))
+    #expect(try !reader.updateStopNote("Wrong trail", stopId: "first", trailId: "recent"))
+    #expect(try reader.updateConnectionNote("Compare the opening words", connectionId: "lex", trailId: "pinned"))
+    #expect(try reader.updateStopNote("A revised subnote", stopId: "first", trailId: "pinned"))
+    let edited = try #require(reader.connections(in: "pinned").first)
+    #expect(edited.userNote == "Compare the opening words")
+    #expect(edited.reason == "Beginning")
+    #expect(try reader.stops(in: "pinned").first?.subnote == "A revised subnote")
     guard let last = connections.last,
           case let .scripture(book, chapter, verse) = last.destination else {
         Issue.record("Expected a Scripture destination")
