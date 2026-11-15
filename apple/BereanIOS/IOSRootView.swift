@@ -232,6 +232,8 @@ struct TabCardsSheet: View {
 
     @State private var spaceFilter: SpaceId?
     @State private var typeFilter: TabType?
+    /// "grid" shows Safari-style tab cards (original TabCardsSheet grid); "list" keeps the compact rows. Device-local.
+    @AppStorage("tabCardsLayout") private var layout = "grid"
 
     private var isFiltering: Bool { spaceFilter != nil || typeFilter != nil }
 
@@ -276,8 +278,19 @@ struct TabCardsSheet: View {
                 }
                 Section {
                     let pinned = shown.filter(\.isPinned), others = shown.filter { !$0.isPinned }
-                    ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
-                    ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
+                    if layout == "grid" {
+                        if !shown.isEmpty {
+                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                                ForEach(pinned + others) { card($0) }
+                            }
+                            .padding(.vertical, 6)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+                            .listRowBackground(Color.clear)
+                        }
+                    } else {
+                        ForEach(pinned) { row($0) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
+                        ForEach(others) { row($0) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
+                    }
                     if shown.isEmpty && otherMatches.isEmpty { Text(query.isEmpty && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
                 WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() })
@@ -287,7 +300,14 @@ struct TabCardsSheet: View {
             .navigationTitle("Tabs")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { EditButton() }
+                ToolbarItem(placement: .topBarLeading) {
+                    if layout == "list" { EditButton() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(layout == "grid" ? "Show as List" : "Show as Grid", systemImage: layout == "grid" ? "list.bullet" : "square.grid.2x2") {
+                        withAnimation(.snappy) { layout = layout == "grid" ? "list" : "grid" }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Tab Space", selection: $spaceFilter) {
@@ -336,7 +356,62 @@ struct TabCardsSheet: View {
             Button("Archive") { app.archive([tab.id]) }.tint(.indigo)
         }
         .swipeActions(edge: .leading) { Button(tab.isPinned ? "Unpin" : "Pin") { app.togglePin(tab.id) }.tint(.orange) }
-        .contextMenu {
+        .contextMenu { tabMenu(tab) }
+    }
+
+    /// A tab as a card: tinted header with its kind, title and detail, × to close; the current tab is outlined.
+    func card(_ tab: BereanWorkspace.Tab) -> some View {
+        let current = tab.id == app.activeTab?.id
+        return Button { app.select(tab.id, in: tab.spaceId); dismiss() } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 6) {
+                    Image(systemName: tab.symbol).font(.caption.weight(.semibold))
+                    Text(tab.tabType == .bible ? "Scripture" : (tab.tabType?.rawValue ?? tab.type).capitalized).font(.caption.weight(.semibold))
+                    Spacer(minLength: 0)
+                    if tab.isPinned { Image(systemName: "pin.fill").font(.caption2) }
+                }
+                .foregroundStyle(tab.tint)
+                .padding(.horizontal, 10).padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(tab.tint.opacity(0.14))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(tab.navigationLabel).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        .lineLimit(2).multilineTextAlignment(.leading)
+                    let kind = tab.tabType == .bible ? "Scripture" : (tab.tabType?.rawValue ?? tab.type).capitalized
+                    let detail = tab.navigationDetail.replacingOccurrences(of: "Scripture · ", with: "")
+                    if !detail.isEmpty, detail != kind, detail != tab.spaceId.title, detail != tab.navigationLabel {
+                        Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: tab.symbol).font(.system(size: 34, weight: .light)).foregroundStyle(tab.tint.opacity(0.25))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+            }
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16).strokeBorder(current ? Color.accentColor : Color.secondary.opacity(0.18), lineWidth: current ? 2.5 : 1)
+            }
+            .contentShape(.rect(cornerRadius: 16))
+        }
+        .buttonStyle(.interactivePlain)
+        .overlay(alignment: .topTrailing) {
+            Button { withAnimation(.snappy) { app.close(tab.id) } } label: {
+                Image(systemName: "xmark").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24).background(.thinMaterial, in: .circle)
+                    .frame(width: 44, height: 44).contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .offset(x: 8, y: -8)
+            .accessibilityLabel("Close \(tab.navigationLabel)")
+        }
+        .contextMenu { tabMenu(tab) }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(current ? .isSelected : [])
+    }
+
+    @ViewBuilder func tabMenu(_ tab: BereanWorkspace.Tab) -> some View {
             Button("Duplicate Tab", systemImage: "plus.square.on.square") { app.duplicate(tab.id) }
             Button(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: "pin") { app.togglePin(tab.id) }
             let destinations = app.tabMoveDestinations
@@ -349,7 +424,6 @@ struct TabCardsSheet: View {
             }
             Button("Archive Tab", systemImage: "archivebox") { app.archive([tab.id]) }
             Button("Close Tab", systemImage: "xmark", role: .destructive) { app.close(tab.id) }
-        }
     }
 }
 
