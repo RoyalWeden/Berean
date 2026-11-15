@@ -1040,3 +1040,4 @@ Spotlight, widget, Share Extension — needs entitlements; gated for production)
 7. Physical-iPhone pass of everything marked "simulator" above (gestures, keyboard bar, dock hiding, edge taps).
 - **01:15 full native:check at `b4ba2f6c`:** 117 tests / 43 suites pass; Mac + iOS Dev builds pass.
 - **01:18 I6 sort:** tab grid Filter menu → Sort: Custom Order / Recently Used (`tabCardsSort`, uses `recentTabIDs`). Simulator verified; set back to Custom.
+- **01:24 Note Print… (Share menu, both platforms).** Mac needed `ENABLE_RESOURCE_ACCESS_PRINTING = YES` in `apple/Config/BereanMac.xcconfig` (sandbox printing entitlement; Dev config only — production entitlements untouched). Print panel showed the note preview; cancelled. macOS then asked to allow local-network printer discovery — answered **Don't Allow** (Michael can allow it later in System Settings › Privacy › Local Network).

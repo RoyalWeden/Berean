@@ -8,6 +8,8 @@ PRODUCT_BUNDLE_IDENTIFIER = com.berean.native.mac.dev
 ENABLE_APP_SANDBOX = YES
 // Open/save panels (Export Markdown…, Import Markdown…) need user-selected file access inside the sandbox.
 ENABLE_USER_SELECTED_FILES = readwrite
+// Notes → Share → Print… (sandboxed apps need the printing entitlement).
+ENABLE_RESOURCE_ACCESS_PRINTING = YES
 ENABLE_HARDENED_RUNTIME = YES
 // "Sign to Run Locally" until a release decision assigns a team and profile.
 CODE_SIGN_IDENTITY = -

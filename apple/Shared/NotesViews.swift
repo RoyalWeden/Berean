@@ -575,6 +575,7 @@ struct NoteDetailView: View {
                     Menu {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
                         Button("Copy as Markdown") { copyMarkdown() }
+                        Button("Print…") { saveNow(); printNote(title: title, body: content) }
                         ShareLink(item: NoteMarkdownFile.markdown(for: note)) { Text("Share…") }
                     } label: { Label("Share", systemImage: "square.and.arrow.up") }
                     .menuIndicator(.hidden)
@@ -709,6 +710,27 @@ struct NoteDetailView: View {
         Button(title, systemImage: symbol) {
             formatRequest = NoteFormatRequest(action: .inline(prefix, suffix))
         }
+    }
+
+    /// Prints the note as plain text with its title (Mac print panel / iPhone AirPrint) — original Print/PDF.
+    func printNote(title: String, body: String) {
+        let text = (title.isEmpty ? "" : title + "\n\n") + body
+        #if os(macOS)
+        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 468, height: 648))
+        view.string = text
+        view.font = NSFont.systemFont(ofSize: 12)
+        let op = NSPrintOperation(view: view)
+        op.jobTitle = title.isEmpty ? "Note" : title
+        op.runModal(for: NSApp.keyWindow ?? NSApp.mainWindow ?? NSWindow(), delegate: nil, didRun: nil, contextInfo: nil)
+        #else
+        let controller = UIPrintInteractionController.shared
+        let info = UIPrintInfo(dictionary: nil)
+        info.jobName = title.isEmpty ? "Note" : title
+        info.outputType = .general
+        controller.printInfo = info
+        controller.printFormatter = UISimpleTextPrintFormatter(text: text)
+        controller.present(animated: true)
+        #endif
     }
 
     func copyMarkdown() {
