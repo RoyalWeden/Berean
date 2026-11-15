@@ -1462,6 +1462,8 @@ struct VerseRowView: View {
     var lineSpacing: CGFloat = 5
     var replacer = true
     var family = "system"
+    var hideSuppliedWords = false
+    var originalText: String?
     @AppStorage("showRedLetters") private var showRedLetters = true
 
     var body: some View {
@@ -1476,7 +1478,7 @@ struct VerseRowView: View {
         var text = AttributedString(shown)
         text.backgroundColor = wholeTint
         let words = shown.components(separatedBy: " ")
-        for mark in displayedHighlightRanges(highlights, words: words, original: row.text) {
+        for mark in displayedHighlightRanges(highlights, words: words, original: originalText ?? row.text) {
             guard let range = Range(NSRange(location: mark.start, length: mark.end - mark.start), in: shown),
                   let lower = AttributedString.Index(range.lowerBound, within: text),
                   let upper = AttributedString.Index(range.upperBound, within: text) else { continue }
@@ -1497,12 +1499,13 @@ struct VerseRowView: View {
             let shown = VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: replacer, rules: rules)
             return out + markedText(shown, wholeTint: wholeTint)
         }
-        let rendered = VerseDisplay.renderTokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules)
+        let rendered = VerseDisplay.renderTokens(row.text, tagged: tagged, textId: textId, replacerEnabled: replacer, rules: rules,
+                                                 hideSuppliedWords: hideSuppliedWords)
         let words: [(String, Bool, Bool, [String])] = rendered.map { t in
             let nums: [String] = { switch t.strongs { case .none: return []; case .one(let s): return [s]; case .many(let a): return a } }()
             return (t.word, t.isItalic, t.isRedLetter, nums)
         }
-        let ranges = displayedHighlightRanges(highlights, words: words.map(\.0), original: row.text)
+        let ranges = displayedHighlightRanges(highlights, words: words.map(\.0), original: originalText ?? row.text)
         var pos = 0
         for (i, w) in words.enumerated() {
             if i > 0 {

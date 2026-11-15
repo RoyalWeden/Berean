@@ -94,6 +94,22 @@ struct CompareView: View {
     @ScaledMetric(relativeTo: .body) private var scriptureTypeScale = 1.0
     #endif
 
+    private var hiddenAnnotations: Set<String> {
+        Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
+    }
+
+    private var hideSuppliedWords: Bool { hiddenAnnotations.contains(AnnotationFilters.kjvaSuppliedWords) }
+
+    private func visibleVerse(_ row: ChapterVerseRow, in column: CompareColumn) -> ChapterVerseRow {
+        guard column.text != "kjva", !hiddenAnnotations.isEmpty else { return row }
+        var visible = row
+        visible.text = AnnotationFilters.strip(row.text, textId: column.text, hidden: hiddenAnnotations)
+        if let tagged = row.textTagged {
+            visible.textTagged = AnnotationFilters.stripTagged(tagged, textId: column.text, hidden: hiddenAnnotations)
+        }
+        return visible
+    }
+
     private var scriptureFontSize: Double {
         #if os(iOS)
         app.fontSize * scriptureTypeScale
@@ -763,8 +779,10 @@ struct CompareView: View {
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
         let reference = comparisonVerseReference(row, column: column)
         Button("Copy Verse", systemImage: "doc.on.doc") {
-            let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: column.text,
-                                         replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+            let visible = visibleVerse(row, in: column)
+            let text = VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: column.text,
+                                         replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules,
+                                         hideSuppliedWords: hideSuppliedWords)
             Clipboard.copy("\(reference) \(text)")
             AccessibilityNotification.Announcement("Verse copied").post()
         }
@@ -818,10 +836,11 @@ struct CompareView: View {
     private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState, showsControls: Bool = true) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             VStack(alignment: .leading, spacing: 4) {
-                VerseRowView(row: row, textId: column.text, showStrongs: state.showStrongs,
+                VerseRowView(row: visibleVerse(row, in: column), textId: column.text, showStrongs: state.showStrongs,
                              highlights: chapterHighlights[EditionChapter(row, text: column.text)]?[row.verseNum] ?? [],
                              fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
-                             replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily)
+                             replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily, hideSuppliedWords: hideSuppliedWords,
+                             originalText: row.text)
                     .environment(\.openURL, strongsAction(for: row))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contextMenu { comparisonVerseActions(row, column: column) }

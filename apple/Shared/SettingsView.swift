@@ -139,9 +139,12 @@ struct ScriptureAnnotationOptions: View {
 
     var body: some View {
         if let tab = app.activeTab, tab.tabType == .bible {
-            let textId = BibleState(tab.state).translation
-            if let keys = AnnotationFilters.keys[textId] {
-                let hidden = Set((tab.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
+            let state = BibleState(tab.state)
+            let editions = state.compareMode ? CompareColumn.resolved(in: tab.state).map(\.text) : [state.translation]
+            let annotatedEditions = Array(Set(editions)).sorted().filter { AnnotationFilters.keys[$0] != nil }
+            let hidden = Set((tab.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
+            ForEach(annotatedEditions, id: \.self) { textId in
+                let keys = AnnotationFilters.keys[textId] ?? []
                 Section {
                     ForEach(keys) { key in
                         Toggle(isOn: Binding(get: { !hidden.contains(key.id) }, set: { show in
