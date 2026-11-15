@@ -278,7 +278,7 @@ struct ScriptureView: View {
     @State private var tappedVerse: TappedVerse?
     @State private var afterVerseSheet: (() -> Void)?
     @State private var verseSheetCopyFeedback: UUID?
-    private enum VerseSheetPage: Hashable { case notes, crossReferences }
+    private enum VerseSheetPage: Hashable { case notes, crossReferences, noteEditor(String) }
     private static let verseSheetCompactDetent = PresentationDetent.height(300)
     @State private var verseSheetPath: [VerseSheetPage] = []
     @State private var verseSheetDetent = Self.verseSheetCompactDetent
@@ -966,7 +966,7 @@ struct ScriptureView: View {
                         switch page {
                         case .notes:
                             VerseNotesView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
-                                           textId: st.translation, performDestination: finishVerseSheet)
+                                           textId: st.translation, editInSheet: { verseSheetPath.append(.noteEditor($0)) })
                                 .navigationTitle("Verse Notes")
                                 .navigationBarTitleDisplayMode(.inline)
                         case .crossReferences:
@@ -974,6 +974,8 @@ struct ScriptureView: View {
                                           textId: st.translation, performDestination: finishVerseSheet)
                                 .navigationTitle("Cross References")
                                 .navigationBarTitleDisplayMode(.inline)
+                        case .noteEditor(let id):
+                            NoteDetailView(noteId: id, performDestination: finishVerseSheet)
                         }
                     }
             }

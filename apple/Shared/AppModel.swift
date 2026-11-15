@@ -871,9 +871,10 @@ final class AppModel {
         }
     }
 
-    /// New note (optionally attached to a verse, e.g. "GEN.1.1" in `textId`), opened in the Notes space.
+    /// Creates a note, optionally opening the Notes space instead of leaving navigation to the caller.
     @discardableResult
-    func newNote(verseRef: String? = nil, textId: String = "kjva", title: String? = nil, content: String = "") -> String? {
+    func newNote(verseRef: String? = nil, textId: String = "kjva", title: String? = nil, content: String = "",
+                 openEditor: Bool = true) -> String? {
         guard let notes else { libraryError = "The library is not open."; return nil }
         do {
             let label = verseRef.flatMap { r -> String? in
@@ -882,7 +883,7 @@ final class AppModel {
                 return Reference.bookChapterVerseLabel(p[0], chapter: c, verse: v)
             }
             let n = try notes.create(.init(type: verseRef == nil ? "general" : "verse", title: title ?? label ?? "", content: content, verseRef: verseRef, textId: textId)).note
-            openNote(n.id)
+            if openEditor { openNote(n.id) }
             return n.id
         } catch { libraryError = "Could not create the note: \(error)"; return nil }
     }

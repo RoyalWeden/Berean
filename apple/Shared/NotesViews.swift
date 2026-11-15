@@ -401,7 +401,9 @@ func noteListReturnEdit(in text: NSString, selection: NSRange)
 /// One note with a native rich editor and version history.
 struct NoteDetailView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
     let noteId: String
+    var performDestination: ((@escaping () -> Void) -> Void)?
     @State private var note: Note?
     @State private var title = ""
     @State private var formatRequest: NoteFormatRequest?
@@ -483,8 +485,15 @@ struct NoteDetailView: View {
         #endif
         .toolbar {
             ToolbarItemGroup {
-                Button { saveNow(); app.returnToNotesList() } label: { Label("All Notes", systemImage: "chevron.backward") }
-                    .help("Back to the notes list")
+                if let performDestination {
+                    Button("Open in Notes", systemImage: "arrow.up.right.square") {
+                        saveNow()
+                        performDestination { app.openNote(noteId) }
+                    }
+                } else {
+                    Button { saveNow(); app.returnToNotesList() } label: { Label("All Notes", systemImage: "chevron.backward") }
+                        .help("Back to the notes list")
+                }
                 if let note {
                     Menu {
                         Section("Paragraph") {
@@ -537,7 +546,13 @@ struct NoteDetailView: View {
                     .accessibilityLabel("Share note")
                     .help("Export, copy or share this note as Markdown")
                     Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
-                    Button(role: .destructive) { app.attempt("Couldn’t move the note to Trash") { try app.notes?.delete(note.id) }; app.openNote(nil) } label: { Label("Move to Trash", systemImage: "trash") }
+                    Button(role: .destructive) {
+                        saveNow()
+                        app.attempt("Couldn’t move the note to Trash") {
+                            try app.notes?.delete(note.id)
+                            if performDestination != nil { dismiss() } else { app.openNote(nil) }
+                        }
+                    } label: { Label("Move to Trash", systemImage: "trash") }
                 }
             }
         }
@@ -568,7 +583,11 @@ struct NoteDetailView: View {
     /// Wikilinks open the note with that title; verse references and web links open where they belong.
     private func followAttachment(_ passage: ResolvedPassage) {
         saveNow()
-        app.visitScripture(passage)
+        routeFromEditor { app.visitScripture(passage) }
+    }
+
+    private func routeFromEditor(_ action: @escaping () -> Void) {
+        if let performDestination { performDestination(action) } else { action() }
     }
 
     func openLink(_ url: URL) {
@@ -576,17 +595,19 @@ struct NoteDetailView: View {
             saveNow()
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
             if let passage = app.resolvePassage(title) {
-                app.visitScripture(passage)
+                routeFromEditor { app.visitScripture(passage) }
                 return
             }
-            if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) { app.openNote(n.id) }
+            if let n = (try? app.notes?.all(limit: 2000))?.first(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame }) {
+                routeFromEditor { app.openNote(n.id) }
+            }
             return
         }
         let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
         let internalSchemes = ["berean", "berean-dev", "berean-pdf", "berean-dev-pdf"]
         if route != nil || internalSchemes.contains(url.scheme?.lowercased() ?? "") {
             saveNow()
-            openBereanLink(route)
+            routeFromEditor { openBereanLink(route) }
             return
         }
         #if os(macOS)
@@ -882,7 +903,7 @@ struct VerseNotesView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
-    var performDestination: ((@escaping () -> Void) -> Void)?
+    var editInSheet: ((String) -> Void)?
     @State private var notes: [Note] = []
 
     private var passageLabel: String {
@@ -893,8 +914,8 @@ struct VerseNotesView: View {
         List {
             ForEach(notes) { note in
                 Button {
-                    if let performDestination {
-                        performDestination { app.openNote(note.id) }
+                    if let editInSheet {
+                        editInSheet(note.id)
                         return
                     }
                     #if os(iOS)
@@ -913,8 +934,10 @@ struct VerseNotesView: View {
             }
             Button {
                 let ref = "\(bookId).\(chapter)" + (verse.map { ".\($0)" } ?? "")
-                if let performDestination {
-                    performDestination { _ = app.newNote(verseRef: ref, textId: textId, title: passageLabel) }
+                if let editInSheet {
+                    if let id = app.newNote(verseRef: ref, textId: textId, title: passageLabel, openEditor: false) {
+                        editInSheet(id)
+                    }
                     return
                 }
                 if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
