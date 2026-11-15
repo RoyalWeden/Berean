@@ -103,7 +103,7 @@ func noteJSON(_ n: Note) -> JSValue {
                                   content: "Isaiah 6:4 LXX. Isaiah 6:4 LXX. John 3:16.",
                                   verseRef: "JHN.3.16-17", textId: "kjva"))
         _ = try notes.create(.init(id: "reverse", type: "verse", title: "Backlink",
-                                  content: "John 3:16–17 and Romans 5:8.",
+                                  content: "Jn 3:16–17 and Romans 5:8.",
                                   verseRef: "ROM.8.28", textId: "kjva"))
         _ = try notes.create(.init(id: "general", title: "Indirect", content: "John 3:17"))
         _ = try notes.create(.init(id: "other", title: "Different verse", content: "John 3:18"))

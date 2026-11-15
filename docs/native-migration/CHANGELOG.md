@@ -1022,3 +1022,8 @@
 
 - A compact menu lists verse notes that cite the whole chapter and opens the source note. The synthetic SQLite test covers abbreviated book names, verse-only references, other chapters, general notes, and trashed notes.
 - `npm run native:check` passed with 113 Swift tests and both Dev builds. Live menu and edit-refresh checks remain pending.
+
+### 2026-11-14 — Mac verse citations — BUILD VERIFIED
+
+- Citation arrows preview linked passages and note titles and open My Notes for the verse. Abbreviated incoming verse citations now resolve in the Notes service.
+- Full native check passed with 113 Swift tests and both Dev builds. Live visual and interaction testing remains pending.

@@ -23,6 +23,7 @@ struct ChapterTextView: NSViewRepresentable {
     var strongsTooltips: [String: String] = [:]
     var onStrongs: (String) -> Void
     var onNotes: (Int) -> Void
+    var onCitations: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
     var onCopySelectedVerses: () -> Void
@@ -337,6 +338,15 @@ struct ChapterTextView: NSViewRepresentable {
                 if v.noteCount > 0 {
                     out.append(NSAttributedString(string: v.noteCount > 1 ? "  ●\(v.noteCount)" : "  ●", attributes: [.font: NSFont.systemFont(ofSize: max(8, size * 0.5)), .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: para, Self.skipKey: true, .link: URL(string: "berean-verse-notes:\(v.verse)")!, .toolTip: "Open notes for verse \(v.verse) (\(v.noteCount))"]))
                 }
+                if v.citationCount > 0 {
+                    let sizeScale: CGFloat = v.citationCount >= 5 ? 0.72 : v.citationCount >= 2 ? 0.62 : 0.52
+                    out.append(NSAttributedString(string: "  ↗", attributes: [
+                        .font: NSFont.systemFont(ofSize: max(9, size * sizeScale), weight: .semibold),
+                        .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: para, Self.skipKey: true,
+                        .link: URL(string: "berean-verse-citations:\(v.verse)")!,
+                        .toolTip: v.citationPreview ?? "Open note cross references",
+                    ]))
+                }
                 if !v.tags.isEmpty {
                     out.append(NSAttributedString(string: "  ", attributes: base.merging([Self.skipKey: true]) { $1 }))
                     for (i, t) in v.tags.enumerated() { if i > 0 { out.append(NSAttributedString(string: " ", attributes: [Self.skipKey: true])) }; out.append(chip(t, verse: v.verse)) }
@@ -378,6 +388,8 @@ struct ChapterTextView: NSViewRepresentable {
                 }
             case "berean-verse-notes":
                 if let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) { parent.onNotes(verse) }
+            case "berean-verse-citations":
+                if let verse = Int(url.absoluteString.dropFirst("berean-verse-citations:".count)) { parent.onCitations(verse) }
             case "strongs":
                 parent.onStrongs(String(url.absoluteString.dropFirst("strongs:".count)))
             case "berean-tag":

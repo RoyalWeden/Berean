@@ -10,9 +10,12 @@ struct ReaderVerse: Equatable {
     var marks: [Mark] = []
     var tint: String?          // whole-verse highlight colour
     var noteCount = 0
+    var citationCount = 0
+    var citationPreview: String?
     var tags: [(name: String, color: String?, slot: Int?)] = []
     static func == (a: ReaderVerse, b: ReaderVerse) -> Bool {
         a.verse == b.verse && a.title == b.title && a.words == b.words && a.marks == b.marks && a.tint == b.tint && a.noteCount == b.noteCount
+            && a.citationCount == b.citationCount && a.citationPreview == b.citationPreview
             && a.tags.elementsEqual(b.tags, by: ==)
     }
     /// The verse as displayed (words joined by spaces), the text copy uses.

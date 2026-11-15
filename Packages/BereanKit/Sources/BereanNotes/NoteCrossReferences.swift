@@ -26,14 +26,7 @@ extension NotesService {
     /// and abbreviated book names are left to the reference parser.
     public func notesCitingChapter(_ bookId: String, _ chapter: Int, textId: String) throws -> [Note] {
         let hermas = HermasText(textId: textId)
-        let number = Int(Reference.displayChapter(bookId, Double(chapter)))
-        let candidates = try db.query("""
-            SELECT n.* FROM notes_fts
-            JOIN notes n ON n.rowid = notes_fts.rowid
-            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL AND n.verse_ref IS NOT NULL
-            ORDER BY n.updated_at DESC, n.id
-            """, [.text(Self.ftsQuery(String(number), phrase: false))])
-        return candidates.map(Self.note).filter { note in
+        return try verseCitationCandidates(bookId, chapter).filter { note in
             guard let attachment = note.verseRef,
                   attachment.split(separator: ",").contains(where: { Reference.parseNoteAttachment(String($0))?.verse != nil })
             else { return false }
@@ -42,13 +35,24 @@ extension NotesService {
         }
     }
 
+    private func verseCitationCandidates(_ bookId: String, _ chapter: Int) throws -> [Note] {
+        let number = Int(Reference.displayChapter(bookId, Double(chapter)))
+        return try db.query("""
+            SELECT n.* FROM notes_fts
+            JOIN notes n ON n.rowid = notes_fts.rowid
+            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL AND n.verse_ref IS NOT NULL
+            ORDER BY n.updated_at DESC, n.id
+            """, [.text(Self.ftsQuery(String(number), phrase: false))]).map(Self.note)
+    }
+
     /// Read-only counterpart of the legacy My Notes cross-reference source.
     public func crossReferences(bookId: String, chapter: Int, textId: String, selected: Set<Int> = []) throws -> NoteCrossReferences {
         let attached = try attachedNotes(bookId, chapter, textId: textId)
         let attachedIDs = Set(attached.map(\.id))
         let hermas = HermasText(textId: textId)
         let chapterLabel = Reference.bookChapterVerseLabel(bookId, chapter: chapter, hermas: hermas)
-        let candidates = try search(chapterLabel + ":", limit: 80)
+        let candidates = try verseCitationCandidates(bookId, chapter)
+            + search(chapterLabel + ":", limit: 80).filter { $0.verseRef == nil }
         var links: [Int: [NoteCrossReferences.Link]] = [:]
         var seen: [Int: Set<String>] = [:]
         var indirect: [Note] = []

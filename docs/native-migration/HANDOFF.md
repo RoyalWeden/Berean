@@ -935,3 +935,7 @@ The shared Mac and iPhone inspector now offers My Notes alongside TSKe and Class
 ### Mac chapter citation menu
 
 Mac Scripture offers a compact “notes cite this chapter” menu above the reader when live verse notes cite the whole chapter. Each entry opens its source note. Lookup narrows candidates by chapter number, then uses the legacy-compatible parser so book abbreviations work and verse-only references do not appear. The reader refreshes after Notes changes. iPhone matches the legacy reader's banner-free layout. Next live check: create a synthetic verse note containing “Exod 20”, open Exodus 20, open the source from the menu, edit the citation to “Exod 20:11”, and verify the menu disappears on return. Per-verse citation dots and hover previews are still open.
+
+### Mac verse citation markers
+
+Mac Scripture now draws a small arrow for verses with links in My Notes. The arrow grows with link count, previews up to four passages and source-note titles on hover, and opens that verse in the My Notes inspector on click. The arrow is excluded from copied Scripture. Clicking it selects My Notes as the shared Cross Refs source and uses the standard inspector if the active layout has no cross-reference pane. Incoming verse-note candidates now use a chapter-number prefilter followed by the reference parser, so abbreviated book names work. Indirect general-note candidates retain the legacy exact chapter-name search and 80-note cap. Live QA remains for hover, click, narrow reader wrapping, and clipboard output.

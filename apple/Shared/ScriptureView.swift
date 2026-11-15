@@ -242,6 +242,8 @@ struct ScriptureView: View {
     @State private var noteCounts: [Int: Int] = [:]
     #if os(macOS)
     @State private var chapterCitations: (key: String, notes: [Note])?
+    @State private var verseCitations: (key: String, links: [Int: [NoteCrossReferences.Link]])?
+    @AppStorage("crossrefSource") private var crossRefSource = "tske"
     #endif
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
@@ -405,6 +407,8 @@ struct ScriptureView: View {
             #if os(macOS)
             let citations = (try? app.notes?.notesCitingChapter(st.bookId, st.chapter, textId: st.translation)) ?? []
             chapterCitations = (chapter, citations)
+            let links = (try? app.notes?.crossReferences(bookId: st.bookId, chapter: st.chapter, textId: st.translation))?.byVerse ?? [:]
+            verseCitations = (chapter, links)
             #endif
         }
         .task(id: "\(st.bookId)|\(st.chapter)|\(app.tagsRevision)") {
@@ -1211,6 +1215,14 @@ struct ScriptureView: View {
             if tab == "notes", let layout = ScriptureLayout(rawValue: $0.scriptureLayout), !layout.showsNotes {
                 $0.scriptureLayout = ScriptureLayout.standard.rawValue
             }
+            if tab == "crossrefs", let layout = ScriptureLayout(rawValue: $0.scriptureLayout) {
+                switch layout {
+                case .reading, .scriptureFocus, .notesBottom, .compareNotes, .notesTop, .commentary, .tripleCol, .splitBottom:
+                    $0.scriptureLayout = ScriptureLayout.standard.rawValue
+                default:
+                    break
+                }
+            }
             #endif
             $0.rightPanelOpen = true
             $0.rightPanelTab = tab
@@ -1395,8 +1407,21 @@ extension ScriptureView {
             }
             let marks = displayedHighlightRanges(highlights[v.verseNum] ?? [], words: words.map(\.text), original: v.text)
             let whole = highlights[v.verseNum]?.last { $0.startChar == nil && $0.startWord == nil }
-            return ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
-                               tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
+            var rendered = ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
+                                       tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
+            #if os(macOS)
+            if v.verseNum > 0, let verseCitations, verseCitations.key == chapterKey(st),
+               let links = verseCitations.links[v.verseNum], !links.isEmpty {
+                rendered.citationCount = links.count
+                rendered.citationPreview = links.prefix(4).map { link in
+                    let passage = ResolvedPassage(textId: link.textId, bookId: link.bookId, chapter: link.chapter,
+                                                  verse: link.verse, endVerse: link.endVerse)
+                    let title = link.note.title.isEmpty ? "Untitled" : link.note.title
+                    return "\(passage.label) · \(title)"
+                }.joined(separator: "\n")
+            }
+            #endif
+            return rendered
         }
     }
 
@@ -1439,6 +1464,10 @@ extension ScriptureView {
             strongsTooltips: st.showStrongs ? strongsTooltips : [:],
             onStrongs: { showLexicon($0) },
             onNotes: { openInspector("notes", verse: $0) },
+            onCitations: { verse in
+                crossRefSource = "notes"
+                openInspector("crossrefs", verse: verse)
+            },
             onVerseClick: { v, shift in verseClick(v, shift: shift) },
             onCopySelectedVerses: { confirmSelectionCopy(.verses) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) },
