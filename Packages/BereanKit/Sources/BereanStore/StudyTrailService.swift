@@ -164,6 +164,23 @@ public struct StudyTrailService {
     }
 
     @discardableResult
+    public func rename(trailId: String, name: String, at time: Int64) throws -> Bool {
+        guard !name.isEmpty else { throw TrailError.emptyName }
+        return try db.run("""
+            UPDATE trail_sessions SET name = ?, updated_at = ?
+            WHERE id = ? AND id <> '__loose_stops__'
+            """, [.text(name), .integer(time), .text(trailId)]).changes == 1
+    }
+
+    @discardableResult
+    public func updateRecap(_ recap: String, trailId: String, at time: Int64) throws -> Bool {
+        try db.run("""
+            UPDATE trail_sessions SET recap_text = ?, recap_user_edited = 1, updated_at = ?
+            WHERE id = ? AND id <> '__loose_stops__'
+            """, [.text(recap), .integer(time), .text(trailId)]).changes == 1
+    }
+
+    @discardableResult
     public func transition(_ action: Transition, trailId: String, at time: Int64,
                            intervalId: String) throws -> Bool {
         guard trailId != "__loose_stops__" else { return false }

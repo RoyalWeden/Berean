@@ -107,16 +107,19 @@ private struct StudyTrailStopsView: View {
     @State private var editTarget: NoteTarget?
     @State private var presentation: Presentation = .list
     @State private var query = ""
+    @State private var renamingTrail = false
+    @State private var draftTrailName = ""
 
     private enum Presentation { case list, map }
 
     private enum NoteTarget: Identifiable {
-        case stop(StudyTrailService.Stop), connection(StudyTrailService.Connection)
+        case stop(StudyTrailService.Stop), connection(StudyTrailService.Connection), recap(StudyTrailService.Trail)
 
         var id: String {
             switch self {
             case .stop(let stop): "stop-\(stop.id)"
             case .connection(let connection): "connection-\(connection.id)"
+            case .recap(let trail): "recap-\(trail.id)"
             }
         }
 
@@ -124,6 +127,7 @@ private struct StudyTrailStopsView: View {
             switch self {
             case .stop: "Stop Note"
             case .connection: "Connection Note"
+            case .recap: "Trail Recap"
             }
         }
 
@@ -131,6 +135,7 @@ private struct StudyTrailStopsView: View {
             switch self {
             case .stop(let stop): stop.subnote ?? ""
             case .connection(let connection): connection.userNote ?? ""
+            case .recap(let trail): trail.recap ?? ""
             }
         }
     }
@@ -144,12 +149,16 @@ private struct StudyTrailStopsView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
-                Picker("Trail View", selection: $presentation) {
-                    Text("List").tag(Presentation.list)
-                    Text("Map").tag(Presentation.map)
+                HStack {
+                    Picker("Trail View", selection: $presentation) {
+                        Text("List").tag(Presentation.list)
+                        Text("Map").tag(Presentation.map)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Spacer(minLength: 12)
+                    trailActions
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 .frame(maxWidth: 260)
                 .padding(8)
                 if presentation == .list { trailControls }
@@ -159,6 +168,12 @@ private struct StudyTrailStopsView: View {
         }
         .searchable(text: $query, prompt: "Find in This Trail")
         .navigationTitle(trail.name.isEmpty ? "Untitled Trail" : trail.name)
+        .alert("Rename Trail", isPresented: $renamingTrail) {
+            TextField("Name", text: $draftTrailName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { renameTrail() }
+                .disabled(draftTrailName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
         .task(id: trail.id) { load() }
         .sheet(item: $editTarget) { target in
             StudyTrailNoteEditor(title: target.title, text: target.text) { try saveNote($0, target: target) }
@@ -171,6 +186,25 @@ private struct StudyTrailStopsView: View {
         )) {
             Button("OK") { actionMessage = nil }
         } message: { Text(actionMessage ?? "") }
+    }
+
+    private var trailActions: some View {
+        Menu {
+            Button("Rename Trail", systemImage: "pencil") {
+                draftTrailName = trail.name
+                renamingTrail = true
+            }
+            Button(trail.recap?.isEmpty == false ? "Edit Recap" : "Add Recap", systemImage: "text.alignleft") {
+                editTarget = .recap(trail)
+            }
+        } label: {
+            Label("Trail Actions", systemImage: "ellipsis.circle")
+                .labelStyle(.iconOnly)
+        }
+        .menuIndicator(.hidden)
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Trail Actions")
     }
 
     private var searchActive: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -199,7 +233,19 @@ private struct StudyTrailStopsView: View {
         let visibleConnections = matchingConnections
         let showConnect = !searchActive && !stops.isEmpty && currentDestination != nil
         return List {
-            if let recap = trail.recap, !recap.isEmpty, matches(recap) { Section("Recap") { Text(recap) } }
+            if let recap = trail.recap, !recap.isEmpty, matches(recap) {
+                Section("Recap") {
+                    MarkdownText(recap)
+                        .textSelection(.enabled)
+                        .environment(\.openURL, OpenURLAction { url in
+                            let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
+                            guard route != nil || AppModel.isBereanLink(url) else { return .systemAction }
+                            app.showStudyTrail = false
+                            app.openBereanLink(route)
+                            return .handled
+                        })
+                }
+            }
             if loadFailed {
                 Text("Couldn’t load stops.")
             } else if searchActive && visibleStops.isEmpty && visibleConnections.isEmpty && !matches(trail.recap) {
@@ -521,6 +567,20 @@ private struct StudyTrailStopsView: View {
         .help(target.text.isEmpty ? "Add \(target.title)" : "Edit \(target.title)")
     }
 
+    private func renameTrail() {
+        do {
+            let name = draftTrailName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let service = app.studyTrailService,
+                  try service.rename(trailId: trail.id, name: name, at: StudyTrailView.now()) else {
+                actionMessage = "This trail is no longer available."
+                return
+            }
+            reloadTrails()
+        } catch {
+            actionMessage = "The trail could not be renamed."
+        }
+    }
+
     private func saveNote(_ note: String, target: NoteTarget) throws {
         guard let service = app.studyTrailService else { throw TrailNoteIssue.unavailable }
         let saved: Bool
@@ -528,9 +588,12 @@ private struct StudyTrailStopsView: View {
         case .stop(let stop): saved = try service.updateStopNote(note, stopId: stop.id, trailId: trail.id)
         case .connection(let connection):
             saved = try service.updateConnectionNote(note, connectionId: connection.id, trailId: trail.id)
+        case .recap:
+            saved = try service.updateRecap(note, trailId: trail.id, at: StudyTrailView.now())
         }
         guard saved else { throw TrailNoteIssue.unavailable }
-        load()
+        if case .recap = target { reloadTrails() }
+        else { load() }
     }
 
     private enum TrailNoteIssue: Error { case unavailable }
@@ -562,7 +625,7 @@ private struct StudyTrailNoteEditor: View {
                         }
                     }
                 }
-                .alert("Couldn’t Save Note", isPresented: $saveFailed) { Button("OK", role: .cancel) {} }
+                .alert("Couldn’t Save Changes", isPresented: $saveFailed) { Button("OK", role: .cancel) {} }
         }
         #if os(macOS)
         .frame(minWidth: 360, minHeight: 220)
