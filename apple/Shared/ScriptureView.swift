@@ -964,7 +964,9 @@ struct ScriptureView: View {
             },
             onChromeHidden: { hidden in withAnimation(.snappy(duration: 0.25)) { app.readerChromeHidden = hidden } },
             onSearchText: { app.openSearch($0, returningTo: tabId) },
-            onLexiconSearch: { app.openLexiconSearch($0, newTab: true) }
+            onLexiconSearch: { app.openLexiconSearch($0, newTab: true) },
+            onBookSearch: { app.openBookSearch($0, bookId: st.bookId, textId: st.translation, returningTo: tabId) },
+            bookName: Reference.bookName(st.bookId)
         )
         .sheet(item: $tappedVerse, onDismiss: {
             let action = afterVerseSheet
@@ -1637,6 +1639,8 @@ extension ScriptureView {
             onCopySelectedVerses: { confirmSelectionCopy(.verses) },
             onHighlightRange: { verse, a, b, color in highlightRange(verse, a, b, color, st, rv) },
             onSearchSelection: { app.openSearch($0, returningTo: tabId) },
+            onBookSearch: { app.openBookSearch($0, bookId: st.bookId, textId: st.translation, returningTo: tabId) },
+            bookName: Reference.bookName(st.bookId),
             onLexiconSearch: { app.openLexiconSearch($0, newTab: true) })
             .task(id: strongsIDs(in: rv, enabled: st.showStrongs)) {
                 let ids = strongsIDs(in: rv, enabled: st.showStrongs)

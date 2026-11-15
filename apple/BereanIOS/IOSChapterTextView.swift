@@ -37,6 +37,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     /// "Search for …" / "Look Up in Lexicon" from a text selection (Mac reader parity).
     var onSearchText: (String) -> Void = { _ in }
     var onLexiconSearch: (String) -> Void = { _ in }
+    var onBookSearch: (String) -> Void = { _ in }
+    var bookName: String = ""
     @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -615,6 +617,11 @@ struct IOSChapterTextView: UIViewRepresentable {
                 actions.append(UIAction(title: "Search for “\(shown)”", image: UIImage(systemName: "magnifyingglass")) { [weak self] _ in
                     self?.parent.onSearchText(query)
                 })
+                if !parent.bookName.isEmpty {
+                    actions.append(UIAction(title: "Search in \(parent.bookName)", image: UIImage(systemName: "text.magnifyingglass")) { [weak self] _ in
+                        self?.parent.onBookSearch(query)
+                    })
+                }
                 if words.count == 1 {
                     let word = query.trimmingCharacters(in: .punctuationCharacters).lowercased()
                     actions.append(UIAction(title: "Look Up in Lexicon", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in

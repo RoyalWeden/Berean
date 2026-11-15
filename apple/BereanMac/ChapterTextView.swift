@@ -30,6 +30,8 @@ struct ChapterTextView: NSViewRepresentable {
     /// Highlight part of a verse: (verse, display start, display end, colour) — display offsets into the verse's shown words.
     var onHighlightRange: (Int, Int, Int, String) -> Void = { _, _, _, _ in }
     var onSearchSelection: (String) -> Void = { _ in }
+    var onBookSearch: (String) -> Void = { _ in }
+    var bookName: String = ""
     var onLexiconSearch: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -648,6 +650,11 @@ final class ReaderTextView: NSTextView {
                 let search = ClosureMenuItem("Search for “\(shown)”") { c.parent.onSearchSelection(words) }
                 search.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
                 menu.insertItem(search, at: 0)
+                if !c.parent.bookName.isEmpty {
+                    let inBook = ClosureMenuItem("Search for “\(shown)” in \(c.parent.bookName)") { c.parent.onBookSearch(words) }
+                    inBook.image = NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)
+                    menu.insertItem(inBook, at: 1)
+                }
             }
             menu.insertItem(.separator(), at: 0)
             menu.insertItem(ClosureMenuItem("Copy as Plain Text", key: "C", modifiers: [.command, .shift]) { [weak self] in self?.copyPlain(nil) }, at: 0)

@@ -702,6 +702,18 @@ final class AppModel {
     }
 
     /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
+    /// Whole-book find (original Find on Page across the book): a Search tab scoped to one book and text.
+    func openBookSearch(_ query: String, bookId: String, textId: String, returningTo sourceTabID: String? = nil) {
+        recordHistory(type: "search", title: "\"\(query)\"", query: query)
+        var o = JSObject()
+        o["query"] = .string(JSString(query))
+        o["bookIds"] = .array([.string(JSString(bookId))])
+        o["scopeTexts"] = .array([.string(JSString(textId))])
+        o["nativeSearchFocusText"] = .null
+        _ = openTab(.search, in: .search, title: "Search: \(query)", state: o, origin: activeTab)
+        recordTabReturn(to: sourceTabID)
+    }
+
     func openSearch(_ query: String, reuseTab: Bool = false, returningTo sourceTabID: String? = nil) {
         recordHistory(type: "search", title: "\"\(query)\"", query: query)
         var o = JSObject(); o["query"] = .string(JSString(query))
