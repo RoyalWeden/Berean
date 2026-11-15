@@ -648,9 +648,24 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         @objc func tapVerse(_ gesture: UITapGestureRecognizer) {
-            guard let view = gesture.view as? UITextView,
-                  let verse = verseAtTap(gesture.location(in: view), in: view) else { return }
-            toggleVerse(verse, in: view)
+            guard let view = gesture.view as? UITextView else { return }
+            let point = gesture.location(in: view)
+            if let verse = verseAtTap(point, in: view) { toggleVerse(verse, in: view); return }
+            if let step = edgeStep(point, in: view) {
+                selectionFeedback.selectionChanged()
+                parent.onStep(step)
+            }
+        }
+
+        /// A tap in the empty outer margin turns the chapter (left = previous, right = next), as in the original reader.
+        /// Only when nothing is selected, so a mis-tap never throws away a selection.
+        private func edgeStep(_ point: CGPoint, in view: UITextView) -> Int? {
+            guard parent.selectedVerses.isEmpty, view.selectedRange.length == 0 else { return nil }
+            let x = point.x - view.bounds.minX
+            let zone: CGFloat = 30
+            if x < zone { return -1 }
+            if x > view.bounds.width - zone { return 1 }
+            return nil
         }
 
         private func toggleVerse(_ verse: Int, in view: UITextView) {
@@ -661,7 +676,8 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             guard gesture is UITapGestureRecognizer, let view = gesture.view as? UITextView else { return true }
-            return verseAtTap(touch.location(in: view), in: view) != nil
+            let point = touch.location(in: view)
+            return verseAtTap(point, in: view) != nil || edgeStep(point, in: view) != nil
         }
 
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
