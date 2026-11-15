@@ -65,3 +65,13 @@ Status keys: ✅ parity (or better) · 🟡 partial · ❌ missing · ➕ native
   - workspaces section opens the saved workspace;
   - export/import as in CHANGELOG.
 - Not yet verified: VoiceOver pass over the new sidebar; narrow-window behaviour (sidebar collapse); dark mode.
+
+## Mac control styling audit
+
+| Surface | Source finding | Follow-up |
+|---|---|---|
+| Scripture selection | Highlight, Export, and More used menu button chrome inside the same glass capsule as plain actions. The rectangular hover fill repeated that shape. | Use plain menu triggers with the shared capsule hover treatment. Check idle, hover, pressed, and open menu states in light and dark appearances. |
+| Scripture window toolbar | Passage navigation uses the native navigation control group. Edition, display, and study actions are independent native toolbar items. | Keep the picker in this toolbar. Check order and overflow in a narrow window, and inspect LXX flip and flip-back frame by frame. |
+| Lexicon and Compare | Full Lexicon navigation floats over its entry, Compare uses a window toolbar on Mac, and inspector entry actions are inline. | Check enabled and disabled neighbors, long labels, and pointer feedback. Reserve floating glass for controls that sit above scrolling content. |
+| Sidebar and Search | Sidebar row selection, close affordances, workspace switching, and Search result overflow use several SwiftUI styles. | Compare hover, keyboard focus, disabled actions, and selected states across sidebar rows and Search results. Check the filter popover at minimum window size. |
+| Notes editor | Format and Share are native window-toolbar menus. Note rows have separate inline and context actions. | Check consistent menu icons and contrast in a narrow window, then verify rich editing commands alongside keyboard shortcuts. |

@@ -652,8 +652,7 @@ struct ScriptureView: View {
                 } label: {
                     verseMenuLabel("Verse Actions", symbol: "ellipsis")
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
+                .modifier(VerseActionMenuChrome())
                 clearSelectionButton
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -692,8 +691,7 @@ struct ScriptureView: View {
                 } label: {
                     verseMenuLabel("Export Selected Verses", symbol: "square.and.arrow.up")
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
+                .modifier(VerseActionMenuChrome())
                 .help("Save or share selected verses")
             }
             #else
@@ -711,8 +709,7 @@ struct ScriptureView: View {
         } label: {
             verseMenuLabel("More Verse Actions", symbol: "ellipsis")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .modifier(VerseActionMenuChrome())
         .verseActionHelp("More verse actions")
     }
 
@@ -741,6 +738,7 @@ struct ScriptureView: View {
 
     private func verseMenuLabel(_ title: String, symbol: String) -> some View {
         Label(title, systemImage: symbol)
+            .foregroundStyle(.primary)
             .modifier(VerseActionControlAppearance())
     }
 
@@ -762,8 +760,8 @@ struct ScriptureView: View {
         persistLocalSelection()
     }
 
-    private func highlightMenu(_ st: BibleState, iconOnly: Bool = true) -> some View {
-        Menu {
+    @ViewBuilder private func highlightMenu(_ st: BibleState, iconOnly: Bool = true) -> some View {
+        let menu = Menu {
             ForEach(highlightColors, id: \.self) { color in
                 Button(color.capitalized, systemImage: "circle.fill") {
                     for row in selectedRows {
@@ -786,13 +784,11 @@ struct ScriptureView: View {
                 Label("Highlight", systemImage: "highlighter").labelStyle(.titleAndIcon)
             }
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        #if os(macOS)
-        .pointerStyle(.link)
-        #else
-        .hoverEffect(.highlight)
-        #endif
+        if iconOnly {
+            menu.modifier(VerseActionMenuChrome())
+        } else {
+            menu
+        }
     }
 
     #if os(iOS)
@@ -1507,6 +1503,17 @@ enum ReaderFloatingControls {
     static var selectionHeight: CGFloat { actionHeight + 2 * surfacePadding + bottomPadding }
 }
 
+private struct VerseActionMenuChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            #if os(macOS)
+            .buttonStyle(.plain)
+            #endif
+    }
+}
+
 private struct VerseActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -1526,8 +1533,11 @@ private struct VerseActionControlAppearance: ViewModifier {
             .frame(width: ReaderFloatingControls.actionWidth, height: ReaderFloatingControls.actionHeight)
             .contentShape(.rect)
             #if os(macOS)
-            .background(isEnabled && hovering ? Color.primary.opacity(0.09) : .clear,
-                        in: .rect(cornerRadius: 7))
+            .background {
+                if isEnabled && hovering {
+                    Capsule().fill(.primary.opacity(0.07)).padding(3)
+                }
+            }
             .onHover { hovering = $0 }
             .pointerStyle(isEnabled ? .link : .default)
             #else
