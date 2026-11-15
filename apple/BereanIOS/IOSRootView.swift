@@ -610,11 +610,11 @@ struct SessionsPage: View {
                         HStack {
                             Image(systemName: w.icon.map { WorkspaceIcon.symbol($0) } ?? (w.isSaved ? "square.stack.3d.up" : "square.stack")).foregroundStyle(.secondary).frame(width: 24)
                             VStack(alignment: .leading) {
-                                Text(w.name).foregroundStyle(.primary)
-                                ForEach(w.previewLabels(matching: query), id: \.self) { preview in
+                                Text(w.displayName).font(.body.weight(.medium)).foregroundStyle(.primary)
+                                ForEach(w.previewLabels(matching: query).filter { $0 != w.displayName }, id: \.self) { preview in
                                     Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                                 }
-                                Text(w.isSaved ? "Saved · \(w.tabCountLabel)" : w.tabCountLabel)
+                                Text(w.displayDetail)
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()

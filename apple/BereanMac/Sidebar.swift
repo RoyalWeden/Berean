@@ -283,8 +283,8 @@ struct BereanSidebar: View {
             Divider()
             ForEach(app.workspaceItems) { w in
                 Toggle(isOn: Binding(get: { app.isCurrent(w) }, set: { if $0 { app.open(w) } })) {
-                    Text(w.menuLabel)
-                    Text(w.isSaved ? "Saved · \(w.tabCountLabel)" : w.tabCountLabel)
+                    Text(w.displayName == w.name ? w.menuLabel : w.displayName)
+                    Text(w.displayDetail)
                 }
             }
             Divider()

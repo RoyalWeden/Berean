@@ -15,7 +15,30 @@ struct WorkspaceItem: Identifiable, Hashable {
     var tabTitles: [String]
     var tabCountLabel: String { "\(tabCount) tab\(tabCount == 1 ? "" : "s")" }
 
-    var menuLabel: String { "\(name) · \(preview ?? tabCountLabel)" }
+    /// A passage label makes automatically numbered live workspaces easier to recognize.
+    /// The stored name remains available for management and matching legacy names.
+    var displayName: String {
+        guard !isSaved, hasGeneratedName else { return name }
+        return previewLabels().first ?? name
+    }
+
+    private var hasGeneratedName: Bool {
+        for prefix in ["Session ", "Workspace "] where name.hasPrefix(prefix) {
+            let suffix = name.dropFirst(prefix.count)
+            return !suffix.isEmpty && suffix.utf8.allSatisfy { (48...57).contains($0) }
+        }
+        return false
+    }
+
+    var displayDetail: String {
+        let count = isSaved ? "Saved · \(tabCountLabel)" : tabCountLabel
+        return displayName == name ? count : "\(name) · \(count)"
+    }
+
+    var menuLabel: String {
+        if displayName != name { return "\(displayName) · \(name)" }
+        return "\(name) · \(preview ?? tabCountLabel)"
+    }
 
     var preview: String? {
         let labels = previewLabels()
