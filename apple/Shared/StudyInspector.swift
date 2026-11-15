@@ -130,6 +130,12 @@ struct CommandPalette: View {
             ("Search Lexicon", "character.book.closed", { app.openLexiconSearch(newTab: opensNewTab) }),
             ("New Workspace", "square.stack", { app.newWorkspace() }),
         ]
+        if let tab = app.activeTab {
+            commands += [
+                ("Duplicate Tab", "plus.square.on.square", { app.duplicate(tab.id) }),
+                ("Close Other Tabs", "xmark.square", { app.closeOthers(tab.id) }),
+            ]
+        }
         // Reader commands (original lib/commands.ts) when a Scripture tab is active.
         if let tab = app.activeTab, tab.tabType == .bible {
             let strongs = BibleState(tab.state).showStrongs
