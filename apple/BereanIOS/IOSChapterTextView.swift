@@ -571,15 +571,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         private func font(_ size: CGFloat) -> UIFont {
-            let system = UIFont.systemFont(ofSize: size)
-            switch parent.style.family {
-            case "serif": return UIFont(name: "Georgia", size: size) ?? system
-            case "palatino": return UIFont(name: "Palatino-Roman", size: size) ?? system
-            case "mono": return UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
-            case "garamond", "crimson", "lora", "merriweather", "sourceserif":
-                return system.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: size) } ?? system
-            default: return system
-            }
+            ScriptureFont.nativeFont(parent.style.family, size: size)
         }
 
         private func appendBody(_ text: String, at offset: inout Int, marks: [ReaderVerse.Mark],

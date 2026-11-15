@@ -1071,3 +1071,8 @@
 
 - Added the optional copy-on-highlight setting to Reading on Mac and iPhone. Scripture and Compare use their existing verse-copy formatting.
 - Both Dev builds and 132 tests passed. Live Mac scratch QA verified the clipboard contained Romans 8:1–2 and both displayed verses after applying a color.
+
+### 2026-11-15 — I19 — Notes editor font
+
+- Both native Notes editors can use a font selected in Settings → Notes. The font changes the editor display and leaves the saved Markdown intact.
+- Both Dev builds and all 132 tests passed. Live Mac scratch QA verified the open note restyled in Monospace.

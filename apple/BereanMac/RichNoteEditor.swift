@@ -11,6 +11,7 @@ import BereanReference
 struct RichNoteEditor: NSViewRepresentable {
     @Binding var text: String
     var fontSize: CGFloat = 15
+    var fontFamily = "system"
     var detectVerseReferences = true
     var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
@@ -56,7 +57,8 @@ struct RichNoteEditor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         let c = context.coordinator
-        let referenceSettingChanged = c.parent.detectVerseReferences != detectVerseReferences
+        let styleChanged = c.parent.detectVerseReferences != detectVerseReferences
+            || c.parent.fontFamily != fontFamily || c.parent.fontSize != fontSize
         let spellingSettingChanged = c.parent.spellCheck != spellCheck
         let previousRequest = c.parent.formatRequest
         c.parent = self
@@ -83,7 +85,7 @@ struct RichNoteEditor: NSViewRepresentable {
         if spellingSettingChanged { tv.isContinuousSpellCheckingEnabled = spellCheck }
         let contentChanged = tv.string != text && !c.editing
         if contentChanged { tv.string = text }
-        if contentChanged || referenceSettingChanged { c.restyle() }
+        if contentChanged || styleChanged { c.restyle() }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
@@ -101,7 +103,7 @@ struct RichNoteEditor: NSViewRepresentable {
             guard let tv = textView, let storage = tv.textStorage else { return }
             let text = tv.string
             let size = parent.fontSize
-            let body = NSFont.systemFont(ofSize: size)
+            let body = ScriptureFont.nativeFont(parent.fontFamily, size: size)
             let para = NSMutableParagraphStyle(); para.lineSpacing = 3; para.paragraphSpacing = 6
             storage.beginEditing()
             let all = NSRange(location: 0, length: storage.length)
@@ -126,7 +128,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .heading(let level):
                     let scale: [CGFloat] = [1.75, 1.45, 1.25, 1.12, 1.05, 1.0]
                     let hp = NSMutableParagraphStyle(); hp.paragraphSpacingBefore = level <= 2 ? 10 : 6; hp.paragraphSpacing = 4
-                    storage.addAttributes([.font: NSFont.systemFont(ofSize: size * scale[min(level, 6) - 1], weight: level <= 2 ? .bold : .semibold), .paragraphStyle: hp], range: r)
+                    storage.addAttributes([.font: ScriptureFont.nativeFont(parent.fontFamily, size: size * scale[min(level, 6) - 1], weight: level <= 2 ? .bold : .semibold), .paragraphStyle: hp], range: r)
                 case .quote:
                     let qp = NSMutableParagraphStyle(); qp.headIndent = 18; qp.firstLineHeadIndent = 18; qp.paragraphSpacing = 4
                     storage.addAttributes([.paragraphStyle: qp, .foregroundColor: NSColor.secondaryLabelColor], range: r)

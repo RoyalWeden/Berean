@@ -334,18 +334,8 @@ struct ChapterTextView: NSViewRepresentable {
         }
 
         func font(_ size: Double, italic: Bool = false) -> NSFont {
-            let s = CGFloat(size)
-            var f: NSFont
-            switch parent.style.family {
-            case "serif": f = NSFont(name: "Georgia", size: s) ?? .systemFont(ofSize: s)
-            case "palatino": f = NSFont(name: "Palatino", size: s) ?? .systemFont(ofSize: s)
-            case "mono": f = .monospacedSystemFont(ofSize: s, weight: .regular)
-            case "garamond", "crimson", "lora", "merriweather", "sourceserif":
-                f = NSFont(descriptor: NSFont.systemFont(ofSize: s).fontDescriptor.withDesign(.serif) ?? NSFont.systemFont(ofSize: s).fontDescriptor, size: s) ?? .systemFont(ofSize: s)
-            default: f = .systemFont(ofSize: s)
-            }
-            if italic { f = NSFontManager.shared.convert(f, toHaveTrait: .italicFontMask) }
-            return f
+            let font = ScriptureFont.nativeFont(parent.style.family, size: CGFloat(size))
+            return italic ? NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) : font
         }
 
         func build(_ p: ChapterTextView) -> NSAttributedString {

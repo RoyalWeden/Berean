@@ -78,6 +78,12 @@ struct SettingsView: View {
     private var notesSection: some View {
         @Bindable var app = app
         return Section {
+            Picker("Notes Font", selection: $app.notesFontFamily) {
+                ForEach(ScriptureFont.options, id: \.id) { Text($0.label).tag($0.id) }
+                if !ScriptureFont.options.contains(where: { $0.id == app.notesFontFamily }) {
+                    Text(app.notesFontFamily.capitalized).tag(app.notesFontFamily)
+                }
+            }
             Toggle("Detect Scripture References", isOn: $app.noteVerseRefsEnabled)
             Toggle("Check Spelling", isOn: $app.noteSpellCheck)
             Toggle("Confirm Before Moving Notes to Trash", isOn: $app.confirmNoteDelete)

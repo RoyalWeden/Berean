@@ -9,6 +9,11 @@ import BereanWorkspace
 import BereanBible
 import BereanReference
 import BereanNotes
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// The texts the reader offers — the existing app's TRANSLATIONS list (src/lib/bibleTexts.ts): one KJV entry (KJV +
 /// Apocrypha includes the KJV) and one Septuagint (Brenton; `lxx` is served from lxx_brenton.db, electron/db/bible.ts).
@@ -171,7 +176,8 @@ final class AppModel {
     var hermasEdition = HermasText.taylor { didSet { saveSetting("hermasTranslation", .string(JSString(hermasEdition.rawValue))) } }
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
-    /// The existing apps' `scriptureFontFamily` setting ('system' = the platform UI font).
+    /// The existing apps' font-family settings ('system' = the platform UI font).
+    var notesFontFamily = "system" { didSet { saveSetting("notesFontFamily", .string(JSString(notesFontFamily))) } }
     var scriptureFontFamily = "system" { didSet { saveSetting("scriptureFontFamily", .string(JSString(scriptureFontFamily))) } }
     var noteVerseRefsEnabled = true { didSet { saveSetting("noteVerseRefsEnabled", .bool(noteVerseRefsEnabled)) } }
     var autoCopyOnHighlight = false { didSet { saveSetting("autoCopyOnHighlight", .bool(autoCopyOnHighlight)) } }
@@ -257,6 +263,7 @@ final class AppModel {
         if let v = all["hermasTranslation"]?.stringValue?.string, let edition = HermasText(rawValue: v) { hermasEdition = edition }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["theme"]?.stringValue?.string { theme = v }
+        if let v = all["notesFontFamily"]?.stringValue?.string, !v.isEmpty { notesFontFamily = v }
         if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
         if let v = all["noteVerseRefsEnabled"]?.boolValue { noteVerseRefsEnabled = v }
         if let v = all["autoCopyOnHighlight"]?.boolValue { autoCopyOnHighlight = v }
@@ -1241,13 +1248,48 @@ struct BibleState: Equatable {
 }
 
 
-/// Scripture font choices — the existing app's FONT_FAMILY_OPTIONS keys; web fonts the platform lacks map to the
+/// Scripture and Notes font choices — the existing app's FONT_FAMILY_OPTIONS keys; web fonts the platform lacks map to the
 /// nearest system face (system design for sans, New York for book serifs).
 enum ScriptureFont {
     static let options: [(id: String, label: String)] = [
         ("system", "System (San Francisco)"), ("serif", "Serif (Georgia)"), ("palatino", "Palatino"), ("sourceserif", "Book serif (New York)"),
         ("sansserif", "Sans-serif"), ("mono", "Monospace"),
     ]
+    #if os(macOS)
+    static func nativeFont(_ family: String, size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
+        let system = NSFont.systemFont(ofSize: size, weight: weight)
+        let custom: NSFont?
+        switch family {
+        case "serif": custom = NSFont(name: "Georgia", size: size)
+        case "palatino": custom = NSFont(name: "Palatino", size: size)
+        case "mono": return .monospacedSystemFont(ofSize: size, weight: weight)
+        case "garamond", "crimson", "lora", "merriweather", "sourceserif":
+            return system.fontDescriptor.withDesign(.serif).flatMap { NSFont(descriptor: $0, size: size) } ?? system
+        default: return system
+        }
+        guard let custom else { return system }
+        return weight == .regular ? custom : NSFontManager.shared.convert(custom, toHaveTrait: .boldFontMask)
+    }
+    #else
+    static func nativeFont(_ family: String, size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+        let system = UIFont.systemFont(ofSize: size, weight: weight)
+        let custom: UIFont?
+        switch family {
+        case "serif": custom = UIFont(name: "Georgia", size: size)
+        case "palatino": custom = UIFont(name: "Palatino-Roman", size: size)
+        case "mono": return .monospacedSystemFont(ofSize: size, weight: weight)
+        case "garamond", "crimson", "lora", "merriweather", "sourceserif":
+            return system.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: size) } ?? system
+        default: return system
+        }
+        guard let custom else { return system }
+        guard weight != .regular,
+              let descriptor = custom.fontDescriptor.withSymbolicTraits(custom.fontDescriptor.symbolicTraits.union(.traitBold))
+        else { return custom }
+        return UIFont(descriptor: descriptor, size: size)
+    }
+    #endif
+
     static func font(_ family: String, size: Double) -> Font {
         switch family {
         case "serif": return .custom("Georgia", size: size)

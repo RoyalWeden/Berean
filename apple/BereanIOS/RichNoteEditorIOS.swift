@@ -8,6 +8,7 @@ import BereanReference
 struct RichNoteEditorIOS: UIViewRepresentable {
     @Binding var text: String
     var fontSize: CGFloat = 17
+    var fontFamily = "system"
     var detectVerseReferences = true
     var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
@@ -45,7 +46,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
 
     func updateUIView(_ tv: NoteUITextView, context: Context) {
         let coordinator = context.coordinator
-        let referenceSettingChanged = coordinator.parent.detectVerseReferences != detectVerseReferences
+        let styleChanged = coordinator.parent.detectVerseReferences != detectVerseReferences
+            || coordinator.parent.fontFamily != fontFamily || coordinator.parent.fontSize != fontSize
         let spellingSettingChanged = coordinator.parent.spellCheck != spellCheck
         let previousRequest = coordinator.parent.formatRequest
         coordinator.parent = self
@@ -70,7 +72,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         if spellingSettingChanged { tv.spellCheckingType = spellCheck ? .yes : .no }
         let contentChanged = tv.text != text && !coordinator.editing
         if contentChanged { tv.text = text }
-        if contentChanged || referenceSettingChanged { coordinator.restyle() }
+        if contentChanged || styleChanged { coordinator.restyle() }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate, @preconcurrency NSLayoutManagerDelegate {
@@ -143,7 +145,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         init(_ p: RichNoteEditorIOS) { parent = p }
 
         func font(_ size: CGFloat, _ weight: UIFont.Weight = .regular, traits: UIFontDescriptor.SymbolicTraits = []) -> UIFont {
-            let base = UIFont.systemFont(ofSize: size, weight: weight)
+            let base = ScriptureFont.nativeFont(parent.fontFamily, size: size, weight: weight)
             guard !traits.isEmpty, let d = base.fontDescriptor.withSymbolicTraits(base.fontDescriptor.symbolicTraits.union(traits)) else { return base }
             return UIFont(descriptor: d, size: size)
         }
