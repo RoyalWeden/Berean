@@ -112,20 +112,23 @@ extension AppModel {
 
     // MARK: archive (archiveTab / archiveTabs / restoreArchivedGroup / dismissArchivedGroup)
 
-    func archive(_ tabIds: [String]) {
+    @discardableResult
+    func archive(_ tabIds: [String]) -> ArchivedGroup? {
         let tabs = tabIds.compactMap { findTab($0) }
-        guard let first = tabs.first else { return }
+        guard let first = tabs.first else { return nil }
         let label = tabs.count == 1 ? first.title : "\(first.title) and \(tabs.count - 1) more"
         let json = JSON.stringifyString(.array(tabs.map { .object($0.jsObject) }))
         let id = "arch-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(6))"
         var placements = archivePlacements
         placements[id] = ArchivePlacement(workspace: currentSessionId, order: displayOrder(for: currentSessionId),
                                           workspaceName: session.name)
-        archivedGroups.insert(ArchivedGroup(id: id, label: label, archivedAt: Int64(Date().timeIntervalSince1970 * 1000), tabsJSON: json), at: 0)
+        let group = ArchivedGroup(id: id, label: label, archivedAt: Int64(Date().timeIntervalSince1970 * 1000), tabsJSON: json)
+        archivedGroups.insert(group, at: 0)
         let recentGroups = Set(archivedGroups.prefix(50).map(\.id))
         archivePlacements = placements.filter { recentGroups.contains($0.key) }
         for t in tabs { close(t.id) }
         scheduleSave()
+        return group
     }
 
     private struct ArchivePlacement: Codable {
@@ -197,11 +200,12 @@ extension AppModel {
         return duplicates
     }
 
-    func archiveInactiveTabs(_ ids: [String], duplicatesOnly: Bool = false, keepingRecent: Bool = false) {
+    @discardableResult
+    func archiveInactiveTabs(_ ids: [String], duplicatesOnly: Bool = false, keepingRecent: Bool = false) -> ArchivedGroup? {
         var requested = Set(ids)
         if keepingRecent { requested.subtract(recentCleanupTabIDs) }
         if duplicatesOnly { requested.formIntersection(inactiveDuplicateOriginals(keepingRecent: keepingRecent).keys) }
-        archive(inactiveTabs.filter { requested.contains($0.id) }.map(\.id))
+        return archive(inactiveTabs.filter { requested.contains($0.id) }.map(\.id))
     }
 
     func archiveAllTabs() { archive(orderedTabs.map(\.id)) }

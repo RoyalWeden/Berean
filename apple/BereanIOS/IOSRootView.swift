@@ -264,6 +264,7 @@ struct TabCardsSheet: View {
     @State private var showTabCleanup = false
     @State private var isSelecting = false
     @State private var selectedTabIDs: Set<String> = []
+    @State private var undoArchiveID: String?
 
     @State private var spaceFilter: SpaceId?
     @State private var typeFilter: TabType?
@@ -354,7 +355,11 @@ struct TabCardsSheet: View {
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: eligible) { _, eligible in selectedTabIDs.formIntersection(eligible) }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if isSelecting { batchArchiveBar }
+                if isSelecting {
+                    batchArchiveBar
+                } else if let undoArchiveID, let group = app.archivedGroups.first(where: { $0.id == undoArchiveID }) {
+                    archiveReceipt(group)
+                }
             }
             .sheet(isPresented: $showTabCleanup) { TabCleanupView() }
             .navigationTitle("Tabs")
@@ -416,7 +421,11 @@ struct TabCardsSheet: View {
             Text("\(count) selected").font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
             Button("Archive", systemImage: "archivebox") {
-                app.archiveInactiveTabs(Array(selectedTabIDs.intersection(selectableIDs)))
+                if let group = app.archiveInactiveTabs(Array(selectedTabIDs.intersection(selectableIDs))) {
+                    undoArchiveID = group.id
+                    let count = group.tabs.count
+                    AccessibilityNotification.Announcement("\(count) tab\(count == 1 ? "" : "s") archived").post()
+                }
                 finishSelection()
             }
             .buttonStyle(.borderedProminent)
@@ -428,6 +437,32 @@ struct TabCardsSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .accessibilityElement(children: .contain)
+    }
+
+    private func archiveReceipt(_ group: ArchivedGroup) -> some View {
+        let count = group.tabs.count
+        return HStack(spacing: 10) {
+            Label("\(count) archived", systemImage: "archivebox")
+                .font(.subheadline.weight(.medium))
+            Button("Undo") {
+                app.restoreArchived(group.id, toSource: true)
+                if !app.archivedGroups.contains(where: { $0.id == group.id }) {
+                    undoArchiveID = nil
+                    AccessibilityNotification.Announcement("Tabs restored").post()
+                }
+            }
+            .buttonStyle(.bordered)
+            Button("Dismiss archive notice", systemImage: "xmark") { undoArchiveID = nil }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .glassEffectCompat(interactive: true)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
     }
 
     private func selectionMark(_ tab: BereanWorkspace.Tab) -> some View {
