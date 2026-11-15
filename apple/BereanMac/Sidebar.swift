@@ -225,6 +225,13 @@ struct BereanSidebar: View {
             if let cur = app.currentWorkspace {
                 Button("Rename “\(cur.name)”…") { name = cur.name; renaming = cur }
                 Button("Duplicate “\(cur.name)”") { app.duplicate(cur) }
+                Menu("Icon") {
+                    ForEach(WorkspaceIcon.all, id: \.name) { icon in
+                        Button(WorkspaceIcon.label(icon.name), systemImage: icon.symbol) { app.setSessionIcon(app.currentSessionId, icon.name) }
+                    }
+                    Divider()
+                    Button("Default") { app.setSessionIcon(app.currentSessionId, nil) }
+                }
                 Button("Save Snapshot…") { name = cur.name; savingSnapshot = true }
                 Divider()
                 Button("Delete “\(cur.name)”…", role: .destructive) { deleting = cur }.disabled(!app.canDelete(cur))
@@ -242,7 +249,7 @@ struct BereanSidebar: View {
                 }
             }
         } label: {
-            Label(app.session.name, systemImage: "square.stack").fontWeight(.semibold)
+            Label(app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon)).fontWeight(.semibold)
         }
         .menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize()
         .padding(.horizontal, 10).padding(.vertical, 5)

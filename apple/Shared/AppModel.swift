@@ -268,7 +268,11 @@ final class AppModel {
         sessions.append(s); switchSession(s.id)
         openTab(.bible, in: .scripture, title: "Genesis 1", state: BibleState(bookId: "GEN", chapter: 1).object)
     }
-    func renameSession(_ id: String, to name: String) {
+    func setSessionIcon(_ id: String, _ icon: String?) {
+        guard let i = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[i].icon = icon; scheduleSave()
+    }
+        func renameSession(_ id: String, to name: String) {
         guard let i = sessions.firstIndex(where: { $0.id == id }), !name.isEmpty else { return }
         sessions[i].name = name; scheduleSave()
     }
