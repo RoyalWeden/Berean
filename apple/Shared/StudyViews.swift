@@ -204,7 +204,7 @@ struct LexiconEntryView: View {
                                 }
                             }
                         }
-                        section("Occurrences") {
+                        section(occurrences.isEmpty ? "Occurrences" : "Occurrences (\(occurrences.count)\(occurrences.count >= 1000 ? "+" : ""))") {
                             if occurrencesLoading {
                                 ProgressView().accessibilityLabel("Loading occurrences")
                             } else if occurrences.isEmpty {
@@ -219,7 +219,7 @@ struct LexiconEntryView: View {
                             let matches = matchingOccurrences(indexed)
                             if !occurrences.isEmpty {
                                 HStack {
-                                    Text("\(matches.count) loaded occurrences")
+                                    Text(matches.count == occurrences.count ? "All shown" : "\(matches.count) shown")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                     Spacer(minLength: 4)
