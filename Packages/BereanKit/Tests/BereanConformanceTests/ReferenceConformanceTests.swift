@@ -3,6 +3,16 @@ import Testing
 import BereanCore
 import BereanReference
 
+@Test func psalm151RequiresTheSeptuagint() {
+    #expect(Reference.parse("Psalm 151") == nil)
+    let reference = Reference.parse("Psalm 151:2 LXX")
+    #expect(reference?.bookId == "PSA")
+    #expect(reference?.chapter == 151)
+    #expect(reference?.verse == 2)
+    #expect(reference?.forcedTranslation == "LXX")
+    #expect(Reference.parse("Psalm 152 LXX") == nil)
+}
+
 @Suite("reference golden") struct ReferenceConformanceTests {
     static func s(_ x: String?) -> JSValue { x.map { .string(JSString($0)) } ?? .null }
 

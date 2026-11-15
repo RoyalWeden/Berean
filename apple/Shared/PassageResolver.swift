@@ -110,19 +110,34 @@ extension AppModel {
     }
 
     func resolvePassage(_ raw: String, preferring current: String? = nil) -> ResolvedPassage? {
-        let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return nil }
         if query.contains("://") { return resolvePastedPassages(query, preferring: current) }
-        let suffix = query.range(of: #"\s+(kjva|kjv|\[[^\[\]]+\])$"#, options: [.regularExpression, .caseInsensitive])
+        var prefixedText: String?
+        if let separator = query.firstIndex(of: ":") {
+            let source = query[..<separator].trimmingCharacters(in: .whitespaces).lowercased()
+            if ["lxx", "septuagint", "brenton"].contains(source) {
+                prefixedText = "lxx"
+            } else if source == "kjv" || availableTexts.contains(where: { $0.id == source }) {
+                prefixedText = source
+            }
+            if prefixedText != nil {
+                query = query[query.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        guard !query.isEmpty else { return nil }
+        let suffix = query.range(of: #"\s+(kjva|kjv|lxx|\[[^\[\]]+\])$"#, options: [.regularExpression, .caseInsensitive])
         let suffixLabel = suffix.map { query[$0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-        let requestedText: String?
+        let suffixedText: String?
         if let suffixLabel, suffixLabel.hasPrefix("[") {
             let name = String(suffixLabel.dropFirst().dropLast())
             guard let text = availableTexts.first(where: { $0.short.lowercased() == name }) else { return nil }
-            requestedText = text.id
+            suffixedText = text.id
         } else {
-            requestedText = suffixLabel
+            suffixedText = suffixLabel
         }
+        if let prefixedText, let suffixedText, prefixedText != suffixedText { return nil }
+        let requestedText = prefixedText ?? suffixedText
         let q = suffix.map { String(query[..<$0.lowerBound]) } ?? query
         let pref = current ?? defaultText
         let edition = HermasText(rawValue: requestedText ?? pref) ?? hermasEdition
@@ -135,9 +150,10 @@ extension AppModel {
             if bookCatalog.isEmpty || bookCatalog.contains(where: { $0.textId == pref && $0.book.id == bookId }) { return pref }
             return bookCatalog.first { $0.book.id == bookId }?.textId ?? pref
         }
-        if let ref = Reference.parse(q, hermas: edition) {
+        let referenceQuery = requestedText == "lxx" ? q + " LXX" : q
+        if let ref = Reference.parse(referenceQuery, hermas: edition) {
             if let requestedText {
-                guard ref.forcedTranslation == nil,
+                guard ref.forcedTranslation == nil || ref.forcedTranslation?.lowercased() == requestedText,
                       candidates.contains(where: { $0.textId == requestedText && $0.book.id == ref.bookId })
                 else { return nil }
             }

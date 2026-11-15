@@ -42,14 +42,15 @@ extension Reference {
                 endChapter = se
             }
         }
-        if let maxCh = maxChapter(bookId).map(Double.init) {
+        let forced: String? = suffix.flatMap { JSText.upper($0) == "LXX" ? "LXX" : nil }
+        let chapterLimit = bookId == "PSA" && forced == "LXX" ? 151 : maxChapter(bookId)
+        if let maxCh = chapterLimit.map(Double.init) {
             if chapter > maxCh { return nil }
             if let ec = endChapter, ec > maxCh { return nil }
         }
         func badVerse(_ v: Double) -> Bool { v.isNaN || v < 1 || v > 200 }
         if let v = verse, badVerse(v) { return nil }
         if let v = endVerse, badVerse(v) { return nil }
-        let forced: String? = suffix.flatMap { JSText.upper($0) == "LXX" ? "LXX" : nil }
         var groups: [(Double, Double?)]?
         if let commaList {
             var g: [(Double, Double?)] = []
