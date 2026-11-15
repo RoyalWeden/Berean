@@ -143,6 +143,8 @@ struct CompareView: View {
     @State private var tagging: VerseTagTarget?
     #if os(macOS)
     @State private var columnDragToken = UUID()
+    @State private var columnWeights: [Int: CGFloat] = [:]
+    @State private var resizeStart: [Int: CGFloat]?
     #endif
 
     private struct VerseTagTarget: Identifiable {
@@ -173,6 +175,7 @@ struct CompareView: View {
                 alignedComparison(st, cols)
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
         #if os(iOS)
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(spacing: 2) {
@@ -315,6 +318,9 @@ struct CompareView: View {
     private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
         let available = availableColumnIDs
         let selected = selectedVerses(in: st)
+        #if os(macOS)
+        let space = compareWidth - 48 - 18 * CGFloat(cols.count - 1) - (showVerseNumbers ? 50 : 0)
+        #endif
         return Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 10) {
             GridRow {
                 if showVerseNumbers { Text("").gridColumnAlignment(.trailing) }
@@ -323,7 +329,16 @@ struct CompareView: View {
                         alignedColumnHeading(c, available: available.contains(c.id))
                         columnActions(c, columns: cols)
                     }
+                    #if os(macOS)
+                    .frame(width: columnWidth(c, columns: cols, space: space), alignment: .leading)
+                    .overlay(alignment: .trailing) {
+                        if let next = nextColumn(after: c, in: cols) {
+                            columnDivider(c, next, columns: cols, space: space).offset(x: 15)
+                        }
+                    }
+                    #else
                     .frame(minWidth: 180)
+                    #endif
                 }
             }
             Divider().gridCellUnsizedAxes(.horizontal)
@@ -334,6 +349,9 @@ struct CompareView: View {
                     }
                     ForEach(cols) { c in
                         comparisonText(v, text: c, state: st)
+                            #if os(macOS)
+                            .frame(width: columnWidth(c, columns: cols, space: space), alignment: .leading)
+                            #endif
                     }
                 }
                 .id(v)
@@ -407,7 +425,6 @@ struct CompareView: View {
                     comparisonGrid(state, columns)
                 }
             }
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
             .onChange(of: state.verse, initial: true) {
                 let selectedHere = localVerseSelection != nil && localVerseSelection == state.verse
                 localVerseSelection = nil
@@ -419,9 +436,14 @@ struct CompareView: View {
     }
 
     private func independentPanes(_ columns: [CompareColumn]) -> some View {
-        HStack(spacing: 0) {
+        #if os(macOS)
+        let space = compareWidth - 12 * CGFloat(columns.count - 1)
+        #endif
+        return HStack(spacing: 0) {
             ForEach(columns) { column in
+                #if !os(macOS)
                 if column.id != columns.first?.id { Divider() }
+                #endif
                 VStack(spacing: 0) {
                     independentHeader(column, columns: columns)
                         .padding(.horizontal, 12)
@@ -434,7 +456,17 @@ struct CompareView: View {
                     }
                     .id(column.label)
                 }
+                #if os(macOS)
+                .frame(width: columnWidth(column, columns: columns, space: space))
+                .frame(maxHeight: .infinity)
+                #else
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                #endif
+                #if os(macOS)
+                if let next = nextColumn(after: column, in: columns) {
+                    columnDivider(column, next, columns: columns, space: space)
+                }
+                #endif
             }
         }
     }
@@ -500,6 +532,56 @@ struct CompareView: View {
     #if os(macOS)
     private func columnDragPayload(_ column: CompareColumn) -> String {
         "\(columnDragToken)|\(column.id)|\(column.historyKey)"
+    }
+
+    private func nextColumn(after column: CompareColumn, in columns: [CompareColumn]) -> CompareColumn? {
+        guard let index = columns.firstIndex(where: { $0.id == column.id }), index + 1 < columns.count else { return nil }
+        return columns[index + 1]
+    }
+
+    private func columnWidth(_ column: CompareColumn, columns: [CompareColumn], space: CGFloat) -> CGFloat {
+        let total = columns.reduce(CGFloat.zero) { $0 + (columnWeights[$1.id] ?? 1) }
+        let extra = max(0, space - 180 * CGFloat(columns.count))
+        return 180 + extra * (columnWeights[column.id] ?? 1) / max(total, 1)
+    }
+
+    private func columnDivider(_ left: CompareColumn, _ right: CompareColumn, columns: [CompareColumn], space: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color(nsColor: .separatorColor))
+            .frame(width: 1)
+            .frame(width: 12)
+            .frame(minHeight: controlSize)
+            .contentShape(.rect)
+            .pointerStyle(.columnResize)
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { gesture in
+                    if resizeStart == nil { resizeStart = columnWeights }
+                    resizeColumns(left, right, by: gesture.translation.width, columns: columns, space: space,
+                                  baseline: resizeStart ?? [:])
+                }
+                .onEnded { _ in resizeStart = nil })
+            .accessibilityLabel("Resize \(left.label) and \(right.label)")
+            .accessibilityValue("\(Int(columnWidth(left, columns: columns, space: space))) and \(Int(columnWidth(right, columns: columns, space: space))) points")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: resizeColumns(left, right, by: 24, columns: columns, space: space, baseline: columnWeights)
+                case .decrement: resizeColumns(left, right, by: -24, columns: columns, space: space, baseline: columnWeights)
+                @unknown default: break
+                }
+            }
+            .help("Drag to resize these columns")
+    }
+
+    private func resizeColumns(_ left: CompareColumn, _ right: CompareColumn, by delta: CGFloat,
+                               columns: [CompareColumn], space: CGFloat, baseline: [Int: CGFloat]) {
+        let extra = space - 180 * CGFloat(columns.count)
+        guard extra > 0 else { return }
+        let total = columns.reduce(CGFloat.zero) { $0 + (baseline[$1.id] ?? 1) }
+        let leftWeight = baseline[left.id] ?? 1
+        let pair = leftWeight + (baseline[right.id] ?? 1)
+        let nextLeft = min(max(leftWeight + delta * total / extra, 0.02), pair - 0.02)
+        columnWeights[left.id] = nextLeft
+        columnWeights[right.id] = pair - nextLeft
     }
     #endif
 
@@ -891,6 +973,10 @@ struct CompareView: View {
     }
 
     func setColumns(_ cols: [CompareColumn]) {
+        #if os(macOS)
+        columnWeights = Dictionary(uniqueKeysWithValues: cols.enumerated().map { ($0.offset, columnWeights[$0.element.id] ?? 1) })
+        resizeStart = nil
+        #endif
         if cols.isEmpty {
             app.update(tabId) {
                 $0.state.remove("compareMode")
