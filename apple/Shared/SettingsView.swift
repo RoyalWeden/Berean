@@ -12,44 +12,73 @@ struct SettingsView: View {
     @AppStorage("berean.haptics.enabled") private var hapticsEnabled = true
 
     var body: some View {
-        @Bindable var app = app
+        #if os(macOS)
+        // macOS Settings window: a toolbar of panes, as in Apple's own apps.
+        TabView {
+            Tab("Reading", systemImage: "book") { pane { readingSection } }
+            Tab("Appearance", systemImage: "paintbrush") { pane { appearanceSection } }
+            Tab("Workspaces", systemImage: "square.stack") { pane { WorkspacesSettingsSection() } }
+            Tab("Shortcuts", systemImage: "keyboard") { pane { shortcutsSection } }
+            Tab("About", systemImage: "info.circle") { pane { aboutSections } }
+        }
+        .frame(width: 560)
+        .frame(minHeight: 540)
+        #else
         Form {
-            Section("Reading") {
-                Picker("Default text", selection: $app.defaultText) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
-                Picker("Shepherd of Hermas edition", selection: $app.hermasEdition) {
-                    Text("Charles Taylor (1903)").tag(HermasText.taylor)
-                    Text("Roberts–Donaldson").tag(HermasText.robertsDonaldson)
-                }
-                ScriptureDisplayOptions()
-                Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
-            }
-            Section("Appearance") {
-                Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented).clickableCursor()
-            }
-            #if os(iOS)
+            readingSection
+            appearanceSection
             Section {
                 Toggle("Haptic Feedback", isOn: $hapticsEnabled)
             } footer: {
                 Text("A light tap when you select verses or turn the chapter.")
             }
-            #endif
             WorkspacesSettingsSection()
-            Section("Keyboard Shortcuts") {
-                ForEach(Self.shortcuts, id: \.0) { k, v in LabeledContent(v) { Text(k).font(.body.monospaced()).foregroundStyle(.secondary) } }
-            }
-            Section("About") {
-                LabeledContent("Version", value: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–") + " (native development build)")
-                LabeledContent("Texts", value: "\(availableTexts.count) installed")
-            }
-            Section("Library") {
-                LabeledContent("Location", value: UserLibrary.directory.path).textSelection(.enabled)
-                Text("Development build — this library is separate from your Berean data and does not sync yet.").font(.caption).foregroundStyle(.secondary)
-            }
+            shortcutsSection
+            aboutSections
         }
         .formStyle(.grouped)
-        #if os(macOS)
-        .frame(minWidth: 460, minHeight: 360)
         #endif
+    }
+
+    private func pane<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        Form { content() }.formStyle(.grouped).scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder private var readingSection: some View {
+        @Bindable var app = app
+        Section("Reading") {
+            Picker("Default text", selection: $app.defaultText) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
+            Picker("Shepherd of Hermas edition", selection: $app.hermasEdition) {
+                Text("Charles Taylor (1903)").tag(HermasText.taylor)
+                Text("Roberts–Donaldson").tag(HermasText.robertsDonaldson)
+            }
+            ScriptureDisplayOptions()
+            Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
+        }
+    }
+
+    @ViewBuilder private var appearanceSection: some View {
+        @Bindable var app = app
+        Section("Appearance") {
+            Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented).clickableCursor()
+        }
+    }
+
+    private var shortcutsSection: some View {
+        Section("Keyboard Shortcuts") {
+            ForEach(Self.shortcuts, id: \.0) { k, v in LabeledContent(v) { Text(k).font(.body.monospaced()).foregroundStyle(.secondary) } }
+        }
+    }
+
+    @ViewBuilder private var aboutSections: some View {
+        Section("About") {
+            LabeledContent("Version", value: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–") + " (native development build)")
+            LabeledContent("Texts", value: "\(availableTexts.count) installed")
+        }
+        Section("Library") {
+            LabeledContent("Location", value: UserLibrary.directory.path).textSelection(.enabled)
+            Text("Development build — this library is separate from your Berean data and does not sync yet.").font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 
