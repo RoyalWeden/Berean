@@ -6,10 +6,14 @@ struct TabCleanupView: View {
     @State private var included: Set<String> = []
     @State private var query = ""
     @State private var duplicatesOnly = false
+    @State private var keepingRecent = true
 
     var body: some View {
         let originals = duplicatesOnly ? app.inactiveDuplicateOriginals : [:]
-        let tabs = app.inactiveTabs.filter { !duplicatesOnly || originals[$0.id] != nil }
+        let recentIDs = app.recentCleanupTabIDs
+        let candidates = app.inactiveTabs.filter { !duplicatesOnly || originals[$0.id] != nil }
+        let protectedCount = candidates.filter { recentIDs.contains($0.id) }.count
+        let tabs = candidates.filter { !keepingRecent || !recentIDs.contains($0.id) }
         let selected = tabs.filter { included.contains($0.id) }
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let matches = tabs.filter { tab in
@@ -23,6 +27,11 @@ struct TabCleanupView: View {
                         TextField("Filter inactive tabs", text: $query)
                             .textFieldStyle(.plain)
                     }
+                    Toggle("Keep Recently Used Tabs", isOn: $keepingRecent)
+                        .clickableCursor()
+                        .onChange(of: keepingRecent) { _, enabled in
+                            if enabled { included.subtract(recentIDs) }
+                        }
                     Toggle("Exact Duplicates Only", isOn: $duplicatesOnly).clickableCursor()
                         .onChange(of: duplicatesOnly) {
                             included.removeAll()
@@ -36,8 +45,13 @@ struct TabCleanupView: View {
                 }
                 Section {
                     if matches.isEmpty {
-                        Text(tabs.isEmpty ? (duplicatesOnly ? "No exact duplicates" : "No inactive tabs") : "No matching tabs")
-                            .foregroundStyle(.secondary)
+                        if keepingRecent && protectedCount > 0 && tabs.isEmpty {
+                            Text("Only recently used tabs match this cleanup mode.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(tabs.isEmpty ? (duplicatesOnly ? "No exact duplicates" : "No inactive tabs") : "No matching tabs")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     ForEach(matches) { tab in
                         Toggle(isOn: Binding(
@@ -65,7 +79,10 @@ struct TabCleanupView: View {
                 } header: {
                     Text("Choose tabs to archive · \(selected.count) selected")
                 } footer: {
-                    Text("Pinned and selected tabs stay open. You can restore these tabs together from Archived Tabs.")
+                    if keepingRecent && protectedCount > 0 {
+                        Text("\(protectedCount) recently used tab\(protectedCount == 1 ? "" : "s") kept open.")
+                    }
+                    Text("Pinned and active tabs stay open. You can restore archived tabs together.")
                 }
             }
             #if os(iOS)
@@ -74,7 +91,7 @@ struct TabCleanupView: View {
                     Button("Cancel") { dismiss() }
                         .buttonStyle(.bordered)
                     Button("Archive \(selected.count)", systemImage: "archivebox") {
-                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly)
+                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
@@ -93,7 +110,7 @@ struct TabCleanupView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.clickableCursor() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Archive \(selected.count)") {
-                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly)
+                        app.archiveInactiveTabs(selected.map(\.id), duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
                         dismiss()
                     }
                     .disabled(selected.isEmpty)
