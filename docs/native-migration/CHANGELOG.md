@@ -1096,3 +1096,8 @@
 
 - Occurrence menus now open in the current reading workflow or explicitly in a new tab, and copy the verse or reference. Mac scratch QA verified the clipboard, fresh tab, and Back flow.
 - Both Dev builds and all 132 tests passed.
+
+### 2026-11-15 — Scripture search tab reuse
+
+- Plain searches and book-scoped History replay now preserve existing filtered tabs and reuse only result-compatible tabs.
+- Both Dev builds and all 132 tests passed. Live Mac scratch QA verified the same query stayed separate with 52 unfiltered results and zero tagged results.

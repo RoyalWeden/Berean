@@ -830,6 +830,17 @@ final class AppModel {
         }
     }
 
+    /// A plain search can reuse a tab only if it would show the same scope and results.
+    private static func matchesPlainSearchFilters(_ state: JSObject, requested: JSObject) -> Bool {
+        let tagIDs = state["tagFilter"]?.stringValue?.string.split(separator: ",") ?? []
+        return state["scopeTexts"]?.arrayValue == requested["scopeTexts"]?.arrayValue
+            && (state["bookIds"]?.arrayValue ?? []) == (requested["bookIds"]?.arrayValue ?? [])
+            && state["nativeSearchFocusText"]?.stringValue == nil
+            && (state["wordMode"]?.stringValue?.string ?? "all") == "all"
+            && (state["testament"]?.stringValue?.string ?? "all") == "all"
+            && tagIDs.isEmpty
+    }
+
     /// A Search tab for `query` (words, a phrase or Strong's numbers), across the default scope (All Texts).
     /// Whole-book find (original Find on Page across the book): a Search tab scoped to one book and text.
     func openBookSearch(_ query: String, bookId: String, textId: String, reuseTab: Bool = false,
@@ -842,7 +853,7 @@ final class AppModel {
         o["nativeSearchFocusText"] = .null
         if reuseTab, let match = tabs(in: .search).first(where: { tab in
             tab.tabType == .search && tab.state["query"] == o["query"]
-                && tab.state["scopeTexts"] == o["scopeTexts"] && tab.state["bookIds"] == o["bookIds"]
+                && Self.matchesPlainSearchFilters(tab.state, requested: o)
         }) {
             select(match.id, in: .search)
         } else {
@@ -861,12 +872,7 @@ final class AppModel {
         o["nativeSearchFocusText"] = .null
         if reuseTab {
             let isCompatibleSearch: (BereanWorkspace.Tab) -> Bool = { tab in
-                let state = tab.state
-                return state["nativeSearchFocusText"]?.stringValue == nil
-                    && state["scopeTexts"]?.arrayValue == scope?.arrayValue
-                    && (state["wordMode"]?.stringValue?.string ?? "all") == "all"
-                    && (state["testament"]?.stringValue?.string ?? "all") == "all"
-                    && (state["bookIds"]?.arrayValue?.isEmpty ?? true)
+                Self.matchesPlainSearchFilters(tab.state, requested: o)
             }
             openOrReuse(.search, in: .search, title: "Search: \(query)", state: o,
                         preferActiveTab: preferActiveTab, canReplace: isCompatibleSearch,
