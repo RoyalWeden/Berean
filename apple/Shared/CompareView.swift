@@ -169,7 +169,7 @@ struct CompareView: View {
     @State private var visibleStackedVerses: [Int: Set<Int>] = [:]
     @State private var scrollingColumn: Int?
     @State private var lastScrolledColumn: Int?
-    @State private var alignedVersesAboveTop: Set<Int> = []
+    @State private var visibleAlignedVerses: Set<Int> = []
     @State private var pendingAlignedVerse: Int?
     @State private var sharedScrollPosition = ScrollPosition()
     @State private var restoredSharedScrollKey: String?
@@ -239,7 +239,7 @@ struct CompareView: View {
             visibleStackedVerses = [:]
             scrollingColumn = nil
             lastScrolledColumn = nil
-            alignedVersesAboveTop = []
+            visibleAlignedVerses = []
             pendingAlignedVerse = nil
             restoredSharedScrollKey = nil
         }
@@ -378,13 +378,20 @@ struct CompareView: View {
         if enabled != syncScrolling, columns.allSatisfy({ $0.follows(state) }) {
             if enabled {
                 let source = lastScrolledColumn ?? columns.first?.id
-                pendingAlignedVerse = source.flatMap { independentVisibleVerses[$0] } ?? state.verse
+                pendingAlignedVerse = source.flatMap { id in
+                    guard let verse = independentVisibleVerses[id], let column = columns.first(where: { $0.id == id }) else { return nil }
+                    return rows.first { _, row in row[id]?.chapter == column.chapter && row[id]?.verseNum == verse }?.key
+                } ?? state.verse
             } else {
-                let verse = alignedVersesAboveTop.max() ?? state.verse
-                alignedVersesAboveTop = []
+                let verse = visibleAlignedVerses.min() ?? state.verse
+                visibleAlignedVerses = []
                 independentVisibleVerses = [:]
                 if let verse {
-                    for column in columns { independentVisibleVerses[column.id] = correspondingVerse(verse, in: column) }
+                    for column in columns {
+                        if let mapped = mappedVerse(verse, in: column, source: state) {
+                            independentVisibleVerses[column.id] = correspondingVerse(mapped, in: column)
+                        }
+                    }
                 }
                 lastScrolledColumn = nil
             }
@@ -447,10 +454,11 @@ struct CompareView: View {
                     }
                 }
                 .id(v)
-                .onGeometryChange(for: Bool.self) { geometry in
-                    geometry.frame(in: .named("aligned-compare")).minY <= 1
-                } action: { aboveTop in
-                    trackAlignedVerse(v, aboveTop: aboveTop)
+                .onScrollVisibilityChange(threshold: 0.2) { visible in
+                    trackAlignedVerse(v, passage: passageKey(st, cols), visible: visible)
+                }
+                .onDisappear {
+                    trackAlignedVerse(v, passage: passageKey(st, cols), visible: false)
                 }
             }
         }
@@ -492,10 +500,11 @@ struct CompareView: View {
                     }
                 }
                 .id(verse)
-                .onGeometryChange(for: Bool.self) { geometry in
-                    geometry.frame(in: .named("aligned-compare")).minY <= 1
-                } action: { aboveTop in
-                    trackAlignedVerse(verse, aboveTop: aboveTop)
+                .onScrollVisibilityChange(threshold: 0.2) { visible in
+                    trackAlignedVerse(verse, passage: passageKey(state, columns), visible: visible)
+                }
+                .onDisappear {
+                    trackAlignedVerse(verse, passage: passageKey(state, columns), visible: false)
                 }
             }
         }
@@ -535,7 +544,6 @@ struct CompareView: View {
                     comparisonGrid(state, columns)
                 }
             }
-            .coordinateSpace(name: "aligned-compare")
             .onChange(of: state.verse, initial: true) { previous, current in
                 if let restored = pendingAlignedVerse {
                     pendingAlignedVerse = nil
@@ -573,11 +581,12 @@ struct CompareView: View {
             }
     }
 
-    private func trackAlignedVerse(_ verse: Int, aboveTop: Bool) {
-        if aboveTop {
-            alignedVersesAboveTop.insert(verse)
+    private func trackAlignedVerse(_ verse: Int, passage: String, visible: Bool) {
+        guard passage == loadedPassage else { return }
+        if visible {
+            visibleAlignedVerses.insert(verse)
         } else {
-            alignedVersesAboveTop.remove(verse)
+            visibleAlignedVerses.remove(verse)
         }
     }
 
@@ -1328,7 +1337,7 @@ struct CompareView: View {
         let passage = passageKey(source, columns)
         guard loadedPassage == passage else { return nil }
         if syncScrolling, columns.allSatisfy({ $0.follows(source) }) {
-            guard let top = alignedVersesAboveTop.max() else { return nil }
+            guard let top = visibleAlignedVerses.min() else { return nil }
             let row = rows[top]?[column.id] ?? rows.keys.filter { $0 > top }.sorted().lazy.compactMap {
                 rows[$0]?[column.id]
             }.first
@@ -1380,13 +1389,14 @@ struct CompareView: View {
 
         let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
         let alignedVerse = previous.allSatisfy { $0.follows(anchor) } && syncScrolling
-            ? alignedVersesAboveTop.max() ?? anchor.verse : nil
+            ? visibleAlignedVerses.min() ?? anchor.verse : nil
         var survivors = 0
         for (index, column) in next.enumerated() {
             guard let source = previousByID[column.id], source.destinationKey == column.destinationKey else { continue }
             survivors += 1
             let oldKey = columnScrollKey(source.id, passage: oldPassage)
-            if let verse = independentVisibleVerses[source.id] ?? app.compareColumnScrollVerses[tabId]?[oldKey] ?? alignedVerse {
+            let mapped = alignedVerse.flatMap { mappedVerse($0, in: source, source: anchor) }
+            if let verse = independentVisibleVerses[source.id] ?? app.compareColumnScrollVerses[tabId]?[oldKey] ?? mapped {
                 let newKey = columnScrollKey(reindexed[index].id, passage: newPassage)
                 app.compareColumnScrollVerses[tabId, default: [:]][newKey] = verse
             }

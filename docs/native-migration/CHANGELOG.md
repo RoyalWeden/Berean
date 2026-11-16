@@ -1259,3 +1259,7 @@
 ### 2026-11-16 — Keep stacked Compare anchored when scrolling back
 - Open in Reader uses the chosen column’s visible rows after scrolling in either direction.
 - Both Dev builds passed. Scripted iPhone QA scrolled from Genesis 1:18 back to 1:7 and verified Scripture opened at verse 7.
+
+### 2026-11-16 — Use visible rows for aligned Compare scroll handoffs
+- Aligned Compare uses its visible verses when handing off to Scripture or switching to independent scrolling.
+- Both Dev builds passed. Mac QA verified a scrolled chapter join still opens the visible contributing chapter.
