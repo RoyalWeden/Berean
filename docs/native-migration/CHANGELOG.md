@@ -1199,3 +1199,7 @@
 ### 2026-11-16 — Mac Scripture pointer feedback
 - Verse numbers and inline links use a single pointer decision for hover and tracking events. Hover shading remains limited to visible link characters.
 - The Mac Dev build passed and the selected reader loaded in the isolated QA app. Live pointer transitions remain to verify.
+
+### 2026-11-16 — Compact Mac verse actions
+- Kept Tag accessible in the compact Scripture action bar alongside Copy, Highlight, and Clear.
+- Both Dev builds passed. A 320-point Mac QA check verified the visible controls and overflow menu.

@@ -904,6 +904,14 @@ struct ScriptureView: View {
     @ViewBuilder private func adaptiveVerseActions(_ st: BibleState) -> some View {
         ViewThatFits(in: .horizontal) {
             verseActionRow(st)
+            #if os(macOS)
+            HStack(spacing: ReaderFloatingControls.actionSpacing) {
+                primaryVerseActions(st)
+                compactVerseMenu(st, includesTag: false)
+                clearSelectionButton
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            #endif
             HStack(spacing: ReaderFloatingControls.actionSpacing) {
                 selectionCopyButton(.verses, state: st)
                     .buttonStyle(VerseActionButtonStyle())
@@ -928,17 +936,21 @@ struct ScriptureView: View {
         }
     }
 
+    @ViewBuilder private func primaryVerseActions(_ st: BibleState) -> some View {
+        selectionCopyButton(.verses, state: st)
+            .buttonStyle(VerseActionButtonStyle())
+            .verseActionHelp("Copy with reference (⌘C)")
+        highlightMenu(st).verseActionHelp("Highlight")
+        Button("Tag Verses", systemImage: "tag") {
+            tagging = (selectionRanges(st), selectionLabel(st), "verses")
+        }
+        .buttonStyle(VerseActionButtonStyle())
+        .verseActionHelp("Tag verses")
+    }
+
     private func verseActionRow(_ st: BibleState) -> some View {
         HStack(spacing: ReaderFloatingControls.actionSpacing) {
-            selectionCopyButton(.verses, state: st)
-                .buttonStyle(VerseActionButtonStyle())
-                .verseActionHelp("Copy with reference (⌘C)")
-            highlightMenu(st).verseActionHelp("Highlight")
-            Button("Tag Verses", systemImage: "tag") {
-                tagging = (selectionRanges(st), selectionLabel(st), "verses")
-            }
-            .buttonStyle(VerseActionButtonStyle())
-            .verseActionHelp("Tag verses")
+            primaryVerseActions(st)
             #if os(macOS)
             Divider().frame(height: 16)
             selectionCopyButton(.reference, state: st)
