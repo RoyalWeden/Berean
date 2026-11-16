@@ -281,8 +281,9 @@ struct IOSRootView: View {
                               dockClearance: readerDockClearance,
                               sideBySideReaderControls: sideBySideReaderControls)
                     .id(tab.id)
-                    .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { v in
-                        app.update(tab.id) { t in var s = BibleState(t.state); s.rightPanelOpen = v; t.state = s.merged(into: t.state) }
+                    .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { isPresented in
+                        guard app.activeTab?.id == tab.id else { return }
+                        setStudyPanel(isPresented, in: tab.id)
                     })) { StudyInspector(tabId: tab.id).presentationDetents([.medium, .large]) }
             case .lexicon:
                 LexiconTabHost(tab: tab)
@@ -337,13 +338,13 @@ struct IOSRootView: View {
                     let selected = app.readerSelectedVerses(in: tab.id, state: st)
                     Button {
                         app.focusStudyVerse(selected.first ?? st.verse, in: tab.id, selectedVerses: selected)
-                        mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "crossrefs" }
+                        setStudyPanel(true, in: tab.id, tool: .crossrefs)
                     } label: {
                         Label("Cross References", systemImage: "arrow.triangle.branch")
                     }
                     Button("Notes for This Chapter", systemImage: "note.text") {
                         app.focusStudyVerse(nil, in: tab.id)
-                        mutate(tab.id) { $0.rightPanelOpen = true; $0.rightPanelTab = "notes" }
+                        setStudyPanel(true, in: tab.id, tool: .notes)
                     }
                     Button("Tag Chapter…", systemImage: "tag") { chapterTagTarget = ChapterTagTarget(st) }
                         .disabled(!hasText)
@@ -380,6 +381,13 @@ struct IOSRootView: View {
             }
         } label: { bottomItem(symbol: "ellipsis").hoverEffect(.highlight) }
         .accessibilityLabel("More: commands for this tab")
+    }
+
+    private func setStudyPanel(_ isPresented: Bool, in tabID: String, tool: InspectorTool? = nil) {
+        app.update(tabID, recordHistory: false) { tab in
+            tab.state["rightPanelOpen"] = .bool(isPresented)
+            if let tool { StudyPanelSlots.focus(tool, in: &tab.state) }
+        }
     }
 
     func mutate(_ id: String, _ f: (inout BibleState) -> Void) {
