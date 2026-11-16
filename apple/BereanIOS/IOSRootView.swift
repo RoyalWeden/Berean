@@ -574,12 +574,7 @@ struct TabCardsSheet: View {
                 .disabled(count == 0)
             }
             Button("Archive", systemImage: "archivebox") {
-                if let group = app.archiveInactiveTabs(Array(selectedTabIDs.intersection(selectableIDs))) {
-                    movedTabsNotice = nil
-                    undoArchiveID = group.id
-                    let count = group.tabs.count
-                    AccessibilityNotification.Announcement("\(count) tab\(count == 1 ? "" : "s") archived").post()
-                }
+                recordArchive(app.archiveInactiveTabs(Array(selectedTabIDs.intersection(selectableIDs))))
                 finishSelection()
             }
             .buttonStyle(.borderedProminent)
@@ -620,13 +615,22 @@ struct TabCardsSheet: View {
         .padding(.vertical, 6)
     }
 
+    private func recordArchive(_ group: ArchivedGroup?) {
+        guard let group else { return }
+        movedTabsNotice = nil
+        undoArchiveID = group.id
+        let count = group.tabs.count
+        AccessibilityNotification.Announcement("\(count) tab\(count == 1 ? "" : "s") archived. Undo is available.").post()
+    }
+
     private func archiveReceipt(_ group: ArchivedGroup) -> some View {
         let count = group.tabs.count
+        let hasSource = app.canRestoreArchiveToSource(group.id)
         return HStack(spacing: 10) {
             Label("\(count) archived", systemImage: "archivebox")
                 .font(.subheadline.weight(.medium))
-            Button("Undo") {
-                app.restoreArchived(group.id, toSource: true)
+            Button(hasSource ? "Undo" : "Restore Here") {
+                app.restoreArchived(group.id, toSource: hasSource)
                 if !app.archivedGroups.contains(where: { $0.id == group.id }) {
                     undoArchiveID = nil
                     AccessibilityNotification.Announcement("Tabs restored").post()
@@ -729,7 +733,7 @@ struct TabCardsSheet: View {
         .swipeActions(edge: .trailing) {
             if !isSelecting {
                 Button("Close", role: .destructive) { app.close(tab.id) }
-                Button("Archive") { app.archive([tab.id]) }.tint(.indigo)
+                Button("Archive") { recordArchive(app.archive([tab.id])) }.tint(.indigo)
             }
         }
         .swipeActions(edge: .leading) {
@@ -821,7 +825,7 @@ struct TabCardsSheet: View {
                     }
                 }
             }
-            Button("Archive Tab", systemImage: "archivebox") { app.archive([tab.id]) }
+            Button("Archive Tab", systemImage: "archivebox") { recordArchive(app.archive([tab.id])) }
             Button("Close Other Tabs", systemImage: "xmark.square") { app.closeOthers(tab.id) }
             Button("Close Tab", systemImage: "xmark", role: .destructive) { app.close(tab.id) }
     }

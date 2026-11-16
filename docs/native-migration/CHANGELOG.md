@@ -1418,3 +1418,7 @@
 ### 2026-11-16 — Undo an iPhone reader archive
 
 - Added immediate Undo above the dock when archiving from Tab Actions. Verified in the iOS 27 iPhone 18 Pro Dev simulator by archiving and undoing the last Scripture tab.
+
+### 2026-11-16 — Consistent archive feedback in iPhone Tabs
+
+- Reused bulk archive feedback for individual swipe and context-menu actions and offered Restore Here when the source workspace cannot accept Undo. iOS Dev build and simulator launch passed.
