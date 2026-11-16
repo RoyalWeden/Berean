@@ -897,10 +897,8 @@ struct ScriptureView: View {
                 #endif
                 .padding(.horizontal, 8)
                 .padding(.bottom, ReaderFloatingControls.bottomPadding)
-                #if os(macOS)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Selected \(selectionLabel(st))")
-                #endif
                 .task(id: copyFeedbackID) {
                     guard copiedAction != nil else { return }
                     do {
@@ -946,6 +944,8 @@ struct ScriptureView: View {
                     verseMenuLabel("Verse Actions", symbol: "ellipsis")
                 }
                 .modifier(VerseActionMenuChrome())
+                .accessibilityLabel("Verse Actions")
+                .verseActionHelp("Verse actions")
                 clearSelectionButton
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -1008,6 +1008,7 @@ struct ScriptureView: View {
             verseMenuLabel("More Verse Actions", symbol: "ellipsis")
         }
         .modifier(VerseActionMenuChrome())
+        .accessibilityLabel("More Verse Actions")
         .verseActionHelp("More verse actions")
     }
 
