@@ -112,6 +112,17 @@ public enum ChapterMap {
         return nil
     }
 
+    /// A live comparison can synchronize equivalent chapters or a verified cross-chapter verse.
+    public static func synchronizedVerse(_ bookId: String, chapter: Int, verse: Int, from: String,
+                                         destinationChapter: Int, to: String) -> Int? {
+        if let exact = verseCounterpart(bookId, chapter: chapter, verse: verse, from: from, to: to) {
+            return exact.chapter == destinationChapter ? exact.verse : nil
+        }
+        let sourceCanonical = mapChapter(bookId, chapter, from: from, to: "kjva")
+        let destinationCanonical = mapChapter(bookId, destinationChapter, from: to, to: "kjva")
+        return sourceCanonical == destinationCanonical ? verse : nil
+    }
+
     /// `versificationNote` — the explanatory note for an LXX chapter whose numbering differs.
     public static func versificationNote(_ bookId: String, _ chapter: Int, textId: String) -> String? {
         let book = bookId.uppercased()

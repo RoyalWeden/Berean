@@ -98,3 +98,16 @@ func hash(_ v: JSValue) -> String { SyncHash.shortHash(JSON.stringify(v).units) 
         #expect(failures == 0)
     }
 }
+
+@Test func comparisonScrollFollowsOnlyEquivalentPassages() {
+    #expect(ChapterMap.synchronizedVerse("PSA", chapter: 10, verse: 1, from: "kjva",
+                                         destinationChapter: 9, to: "lxx") == 22)
+    #expect(ChapterMap.synchronizedVerse("PSA", chapter: 9, verse: 22, from: "lxx",
+                                         destinationChapter: 10, to: "kjva") == 1)
+    #expect(ChapterMap.synchronizedVerse("PSA", chapter: 9, verse: 22, from: "lxx",
+                                         destinationChapter: 9, to: "kjva") == nil)
+    #expect(ChapterMap.synchronizedVerse("JER", chapter: 26, verse: 7, from: "kjva",
+                                         destinationChapter: 33, to: "lxx") == 7)
+    #expect(ChapterMap.synchronizedVerse("GEN", chapter: 2, verse: 7, from: "kjva",
+                                         destinationChapter: 3, to: "lxx") == nil)
+}

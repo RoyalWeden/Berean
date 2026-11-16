@@ -1263,3 +1263,7 @@
 ### 2026-11-16 — Use visible rows for aligned Compare scroll handoffs
 - Aligned Compare uses its visible verses when handing off to Scripture or switching to independent scrolling.
 - Both Dev builds passed. Mac QA verified a scrolled chapter join still opens the visible contributing chapter.
+
+### 2026-11-16 — Map live Compare scrolling between editions
+- Synchronize independent columns that cover the same passage and use known verse mappings across edition boundaries.
+- All 141 Swift tests and both Dev builds passed. Mac QA verified downward wheel synchronization for Psalm 10 KJVA and Psalm 9 LXX. The upward wheel case remains open.

@@ -168,6 +168,9 @@ struct CompareView: View {
     @State private var independentVisibleVerses: [Int: Int] = [:]
     @State private var visibleStackedVerses: [Int: Set<Int>] = [:]
     @State private var scrollingColumn: Int?
+    #if os(macOS)
+    @State private var wheelDriver: (event: TimeInterval, column: Int)?
+    #endif
     @State private var lastScrolledColumn: Int?
     @State private var visibleAlignedVerses: Set<Int> = []
     @State private var pendingAlignedVerse: Int?
@@ -657,14 +660,32 @@ struct CompareView: View {
                 let key = columnScrollKey(column.id, passage: passage)
                 app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
             }
-            guard syncScrolling, scrollingColumn == column.id, let verse else { return }
-            for destination in columns where destination.id != column.id {
-                guard let match = correspondingVerse(verse, in: destination) else { continue }
+            guard syncScrolling, let verse, drivesScrollSync(column.id) else { return }
+            for destination in columns where destination.id != column.id && destination.book == column.book {
+                guard let mapped = ChapterMap.synchronizedVerse(column.book, chapter: column.chapter, verse: verse,
+                                                                 from: column.text, destinationChapter: destination.chapter,
+                                                                 to: destination.text),
+                      let match = correspondingVerse(mapped, in: destination) else { continue }
                 if independentVisibleVerses[destination.id] != match {
                     independentVisibleVerses[destination.id] = match
                 }
             }
         })
+    }
+
+    private func drivesScrollSync(_ column: Int) -> Bool {
+        if let scrollingColumn { return scrollingColumn == column }
+        #if os(macOS)
+        // Wheel input can update a scroll position without entering SwiftUI's interacting phase.
+        if let event = NSApp.currentEvent, event.type == .scrollWheel {
+            if wheelDriver?.event != event.timestamp {
+                wheelDriver = (event.timestamp, column)
+                lastScrolledColumn = column
+            }
+            return wheelDriver?.column == column
+        }
+        #endif
+        return false
     }
 
     private func columnScrollKey(_ id: Int, passage: String) -> String {
