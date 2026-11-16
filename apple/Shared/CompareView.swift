@@ -721,6 +721,8 @@ struct CompareView: View {
         return rows.last(where: { $0.verseNum <= verse })?.verseNum ?? rows.first?.verseNum
     }
 
+    @State private var reorderedStackedAnchor: (passage: String, target: StackedVerseTarget)?
+
     private struct StackedVerseTarget: Hashable {
         let columnID: Int
         let verse: Int
@@ -730,7 +732,10 @@ struct CompareView: View {
         let key = "stacked|" + passage
         return ScrollViewReader { proxy in
             restoredCompareScroll(key: key, initialJump: {
-                if let target = stackedSelectionTarget(in: columns, state: state) {
+                if let bookmark = reorderedStackedAnchor, bookmark.passage == passage {
+                    reorderedStackedAnchor = nil
+                    proxy.scrollTo(bookmark.target, anchor: .top)
+                } else if let target = stackedSelectionTarget(in: columns, state: state) {
                     proxy.scrollTo(target, anchor: .top)
                 }
             }) {
@@ -1484,11 +1489,19 @@ struct CompareView: View {
                 app.compareColumnScrollVerses[tabId, default: [:]][newKey] = verse
             }
         }
-        if survivors == previous.count, survivors == next.count {
-            for prefix in ["aligned|", "stacked|"] {
-                if let offset = app.compareScrollOffsets[tabId]?[prefix + oldPassage] {
-                    app.compareScrollOffsets[tabId, default: [:]][prefix + newPassage] = offset
-                }
+        if survivors == previous.count, survivors == next.count,
+           let offset = app.compareScrollOffsets[tabId]?["aligned|" + oldPassage] {
+            app.compareScrollOffsets[tabId, default: [:]]["aligned|" + newPassage] = offset
+        }
+        if !canShowIndependentPanes(width: compareWidth, count: previous.count),
+           !previous.allSatisfy({ $0.follows(anchor) }) {
+            for source in previous {
+                guard let verse = visibleStackedVerses[source.id]?.min(),
+                      let index = next.firstIndex(where: { $0.id == source.id && $0.destinationKey == source.destinationKey })
+                else { continue }
+                app.compareScrollOffsets[tabId]?.removeValue(forKey: "stacked|" + newPassage)
+                reorderedStackedAnchor = (newPassage, StackedVerseTarget(columnID: reindexed[index].id, verse: verse))
+                break
             }
         }
     }

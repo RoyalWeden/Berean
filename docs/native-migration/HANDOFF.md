@@ -1548,3 +1548,5 @@ New Compare History entries capture tab-level Strong’s visibility and hidden t
 Native independent Compare panes now recognize a legacy column’s scrollPos.verseNum as a fallback when no native bookmark or selected verse supplies a target. They open at the saved verse or closest preceding available verse. Legacy fractional row offsets remain in the saved record for the original client. Live check pending: open a legacy workspace clone with a pinned column and a noninitial scrollPos, then verify the position in a native independent pane.
 
 Both native Dev builds passed.
+
+Stacked Compare now carries the first visible surviving column's verse across a column reorder or removal. It maps the column to its new index and restores by verse, since a raw vertical offset can land in a different section after reordering. Aligned Compare retains offset restoration. Both Dev build commands exited successfully. Live check pending: stack a comparison with a pinned passage, scroll within a column, move it, and verify that the same verse remains visible.
