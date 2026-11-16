@@ -1558,3 +1558,5 @@ iPhone Go now records a return to the source tab when a destination opens anothe
 Go’s passage result now shows Open Tab when the exact reference and edition already exist in the current workspace. That indicator uses the same match predicate as tab reuse and is omitted in explicit New Tab mode. Repeated cross-tab navigation from the same source no longer appends consecutive duplicate Back stops. Live checks pending: find an already-open passage in Go, verify reuse and the indicator, then repeat from the same source after manually switching tabs.
 
 Both native Dev builds passed.
+
+Mac floating search labels an exact open Scripture destination Switch to Tab in result rows and the footer, including recent passages. The hint uses the existing reuse predicate and is omitted in explicit New Tab and Command-L location-editing modes. Both Dev builds passed. Live checks pending: regular Command-K on an open passage, Shift-Return to open a new tab, and Command-L to keep editing the current reader.

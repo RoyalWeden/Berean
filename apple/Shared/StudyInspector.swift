@@ -266,6 +266,7 @@ struct CommandPalette: View {
         let symbol: String
         var excerpt: String? = nil
         var offersOpenMenu = false
+        var reusesOpenPassage = false
         var sourceRestore: (name: String, run: () -> Void)?
         var hasActions: Bool { offersOpenMenu || sourceRestore != nil }
         let run: (_ inNewTab: Bool) -> Void
@@ -284,15 +285,22 @@ struct CommandPalette: View {
         let preferActiveTab = prefersActiveTab
         if trimmed.isEmpty {
             for r in app.recentPassages.prefix(5) {
-                out.append(Item(id: "recent-\(r.id)", group: "Recent", title: r.label, detail: textInfo(r.textId).short, symbol: "clock.arrow.circlepath", offersOpenMenu: true) { inNewTab in
-                    app.visitScripture(ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? []), reuseTab: !inNewTab, preferActiveTab: preferActiveTab)
+                let passage = ResolvedPassage(textId: r.textId, bookId: r.bookId, chapter: r.chapter,
+                                              verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? [])
+                out.append(Item(id: "recent-\(r.id)", group: "Recent", title: r.label, detail: textInfo(r.textId).short,
+                                symbol: "clock.arrow.circlepath", offersOpenMenu: true,
+                                reusesOpenPassage: willReusePassage(passage)) { inNewTab in
+                    app.visitScripture(passage, reuseTab: !inNewTab, preferActiveTab: preferActiveTab)
                 })
             }
         }
         if let ref = resolvePassage(trimmed) {
             let excerpt = passagePreview.flatMap { $0.passage == ref ? $0.text : nil }
             out.append(Item(id: "go", group: "Go to", title: ref.label,
-                            detail: textInfo(ref.textId).name, symbol: "book", excerpt: excerpt, offersOpenMenu: true) { inNewTab in app.visitScripture(ref, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
+                            detail: textInfo(ref.textId).name, symbol: "book", excerpt: excerpt, offersOpenMenu: true,
+                            reusesOpenPassage: willReusePassage(ref)) { inNewTab in
+                app.visitScripture(ref, reuseTab: !inNewTab, preferActiveTab: preferActiveTab)
+            })
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
         }
         if let id = StrongsId.normalize(trimmed) {
@@ -396,6 +404,10 @@ struct CommandPalette: View {
         }
     }
 
+    private func willReusePassage(_ passage: ResolvedPassage) -> Bool {
+        !newTab && !prefersActiveTab && app.tabs(in: .scripture).contains(where: passage.isShown(in:))
+    }
+
     private func actionTitle(_ item: Item) -> String {
         switch item.group {
         case "Open in Other Workspaces": return "Switch to Tab"
@@ -404,6 +416,7 @@ struct CommandPalette: View {
         case "Commands": return "Run Command"
         default:
             if newTab && item.offersOpenMenu { return "Open in New Tab" }
+            if item.reusesOpenPassage { return "Switch to Tab" }
             switch item.id {
             case "search", "strongs": return "Search Scripture"
             case "notes-search": return "Search Notes"
