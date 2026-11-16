@@ -222,6 +222,13 @@ func digest(_ rows: [JSValue]) -> JSObject {
         let genesis = try #require(both?.first { $0.bookId == "GEN" && $0.chapter == 1 && $0.verseNum == 1 })
         #expect(genesis.matchWordIndices == [2, 3])
         #expect(genesis.matchedStrongs == ["H7225", "H430"])
+        let common = try #require(await ScriptureSearch.strongs("H3068", lexicon: lex))
+        let full = await lex.allOccurrences("H3068")
+        let compact = await lex.occurrences("H3068")
+        #expect(common.count > compact.count)
+        #expect(common.map { "\($0.textId)|\($0.bookId)|\($0.chapter)|\($0.verseNum)" }
+                == full.map { "\($0.textId)|\($0.bookId)|\($0.chapter)|\($0.verseNum)" })
+        #expect(await ScriptureSearch.strongs("H3068 H3068", lexicon: lex) == common)
         let none = await ScriptureSearch.strongs("grace", lexicon: lex)
         #expect(none == nil)
     }

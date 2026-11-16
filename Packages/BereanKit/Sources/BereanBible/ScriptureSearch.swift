@@ -129,11 +129,12 @@ public enum ScriptureSearch {
 
     static func occurrences(_ nums: [String], words: [String], requireAll: Bool, lexicon: LexiconService) async -> [ScriptureHit] {
         var order: [String] = [], rows: [String: ScriptureHit] = [:], counts: [String: Int] = [:]
-        for n in nums {
-            var seenHere = Set<String>()
-            for o in await lexicon.occurrences(n, quickLimit: 100_000) {   // search needs every occurrence (the lexicon view keeps the legacy 1000/500 cap)
+        var scanned = Set<String>()
+        for n in nums where scanned.insert(n).inserted {
+            let occurrences = await lexicon.allOccurrences(n)
+            guard !Task.isCancelled else { return [] }
+            for o in occurrences {
                 let k = "\(o.textId)|\(o.bookId)|\(o.chapter)|\(o.verseNum)"
-                guard seenHere.insert(k).inserted else { continue }
                 if var hit = rows[k] {
                     hit.matchWordIndices = Set(hit.matchWordIndices).union(o.matchWordIndices).sorted()
                     hit.matchedStrongs.insert(n)
@@ -147,7 +148,7 @@ public enum ScriptureSearch {
                 counts[k, default: 0] += 1
             }
         }
-        var out = order.compactMap { key in (!requireAll || counts[key] == nums.count) ? rows[key] : nil }
+        var out = order.compactMap { key in (!requireAll || counts[key] == scanned.count) ? rows[key] : nil }
         if !words.isEmpty {
             let lw = words.map { $0.lowercased() }
             out = out.filter { h in let t = h.text.lowercased(); return lw.allSatisfy { t.contains($0) } }
