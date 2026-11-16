@@ -1434,3 +1434,7 @@
 ### 2026-11-16 — iPhone Scripture note citations
 
 - Added the chapter citation menu and tappable verse citation markers that jump to My Notes cross references. Both native Dev builds passed. Simulator fixture verification remains open.
+
+### 2026-11-16 — Keep the Mac study panel when browsing history
+
+- Keep each Scripture tab’s inspector visibility when leaving and returning to it. Verified Back and Forward across a TSKe cross reference opened in a new tab.
