@@ -1628,3 +1628,7 @@ Both native Dev builds passed.
 Archived group menus on Mac and iPhone now offer Restore All to Workspace. The destination list uses the existing passage-based move labels and restores directly into a live workspace without opening it. Choosing the original workspace applies its saved placement; another destination appends the restored tabs in archive order. The same restore plan handles tab identity collisions. Live check pending: restore a group to a third workspace and verify source, destination, and archive state.
 
 Both native Dev builds passed.
+
+Restore All to Workspace now reports any archived tabs already open in a different workspace. Those tabs stay in place and the remaining archive members restore normally under the existing global ID rules. Live verification with a synthetic partial collision remains open.
+
+Both native Dev builds passed.

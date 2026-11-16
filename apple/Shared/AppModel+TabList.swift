@@ -356,8 +356,18 @@ extension AppModel {
     }
 
     func restoreArchived(_ groupId: String, to workspace: WorkspaceItem) {
-        guard case .live(let workspaceID) = workspace.kind else { return }
+        guard case .live(let workspaceID) = workspace.kind,
+              sessions.contains(where: { $0.id == workspaceID }),
+              let group = archivedGroups.first(where: { $0.id == groupId }) else { return }
+        let archivedIDs = Set(group.tabs.map(\.id))
+        let openElsewhere = Set(sessions.lazy.filter { $0.id != workspaceID }
+            .flatMap { $0.allTabs.map(\.id) }).intersection(archivedIDs)
         restoreArchived(groupId, workspaceID: workspaceID, only: nil)
+        if !openElsewhere.isEmpty {
+            userMessage = openElsewhere.count == 1
+                ? "One archived tab was already open in another workspace and stayed there."
+                : "\(openElsewhere.count) archived tabs were already open in other workspaces and stayed there."
+        }
     }
 
     private func restoreArchived(_ groupId: String, workspaceID workspace: String, only tabID: String?) {
