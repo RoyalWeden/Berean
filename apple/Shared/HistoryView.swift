@@ -302,12 +302,19 @@ struct HistoryView: View {
             }
         }
         .contextMenu {
-            if canOpen(entry) { Button("Open") { open(entry) } }
+            if canOpen(entry) {
+                if entry.type == "strongs-click" {
+                    Button("Open Lexicon Entry", systemImage: "character.book.closed") { open(entry) }
+                } else {
+                    Button("Open") { open(entry) }
+                }
+            }
             if entry.type == "strongs-click", let source = savedPassage(entry) {
                 Button("Open Source Passage", systemImage: "book") {
                     let passage = ResolvedPassage(textId: source.textId, bookId: source.bookId,
                                                   chapter: source.chapter, verse: source.verse)
-                    app.visitScripture(passage, returningTo: tabId)
+                    app.visitScripture(passage)
+                    rememberReturn(to: entry)
                 }
             }
             Button("Remove from History", role: .destructive) {
@@ -376,9 +383,12 @@ struct HistoryView: View {
             }
         default: return
         }
-        if let destination = app.activeTab?.id, destination != tabId {
-            app.historyReturnRows[tabId] = e.id
-            app.recordTabReturn(to: tabId)
-        }
+        rememberReturn(to: e)
+    }
+
+    private func rememberReturn(to entry: HistoryEntry) {
+        guard let destination = app.activeTab?.id, destination != tabId else { return }
+        app.historyReturnRows[tabId] = entry.id
+        app.recordTabReturn(to: tabId)
     }
 }
