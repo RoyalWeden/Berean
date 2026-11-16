@@ -1275,3 +1275,8 @@
 ### 2026-11-16 — Use the current query when submitting floating search
 - Return resolves the text currently in the search field, including exact note titles.
 - Both Dev builds passed. Mac scratch QA verified immediate Return after pasting a passage and a note title.
+
+### 2026-11-16 09:38 PST — iPhone Go and Lexicon entry help — IMPLEMENTED
+
+- **Changes:** Focus the iPhone Go field after presentation and resolve immediate submission against the current input, including exact titles in the Notes matches. Size the Lexicon Entry Guide control for the platform toolbar and anchor its guide to the icon.
+- **Verification:** The iPhone 18 Pro simulator showed the Go field's insertion cursor, opened a synthetic exact-title note from Scripture when submitted before the results task ran, and rendered the revised Lexicon info control. Mac Dev scratch QA opened the guide from the toolbar and dismissed it with Done. Temporary launch fixtures lived in the scratch checkout. Physical iPhone touch remains unverified.
