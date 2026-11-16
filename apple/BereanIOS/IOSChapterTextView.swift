@@ -231,7 +231,12 @@ struct IOSChapterTextView: UIViewRepresentable {
                 let lastRange = request.lastSelectedVerse.flatMap { verse in
                     verse >= target ? coordinator.verseRanges[verse] : nil
                 }
-                coordinator.layoutThroughEnd(of: lastRange.map { NSUnionRange(range, $0) } ?? range, in: view)
+                // A fresh TextKit viewport may still report a partial content height. Lay out the
+                // chapter before clamping a requested destination against the scrollable end.
+                view.layoutIfNeeded()
+                view.layoutManager.ensureLayout(for: view.textContainer)
+                view.setNeedsLayout()
+                view.layoutIfNeeded()
                 guard let targetLines = coordinator.renderedLineBounds(of: range, in: view) else {
                     coordinator.lastTarget = nil
                     return

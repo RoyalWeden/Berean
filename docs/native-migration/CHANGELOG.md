@@ -1207,3 +1207,7 @@
 ### 2026-11-16 — Landscape iPhone Scripture controls
 - The dock and verse actions share one row when landscape has room, leaving more space for reading.
 - Both Dev builds passed. A temporary rotation build showed Jude 1:22–25 above both capsules on iPhone 18 Pro Simulator. Restored-position behavior remains open.
+
+### 2026-11-16 — Explicit Scripture range navigation
+- Keep verse-jump requests through reader loading and calculate the iPhone scroll limit after laying out the chapter.
+- Both Dev builds passed. iPhone Simulator verified that a late John 3 range opened fully above the floating controls after an earlier visit to the chapter.

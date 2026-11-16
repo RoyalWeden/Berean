@@ -589,9 +589,8 @@ struct ScriptureView: View {
             guard loadedChapter == chapter, pendingSelectionDestination == nil else { return }
             applyPassageSelection(st, onlyIfChanged: true)
         }
-        .onChange(of: app.scriptureJumpRequest?.revision) { _, revision in
-            guard app.scriptureJumpRequest?.tabID == tabId, loadedChapter == chapter else { return }
-            scrollRevision = revision
+        .onChange(of: app.scriptureJumpRequest?.revision) {
+            guard loadedChapter == chapter, consumeVerseJump(for: st) else { return }
             applyPassageSelection(st)
         }
         .task(id: "\(chapter)|\(loadedChapter ?? "")|\(app.notesRevision)") {
@@ -635,7 +634,8 @@ struct ScriptureView: View {
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
             noteCounts = [:]
             verses = loaded
-            applyPassageSelection(destination, restoringReader: true)
+            let isVerseJump = consumeVerseJump(for: destination)
+            applyPassageSelection(destination, restoringReader: !isVerseJump)
             loadedChapter = chapter
         }
     }
@@ -680,6 +680,15 @@ struct ScriptureView: View {
     }
 
     // MARK: verse selection (click / ⇧-click verse numbers)
+
+    /// An explicit destination wins even if the reader mounts after the request arrived.
+    private func consumeVerseJump(for state: BibleState) -> Bool {
+        guard let request = app.scriptureJumpRequest, request.tabID == tabId,
+              request.chapter == ChapterEdition(state) else { return false }
+        scrollRevision = request.revision
+        app.scriptureJumpRequest = nil
+        return true
+    }
 
     private func applyPassageSelection(_ state: BibleState, onlyIfChanged: Bool = false, restoringReader: Bool = false) {
         let next = passageSelection(state)

@@ -708,7 +708,7 @@ final class AppModel {
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
     @ObservationIgnored var scriptureReadingPositions: [String: [String: ScriptureReadingPosition]] = [:]
-    var scriptureJumpRequest: (tabID: String, revision: UUID)?
+    var scriptureJumpRequest: (tabID: String, chapter: ChapterEdition, revision: UUID)?
     @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition, position: ScriptureReadingPosition?)] = [:]
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesSearchOffsets: [String: [NotesHomeView.SearchPosition: CGFloat]] = [:]
@@ -1293,7 +1293,7 @@ final class AppModel {
         }
         if verse != nil, let tab = activeTab, tab.tabType == .bible, passage.isShown(in: tab) {
             scriptureReadingPositions[tab.id]?.removeValue(forKey: ChapterEdition(st).key)
-            scriptureJumpRequest = (tab.id, UUID())
+            scriptureJumpRequest = (tab.id, ChapterEdition(st), UUID())
         }
     }
 }
