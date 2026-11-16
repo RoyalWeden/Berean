@@ -495,8 +495,17 @@ struct BereanSidebar: View {
                                 .buttonStyle(.interactivePlain)
                                 .help("Restore and open this tab")
                                 .contextMenu {
+                                    Button("Restore and Open Here", systemImage: "archivebox") {
+                                        app.restoreArchivedTab(tab.id, from: group.id)
+                                        showsArchiveSearch = false
+                                    }
                                     if let source = sourceNames[group.id] {
-                                        Button("Restore to \(source)", systemImage: "square.stack") {
+                                        Button("Restore and Open in \(source)", systemImage: "square.stack") {
+                                            app.restoreArchivedTab(tab.id, from: group.id, toSource: true)
+                                            showsArchiveSearch = false
+                                        }
+                                        Divider()
+                                        Button("Restore to \(source) in Background", systemImage: "arrow.down.to.line") {
                                             app.restoreArchived(group.id, toSource: true, only: tab.id)
                                         }
                                     }
