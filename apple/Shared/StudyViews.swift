@@ -965,25 +965,33 @@ struct CrossRefsView: View {
             } else if groups.isEmpty && indirectNotes.isEmpty {
                 ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch")
             } else {
-                List {
-                    if showingChapter || scopedSelection.count > 1 {
-                        let byVerse = Dictionary(grouping: groups, by: \.verse)
-                        ForEach(byVerse.keys.sorted(), id: \.self) { number in
-                            verseSection(number, groups: byVerse[number] ?? [])
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if showingChapter || scopedSelection.count > 1 {
+                            let byVerse = Dictionary(grouping: groups, by: \.verse)
+                            ForEach(byVerse.keys.sorted(), id: \.self) { number in
+                                verseSection(number, groups: byVerse[number] ?? [])
+                            }
+                        } else {
+                            groupedReferenceRows(groups)
                         }
-                    } else {
-                        groupedReferenceRows(groups)
-                    }
-                    if !indirectNotes.isEmpty {
-                        Section("Indirect Mentions") {
+                        if !indirectNotes.isEmpty {
+                            referenceHeading("Indirect Mentions")
                             ForEach(indirectNotes) { note in
-                                Button(note.title.isEmpty ? "Untitled" : note.title, systemImage: "note.text") {
+                                Button {
                                     openSourceNote(note.id)
+                                } label: {
+                                    Label(note.title.isEmpty ? "Untitled" : note.title, systemImage: "note.text")
+                                        .frame(maxWidth: .infinity, minHeight: controlHeight, alignment: .leading)
+                                        .contentShape(.rect)
                                 }
                                 .buttonStyle(.interactivePlain)
+                                Divider()
                             }
                         }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
                 }
                 .id(reference)
             }
@@ -1038,16 +1046,28 @@ struct CrossRefsView: View {
     private func groupedReferenceRows(_ groups: [ReferenceGroup]) -> some View {
         ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
             if let heading = group.heading {
-                Section(heading) { referenceRows(group.rows, fromVerse: group.verse) }
+                referenceHeading(heading)
+                referenceRows(group.rows, fromVerse: group.verse)
             } else {
                 referenceRows(group.rows, fromVerse: group.verse)
             }
         }
     }
 
+    private func referenceHeading(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 12)
+            .padding(.bottom, 6)
+            .accessibilityAddTraits(.isHeader)
+    }
+
     private func referenceRows(_ rows: [ReferenceRow], fromVerse: Int) -> some View {
         ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
             refRow(row, fromVerse: fromVerse)
+                .padding(.vertical, 6)
+            Divider()
         }
     }
 
@@ -1142,6 +1162,7 @@ struct CrossRefsView: View {
                 referenceActions(passage, fromVerse: fromVerse, sourceNote: row.noteID)
             }
         }
+        .accessibilityElement(children: .contain)
     }
 
     private func openReference(_ passage: ResolvedPassage, fromVerse: Int, newTab: Bool = false) {
@@ -1197,6 +1218,7 @@ struct CrossRefsView: View {
 }
 
 private struct CrossReferencePreview: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let text: String
     @State private var expanded = false
     @State private var collapsedHeight: CGFloat = 0
@@ -1226,7 +1248,7 @@ private struct CrossReferencePreview: View {
                 }
             if expanded || fullHeight > collapsedHeight + 1 {
                 Button {
-                    withAnimation(.snappy) { expanded.toggle() }
+                    withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
                 } label: {
                     Label(expanded ? "Show Less" : "Show More", systemImage: expanded ? "chevron.up" : "chevron.down")
                         .font(.caption.weight(.medium))

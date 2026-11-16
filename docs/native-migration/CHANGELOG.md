@@ -1285,3 +1285,8 @@
 
 - Split the reference link from its inline preview. The preview can expand when clipped at the current width, and the row menu now offers Open.
 - Mac Dev scratch QA expanded and collapsed Mark 13:19 from Genesis 1:1 in TSKe and verified that shorter adjacent previews showed no toggle. iPhone touch and VoiceOver remain open.
+
+### 2026-11-16 — Cross-reference row accessibility — MAC AX VERIFIED
+
+- Expose the passage, preview toggle and actions as separate controls and keep the section headings navigable. Suppress preview animation with Reduce Motion.
+- Both Dev targets built. Mac accessibility automation activated expansion and collapse and verified the passage action menu. Direct VoiceOver and iPhone touch checks remain open.
