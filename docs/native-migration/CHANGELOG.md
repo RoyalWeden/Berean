@@ -1271,3 +1271,7 @@
 ### 2026-11-16 — Restore bidirectional Mac Compare wheel sync
 - Use the wheel’s source pane and its visible verses to synchronize equivalent passages.
 - Both Dev builds passed. Mac QA verified the Brenton pane follows KJVA Psalm 10 down and back up.
+
+### 2026-11-16 — Use the current query when submitting floating search
+- Return resolves the text currently in the search field, including exact note titles.
+- Both Dev builds passed. Mac scratch QA verified immediate Return after pasting a passage and a note title.

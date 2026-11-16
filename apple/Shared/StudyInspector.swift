@@ -252,7 +252,8 @@ struct CommandPalette: View {
     @State private var text = ""
     @State private var textSelection: TextSelection?
     @State private var index = 0
-    @State private var noteHits: [Note] = []
+    @State private var selectionQuery = ""
+    @State private var noteResults: (query: String, hits: [Note])?
     @State private var actionsShown = false
     @FocusState private var focused: Bool
 
@@ -271,7 +272,7 @@ struct CommandPalette: View {
     var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var prefersActiveTab: Bool { app.commandPaletteLocationRequest != nil }
 
-    var items: [Item] {
+    private func items(for trimmed: String, noteHits: [Note]) -> [Item] {
         var out: [Item] = []
         let preferActiveTab = prefersActiveTab
         if trimmed.isEmpty {
@@ -397,12 +398,28 @@ struct CommandPalette: View {
         }
     }
 
-    private func selectedIndex(in list: [Item]) -> Int? {
-        return list.indices.contains(index) ? index : list.indices.last
+    private func selectedIndex(in list: [Item], query: String) -> Int? {
+        let candidate = selectionQuery == query ? index : 0
+        return list.indices.contains(candidate) ? candidate : list.indices.last
+    }
+
+    private func noteHits(for query: String) -> [Note] {
+        guard query.count >= 2 else { return [] }
+        return (try? app.notes?.search(query, limit: 6)) ?? []
+    }
+
+    private func submit(inNewTab: Bool) {
+        let query = trimmed
+        let hits = noteResults.flatMap { $0.query == query ? $0.hits : nil } ?? noteHits(for: query)
+        let current = items(for: query, noteHits: hits)
+        guard let selected = selectedIndex(in: current, query: query) else { return }
+        activate(current[selected], inNewTab: inNewTab)
     }
 
     private func moveSelection(_ delta: Int, in list: [Item], proxy: ScrollViewProxy) {
-        guard let current = selectedIndex(in: list) else { return }
+        let query = trimmed
+        guard let current = selectedIndex(in: list, query: query) else { return }
+        selectionQuery = query
         index = min(max(current + delta, 0), list.count - 1)
         if index == 0 {
             proxy.scrollTo("paletteResultsStart", anchor: .top)
@@ -412,8 +429,9 @@ struct CommandPalette: View {
     }
 
     var body: some View {
-        let list = items
-        let selection = selectedIndex(in: list)
+        let query = trimmed
+        let list = items(for: query, noteHits: noteResults?.query == query ? noteResults?.hits ?? [] : [])
+        let selection = selectedIndex(in: list, query: query)
         let selected = selection.map { list[$0] }
         ScrollViewReader { proxy in
             VStack(alignment: .leading, spacing: 0) {
@@ -423,10 +441,10 @@ struct CommandPalette: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 18))
                     .focused($focused)
-                    .onSubmit { if let selected { activate(selected, inNewTab: newTab) } }
+                    .onSubmit { submit(inNewTab: newTab) }
                     .onKeyPress(.return, phases: .down) { press in
                         guard press.modifiers.contains(.shift) else { return .ignored }
-                        if let selected { activate(selected, inNewTab: true) }
+                        submit(inNewTab: true)
                         return .handled
                     }
                     .onKeyPress(.downArrow) { moveSelection(1, in: list, proxy: proxy); return .handled }
@@ -461,7 +479,7 @@ struct CommandPalette: View {
                             }
                             .buttonStyle(.interactivePlain)
                             .onHover { inside in
-                                if inside { index = i }
+                                if inside && trimmed == query { selectionQuery = query; index = i }
                             }
                             .contextMenu {
                                 resultActions(it)
@@ -473,7 +491,8 @@ struct CommandPalette: View {
                     .padding(8)
                     .id("paletteResultsStart")
                 }
-                .onChange(of: text) {
+                .onChange(of: query) {
+                    selectionQuery = query
                     index = 0
                     proxy.scrollTo("paletteResultsStart", anchor: .top)
                 }
@@ -554,6 +573,7 @@ struct CommandPalette: View {
             if let location {
                 textSelection = nil
                 text = location.text
+                selectionQuery = trimmed
                 index = 0
                 actionsShown = false
             }
@@ -566,8 +586,9 @@ struct CommandPalette: View {
             guard !Task.isCancelled, text == location.text else { return }
             textSelection = TextSelection(range: text.startIndex..<text.endIndex)
         }
-        .task(id: trimmed) {
-            noteHits = trimmed.count < 2 ? [] : ((try? app.notes?.search(trimmed, limit: 6)) ?? [])
+        .task(id: query) {
+            guard !Task.isCancelled else { return }
+            noteResults = (query, noteHits(for: query))
         }
     }
 
