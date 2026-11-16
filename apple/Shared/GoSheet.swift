@@ -15,7 +15,7 @@ struct GoSheet: View {
     @State private var notesQuery = ""
     @FocusState private var focused: Bool
 
-    var trimmed: String { text.trimmingCharacters(in: .whitespaces) }
+    var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         NavigationStack {
@@ -49,12 +49,18 @@ struct GoSheet: View {
             #endif
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if let close { close() } else { dismiss() } } } }
         }
+        .defaultFocus($focused, true, priority: .userInitiated)
+        .task {
+            // A sheet does not always attach its field editor until presentation has settled.
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            if text.isEmpty { focused = true }
+        }
         .task(id: trimmed) {
             let query = trimmed
             guard query.count >= 2 else { return }
             do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
             guard !Task.isCancelled, query == trimmed else { return }
-            notes = (try? app.notes?.search(query, limit: 6)) ?? []
+            notes = noteMatches(query)
             notesQuery = query
         }
     }
@@ -83,13 +89,14 @@ struct GoSheet: View {
     var recents: [RecentPassage] { Array(app.recentPassages.prefix(5)) }
     var lastPassage: RecentPassage { app.recentPassages.first ?? RecentPassage(textId: app.defaultText, bookId: "GEN", chapter: 1) }
 
+    private var preferredText: String? {
+        app.activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }
+    }
+
     @ViewBuilder private var results: some View {
-        let preferredText = app.activeTab.flatMap {
-            $0.tabType == .bible ? BibleState($0.state).translation : nil
-        }
         if let ref = app.resolvePassage(trimmed, preferring: preferredText) {
             Section("Passage") {
-                Button { go() } label: {
+                Button { finish { app.visitScripture(ref, reuseTab: !newTab) } } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(ref.label)
@@ -118,7 +125,9 @@ struct GoSheet: View {
             }
         } else if let id = StrongsId.normalize(trimmed) {
             Section("Lexicon") {
-                Button { go() } label: { Label("Look up \(id)", systemImage: "character.book.closed") }
+                Button { finish { app.openLexicon(id, reuseTab: !newTab) } } label: {
+                    Label("Look up \(id)", systemImage: "character.book.closed")
+                }
             }
         }
         if notesQuery == trimmed && !notes.isEmpty {
@@ -185,6 +194,25 @@ struct GoSheet: View {
         }
     }
 
-    func go() { guard !trimmed.isEmpty else { return }; let q = trimmed; finish { app.openQuery(q, newTab: newTab) } }
+    private func noteMatches(_ query: String) -> [Note] {
+        guard query.count >= 2 else { return [] }
+        return (try? app.notes?.search(query, limit: 6)) ?? []
+    }
+
+    private func go() {
+        let query = trimmed
+        guard !query.isEmpty else { return }
+        if let passage = app.resolvePassage(query, preferring: preferredText) {
+            finish { app.visitScripture(passage, reuseTab: !newTab) }
+        } else if let id = StrongsId.normalize(query) {
+            finish { app.openLexicon(id, reuseTab: !newTab) }
+        } else if let note = (notesQuery == query ? notes : noteMatches(query)).first(where: {
+            $0.displayTitle.caseInsensitiveCompare(query) == .orderedSame
+        }) {
+            finish { app.openNote(note.id, newTab: newTab) }
+        } else {
+            finish { app.openSearch(query, reuseTab: !newTab) }
+        }
+    }
     func finish(_ action: () -> Void) { if let close { close() } else { dismiss() }; action() }
 }
