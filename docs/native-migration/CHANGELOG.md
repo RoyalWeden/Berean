@@ -1414,3 +1414,7 @@
 ### 2026-11-16 — Archive directly from the iPhone reader
 
 - Grouped Duplicate, Archive and Close in More → Tab Actions. iOS Dev built successfully and the iPhone 18 Pro simulator verified archiving the final tab and restoring it from the empty screen.
+
+### 2026-11-16 — Undo an iPhone reader archive
+
+- Added immediate Undo above the dock when archiving from Tab Actions. Verified in the iOS 27 iPhone 18 Pro Dev simulator by archiving and undoing the last Scripture tab.

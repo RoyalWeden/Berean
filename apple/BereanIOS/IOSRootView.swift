@@ -39,6 +39,13 @@ struct IOSRootView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var contentWidth: CGFloat = 0
     @State private var showArchive = false
+    @State private var readerArchiveUndo: ReaderArchiveUndo?
+
+    private struct ReaderArchiveUndo {
+        let groupID: String
+        let tabID: String
+        let workspaceID: String
+    }
     @State private var showTabs = false
     @State private var showGo = false
     @State private var explicitNewTab = false
@@ -73,10 +80,10 @@ struct IOSRootView: View {
                     action: goBackFromEdge
                 ))
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if readerEdition == nil && !keyboardUp { bottomBar }
+                    if readerEdition == nil && !keyboardUp { bottomControls }
                 }
                 .overlay(alignment: .bottom) {
-                    if readerEdition != nil && !keyboardUp { bottomBar }
+                    if readerEdition != nil && !keyboardUp { bottomControls }
                 }
                 // The dock steps aside while typing (the note editor's format bar docks above the keyboard).
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
@@ -162,6 +169,38 @@ struct IOSRootView: View {
     private func openGo(newTab: Bool = false) {
         explicitNewTab = newTab
         showGo = true
+    }
+
+    private var bottomControls: some View {
+        VStack(spacing: 0) {
+            if let receipt = readerArchiveUndo,
+               app.currentSessionId == receipt.workspaceID,
+               app.archivedGroups.contains(where: { $0.id == receipt.groupID }),
+               !app.readerChromeHidden {
+                HStack(spacing: 8) {
+                    Label("Tab archived", systemImage: "archivebox")
+                        .font(.subheadline)
+                    Button("Undo") {
+                        app.restoreArchivedTab(receipt.tabID, from: receipt.groupID, toSource: true)
+                        if !app.archivedGroups.contains(where: { $0.id == receipt.groupID }) {
+                            readerArchiveUndo = nil
+                            AccessibilityNotification.Announcement("Tab restored").post()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(minHeight: 44)
+                    Button("Dismiss archive notice", systemImage: "xmark") { readerArchiveUndo = nil }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .padding(.leading, 12)
+                .glassEffectCompat(interactive: true, backingOpacity: ReaderFloatingControls.dockBackingOpacity)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, alignment: sideBySideReaderControls ? .trailing : .center)
+            }
+            bottomBar
+        }
     }
 
     private var bottomBar: some View {
@@ -310,7 +349,13 @@ struct IOSRootView: View {
                     } label: { Label("Change Tab To", systemImage: "arrow.triangle.swap") }
                     Menu("Tab Actions", systemImage: "square.on.square") {
                         Button("Duplicate Tab", systemImage: "plus.square.on.square") { app.duplicate(tab.id) }
-                        Button("Archive Tab", systemImage: "archivebox") { app.archive([tab.id]) }
+                        Button("Archive Tab", systemImage: "archivebox") {
+                            let workspaceID = app.currentSessionId
+                            if let group = app.archive([tab.id]) {
+                                readerArchiveUndo = ReaderArchiveUndo(groupID: group.id, tabID: tab.id, workspaceID: workspaceID)
+                                AccessibilityNotification.Announcement("Tab archived. Undo is available.").post()
+                            }
+                        }
                         Button("Close Tab", systemImage: "xmark", role: .destructive) { app.close(tab.id) }
                     }
                 }
