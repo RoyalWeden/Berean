@@ -606,7 +606,8 @@ struct CompareView: View {
                         .task(id: column.historyKey) {
                             let key = columnScrollKey(column.id, passage: passage)
                             guard let verse = independentVisibleVerses[column.id]
-                                    ?? app.compareColumnScrollVerses[tabId]?[key] else { return }
+                                    ?? app.compareColumnScrollVerses[tabId]?[key]
+                                    ?? selectedRows(in: column, source: state).first?.verseNum else { return }
                             await Task.yield()
                             guard !Task.isCancelled else { return }
                             proxy.scrollTo(verse, anchor: .top)
@@ -795,31 +796,49 @@ struct CompareView: View {
         moveColumn(column, to: source + delta, in: current)
     }
 
+    private func selectedRows(in column: CompareColumn, source: BibleState) -> [ChapterVerseRow] {
+        guard column.follows(source), let available = independentRows[column.id] else { return [] }
+        let numbers = Set(selectedVerses(in: source).compactMap { verse -> Int? in
+            guard let mapped = ChapterMap.verseCounterpart(source.bookId, chapter: source.chapter, verse: verse,
+                                                           from: source.translation, to: column.text) else { return verse }
+            return mapped.chapter == column.chapter ? mapped.verse : nil
+        })
+        return available.filter { numbers.contains($0.verseNum) }
+    }
+
     @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false) -> some View {
         if let verses = independentRows[column.id], !verses.isEmpty {
+            let selected = Set(selectedRows(in: column, source: state).map(\.verseNum))
             ForEach(verses, id: \.verseNum) { row in
-                if compact {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 2) {
-                            if showVerseNumbers { independentVerseButton(row, column: column) }
-                            Spacer(minLength: 0)
-                            comparisonVerseControls(row, column: column)
-                        }
-                        comparisonVerseBody(row, column: column, state: state, showsControls: false)
-                    }
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        if showVerseNumbers { independentVerseButton(row, column: column) }
-                        comparisonVerseBody(row, column: column, state: state)
-                    }
-                }
+                let isSelected = selected.contains(row.verseNum)
+                independentVerseRow(row, column: column, compact: compact, selected: isSelected)
+                    .background(Color.accentColor.opacity(isSelected ? 0.08 : 0), in: .rect(cornerRadius: 6))
             }
         } else {
             Text("No Text in This Passage").foregroundStyle(.secondary)
         }
     }
 
-    private func independentVerseButton(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
+    @ViewBuilder private func independentVerseRow(_ row: ChapterVerseRow, column: CompareColumn,
+                                                   compact: Bool, selected: Bool) -> some View {
+        if compact {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 2) {
+                    if showVerseNumbers { independentVerseButton(row, column: column, selected: selected) }
+                    Spacer(minLength: 0)
+                    comparisonVerseControls(row, column: column)
+                }
+                comparisonVerseBody(row, column: column, state: state, showsControls: false)
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                if showVerseNumbers { independentVerseButton(row, column: column, selected: selected) }
+                comparisonVerseBody(row, column: column, state: state)
+            }
+        }
+    }
+
+    private func independentVerseButton(_ row: ChapterVerseRow, column: CompareColumn, selected: Bool) -> some View {
         Button {
             openReader(row, in: column)
         } label: {
@@ -831,6 +850,7 @@ struct CompareView: View {
         }
         .buttonStyle(.interactivePlain)
         .accessibilityLabel("Open verse \(row.verseNum) in Reader")
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .help("Open verse \(row.verseNum) in Reader")
     }
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
@@ -1231,7 +1251,8 @@ struct CompareView: View {
         guard loadedPassage == passageKey(source, columns), column.follows(source), let first = source.verse,
               columns.contains(where: { $0.id == column.id && $0.destinationKey == column.destinationKey }) else { return passage }
 
-        let mapped = selectedVerses(in: source).sorted().compactMap { rows[$0]?[column.id] }
+        let aligned = selectedVerses(in: source).sorted().compactMap { rows[$0]?[column.id] }
+        let mapped = aligned.isEmpty ? selectedRows(in: column, source: source) : aligned
         let anchor = rows[first]?[column.id] ?? mapped.first
         guard let anchor else { return passage }
         passage.bookId = anchor.bookId

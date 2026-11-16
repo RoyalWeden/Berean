@@ -1231,3 +1231,7 @@
 ### 2026-11-16 — Multi-select verses in aligned Compare
 - Toggle individual verses and retain contiguous or disjoint selections when returning to Scripture. Mac adds Shift-click range extension.
 - Both Dev builds passed. Mac QA verified deselecting the middle verse and returning to the same disjoint selection in Scripture.
+
+### 2026-11-16 — Selected verses in independent Compare columns
+- Following columns display selected verses and use the first matching verse as their initial position when they have no saved scroll position.
+- Both Dev builds passed. Mac QA verified matching selected rows in KJVA and LXX with Sync Scrolling off.
