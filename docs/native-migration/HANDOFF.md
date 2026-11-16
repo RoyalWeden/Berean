@@ -1612,3 +1612,7 @@ Mac Browse Archived Tabs now distinguishes Restore and Open Here, Restore and Op
 Exact Duplicates Only now checks native reading bookmarks before proposing Scripture and Compare copies. Tabs with identical persisted state but different current-chapter reading positions or Compare scroll bookmarks remain outside the duplicate suggestions, including at action time. The general inactive-tab list can still be used for intentional cleanup. Both targets are covered by the shared implementation. Live check pending: open the same chapter twice, scroll to different verses, and confirm Exact Duplicates Only leaves both alone.
 
 Both native Dev builds passed.
+
+Exact Duplicates Only now also checks device-local bookmarks and browsing options for Search, Lexicon, Notes, History, and Calendar. Identical persisted tabs that return to different results, filters, folders, or dates stay out of automatic duplicate suggestions. The comparison is intentionally conservative: missing local state differs from an existing bookmark. Live checks remain open for two copies of a search scrolled to different rows and for a Lexicon filter difference.
+
+Both native Dev builds passed.

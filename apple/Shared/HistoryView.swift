@@ -60,7 +60,7 @@ struct HistoryView: View {
     @State private var visibleEntries: Set<String> = []
     @State private var restoredOnLoad = false
 
-    struct BrowseOptions {
+    struct BrowseOptions: Equatable {
         var filter = ""
         var visibleLimit = 300
         var visibleEntryID: String?

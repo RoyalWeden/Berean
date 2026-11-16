@@ -246,7 +246,7 @@ extension AppModel {
             if inactive.contains(tab.id), let original = copies.first(where: {
                 $0.type == tab.type && $0.state == tab.state
                     && $0.originTabId == tab.originTabId && $0.originSpaceId == tab.originSpaceId
-                    && sameCleanupReadingPosition($0, tab)
+                    && sameCleanupBookmark($0, tab)
             }) {
                 duplicates[tab.id] = original
             } else {
@@ -256,16 +256,36 @@ extension AppModel {
         return duplicates
     }
 
-    private func sameCleanupReadingPosition(_ first: Tab, _ second: Tab) -> Bool {
-        guard first.tabType == .bible else { return true }
-        let reader = BibleState(first.state)
-        let chapter = ChapterEdition(reader).key
-        guard scriptureReadingPositions[first.id]?[chapter] == scriptureReadingPositions[second.id]?[chapter] else {
-            return false
+    private func sameCleanupBookmark(_ first: Tab, _ second: Tab) -> Bool {
+        let a = first.id
+        let b = second.id
+        switch first.tabType {
+        case .bible:
+            let reader = BibleState(first.state)
+            let chapter = ChapterEdition(reader).key
+            guard scriptureReadingPositions[a]?[chapter] == scriptureReadingPositions[b]?[chapter] else { return false }
+            return !reader.compareMode || (compareScrollOffsets[a] == compareScrollOffsets[b]
+                && compareColumnScrollVerses[a] == compareColumnScrollVerses[b])
+        case .search:
+            return searchVisibleRows[a] == searchVisibleRows[b] && searchResultAnchors[a] == searchResultAnchors[b]
+        case .lexicon:
+            return lexiconSearches[a]?.query == lexiconSearches[b]?.query
+                && lexiconSearches[a]?.lang == lexiconSearches[b]?.lang
+                && lexiconScrollOffsets[a] == lexiconScrollOffsets[b]
+                && lexiconOccurrenceOptions[a] == lexiconOccurrenceOptions[b]
+                && lexiconOccurrenceReturns[a] == lexiconOccurrenceReturns[b]
+        case .note:
+            return notesBrowseOptions[a] == notesBrowseOptions[b]
+                && notesFolderPositions[a] == notesFolderPositions[b]
+                && notesSearchOffsets[a] == notesSearchOffsets[b]
+                && notesSearchReturnRows[a] == notesSearchReturnRows[b]
+        case .history:
+            return historyBrowseOptions[a] == historyBrowseOptions[b] && historyReturnRows[a] == historyReturnRows[b]
+        case .calendar:
+            return dailyTimelinePositions[a] == dailyTimelinePositions[b]
+        default:
+            return true
         }
-        guard reader.compareMode else { return true }
-        return compareScrollOffsets[first.id] == compareScrollOffsets[second.id]
-            && compareColumnScrollVerses[first.id] == compareColumnScrollVerses[second.id]
     }
 
     @discardableResult
