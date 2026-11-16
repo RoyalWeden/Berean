@@ -1330,3 +1330,7 @@
 ### 2026-11-16 — Scripture excerpts in iPhone Go
 
 - Preview the requested verse or chapter opening in the resolved edition. The iPhone 18 Pro simulator verified Jude 5, replacing it with Isaiah 53 LXX, and opening the Septuagint result.
+
+### 2026-11-16 — Scripture excerpts in Mac floating search
+
+- Share the passage excerpt loader with iPhone Go. Mac scratch QA verified both verse and chapter excerpts, edition replacement and Return navigation.

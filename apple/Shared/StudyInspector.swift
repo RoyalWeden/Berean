@@ -253,6 +253,7 @@ struct CommandPalette: View {
     @State private var textSelection: TextSelection?
     @State private var index = 0
     @State private var selectionQuery = ""
+    @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @State private var noteResults: (query: String, hits: [Note])?
     @State private var actionsShown = false
     @FocusState private var focused: Bool
@@ -263,6 +264,7 @@ struct CommandPalette: View {
         let title: String
         let detail: String
         let symbol: String
+        var excerpt: String? = nil
         var offersOpenMenu = false
         var sourceRestore: (name: String, run: () -> Void)?
         var hasActions: Bool { offersOpenMenu || sourceRestore != nil }
@@ -271,6 +273,11 @@ struct CommandPalette: View {
 
     var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var prefersActiveTab: Bool { app.commandPaletteLocationRequest != nil }
+
+    private func resolvePassage(_ query: String) -> ResolvedPassage? {
+        let currentText = app.activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }
+        return query.isEmpty ? nil : app.resolvePassage(query, preferring: currentText)
+    }
 
     private func items(for trimmed: String, noteHits: [Note]) -> [Item] {
         var out: [Item] = []
@@ -282,10 +289,10 @@ struct CommandPalette: View {
                 })
             }
         }
-        let currentText = app.activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }
-        if let ref = app.resolvePassage(trimmed, preferring: currentText) {
+        if let ref = resolvePassage(trimmed) {
+            let excerpt = passagePreview.flatMap { $0.passage == ref ? $0.text : nil }
             out.append(Item(id: "go", group: "Go to", title: ref.label,
-                            detail: textInfo(ref.textId).name, symbol: "book", offersOpenMenu: true) { inNewTab in app.visitScripture(ref, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
+                            detail: textInfo(ref.textId).name, symbol: "book", excerpt: excerpt, offersOpenMenu: true) { inNewTab in app.visitScripture(ref, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
         }
         if let id = StrongsId.normalize(trimmed) {
@@ -460,16 +467,23 @@ struct CommandPalette: View {
                                 Text(it.group).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, i == 0 ? 4 : 10)
                             }
                             Button { activate(it, inNewTab: newTab) } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: it.symbol).frame(width: 20).foregroundStyle(.secondary)
-                                    Text(it.title).font(.system(size: 14)).lineLimit(1)
-                                    if !it.detail.isEmpty {
-                                        Text(it.detail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: it.symbol).frame(width: 20).foregroundStyle(.secondary)
+                                        Text(it.title).font(.system(size: 14)).lineLimit(1)
+                                        if !it.detail.isEmpty {
+                                            Text(it.detail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                                        }
+                                        Spacer(minLength: 4)
+                                        if i == selection || it.group == "Open in Other Workspaces" {
+                                            Text(actionTitle(it)).font(.callout).foregroundStyle(.secondary)
+                                                .lineLimit(1).layoutPriority(1)
+                                        }
                                     }
-                                    Spacer(minLength: 4)
-                                    if i == selection || it.group == "Open in Other Workspaces" {
-                                        Text(actionTitle(it)).font(.callout).foregroundStyle(.secondary)
-                                            .lineLimit(1).layoutPriority(1)
+                                    if let excerpt = it.excerpt, !excerpt.isEmpty {
+                                        Text(excerpt).font(.callout).foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .padding(.leading, 30)
                                     }
                                 }
                                 .padding(.horizontal, 10).padding(.vertical, 7)
@@ -585,6 +599,15 @@ struct CommandPalette: View {
             try? await Task.sleep(for: .milliseconds(30))
             guard !Task.isCancelled, text == location.text else { return }
             textSelection = TextSelection(range: text.startIndex..<text.endIndex)
+        }
+        .task(id: resolvePassage(query)) {
+            guard let passage = resolvePassage(query) else {
+                passagePreview = nil
+                return
+            }
+            let excerpt = await app.passageExcerpt(passage)
+            guard !Task.isCancelled, passage == resolvePassage(trimmed) else { return }
+            passagePreview = excerpt.map { (passage, $0) }
         }
         .task(id: query) {
             guard !Task.isCancelled else { return }

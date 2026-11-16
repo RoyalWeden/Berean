@@ -69,23 +69,9 @@ struct GoSheet: View {
                 passagePreview = nil
                 return
             }
-            let text: String?
-            let tagged: String?
-            if let verse = passage.verse {
-                let row = await app.bible.queryVerse(passage.bookId, passage.chapter, verse, textId: passage.textId)
-                text = row?.text
-                tagged = row?.textTagged
-            } else {
-                let rows = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
-                let row = rows.first { $0.verseNum > 0 } ?? rows.first
-                text = row?.text
-                tagged = row?.textTagged
-            }
+            let excerpt = await app.passageExcerpt(passage)
             guard !Task.isCancelled, passage == resolvedPassage else { return }
-            passagePreview = text.map {
-                (passage, VerseDisplay.text($0, tagged: tagged, textId: passage.textId,
-                                            replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules))
-            }
+            passagePreview = excerpt.map { (passage, $0) }
         }
     }
 

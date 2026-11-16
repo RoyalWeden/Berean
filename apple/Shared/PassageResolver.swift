@@ -2,6 +2,7 @@ import Foundation
 import BereanCore
 import BereanBible
 import BereanReference
+import BereanText
 import BereanWorkspace
 
 /// Native reference understanding on top of the shared `Reference.parse` (which stays byte-identical to the existing
@@ -58,6 +59,24 @@ struct ResolvedPassage: Equatable {
 }
 
 extension AppModel {
+    func passageExcerpt(_ passage: ResolvedPassage) async -> String? {
+        let text: String?
+        let tagged: String?
+        if let verse = passage.verse {
+            let row = await bible.queryVerse(passage.bookId, passage.chapter, verse, textId: passage.textId)
+            text = row?.text
+            tagged = row?.textTagged
+        } else {
+            let rows = await bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
+            let row = rows.first { $0.verseNum > 0 } ?? rows.first
+            text = row?.text
+            tagged = row?.textTagged
+        }
+        guard let text, !text.isEmpty else { return nil }
+        return VerseDisplay.text(text, tagged: tagged, textId: passage.textId,
+                                 replacerEnabled: wordReplacerEnabled, rules: WordReplacer.defaultRules)
+    }
+
     /// Every book of every listed text (loaded once, off the main thread).
     func loadBookCatalog() {
         guard bookCatalog.isEmpty else { return }
