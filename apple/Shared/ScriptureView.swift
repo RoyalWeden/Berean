@@ -1111,6 +1111,7 @@ struct ScriptureView: View {
             style: style,
             baseFontSize: baseSize,
             selectedVerses: selection.union(tappedVerse.map { [$0.row.verseNum] } ?? []),
+            selectionFocus: tappedVerse?.row.verseNum ?? selectedVerse,
             scrollTarget: scrollTarget,
             actionClearance: actionClearance,
             animateOutline: !reduceMotion && scenePhase == .active,
@@ -1898,7 +1899,7 @@ extension ScriptureView {
             passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: readerStyle(st),
-            selectedVerses: selection, scrollTarget: scrollTarget,
+            selectedVerses: selection, selectionFocus: selectedVerse, scrollTarget: scrollTarget,
             actionClearance: actionClearance,
             animateOutline: !reduceMotion && scenePhase == .active,
             scrollRevision: scrollRevision,
@@ -2229,6 +2230,29 @@ func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [N
         guard let first = visible.first, let last = visible.last else { return nil }
         return NSUnionRange(first, last)
     }
+}
+
+/// Try the selected run first, then the newly selected endpoint if the run cannot fit.
+func selectionRevealRanges(_ selection: Set<Int>, previous: Set<Int>, focus: Int? = nil, in ranges: [Int: NSRange]) -> [NSRange] {
+    let visible = Set(selection.filter { (ranges[$0]?.length ?? 0) > 1 })
+    let additions = visible.subtracting(previous)
+    guard let first = additions.min(), let last = additions.max() else { return [] }
+    let endpoint = focus.flatMap { additions.contains($0) ? $0 : nil }
+        ?? (first < (previous.min() ?? first) ? first : last)
+    guard let focused = ranges[endpoint] else { return [] }
+    guard let run = consecutiveVerseRuns(visible).first(where: { $0.contains(endpoint) }),
+          run.lowerBound != run.upperBound,
+          let head = ranges[run.lowerBound], let tail = ranges[run.upperBound] else { return [focused] }
+    return [NSUnionRange(head, tail), focused]
+}
+
+func selectionRevealOffset(lines: ClosedRange<CGFloat>, visible: ClosedRange<CGFloat>, gap: CGFloat) -> CGFloat? {
+    guard lines.upperBound - lines.lowerBound + 2 * gap <= visible.upperBound - visible.lowerBound else {
+        return nil
+    }
+    if lines.lowerBound - gap < visible.lowerBound { return lines.lowerBound - gap - visible.lowerBound }
+    if lines.upperBound + gap > visible.upperBound { return lines.upperBound + gap - visible.upperBound }
+    return 0
 }
 
 /// Feedback for controls whose layout already supplies the visible button shape.

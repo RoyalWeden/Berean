@@ -67,6 +67,7 @@ struct ChapterTextView: NSViewRepresentable {
     var verses: [ReaderVerse]
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
+    var selectionFocus: Int?
     var scrollTarget: Int?
     var actionClearance: CGFloat = 0
     var animateOutline = true
@@ -162,8 +163,8 @@ struct ChapterTextView: NSViewRepresentable {
         }
         let previousBounds = clip.bounds
         let passageChanged = c.lastPassage != passageId
-        let revealVerse = c.lastPassage == passageId
-            ? selectedVerses.subtracting(c.renderedSelection).max() : nil
+        let previousSelection = c.renderedSelection
+        let revealSelection = !passageChanged && !selectedVerses.subtracting(previousSelection).isEmpty
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
         if key != c.lastKey || c.lastPassage != passageId {
             let keepScroll = c.lastPassage == passageId
@@ -212,31 +213,33 @@ struct ChapterTextView: NSViewRepresentable {
             c.renderedSelection = selectedVerses
             tv.needsDisplay = true
         }
-        if let revealVerse, scrollTarget == nil {
+        if revealSelection, scrollTarget == nil {
             let destination = passageId
-            // Reveal the line above the floating actions after layout.
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll, let c, c.lastPassage == destination,
                       c.parent.passageId == destination, c.parent.scrollTarget == nil,
                       c.parent.selectedVerses == selectedVerses,
-                      let range = c.verseRanges[revealVerse],
                       let container = tv.textContainer else { return }
                 tv.layoutManager?.ensureLayout(for: container)
-                guard let top = tv.firstVerseLineTop(in: range),
-                      let bottom = tv.lastVerseLineBottom(in: range) else { return }
                 let clip = scroll.contentView
-                let readingHeight = clip.bounds.height - c.parent.actionClearance - tv.visibleTitleBarClearance
-                let lineTop = tv.convert(NSPoint(x: 0, y: top), to: clip).y
-                let lineBottom = tv.convert(NSPoint(x: 0, y: bottom), to: clip).y
-                let gap = ReaderFloatingControls.readingGap
-                // A verse taller than the viewport remains where the reader selected it.
-                guard lineBottom - lineTop + gap <= readingHeight else { return }
-                let overlap = lineBottom + gap - (clip.bounds.maxY - c.parent.actionClearance)
-                if overlap > 0 {
-                    var proposed = clip.bounds
-                    proposed.origin.y += overlap
-                    clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
-                    scroll.reflectScrolledClipView(clip)
+                let top = clip.bounds.minY + tv.visibleTitleBarClearance
+                let bottom = clip.bounds.maxY - c.parent.actionClearance
+                guard top <= bottom else { return }
+                for range in selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: c.verseRanges) {
+                    guard let first = tv.firstVerseLineTop(in: range),
+                          let last = tv.lastVerseLineBottom(in: range) else { continue }
+                    let lineTop = tv.convert(NSPoint(x: 0, y: first), to: clip).y
+                    let lineBottom = tv.convert(NSPoint(x: 0, y: last), to: clip).y
+                    guard lineTop <= lineBottom,
+                          let offset = selectionRevealOffset(lines: lineTop...lineBottom, visible: top...bottom,
+                                                             gap: ReaderFloatingControls.readingGap) else { continue }
+                    if offset != 0 {
+                        var proposed = clip.bounds
+                        proposed.origin.y += offset
+                        clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+                        scroll.reflectScrolledClipView(clip)
+                    }
+                    break
                 }
             }
         }

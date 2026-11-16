@@ -17,6 +17,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var style: ReaderStyle
     var baseFontSize: Double
     var selectedVerses: Set<Int>
+    var selectionFocus: Int?
     var scrollTarget: Int?
     var actionClearance: CGFloat = 0
     var animateOutline = true
@@ -111,7 +112,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.updateOutlineMotion()
         let samePassage = coordinator.passageId == passageId
         let previousSelection = coordinator.renderedSelection
-        let revealVerse = samePassage ? selectedVerses.subtracting(previousSelection).max() : nil
+        let revealSelection = samePassage && !selectedVerses.subtracting(previousSelection).isEmpty
         let previousOffset = view.contentOffset
         if view.contentInset.bottom != actionClearance {
             let inset = view.adjustedContentInset
@@ -174,27 +175,28 @@ struct IOSChapterTextView: UIViewRepresentable {
         if previousSelection != selectedVerses || !samePassage {
             view.layoutManager.invalidateDisplay(forCharacterRange: NSRange(location: 0, length: view.textStorage.length))
         }
-        if let revealVerse, scrollTarget == nil {
+        if revealSelection, scrollTarget == nil {
             let currentPassage = passageId
-            // Reveal the line above the floating actions after layout.
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
                       coordinator.parent.passageId == currentPassage, coordinator.parent.scrollTarget == nil,
-                      coordinator.parent.selectedVerses == selectedVerses,
-                      let range = coordinator.verseRanges[revealVerse], range.length > 1 else { return }
-                coordinator.layoutThroughEnd(of: range, in: view)
-                guard let lines = coordinator.renderedLineBounds(of: range, in: view) else { return }
-                let inset = view.adjustedContentInset
-                let readingHeight = view.bounds.height - inset.top - inset.bottom
-                let gap = ReaderFloatingControls.readingGap
-                // A verse taller than the viewport remains where the reader selected it.
-                guard lines.upperBound - lines.lowerBound + gap <= readingHeight else { return }
-                let visibleBottom = view.bounds.maxY - inset.bottom
-                let overlap = lines.upperBound + gap - visibleBottom
-                if overlap > 0 {
-                    let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
-                    let y = min(view.contentOffset.y + overlap, bottom)
-                    view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
+                      coordinator.parent.selectedVerses == selectedVerses else { return }
+                let ranges = selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: coordinator.verseRanges)
+                for range in ranges {
+                    coordinator.layoutThroughEnd(of: range, in: view)
+                    guard let lines = coordinator.renderedLineBounds(of: range, in: view) else { continue }
+                    let inset = view.adjustedContentInset
+                    let top = view.bounds.minY + inset.top
+                    let bottom = view.bounds.maxY - inset.bottom
+                    guard top <= bottom,
+                          let offset = selectionRevealOffset(lines: lines, visible: top...bottom,
+                                                             gap: ReaderFloatingControls.readingGap) else { continue }
+                    if offset != 0 {
+                        let end = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+                        let y = min(max(view.contentOffset.y + offset, -inset.top), end)
+                        view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
+                    }
+                    break
                 }
             }
         }

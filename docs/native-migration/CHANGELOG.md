@@ -1183,3 +1183,7 @@
 ### 2026-11-15 — iPhone Scripture chapter edges
 - The next-chapter pull cue clears the floating dock. Scroll direction and toolbar state reset on passage changes.
 - Both Dev builds passed. iPhone Simulator displayed the new chapter and its selected range after a Dev link changed chapters. Pull gestures remain to verify.
+
+### 2026-11-15 — Keep newly selected verses in view
+- The reader brings a contiguous selected group clear of the floating controls when it fits. For a taller group it prioritizes the newly selected verse.
+- Mac and iPhone Dev builds passed, along with nine focused range and clearance assertions. Live selection interaction remains to verify.
