@@ -122,7 +122,7 @@ struct ChapterTextView: NSViewRepresentable {
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.autoresizingMask = [.width]
         tv.textContainer?.widthTracksTextView = true
-        tv.linkTextAttributes = [.cursor: NSCursor.pointingHand]
+        tv.linkTextAttributes = [:]
         tv.delegate = context.coordinator
         tv.coordinator = context.coordinator
         tv.setAccessibilityLabel("Scripture text")
@@ -696,8 +696,11 @@ final class ReaderTextView: NSTextView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
-        let t = NSTrackingArea(rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
-        addTrackingArea(t); tracking = t
+        let area = NSTrackingArea(rect: bounds,
+                                  options: [.mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .activeInKeyWindow, .inVisibleRect],
+                                  owner: self)
+        addTrackingArea(area)
+        tracking = area
     }
 
     func charIndex(at event: NSEvent, includeVerseGutter: Bool = false) -> Int? {
@@ -724,19 +727,30 @@ final class ReaderTextView: NSTextView {
         return nil
     }
 
+    private func updateReaderCursor(at event: NSEvent, glyphIndex: Int?) {
+        let index = glyphIndex ?? charIndex(at: event, includeVerseGutter: true)
+        let linked = index.flatMap { index in
+            guard let storage = textStorage, index < storage.length else { return nil as Any? }
+            return storage.attribute(.link, at: index, effectiveRange: nil)
+        } != nil
+        let cursor: NSCursor = linked ? .pointingHand : .iBeam
+        if NSCursor.current != cursor { cursor.set() }
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        updateReaderCursor(at: event, glyphIndex: nil)
+    }
+
     override func mouseMoved(with event: NSEvent) {
-        super.mouseMoved(with: event)
+        let index = charIndex(at: event)
+        updateReaderCursor(at: event, glyphIndex: index)
         guard let lm = layoutManager, let ts = textStorage else { return }
-        let hitsLink = charIndex(at: event, includeVerseGutter: true).map {
-            $0 < ts.length && ts.attribute(.link, at: $0, effectiveRange: nil) != nil
-        } ?? false
         var newRange: NSRange?
-        if let index = charIndex(at: event), index < ts.length {
-            let character = (ts.string as NSString).character(at: index)
+        if let index, index < ts.length {
+            let string = ts.string as NSString
             var link = NSRange()
-            if character != 9, ts.attribute(.link, at: index, effectiveRange: &link) != nil {
+            if string.character(at: index) != 9, ts.attribute(.link, at: index, effectiveRange: &link) != nil {
                 // The tabs on either side of a verse number enlarge the click target only.
-                let string = ts.string as NSString
                 while link.length > 0 && string.character(at: link.location) == 9 {
                     link.location += 1
                     link.length -= 1
@@ -747,7 +761,6 @@ final class ReaderTextView: NSTextView {
                 newRange = link
             }
         }
-        if hitsLink { NSCursor.pointingHand.set() }
         if newRange != hovered {
             if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
             if let n = newRange { lm.addTemporaryAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.14), forCharacterRange: n) }
