@@ -1027,6 +1027,7 @@ struct CrossRefsView: View {
     @Environment(\.dismiss) private var dismiss
     let bookId: String, chapter: Int, verse: Int?, textId: String
     var selectedVerses: [Int] = []
+    let sourceTabID: String
     var performDestination: ((@escaping () -> Void) -> Void)?
     @AppStorage("crossrefSource") private var source = "tske"
     @State private var loadedReference: String?
@@ -1342,12 +1343,12 @@ struct CrossRefsView: View {
         openDestination {
             app.recordStudyCrossReference(passage, sourceBook: bookId, chapter: chapter,
                                           edition: textId, verse: fromVerse > 0 ? fromVerse : nil)
-            app.visitScripture(passage, reuseTab: !newTab)
+            app.visitScripture(passage, reuseTab: !newTab, returningTo: sourceTabID)
         }
     }
 
     private func openSourceNote(_ id: String) {
-        openDestination { app.openNote(id) }
+        openDestination { app.openNote(id, fromList: sourceTabID) }
     }
 
     private func openDestination(_ action: @escaping () -> Void) {

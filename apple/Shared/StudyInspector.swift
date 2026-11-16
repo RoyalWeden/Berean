@@ -202,7 +202,8 @@ struct StudyInspector: View {
                            allowsChapterScope: true)
         } else if panel == .crossrefs {
             CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
-                          textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
+                          textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st),
+                          sourceTabID: tabId)
         } else {
             StudyLexiconContent(tabId: tabId, reader: st, lexiconKey: lexiconKey)
         }

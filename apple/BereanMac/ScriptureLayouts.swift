@@ -82,7 +82,8 @@ struct StudyPanel: View {
                         app.update(tabId, recordHistory: false) { $0.state.remove(key) }
                     }
             case .crossrefs: CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
-                              textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st))
+                              textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st),
+                          sourceTabID: tabId)
             }
         }
         .frame(minWidth: 220, minHeight: 160)

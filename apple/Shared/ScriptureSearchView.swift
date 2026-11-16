@@ -725,7 +725,7 @@ struct ScriptureSearchView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             Divider()
-            CrossRefsView(bookId: target.bookId, chapter: target.chapter, verse: target.verse, textId: target.textId)
+            CrossRefsView(bookId: target.bookId, chapter: target.chapter, verse: target.verse, textId: target.textId, sourceTabID: tabId)
         }
     }
 

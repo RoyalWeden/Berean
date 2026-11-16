@@ -640,7 +640,7 @@ struct ScriptureView: View {
         Menu {
             ForEach(notes) { note in
                 Button(note.title.isEmpty ? "Untitled" : note.title, systemImage: "note.text") {
-                    app.openNote(note.id)
+                    app.openNote(note.id, fromList: tabId)
                 }
             }
         } label: {
@@ -1237,7 +1237,7 @@ struct ScriptureView: View {
                             .navigationBarTitleDisplayMode(.inline)
                     case .crossReferences:
                         CrossRefsView(bookId: item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
-                                      textId: st.translation, performDestination: finishVerseSheet)
+                                      textId: st.translation, sourceTabID: tabId, performDestination: finishVerseSheet)
                             .navigationTitle("Cross References")
                             .navigationBarTitleDisplayMode(.inline)
                     case .noteEditor(let id):
