@@ -1522,3 +1522,7 @@ Strong’s Advanced Search and the restored-name bridge now use the complete Lex
 Advanced Search now applies Testament to each edition’s book list before the text query’s result limit, intersecting with any explicit book filter. A nonmatching edition or incompatible book selection is skipped, and the restored-name bridge obeys the same scope. Changing Testament starts a new request. The focused corpus regression verifies that a New Testament search for God returns the same results as explicitly searching all KJVA New Testament books, recovers results beyond the unrestricted sample, and returns zero for a conflicting Genesis filter. Seven focused tests passed. Live UI verification for a capped term remains open.
 
 Both current-source Dev builds passed for the Testament search change.
+
+Text search now probes one extra matching row at its existing limits. Advanced Search no longer infers truncation from the displayed count, so an exact boundary stays exact. Any Word carries forward per-term limits and the unscoped merged-list limit. The verse search API preserves the existing row limits and order. Eighteen focused tests passed, including the original Bible search goldens, an exact filtered boundary, and over-limit All Words and Any Word queries. UI retest for this increment remains open.
+
+Both Mac and iPhone Simulator Dev builds passed for the exact-limit change.

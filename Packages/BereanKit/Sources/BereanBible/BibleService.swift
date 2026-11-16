@@ -130,15 +130,20 @@ public actor BibleService {
     /// FTS5 verse search (`searchText`). FTS syntax errors yield no rows, as in TypeScript.
     public func searchText(_ query: String, textId: String = "kjva", mode: WordMode = .all, bookIds: [String]? = nil, chapter: Int? = nil,
                            matching passageFilter: ScriptureSearch.PassageFilter? = nil) -> [VerseSearchRow] {
+        searchTextBatch(query, textId: textId, mode: mode, bookIds: bookIds, chapter: chapter, matching: passageFilter).rows
+    }
+
+    func searchTextBatch(_ query: String, textId: String, mode: WordMode, bookIds: [String]? = nil, chapter: Int? = nil,
+                         matching passageFilter: ScriptureSearch.PassageFilter? = nil, rowLimit: Int? = nil) -> (rows: [VerseSearchRow], reachedLimit: Bool) {
         let trimmed = JSText.trim(query)
-        if trimmed.isEmpty { return [] }
-        guard let db = db(textId) else { return [] }
+        guard !trimmed.isEmpty, let db = db(textId) else { return ([], false) }
         let scoped = !(bookIds ?? []).isEmpty
         let chapterScoped = scoped && chapter != nil
         let bookClause = scoped ? " AND v.book_id IN (\(Array(repeating: "?", count: bookIds!.count).joined(separator: ", ")))" : ""
         let chapterClause = chapterScoped ? " AND v.chapter = ?" : ""
         let tagged = db.hasColumn("verses", "text_tagged")
-        let limit = scoped ? 5000 : 2000
+        let limit = rowLimit ?? (scoped ? 5000 : ScriptureSearch.perTextLimit)
+        let probeLimit = limit + 1
         let sql = """
 
               SELECT v.book_id, v.chapter, v.verse_num, v.text\(tagged ? ", v.text_tagged" : "")
@@ -146,7 +151,7 @@ public actor BibleService {
               JOIN verses v ON v.id = f.rowid
               WHERE verses_fts MATCH ?\(bookClause)\(chapterClause)
               ORDER BY rank, v.id
-              \(passageFilter == nil ? "LIMIT \(limit)" : "")
+              \(passageFilter == nil ? "LIMIT \(probeLimit)" : "")
 
             """
         func params(_ fts: String) -> [SQLiteValue] {
@@ -156,7 +161,7 @@ public actor BibleService {
             let predicate = passageFilter.map { filter in
                 { (row: SQLiteRow) in filter(row.values[0].string ?? "", row.values[1].int ?? 0, row.values[2].int ?? 0) }
             }
-            return try db.query(sql, params(fts), matching: predicate, limit: limit).map { r in
+            return try db.query(sql, params(fts), matching: predicate, limit: probeLimit).map { r in
                 VerseSearchRow(bookId: r.values[0].string ?? "", chapter: r.values[1].int ?? 0, verseNum: r.values[2].int ?? 0,
                                text: r.values[3].string ?? "", textTagged: tagged ? r.values[4].string : nil, hasTaggedColumn: tagged)
             }
@@ -164,17 +169,20 @@ public actor BibleService {
         if mode == .any {
             var seen = Set<String>()
             var rows: [VerseSearchRow] = []
+            var reachedLimit = false
             for term in BibleText.cleanWords(trimmed) {
                 let fts = BibleText.safeFtsQuery(term, phrase: false)
                 if fts.isEmpty { continue }
                 guard let termRows = try? run(fts) else { continue }
-                for r in termRows where seen.insert("\(r.bookId)|\(r.chapter)|\(r.verseNum)").inserted { rows.append(r) }
+                if termRows.count > limit { reachedLimit = true }
+                for r in termRows.prefix(limit) where seen.insert("\(r.bookId)|\(r.chapter)|\(r.verseNum)").inserted { rows.append(r) }
             }
-            return scoped ? rows : Array(rows.prefix(3000))
+            if !scoped && rows.count > 3000 { return (Array(rows.prefix(3000)), true) }
+            return (rows, reachedLimit)
         }
         let fts = BibleText.safeFtsQuery(trimmed, phrase: mode == .phrase)
-        if fts.isEmpty { return [] }
-        return (try? run(fts)) ?? []
+        guard !fts.isEmpty, let rows = try? run(fts) else { return ([], false) }
+        return (Array(rows.prefix(limit)), rows.count > limit)
     }
 }
 

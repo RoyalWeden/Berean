@@ -2,7 +2,7 @@ import Testing
 import BereanCore
 import BereanSync
 import BereanSQLite
-import BereanBible
+@testable import BereanBible
 import BereanText
 
 /// Repository `data/` (symlinked in worktrees; downloaded in CI). Tests skip when absent.
@@ -204,6 +204,20 @@ func digest(_ rows: [JSValue]) -> JSObject {
         #expect(!r.hits.isEmpty && r.hits.allSatisfy { $0.bookId == "1JN" })
         let short = await ScriptureSearch.run("a", in: ["kjva"], mode: .all, bible: svc())
         #expect(short.hits.isEmpty)
+    }
+
+    @Test func searchLimitProbesForExtraMatchingRows() async {
+        let bible = svc()
+        let exact = await bible.searchTextBatch("beginning", textId: "kjva", mode: .all,
+                                                matching: { $0 == "GEN" && $1 == 1 && $2 == 1 }, rowLimit: 1)
+        #expect(exact.rows.count == 1)
+        #expect(!exact.reachedLimit)
+        let capped = await bible.searchTextBatch("God", textId: "kjva", mode: .all, rowLimit: 1)
+        #expect(capped.rows.count == 1)
+        #expect(capped.reachedLimit)
+        let any = await bible.searchTextBatch("beginning God", textId: "kjva", mode: .any, rowLimit: 1)
+        #expect(!any.rows.isEmpty)
+        #expect(any.reachedLimit)
     }
 
     @Test func testamentScopesEachEditionBeforeTheResultLimit() async {

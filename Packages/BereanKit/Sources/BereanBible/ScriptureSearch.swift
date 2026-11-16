@@ -86,10 +86,9 @@ public enum ScriptureSearch {
             }
             for variant in variants {
                 if Task.isCancelled { return ScriptureSearchResult(hits: [], truncatedTexts: []) }
-                let rows = await bible.searchText(variant, textId: textId, mode: mode, bookIds: scopedBooks, matching: passageFilter)
-                let limit = (scopedBooks ?? []).isEmpty ? perTextLimit : 5000
-                if rows.count >= limit { truncated.insert(textId) }
-                for r in rows {
+                let batch = await bible.searchTextBatch(variant, textId: textId, mode: mode, bookIds: scopedBooks, matching: passageFilter)
+                if batch.reachedLimit { truncated.insert(textId) }
+                for r in batch.rows {
                     let key = "\(textId)|\(r.bookId)|\(r.chapter)|\(r.verseNum)"
                     guard hitIndices[key] == nil else { continue }
                     hitIndices[key] = hits.count
