@@ -101,7 +101,7 @@ struct GoSheet: View {
                 row("History", "clock", .secondary) { app.openHistory(newTab: newTab) }
                 row("Lexicon", "character.book.closed", .green) { app.openLexiconSearch(newTab: newTab) }
                 row("New Note", "square.and.pencil", .orange) { app.newNote() }
-                row("Today's Note", "calendar", .orange) { app.openTodayDailyNote() }
+                row("Today's Note", "calendar", .orange) { app.openTodayDailyNote(newTab: newTab) }
                 row("Tags", "tag", .secondary) { app.openTags(newTab: newTab) }
             }
             .listRowBackground(Color.clear)
@@ -280,5 +280,13 @@ struct GoSheet: View {
             finish { app.openSearch(query, reuseTab: !newTab) }
         }
     }
-    func finish(_ action: () -> Void) { if let close { close() } else { dismiss() }; action() }
+    private func finish(_ action: () -> Void) {
+        let sourceTabID = app.activeTab?.id
+        let sourceWorkspace = app.currentSessionId
+        if let close { close() } else { dismiss() }
+        action()
+        if app.currentSessionId == sourceWorkspace {
+            app.recordTabReturn(to: sourceTabID)
+        }
+    }
 }

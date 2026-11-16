@@ -206,19 +206,21 @@ extension AppModel {
         openUtilityTab(.calendar, in: .notes, title: "Calendar", newTab: newTab)
     }
 
-    func openTodayDailyNote() { openDailyNote(DailyNoteDay.dateKey(DailyNotePreferences.today())) }
+    func openTodayDailyNote(newTab: Bool = false) {
+        openDailyNote(DailyNoteDay.dateKey(DailyNotePreferences.today()), newTab: newTab)
+    }
 
-    func openDailyNote(_ key: String, fromCalendar source: String? = nil) {
+    func openDailyNote(_ key: String, fromCalendar source: String? = nil, newTab: Bool = false) {
         guard let notes else {
             userMessage = "The notes library is unavailable."
             return
         }
         do {
             if let hit = try notes.dailyDates().first(where: { $0.dateKey == key }) {
-                openNote(hit.noteId, fromList: source)
+                openNote(hit.noteId, newTab: newTab, fromList: source)
             } else {
                 let created = try notes.create(.init(type: "daily", title: "Daily — \(key)", content: ""))
-                openNote(created.note.id, fromList: source)
+                openNote(created.note.id, newTab: newTab, fromList: source)
             }
         } catch {
             userMessage = "Could not open the daily note: \(error)"
