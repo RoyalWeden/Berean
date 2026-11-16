@@ -1550,3 +1550,5 @@ Native independent Compare panes now recognize a legacy column’s scrollPos.ver
 Both native Dev builds passed.
 
 Stacked Compare now carries the first visible surviving column's verse across a column reorder or removal. It maps the column to its new index and restores by verse, since a raw vertical offset can land in a different section after reordering. Aligned Compare retains offset restoration. Both Dev build commands exited successfully. Live check pending: stack a comparison with a pinned passage, scroll within a column, move it, and verify that the same verse remains visible.
+
+iPhone Go groups its existing shortcuts in an adaptive grid, with Scripture, Notes, History, and Lexicon first. Accessibility Dynamic Type uses a wider minimum column. Search/result and tab-reuse behavior use their existing routes. Both Dev builds passed. iPhone 18 Pro Simulator verified all seven shortcuts fit on the first screen with the keyboard closed, then opened History directly and confirmed Go dismissed. Large text and software-keyboard coverage remain to check.

@@ -7,6 +7,7 @@ import BereanText
 struct GoSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Closes the sheet through the presenter's binding (`dismiss()` alone left the sheet up after a navigation).
     let newTab: Bool
     var close: (() -> Void)? = nil
@@ -87,13 +88,24 @@ struct GoSheet: View {
 
     @ViewBuilder private var shortcuts: some View {
         Section("Open") {
-            row("Scripture", "book", .blue) { app.openScripture(bookId: lastPassage.bookId, chapter: lastPassage.chapter, verse: lastPassage.verse, endVerse: lastPassage.endVerse, textId: lastPassage.textId, reuseTab: !newTab, verseGroups: lastPassage.verseGroups ?? []) }
-            row("New Note", "square.and.pencil", .orange) { app.newNote() }
-            row("Today's Note", "calendar", .orange) { app.openTodayDailyNote() }
-            row("Notes", "note.text", .orange) { app.openNotesHome(newTab: newTab) }
-            row("History", "clock", .secondary) { app.openHistory(newTab: newTab) }
-            row("Tags", "tag", .secondary) { app.openTags(newTab: newTab) }
-            row("Lexicon", "character.book.closed", .green) { app.openLexiconSearch(newTab: newTab) }
+            let columns = [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 260 : 130),
+                                    spacing: 8, alignment: .leading)]
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                row("Scripture", "book", .blue) {
+                    let passage = lastPassage
+                    app.openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
+                                      endVerse: passage.endVerse, textId: passage.textId,
+                                      reuseTab: !newTab, verseGroups: passage.verseGroups ?? [])
+                }
+                row("Notes", "note.text", .orange) { app.openNotesHome(newTab: newTab) }
+                row("History", "clock", .secondary) { app.openHistory(newTab: newTab) }
+                row("Lexicon", "character.book.closed", .green) { app.openLexiconSearch(newTab: newTab) }
+                row("New Note", "square.and.pencil", .orange) { app.newNote() }
+                row("Today's Note", "calendar", .orange) { app.openTodayDailyNote() }
+                row("Tags", "tag", .secondary) { app.openTags(newTab: newTab) }
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
         }
         if !recents.isEmpty {
             Section("Recent") {
@@ -242,7 +254,10 @@ struct GoSheet: View {
             } icon: {
                 Image(systemName: symbol).foregroundStyle(tint)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .buttonStyle(OptionButtonStyle())
+        .background(.quaternary.opacity(0.6), in: .rect(cornerRadius: 9))
     }
 
     private func noteMatches(_ query: String) -> [Note] {
