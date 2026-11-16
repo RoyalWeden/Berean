@@ -85,6 +85,7 @@ struct ScriptureSearchRequest: Hashable {
     let texts: [String]
     let mode: WordMode
     let books: [String]
+    let testament: String
     let replacer: Bool
     let tagIDs: [String]
     let matchAllTags: Bool
@@ -183,7 +184,7 @@ struct ScriptureSearchView: View {
 
     private var request: ScriptureSearchRequest {
         let filter = tagSelection
-        return ScriptureSearchRequest(query: query, texts: targets, mode: mode, books: bookFilter,
+        return ScriptureSearchRequest(query: query, texts: targets, mode: mode, books: bookFilter, testament: testament,
                                      replacer: app.wordReplacerEnabled, tagIDs: filter.ids, matchAllTags: filter.all,
                                      tagRevision: filter.ids.isEmpty ? nil : app.tagsRevision,
                                      tagMembershipReady: filter.ids.isEmpty || (loadedTagIDs == filter.ids && loadedTagRevision == app.tagsRevision))
@@ -628,6 +629,7 @@ struct ScriptureSearchView: View {
         if text.hasPrefix("\""), text.hasSuffix("\""), text.count > 2 { text = String(text.dropFirst().dropLast()); m = .phrase }
         guard !Task.isCancelled else { return }
         let found = await ScriptureSearch.run(text, in: request.texts, mode: m, bookIds: request.books.isEmpty ? nil : request.books,
+                                              testament: request.testament == "all" ? nil : request.testament,
                                               replacer: request.replacer, bible: app.bible, lexicon: app.lexicon, matching: passageFilter)
         guard !Task.isCancelled else { return }
         result = found

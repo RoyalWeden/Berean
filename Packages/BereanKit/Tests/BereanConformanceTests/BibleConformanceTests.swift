@@ -206,6 +206,24 @@ func digest(_ rows: [JSValue]) -> JSObject {
         #expect(short.hits.isEmpty)
     }
 
+    @Test func testamentScopesEachEditionBeforeTheResultLimit() async {
+        let bible = svc()
+        let unscoped = await ScriptureSearch.run("God", in: ["kjva"], mode: .all, replacer: false, bible: bible)
+        #expect(unscoped.truncatedTexts.contains("kjva"))
+        let books = await bible.getBooks("kjva").filter { $0.testament == "NT" }.map(\.id)
+        let explicit = await ScriptureSearch.run("God", in: ["kjva"], mode: .all, bookIds: books,
+                                                 replacer: false, bible: bible)
+        let scoped = await ScriptureSearch.run("God", in: ["kjva", "lxx"], mode: .all, testament: "NT",
+                                               replacer: false, bible: bible)
+        #expect(!scoped.hits.isEmpty)
+        #expect(scoped.hits == explicit.hits)
+        #expect(scoped.truncatedTexts == explicit.truncatedTexts)
+        #expect(scoped.hits.count > unscoped.hits.filter { books.contains($0.bookId) }.count)
+        let conflicting = await ScriptureSearch.run("God", in: ["kjva"], mode: .all, bookIds: ["GEN"],
+                                                    testament: "NT", replacer: false, bible: bible)
+        #expect(conflicting.hits.isEmpty)
+    }
+
     @Test func deterministicOrder() async {
         let a = await ScriptureSearch.run("grace", in: all, mode: .any, bible: svc())
         let b = await ScriptureSearch.run("grace", in: all, mode: .any, bible: svc())

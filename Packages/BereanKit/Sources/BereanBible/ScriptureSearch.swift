@@ -66,17 +66,28 @@ public enum ScriptureSearch {
     public typealias PassageFilter = @Sendable (_ book: String, _ chapter: Int, _ verse: Int) -> Bool
 
     public static func run(_ query: String, in targets: [String], mode: WordMode, bookIds: [String]? = nil,
-                           replacer: Bool = true, rules: [WordReplacerRule] = WordReplacer.defaultRules, bible: BibleService,
+                           testament: String? = nil, replacer: Bool = true, rules: [WordReplacerRule] = WordReplacer.defaultRules, bible: BibleService,
                            lexicon: LexiconService? = nil, matching passageFilter: PassageFilter? = nil) async -> ScriptureSearchResult {
         let trimmed = JSText.trim(query)
         guard trimmed.utf16.count >= 2 else { return ScriptureSearchResult(hits: [], truncatedTexts: []) }
         let variants = replacer ? WordReplacer.searchVariants(trimmed, rules: rules) : [trimmed]
         var hitIndices: [String: Int] = [:], hits: [ScriptureHit] = [], truncated = Set<String>()
+        let requestedBooks = Set(bookIds ?? [])
+        var testamentBooks: [String: Set<String>] = [:]
         for textId in targets {
+            var scopedBooks = bookIds
+            if let testament {
+                let books = await bible.getBooks(textId).filter {
+                    $0.testament == testament && (requestedBooks.isEmpty || requestedBooks.contains($0.id))
+                }.map(\.id)
+                testamentBooks[textId] = Set(books)
+                guard !books.isEmpty else { continue }
+                scopedBooks = books
+            }
             for variant in variants {
                 if Task.isCancelled { return ScriptureSearchResult(hits: [], truncatedTexts: []) }
-                let rows = await bible.searchText(variant, textId: textId, mode: mode, bookIds: bookIds, matching: passageFilter)
-                let limit = (bookIds ?? []).isEmpty ? perTextLimit : 5000
+                let rows = await bible.searchText(variant, textId: textId, mode: mode, bookIds: scopedBooks, matching: passageFilter)
+                let limit = (scopedBooks ?? []).isEmpty ? perTextLimit : 5000
                 if rows.count >= limit { truncated.insert(textId) }
                 for r in rows {
                     let key = "\(textId)|\(r.bookId)|\(r.chapter)|\(r.verseNum)"
@@ -93,6 +104,7 @@ public enum ScriptureSearch {
             let found = await occurrences(bridge.strongsNums, words: bridge.residualWords, requireAll: false, lexicon: lexicon)
             let scope = bookIds.flatMap { $0.isEmpty ? nil : Set($0) }
             for h in found where bridgeTargets.contains(h.textId) && (scope?.contains(h.bookId) ?? true)
+                && (testament == nil || testamentBooks[h.textId]?.contains(h.bookId) == true)
                 && (passageFilter?(h.bookId, h.chapter, h.verseNum) ?? true) {
                 let key = "\(h.textId)|\(h.bookId)|\(h.chapter)|\(h.verseNum)"
                 if let index = hitIndices[key] {
