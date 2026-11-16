@@ -350,7 +350,7 @@ struct CommandPalette: View {
         }
         var commands: [(String, String, (Bool) -> Void)] = [
             ("New Note", "square.and.pencil", { _ in app.newNote() }),
-            ("Today's Note", "calendar", { _ in app.openTodayDailyNote() }),
+            ("Today's Note", "calendar", { inNewTab in app.openTodayDailyNote(newTab: inNewTab) }),
             ("Calendar", "calendar", { inNewTab in app.openCalendar(newTab: inNewTab) }),
             ("Notes", "tray.full", { inNewTab in app.openNotesHome(newTab: inNewTab) }),
             ("History", "clock", { inNewTab in app.openHistory(newTab: inNewTab) }),
@@ -664,16 +664,22 @@ struct CommandPalette: View {
         }
         if let source = item.sourceRestore {
             Button("Restore to \(source.name)", systemImage: "square.stack") {
-                source.run()
-                close()
+                performNavigation(source.run)
             }
         }
     }
 
     private func activate(_ item: Item, inNewTab: Bool) {
-        let source = prefersActiveTab && !inNewTab && item.offersOpenMenu ? app.activeTab?.id : nil
-        item.run(inNewTab)
-        app.recordTabReturn(to: source)
+        performNavigation { item.run(inNewTab) }
+    }
+
+    private func performNavigation(_ action: () -> Void) {
+        let sourceTabID = app.activeTab?.id
+        let sourceWorkspace = app.currentSessionId
+        action()
+        if app.currentSessionId == sourceWorkspace {
+            app.recordTabReturn(to: sourceTabID)
+        }
         close()
     }
 }

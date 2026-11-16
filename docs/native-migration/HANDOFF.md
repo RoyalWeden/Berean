@@ -1560,3 +1560,5 @@ Go’s passage result now shows Open Tab when the exact reference and edition al
 Both native Dev builds passed.
 
 Mac floating search labels an exact open Scripture destination Switch to Tab in result rows and the footer, including recent passages. The hint uses the existing reuse predicate and is omitted in explicit New Tab and Command-L location-editing modes. Both Dev builds passed. Live checks pending: regular Command-K on an open passage, Shift-Return to open a new tab, and Command-L to keep editing the current reader.
+
+Mac floating search now records a Back path whenever a result or command opens a different tab within the same workspace. This includes Switch to Tab, explicit New Tab, and archived restores into the same workspace. Same-tab edits continue through existing location history. Today’s Note also honors explicit New Tab. Both native Dev builds passed. Live Mac checks pending for Command-K → Switch to Tab → Back, Shift-Return → Back, and a workspace switch.
