@@ -838,11 +838,12 @@ struct SessionsPage: View {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let workspaces = app.workspaceItems.filter { $0.matches(search) }
         let tabs = app.matchingWorkspaceTabs(search)
+        let exactWorkspaces = WorkspaceItem.exactMatches(for: search, in: workspaces)
         return List {
             TabSearchField(prompt: "Workspace, passage, or tab title", query: $query)
                 .onSubmit {
-                    guard !search.isEmpty else { return }
-                    if let exact = WorkspaceItem.exactMatch(for: search, in: workspaces) {
+                    guard !search.isEmpty, exactWorkspaces.count <= 1 else { return }
+                    if let exact = exactWorkspaces.first {
                         app.open(exact)
                     } else if let tab = tabs.first {
                         app.openWorkspaceTab(tab)
@@ -853,6 +854,10 @@ struct SessionsPage: View {
                     }
                     closeTabs()
                 }
+            if exactWorkspaces.count > 1 {
+                Text("Choose a workspace below.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if workspaces.isEmpty && tabs.isEmpty && !search.isEmpty {
                 ContentUnavailableView.search(text: search)
             }

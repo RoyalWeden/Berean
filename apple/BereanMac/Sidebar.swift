@@ -222,6 +222,7 @@ struct BereanSidebar: View {
         let query = workspaceQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let workspaces = app.workspaceItems.filter { $0.matches(query) }
         let matches = app.matchingWorkspaceTabs(query)
+        let exactWorkspaces = WorkspaceItem.exactMatches(for: query, in: workspaces)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -229,8 +230,8 @@ struct BereanSidebar: View {
                     .textFieldStyle(.plain)
                     .focused($workspaceSearchFocused)
                     .onSubmit {
-                        guard !query.isEmpty else { return }
-                        if let exact = WorkspaceItem.exactMatch(for: query, in: workspaces) {
+                        guard !query.isEmpty, exactWorkspaces.count <= 1 else { return }
+                        if let exact = exactWorkspaces.first {
                             openWorkspaceSearchResult(exact)
                         } else if let first = matches.first {
                             openWorkspaceTab(first)
@@ -242,6 +243,10 @@ struct BereanSidebar: View {
                     .keyboardShortcut(.cancelAction)
             }
             Divider()
+            if exactWorkspaces.count > 1 {
+                Text("Choose a workspace below.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if workspaces.isEmpty && matches.isEmpty {
                 ContentUnavailableView.search(text: query)
             } else {

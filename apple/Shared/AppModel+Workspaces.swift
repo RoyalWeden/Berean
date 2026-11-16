@@ -75,18 +75,15 @@ struct WorkspaceItem: Identifiable, Hashable {
         termsOutsideName(query).isEmpty || !previewLabels(matching: query).isEmpty
     }
 
-    static func exactMatch(for query: String, in candidates: [WorkspaceItem]) -> WorkspaceItem? {
+    static func exactMatches(for query: String, in candidates: [WorkspaceItem]) -> [WorkspaceItem] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "–", with: "-")
-        guard !query.isEmpty else { return nil }
+        guard !query.isEmpty else { return [] }
         func equals(_ name: String) -> Bool {
-            name.replacingOccurrences(of: "–", with: "-").localizedStandardCompare(query) == .orderedSame
+            name.replacingOccurrences(of: "–", with: "-").localizedCaseInsensitiveCompare(query) == .orderedSame
         }
         let stored = candidates.filter { equals($0.name) }
-        if stored.count == 1 { return stored.first }
-        guard stored.isEmpty else { return nil }
-        let displayed = candidates.filter { equals($0.displayName) }
-        return displayed.count == 1 ? displayed.first : nil
+        return stored.isEmpty ? candidates.filter { equals($0.displayName) } : stored
     }
 
     private func termsOutsideName(_ query: String) -> [Substring] {
