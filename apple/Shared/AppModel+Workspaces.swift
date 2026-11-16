@@ -35,8 +35,12 @@ struct WorkspaceItem: Identifiable, Hashable {
         return displayName == name ? count : "\(name) · \(count)"
     }
 
+    var tabDestinationName: String {
+        displayName == name ? name : "\(displayName) · \(name)"
+    }
+
     var menuLabel: String {
-        if displayName != name { return "\(displayName) · \(name)" }
+        if displayName != name { return tabDestinationName }
         return "\(name) · \(preview ?? tabCountLabel)"
     }
 

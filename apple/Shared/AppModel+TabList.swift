@@ -58,7 +58,7 @@ extension AppModel {
         recentTabIDs.filter { $0 != activeTab?.id }.compactMap { id in
             for workspace in sessions {
                 if let tab = workspace.allTabs.first(where: { $0.id == id }) {
-                    let label = WorkspaceItem(session: workspace).displayName
+                    let label = WorkspaceItem(session: workspace).tabDestinationName
                     return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: label, tab: tab)
                 }
             }
@@ -81,7 +81,7 @@ extension AppModel {
             for id in displayOrder(for: workspace.id) {
                 guard let tab = tabsByID[id] else { continue }
                 let tabText = tab.navigationSearchText
-                let match = WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: item.displayName, tab: tab)
+                let match = WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: item.tabDestinationName, tab: tab)
                 if terms.allSatisfy({ tabText.localizedStandardContains(String($0)) }) {
                     direct.append(match)
                 } else if terms.allSatisfy({ (tabText + " " + workspaceText).localizedStandardContains(String($0)) }) {
@@ -98,8 +98,7 @@ extension AppModel {
             let candidates = workspace.tabs(in: .scripture).filter(passage.isShown(in:))
             let active = workspace.activeTabId[.scripture] ?? nil
             guard let tab = candidates.first(where: { $0.id == active }) ?? candidates.first else { continue }
-            let item = WorkspaceItem(session: workspace)
-            let label = item.displayName == item.name ? item.name : item.menuLabel
+            let label = WorkspaceItem(session: workspace).tabDestinationName
             matches.append(.init(workspaceID: workspace.id, workspaceName: label, tab: tab))
             if matches.count == 6 { break }
         }
