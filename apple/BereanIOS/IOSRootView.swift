@@ -967,7 +967,19 @@ struct ArchivedTabsPage: View {
                                 }
                                 .accessibilityHint("Restore and open this tab")
                             }
-                            .swipeActions {
+                            .contextMenu {
+                                Button("Restore and Open Here", systemImage: "archivebox") {
+                                    app.restoreArchivedTab(tab.id, from: group.id)
+                                    onOpen()
+                                }
+                                if let source = sourceNames[group.id] {
+                                    Button("Restore and Open in \(source)", systemImage: "square.stack") {
+                                        app.restoreArchivedTab(tab.id, from: group.id, toSource: true)
+                                        onOpen()
+                                    }
+                                }
+                            }
+                            .swipeActions(allowsFullSwipe: false) {
                                 if let source = sourceNames[group.id] {
                                     Button("Restore to \(source)", systemImage: "square.stack") {
                                         app.restoreArchived(group.id, toSource: true, only: tab.id)

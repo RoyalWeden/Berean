@@ -1604,3 +1604,5 @@ Native tab rendering and persistence now share display-order reconciliation. It 
 Both native Dev builds passed.
 
 Native Save Workspace now writes a reconciled mixed tab order, dropping stale and repeated IDs before serializing. Older malformed orders are repaired when restored into a live workspace. The low-level parser retains the legacy format behavior, including duplicate entries in the original TypeScript golden fixture. Both Dev builds and six focused tests passed, including native save and malformed restore checks. Live save/reopen remains to verify.
+
+The iPhone Archived Tabs list now exposes Restore and Open Here and, when available, Restore and Open in [source workspace] on each row’s long press. The existing swipe action still restores to the source in the background and now requires tapping its button, so a full swipe does not activate it. iPhone Simulator Dev built. Live long-press, swipe, and cross-workspace Back remain to verify.
