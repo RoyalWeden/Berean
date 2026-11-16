@@ -278,22 +278,22 @@ struct ScriptureSearchView: View {
 
     var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Words, “exact phrase”, or Strong's number", text: $field)
-                        .textFieldStyle(.plain)
-                        .focused($fieldFocused)
-                        .onSubmit(submit)
-                        .autocorrectionDisabled()
-                    if !field.isEmpty || !query.isEmpty {
-                        Button(action: clearQuery) { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
-                            .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
-                    }
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Words, “exact phrase”, or Strong's number", text: $field)
+                    .textFieldStyle(.plain)
+                    .focused($fieldFocused)
+                    .onSubmit(submit)
+                    .autocorrectionDisabled()
+                if !field.isEmpty || !query.isEmpty {
+                    Button(action: clearQuery) { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                        .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
                 }
-                .padding(.horizontal, 10).padding(.vertical, 7)
-                .frame(minHeight: headerControlSize)
-                .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .frame(minHeight: headerControlSize)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
+            FlowLayout(spacing: 6) {
                 scopeMenu
                 Button {
                     #if os(iOS)
@@ -301,10 +301,9 @@ struct ScriptureSearchView: View {
                     #endif
                     showOptions.toggle()
                 } label: {
-                    Image(systemName: hasActiveOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    Label("Options", systemImage: hasActiveOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                         .foregroundStyle(hasActiveOptions ? Color.accentColor : Color.primary)
-                        .frame(width: headerControlSize, height: headerControlSize)
-                        .contentShape(.rect)
+                        .frame(minHeight: 24)
                 }
                 .buttonStyle(OptionButtonStyle(active: showOptions || hasActiveOptions))
                 .accessibilityLabel("Search Options")
@@ -316,8 +315,8 @@ struct ScriptureSearchView: View {
                         .frame(width: 340, height: 420)
                 }
                 #endif
+                if !tagSelection.ids.isEmpty { activeTagFilter }
             }
-            if !tagSelection.ids.isEmpty { activeTagFilter }
             if query.utf16.count >= 2 { summaryRow }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
@@ -370,18 +369,11 @@ struct ScriptureSearchView: View {
                 }
             }
         } label: {
-            #if os(iOS)
-            Image(systemName: "books.vertical")
+            Label(scopeLabel, systemImage: "books.vertical")
                 .foregroundStyle(scope == nil ? Color.primary : Color.accentColor)
-                .frame(width: headerControlSize, height: headerControlSize)
+                .lineLimit(1)
+                .frame(minHeight: headerControlSize)
                 .contentShape(.rect)
-            #else
-            ViewThatFits(in: .horizontal) {
-                Label(scopeLabel, systemImage: "books.vertical").fixedSize(horizontal: true, vertical: false)
-                Image(systemName: "books.vertical")
-            }
-            .frame(maxWidth: 124)
-            #endif
         }
         .menuStyle(.borderlessButton).clickableCursor()
         .optionHover(active: scope != nil)
