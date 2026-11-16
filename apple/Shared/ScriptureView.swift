@@ -8,7 +8,7 @@ import BereanReference
 import BereanWorkspace
 import BereanNotes
 
-struct ScriptureReadingPosition {
+struct ScriptureReadingPosition: Equatable {
     let offset: CGFloat
     let verse: Int?
     var atEnd = false

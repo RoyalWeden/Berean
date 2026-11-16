@@ -1608,3 +1608,7 @@ Native Save Workspace now writes a reconciled mixed tab order, dropping stale an
 The iPhone Archived Tabs list now exposes Restore and Open Here and, when available, Restore and Open in [source workspace] on each row’s long press. The existing swipe action still restores to the source in the background and now requires tapping its button, so a full swipe does not activate it. iPhone Simulator Dev built. Live long-press, swipe, and cross-workspace Back remain to verify.
 
 Mac Browse Archived Tabs now distinguishes Restore and Open Here, Restore and Open in the source workspace, and restore to that workspace in the background. The open actions dismiss the browser and use the existing return path when switching workspaces. The background action keeps the archive browser open. Mac Dev built successfully. Live context-menu and focus checks remain open.
+
+Exact Duplicates Only now checks native reading bookmarks before proposing Scripture and Compare copies. Tabs with identical persisted state but different current-chapter reading positions or Compare scroll bookmarks remain outside the duplicate suggestions, including at action time. The general inactive-tab list can still be used for intentional cleanup. Both targets are covered by the shared implementation. Live check pending: open the same chapter twice, scroll to different verses, and confirm Exact Duplicates Only leaves both alone.
+
+Both native Dev builds passed.

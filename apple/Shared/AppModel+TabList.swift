@@ -246,6 +246,7 @@ extension AppModel {
             if inactive.contains(tab.id), let original = copies.first(where: {
                 $0.type == tab.type && $0.state == tab.state
                     && $0.originTabId == tab.originTabId && $0.originSpaceId == tab.originSpaceId
+                    && sameCleanupReadingPosition($0, tab)
             }) {
                 duplicates[tab.id] = original
             } else {
@@ -253,6 +254,18 @@ extension AppModel {
             }
         }
         return duplicates
+    }
+
+    private func sameCleanupReadingPosition(_ first: Tab, _ second: Tab) -> Bool {
+        guard first.tabType == .bible else { return true }
+        let reader = BibleState(first.state)
+        let chapter = ChapterEdition(reader).key
+        guard scriptureReadingPositions[first.id]?[chapter] == scriptureReadingPositions[second.id]?[chapter] else {
+            return false
+        }
+        guard reader.compareMode else { return true }
+        return compareScrollOffsets[first.id] == compareScrollOffsets[second.id]
+            && compareColumnScrollVerses[first.id] == compareColumnScrollVerses[second.id]
     }
 
     @discardableResult
