@@ -1395,3 +1395,8 @@
 ### 2026-11-16 — Reopen a Strong’s source passage
 
 - New Strong’s History entries save their source edition. Open Source Passage returns to the recorded reader location, including the clicked edition in Compare. Both Dev builds passed.
+
+### 2026-11-16 — Lexicon filters and Search hover
+
+- Moved Lexicon Filters beside Search Scripture and replaced the split counts with one results summary. The filter panel adds searchable books and translated words.
+- Added pointer hover feedback to Lexicon and Advanced Search controls. The iPhone Dev simulator verified the new book filter and result summary.

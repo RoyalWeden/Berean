@@ -306,7 +306,7 @@ struct ScriptureSearchView: View {
                         .frame(width: headerControlSize, height: headerControlSize)
                         .contentShape(.rect)
                 }
-                .buttonStyle(.interactivePlain)
+                .buttonStyle(OptionButtonStyle(active: showOptions || hasActiveOptions))
                 .accessibilityLabel("Search Options")
                 .accessibilityHint(hasActiveOptions ? "Filters are active" : "Match, testament, books, and order")
                 .help(hasActiveOptions ? "Search options · filters active" : "Search options")
@@ -384,6 +384,7 @@ struct ScriptureSearchView: View {
             #endif
         }
         .menuStyle(.borderlessButton).clickableCursor()
+        .optionHover(active: scope != nil)
         .accessibilityLabel("Search Scope")
         .accessibilityValue(scopeLabel)
         .help("Search scope: \(scopeLabel)")
@@ -408,7 +409,7 @@ struct ScriptureSearchView: View {
             Text("Testament").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Testament", selection: Binding(get: { testament }, set: { set("testament", .string(JSString($0))) })) {
                 Text("All").tag("all"); Text("Old Testament").tag("OT"); Text("New Testament").tag("NT"); Text("Apocrypha").tag("Apocrypha"); Text("Other writings").tag("Pseudepigrapha")
-            }.pickerStyle(.menu).labelsHidden().clickableCursor()
+            }.pickerStyle(.menu).labelsHidden().clickableCursor().optionHover()
             Text("Books").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             BookFilterField(selected: bookFilter) { ids in set("bookIds", ids.isEmpty ? nil : .array(ids.map { .string(JSString($0)) })) }
             Text("Verse Tags").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -431,7 +432,7 @@ struct ScriptureSearchView: View {
                     .lineLimit(1)
             }
             .disabled(verseTags.isEmpty && tagSelection.ids.isEmpty)
-            .clickableCursor()
+            .clickableCursor().optionHover()
             if tagSelection.ids.count > 1 {
                 Picker("Match Tags", selection: Binding(get: { tagSelection.all }, set: { set("tagFilterAll", $0 ? .bool(true) : nil) })) {
                     Text("Any selected tag").tag(false)
@@ -451,6 +452,7 @@ struct ScriptureSearchView: View {
             }.modifier(SearchOptionsPickerStyle())
             if hasActiveOptions {
                 Button("Reset Options", action: resetOptions)
+                    .buttonStyle(OptionButtonStyle())
             }
         }
     }
@@ -981,7 +983,7 @@ private struct SearchOptionsPickerStyle: ViewModifier {
         #if os(iOS)
         content.pickerStyle(.menu).labelsHidden()
         #else
-        content.pickerStyle(.segmented).labelsHidden().clickableCursor()
+        content.pickerStyle(.segmented).labelsHidden().clickableCursor().optionHover()
         #endif
     }
 }
@@ -1019,8 +1021,52 @@ struct BookFilterField: View {
                 .onSubmit { if let f = matches.first { onChange(selected + [f]); text = "" } }
             ForEach(matches, id: \.self) { id in
                 Button { onChange(selected + [id]); text = "" } label: { Text(Reference.bookName(id)).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect) }
-                    .buttonStyle(.interactivePlain)
+                    .buttonStyle(OptionButtonStyle())
             }
         }
+    }
+}
+
+struct OptionButtonStyle: ButtonStyle {
+    var active = false
+    @Environment(\.isEnabled) private var enabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            #if os(iOS)
+            .frame(minHeight: 44)
+            #endif
+            .opacity(enabled ? (configuration.isPressed ? 0.65 : 1) : 0.45)
+            .optionHover(active: active)
+            #if os(macOS)
+            .pointerStyle(enabled ? .link : .default)
+            #endif
+    }
+}
+
+/// Visible pointer feedback for otherwise plain option controls.
+private struct OptionHover: ViewModifier {
+    let active: Bool
+    @Environment(\.isEnabled) private var enabled
+    @State private var hovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(Color.primary.opacity((active ? 0.10 : 0) + (enabled && hovered ? 0.08 : 0)),
+                        in: .rect(cornerRadius: 7))
+            .contentShape(.rect)
+            #if os(macOS)
+            .onHover { hovered = $0 }
+            #else
+            .hoverEffect(.highlight, isEnabled: enabled)
+            #endif
+    }
+}
+
+extension View {
+    func optionHover(active: Bool = false) -> some View {
+        modifier(OptionHover(active: active))
     }
 }

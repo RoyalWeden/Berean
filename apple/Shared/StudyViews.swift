@@ -70,6 +70,11 @@ struct LexiconEntryView: View {
     @State private var scrollPosition = ScrollPosition()
     @State private var restoredScrollEntry: String?
     @State private var restoredWithChangedWordReplacement = false
+    @State private var showsOccurrenceFilters = false
+    @State private var occurrenceFilterList: OccurrenceFilterList?
+    @State private var occurrenceFilterQuery = ""
+    private enum OccurrenceFilterList { case books, words }
+
     @State private var occurrenceEdition: String?
     @State private var occurrenceBook: String?
     @State private var visibleOccurrences = 40
@@ -345,34 +350,34 @@ struct LexiconEntryView: View {
                                         }
                                         .frame(minHeight: entryControlHeight)
                                         .contentShape(.rect)
-                                    }.buttonStyle(.interactivePlain)
+                                    }.buttonStyle(OptionButtonStyle())
                                     .contextMenu { strongsMenu(r.strongsNum, gloss: r.gloss) }
                                     .id(FindSection.related(r.strongsNum))
                                 }
                             }
                         }
-                        section(occurrences.isEmpty ? "Occurrences" : "Occurrences (\(occurrences.count)\(occurrencesTruncated ? "+" : ""))") {
+                        section("Occurrences") {
                             if occurrencesLoading {
                                 ProgressView().accessibilityLabel("Loading occurrences")
                             } else if occurrences.isEmpty {
                                 Text("No occurrences found").foregroundStyle(.secondary)
-                            }
-                            let forms = indexed.reduce(into: [String: Int]()) { counts, row in
-                                for word in row.2 { counts[word, default: 0] += 1 }
-                            }
-                            if !occurrences.isEmpty {
-                                HStack {
-                                    Text(occurrencesTruncated
-                                         ? "\(occurrenceMatches.count) of \(occurrences.count) loaded"
-                                         : occurrenceMatches.count == occurrences.count ? "All shown" : "\(occurrenceMatches.count) shown")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                    Spacer(minLength: 4)
-                                    occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1)
+                            } else {
+                                let forms = indexed.reduce(into: [String: Int]()) { counts, row in
+                                    for word in row.2 { counts[word, default: 0] += 1 }
                                 }
-                                if hasOccurrenceOptions {
-                                    activeOccurrenceOptions
+                                FlowLayout(spacing: 8) {
+                                    occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1 || sortByMatches)
+                                    Button("Search Scripture", systemImage: "magnifyingglass") {
+                                        leaveInspector()
+                                        app.openSearch(e.strongsNum, reuseTab: true, returningTo: tabId)
+                                    }
+                                    .buttonStyle(OptionButtonStyle())
+                                    .accessibilityHint("Search Scripture for \(e.strongsNum)")
                                 }
+                                Text(occurrenceCountLabel(occurrenceMatches.count))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                if hasOccurrenceOptions { activeOccurrenceOptions }
                                 if occurrenceMatches.isEmpty {
                                     Text(occurrencesTruncated
                                          ? "No loaded occurrences match these filters."
@@ -380,13 +385,6 @@ struct LexiconEntryView: View {
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
                                 }
-                            }
-                            if !occurrences.isEmpty {
-                                Button("Search Scripture for \(e.strongsNum)", systemImage: "magnifyingglass") {
-                                    leaveInspector()
-                                    app.openSearch(e.strongsNum, reuseTab: true, returningTo: tabId)
-                                }
-                                .buttonStyle(.interactivePlain)
                             }
                             if compact, !occurrences.isEmpty {
                                 Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
@@ -639,7 +637,7 @@ struct LexiconEntryView: View {
             .padding(.vertical, 4)
             .contentShape(.rect)
         }
-        .buttonStyle(.interactivePlain)
+        .buttonStyle(OptionButtonStyle())
         .contextMenu {
             Button("Open Verse", systemImage: "book") { openOccurrence(passage, key: key) }
             Button("Open in New Tab", systemImage: "plus.square") { openOccurrence(passage, key: key, newTab: true) }
@@ -715,85 +713,150 @@ struct LexiconEntryView: View {
         .help("Clear \(kind)")
     }
 
+    private func occurrenceCountLabel(_ matches: Int) -> String {
+        let total = occurrences.count.formatted()
+        if occurrencesTruncated { return "\(matches.formatted()) of \(total) loaded" }
+        if matches == occurrences.count { return matches == 1 ? "1 result" : "\(total) results" }
+        return "\(matches.formatted()) of \(total) results"
+    }
+
     private func occurrenceFilters(books: [String: [LexiconOccurrence]], forms: [String: Int], canSort: Bool) -> some View {
-        let filtered = hasOccurrenceOptions
-        return Menu {
+        Button("Filters", systemImage: hasOccurrenceOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle") {
+            occurrenceFilterList = nil
+            occurrenceFilterQuery = ""
+            showsOccurrenceFilters = true
+        }
+        .buttonStyle(OptionButtonStyle(active: hasOccurrenceOptions || showsOccurrenceFilters))
+        .accessibilityHint(hasOccurrenceOptions ? "Occurrence filters are active" : "Filter and sort occurrences")
+        .popover(isPresented: $showsOccurrenceFilters, arrowEdge: .bottom) {
+            ScrollView {
+                occurrenceFilterPanel(books: books, forms: forms, canSort: canSort)
+                    .padding(16)
+            }
+            .frame(idealWidth: 320, maxHeight: 420)
+            #if os(iOS)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .presentationCompactAdaptation(.sheet)
+            #endif
+        }
+    }
+
+    private func occurrenceFilterPanel(books: [String: [LexiconOccurrence]], forms: [String: Int], canSort: Bool) -> some View {
+        let bookOptions = Set(books.keys).union(occurrenceBook.map { [$0] } ?? [])
+        let wordOptions = Set(forms.keys).union(selectedRenderings)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Occurrence Filters").font(.headline)
+                Spacer()
+                Button("Done") { showsOccurrenceFilters = false }
+                    .buttonStyle(OptionButtonStyle())
+            }
             if editions.count > 1 {
-                Picker("Edition", selection: Binding(get: { occurrenceEdition }, set: {
-                    occurrenceEdition = $0
-                    visibleOccurrences = 40
-                })) {
+                Picker("Edition", selection: $occurrenceEdition) {
                     Text("All Editions").tag(nil as String?)
                     ForEach(editions, id: \.self) { edition in
                         Text(textInfo(edition).short).tag(Optional(edition))
                     }
                 }
-                .pickerStyle(.menu).clickableCursor()
+                .pickerStyle(.menu).clickableCursor().optionHover()
             }
-            let bookOptions = Set(books.keys).union(occurrenceBook.map { [$0] } ?? [])
             if !bookOptions.isEmpty {
-                Picker("Book", selection: Binding(get: { occurrenceBook }, set: {
-                    occurrenceBook = $0
-                    visibleOccurrences = 40
-                })) {
-                    Text("All Books").tag(nil as String?)
+                occurrenceFilterDisclosure(.books, title: "Book", value: occurrenceBook.map { Reference.bookName($0) } ?? "All Books") {
+                    Button {
+                        occurrenceBook = nil
+                        occurrenceFilterList = nil
+                    } label: { occurrenceChoice("All Books", selected: occurrenceBook == nil) }
+                    .buttonStyle(OptionButtonStyle())
                     ForEach(bookOptions.sorted { (Reference.bookName($0), $0) < (Reference.bookName($1), $1) }, id: \.self) { book in
-                        Text("\(Reference.bookName(book)) (\(books[book]?.count ?? 0))").tag(Optional(book))
+                        let name = Reference.bookName(book)
+                        if matchesOccurrenceFilter(name) {
+                            Button {
+                                occurrenceBook = book
+                                occurrenceFilterList = nil
+                            } label: { occurrenceChoice("\(name) (\(books[book]?.count ?? 0))", selected: occurrenceBook == book) }
+                            .buttonStyle(OptionButtonStyle())
+                        }
                     }
                 }
-                .pickerStyle(.menu).clickableCursor()
             }
-            let wordOptions = Set(forms.keys).union(selectedRenderings)
             if !wordOptions.isEmpty {
-                Menu {
+                occurrenceFilterDisclosure(.words, title: "Translated Words",
+                                           value: selectedRenderings.isEmpty ? "Any" : "\(selectedRenderings.count) selected") {
                     ForEach(wordOptions.sorted { (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1) }, id: \.self) { word in
-                        Toggle("\(word) (\(forms[word] ?? 0))", isOn: Binding(
-                            get: { selectedRenderings.contains(word) },
-                            set: { included in
-                                if included { selectedRenderings.insert(word) }
-                                else { selectedRenderings.remove(word) }
-                                visibleOccurrences = 40
-                            }
-                        ))
+                        if matchesOccurrenceFilter(word) {
+                            Button {
+                                if selectedRenderings.contains(word) { selectedRenderings.remove(word) }
+                                else { selectedRenderings.insert(word) }
+                            } label: { occurrenceChoice("\(word) (\(forms[word] ?? 0))", selected: selectedRenderings.contains(word)) }
+                            .buttonStyle(OptionButtonStyle())
+                        }
                     }
-                    if !selectedRenderings.isEmpty {
-                        Button("Clear Word Filter") { selectedRenderings = []; visibleOccurrences = 40 }
-                    }
-                } label: {
-                    Label(selectedRenderings.isEmpty ? "Translated Words" : "Translated Words (\(selectedRenderings.count))",
-                          systemImage: "text.magnifyingglass")
                 }
             }
             if canSort {
-                Picker("Sort Occurrences", selection: Binding(get: { sortByMatches }, set: {
-                    sortByMatches = $0
-                    visibleOccurrences = 40
-                })) {
+                Picker("Sort", selection: $sortByMatches) {
                     Text(compact ? "Default Order" : "Scripture Order").tag(false)
                     Text("Most Matches").tag(true)
                 }
-                .pickerStyle(.menu).clickableCursor()
+                .pickerStyle(.menu).clickableCursor().optionHover()
             }
-            if filtered {
-                Button("Reset Options") {
+            if hasOccurrenceOptions {
+                Button("Reset Filters") {
                     occurrenceEdition = nil
                     occurrenceBook = nil
                     selectedRenderings = []
                     sortByMatches = false
-                    visibleOccurrences = 40
+                    occurrenceFilterList = nil
+                }
+                .buttonStyle(OptionButtonStyle())
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: occurrenceEdition) { visibleOccurrences = 40 }
+        .onChange(of: occurrenceBook) { visibleOccurrences = 40 }
+        .onChange(of: selectedRenderings) { visibleOccurrences = 40 }
+        .onChange(of: sortByMatches) { visibleOccurrences = 40 }
+    }
+
+    private func occurrenceFilterDisclosure<Choices: View>(_ list: OccurrenceFilterList, title: String, value: String,
+                                                            @ViewBuilder choices: () -> Choices) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                occurrenceFilterList = occurrenceFilterList == list ? nil : list
+                occurrenceFilterQuery = ""
+            } label: {
+                HStack {
+                    Text(title)
+                    Spacer()
+                    Text(value).foregroundStyle(.secondary).lineLimit(1)
+                    Image(systemName: occurrenceFilterList == list ? "chevron.up" : "chevron.down")
+                        .font(.caption)
                 }
             }
-        } label: {
-            Label("Occurrence Options", systemImage: filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                .labelStyle(.iconOnly)
-                .frame(minWidth: entryControlHeight, minHeight: entryControlHeight)
-                .contentShape(.rect)
+            .buttonStyle(OptionButtonStyle(active: occurrenceFilterList == list))
+            if occurrenceFilterList == list {
+                TextField(list == .books ? "Find a book" : "Find a translated word", text: $occurrenceFilterQuery)
+                    .textFieldStyle(.roundedBorder)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 1) { choices() }
+                }
+                .frame(height: 144)
+            }
         }
-        .menuStyle(.borderlessButton).clickableCursor()
-        .menuIndicator(.hidden)
-        #if os(iOS)
-        .hoverEffect(.highlight)
-        #endif
+    }
+
+    private func matchesOccurrenceFilter(_ value: String) -> Bool {
+        let query = occurrenceFilterQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty || value.localizedStandardContains(query)
+    }
+
+    private func occurrenceChoice(_ title: String, selected: Bool) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if selected { Image(systemName: "checkmark").accessibilityHidden(true) }
+        }
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     @ViewBuilder private var entryTools: some View {
