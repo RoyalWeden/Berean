@@ -1370,3 +1370,9 @@
 ### 2026-11-16 — Background Lexicon occurrence formatting
 
 - Prepare occurrence snippets and filter keys off the main actor. Both scratch Dev builds passed. iPhone simulator verified navigation from H3068 to H3069 with the destination's own occurrence count.
+
+### 2026-11-16 — Floating verse actions
+
+- Both readers keep Scripture in place when the action capsule adds bottom scroll room. iPhone uses less padding after the final line.
+- Mac and iPhone Simulator Dev builds passed. AppKit viewport and scroll-limit assertions passed. The iPhone Dev simulator showed text beneath both reader capsules with Genesis 1:25–26 selected. No production data was used.
+- See HANDOFF for final-verse and live Mac checks.

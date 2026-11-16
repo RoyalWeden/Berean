@@ -69,7 +69,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.isSelectable = true
         view.isFindInteractionEnabled = true
         view.backgroundColor = .clear
-        view.textContainerInset = UIEdgeInsets(top: 16, left: style.width.phoneInset, bottom: 24, right: style.width.phoneInset)
+        view.textContainerInset = UIEdgeInsets(top: 16, left: style.width.phoneInset, bottom: 10, right: style.width.phoneInset)
         view.linkTextAttributes = [.underlineStyle: NSUnderlineStyle([]).rawValue]
         view.alwaysBounceVertical = true
         view.accessibilityLabel = "Scripture text"
@@ -113,20 +113,19 @@ struct IOSChapterTextView: UIViewRepresentable {
         let samePassage = coordinator.passageId == passageId
         let previousSelection = coordinator.renderedSelection
         let revealSelection = samePassage && !selectedVerses.subtracting(previousSelection).isEmpty
-        let previousOffset = view.contentOffset
         if view.contentInset.bottom != actionClearance {
-            let inset = view.adjustedContentInset
-            let oldBottom = view.contentSize.height + inset.bottom - view.bounds.height
-            let stayAtEnd = samePassage && oldBottom > -inset.top + 1 && previousOffset.y >= oldBottom - 1
+            let previousOffset = view.contentOffset
+            // Keep the visible text steady as floating controls add scroll room.
+            // When controls disappear, clamp offsets that used the old clearance.
             view.contentInset.bottom = actionClearance
             view.verticalScrollIndicatorInsets.bottom = actionClearance
-            if stayAtEnd {
-                let newInset = view.adjustedContentInset
-                let bottom = max(-newInset.top, view.contentSize.height + newInset.bottom - view.bounds.height)
-                view.setContentOffset(CGPoint(x: previousOffset.x, y: bottom), animated: false)
-            }
+            let inset = view.adjustedContentInset
+            let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+            let y = min(max(previousOffset.y, -inset.top), bottom)
+            view.setContentOffset(CGPoint(x: previousOffset.x, y: y), animated: false)
         }
         if key != coordinator.key || !samePassage {
+            let previousOffset = view.contentOffset
             let selection = view.selectedRange
             let oldText = view.text
             let inset = view.adjustedContentInset

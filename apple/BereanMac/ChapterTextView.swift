@@ -160,13 +160,11 @@ struct ChapterTextView: NSViewRepresentable {
         let clip = scroll.contentView
         if scroll.contentInsets.bottom != actionClearance {
             let bounds = clip.bounds
-            let end = clip.constrainBoundsRect(bounds.offsetBy(dx: 0, dy: clip.documentRect.height)).minY
-            let stayAtEnd = c.lastPassage == passageId && end > clip.documentRect.minY + 1 && bounds.minY >= end - 1
+            // Adding scroll room for the capsule must leave the text in place.
+            // The selection reveal below moves it only if the capsule overlaps the verse.
             scroll.contentInsets.bottom = actionClearance
             scroll.scrollerInsets.bottom = actionClearance
-            var destination = bounds
-            if stayAtEnd { destination.origin.y = clip.documentRect.maxY + actionClearance }
-            clip.scroll(to: clip.constrainBoundsRect(destination).origin)
+            clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
             scroll.reflectScrolledClipView(clip)
         }
         let previousBounds = clip.bounds
