@@ -1410,3 +1410,7 @@
 
 - Added direct access to the existing archive browser from empty workspaces on Mac and iPhone. Added a Go button to the Mac empty state.
 - Both Dev builds passed with identity checks. Mac scratch QA restored the final archived tab with the sidebar hidden. iPhone interaction check pending.
+
+### 2026-11-16 — Archive directly from the iPhone reader
+
+- Grouped Duplicate, Archive and Close in More → Tab Actions. iOS Dev built successfully and the iPhone 18 Pro simulator verified archiving the final tab and restoring it from the empty screen.

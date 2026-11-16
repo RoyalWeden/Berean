@@ -308,8 +308,11 @@ struct IOSRootView: View {
                             Button(kind.rawValue) { app.switchTab(tab.id, to: kind) }
                         }
                     } label: { Label("Change Tab To", systemImage: "arrow.triangle.swap") }
-                    Button { app.duplicate(tab.id) } label: { Label("Duplicate Tab", systemImage: "plus.square.on.square") }
-                    Button(role: .destructive) { app.close(tab.id) } label: { Label("Close Tab", systemImage: "xmark") }
+                    Menu("Tab Actions", systemImage: "square.on.square") {
+                        Button("Duplicate Tab", systemImage: "plus.square.on.square") { app.duplicate(tab.id) }
+                        Button("Archive Tab", systemImage: "archivebox") { app.archive([tab.id]) }
+                        Button("Close Tab", systemImage: "xmark", role: .destructive) { app.close(tab.id) }
+                    }
                 }
             }
             Section {
