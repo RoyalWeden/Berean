@@ -1362,3 +1362,7 @@
 ### 2026-11-16 — Accurate Lexicon sample counts
 
 - Detect capped results independently for each edition and label filters against the loaded sample. Both scratch Dev builds and seven Lexicon tests passed. Mac QA verified the capped and exact count states.
+
+### 2026-11-16 — Full Lexicon occurrence filtering
+
+- Filter the complete tagged corpus in the full Lexicon. Mac QA verified 5,517 H3068 results and 141 in Genesis. Both scratch Dev builds and eight focused tests passed.

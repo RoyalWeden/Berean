@@ -571,7 +571,12 @@ struct LexiconEntryView: View {
             let newRelated = await app.lexicon.related(strongsId)
             guard !Task.isCancelled else { return }
             related = newRelated
-            let newOccurrences = await app.lexicon.occurrenceBatch(strongsId, quickLimit: compact ? 60 : nil)
+            let newOccurrences: (rows: [LexiconOccurrence], truncated: Bool)
+            if compact {
+                newOccurrences = await app.lexicon.occurrenceBatch(strongsId, quickLimit: 60)
+            } else {
+                newOccurrences = (await app.lexicon.allOccurrences(strongsId), false)
+            }
             guard !Task.isCancelled else { return }
             occurrences = newOccurrences.rows
             occurrencesTruncated = newOccurrences.truncated

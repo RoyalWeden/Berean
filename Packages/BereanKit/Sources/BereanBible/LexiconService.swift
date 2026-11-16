@@ -263,6 +263,41 @@ public actor LexiconService {
         occurrenceBatch(strongsNum, bookId: bookId, quickLimit: quickLimit).rows
     }
 
+    /// Complete edition results for the full Lexicon. The inspector uses the capped batch.
+    public func allOccurrences(_ strongsNum: String) -> [LexiconOccurrence] {
+        let num = Self.normalizedId(strongsNum)
+        guard let lang = num.first, let editions = Self.occurrenceTexts[lang],
+              let lex = lexicon(lang) else { return [] }
+        let shortDef = (try? lex.query("SELECT short_def FROM entries WHERE strongs_id = ?", [.text(num)]))?.first?.values.first?.string ?? ""
+        let gloss = VerseDisplay.glossWords(shortDef)
+        let params: [SQLiteValue] = [.text("%{\(num)}%"), .text("%{\(num)|%"), .text("%|\(num)}%"), .text("%|\(num)|%")]
+        let sql = """
+            SELECT book_id, chapter, verse_num, text, text_tagged FROM verses
+            WHERE text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?
+            ORDER BY book_id, chapter, verse_num, rowid
+            """
+        var matches: [LexiconOccurrence] = []
+        for edition in editions {
+            guard !Task.isCancelled else { return [] }
+            guard let db = connection(textPath(edition)), let rows = try? db.query(sql, params) else { continue }
+            var seen = Set<String>()
+            for row in rows {
+                guard !Task.isCancelled else { return [] }
+                let book = row.values[0].string ?? ""
+                let chapter = row.values[1].int ?? 0
+                let verse = row.values[2].int ?? 0
+                guard seen.insert("\(book)|\(chapter)|\(verse)").inserted else { continue }
+                let text = row.values[3].string ?? ""
+                let tagged = row.values[4].string
+                matches.append(LexiconOccurrence(bookId: book, chapter: chapter, verseNum: verse,
+                                                 text: text, textTagged: tagged, textId: edition,
+                                                 matchWordIndices: Self.occurrenceIndices(tagged: tagged, plain: text,
+                                                                                        num: num, gloss: gloss)))
+            }
+        }
+        return matches
+    }
+
     /// Report whether any edition has additional matches beyond the returned sample.
     public func occurrenceBatch(_ strongsNum: String, bookId: String? = nil, quickLimit: Int? = nil) -> (rows: [LexiconOccurrence], truncated: Bool) {
         let num = Self.normalizedId(strongsNum)

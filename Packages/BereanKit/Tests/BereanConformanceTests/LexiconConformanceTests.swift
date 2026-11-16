@@ -89,6 +89,16 @@ extension LexiconEntry {
         #expect(!rare.truncated)
     }
 
+    @Test func completeOccurrencesIncludeMatchesBeyondEditionCap() async {
+        let capped = await svc.occurrenceBatch("G3056")
+        let complete = await svc.allOccurrences("G3056")
+        #expect(capped.truncated)
+        #expect(complete.count > capped.rows.count)
+        #expect(Set(complete.map(\.textId)) == ["kjva", "lxx"])
+        let destinations = complete.map { "\($0.textId)|\($0.bookId)|\($0.chapter)|\($0.verseNum)" }
+        #expect(Set(destinations).count == complete.count)
+    }
+
     @Test func occurrences() async {
         var failures: [String] = []
         for c in g.arr("occurrences") {
