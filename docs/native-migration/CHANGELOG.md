@@ -1203,3 +1203,7 @@
 ### 2026-11-16 — Compact Mac verse actions
 - Kept Tag accessible in the compact Scripture action bar alongside Copy, Highlight, and Clear.
 - Both Dev builds passed. A 320-point Mac QA check verified the visible controls and overflow menu.
+
+### 2026-11-16 — Landscape iPhone Scripture controls
+- The dock and verse actions share one row when landscape has room, leaving more space for reading.
+- Both Dev builds passed. A temporary rotation build showed Jude 1:22–25 above both capsules on iPhone 18 Pro Simulator. Restored-position behavior remains open.

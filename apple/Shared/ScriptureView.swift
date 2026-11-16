@@ -310,6 +310,7 @@ struct ScriptureView: View {
     var findRequest: Int = 0
     var editionFlipRequest: Int = 0
     var dockClearance: CGFloat = 0
+    var sideBySideReaderControls = false
     #endif
     private enum CopyAction {
         case verses, reference
@@ -498,9 +499,12 @@ struct ScriptureView: View {
         let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
         let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
         #if os(iOS)
-        let bottomClearance = actionSpace + dockClearance
+        let shareBottomRow = sideBySideReaderControls && dockClearance > 0
+        let bottomClearance = shareBottomRow ? max(actionSpace, dockClearance) : actionSpace + dockClearance
+        let actionAlignment: Alignment = shareBottomRow ? .bottomLeading : .bottom
         #else
         let bottomClearance = actionSpace
+        let actionAlignment: Alignment = .bottom
         #endif
         VStack(spacing: 0) {
             #if os(macOS)
@@ -565,11 +569,12 @@ struct ScriptureView: View {
             chapterPull = nil
             if pullEndDestination != edition { pullEndDestination = nil }
         }
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: actionAlignment) {
             if showActions {
                 selectionBar(st)
                     #if os(iOS)
-                    .padding(.bottom, dockClearance)
+                    .padding(.bottom, shareBottomRow ? 0 : dockClearance)
+                    .padding(.leading, shareBottomRow ? 6 : 0)
                     #endif
             }
         }

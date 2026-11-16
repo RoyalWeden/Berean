@@ -36,6 +36,8 @@ private struct HistoryEdgeSwipe: UIGestureRecognizerRepresentable {
 struct IOSRootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @State private var contentWidth: CGFloat = 0
     @State private var showTabs = false
     @State private var showGo = false
     @State private var explicitNewTab = false
@@ -55,10 +57,15 @@ struct IOSRootView: View {
         return state.compareMode ? nil : ChapterEdition(state)
     }
 
+    private var sideBySideReaderControls: Bool {
+        readerEdition != nil && verticalSizeClass == .compact && contentWidth >= 580 && !keyboardUp
+    }
+
     var body: some View {
         @Bindable var app = app
         NavigationStack {
             content
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
                 .gesture(HistoryEdgeSwipe(
                     enabled: app.canGoBack && !keyboardUp,
                     edge: layoutDirection == .rightToLeft ? .right : .left,
@@ -176,7 +183,7 @@ struct IOSRootView: View {
         .opacity(app.readerChromeHidden ? 0 : 1)
         .allowsHitTesting(!app.readerChromeHidden)
         .accessibilityHidden(app.readerChromeHidden)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: sideBySideReaderControls ? .trailing : .center)
     }
 
     private func bottomItem(symbol: String, prominent: Bool = false, badge: Int? = nil) -> some View {
@@ -208,7 +215,8 @@ struct IOSRootView: View {
             case .bible:
                 let st = BibleState(tab.state)
                 ScriptureView(tabId: tab.id, findRequest: findRequest, editionFlipRequest: editionFlipRequest,
-                              dockClearance: keyboardUp || app.readerChromeHidden ? 0 : ReaderFloatingControls.readerDockHeight)
+                              dockClearance: keyboardUp || app.readerChromeHidden ? 0 : ReaderFloatingControls.readerDockHeight,
+                              sideBySideReaderControls: sideBySideReaderControls)
                     .id(tab.id)
                     .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { v in
                         app.update(tab.id) { t in var s = BibleState(t.state); s.rightPanelOpen = v; t.state = s.merged(into: t.state) }
