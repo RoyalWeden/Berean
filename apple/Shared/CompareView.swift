@@ -807,12 +807,14 @@ struct CompareView: View {
 
     private func selectedRows(in column: CompareColumn, source: BibleState) -> [ChapterVerseRow] {
         guard column.follows(source), let available = independentRows[column.id] else { return [] }
-        let numbers = Set(selectedVerses(in: source).compactMap { verse -> Int? in
-            guard let mapped = ChapterMap.verseCounterpart(source.bookId, chapter: source.chapter, verse: verse,
-                                                           from: source.translation, to: column.text) else { return verse }
-            return mapped.chapter == column.chapter ? mapped.verse : nil
-        })
+        let numbers = Set(selectedVerses(in: source).compactMap { mappedVerse($0, in: column, source: source) })
         return available.filter { numbers.contains($0.verseNum) }
+    }
+
+    private func mappedVerse(_ verse: Int, in column: CompareColumn, source: BibleState) -> Int? {
+        guard let mapped = ChapterMap.verseCounterpart(source.bookId, chapter: source.chapter, verse: verse,
+                                                       from: source.translation, to: column.text) else { return verse }
+        return mapped.chapter == column.chapter ? mapped.verse : nil
     }
 
     @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false) -> some View {
@@ -1000,6 +1002,9 @@ struct CompareView: View {
             tab.state.remove("endChapter")
             tab.state["nativeSelectedVerses"] = passage.savedSelection
             tab.title = Reference.readerChapterLabel(passage.bookId, passage.chapter, textId: passage.textId)
+        }
+        if passage.verse != nil, let tab = app.findTab(tabId) {
+            app.requestScriptureJump(in: tabId, to: ChapterEdition(BibleState(tab.state)))
         }
         app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
                          verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
@@ -1273,7 +1278,8 @@ struct CompareView: View {
 
         let aligned = selectedVerses(in: source).sorted().compactMap { rows[$0]?[column.id] }
         let mapped = aligned.isEmpty ? selectedRows(in: column, source: source) : aligned
-        let anchor = rows[first]?[column.id] ?? mapped.first
+        let mappedFocus = mappedVerse(first, in: column, source: source)
+        let anchor = rows[first]?[column.id] ?? mapped.first { $0.verseNum == mappedFocus } ?? mapped.first
         guard let anchor else { return passage }
         passage.bookId = anchor.bookId
         passage.chapter = anchor.chapter

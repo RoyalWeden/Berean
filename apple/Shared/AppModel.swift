@@ -1292,9 +1292,13 @@ final class AppModel {
             openTab(.bible, in: .scripture, title: title, state: state)
         }
         if verse != nil, let tab = activeTab, tab.tabType == .bible, passage.isShown(in: tab) {
-            scriptureReadingPositions[tab.id]?.removeValue(forKey: ChapterEdition(st).key)
-            scriptureJumpRequest = (tab.id, ChapterEdition(st), UUID())
+            requestScriptureJump(in: tab.id, to: ChapterEdition(st))
         }
+    }
+
+    func requestScriptureJump(in tabID: String, to chapter: ChapterEdition) {
+        scriptureReadingPositions[tabID]?.removeValue(forKey: chapter.key)
+        scriptureJumpRequest = (tabID, chapter, UUID())
     }
 }
 

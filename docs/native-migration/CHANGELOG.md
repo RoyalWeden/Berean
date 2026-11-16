@@ -1243,3 +1243,7 @@
 ### 2026-11-16 — Clarify Compare chapter joins and pinned columns
 - Aligned Compare names both chapters when an edition contributes rows from a chapter join.
 - Pinning takes effect even when the column is currently on the main passage’s chapter. Both Dev builds passed, and Mac QA verified pinning, following again, and the Psalm 113 join.
+
+### 2026-11-16 — Honor the selected range when leaving Compare
+- Opening a selected passage from Compare jumps to its mapped verse or range in Scripture.
+- Both Dev builds passed. Mac QA verified Brenton Psalm 113:9–10 opened KJVA Psalm 115:1–2 with both verses selected.
