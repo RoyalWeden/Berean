@@ -1350,3 +1350,7 @@
 ### 2026-11-16 — iPhone Lexicon toolbar and Strong’s lookup verification
 
 - Group Find, Search and Copy in Entry Tools, leaving the adjacent-entry and guide buttons visible. Simulator QA confirmed the menu and Find in Entry, plus valid and missing Strong’s lookups from Go.
+
+### 2026-11-16 — Inline Strong’s title on iPhone
+
+- Keep the Strong’s number in the navigation bar and lead the entry body with its headword. iOS Dev built successfully. iPhone 17e simulator verified the full H3068 title and Info access.

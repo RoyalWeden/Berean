@@ -128,6 +128,9 @@ struct LexiconTabHost: View {
         } else {
             LexiconEntryView(strongsId: sid, tabId: tab.id).id(tab.id)
                 .navigationTitle(tab.title)
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
         }
     }
 }
