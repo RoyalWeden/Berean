@@ -1602,3 +1602,5 @@ New archive placements remember each Space’s selected tab. When restoring to t
 Native tab rendering and persistence now share display-order reconciliation. It keeps the first occurrence of each live ID, drops stale and repeated IDs, and appends missing live tabs in Space order. Sixteen focused workspace and archive tests passed, including the legacy workspace/tab goldens and a malformed-order regression. Live verification with a repaired workspace remains open.
 
 Both native Dev builds passed.
+
+Native Save Workspace now writes a reconciled mixed tab order, dropping stale and repeated IDs before serializing. Older malformed orders are repaired when restored into a live workspace. The low-level parser retains the legacy format behavior, including duplicate entries in the original TypeScript golden fixture. Both Dev builds and six focused tests passed, including native save and malformed restore checks. Live save/reopen remains to verify.

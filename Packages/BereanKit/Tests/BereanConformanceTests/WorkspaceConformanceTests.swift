@@ -246,6 +246,20 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         }
     }
 
+    @Test func snapshotRepairsRepeatedAndMissingOrderIDs() throws {
+        let reader = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "John 1")
+        let note = Tab(id: "note", spaceId: .notes, type: "note", title: "Study note")
+        let session = Session(id: "study", name: "Study", tabs: [.scripture: [reader], .notes: [note]])
+        let saved = WorkspaceSnapshot.stateJSON(for: session, displayOrder: ["note", "gone", "note"])
+        #expect(WorkspaceSnapshot.parse(saved).displayOrder == ["note", "reader"])
+
+        var malformed = try #require(JSON.parse(saved).objectValue)
+        malformed["displayOrder"] = .array([.string("note"), .string("gone"), .string("note")])
+        let parsed = WorkspaceSnapshot.parse(JSON.stringifyString(.object(malformed)))
+        let restored = parsed.restoreSession(id: "snapshot", name: "Study", reservedIDs: []) { "fresh-id" }
+        #expect(restored.displayOrder == ["note", "reader"])
+    }
+
     @Test func nativeUtilityTabsSurviveSnapshots() {
         let reader = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "John 1")
         let history = Tab(id: "history", spaceId: .search, type: "history", title: "History")

@@ -79,7 +79,8 @@ public enum WorkspaceSnapshot {
             input[sp] = session.tabs(in: sp).map { .object($0.jsObject) }
             active[sp.rawValue] = ((session.activeTabId[sp] ?? nil).map { .string(JSString($0)) }) ?? .null
         }
-        let snapshot = build(tabs: input, activeTabId: active, displayOrder: displayOrder, icon: session.icon)
+        let order = TabPersistence.reconciledDisplayOrder(tabIDs: session.allTabs.map(\.id), stored: displayOrder ?? [])
+        let snapshot = build(tabs: input, activeTabId: active, displayOrder: order, icon: session.icon)
         guard let preferredSpace, !session.tabs(in: preferredSpace).isEmpty,
               var state = snapshot.objectValue else { return JSON.stringifyString(snapshot) }
         state["nativePreferredSpace"] = .string(JSString(preferredSpace.rawValue))
