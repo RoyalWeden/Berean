@@ -46,6 +46,10 @@ struct CompareColumn: Identifiable {
 
     var isPinned: Bool { record["nativePinnedPassage"]?.boolValue == true }
 
+    var legacyScrollVerse: Int? {
+        record["scrollPos"]?.objectValue?["verseNum"]?.numberValue.flatMap(Int.init(exactly:))
+    }
+
     static func followPassageChange(_ value: JSValue?, from old: BibleState, to new: BibleState) -> JSValue? {
         guard old.compareMode, new.compareMode,
               old.bookId != new.bookId || old.chapter != new.chapter || old.translation != new.translation,
@@ -646,7 +650,8 @@ struct CompareView: View {
                             let key = columnScrollKey(column.id, passage: passage)
                             guard let verse = independentVisibleVerses[column.id]
                                     ?? app.compareColumnScrollVerses[tabId]?[key]
-                                    ?? selectedRows(in: column, source: state).first?.verseNum else { return }
+                                    ?? selectedRows(in: column, source: state).first?.verseNum
+                                    ?? column.legacyScrollVerse.flatMap({ correspondingVerse($0, in: column) }) else { return }
                             await Task.yield()
                             guard !Task.isCancelled else { return }
                             proxy.scrollTo(verse, anchor: .top)
