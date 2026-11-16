@@ -1175,3 +1175,7 @@
 ### 2026-11-15 — Move Study Trail sticky notes
 - Sticky notes and section headers can move to another recorded passage or become unanchored.
 - Both Dev builds and all 140 Swift tests passed. The Mac map control was checked in the running app. The move and detach actions were verified at the service layer.
+
+### 2026-11-15 — iPhone floating reader controls
+- The Scripture dock floats above the reading view and releases its scroll clearance when hidden. Verse actions follow the dock’s position.
+- Both Dev builds passed. The iPhone 18 Pro Simulator showed the final three verses of Romans 8 completely above the two floating controls.

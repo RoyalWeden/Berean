@@ -309,6 +309,7 @@ struct ScriptureView: View {
     #if os(iOS)
     var findRequest: Int = 0
     var editionFlipRequest: Int = 0
+    var dockClearance: CGFloat = 0
     #endif
     private enum CopyAction {
         case verses, reference
@@ -519,7 +520,7 @@ struct ScriptureView: View {
                         .ignoresSafeArea(.container, edges: .top)
                     }
                     #else
-                    iosReader(st, actionClearance: actionSpace)
+                    iosReader(st, actionClearance: actionSpace + dockClearance)
                     #endif
                 }
             }
@@ -560,9 +561,13 @@ struct ScriptureView: View {
             if pullEndDestination != edition { pullEndDestination = nil }
         }
         .overlay(alignment: .bottom) {
-            if showActions { selectionBar(st) }
+            if showActions {
+                selectionBar(st)
+                    #if os(iOS)
+                    .padding(.bottom, dockClearance)
+                    #endif
+            }
         }
-        .padding(.bottom, ReaderFloatingControls.readerDockClearance)
         .onChange(of: SelectionDestination(st)) { _, destination in
             let appliedLocally = pendingSelectionDestination == destination
             pendingSelectionDestination = nil
@@ -869,10 +874,6 @@ struct ScriptureView: View {
                 #endif
                 .padding(.horizontal, 8)
                 .padding(.bottom, ReaderFloatingControls.bottomPadding)
-                #if os(iOS)
-                // When the dock tucks away while scrolling, the verse actions settle into the space it frees.
-                .offset(y: app.readerChromeHidden ? 52 : 0)
-                #endif
                 #if os(macOS)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Selected \(selectionLabel(st))")
@@ -1139,7 +1140,9 @@ struct ScriptureView: View {
                 if app.fontSize != size { app.fontSize = size }
                 pinchFontSize = nil
             },
-            onChromeHidden: { hidden in withAnimation(.snappy(duration: 0.25)) { app.readerChromeHidden = hidden } },
+            onChromeHidden: { hidden in
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { app.readerChromeHidden = hidden }
+            },
             onSearchText: { app.openSearch($0, returningTo: tabId) },
             onLexiconSearch: { app.openLexiconSearch($0, newTab: true) },
             onBookSearch: { app.openBookSearch($0, bookId: st.bookId, textId: st.translation, returningTo: tabId) },
@@ -2064,14 +2067,15 @@ enum ReaderFloatingControls {
     static let surfaceHorizontalPadding: CGFloat = 8
     static let actionWidth: CGFloat = 38
     static let actionHeight: CGFloat = 32
-    static let readerDockClearance: CGFloat = 0
     #else
     static let actionSpacing: CGFloat = 2
     static let surfaceHorizontalPadding: CGFloat = 5
     static let actionWidth: CGFloat = 44
     static let actionHeight: CGFloat = 44
-    // The root dock overlays this explicitly sized TextKit viewport.
-    static let readerDockClearance: CGFloat = 58
+    static let dockButtonHeight: CGFloat = 44
+    static let dockSurfacePadding: CGFloat = 3
+    static let dockOuterPadding: CGFloat = 4
+    static var readerDockHeight: CGFloat { dockButtonHeight + 2 * (dockSurfacePadding + dockOuterPadding) }
     #endif
 
     static let surfacePadding: CGFloat = 3

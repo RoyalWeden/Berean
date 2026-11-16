@@ -64,7 +64,12 @@ struct IOSRootView: View {
                     edge: layoutDirection == .rightToLeft ? .right : .left,
                     action: goBackFromEdge
                 ))
-                .safeAreaInset(edge: .bottom, spacing: 0) { if !keyboardUp { bottomBar } }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if readerEdition == nil && !keyboardUp { bottomBar }
+                }
+                .overlay(alignment: .bottom) {
+                    if readerEdition != nil && !keyboardUp { bottomBar }
+                }
                 // The dock steps aside while typing (the note editor's format bar docks above the keyboard).
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
                     // Covers the software keyboard and the accessory-only bar shown with a hardware keyboard.
@@ -151,11 +156,11 @@ struct IOSRootView: View {
         }
         .buttonStyle(.interactivePlain)
         .padding(.horizontal, 12)
-        .padding(.vertical, 3)
+        .padding(.vertical, ReaderFloatingControls.dockSurfacePadding)
         .glassEffectCompat(interactive: true)
         .frame(maxWidth: 260)
         .padding(.horizontal, 14)
-        .padding(.vertical, 4)
+        .padding(.vertical, ReaderFloatingControls.dockOuterPadding)
         // Swipe across the dock to move to the neighbouring tab (original BottomNav: >60 pt, mostly horizontal).
         .simultaneousGesture(
             DragGesture(minimumDistance: 24).onEnded { value in
@@ -193,7 +198,7 @@ struct IOSRootView: View {
                         .accessibilityHidden(true)
                 }
             }
-        .frame(maxWidth: .infinity, minHeight: 44)
+        .frame(maxWidth: .infinity, minHeight: ReaderFloatingControls.dockButtonHeight)
         .contentShape(.rect)
     }
 
@@ -202,7 +207,9 @@ struct IOSRootView: View {
             switch tab.tabType {
             case .bible:
                 let st = BibleState(tab.state)
-                ScriptureView(tabId: tab.id, findRequest: findRequest, editionFlipRequest: editionFlipRequest).id(tab.id)
+                ScriptureView(tabId: tab.id, findRequest: findRequest, editionFlipRequest: editionFlipRequest,
+                              dockClearance: keyboardUp || app.readerChromeHidden ? 0 : ReaderFloatingControls.readerDockHeight)
+                    .id(tab.id)
                     .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { v in
                         app.update(tab.id) { t in var s = BibleState(t.state); s.rightPanelOpen = v; t.state = s.merged(into: t.state) }
                     })) { StudyInspector(tabId: tab.id).presentationDetents([.medium, .large]) }
