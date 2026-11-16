@@ -1381,3 +1381,8 @@
 
 - Full Lexicon occurrence lists follow Scripture order within each edition on Mac and iPhone.
 - Eight Lexicon tests passed, covering complete lists, edition grouping, deduplication, and legacy capped results.
+
+### 2026-11-16 — Combined Lexicon filters
+
+- Edition, book, and translated-word filters retain their selections when combined. Incompatible selections show zero results and can be removed individually.
+- Both Dev builds passed. iPhone Simulator verified a zero-result edition and book combination and restored the scoped 18 results by clearing the edition.

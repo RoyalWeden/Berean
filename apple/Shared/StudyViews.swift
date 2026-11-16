@@ -279,7 +279,7 @@ struct LexiconEntryView: View {
 
     var body: some View {
         let books = Dictionary(grouping: editionOccurrences, by: \.bookId)
-        let scoped = occurrenceBook.flatMap { books[$0] } ?? editionOccurrences
+        let scoped = occurrenceBook.map { books[$0] ?? [] } ?? editionOccurrences
         let indexed = indexedOccurrences(scoped)
         let occurrenceMatches = matchingOccurrences(indexed)
         let visibleRows = Array(occurrenceMatches.prefix(visibleOccurrences))
@@ -717,8 +717,6 @@ struct LexiconEntryView: View {
             if editions.count > 1 {
                 Picker("Edition", selection: Binding(get: { occurrenceEdition }, set: {
                     occurrenceEdition = $0
-                    occurrenceBook = nil
-                    selectedRenderings = []
                     visibleOccurrences = 40
                 })) {
                     Text("All Editions").tag(nil as String?)
@@ -728,22 +726,23 @@ struct LexiconEntryView: View {
                 }
                 .pickerStyle(.menu).clickableCursor()
             }
-            if books.count > 1 {
+            let bookOptions = Set(books.keys).union(occurrenceBook.map { [$0] } ?? [])
+            if !bookOptions.isEmpty {
                 Picker("Book", selection: Binding(get: { occurrenceBook }, set: {
                     occurrenceBook = $0
-                    selectedRenderings = []
                     visibleOccurrences = 40
                 })) {
                     Text("All Books").tag(nil as String?)
-                    ForEach(books.keys.sorted { Reference.bookName($0) < Reference.bookName($1) }, id: \.self) { book in
+                    ForEach(bookOptions.sorted { (Reference.bookName($0), $0) < (Reference.bookName($1), $1) }, id: \.self) { book in
                         Text("\(Reference.bookName(book)) (\(books[book]?.count ?? 0))").tag(Optional(book))
                     }
                 }
                 .pickerStyle(.menu).clickableCursor()
             }
-            if forms.count > 1 {
+            let wordOptions = Set(forms.keys).union(selectedRenderings)
+            if !wordOptions.isEmpty {
                 Menu {
-                    ForEach(forms.keys.sorted { (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1) }, id: \.self) { word in
+                    ForEach(wordOptions.sorted { (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1) }, id: \.self) { word in
                         Toggle("\(word) (\(forms[word] ?? 0))", isOn: Binding(
                             get: { selectedRenderings.contains(word) },
                             set: { included in
@@ -766,7 +765,7 @@ struct LexiconEntryView: View {
                     sortByMatches = $0
                     visibleOccurrences = 40
                 })) {
-                    Text("Default Order").tag(false)
+                    Text(compact ? "Default Order" : "Scripture Order").tag(false)
                     Text("Most Matches").tag(true)
                 }
                 .pickerStyle(.menu).clickableCursor()
