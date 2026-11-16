@@ -166,7 +166,7 @@ struct CompareView: View {
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
     @State private var independentVisibleVerses: [Int: Int] = [:]
-    @State private var stackedVersesAboveTop: [Int: Set<Int>] = [:]
+    @State private var visibleStackedVerses: [Int: Set<Int>] = [:]
     @State private var scrollingColumn: Int?
     @State private var lastScrolledColumn: Int?
     @State private var alignedVersesAboveTop: Set<Int> = []
@@ -218,7 +218,6 @@ struct CompareView: View {
                 restoredCompareScroll(key: key) {
                     independentComparison(cols, passage: passage)
                 }
-                .coordinateSpace(name: "stacked-compare")
             } else {
                 alignedComparison(st, cols)
             }
@@ -237,7 +236,7 @@ struct CompareView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
         .onChange(of: passage) {
             independentVisibleVerses = [:]
-            stackedVersesAboveTop = [:]
+            visibleStackedVerses = [:]
             scrollingColumn = nil
             lastScrolledColumn = nil
             alignedVersesAboveTop = []
@@ -826,21 +825,31 @@ struct CompareView: View {
             let selected = Set(selectedRows(in: column, source: state).map(\.verseNum))
             ForEach(verses, id: \.verseNum) { row in
                 let isSelected = selected.contains(row.verseNum)
-                independentVerseRow(row, column: column, compact: compact, selected: isSelected)
+                let content = independentVerseRow(row, column: column, compact: compact, selected: isSelected)
                     .background(Color.accentColor.opacity(isSelected ? 0.08 : 0), in: .rect(cornerRadius: 6))
-                    .onGeometryChange(for: Bool.self) { geometry in
-                        stackedPassage != nil && geometry.frame(in: .named("stacked-compare")).minY <= controlSize
-                    } action: { aboveTop in
-                        guard let stackedPassage, stackedPassage == loadedPassage else { return }
-                        if aboveTop {
-                            stackedVersesAboveTop[column.id, default: []].insert(row.verseNum)
-                        } else {
-                            stackedVersesAboveTop[column.id]?.remove(row.verseNum)
+                if let stackedPassage {
+                    content
+                        .onScrollVisibilityChange(threshold: 0.2) { visible in
+                            trackStackedVerse(row.verseNum, columnID: column.id, passage: stackedPassage, visible: visible)
                         }
-                    }
+                        .onDisappear {
+                            trackStackedVerse(row.verseNum, columnID: column.id, passage: stackedPassage, visible: false)
+                        }
+                } else {
+                    content
+                }
             }
         } else {
             Text("No Text in This Passage").foregroundStyle(.secondary)
+        }
+    }
+
+    private func trackStackedVerse(_ verse: Int, columnID: Int, passage: String, visible: Bool) {
+        guard passage == loadedPassage else { return }
+        if visible {
+            visibleStackedVerses[columnID, default: []].insert(verse)
+        } else {
+            visibleStackedVerses[columnID]?.remove(verse)
         }
     }
 
@@ -1326,7 +1335,7 @@ struct CompareView: View {
             return row.map { ($0.chapter, $0.verseNum) }
         }
         if !canShowIndependentPanes(width: compareWidth, count: columns.count) {
-            let verse = stackedVersesAboveTop[column.id]?.max() ?? independentRows[column.id]?.first?.verseNum
+            let verse = visibleStackedVerses[column.id]?.min() ?? independentRows[column.id]?.first?.verseNum
             return verse.map { (column.chapter, $0) }
         }
         let key = columnScrollKey(column.id, passage: passage)

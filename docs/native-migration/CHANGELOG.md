@@ -1255,3 +1255,7 @@
 ### 2026-11-16 — Preserve reading position from stacked Compare
 - Open in Reader carries the chosen stacked column’s reading verse without creating a selection.
 - Both Dev builds passed. A temporary iPhone simulator fixture verified Genesis 1:9 appeared first when leaving the scrolled stacked comparison.
+
+### 2026-11-16 — Keep stacked Compare anchored when scrolling back
+- Open in Reader uses the chosen column’s visible rows after scrolling in either direction.
+- Both Dev builds passed. Scripted iPhone QA scrolled from Genesis 1:18 back to 1:7 and verified Scripture opened at verse 7.
