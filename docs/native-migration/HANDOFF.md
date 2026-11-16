@@ -1576,3 +1576,7 @@ Move to Workspace now labels destinations with a second open tab when available,
 Moving tabs to another workspace now chooses the first surviving tab after a moved active tab in each affected Space, then falls back to the preceding survivor. This fixes the case where earlier tabs in the same move shifted the old index past the intended neighbor. The iPhone bulk-move receipt uses the readable workspace label. Live check pending with several moved tabs surrounding a remembered active tab in a background Space.
 
 Both native Dev builds passed.
+
+Back and Forward can follow an existing tab-history link after either tab moves to another live workspace. The lookup keeps local tabs first, skips closed or archived tabs, and changes workspaces only when following an existing link. Same-tab navigation still uses its existing location stack. Live check pending: create a Go or floating-search Back link, move its source tab, then use Back and Forward to traverse both workspaces.
+
+Both native Dev builds passed.

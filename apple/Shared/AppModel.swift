@@ -759,8 +759,16 @@ final class AppModel {
         return base + "|compare|" + columns.joined(separator: ",")
     }
 
+    private func tabHistoryTarget(_ id: String) -> (workspaceID: String, tab: BereanWorkspace.Tab)? {
+        if let local = findTab(id) { return (currentSessionId, local) }
+        for workspace in sessions where workspace.id != currentSessionId {
+            if let tab = workspace.allTabs.first(where: { $0.id == id }) { return (workspace.id, tab) }
+        }
+        return nil
+    }
+
     private func isReachable(_ entry: TabHistoryEntry) -> Bool {
-        if case .tab(let id) = entry { return orderedTabs.contains { $0.id == id } }
+        if case .tab(let id) = entry { return tabHistoryTarget(id) != nil }
         return true
     }
 
@@ -775,7 +783,6 @@ final class AppModel {
         var entries = (forward ? forwardStack : backStack)[current.id] ?? []
         while let entry = entries.popLast() {
             if forward { forwardStack[current.id] = entries } else { backStack[current.id] = entries }
-            guard isReachable(entry) else { continue }
             let destination: String
             let reverse: TabHistoryEntry
             switch entry {
@@ -784,10 +791,14 @@ final class AppModel {
                 reverse = .location(current.title, current.state)
                 update(current.id, recordHistory: false) { $0.title = title; $0.state = state }
             case .tab(let id):
-                guard let tab = findTab(id) else { continue }
+                guard let target = tabHistoryTarget(id) else { continue }
                 destination = id
                 reverse = .tab(current.id)
-                select(id, in: tab.spaceId)
+                let sameWorkspace = target.workspaceID == currentSessionId
+                if !sameWorkspace {
+                    switchSession(target.workspaceID, preferredSpace: target.tab.spaceId)
+                }
+                select(id, in: target.tab.spaceId, rememberPrevious: sameWorkspace)
             }
             if forward {
                 backStack[destination, default: []].append(reverse)
