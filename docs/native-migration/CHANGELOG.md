@@ -1346,3 +1346,7 @@
 ### 2026-11-16 — Strong's previews in Go and floating search
 
 - Direct Strong's results now show the headword, transliteration and gloss. Both Dev builds passed. Mac verified G3056 and H3068 preview replacement and Return navigation.
+
+### 2026-11-16 — iPhone Lexicon toolbar and Strong’s lookup verification
+
+- Group Find, Search and Copy in Entry Tools, leaving the adjacent-entry and guide buttons visible. Simulator QA confirmed the menu and Find in Entry, plus valid and missing Strong’s lookups from Go.

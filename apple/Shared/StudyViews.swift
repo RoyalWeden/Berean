@@ -507,20 +507,16 @@ struct LexiconEntryView: View {
                 if #available(macOS 26.0, *) { ToolbarSpacer(.fixed, placement: .primaryAction) }
                 #endif
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button("Find in Entry", systemImage: "text.magnifyingglass") {
-                        findShown = true
-                        findFocused = true
+                    #if os(iOS)
+                    Menu {
+                        entryTools
+                    } label: {
+                        Label("Entry Tools", systemImage: "ellipsis.circle")
                     }
-                    .keyboardShortcut("f")
-                    .clickableCursor()
-                    .help("Find in this entry (⌘F)")
-                    Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
-                        .clickableCursor()
-                        .help("Search the Lexicon")
-                    if let entry, entry.strongsNum == strongsId.uppercased() {
-                        copyEntryButton(entry)
-                            .clickableCursor()
-                    }
+                    .menuIndicator(.hidden)
+                    #else
+                    entryTools
+                    #endif
                     entryGuideButton
                         .clickableCursor()
                 }
@@ -723,6 +719,23 @@ struct LexiconEntryView: View {
         #if os(iOS)
         .hoverEffect(.highlight)
         #endif
+    }
+
+    @ViewBuilder private var entryTools: some View {
+        Button("Find in Entry", systemImage: "text.magnifyingglass") {
+            findShown = true
+            findFocused = true
+        }
+        .keyboardShortcut("f")
+        .clickableCursor()
+        .help("Find in this entry (⌘F)")
+        Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
+            .clickableCursor()
+            .help("Search the Lexicon")
+        if let entry, entry.strongsNum == strongsId.uppercased() {
+            copyEntryButton(entry)
+                .clickableCursor()
+        }
     }
 
     private func copyEntryButton(_ entry: LexiconEntry) -> some View {
