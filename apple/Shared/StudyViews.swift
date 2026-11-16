@@ -512,13 +512,17 @@ struct LexiconEntryView: View {
                         findFocused = true
                     }
                     .keyboardShortcut("f")
+                    .clickableCursor()
                     .help("Find in this entry (⌘F)")
                     Button("Search Lexicon", systemImage: "magnifyingglass") { app.openLexiconSearch() }
+                        .clickableCursor()
                         .help("Search the Lexicon")
                     if let entry, entry.strongsNum == strongsId.uppercased() {
                         copyEntryButton(entry)
+                            .clickableCursor()
                     }
                     entryGuideButton
+                        .clickableCursor()
                 }
             }
         }
@@ -716,9 +720,7 @@ struct LexiconEntryView: View {
         }
         .menuStyle(.borderlessButton).clickableCursor()
         .menuIndicator(.hidden)
-        #if os(macOS)
-        .pointerStyle(.link)
-        #else
+        #if os(iOS)
         .hoverEffect(.highlight)
         #endif
     }
@@ -768,6 +770,7 @@ struct LexiconEntryView: View {
     private func toolbarAdjacentButton(_ destination: String?, title: String, symbol: String) -> some View {
         Button(title, systemImage: symbol) { if let destination { app.navigateLexicon(destination, in: tabId) } }
             .disabled(destination == nil)
+            .clickableCursor(destination != nil)
             .help(destination.map { "\(title), \($0)" } ?? title)
     }
 
@@ -950,9 +953,7 @@ struct CrossRefsView: View {
                 .menuStyle(.borderlessButton).clickableCursor()
                 .fixedSize()
                 .menuIndicator(.hidden)
-                #if os(macOS)
-                .pointerStyle(.link)
-                #else
+                #if os(iOS)
                 .hoverEffect(.highlight)
                 #endif
             }

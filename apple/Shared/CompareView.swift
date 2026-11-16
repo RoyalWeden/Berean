@@ -254,7 +254,7 @@ struct CompareView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(spacing: 2) {
                 manageTranslations(st, cols)
-                    .menuStyle(.borderlessButton).clickableCursor()
+                    .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .hoverEffect(.highlight)
                 Button("Exit Compare", systemImage: "xmark") {
@@ -378,6 +378,7 @@ struct CompareView: View {
                 .contentShape(.rect)
                 #endif
         }
+        .clickableCursor()
         .help("Add a translation or open one in the reader")
     }
 
@@ -1172,7 +1173,6 @@ struct CompareView: View {
         .menuStyle(.borderlessButton).clickableCursor()
         #if os(macOS)
         .menuIndicator(.hidden)
-        .pointerStyle(.link)
         #else
         .hoverEffect(.highlight)
         #endif
