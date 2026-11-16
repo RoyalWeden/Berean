@@ -42,7 +42,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | Q06 | Indexing | implemented (FTS), partial (others) | ✅ | ✅ | — | FTS5 per text; deterministic ordering (ADR-0008) |
 | Q07 | Filtering and ranking | implemented / partial ranking | ✅ | 🟡 | — | Testament, books, match mode, scripture/relevance order, grouping by text/book/none |
 | Q08 | Semantic search and embeddings | partial (Mac dev only; not shipped) | — | — | — | Dev-only in original |
-| Q09 | Floating search / unified Search Berean / command palette | implemented | ✅ | 🟡 | P2 | ⌘K palette: references, Strong's, word search. Missing unified grouped results (Go to · Verses · Lexicon · Notes · Commands) |
+| Q09 | Floating search / unified Search Berean / command palette | implemented | ✅ | 🟡 | P2 | Mac floating search and iPhone Go group passage, Strong’s, Notes, and Scripture destinations with previews. Unified verse-result streams and YouTube remain open. |
 | Q10 | YouTube transcript search | implemented (see M04) | ❌ | ❌ | P3 | Depends on YouTube (M01) |
 | N01 | General, verse and daily notes | implemented | 🟡 | 🟡 | P1 | General and verse notes create/edit; Today’s Note and the Calendar open daily notes on both platforms. |
 | N02 | Markdown model and ProseMirror structure | implemented | 🟡 | 🟡 | P1 | Live-preview editor over verbatim Markdown (ADR-0014) — no data loss by construction; structures shown simplified |
@@ -346,8 +346,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/shell/FloatingSearch.tsx` (1678), `src/lib/{commands,search/*,navigation/*,searchNav}.ts`, `src/mobile/search/*`, `src/mobile/navigation/{NewTabSheet,destinationQuery}.tsx`, `docs/navigation-contract.md`.
 - **Known original defects:** FloatingSearch 1678 lines of UI logic.
-- **Native Mac / iPhone:** 🟡 / 🟡 — ⌘K palette: references, Strong's, word search. Missing unified grouped results (Go to · Verses · Lexicon · Notes · Commands)
-- **Native files:** StudyInspector.swift CommandPalette
+- **Native Mac / iPhone:** 🟡 / 🟡 — Mac floating search and iPhone Go group passage, Strong’s, Notes, and Scripture destinations with previews. Unified verse-result streams and YouTube remain open.
+- **Native files:** `apple/Shared/StudyInspector.swift` (CommandPalette), `apple/Shared/GoSheet.swift`, `apple/Shared/PassageResolver.swift`
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### Q10 YouTube transcript search
