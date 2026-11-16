@@ -128,7 +128,7 @@ struct StudyTrailView: View {
             List(visible) { trail in
                 let trailNameMatches = trailSearchMatches(query, fields: [trail.name])
                 let item = matches[trail.id]
-                let excerpt = trailNameMatches ? nil : item?.title ?? item?.source ?? trail.recap
+                let excerpt = trailNameMatches ? nil : item?.title ?? item?.source ?? item?.annotation ?? trail.recap
                 NavigationLink(value: TrailRoute(trailID: trail.id, filter: trailNameMatches || item?.isTag == true ? "" : query)) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(trail.name.isEmpty ? "Untitled Trail" : trail.name)
@@ -227,6 +227,7 @@ private struct StudyTrailStopsView: View {
     @Environment(AppModel.self) private var app
     @State private var stops: [StudyTrailService.Stop] = []
     @State private var connections: [StudyTrailService.Connection] = []
+    @State private var stickies: [StudyTrailService.Sticky] = []
     @State private var loadFailed = false
     @State private var status: String?
     @State private var actionMessage: String?
@@ -310,7 +311,10 @@ private struct StudyTrailStopsView: View {
                 .disabled(draftTrailName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .task(id: trail.id) { load() }
-        .sheet(isPresented: $showsStickies) {
+        .sheet(isPresented: $showsStickies, onDismiss: {
+            load()
+            reloadTrails()
+        }) {
             StudyTrailStickiesView(trailID: trail.id, stops: stops)
         }
         .sheet(isPresented: $showsTags, onDismiss: reloadTrails) {
@@ -369,7 +373,12 @@ private struct StudyTrailStopsView: View {
         }
     }
 
+    private var matchingStickies: [StudyTrailService.Sticky] {
+        stickies.filter { matches($0.title, $0.body) }
+    }
+
     private var listContent: some View {
+        let visibleStickies = matchingStickies
         let visibleStops = matchingStops
         let visibleConnections = matchingConnections
         let showConnect = !searchActive && !stops.isEmpty && currentDestination != nil
@@ -389,7 +398,7 @@ private struct StudyTrailStopsView: View {
             }
             if loadFailed {
                 Text("Couldn’t load stops.")
-            } else if searchActive && visibleStops.isEmpty && visibleConnections.isEmpty && !matches(trail.recap) {
+            } else if searchActive && visibleStops.isEmpty && visibleConnections.isEmpty && visibleStickies.isEmpty && !matches(trail.recap) {
                 ContentUnavailableView.search(text: query)
             } else if !searchActive && stops.isEmpty {
                 Text("No stops in this trail.").foregroundStyle(.secondary)
@@ -397,6 +406,13 @@ private struct StudyTrailStopsView: View {
                 Section("Stops") {
                     ForEach(visibleStops) { stop in
                         stopRow(stop, editable: true)
+                    }
+                }
+            }
+            if !visibleStickies.isEmpty {
+                Section("Sticky Notes") {
+                    ForEach(visibleStickies) { note in
+                        mapSticky(note)
                     }
                 }
             }
@@ -433,19 +449,40 @@ private struct StudyTrailStopsView: View {
     private var mapContent: some View {
         let graph = StudyTrailService.map(stops: stops, connections: connections)
         let matchedStops = Set(matchingStops.map(\.id))
+        let stopIDs = Set(stops.map(\.id))
+        let matchingStickyIDs = Set(matchingStickies.map(\.id))
+        let shownStickies = stickies.filter { note in
+            matchingStickyIDs.contains(note.id) || note.anchorID.map { matchedStops.contains($0) } == true
+        }
+        let stickiesByAnchor = Dictionary(grouping: shownStickies, by: \.anchorID)
         let retained = mapSearchConnectionIDs()
-        let displayedStops = graph.stops.filter { matchedStops.contains($0.id) || $0.branches.contains { retained.contains($0.id) } }
+        let displayedStops = graph.stops.filter {
+            matchedStops.contains($0.id) || stickiesByAnchor[$0.id] != nil ||
+            $0.branches.contains { retained.contains($0.id) }
+        }
         let unplaced = graph.unplaced.filter { retained.contains($0.id) }
+        let unanchored = shownStickies.filter { note in
+            guard let anchor = note.anchorID else { return true }
+            return !stopIDs.contains(anchor)
+        }
         return List {
             if loadFailed {
                 Text("Couldn’t load the trail map.")
-            } else if displayedStops.isEmpty && unplaced.isEmpty {
+            } else if displayedStops.isEmpty && unplaced.isEmpty && unanchored.isEmpty {
                 if searchActive { ContentUnavailableView.search(text: query) }
                 else { Text("Record a stop to start the trail map.").foregroundStyle(.secondary) }
             }
+            if !unanchored.isEmpty {
+                Section("Unanchored Sticky Notes") {
+                    ForEach(unanchored) { mapSticky($0) }
+                }
+            }
             ForEach(displayedStops) { node in
+                let notes = stickiesByAnchor[node.id, default: []]
                 Section {
+                    ForEach(notes.filter { $0.kind == .section }) { mapSticky($0) }
                     stopRow(node.stop, editable: false)
+                    ForEach(notes.filter { $0.kind == .annotation }) { mapSticky($0) }
                     ForEach(node.branches.filter { matchedStops.contains(node.id) || retained.contains($0.id) }) { branch in
                         mapBranch(branch)
                     }
@@ -456,6 +493,29 @@ private struct StudyTrailStopsView: View {
                     ForEach(unplaced) { branch in mapBranch(branch) }
                 }
             }
+        }
+    }
+
+    private func mapSticky(_ note: StudyTrailService.Sticky) -> some View {
+        let isSection = note.kind == .section
+        return Label {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(note.title.isEmpty ? (isSection ? "Section Header" : "Sticky Note") : note.title)
+                    .font(isSection ? .headline : .subheadline.weight(.medium))
+                if !note.body.isEmpty {
+                    Text(note.body)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+        } icon: {
+            Image(systemName: isSection ? "text.alignleft" : "note.text")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        .contextMenu {
+            Button("Manage Sticky Notes", systemImage: "note.text") { showsStickies = true }
         }
     }
 
@@ -585,6 +645,7 @@ private struct StudyTrailStopsView: View {
             guard let service = app.studyTrailService else { loadFailed = true; return }
             let loadedStops = try service.stops(in: trail.id)
             connections = try service.connections(in: trail.id)
+            stickies = try service.stickies(in: trail.id)
             stops = loadedStops
             loadFailed = false
         } catch {

@@ -1167,3 +1167,7 @@
 ### 2026-11-15 — Study Trail sticky notes
 - Add and edit sticky notes and section headers from Trail Actions. The sheet shows each entry’s anchor chapter.
 - Both final Dev builds and 140 Swift tests passed. Mac scratch QA verified creating and editing a section. Live iPhone verification remains open.
+
+### 2026-11-15 — Sticky notes in Study Trail Map
+- Map shows sticky notes at their saved stops, and library and trail searches include sticky titles and bodies.
+- Both Dev builds and all 140 Swift tests passed. Mac scratch QA verified map placement and both search paths. The iPhone Dev build launched in Simulator.

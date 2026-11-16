@@ -272,6 +272,10 @@ public struct StudyTrailService {
             SELECT m.trail_session_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, t.name, NULL, NULL, 1
             FROM trail_tag_members m JOIN trail_tags t ON t.id = m.tag_id
             WHERE m.trail_session_id <> '__loose_stops__'
+            UNION ALL
+            SELECT n.trail_session_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, n.title, n.body, NULL, 0
+            FROM trail_notes n JOIN trail_sessions s ON s.id = n.trail_session_id
+            WHERE s.id <> '__loose_stops__'
             """).compactMap { row in
                 guard let trail = row["trail"]?.string else { return nil }
                 return SearchRecord(trailId: trail, sourceBook: row["source_book"]?.string,
