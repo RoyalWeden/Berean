@@ -1532,3 +1532,7 @@ Compare is now directly available in the full Mac verse action capsule. Previous
 Explicit Compare commands from Scripture now discard the stale aligned and independent-column Compare scroll positions for the source edition and chapter. Compare can then use the existing selection as its initial anchor. Standard Compare opens, Back/Forward, other chapters, and the reader's own scroll bookmark keep their existing paths. The stacked layout for independently pinned columns is outside this change. Live QA pending: open Compare, scroll far away, leave, tap a new verse and use its Compare action, then check the initial viewport and Back.
 
 Both native Dev builds passed for the Compare jump change.
+
+Stacked Compare now has column-qualified verse scroll targets. With a verse selection and no saved stacked offset, it opens on the focused selected verse in a following column, preferring the source edition when available. The initial jump runs in the same task as normal bookmark restoration. An explicit Compare command clears the matching chapter's stacked offset alongside aligned and independent-column positions. Pinned columns keep their own passages. Live check pending: pin a different passage in one column, force stacked layout, open Compare from a late verse, then check the anchored row and Back.
+
+Both native Dev builds passed for stacked Compare navigation.

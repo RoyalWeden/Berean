@@ -698,7 +698,7 @@ final class AppModel {
     func prepareCompareJump(in tabId: String, edition: ChapterEdition) {
         let prefix = edition.key + "|"
         compareScrollOffsets[tabId] = compareScrollOffsets[tabId]?.filter {
-            !$0.key.hasPrefix("aligned|" + prefix)
+            !$0.key.hasPrefix("aligned|" + prefix) && !$0.key.hasPrefix("stacked|" + prefix)
         }
         compareColumnScrollVerses[tabId] = compareColumnScrollVerses[tabId]?.filter { !$0.key.hasPrefix(prefix) }
     }

@@ -218,10 +218,7 @@ struct CompareView: View {
                       !syncScrolling || !cols.allSatisfy({ $0.follows(st) }) {
                 independentPanes(cols, passage: passage, compact: geometry.size.width < CGFloat(cols.count) * 260)
             } else if !cols.allSatisfy({ $0.follows(st) }) {
-                let key = "stacked|" + passage
-                restoredCompareScroll(key: key) {
-                    independentComparison(cols, passage: passage)
-                }
+                stackedIndependentComparison(st, cols, passage: passage)
             } else {
                 alignedComparison(st, cols)
             }
@@ -569,6 +566,7 @@ struct CompareView: View {
     }
 
     private func restoredCompareScroll<Content: View>(key: String, preferringVerse: Bool = false,
+                                                      initialJump: (() -> Void)? = nil,
                                                       @ViewBuilder content: () -> Content) -> some View {
         ScrollView(content: content)
             .scrollPosition($sharedScrollPosition)
@@ -582,8 +580,12 @@ struct CompareView: View {
                 restoredSharedScrollKey = nil
                 await Task.yield()
                 guard !Task.isCancelled else { return }
-                if !preferringVerse, let offset = app.compareScrollOffsets[tabId]?[key] {
-                    sharedScrollPosition.scrollTo(y: offset)
+                if !preferringVerse {
+                    if let offset = app.compareScrollOffsets[tabId]?[key] {
+                        sharedScrollPosition.scrollTo(y: offset)
+                    } else {
+                        initialJump?()
+                    }
                 }
                 restoredSharedScrollKey = key
             }
@@ -712,6 +714,36 @@ struct CompareView: View {
     private func correspondingVerse(_ verse: Int, in column: CompareColumn) -> Int? {
         guard let rows = independentRows[column.id] else { return nil }
         return rows.last(where: { $0.verseNum <= verse })?.verseNum ?? rows.first?.verseNum
+    }
+
+    private struct StackedVerseTarget: Hashable {
+        let columnID: Int
+        let verse: Int
+    }
+
+    private func stackedIndependentComparison(_ state: BibleState, _ columns: [CompareColumn], passage: String) -> some View {
+        let key = "stacked|" + passage
+        return ScrollViewReader { proxy in
+            restoredCompareScroll(key: key, initialJump: {
+                if let target = stackedSelectionTarget(in: columns, state: state) {
+                    proxy.scrollTo(target, anchor: .top)
+                }
+            }) {
+                independentComparison(columns, passage: passage)
+            }
+        }
+    }
+
+    private func stackedSelectionTarget(in columns: [CompareColumn], state: BibleState) -> StackedVerseTarget? {
+        let preferred = columns.filter { $0.text == state.translation } + columns.filter { $0.text != state.translation }
+        for column in preferred {
+            let selected = selectedRows(in: column, source: state)
+            let focused = state.verse.flatMap { mappedVerse($0, in: column, source: state) }
+            if let row = selected.first(where: { $0.verseNum == focused }) ?? selected.first {
+                return StackedVerseTarget(columnID: column.id, verse: row.verseNum)
+            }
+        }
+        return nil
     }
 
     private func independentComparison(_ columns: [CompareColumn], passage: String) -> some View {
@@ -876,6 +908,7 @@ struct CompareView: View {
                     .background(Color.accentColor.opacity(isSelected ? 0.08 : 0), in: .rect(cornerRadius: 6))
                 if let stackedPassage {
                     content
+                        .id(StackedVerseTarget(columnID: column.id, verse: row.verseNum))
                         .onScrollVisibilityChange(threshold: 0.2) { visible in
                             trackStackedVerse(row.verseNum, columnID: column.id, passage: stackedPassage, visible: visible)
                         }
