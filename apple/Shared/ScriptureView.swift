@@ -983,6 +983,9 @@ struct ScriptureView: View {
             .buttonStyle(VerseActionButtonStyle())
             .help("Cross references")
             if !selectedRows.isEmpty {
+                compareSelectionButton
+                    .buttonStyle(VerseActionButtonStyle())
+                    .help("Compare selected verses")
                 VerseActionPopover(title: "Export Selected Verses", symbol: "square.and.arrow.up", selection: selection,
                                    presented: versePopoverBinding(.export)) { close in
                     selectedVerseExportActions(st, onComplete: close)
@@ -1033,12 +1036,16 @@ struct ScriptureView: View {
             Button("Cross References", systemImage: "arrow.triangle.branch") {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min(), selectedVerses: selection.sorted())
             }
-            Button(selection.count == 1 ? "Compare This Verse" : "Compare Selected Verses",
-                   systemImage: "rectangle.split.2x1") {
-                mutate { $0.compareMode = true }
-            }
+            compareSelectionButton
         }
         selectedVerseExportActions(st)
+    }
+
+    private var compareSelectionButton: some View {
+        Button(selection.count == 1 ? "Compare This Verse" : "Compare Selected Verses",
+               systemImage: "rectangle.split.2x1") {
+            mutate { $0.compareMode = true }
+        }
     }
 
     private func compareVerse(_ verse: ChapterVerseRow, in state: BibleState) {

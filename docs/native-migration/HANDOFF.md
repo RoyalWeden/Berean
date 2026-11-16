@@ -1526,3 +1526,5 @@ Both current-source Dev builds passed for the Testament search change.
 Text search now probes one extra matching row at its existing limits. Advanced Search no longer infers truncation from the displayed count, so an exact boundary stays exact. Any Word carries forward per-term limits and the unscoped merged-list limit. The verse search API preserves the existing row limits and order. Eighteen focused tests passed, including the original Bible search goldens, an exact filtered boundary, and over-limit All Words and Any Word queries. UI retest for this increment remains open.
 
 Both Mac and iPhone Simulator Dev builds passed for the exact-limit change.
+
+Compare is now directly available in the full Mac verse action capsule. Previously only its compact overflow variants exposed the selection-specific Compare command. The wide Mac button and compact Mac/iPhone menu share the action and keep the same selected verse state when switching reader modes. Both Dev builds passed. Live check pending: open Compare from a disjoint selection via the wide Mac capsule, repeat from a narrow pane, and confirm selection and Back on both paths.
