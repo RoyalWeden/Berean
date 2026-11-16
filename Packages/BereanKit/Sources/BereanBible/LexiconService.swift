@@ -260,28 +260,36 @@ public actor LexiconService {
     /// `getOccurrences` — verses whose own tagged text carries the number (KJVA for Hebrew; KJVA + LXX for Greek,
     /// up to 1000 / 500 per text, or `quickLimit`), optionally scoped to one book.
     public func occurrences(_ strongsNum: String, bookId: String? = nil, quickLimit: Int? = nil) -> [LexiconOccurrence] {
+        occurrenceBatch(strongsNum, bookId: bookId, quickLimit: quickLimit).rows
+    }
+
+    /// Report whether any edition has additional matches beyond the returned sample.
+    public func occurrenceBatch(_ strongsNum: String, bookId: String? = nil, quickLimit: Int? = nil) -> (rows: [LexiconOccurrence], truncated: Bool) {
         let num = Self.normalizedId(strongsNum)
-        guard let lang = num.first, lang == "H" || lang == "G", let lex = lexicon(lang) else { return [] }
+        guard let lang = num.first, lang == "H" || lang == "G", let lex = lexicon(lang) else { return ([], false) }
         let isGreek = lang == "G"
         let scope = bookId.map { JSText.upper($0) }
         let kjva = connection(textPath("kjva")), lxx = connection(textPath("lxx"))
+        var truncated = false
         func scan(_ db: SQLiteConnection?, _ textId: String, _ limit: Int) -> [(String, Int, Int, String)] {
             guard let db else { return [] }
             var params: [SQLiteValue] = [.text("%{\(num)}%"), .text("%{\(num)|%"), .text("%|\(num)}%"), .text("%|\(num)|%")]
             if let scope { params.append(.text(scope)) }
-            params.append(.integer(Int64(limit)))
+            params.append(.integer(Int64(limit >= 0 && limit < Int.max ? limit + 1 : limit)))
             let sql = """
                 SELECT book_id, chapter, verse_num as verse FROM verses
                            WHERE (text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?)\(scope != nil ? " AND book_id = ?" : "")
                            ORDER BY book_id, chapter, verse_num LIMIT ?
                 """
-            return ((try? db.query(sql, params)) ?? []).map { ($0.values[0].string ?? "", $0.values[1].int ?? 0, $0.values[2].int ?? 0, textId) }
+            let rows = (try? db.query(sql, params)) ?? []
+            if limit >= 0 && rows.count > limit { truncated = true }
+            return rows.prefix(limit >= 0 ? limit : rows.count).map { ($0.values[0].string ?? "", $0.values[1].int ?? 0, $0.values[2].int ?? 0, textId) }
         }
         let raw = isGreek ? scan(kjva, "kjva", quickLimit ?? 500) + scan(lxx, "lxx", quickLimit ?? 500) : scan(kjva, "kjva", quickLimit ?? 1000)
-        if raw.isEmpty { return [] }
+        if raw.isEmpty { return ([], truncated) }
         let shortDef = (try? lex.query("SELECT short_def FROM entries WHERE strongs_id = ?", [.text(num)]))?.first?.values.first?.string ?? ""
         let gloss = VerseDisplay.glossWords(shortDef)
-        return raw.map { b, c, v, t in
+        let rows = raw.map { b, c, v, t in
             let db = t == "lxx" ? lxx : kjva
             let row = (try? db?.query("SELECT text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1",
                                       [.text(b), .integer(Int64(c)), .integer(Int64(v))]))??.first
@@ -289,5 +297,6 @@ public actor LexiconService {
             return LexiconOccurrence(bookId: b, chapter: c, verseNum: v, text: text, textTagged: tagged, textId: t,
                                      matchWordIndices: Self.occurrenceIndices(tagged: tagged, plain: text, num: num, gloss: gloss))
         }
+        return (rows, truncated)
     }
 }

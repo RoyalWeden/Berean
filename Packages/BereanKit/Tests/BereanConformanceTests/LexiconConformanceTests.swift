@@ -79,6 +79,16 @@ extension LexiconEntry {
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
     }
 
+    @Test func occurrenceBatchDistinguishesExactLimitFromTruncation() async {
+        let common = await svc.occurrenceBatch("H3068", quickLimit: 1)
+        #expect(common.rows.count == 1)
+        #expect(common.truncated)
+
+        let rare = await svc.occurrenceBatch("H1286", quickLimit: 1)
+        #expect(rare.rows.count == 1)
+        #expect(!rare.truncated)
+    }
+
     @Test func occurrences() async {
         var failures: [String] = []
         for c in g.arr("occurrences") {

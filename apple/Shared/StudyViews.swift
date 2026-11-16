@@ -62,6 +62,7 @@ struct LexiconEntryView: View {
     @State private var entry: LexiconEntry?
     @State private var related: [LexiconRelated] = []
     @State private var occurrences: [LexiconOccurrence] = []
+    @State private var occurrencesTruncated = false
     @State private var previews: [OccurrenceKey: OccurrencePreview] = [:]
     @State private var adjacent: (previous: String?, next: String?) = (nil, nil)
     @State private var loaded = false
@@ -346,7 +347,7 @@ struct LexiconEntryView: View {
                                 }
                             }
                         }
-                        section(occurrences.isEmpty ? "Occurrences" : "Occurrences (\(occurrences.count)\(occurrences.count >= 1000 ? "+" : ""))") {
+                        section(occurrences.isEmpty ? "Occurrences" : "Occurrences (\(occurrences.count)\(occurrencesTruncated ? "+" : ""))") {
                             if occurrencesLoading {
                                 ProgressView().accessibilityLabel("Loading occurrences")
                             } else if occurrences.isEmpty {
@@ -357,7 +358,9 @@ struct LexiconEntryView: View {
                             }
                             if !occurrences.isEmpty {
                                 HStack {
-                                    Text(occurrenceMatches.count == occurrences.count ? "All shown" : "\(occurrenceMatches.count) shown")
+                                    Text(occurrencesTruncated
+                                         ? "\(occurrenceMatches.count) of \(occurrences.count) loaded"
+                                         : occurrenceMatches.count == occurrences.count ? "All shown" : "\(occurrenceMatches.count) shown")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                     Spacer(minLength: 4)
@@ -367,7 +370,9 @@ struct LexiconEntryView: View {
                                     activeOccurrenceOptions
                                 }
                                 if occurrenceMatches.isEmpty {
-                                    Text("No occurrences match these filters.")
+                                    Text(occurrencesTruncated
+                                         ? "No loaded occurrences match these filters."
+                                         : "No occurrences match these filters.")
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
                                 }
@@ -397,7 +402,9 @@ struct LexiconEntryView: View {
                                     Button("Show More Occurrences", systemImage: "chevron.down") {
                                         visibleOccurrences += 40
                                     }
-                                    Button("Show All \(occurrenceMatches.count)") { visibleOccurrences = occurrenceMatches.count }
+                                    Button(occurrencesTruncated ? "Show All Loaded" : "Show All \(occurrenceMatches.count)") {
+                                        visibleOccurrences = occurrenceMatches.count
+                                    }
                                 }
                                 .buttonStyle(.interactivePlain)
                             } else if visibleOccurrences > 40, occurrenceMatches.count > 40 {
@@ -545,6 +552,7 @@ struct LexiconEntryView: View {
             adjacent = (nil, nil)
             related = []
             occurrences = []
+            occurrencesTruncated = false
             previews = [:]
             occurrenceEdition = nil
             occurrenceBook = nil
@@ -563,9 +571,10 @@ struct LexiconEntryView: View {
             let newRelated = await app.lexicon.related(strongsId)
             guard !Task.isCancelled else { return }
             related = newRelated
-            let newOccurrences = await app.lexicon.occurrences(strongsId, quickLimit: compact ? 60 : nil)
+            let newOccurrences = await app.lexicon.occurrenceBatch(strongsId, quickLimit: compact ? 60 : nil)
             guard !Task.isCancelled else { return }
-            occurrences = newOccurrences
+            occurrences = newOccurrences.rows
+            occurrencesTruncated = newOccurrences.truncated
             updatePreviews()
             if !compact, let options = app.lexiconOccurrenceOptions[tabId]?[strongsId] {
                 occurrenceEdition = options.edition

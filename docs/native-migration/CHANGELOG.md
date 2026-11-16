@@ -1358,3 +1358,7 @@
 ### 2026-11-16 — Removable Lexicon occurrence filters
 
 - Show active occurrence settings as individual removable chips. Both Dev targets built in the scratch checkout. Mac QA verified independent edition and book clearing.
+
+### 2026-11-16 — Accurate Lexicon sample counts
+
+- Detect capped results independently for each edition and label filters against the loaded sample. Both scratch Dev builds and seven Lexicon tests passed. Mac QA verified the capped and exact count states.
