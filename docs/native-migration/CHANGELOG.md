@@ -1314,3 +1314,7 @@
 ### 2026-11-16 — Restore scrolling beneath floating verse actions
 
 - Restored the overlapping glass action bars for both readers after the owner clarified that Scripture should extend behind them. Retained bottom scrolling clearance and selection reveal.
+
+### 2026-11-16 — Mac Scripture selection during window resize
+
+- Preserve an already-visible selection above the floating action bar when the window resizes. Mac Dev built successfully. Fill → Top tile kept John 8:58–59 visible in the scratch reader.

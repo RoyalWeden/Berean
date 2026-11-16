@@ -13,6 +13,14 @@ private final class ChapterPullScrollView: NSScrollView {
         reader?.parent?.onChapterPull(cue)
     }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        let ranges = frame.size != newSize ? reader?.visibleSelectedRanges(in: self) ?? [] : []
+        super.setFrameSize(newSize)
+        for range in ranges {
+            if reader?.revealSelectedRange(range, in: self) == true { break }
+        }
+    }
+
     override func scrollWheel(with event: NSEvent) {
         if event.phase.contains(.cancelled) || event.phase.contains(.began) {
             travel = 0
@@ -215,31 +223,12 @@ struct ChapterTextView: NSViewRepresentable {
         }
         if revealSelection, scrollTarget == nil {
             let destination = passageId
-            DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
-                guard let tv, let scroll, let c, c.lastPassage == destination,
+            DispatchQueue.main.async { [weak scroll, weak c] in
+                guard let scroll, let c, c.lastPassage == destination,
                       c.parent.passageId == destination, c.parent.scrollTarget == nil,
-                      c.parent.selectedVerses == selectedVerses,
-                      let container = tv.textContainer else { return }
-                tv.layoutManager?.ensureLayout(for: container)
-                let clip = scroll.contentView
-                let top = clip.bounds.minY + tv.visibleTitleBarClearance
-                let bottom = clip.bounds.maxY - c.parent.actionClearance
-                guard top <= bottom else { return }
+                      c.parent.selectedVerses == selectedVerses else { return }
                 for range in selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: c.verseRanges) {
-                    guard let first = tv.firstVerseLineTop(in: range),
-                          let last = tv.lastVerseLineBottom(in: range) else { continue }
-                    let lineTop = tv.convert(NSPoint(x: 0, y: first), to: clip).y
-                    let lineBottom = tv.convert(NSPoint(x: 0, y: last), to: clip).y
-                    guard lineTop <= lineBottom,
-                          let offset = selectionRevealOffset(lines: lineTop...lineBottom, visible: top...bottom,
-                                                             gap: ReaderFloatingControls.readingGap) else { continue }
-                    if offset != 0 {
-                        var proposed = clip.bounds
-                        proposed.origin.y += offset
-                        clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
-                        scroll.reflectScrolledClipView(clip)
-                    }
-                    break
+                    if c.revealSelectedRange(range, in: scroll) { break }
                 }
             }
         }
@@ -521,6 +510,45 @@ struct ChapterTextView: NSViewRepresentable {
                   let verse = verse(at: layout.characterIndexForGlyph(at: glyph)),
                   let range = verseRanges[verse], let marker = view.firstRect(forVerseRange: range) else { return nil }
             return (verse, marker.minY - localTop)
+        }
+
+        func visibleSelectedRanges(in scroll: NSScrollView) -> [NSRange] {
+            guard let parent, lastPassage == parent.passageId, let textView,
+                  !parent.selectedVerses.isEmpty else { return [] }
+            let clip = scroll.contentView
+            let top = clip.bounds.minY + textView.visibleTitleBarClearance
+            let bottom = clip.bounds.maxY - parent.actionClearance
+            return selectionRevealRanges(parent.selectedVerses, previous: [], focus: parent.selectionFocus, in: verseRanges)
+                .filter { range in
+                    guard let lines = selectionLines(range, in: clip) else { return false }
+                    return lines.lowerBound >= top && lines.upperBound <= bottom
+                }
+        }
+
+        @discardableResult
+        func revealSelectedRange(_ range: NSRange, in scroll: NSScrollView) -> Bool {
+            guard let textView, let container = textView.textContainer else { return false }
+            textView.layoutManager?.ensureLayout(for: container)
+            let clip = scroll.contentView
+            let top = clip.bounds.minY + textView.visibleTitleBarClearance
+            let bottom = clip.bounds.maxY - (parent?.actionClearance ?? 0)
+            guard top <= bottom, let lines = selectionLines(range, in: clip),
+                  let offset = selectionRevealOffset(lines: lines, visible: top...bottom,
+                                                     gap: ReaderFloatingControls.readingGap) else { return false }
+            if offset != 0 {
+                let destination = clip.bounds.offsetBy(dx: 0, dy: offset)
+                clip.scroll(to: clip.constrainBoundsRect(destination).origin)
+                scroll.reflectScrolledClipView(clip)
+            }
+            return true
+        }
+
+        private func selectionLines(_ range: NSRange, in clip: NSClipView) -> ClosedRange<CGFloat>? {
+            guard let textView, let first = textView.firstVerseLineTop(in: range),
+                  let last = textView.lastVerseLineBottom(in: range) else { return nil }
+            let top = textView.convert(NSPoint(x: 0, y: first), to: clip).y
+            let bottom = textView.convert(NSPoint(x: 0, y: last), to: clip).y
+            return top <= bottom ? top...bottom : nil
         }
 
         func readingPosition(in scroll: NSScrollView, preferred: Int? = nil) -> ScriptureReadingPosition? {
