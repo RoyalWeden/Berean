@@ -1018,7 +1018,7 @@ final class AppModel {
            tab.state["endChapter"]?.numberValue == nil {
             return Array(first...last)
         }
-        return ResolvedPassage.savedVerses(in: tab, reader: state).sorted()
+        return ResolvedPassage.savedVerses(in: tab.state, reader: state).sorted()
     }
 
     func studyStrongsVerses(in tabId: String, state: BibleState) -> [Int] {
@@ -1195,6 +1195,14 @@ final class AppModel {
         reader.compareMode = true
         var state = reader.object
         state["compareColumns"] = .array(destination?.columns.map(\.value) ?? [])
+        if let verse, reader.endVerse == nil,
+           let groups = destination?.passage.verseGroups, groups.count > 1,
+           groups.allSatisfy({ (1...999).contains($0.lowerBound) && (1...999).contains($0.upperBound) }),
+           groups.contains(where: { $0.contains(verse) }) {
+            let passage = ResolvedPassage(textId: reader.translation, bookId: bookId, chapter: chapter,
+                                          verse: verse, verseGroups: groups)
+            state["nativeSelectedVerses"] = passage.savedSelection
+        }
         let comparison = CompareHistoryDestination(state: state)
         let title = Reference.readerChapterLabel(bookId, chapter, textId: reader.translation)
         // Keep other open comparisons intact when a History entry has a different destination.

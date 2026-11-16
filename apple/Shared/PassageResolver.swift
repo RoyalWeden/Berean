@@ -24,9 +24,9 @@ struct ResolvedPassage: Equatable {
         return .object(object)
     }
 
-    static func savedVerses(in tab: Tab, reader: BibleState) -> Set<Int> {
+    static func savedVerses(in state: JSObject, reader: BibleState) -> Set<Int> {
         guard reader.endVerse == nil, let active = reader.verse,
-              let saved = tab.state["nativeSelectedVerses"],
+              let saved = state["nativeSelectedVerses"],
               saved["passage"]?.stringValue?.string == "\(reader.translation)|\(reader.bookId)|\(reader.chapter)",
               saved["activeVerse"]?.numberValue == Double(active) else { return [] }
         let verses = Set((saved["verses"]?.arrayValue ?? []).compactMap { $0.numberValue.flatMap(Int.init(exactly:)) }

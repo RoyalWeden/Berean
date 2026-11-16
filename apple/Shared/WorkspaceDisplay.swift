@@ -55,7 +55,7 @@ extension BereanWorkspace.Tab {
         guard tabType == .bible else { return fallback }
         let reader = BibleState(state)
         guard let verse = reader.verse else { return fallback }
-        let groups = reader.compareMode ? [] : consecutiveVerseRuns(ResolvedPassage.savedVerses(in: self, reader: reader))
+        let groups = reader.compareMode ? [] : consecutiveVerseRuns(ResolvedPassage.savedVerses(in: state, reader: reader))
         return ResolvedPassage(textId: reader.translation, bookId: reader.bookId,
                                chapter: reader.chapter, verse: verse, endVerse: reader.endVerse, verseGroups: groups).label
     }

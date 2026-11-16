@@ -1536,3 +1536,7 @@ Both native Dev builds passed for the Compare jump change.
 Stacked Compare now has column-qualified verse scroll targets. With a verse selection and no saved stacked offset, it opens on the focused selected verse in a following column, preferring the source edition when available. The initial jump runs in the same task as normal bookmark restoration. An explicit Compare command clears the matching chapter's stacked offset alongside aligned and independent-column positions. Pinned columns keep their own passages. Live check pending: pin a different passage in one column, force stacked layout, open Compare from a late verse, then check the anchored row and Back.
 
 Both native Dev builds passed for stacked Compare navigation.
+
+Compare History now records disjoint verse groups in its existing optional passage payload, using the same selection validation as Scripture. Reopening restores those groups and the active verse; a different group selection also distinguishes otherwise identical open Compare tabs. Older entries still decode. Live check pending: select two nonadjacent verses, open Compare, reopen its History entry, then confirm both verses are highlighted and that Back returns to History.
+
+Both native Dev builds passed for Compare History verse groups.

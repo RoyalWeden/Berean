@@ -706,7 +706,7 @@ struct ScriptureView: View {
         guard let first = state.verse else { return [] }
         let last = max(first, state.endVerse ?? first)
         let chapterVerses = Set(verses.map(\.verseNum))
-        let restored = (app.findTab(tabId).map { ResolvedPassage.savedVerses(in: $0, reader: state) } ?? [])
+        let restored = (app.findTab(tabId).map { ResolvedPassage.savedVerses(in: $0.state, reader: state) } ?? [])
             .intersection(chapterVerses)
         if state.endVerse == nil, restored.contains(first) {
             return restored
