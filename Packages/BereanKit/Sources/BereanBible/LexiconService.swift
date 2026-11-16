@@ -1,5 +1,6 @@
 import Foundation
 import BereanCore
+import BereanReference
 import BereanSQLite
 import BereanText
 
@@ -263,7 +264,7 @@ public actor LexiconService {
         occurrenceBatch(strongsNum, bookId: bookId, quickLimit: quickLimit).rows
     }
 
-    /// Complete edition results for the full Lexicon. The inspector uses the capped batch.
+    /// Complete results in Scripture order within each edition. The inspector uses the capped batch.
     public func allOccurrences(_ strongsNum: String) -> [LexiconOccurrence] {
         let num = Self.normalizedId(strongsNum)
         guard let lang = num.first, let editions = Self.occurrenceTexts[lang],
@@ -281,6 +282,7 @@ public actor LexiconService {
             guard !Task.isCancelled else { return [] }
             guard let db = connection(textPath(edition)), let rows = try? db.query(sql, params) else { continue }
             var seen = Set<String>()
+            var matchesByBook: [String: [LexiconOccurrence]] = [:]
             for row in rows {
                 guard !Task.isCancelled else { return [] }
                 let book = row.values[0].string ?? ""
@@ -289,10 +291,15 @@ public actor LexiconService {
                 guard seen.insert("\(book)|\(chapter)|\(verse)").inserted else { continue }
                 let text = row.values[3].string ?? ""
                 let tagged = row.values[4].string
-                matches.append(LexiconOccurrence(bookId: book, chapter: chapter, verseNum: verse,
-                                                 text: text, textTagged: tagged, textId: edition,
-                                                 matchWordIndices: Self.occurrenceIndices(tagged: tagged, plain: text,
-                                                                                        num: num, gloss: gloss)))
+                let occurrence = LexiconOccurrence(bookId: book, chapter: chapter, verseNum: verse,
+                                                    text: text, textTagged: tagged, textId: edition,
+                                                    matchWordIndices: Self.occurrenceIndices(tagged: tagged, plain: text,
+                                                                                           num: num, gloss: gloss))
+                matchesByBook[book, default: []].append(occurrence)
+            }
+            let books = matchesByBook.keys.sorted { (Reference.bookOrder($0), $0) < (Reference.bookOrder($1), $1) }
+            for book in books {
+                matches.append(contentsOf: matchesByBook[book, default: []])
             }
         }
         return matches

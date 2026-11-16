@@ -1376,3 +1376,8 @@
 - Both readers keep Scripture in place when the action capsule adds bottom scroll room. iPhone uses less padding after the final line.
 - Mac and iPhone Simulator Dev builds passed. AppKit viewport and scroll-limit assertions passed. The iPhone Dev simulator showed text beneath both reader capsules with Genesis 1:25–26 selected. No production data was used.
 - See HANDOFF for final-verse and live Mac checks.
+
+### 2026-11-16 — Lexicon occurrence order
+
+- Full Lexicon occurrence lists follow Scripture order within each edition on Mac and iPhone.
+- Eight Lexicon tests passed, covering complete lists, edition grouping, deduplication, and legacy capped results.

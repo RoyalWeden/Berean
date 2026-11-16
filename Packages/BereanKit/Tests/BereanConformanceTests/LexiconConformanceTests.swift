@@ -2,6 +2,7 @@ import Testing
 import BereanCore
 import BereanSync
 import BereanBible
+import BereanReference
 
 extension LexiconEntry {
     var json: JSValue {
@@ -97,6 +98,21 @@ extension LexiconEntry {
         #expect(Set(complete.map(\.textId)) == ["kjva", "lxx"])
         let destinations = complete.map { "\($0.textId)|\($0.bookId)|\($0.chapter)|\($0.verseNum)" }
         #expect(Set(destinations).count == complete.count)
+        #expect(complete.first?.textId == "kjva")
+        #expect(complete.last?.textId == "lxx")
+        for edition in ["kjva", "lxx"] {
+            let rows = complete.filter { $0.textId == edition }
+            #expect(!rows.isEmpty)
+            for (previous, next) in zip(rows, rows.dropFirst()) {
+                let previousPosition = (Reference.bookOrder(previous.bookId), previous.bookId, previous.chapter, previous.verseNum)
+                let nextPosition = (Reference.bookOrder(next.bookId), next.bookId, next.chapter, next.verseNum)
+                #expect(previousPosition < nextPosition)
+            }
+        }
+        let hebrew = await svc.allOccurrences("H3068")
+        #expect(hebrew.first?.bookId == "GEN")
+        #expect(hebrew.first?.chapter == 2)
+        #expect(hebrew.first?.verseNum == 4)
     }
 
     @Test func occurrences() async {
