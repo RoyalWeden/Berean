@@ -1386,3 +1386,8 @@
 
 - Edition, book, and translated-word filters retain their selections when combined. Incompatible selections show zero results and can be removed individually.
 - Both Dev builds passed. iPhone Simulator verified a zero-result edition and book combination and restored the scoped 18 results by clearing the edition.
+
+### 2026-11-16 — Strong’s lookup context
+
+- History shows the passage behind inline Strong’s lookups and can filter by that reference. Opening a related Lexicon entry in a new tab records the source for Back.
+- Both Dev builds and two history store regression tests passed. Live checks are recorded in HANDOFF.

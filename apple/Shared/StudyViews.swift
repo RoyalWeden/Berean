@@ -244,7 +244,11 @@ struct LexiconEntryView: View {
     /// Context menu for a Strong's number (original StrongsContextMenu.tsx).
     @ViewBuilder private func strongsMenu(_ id: String, gloss: String) -> some View {
         Button("Open", systemImage: "character.book.closed") { app.navigateLexicon(id, in: tabId) }
-        Button("Open in New Tab", systemImage: "plus.square.on.square") { app.openLexicon(id) }
+        Button("Open in New Tab", systemImage: "plus.square.on.square") {
+            leaveInspector()
+            app.openLexicon(id, from: app.findTab(tabId))
+            app.recordTabReturn(to: tabId)
+        }
         Divider()
         Button("Copy \(id)", systemImage: "doc.on.doc") { copyToPasteboard(id) }
         Button("Copy Reference", systemImage: "number") { copyToPasteboard("Strong's \(id)") }

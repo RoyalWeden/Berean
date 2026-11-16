@@ -96,6 +96,7 @@ struct HistoryView: View {
             category.includes(e.type)
                 && !(category == .scripture && studyOnly && e.type == "bible" && (e.verse ?? 0) == 0)
                 && (query.isEmpty || displayTitle(e).localizedStandardContains(query)
+                    || (strongsSourceLabel(e)?.localizedStandardContains(query) ?? false)
                     || (e.type == "search" && (e.query ?? "").localizedStandardContains(query))
                     || (compareDestination(e)?.columns.contains { $0.label.localizedStandardContains(query) } ?? false))
         }
@@ -242,6 +243,11 @@ struct HistoryView: View {
         switch type { case "bible": "book"; case "compare": "rectangle.split.2x1"; case "note": "note.text"; case "lexicon", "strongs-click": "character.book.closed"; case "search": "magnifyingglass"; case "youtube": "play.rectangle"; case "import": "square.and.arrow.down"; default: "clock" }
     }
 
+    private func strongsSourceLabel(_ entry: HistoryEntry) -> String? {
+        guard entry.type == "strongs-click", let book = entry.bookId, let chapter = entry.chapter else { return nil }
+        return Reference.bookChapterVerseLabel(book, chapter: chapter, verse: entry.verse)
+    }
+
     private func rowLabel(_ e: HistoryEntry) -> some View {
         HStack(spacing: 10) {
             Image(systemName: Self.symbol(e.type)).frame(width: 20).foregroundStyle(.secondary)
@@ -261,6 +267,9 @@ struct HistoryView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
+                }
+                if let source = strongsSourceLabel(e) {
+                    Text(source).font(.caption).foregroundStyle(.secondary)
                 }
                 if let s = e.sessionName, s != app.session.name { Text(s).font(.caption2).foregroundStyle(.tertiary) }
             }
