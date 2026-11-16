@@ -254,7 +254,7 @@ struct CommandPalette: View {
     @State private var index = 0
     @State private var selectionQuery = ""
     @State private var passagePreview: (passage: ResolvedPassage, text: String)?
-    @State private var noteResults: (query: String, hits: [Note])?
+    @State private var noteResults: (query: String, hits: [Note], excerpts: [String: String])?
     @State private var actionsShown = false
     @FocusState private var focused: Bool
 
@@ -299,10 +299,18 @@ struct CommandPalette: View {
             out.append(Item(id: "lex", group: "Lexicon", title: "Look up \(id)", detail: "Strong's lexicon entry", symbol: "character.book.closed", offersOpenMenu: true) { inNewTab in app.openLexicon(id, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
             out.append(Item(id: "strongs", group: "Lexicon", title: "Verses with \(id)", detail: "Search all tagged texts", symbol: "number", offersOpenMenu: true) { inNewTab in app.openSearch(id, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
         }
+        let excerpts = noteResults.flatMap { $0.query == trimmed ? $0.excerpts : nil } ?? [:]
+        func noteItem(_ note: Note, group: String) -> Item {
+            Item(id: "note-\(note.id)", group: group, title: NotesHomeView.rowTitle(note),
+                 detail: NotesHomeView.dateLabel(note.updatedAt), symbol: "note.text",
+                 excerpt: excerpts[note.id], offersOpenMenu: true) { inNewTab in
+                app.openNote(note.id, newTab: inNewTab, preferActiveTab: preferActiveTab)
+            }
+        }
         // A note whose title is exactly what was typed comes before the word search, so Return opens it.
         let exactNotes = noteHits.filter { $0.displayTitle.caseInsensitiveCompare(trimmed) == .orderedSame }
         for n in exactNotes.prefix(3) {
-            out.append(Item(id: "note-\(n.id)", group: "Top Hit", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab, preferActiveTab: preferActiveTab) })
+            out.append(noteItem(n, group: "Top Hit"))
         }
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil {
             let qualified = app.editionQualifiedQuery(trimmed)
@@ -313,7 +321,7 @@ struct CommandPalette: View {
                             symbol: "note.text") { _ in app.openNotesSearch(trimmed) })
         }
         for n in noteHits.filter({ hit in !exactNotes.contains { $0.id == hit.id } }).prefix(6) {
-            out.append(Item(id: "note-\(n.id)", group: "Notes", title: NotesHomeView.rowTitle(n), detail: NotesHomeView.dateLabel(n.updatedAt), symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNote(n.id, newTab: inNewTab, preferActiveTab: preferActiveTab) })
+            out.append(noteItem(n, group: "Notes"))
         }
         if !trimmed.isEmpty && !newTab {
             for match in app.matchingArchivedTabs(trimmed) {
@@ -611,7 +619,11 @@ struct CommandPalette: View {
         }
         .task(id: query) {
             guard !Task.isCancelled else { return }
-            noteResults = (query, noteHits(for: query))
+            let hits = noteHits(for: query)
+            let excerpts = hits.reduce(into: [String: String]()) { excerpts, note in
+                excerpts[note.id] = noteSearchPreview(note, query: query)
+            }
+            noteResults = (query, hits, excerpts)
         }
     }
 

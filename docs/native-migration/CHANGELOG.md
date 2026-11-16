@@ -1334,3 +1334,7 @@
 ### 2026-11-16 — Scripture excerpts in Mac floating search
 
 - Share the passage excerpt loader with iPhone Go. Mac scratch QA verified both verse and chapter excerpts, edition replacement and Return navigation.
+
+### 2026-11-16 — Notes excerpts in Mac floating search
+
+- Display matching body excerpts in Notes results. Mac scratch QA verified a body-only match, keyboard selection, and Shift-Return opening a new tab. Both Dev builds passed.
