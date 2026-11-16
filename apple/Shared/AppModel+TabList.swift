@@ -62,7 +62,8 @@ extension AppModel {
         recentTabIDs.filter { $0 != activeTab?.id }.compactMap { id in
             for workspace in sessions {
                 if let tab = workspace.allTabs.first(where: { $0.id == id }) {
-                    return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: workspace.name, tab: tab)
+                    let label = WorkspaceItem(session: workspace).displayName
+                    return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: label, tab: tab)
                 }
             }
             return nil

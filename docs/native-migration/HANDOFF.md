@@ -1568,3 +1568,5 @@ Workspace search on Mac and iPhone now accepts terms spread across multiple tab 
 Workspace search on Mac and iPhone now keeps the matching results open when Return would be ambiguous between identical workspace names or identical generated passage labels. It shows a prompt to choose a workspace. A unique exact name still opens directly, and exact matching is case-insensitive. Standalone checks against the workspace matcher covered duplicate Session 8 names, duplicate John 1 display labels, and a unique Romans 8 label. Live keyboard checks remain open.
 
 Both native Dev builds passed for the workspace collision fix.
+
+Recent Tabs uses the workspace picker’s passage-based label for automatically named workspaces. Mac’s Return to command uses the tab’s full navigation label (including a selected range) and names the destination workspace when it differs from the current one. Both Dev builds passed. Live check pending: switch between two unnamed workspaces and verify Return to and Recent Tabs identify the destination before opening it.

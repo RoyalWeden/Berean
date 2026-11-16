@@ -319,7 +319,9 @@ struct BereanSidebar: View {
             .filter { $0.value.count > 1 }.keys)
         return Menu {
             if let previous = app.recentWorkspaceTabs.first {
-                Button("Return to \(previous.tab.title.isEmpty ? "Untitled" : previous.tab.title)", systemImage: "arrow.uturn.backward") {
+                let title = previous.tab.navigationLabel
+                let label = previous.workspaceID == app.currentSessionId ? title : "\(title) · \(previous.workspaceName)"
+                Button("Return to \(label)", systemImage: "arrow.uturn.backward") {
                     app.openWorkspaceTab(previous)
                 }
             }
