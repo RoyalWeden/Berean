@@ -98,7 +98,8 @@ extension AppModel {
             let candidates = workspace.tabs(in: .scripture).filter(passage.isShown(in:))
             let active = workspace.activeTabId[.scripture] ?? nil
             guard let tab = candidates.first(where: { $0.id == active }) ?? candidates.first else { continue }
-            let label = WorkspaceItem(session: workspace).displayName
+            let item = WorkspaceItem(session: workspace)
+            let label = item.displayName == item.name ? item.name : item.menuLabel
             matches.append(.init(workspaceID: workspace.id, workspaceName: label, tab: tab))
             if matches.count == 6 { break }
         }
@@ -106,8 +107,13 @@ extension AppModel {
     }
 
     func openWorkspacePassage(_ passage: ResolvedPassage, match: WorkspaceTabMatch) {
-        openWorkspaceTab(match)
-        guard currentSessionId == match.workspaceID, activeTab?.id == match.tab.id else { return }
+        guard let workspace = sessions.first(where: { $0.id == match.workspaceID }),
+              let destination = workspace.tabs(in: .scripture).first(where: { $0.id == match.tab.id && passage.isShown(in: $0) })
+                  ?? workspace.tabs(in: .scripture).first(where: passage.isShown(in:)) else {
+            userMessage = "That passage is no longer open in the selected workspace."
+            return
+        }
+        openWorkspaceTab(destination, workspaceID: workspace.id)
         recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
                      verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
     }
