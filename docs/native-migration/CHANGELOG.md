@@ -1227,3 +1227,7 @@
 ### 2026-11-16 — Compare directly from selected verses
 - Verse action overflow opens Compare in the current tab with the selection carried over. The single-verse context action opens only the chosen verse.
 - Both Dev builds passed. Mac QA verified KJVA and LXX comparison with Genesis 1:1–3 selected.
+
+### 2026-11-16 — Multi-select verses in aligned Compare
+- Toggle individual verses and retain contiguous or disjoint selections when returning to Scripture. Mac adds Shift-click range extension.
+- Both Dev builds passed. Mac QA verified deselecting the middle verse and returning to the same disjoint selection in Scripture.

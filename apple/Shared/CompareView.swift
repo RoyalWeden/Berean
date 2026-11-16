@@ -5,6 +5,9 @@ import BereanText
 import BereanReference
 import BereanNotes
 import BereanWorkspace
+#if os(macOS)
+import AppKit
+#endif
 
 /// A persisted Compare column. Keep the raw object so older clients retain their metadata.
 struct CompareColumn: Identifiable {
@@ -158,6 +161,7 @@ struct CompareView: View {
     @State private var loadedPassage: String?
     @State private var compareWidth: CGFloat = 0
     @State private var localVerseSelection: Int?
+    @State private var selectionAnchor: (edition: ChapterEdition, verse: Int)?
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
     @State private var independentVisibleVerses: [Int: Int] = [:]
@@ -1060,15 +1064,7 @@ struct CompareView: View {
 
     private func verseButton(_ verse: Int, state: BibleState, selected: Bool) -> some View {
         Button {
-            if state.verse != verse { localVerseSelection = verse }
-            app.update(tabId, recordHistory: false) { tab in
-                var target = BibleState(tab.state)
-                target.verse = verse
-                target.endVerse = nil
-                tab.state = target.merged(into: tab.state)
-                tab.state.remove("nativeSelectedVerses")
-                tab.state.remove("endChapter")
-            }
+            toggleVerse(verse, in: state)
         } label: {
             Text("\(verse)")
                 .font(.system(.caption, design: .rounded).weight(.semibold))
@@ -1079,6 +1075,41 @@ struct CompareView: View {
         .buttonStyle(.interactivePlain)
         .accessibilityLabel("Verse \(verse)")
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func toggleVerse(_ verse: Int, in state: BibleState) {
+        let edition = ChapterEdition(state)
+        let previousAnchor = selectionAnchor.flatMap { $0.edition == edition ? $0.verse : nil }
+        var selection = selectedVerses(in: state)
+        #if os(macOS)
+        let extend = NSEvent.modifierFlags.contains(.shift)
+        #else
+        let extend = false
+        #endif
+        if extend, let anchor = previousAnchor ?? state.verse {
+            let span = min(anchor, verse)...max(anchor, verse)
+            selection = Set(rows.keys.filter(span.contains))
+            selectionAnchor = (edition, anchor)
+        } else {
+            if selection.contains(verse) { selection.remove(verse) } else { selection.insert(verse) }
+            selectionAnchor = selection.contains(verse) ? (edition, verse) : selection.min().map { (edition, $0) }
+        }
+
+        let groups = consecutiveVerseRuns(selection)
+        let contiguous = groups.count == 1 ? groups.first : nil
+        let focus = contiguous?.lowerBound ?? (selection.contains(verse) ? verse : selection.min())
+        let end = contiguous.flatMap { $0.count > 1 ? $0.upperBound : nil }
+        let passage = ResolvedPassage(textId: state.translation, bookId: state.bookId, chapter: state.chapter,
+                                      verse: focus, endVerse: end, verseGroups: groups.count > 1 ? groups : [])
+        if state.verse != focus { localVerseSelection = focus }
+        app.update(tabId, recordHistory: false) { tab in
+            var target = BibleState(tab.state)
+            target.verse = focus
+            target.endVerse = end
+            tab.state = target.merged(into: tab.state)
+            tab.state["nativeSelectedVerses"] = passage.savedSelection
+            tab.state.remove("endChapter")
+        }
     }
 
     private func comparisonChapter(book: String, chapter: Int, edition: String) async -> [ChapterVerseRow] {
