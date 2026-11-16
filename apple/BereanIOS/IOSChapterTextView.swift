@@ -171,6 +171,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         if previousSelection != selectedVerses {
             coordinator.updateMarkerColors(in: view.textStorage, changed: previousSelection.symmetricDifference(selectedVerses))
             coordinator.renderedSelection = selectedVerses
+            view.rememberViewportPosition()
         }
         if previousSelection != selectedVerses || !samePassage {
             view.layoutManager.invalidateDisplay(forCharacterRange: NSRange(location: 0, length: view.textStorage.length))
@@ -265,6 +266,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         private var viewportSize = CGSize.zero
         private var positionBeforeResize: ScriptureReadingPosition?
+        private var selectionVisibleBeforeResize = false
         private var positionPassage: String?
         private var resizeRestore: Task<Void, Never>?
 
@@ -273,9 +275,13 @@ struct IOSChapterTextView: UIViewRepresentable {
                   resizeRestore == nil, let reader else { return }
             let top = max(0, contentOffset.y + adjustedContentInset.top)
             if positionPassage == reader.passageId, let positionBeforeResize,
+               positionBeforeResize.selectedVerses == reader.parent.selectedVerses,
                abs(positionBeforeResize.offset - top) <= 1 { return }
             positionBeforeResize = reader.readingPosition(in: self)
             positionPassage = reader.passageId
+            selectionVisibleBeforeResize = reader.selectedGroupLines(in: self).map {
+                $0.lowerBound >= top - 1 && $0.upperBound <= bounds.maxY - adjustedContentInset.bottom + 1
+            } ?? false
         }
 
         func afterViewportLayout(_ action: @escaping () -> Void) {
@@ -301,6 +307,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                       resizeRestore != nil || abs(previousSize.width - viewportSize.width) > 1 {
                 let passage = reader.passageId
                 let jump = reader.lastTarget
+                let revealSelection = selectionVisibleBeforeResize
                 resizeRestore?.cancel()
                 resizeRestore = Task { [weak self, weak reader] in
                     // Rotation can lay out the new width before the height and safe-area insets settle.
@@ -309,7 +316,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                     defer { resizeRestore = nil; rememberViewportPosition() }
                     guard let reader, reader.passageId == passage, reader.parent.passageId == passage,
                           reader.lastTarget == jump, !isDragging, !isDecelerating else { return }
-                    reader.restoreReadingPosition(position, in: self)
+                    reader.restoreReadingPosition(position, in: self, revealSelection: revealSelection)
                     positionBeforeResize = nil
                     positionPassage = nil
                 }
@@ -416,7 +423,14 @@ struct IOSChapterTextView: UIViewRepresentable {
                                             viewportWidth: view.bounds.width, verseOffsetFromTop: anchor?.offsetFromTop)
         }
 
-        func restoreReadingPosition(_ position: ScriptureReadingPosition, in view: UITextView) {
+        func selectedGroupLines(in view: UITextView) -> ClosedRange<CGFloat>? {
+            let selection = parent.selectedVerses
+            guard let first = selection.min(), let last = selection.max(), selection.count == last - first + 1,
+                  let head = verseRanges[first], let tail = verseRanges[last] else { return nil }
+            return renderedLineBounds(of: NSUnionRange(head, tail), in: view)
+        }
+
+        func restoreReadingPosition(_ position: ScriptureReadingPosition, in view: UITextView, revealSelection: Bool = false) {
             layoutChapter(in: view)
             let inset = view.adjustedContentInset
             let minimum = -inset.top
@@ -426,7 +440,14 @@ struct IOSChapterTextView: UIViewRepresentable {
                 .flatMap { view.position(from: view.beginningOfDocument, offset: $0.location) }
                 .map { view.caretRect(for: $0).minY - (position.verseOffsetFromTop ?? 0) } : nil
             let target = (verseTop.flatMap { $0.isFinite ? $0 : nil } ?? position.offset) - inset.top
-            let y = position.atEnd ? maximum : min(max(target, minimum), maximum)
+            var y = position.atEnd ? maximum : min(max(target, minimum), maximum)
+            let top = y + inset.top
+            let bottom = y + view.bounds.height - inset.bottom
+            if revealSelection, position.selectedVerses == parent.selectedVerses,
+               let lines = selectedGroupLines(in: view), top <= bottom,
+               let delta = selectionRevealOffset(lines: lines, visible: top...bottom, gap: ReaderFloatingControls.readingGap) {
+                y = min(max(y + delta, minimum), maximum)
+            }
             view.setContentOffset(CGPoint(x: 0, y: y), animated: false)
             editionArrival = position.returnEdition.map {
                 ScriptureEditionArrival(edition: $0, offset: max(0, view.contentOffset.y + view.adjustedContentInset.top))

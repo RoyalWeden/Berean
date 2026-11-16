@@ -1219,3 +1219,7 @@
 ### 2026-11-16 — Preserve the reading position during iPhone rotation
 - The reader reapplies the last visible verse or end-of-chapter position after its viewport settles.
 - The iPhone Dev build passed. Simulator QA confirmed that Romans 8:37–39 stayed fully visible after rotating with the tab open.
+
+### 2026-11-16 — Keep visible verse selections in view while rotating
+- Preserve a fully visible contiguous selection after rotation when it fits in the resized viewport.
+- The iPhone Dev build passed. Simulator verified Romans 8:17–19 fully visible after rotation in both directions.
