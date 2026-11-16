@@ -498,7 +498,7 @@ struct TabCardsSheet: View {
             if !destinations.isEmpty {
                 Menu {
                     ForEach(destinations) { workspace in
-                        Button(workspace.menuLabel) { moveSelection(to: workspace) }
+                        Button(workspace.moveMenuLabel) { moveSelection(to: workspace) }
                     }
                 } label: {
                     Label("Move", systemImage: "square.stack")
@@ -754,7 +754,7 @@ struct TabCardsSheet: View {
             if !destinations.isEmpty {
                 Menu("Move to Workspace", systemImage: "square.stack") {
                     ForEach(destinations) { workspace in
-                        Button(workspace.menuLabel) { app.moveTab(tab.id, to: workspace) }
+                        Button(workspace.moveMenuLabel) { app.moveTab(tab.id, to: workspace) }
                     }
                 }
             }

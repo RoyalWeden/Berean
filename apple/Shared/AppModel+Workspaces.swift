@@ -40,6 +40,13 @@ struct WorkspaceItem: Identifiable, Hashable {
         return "\(name) · \(preview ?? tabCountLabel)"
     }
 
+    var moveMenuLabel: String {
+        let otherTab = previewLabels().first { $0 != displayName && $0 != name }
+        let storedName = displayName == name ? nil : name
+        return ([displayName] + [otherTab, storedName, tabCountLabel].compactMap { $0 })
+            .joined(separator: " · ")
+    }
+
     var preview: String? {
         let labels = previewLabels()
         return labels.isEmpty ? nil : labels.joined(separator: " · ")

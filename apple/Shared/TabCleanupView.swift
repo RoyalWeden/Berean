@@ -94,7 +94,7 @@ struct TabCleanupView: View {
                     if !destinations.isEmpty {
                         Menu("Move Selection to Workspace", systemImage: "square.stack") {
                             ForEach(destinations) { workspace in
-                                Button(workspace.menuLabel) {
+                                Button(workspace.moveMenuLabel) {
                                     move(selected.map(\.id), to: workspace)
                                 }
                             }

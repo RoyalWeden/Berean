@@ -445,7 +445,7 @@ struct BereanSidebar: View {
         if !destinations.isEmpty {
             Menu("Move to Workspace") {
                 ForEach(destinations) { workspace in
-                    Button(workspace.menuLabel) { app.moveTab(tab.id, to: workspace) }
+                    Button(workspace.moveMenuLabel) { app.moveTab(tab.id, to: workspace) }
                 }
             }
         }
