@@ -13,6 +13,7 @@ struct GoSheet: View {
     @State private var text = ""
     @State private var notes: [Note] = []
     @State private var notesQuery = ""
+    @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @FocusState private var focused: Bool
 
     var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -63,6 +64,29 @@ struct GoSheet: View {
             notes = noteMatches(query)
             notesQuery = query
         }
+        .task(id: resolvedPassage) {
+            guard let passage = resolvedPassage else {
+                passagePreview = nil
+                return
+            }
+            let text: String?
+            let tagged: String?
+            if let verse = passage.verse {
+                let row = await app.bible.queryVerse(passage.bookId, passage.chapter, verse, textId: passage.textId)
+                text = row?.text
+                tagged = row?.textTagged
+            } else {
+                let rows = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
+                let row = rows.first { $0.verseNum > 0 } ?? rows.first
+                text = row?.text
+                tagged = row?.textTagged
+            }
+            guard !Task.isCancelled, passage == resolvedPassage else { return }
+            passagePreview = text.map {
+                (passage, VerseDisplay.text($0, tagged: tagged, textId: passage.textId,
+                                            replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules))
+            }
+        }
     }
 
     @ViewBuilder private var shortcuts: some View {
@@ -93,14 +117,24 @@ struct GoSheet: View {
         app.activeTab.flatMap { $0.tabType == .bible ? BibleState($0.state).translation : nil }
     }
 
+    private var resolvedPassage: ResolvedPassage? {
+        trimmed.isEmpty ? nil : app.resolvePassage(trimmed, preferring: preferredText)
+    }
+
     @ViewBuilder private var results: some View {
-        if let ref = app.resolvePassage(trimmed, preferring: preferredText) {
+        if let ref = resolvedPassage {
             Section("Passage") {
                 Button { finish { app.visitScripture(ref, reuseTab: !newTab) } } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(ref.label)
                             Text(textInfo(ref.textId).name).font(.caption).foregroundStyle(.secondary)
+                            if let passagePreview, passagePreview.passage == ref, !passagePreview.text.isEmpty {
+                                Text(passagePreview.text)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
                         }
                     } icon: { Image(systemName: "book") }
                 }

@@ -1326,3 +1326,7 @@
 ### 2026-11-16 — Notes excerpts in iPhone Go
 
 - Show the matching note's body excerpt below its title, using the same renderer as Notes. iPhone simulator verified a body-only search and opening its result.
+
+### 2026-11-16 — Scripture excerpts in iPhone Go
+
+- Preview the requested verse or chapter opening in the resolved edition. The iPhone 18 Pro simulator verified Jude 5, replacing it with Isaiah 53 LXX, and opening the Septuagint result.
