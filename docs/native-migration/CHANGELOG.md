@@ -1322,3 +1322,7 @@
 ### 2026-11-16 — Mac Scripture pointer ownership
 
 - Limit the reader's cursor updates and link hover to locations where the text view owns the hit. Mac Dev build passed. Direct pointer motion verification remains open.
+
+### 2026-11-16 — Notes excerpts in iPhone Go
+
+- Show the matching note's body excerpt below its title, using the same renderer as Notes. iPhone simulator verified a body-only search and opening its result.

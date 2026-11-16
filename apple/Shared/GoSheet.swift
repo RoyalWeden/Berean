@@ -134,7 +134,18 @@ struct GoSheet: View {
             Section("Notes") {
                 ForEach(notes) { note in
                     Button { finish { app.openNote(note.id, newTab: newTab) } } label: {
-                        Label(note.displayTitle, systemImage: "note.text")
+                        Label {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(note.displayTitle)
+                                let excerpt = noteSearchPreview(note, query: trimmed)
+                                if !excerpt.isEmpty {
+                                    Text(excerpt)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                        } icon: { Image(systemName: "note.text") }
                     }
                 }
             }

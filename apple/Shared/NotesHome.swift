@@ -11,6 +11,23 @@ struct NotesFolderScrollContext: Hashable {
     let status: String
 }
 
+func noteSearchPreview(_ note: Note, query: String, mode: NotesWordMode = .all) -> String {
+    let plain = MarkdownLiveSpans.plainText(note.content)
+    if !query.isEmpty {
+        let words = NotesService.cleanWords(query)
+        let terms = mode == .phrase ? [words.joined(separator: " ")] : words
+        let match = terms.compactMap { plain.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) }
+            .min { $0.lowerBound < $1.lowerBound }
+        if let match {
+            let start = plain.index(match.lowerBound, offsetBy: -30, limitedBy: plain.startIndex) ?? plain.startIndex
+            let end = plain.index(match.upperBound, offsetBy: 100, limitedBy: plain.endIndex) ?? plain.endIndex
+            let excerpt = plain[start..<end].split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            return (start == plain.startIndex ? "" : "…") + excerpt + (end == plain.endIndex ? "" : "…")
+        }
+    }
+    return plain.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty && $0 != note.title } ?? ""
+}
+
 /// Notes home (the existing iPhone NotesHomePage, after Apple Notes; also the Mac Notes home):
 ///   Folders home — All Notes · Berean's system folders (Daily, Verse, e-Sword, BibleGateway) · your folder tree · Trash
 ///   Folder view  — subfolders · Pinned · Today / Previous 7 Days / Previous 30 Days / months (or by status, folder, type)
@@ -568,21 +585,7 @@ struct NotesHomeView: View {
     // MARK: rows
 
     func preview(_ n: Note) -> String {
-        let plain = MarkdownLiveSpans.plainText(n.content)
-        let request = searchRequest
-        if !request.text.isEmpty {
-            let words = NotesService.cleanWords(request.text)
-            let terms = request.mode == .phrase ? [words.joined(separator: " ")] : words
-            let match = terms.compactMap { plain.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) }
-                .min { $0.lowerBound < $1.lowerBound }
-            if let match {
-                let start = plain.index(match.lowerBound, offsetBy: -30, limitedBy: plain.startIndex) ?? plain.startIndex
-                let end = plain.index(match.upperBound, offsetBy: 100, limitedBy: plain.endIndex) ?? plain.endIndex
-                let excerpt = plain[start..<end].split(whereSeparator: \.isWhitespace).joined(separator: " ")
-                return (start == plain.startIndex ? "" : "…") + excerpt + (end == plain.endIndex ? "" : "…")
-            }
-        }
-        return plain.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty && $0 != n.title } ?? ""
+        noteSearchPreview(n, query: searchRequest.text, mode: searchRequest.mode)
     }
 
     static func dateLabel(_ ms: Int64) -> String {
