@@ -1211,3 +1211,7 @@
 ### 2026-11-16 — Explicit Scripture range navigation
 - Keep verse-jump requests through reader loading and calculate the iPhone scroll limit after laying out the chapter.
 - Both Dev builds passed. iPhone Simulator verified that a late John 3 range opened fully above the floating controls after an earlier visit to the chapter.
+
+### 2026-11-16 — Restore iPhone Scripture position after layout
+- Wait for the reader viewport before restoring. Reuse the reading verse when width changes and preserve chapter-end positions.
+- Both Dev builds passed. A simulator tab-return sequence retained the full final selection after rotating to landscape.

@@ -14,6 +14,8 @@ struct ScriptureReadingPosition {
     var atEnd = false
     var selectedVerses: Set<Int> = []
     var returnEdition: ChapterEdition?
+    var viewportWidth: CGFloat?
+    var verseOffsetFromTop: CGFloat?
 }
 
 struct ScriptureEditionArrival {
