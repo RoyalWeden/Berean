@@ -350,11 +350,21 @@ extension AppModel {
 
     /// Restore saved sidebar placement when available and keep the current reading position.
     func restoreArchived(_ groupId: String, toSource: Bool = false, only tabID: String? = nil) {
+        let workspace = toSource ? archivePlacements[groupId]?.workspace : currentSessionId
+        guard let workspace else { return }
+        restoreArchived(groupId, workspaceID: workspace, only: tabID)
+    }
+
+    func restoreArchived(_ groupId: String, to workspace: WorkspaceItem) {
+        guard case .live(let workspaceID) = workspace.kind else { return }
+        restoreArchived(groupId, workspaceID: workspaceID, only: nil)
+    }
+
+    private func restoreArchived(_ groupId: String, workspaceID workspace: String, only tabID: String?) {
         guard let index = archivedGroups.firstIndex(where: { $0.id == groupId }) else { return }
         let group = archivedGroups[index]
         let placement = archivePlacements[groupId]
-        guard let workspace = toSource ? placement?.workspace : currentSessionId,
-              let destination = sessions.firstIndex(where: { $0.id == workspace }) else { return }
+        guard let destination = sessions.firstIndex(where: { $0.id == workspace }) else { return }
         // Tab IDs are unique in SQLite across all workspaces. An archived copy may
         // already be open elsewhere after a restore on another device.
         let plan = group.restorePlan(openTabIDs: Set(sessions.flatMap { $0.allTabs.map(\.id) }), only: tabID)

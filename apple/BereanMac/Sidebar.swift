@@ -533,6 +533,7 @@ struct BereanSidebar: View {
     var archive: some View {
         let titles = archiveExpanded ? app.archiveTitles() : [:]
         let sourceNames = archiveExpanded ? app.archiveSourceNames() : [:]
+        let destinations = archiveExpanded ? app.tabMoveDestinations : []
         return VStack(alignment: .leading, spacing: 2) {
             Button { withAnimation(.snappy(duration: 0.18)) { archiveExpanded.toggle() } } label: {
                 HStack {
@@ -561,6 +562,13 @@ struct BereanSidebar: View {
                         Button("Restore All") { app.restoreArchived(g.id) }
                         if !g.tabs.isEmpty, let source = sourceNames[g.id] {
                             Button("Restore to \(source)") { app.restoreArchived(g.id, toSource: true) }
+                        }
+                        if !g.tabs.isEmpty && !destinations.isEmpty {
+                            Menu("Restore All to Workspace", systemImage: "square.stack") {
+                                ForEach(destinations) { workspace in
+                                    Button(workspace.moveMenuLabel) { app.restoreArchived(g.id, to: workspace) }
+                                }
+                            }
                         }
                         Menu("Restore One Tab") {
                             ForEach(app.archivedTabs(g)) { tab in

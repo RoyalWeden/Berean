@@ -942,6 +942,7 @@ struct ArchivedTabsPage: View {
         let titles = app.archiveTitles()
         let searchTitles = app.archiveTitles(includeAliases: true)
         let sourceNames = app.archiveSourceNames()
+        let destinations = app.tabMoveDestinations
         List {
             if !app.archivedGroups.isEmpty {
                 TabSearchField(prompt: "Search archived tabs", query: $query)
@@ -998,6 +999,13 @@ struct ArchivedTabsPage: View {
                                 if tabs.count > 1 {
                                     Button("Restore All \(tabs.count) Tabs", systemImage: "archivebox") {
                                         app.restoreArchived(group.id)
+                                    }
+                                }
+                                if !tabs.isEmpty && !destinations.isEmpty {
+                                    Menu("Restore All to Workspace", systemImage: "square.stack") {
+                                        ForEach(destinations) { workspace in
+                                            Button(workspace.moveMenuLabel) { app.restoreArchived(group.id, to: workspace) }
+                                        }
                                     }
                                 }
                                 Button("Remove from Archive", systemImage: "trash", role: .destructive) {

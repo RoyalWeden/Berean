@@ -1624,3 +1624,7 @@ Both native Dev builds passed.
 Tab Cleanup’s archive receipt now checks whether the original workspace is still live. If that destination is unavailable, it explains why Undo is unavailable and offers an explicit Restore Here action. If the user switched workspaces and the original still exists, Undo continues to restore there. Live check pending for a receipt whose workspace is no longer live.
 
 Both native Dev builds passed.
+
+Archived group menus on Mac and iPhone now offer Restore All to Workspace. The destination list uses the existing passage-based move labels and restores directly into a live workspace without opening it. Choosing the original workspace applies its saved placement; another destination appends the restored tabs in archive order. The same restore plan handles tab identity collisions. Live check pending: restore a group to a third workspace and verify source, destination, and archive state.
+
+Both native Dev builds passed.
