@@ -1154,7 +1154,10 @@ struct CrossRefsView: View {
                     .contentShape(.rect)
                 }
                 .buttonStyle(.interactivePlain)
-                if !preview.isEmpty { CrossReferencePreview(text: preview) }
+                let range = row.noteID == nil && row.verse > 0 && (row.end ?? row.verse) > row.verse ? passage : nil
+                if !preview.isEmpty || range != nil {
+                    CrossReferencePreview(text: preview, range: range)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contextMenu { referenceActions(passage, fromVerse: fromVerse, sourceNote: row.noteID) }
@@ -1218,35 +1221,49 @@ struct CrossRefsView: View {
 }
 
 private struct CrossReferencePreview: View {
+    @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let text: String
+    let range: ResolvedPassage?
     @State private var expanded = false
+    @State private var rangeRows: [ChapterVerseRow]?
     @State private var collapsedHeight: CGFloat = 0
     @State private var fullHeight: CGFloat = 0
 
-    private var preview: some View {
+    private func preview(_ text: String) -> some View {
         Text(text)
             .font(.callout)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var displayedText: String {
+        guard expanded, let range, let rangeRows, !rangeRows.isEmpty else { return text }
+        return rangeRows.map {
+            VerseDisplay.text($0.text, tagged: nil, textId: range.textId,
+                              replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+        }.joined(separator: " ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            preview
+            preview(displayedText)
                 .lineLimit(expanded ? nil : 3)
                 .fixedSize(horizontal: false, vertical: true)
                 .background {
-                    preview.lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                    preview(text).lineLimit(3).fixedSize(horizontal: false, vertical: true)
                         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { collapsedHeight = $0 }
                         .hidden().accessibilityHidden(true)
                 }
                 .background {
-                    preview.lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                    preview(text).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
                         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { fullHeight = $0 }
                         .hidden().accessibilityHidden(true)
                 }
-            if expanded || fullHeight > collapsedHeight + 1 {
+            if expanded, range != nil, rangeRows == nil {
+                ProgressView().controlSize(.small).accessibilityLabel("Loading verses")
+            }
+            if range != nil || expanded || fullHeight > collapsedHeight + 1 {
                 Button {
                     withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
                 } label: {
@@ -1259,6 +1276,13 @@ private struct CrossReferencePreview: View {
                 .buttonStyle(.interactivePlain)
                 .accessibilityValue(expanded ? "Expanded" : "Collapsed")
             }
+        }
+        .task(id: expanded) {
+            guard expanded, rangeRows == nil,
+                  let range, let start = range.verse, let end = range.endVerse, end > start else { return }
+            let rows = await app.bible.queryChapter(range.bookId, range.chapter, textId: range.textId)
+            guard !Task.isCancelled else { return }
+            rangeRows = rows.filter { (start...end).contains($0.verseNum) }
         }
     }
 }

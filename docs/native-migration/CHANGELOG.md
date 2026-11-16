@@ -1290,3 +1290,8 @@
 
 - Expose the passage, preview toggle and actions as separate controls and keep the section headings navigable. Suppress preview animation with Reduce Motion.
 - Both Dev targets built. Mac accessibility automation activated expansion and collapse and verified the passage action menu. Direct VoiceOver and iPhone touch checks remain open.
+
+### 2026-11-16 — Full cross-reference ranges — MAC UI VERIFIED
+
+- Expand Classic and TSKe Scripture ranges into the full referenced verse text without leaving the inspector. Fetch the chapter only when the user expands the row.
+- Mac Dev scratch QA verified that Proverbs 8:22–24 displayed all three verses and returned to the first-verse preview on collapse. iPhone touch remains open.
