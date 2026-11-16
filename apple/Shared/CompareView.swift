@@ -984,7 +984,7 @@ struct CompareView: View {
                                   chapter: row.chapter, verse: row.verseNum), inspector: inspector)
     }
 
-    private func openReader(_ passage: ResolvedPassage, inspector: String? = nil) {
+    private func openReader(_ passage: ResolvedPassage, inspector: String? = nil, readingVerse: Int? = nil) {
         app.update(tabId) { tab in
             var reader = BibleState(tab.state)
             reader.compareMode = false
@@ -1003,8 +1003,14 @@ struct CompareView: View {
             tab.state["nativeSelectedVerses"] = passage.savedSelection
             tab.title = Reference.readerChapterLabel(passage.bookId, passage.chapter, textId: passage.textId)
         }
-        if passage.verse != nil, let tab = app.findTab(tabId) {
-            app.requestScriptureJump(in: tabId, to: ChapterEdition(BibleState(tab.state)))
+        if let tab = app.findTab(tabId) {
+            let chapter = ChapterEdition(BibleState(tab.state))
+            if passage.verse != nil {
+                app.requestScriptureJump(in: tabId, to: chapter)
+            } else if let readingVerse {
+                app.scriptureReadingPositions[tabId, default: [:]][chapter.key] =
+                    ScriptureReadingPosition(offset: 0, verse: readingVerse)
+            }
         }
         app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
                          verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
@@ -1295,6 +1301,21 @@ struct CompareView: View {
         return passage
     }
 
+    private func readingAnchor(in column: CompareColumn, source: BibleState) -> (chapter: Int, verse: Int)? {
+        let passage = passageKey(source, columns)
+        guard loadedPassage == passage else { return nil }
+        if syncScrolling, columns.allSatisfy({ $0.follows(source) }) {
+            guard let top = alignedVersesAboveTop.max() else { return nil }
+            let row = rows[top]?[column.id] ?? rows.keys.filter { $0 > top }.sorted().lazy.compactMap {
+                rows[$0]?[column.id]
+            }.first
+            return row.map { ($0.chapter, $0.verseNum) }
+        }
+        let key = columnScrollKey(column.id, passage: passage)
+        let verse = independentVisibleVerses[column.id] ?? app.compareColumnScrollVerses[tabId]?[key]
+        return verse.map { (column.chapter, $0) }
+    }
+
     func setColumns(_ cols: [CompareColumn]) {
         #if os(macOS)
         columnWeights = Dictionary(uniqueKeysWithValues: cols.enumerated().map { ($0.offset, columnWeights[$0.element.id] ?? 1) })
@@ -1308,7 +1329,11 @@ struct CompareView: View {
             return
         }
         if cols.count == 1, let column = cols.first {
-            openReader(readerPassage(for: column, source: state))
+            let source = state
+            var passage = readerPassage(for: column, source: source)
+            let anchor = passage.verse == nil ? readingAnchor(in: column, source: source) : nil
+            if let anchor { passage.chapter = anchor.chapter }
+            openReader(passage, readingVerse: anchor?.verse)
             return
         }
         preserveReadingPositions(for: cols)

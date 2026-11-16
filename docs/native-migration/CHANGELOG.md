@@ -1247,3 +1247,7 @@
 ### 2026-11-16 — Honor the selected range when leaving Compare
 - Opening a selected passage from Compare jumps to its mapped verse or range in Scripture.
 - Both Dev builds passed. Mac QA verified Brenton Psalm 113:9–10 opened KJVA Psalm 115:1–2 with both verses selected.
+
+### 2026-11-16 — Carry Compare reading position into Scripture
+- Opening an unselected Compare column takes its current reading position into Scripture without selecting a verse.
+- Both Dev builds passed. Mac QA verified that leaving a scrolled Psalm 113 comparison opened the contributing KJVA Psalm 115.
