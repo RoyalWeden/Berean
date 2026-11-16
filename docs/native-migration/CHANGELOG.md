@@ -1215,3 +1215,7 @@
 ### 2026-11-16 — Restore iPhone Scripture position after layout
 - Wait for the reader viewport before restoring. Reuse the reading verse when width changes and preserve chapter-end positions.
 - Both Dev builds passed. A simulator tab-return sequence retained the full final selection after rotating to landscape.
+
+### 2026-11-16 — Preserve the reading position during iPhone rotation
+- The reader reapplies the last visible verse or end-of-chapter position after its viewport settles.
+- The iPhone Dev build passed. Simulator QA confirmed that Romans 8:37–39 stayed fully visible after rotating with the tab open.

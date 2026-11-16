@@ -204,20 +204,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             view.afterViewportLayout { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == passageId, coordinator.parent.passageId == passageId,
                       coordinator.parent.scrollTarget == nil, let position = coordinator.parent.restorePosition() else { return }
-                coordinator.layoutChapter(in: view)
-                let inset = view.adjustedContentInset
-                let minimum = -inset.top
-                let maximum = max(minimum, view.contentSize.height + inset.bottom - view.bounds.height)
-                let widthChanged = position.viewportWidth.map { abs($0 - view.bounds.width) > 1 } ?? false
-                let verseTop = position.offset == 0 || widthChanged ? position.verse.flatMap { coordinator.verseRanges[$0] }
-                    .flatMap { view.position(from: view.beginningOfDocument, offset: $0.location) }
-                    .map { view.caretRect(for: $0).minY - (position.verseOffsetFromTop ?? 0) } : nil
-                let target = (verseTop.flatMap { $0.isFinite ? $0 : nil } ?? position.offset) - inset.top
-                let y = position.atEnd ? maximum : min(max(target, minimum), maximum)
-                view.setContentOffset(CGPoint(x: 0, y: y), animated: false)
-                coordinator.editionArrival = position.returnEdition.map {
-                    ScriptureEditionArrival(edition: $0, offset: max(0, view.contentOffset.y + view.adjustedContentInset.top))
-                }
+                coordinator.restoreReadingPosition(position, in: view)
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
@@ -276,6 +263,21 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         private var pendingViewportAction: (() -> Void)?
 
+        private var viewportSize = CGSize.zero
+        private var positionBeforeResize: ScriptureReadingPosition?
+        private var positionPassage: String?
+        private var resizeRestore: Task<Void, Never>?
+
+        func rememberViewportPosition() {
+            guard !bounds.isEmpty, bounds.size == viewportSize, pendingViewportAction == nil,
+                  resizeRestore == nil, let reader else { return }
+            let top = max(0, contentOffset.y + adjustedContentInset.top)
+            if positionPassage == reader.passageId, let positionBeforeResize,
+               abs(positionBeforeResize.offset - top) <= 1 { return }
+            positionBeforeResize = reader.readingPosition(in: self)
+            positionPassage = reader.passageId
+        }
+
         func afterViewportLayout(_ action: @escaping () -> Void) {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -286,9 +288,34 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            guard !bounds.isEmpty, let action = pendingViewportAction else { return }
-            pendingViewportAction = nil
-            afterViewportLayout(action)
+            guard !bounds.isEmpty else { return }
+            let previousSize = viewportSize
+            viewportSize = bounds.size
+            if let action = pendingViewportAction {
+                pendingViewportAction = nil
+                resizeRestore?.cancel()
+                resizeRestore = nil
+                afterViewportLayout(action)
+            } else if previousSize != viewportSize, let position = positionBeforeResize, let reader,
+                      positionPassage == reader.passageId,
+                      resizeRestore != nil || abs(previousSize.width - viewportSize.width) > 1 {
+                let passage = reader.passageId
+                let jump = reader.lastTarget
+                resizeRestore?.cancel()
+                resizeRestore = Task { [weak self, weak reader] in
+                    // Rotation can lay out the new width before the height and safe-area insets settle.
+                    try? await Task.sleep(for: .milliseconds(160))
+                    guard !Task.isCancelled, let self else { return }
+                    defer { resizeRestore = nil; rememberViewportPosition() }
+                    guard let reader, reader.passageId == passage, reader.parent.passageId == passage,
+                          reader.lastTarget == jump, !isDragging, !isDecelerating else { return }
+                    reader.restoreReadingPosition(position, in: self)
+                    positionBeforeResize = nil
+                    positionPassage = nil
+                }
+            } else {
+                rememberViewportPosition()
+            }
         }
 
         let outlineMotion = ReaderOutlineMotion()
@@ -387,6 +414,23 @@ struct IOSChapterTextView: UIViewRepresentable {
                                             selectedVerses: parent.selectedVerses,
                                             returnEdition: editionArrival?.returnEdition(at: offset),
                                             viewportWidth: view.bounds.width, verseOffsetFromTop: anchor?.offsetFromTop)
+        }
+
+        func restoreReadingPosition(_ position: ScriptureReadingPosition, in view: UITextView) {
+            layoutChapter(in: view)
+            let inset = view.adjustedContentInset
+            let minimum = -inset.top
+            let maximum = max(minimum, view.contentSize.height + inset.bottom - view.bounds.height)
+            let widthChanged = position.viewportWidth.map { abs($0 - view.bounds.width) > 1 } ?? false
+            let verseTop = position.offset == 0 || widthChanged ? position.verse.flatMap { verseRanges[$0] }
+                .flatMap { view.position(from: view.beginningOfDocument, offset: $0.location) }
+                .map { view.caretRect(for: $0).minY - (position.verseOffsetFromTop ?? 0) } : nil
+            let target = (verseTop.flatMap { $0.isFinite ? $0 : nil } ?? position.offset) - inset.top
+            let y = position.atEnd ? maximum : min(max(target, minimum), maximum)
+            view.setContentOffset(CGPoint(x: 0, y: y), animated: false)
+            editionArrival = position.returnEdition.map {
+                ScriptureEditionArrival(edition: $0, offset: max(0, view.contentOffset.y + view.adjustedContentInset.top))
+            }
         }
 
         func restoreReadingAnchor(_ anchor: ReadingAnchor, in view: UITextView, fallback: CGPoint) {
@@ -494,6 +538,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            (scrollView as? ReaderTextView)?.rememberViewportPosition()
             trackChapterPull(scrollView)
             let inset = scrollView.adjustedContentInset
             let y = scrollView.contentOffset.y + inset.top
