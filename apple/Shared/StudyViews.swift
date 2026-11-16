@@ -531,7 +531,15 @@ struct LexiconEntryView: View {
         .onChange(of: app.wordReplacerEnabled) {
             selectedRenderings = []
             visibleOccurrences = 40
-            updatePreviews()
+        }
+        .task(id: "\(strongsId)|\(app.wordReplacerEnabled)") {
+            guard !occurrencesLoading, !occurrences.isEmpty,
+                  entry?.strongsNum == strongsId.uppercased() else { return }
+            let enabled = app.wordReplacerEnabled
+            let updated = await Self.preparePreviews(occurrences, strongsId: strongsId, replacerEnabled: enabled)
+            guard !Task.isCancelled, !occurrencesLoading, app.wordReplacerEnabled == enabled,
+                  entry?.strongsNum == strongsId.uppercased() else { return }
+            previews = updated
         }
         .onChange(of: occurrenceOptions) { _, options in
             guard !compact, !occurrencesLoading,
@@ -578,9 +586,16 @@ struct LexiconEntryView: View {
                 newOccurrences = (await app.lexicon.allOccurrences(strongsId), false)
             }
             guard !Task.isCancelled else { return }
+            var enabled: Bool
+            var updated: [OccurrenceKey: OccurrencePreview]
+            repeat {
+                enabled = app.wordReplacerEnabled
+                updated = await Self.preparePreviews(newOccurrences.rows, strongsId: strongsId, replacerEnabled: enabled)
+                guard !Task.isCancelled else { return }
+            } while app.wordReplacerEnabled != enabled
+            previews = updated
             occurrences = newOccurrences.rows
             occurrencesTruncated = newOccurrences.truncated
-            updatePreviews()
             if !compact, let options = app.lexiconOccurrenceOptions[tabId]?[strongsId] {
                 occurrenceEdition = options.edition
                 occurrenceBook = options.book
@@ -858,7 +873,7 @@ struct LexiconEntryView: View {
         .help(destination.map { "\(title), \($0)" } ?? title)
     }
 
-    struct OccurrenceKey: Hashable {
+    struct OccurrenceKey: Hashable, Sendable {
         let text: String
         let book: String
         let chapter: Int
@@ -872,20 +887,25 @@ struct LexiconEntryView: View {
         }
     }
 
-    private struct OccurrencePreview {
+    private struct OccurrencePreview: Sendable {
         let words: [Substring]
         let matches: Set<Int>
         let renderings: Set<String>
     }
 
-    private func updatePreviews() {
-        let replacerEnabled = app.wordReplacerEnabled
-        previews = occurrences.reduce(into: [:]) { result, occurrence in
-            result[OccurrenceKey(occurrence)] = Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: replacerEnabled)
+    @concurrent private static func preparePreviews(
+        _ occurrences: [LexiconOccurrence], strongsId: String, replacerEnabled: Bool
+    ) async -> [OccurrenceKey: OccurrencePreview] {
+        var result: [OccurrenceKey: OccurrencePreview] = [:]
+        result.reserveCapacity(occurrences.count)
+        for occurrence in occurrences {
+            guard !Task.isCancelled else { return [:] }
+            result[OccurrenceKey(occurrence)] = occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: replacerEnabled)
         }
+        return result
     }
 
-    private static func occurrencePreview(_ occurrence: LexiconOccurrence, strongsId: String, replacerEnabled: Bool) -> OccurrencePreview {
+    nonisolated private static func occurrencePreview(_ occurrence: LexiconOccurrence, strongsId: String, replacerEnabled: Bool) -> OccurrencePreview {
         let hit = ScriptureHit(textId: occurrence.textId, bookId: occurrence.bookId, chapter: occurrence.chapter,
                                verseNum: occurrence.verseNum, text: occurrence.text, textTagged: occurrence.textTagged,
                                matchWordIndices: occurrence.matchWordIndices, matchedStrongs: [strongsId.uppercased()])

@@ -1366,3 +1366,7 @@
 ### 2026-11-16 — Full Lexicon occurrence filtering
 
 - Filter the complete tagged corpus in the full Lexicon. Mac QA verified 5,517 H3068 results and 141 in Genesis. Both scratch Dev builds and eight focused tests passed.
+
+### 2026-11-16 — Background Lexicon occurrence formatting
+
+- Prepare occurrence snippets and filter keys off the main actor. Both scratch Dev builds passed. iPhone simulator verified navigation from H3068 to H3069 with the destination's own occurrence count.
