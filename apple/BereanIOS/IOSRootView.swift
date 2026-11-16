@@ -40,6 +40,7 @@ struct IOSRootView: View {
     @State private var contentWidth: CGFloat = 0
     @State private var showArchive = false
     @State private var readerArchiveUndo: ReaderArchiveUndo?
+    @State private var archiveNoticeHeight: CGFloat = 0
 
     private struct ReaderArchiveUndo {
         let groupID: String
@@ -171,12 +172,23 @@ struct IOSRootView: View {
         showGo = true
     }
 
+    private var visibleArchiveUndo: ReaderArchiveUndo? {
+        guard let receipt = readerArchiveUndo,
+              app.currentSessionId == receipt.workspaceID,
+              app.archivedGroups.contains(where: { $0.id == receipt.groupID }),
+              !app.readerChromeHidden else { return nil }
+        return receipt
+    }
+
+    private var readerDockClearance: CGFloat {
+        guard !keyboardUp, !app.readerChromeHidden else { return 0 }
+        let noticeClearance = visibleArchiveUndo == nil ? 0 : max(44, archiveNoticeHeight)
+        return ReaderFloatingControls.readerDockHeight + noticeClearance
+    }
+
     private var bottomControls: some View {
         VStack(spacing: 0) {
-            if let receipt = readerArchiveUndo,
-               app.currentSessionId == receipt.workspaceID,
-               app.archivedGroups.contains(where: { $0.id == receipt.groupID }),
-               !app.readerChromeHidden {
+            if let receipt = visibleArchiveUndo {
                 HStack(spacing: 8) {
                     Label("Tab archived", systemImage: "archivebox")
                         .font(.subheadline)
@@ -198,6 +210,7 @@ struct IOSRootView: View {
                 .glassEffectCompat(interactive: true, backingOpacity: ReaderFloatingControls.dockBackingOpacity)
                 .padding(.horizontal, 14)
                 .frame(maxWidth: .infinity, alignment: sideBySideReaderControls ? .trailing : .center)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { archiveNoticeHeight = $0 }
             }
             bottomBar
         }
@@ -265,7 +278,7 @@ struct IOSRootView: View {
             case .bible:
                 let st = BibleState(tab.state)
                 ScriptureView(tabId: tab.id, findRequest: findRequest, editionFlipRequest: editionFlipRequest,
-                              dockClearance: keyboardUp || app.readerChromeHidden ? 0 : ReaderFloatingControls.readerDockHeight,
+                              dockClearance: readerDockClearance,
                               sideBySideReaderControls: sideBySideReaderControls)
                     .id(tab.id)
                     .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { v in

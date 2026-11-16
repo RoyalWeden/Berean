@@ -1426,3 +1426,7 @@
 ### 2026-11-16 — Undo archive from the Mac sidebar
 
 - Added a sidebar notice with Undo after archiving one or all tabs. Verified the last-tab archive and Undo in the Mac Dev scratch library.
+
+### 2026-11-16 — Reader clearance while archive Undo is visible
+
+- Included the iPhone archive notice in floating reader clearance. Verified selection and separated action, Undo and dock controls in a two-tab simulator workflow.
