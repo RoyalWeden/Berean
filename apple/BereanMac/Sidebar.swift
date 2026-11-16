@@ -9,9 +9,7 @@ struct BereanSidebar: View {
     @Environment(AppModel.self) private var app
     @AppStorage("sidebarGroupBySpace") private var groupBySpace = false
     @AppStorage("sidebarArchiveExpanded") private var archiveExpanded = false
-    @State private var showsArchiveSearch = false
-    @State private var archiveQuery = ""
-    @FocusState private var archiveSearchFocused: Bool
+    let browseArchive: () -> Void
     @State private var dragging: String?
     @State private var renaming: WorkspaceItem?
     @State private var deleting: WorkspaceItem?
@@ -61,7 +59,6 @@ struct BereanSidebar: View {
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
             Button("Archive All Tabs") { app.archiveAllTabs() }.disabled(app.orderedTabs.isEmpty)
         }
-        .sheet(isPresented: $showsArchiveSearch) { archiveSearch }
         .sheet(isPresented: $showsWorkspaceSearch) { workspaceTabSearch }
         .sheet(isPresented: $showTabCleanup) { TabCleanupView().frame(minWidth: 360, minHeight: 420) }
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
@@ -456,80 +453,6 @@ struct BereanSidebar: View {
 
     // MARK: archive
 
-    private var archiveSearch: some View {
-        let terms = archiveQuery.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
-        let titles = app.archiveTitles()
-        let sourceNames = app.archiveSourceNames()
-        let searchTitles = app.archiveTitles(includeAliases: true)
-        let groups = app.archivedGroups.map { group in
-            (group, group.tabs.filter { tab in
-                return terms.allSatisfy { "\(tab.navigationSearchText) \(searchTitles[group.id] ?? group.label)".localizedStandardContains(String($0)) }
-            })
-        }.filter { !$0.1.isEmpty }
-        return VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search archived tabs", text: $archiveQuery)
-                    .textFieldStyle(.plain)
-                    .focused($archiveSearchFocused)
-                Button("Done") { showsArchiveSearch = false }
-                    .keyboardShortcut(.cancelAction)
-            }
-            List {
-                ForEach(groups, id: \.0.id) { group, tabs in
-                    if !tabs.isEmpty {
-                        Section(titles[group.id] ?? group.label) {
-                            ForEach(tabs) { tab in
-                                Button {
-                                    app.restoreArchivedTab(tab.id, from: group.id)
-                                    showsArchiveSearch = false
-                                } label: {
-                                    HStack {
-                                        Label(tab.navigationLabel, systemImage: tab.symbol)
-                                        Spacer()
-                                        Text(tab.navigationDetail).foregroundStyle(.secondary)
-                                    }
-                                    .padding(.vertical, 4)
-                                    .contentShape(.rect)
-                                }
-                                .buttonStyle(.interactivePlain)
-                                .help("Restore and open this tab")
-                                .contextMenu {
-                                    Button("Restore and Open Here", systemImage: "archivebox") {
-                                        app.restoreArchivedTab(tab.id, from: group.id)
-                                        showsArchiveSearch = false
-                                    }
-                                    if let source = sourceNames[group.id] {
-                                        Button("Restore and Open in \(source)", systemImage: "square.stack") {
-                                            app.restoreArchivedTab(tab.id, from: group.id, toSource: true)
-                                            showsArchiveSearch = false
-                                        }
-                                        Divider()
-                                        Button("Restore to \(source) in Background", systemImage: "arrow.down.to.line") {
-                                            app.restoreArchived(group.id, toSource: true, only: tab.id)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .overlay {
-                if groups.isEmpty {
-                    if terms.isEmpty {
-                        ContentUnavailableView("No Restorable Tabs", systemImage: "archivebox")
-                    } else {
-                        ContentUnavailableView.search(text: archiveQuery)
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .frame(width: 440, height: 350)
-        .onAppear { archiveSearchFocused = true }
-    }
-
     var archive: some View {
         let titles = archiveExpanded ? app.archiveTitles() : [:]
         let sourceNames = archiveExpanded ? app.archiveSourceNames() : [:]
@@ -543,10 +466,7 @@ struct BereanSidebar: View {
                 }.padding(.horizontal, 10).padding(.vertical, 4).contentShape(.rect)
             }.buttonStyle(.interactivePlain)
             if archiveExpanded {
-                Button {
-                    archiveQuery = ""
-                    showsArchiveSearch = true
-                } label: {
+                Button(action: browseArchive) {
                     Label("Browse Archived Tabs…", systemImage: "magnifyingglass")
                         .padding(.horizontal, 10).padding(.vertical, 6)
                 }
@@ -700,4 +620,85 @@ struct WindowDragArea: NSViewRepresentable {
     }
     func makeNSView(context: Context) -> NSView { DragView() }
     func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+struct MacArchivedTabsSheet: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var archiveQuery = ""
+    @FocusState private var archiveSearchFocused: Bool
+
+    var body: some View {
+        let terms = archiveQuery.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
+        let titles = app.archiveTitles()
+        let sourceNames = app.archiveSourceNames()
+        let searchTitles = app.archiveTitles(includeAliases: true)
+        let groups = app.archivedGroups.map { group in
+            (group, group.tabs.filter { tab in
+                return terms.allSatisfy { "\(tab.navigationSearchText) \(searchTitles[group.id] ?? group.label)".localizedStandardContains(String($0)) }
+            })
+        }.filter { !$0.1.isEmpty }
+        return VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search archived tabs", text: $archiveQuery)
+                    .textFieldStyle(.plain)
+                    .focused($archiveSearchFocused)
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            List {
+                ForEach(groups, id: \.0.id) { group, tabs in
+                    if !tabs.isEmpty {
+                        Section(titles[group.id] ?? group.label) {
+                            ForEach(tabs) { tab in
+                                Button {
+                                    app.restoreArchivedTab(tab.id, from: group.id)
+                                    dismiss()
+                                } label: {
+                                    HStack {
+                                        Label(tab.navigationLabel, systemImage: tab.symbol)
+                                        Spacer()
+                                        Text(tab.navigationDetail).foregroundStyle(.secondary)
+                                    }
+                                    .padding(.vertical, 4)
+                                    .contentShape(.rect)
+                                }
+                                .buttonStyle(.interactivePlain)
+                                .help("Restore and open this tab")
+                                .contextMenu {
+                                    Button("Restore and Open Here", systemImage: "archivebox") {
+                                        app.restoreArchivedTab(tab.id, from: group.id)
+                                        dismiss()
+                                    }
+                                    if let source = sourceNames[group.id] {
+                                        Button("Restore and Open in \(source)", systemImage: "square.stack") {
+                                            app.restoreArchivedTab(tab.id, from: group.id, toSource: true)
+                                            dismiss()
+                                        }
+                                        Divider()
+                                        Button("Restore to \(source) in Background", systemImage: "arrow.down.to.line") {
+                                            app.restoreArchived(group.id, toSource: true, only: tab.id)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .overlay {
+                if groups.isEmpty {
+                    if terms.isEmpty {
+                        ContentUnavailableView("No Restorable Tabs", systemImage: "archivebox")
+                    } else {
+                        ContentUnavailableView.search(text: archiveQuery)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 440, height: 350)
+        .onAppear { archiveSearchFocused = true }
+    }
 }

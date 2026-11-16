@@ -38,6 +38,7 @@ struct IOSRootView: View {
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var contentWidth: CGFloat = 0
+    @State private var showArchive = false
     @State private var showTabs = false
     @State private var showGo = false
     @State private var explicitNewTab = false
@@ -135,6 +136,16 @@ struct IOSRootView: View {
                 showTabs = false
             })
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showArchive) {
+            NavigationStack {
+                ArchivedTabsPage(onOpen: { showArchive = false })
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showArchive = false }
+                        }
+                    }
+            }
         }
         .sheet(isPresented: $showGo) { GoSheet(newTab: explicitNewTab, close: { showGo = false }).presentationDetents([.large]) }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
@@ -241,6 +252,10 @@ struct IOSRootView: View {
                 Label("No tab open", systemImage: "book")
             } description: { Text("Open a passage, a note or a search.") } actions: {
                 Button("Go…") { openGo() }.buttonStyle(.borderedProminent)
+                if !app.archivedGroups.isEmpty {
+                    Button("Browse Archived Tabs…") { showArchive = true }
+                        .buttonStyle(.bordered)
+                }
             }
         }
     }

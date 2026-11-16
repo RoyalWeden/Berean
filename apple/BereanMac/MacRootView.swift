@@ -9,12 +9,13 @@ import BereanReference
 struct MacRootView: View {
     @Environment(AppModel.self) private var app
     @State private var columns: NavigationSplitViewVisibility = .all
+    @State private var showsArchive = false
     private let paletteDimOpacity = 0.12
 
     var body: some View {
         @Bindable var app = app
         NavigationSplitView(columnVisibility: $columns) {
-            BereanSidebar()
+            BereanSidebar(browseArchive: { showsArchive = true })
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
                 // Browser-style: [sidebar] [‹] [›] together in the sidebar's title bar (Yab / Safari / Arc).
                 .toolbar(removing: .sidebarToggle)
@@ -31,6 +32,7 @@ struct MacRootView: View {
         .background { ToolbarDimOverlay(isVisible: app.commandPaletteShown, opacity: paletteDimOpacity) }
         .disabled(app.commandPaletteShown)
         .studyTrailSheet(app: app)
+        .sheet(isPresented: $showsArchive) { MacArchivedTabsSheet() }
         .overlay(alignment: .top) {
             if app.commandPaletteShown {
                 GeometryReader { geometry in
@@ -124,8 +126,20 @@ struct MacRootView: View {
                                        description: Text("This kind of tab arrives in a later native build. It stays saved with your workspace."))
             }
         } else {
-            ContentUnavailableView("No tab open", systemImage: app.activeSpace.symbol,
-                                   description: Text("Press ⌘T to open a passage, a Strong's number or a search."))
+            ContentUnavailableView {
+                Label("No tab open", systemImage: app.activeSpace.symbol)
+            } description: {
+                Text("Open a passage, a note or a search.")
+            } actions: {
+                Button("Go…") { app.showCommandPalette() }
+                    .buttonStyle(.borderedProminent)
+                    .clickableCursor()
+                if !app.archivedGroups.isEmpty {
+                    Button("Browse Archived Tabs…") { showsArchive = true }
+                        .buttonStyle(.bordered)
+                        .clickableCursor()
+                }
+            }
         }
     }
 }

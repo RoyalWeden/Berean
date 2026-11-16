@@ -1405,3 +1405,8 @@
 
 - Grouped Lexicon occurrence counts, Filters and Search Scripture in the leading section of both entry surfaces. Separated narrowing choices from ordering and strengthened pointer feedback in the two study tools.
 - Verified Mac and iPhone Simulator Debug builds. Mac visual verification could only reach a stale Dev window and needs a fresh isolated pass. No production library used.
+
+### 2026-11-16 — Empty workspace recovery
+
+- Added direct access to the existing archive browser from empty workspaces on Mac and iPhone. Added a Go button to the Mac empty state.
+- Both Dev builds passed with identity checks. Mac scratch QA restored the final archived tab with the sidebar hidden. iPhone interaction check pending.
