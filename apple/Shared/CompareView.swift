@@ -40,7 +40,8 @@ struct CompareColumn: Identifiable {
     }
 
     func follows(_ anchor: BibleState) -> Bool {
-        book == anchor.bookId && chapter == ChapterMap.mapChapter(book, anchor.chapter, from: anchor.translation, to: text)
+        !isPinned && book == anchor.bookId &&
+            chapter == ChapterMap.mapChapter(book, anchor.chapter, from: anchor.translation, to: text)
     }
 
     var isPinned: Bool { record["nativePinnedPassage"]?.boolValue == true }
@@ -392,7 +393,7 @@ struct CompareView: View {
     }
 
     private func passageKey(_ state: BibleState, _ columns: [CompareColumn]) -> String {
-        let destinations = columns.map { "\($0.id):\($0.destinationKey)" }.joined(separator: ",")
+        let destinations = columns.map { "\($0.id):\($0.historyKey)" }.joined(separator: ",")
         return "\(state.translation)|\(state.bookId)|\(state.chapter)|\(destinations)"
     }
 
@@ -506,6 +507,14 @@ struct CompareView: View {
     private func alignedColumnHeading(_ column: CompareColumn, available: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             columnPassageButton(column, title: textInfo(column.text).name)
+            let chapterNames = Set(rows.values.compactMap { $0[column.id]?.chapter }).sorted().map {
+                Reference.readerChapterLabel(column.book, $0, textId: column.text)
+            }
+            if chapterNames.count > 1 {
+                Text(chapterNames.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if !available {
                 Text("Passage unavailable in this edition")
                     .font(.caption)
@@ -1213,8 +1222,9 @@ struct CompareView: View {
         } else {
             record.remove("nativePinnedPassage")
             record["bookId"] = .string(JSString(anchor.bookId))
-            record["chapter"] = .number(Double(ChapterMap.mapChapter(anchor.bookId, anchor.chapter, from: anchor.translation, to: column.text)))
-            if !column.follows(anchor) { record.remove("scrollPos") }
+            let chapter = ChapterMap.mapChapter(anchor.bookId, anchor.chapter, from: anchor.translation, to: column.text)
+            record["chapter"] = .number(Double(chapter))
+            if column.book != anchor.bookId || column.chapter != chapter { record.remove("scrollPos") }
         }
         guard let updated = CompareColumn(id: column.id, record: record, anchor: anchor) else { return }
         setColumns(columns.map { $0.id == column.id ? updated : $0 })

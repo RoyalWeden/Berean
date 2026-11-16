@@ -1239,3 +1239,7 @@
 ### 2026-11-16 — Align Compare rows by known verse counterparts
 - Align verified KJV–Brenton verse differences in Compare, including chapter joins.
 - Both Dev builds passed. Mac QA verified KJVA Psalm 10:1 beside Brenton Psalm 9:22.
+
+### 2026-11-16 — Clarify Compare chapter joins and pinned columns
+- Aligned Compare names both chapters when an edition contributes rows from a chapter join.
+- Pinning takes effect even when the column is currently on the main passage’s chapter. Both Dev builds passed, and Mac QA verified pinning, following again, and the Psalm 113 join.
