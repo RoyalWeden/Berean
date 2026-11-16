@@ -877,9 +877,7 @@ struct ScriptureView: View {
                 .glassEffectCompat()
                 #else
                 .tint(.primary)
-                // Keep Scripture glyphs from competing with the small symbols on the glass.
-                .background(Color(uiColor: .systemBackground).opacity(0.78), in: .capsule)
-                .glassEffectCompat(interactive: true)
+                .glassEffectCompat(interactive: true, backingOpacity: ReaderFloatingControls.dockBackingOpacity)
                 #endif
                 .padding(.horizontal, 8)
                 .padding(.bottom, ReaderFloatingControls.bottomPadding)
@@ -1792,8 +1790,8 @@ struct VerseRowView: View {
 
 extension View {
     /// Liquid Glass capsule on current systems.
-    func glassEffectCompat(interactive: Bool = false) -> some View {
-        modifier(ReaderGlassCapsule(interactive: interactive))
+    func glassEffectCompat(interactive: Bool = false, backingOpacity: Double = 0) -> some View {
+        modifier(ReaderGlassCapsule(interactive: interactive, backingOpacity: backingOpacity))
     }
 
     /// macOS: the passage pill and text button already say where the reader is, so the window title is kept for the
@@ -2025,6 +2023,7 @@ private extension View {
 
 private struct ReaderGlassCapsule: ViewModifier {
     let interactive: Bool
+    let backingOpacity: Double
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     #if os(iOS)
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -2039,6 +2038,8 @@ private struct ReaderGlassCapsule: ViewModifier {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
+        } else if backingOpacity > 0 {
+            glassSurface(content.background(opaqueBackground.opacity(backingOpacity), in: .capsule))
         } else {
             glassSurface(content)
         }
@@ -2052,7 +2053,7 @@ private struct ReaderGlassCapsule: ViewModifier {
         #endif
     }
 
-    @ViewBuilder private func glassSurface(_ content: Content) -> some View {
+    @ViewBuilder private func glassSurface(_ content: some View) -> some View {
         #if os(iOS)
         if verticalSizeClass == .compact {
             content.background(.regularMaterial, in: .capsule)
@@ -2082,6 +2083,8 @@ enum ReaderFloatingControls {
     static let surfaceHorizontalPadding: CGFloat = 5
     static let actionWidth: CGFloat = 44
     static let actionHeight: CGFloat = 44
+    // Keep red-letter text and dark-appearance glyphs legible around the controls without losing the glass rim.
+    static let dockBackingOpacity = 0.94
     static let dockButtonHeight: CGFloat = 44
     static let dockSurfacePadding: CGFloat = 3
     static let dockOuterPadding: CGFloat = 4

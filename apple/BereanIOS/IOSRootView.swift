@@ -157,7 +157,7 @@ struct IOSRootView: View {
         .buttonStyle(.interactivePlain)
         .padding(.horizontal, 12)
         .padding(.vertical, ReaderFloatingControls.dockSurfacePadding)
-        .glassEffectCompat(interactive: true)
+        .glassEffectCompat(interactive: true, backingOpacity: readerEdition == nil ? 0 : ReaderFloatingControls.dockBackingOpacity)
         .frame(maxWidth: 260)
         .padding(.horizontal, 14)
         .padding(.vertical, ReaderFloatingControls.dockOuterPadding)

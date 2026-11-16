@@ -1191,3 +1191,7 @@
 ### 2026-11-15 — Scripture taps near the iPhone screen edge
 - Chapter-turn taps stay in the empty margin so they do not intercept linked Scripture content. UIKit keeps control of active text selections and their handles.
 - The iPhone Dev build passed and opened John 3:16–18 in Simulator. Direct gesture checks remain open.
+
+### 2026-11-16 — iPhone Scripture control contrast
+- Increased the backing opacity of the floating Scripture dock and verse actions to improve icon readability over red-letter verses.
+- Both Dev builds passed. Light and Dark Mode were visually checked in iPhone Simulator.
