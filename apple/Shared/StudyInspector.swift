@@ -291,7 +291,7 @@ struct CommandPalette: View {
                 out.append(Item(id: "recent-\(r.id)", group: "Recent", title: r.label, detail: textInfo(r.textId).short,
                                 symbol: "clock.arrow.circlepath", offersOpenMenu: true,
                                 reusesOpenPassage: willReusePassage(passage)) { inNewTab in
-                    app.visitScripture(passage, reuseTab: !inNewTab, preferActiveTab: preferActiveTab)
+                    app.goToScripture(passage, newTab: inNewTab, preferActiveTab: preferActiveTab)
                 })
             }
         }
@@ -300,7 +300,7 @@ struct CommandPalette: View {
             out.append(Item(id: "go", group: "Go to", title: ref.label,
                             detail: textInfo(ref.textId).name, symbol: "book", excerpt: excerpt, offersOpenMenu: true,
                             reusesOpenPassage: willReusePassage(ref)) { inNewTab in
-                app.visitScripture(ref, reuseTab: !inNewTab, preferActiveTab: preferActiveTab)
+                app.goToScripture(ref, newTab: inNewTab, preferActiveTab: preferActiveTab)
             })
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
         }

@@ -1300,6 +1300,23 @@ final class AppModel {
         }
     }
 
+    /// Go switches to an exact open passage without resetting that tab's saved scroll position.
+    func goToScripture(_ passage: ResolvedPassage, newTab: Bool, preferActiveTab: Bool = false) {
+        let sourceID = activeTab?.id
+        if !newTab, !preferActiveTab {
+            let matches = tabs(in: .scripture).filter(passage.isShown(in:))
+            if let match = matches.first(where: { $0.id == sourceID }) ?? matches.first {
+                select(match.id, in: .scripture)
+                recordTabReturn(to: sourceID)
+                recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
+                             verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
+                return
+            }
+        }
+        visitScripture(passage, reuseTab: !newTab, returningTo: newTab ? nil : sourceID,
+                       preferActiveTab: preferActiveTab)
+    }
+
     func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true, returningTo sourceTabID: String? = nil,
                         preferActiveTab: Bool = false) {
         openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,

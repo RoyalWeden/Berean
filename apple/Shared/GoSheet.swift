@@ -133,7 +133,7 @@ struct GoSheet: View {
         if let ref = resolvedPassage {
             let isOpen = !newTab && app.tabs(in: .scripture).contains(where: ref.isShown(in:))
             Section("Passage") {
-                Button { finish { app.visitScripture(ref, reuseTab: !newTab) } } label: {
+                Button { finish { app.goToScripture(ref, newTab: newTab) } } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(ref.label)
@@ -275,7 +275,7 @@ struct GoSheet: View {
         let query = trimmed
         guard !query.isEmpty else { return }
         if let passage = app.resolvePassage(query, preferring: preferredText) {
-            finish { app.visitScripture(passage, reuseTab: !newTab) }
+            finish { app.goToScripture(passage, newTab: newTab) }
         } else if let id = StrongsId.normalize(query) {
             finish { app.openLexicon(id, reuseTab: !newTab) }
         } else if let note = (notesQuery == query ? notes : noteMatches(query)).first(where: {
