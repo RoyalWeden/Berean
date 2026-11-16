@@ -1342,3 +1342,7 @@
 ### 2026-11-16 — Stable floating search selection
 
 - Track explicitly selected rows by result ID and current query. Both Dev builds passed, and Mac scratch QA verified arrow selection and Return.
+
+### 2026-11-16 — Strong's previews in Go and floating search
+
+- Direct Strong's results now show the headword, transliteration and gloss. Both Dev builds passed. Mac verified G3056 and H3068 preview replacement and Return navigation.

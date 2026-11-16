@@ -13,6 +13,7 @@ struct GoSheet: View {
     @State private var text = ""
     @State private var notes: [Note] = []
     @State private var notesQuery = ""
+    @State private var strongsPreview: (id: String, text: String)?
     @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @FocusState private var focused: Bool
 
@@ -63,6 +64,15 @@ struct GoSheet: View {
             guard !Task.isCancelled, query == trimmed else { return }
             notes = noteMatches(query)
             notesQuery = query
+        }
+        .task(id: StrongsId.normalize(trimmed)) {
+            guard let id = StrongsId.normalize(trimmed) else {
+                strongsPreview = nil
+                return
+            }
+            let excerpt = await app.strongsExcerpt(id)
+            guard !Task.isCancelled, StrongsId.normalize(trimmed) == id else { return }
+            strongsPreview = excerpt.map { (id, $0) }
         }
         .task(id: resolvedPassage) {
             guard let passage = resolvedPassage else {
@@ -146,7 +156,17 @@ struct GoSheet: View {
         } else if let id = StrongsId.normalize(trimmed) {
             Section("Lexicon") {
                 Button { finish { app.openLexicon(id, reuseTab: !newTab) } } label: {
-                    Label("Look up \(id)", systemImage: "character.book.closed")
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Look up \(id)")
+                            if let strongsPreview, strongsPreview.id == id {
+                                Text(strongsPreview.text)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                    } icon: { Image(systemName: "character.book.closed") }
                 }
             }
         }

@@ -252,6 +252,7 @@ struct CommandPalette: View {
     @State private var text = ""
     @State private var textSelection: TextSelection?
     @State private var resultSelection: (query: String, id: Item.ID)?
+    @State private var strongsPreview: (id: String, text: String)?
     @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @State private var noteResults: (query: String, hits: [Note], excerpts: [String: String])?
     @State private var actionsShown = false
@@ -295,7 +296,8 @@ struct CommandPalette: View {
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
         }
         if let id = StrongsId.normalize(trimmed) {
-            out.append(Item(id: "lex", group: "Lexicon", title: "Look up \(id)", detail: "Strong's lexicon entry", symbol: "character.book.closed", offersOpenMenu: true) { inNewTab in app.openLexicon(id, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
+            let excerpt = strongsPreview.flatMap { $0.id == id ? $0.text : nil }
+            out.append(Item(id: "lex", group: "Lexicon", title: "Look up \(id)", detail: "Strong's lexicon entry", symbol: "character.book.closed", excerpt: excerpt, offersOpenMenu: true) { inNewTab in app.openLexicon(id, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
             out.append(Item(id: "strongs", group: "Lexicon", title: "Verses with \(id)", detail: "Search all tagged texts", symbol: "number", offersOpenMenu: true) { inNewTab in app.openSearch(id, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
         }
         let excerpts = noteResults.flatMap { $0.query == trimmed ? $0.excerpts : nil } ?? [:]
@@ -606,6 +608,15 @@ struct CommandPalette: View {
             try? await Task.sleep(for: .milliseconds(30))
             guard !Task.isCancelled, text == location.text else { return }
             textSelection = TextSelection(range: text.startIndex..<text.endIndex)
+        }
+        .task(id: StrongsId.normalize(query)) {
+            guard let id = StrongsId.normalize(query) else {
+                strongsPreview = nil
+                return
+            }
+            let excerpt = await app.strongsExcerpt(id)
+            guard !Task.isCancelled, StrongsId.normalize(trimmed) == id else { return }
+            strongsPreview = excerpt.map { (id, $0) }
         }
         .task(id: resolvePassage(query)) {
             guard let passage = resolvePassage(query) else {

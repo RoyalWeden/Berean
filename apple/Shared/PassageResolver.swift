@@ -59,6 +59,13 @@ struct ResolvedPassage: Equatable {
 }
 
 extension AppModel {
+    func strongsExcerpt(_ id: String) async -> String? {
+        guard let entry = await lexicon.entry(id) else { return nil }
+        let gloss = entry.gloss.isEmpty ? entry.definition : entry.gloss
+        let parts = [entry.lemma, entry.transliteration, gloss].filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     func passageExcerpt(_ passage: ResolvedPassage) async -> String? {
         let text: String?
         let tagged: String?
