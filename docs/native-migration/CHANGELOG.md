@@ -1251,3 +1251,7 @@
 ### 2026-11-16 — Carry Compare reading position into Scripture
 - Opening an unselected Compare column takes its current reading position into Scripture without selecting a verse.
 - Both Dev builds passed. Mac QA verified that leaving a scrolled Psalm 113 comparison opened the contributing KJVA Psalm 115.
+
+### 2026-11-16 — Preserve reading position from stacked Compare
+- Open in Reader carries the chosen stacked column’s reading verse without creating a selection.
+- Both Dev builds passed. A temporary iPhone simulator fixture verified Genesis 1:9 appeared first when leaving the scrolled stacked comparison.

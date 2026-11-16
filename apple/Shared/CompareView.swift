@@ -166,6 +166,7 @@ struct CompareView: View {
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
     @State private var independentVisibleVerses: [Int: Int] = [:]
+    @State private var stackedVersesAboveTop: [Int: Set<Int>] = [:]
     @State private var scrollingColumn: Int?
     @State private var lastScrolledColumn: Int?
     @State private var alignedVersesAboveTop: Set<Int> = []
@@ -215,8 +216,9 @@ struct CompareView: View {
             } else if !cols.allSatisfy({ $0.follows(st) }) {
                 let key = "stacked|" + passage
                 restoredCompareScroll(key: key) {
-                    independentComparison(cols)
+                    independentComparison(cols, passage: passage)
                 }
+                .coordinateSpace(name: "stacked-compare")
             } else {
                 alignedComparison(st, cols)
             }
@@ -235,6 +237,7 @@ struct CompareView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
         .onChange(of: passage) {
             independentVisibleVerses = [:]
+            stackedVersesAboveTop = [:]
             scrollingColumn = nil
             lastScrolledColumn = nil
             alignedVersesAboveTop = []
@@ -665,11 +668,11 @@ struct CompareView: View {
         return rows.last(where: { $0.verseNum <= verse })?.verseNum ?? rows.first?.verseNum
     }
 
-    private func independentComparison(_ columns: [CompareColumn]) -> some View {
+    private func independentComparison(_ columns: [CompareColumn], passage: String) -> some View {
         LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
             ForEach(columns) { column in
                 Section {
-                    independentVerses(column)
+                    independentVerses(column, stackedPassage: passage)
                 } header: {
                     independentHeader(column, columns: columns)
                         .background(.regularMaterial, in: .rect(cornerRadius: 10))
@@ -817,13 +820,24 @@ struct CompareView: View {
         return mapped.chapter == column.chapter ? mapped.verse : nil
     }
 
-    @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false) -> some View {
+    @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false,
+                                                stackedPassage: String? = nil) -> some View {
         if let verses = independentRows[column.id], !verses.isEmpty {
             let selected = Set(selectedRows(in: column, source: state).map(\.verseNum))
             ForEach(verses, id: \.verseNum) { row in
                 let isSelected = selected.contains(row.verseNum)
                 independentVerseRow(row, column: column, compact: compact, selected: isSelected)
                     .background(Color.accentColor.opacity(isSelected ? 0.08 : 0), in: .rect(cornerRadius: 6))
+                    .onGeometryChange(for: Bool.self) { geometry in
+                        stackedPassage != nil && geometry.frame(in: .named("stacked-compare")).minY <= controlSize
+                    } action: { aboveTop in
+                        guard let stackedPassage, stackedPassage == loadedPassage else { return }
+                        if aboveTop {
+                            stackedVersesAboveTop[column.id, default: []].insert(row.verseNum)
+                        } else {
+                            stackedVersesAboveTop[column.id]?.remove(row.verseNum)
+                        }
+                    }
             }
         } else {
             Text("No Text in This Passage").foregroundStyle(.secondary)
@@ -1310,6 +1324,10 @@ struct CompareView: View {
                 rows[$0]?[column.id]
             }.first
             return row.map { ($0.chapter, $0.verseNum) }
+        }
+        if !canShowIndependentPanes(width: compareWidth, count: columns.count) {
+            let verse = stackedVersesAboveTop[column.id]?.max() ?? independentRows[column.id]?.first?.verseNum
+            return verse.map { (column.chapter, $0) }
         }
         let key = columnScrollKey(column.id, passage: passage)
         let verse = independentVisibleVerses[column.id] ?? app.compareColumnScrollVerses[tabId]?[key]
