@@ -356,7 +356,10 @@ struct LexiconEntryView: View {
                                 }
                             }
                         }
-                        section("Occurrences") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Occurrences")
+                                .font(.headline)
+                                .accessibilityAddTraits(.isHeader)
                             if occurrencesLoading {
                                 ProgressView().accessibilityLabel("Loading occurrences")
                             } else if occurrences.isEmpty {
@@ -365,18 +368,19 @@ struct LexiconEntryView: View {
                                 let forms = indexed.reduce(into: [String: Int]()) { counts, row in
                                     for word in row.2 { counts[word, default: 0] += 1 }
                                 }
-                                FlowLayout(spacing: 8) {
+                                Text(occurrenceCountLabel(occurrenceMatches.count))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                FlowLayout(spacing: 6) {
                                     occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1 || sortByMatches)
                                     Button("Search Scripture", systemImage: "magnifyingglass") {
                                         leaveInspector()
                                         app.openSearch(e.strongsNum, reuseTab: true, returningTo: tabId)
                                     }
                                     .buttonStyle(OptionButtonStyle())
-                                    .accessibilityHint("Search Scripture for \(e.strongsNum)")
+                                    .accessibilityHint("Search all texts for \(e.strongsNum)")
+                                    .help("Search Scripture for \(e.strongsNum)")
                                 }
-                                Text(occurrenceCountLabel(occurrenceMatches.count))
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
                                 if hasOccurrenceOptions { activeOccurrenceOptions }
                                 if occurrenceMatches.isEmpty {
                                     Text(occurrencesTruncated
@@ -715,9 +719,11 @@ struct LexiconEntryView: View {
 
     private func occurrenceCountLabel(_ matches: Int) -> String {
         let total = occurrences.count.formatted()
-        if occurrencesTruncated { return "\(matches.formatted()) of \(total) loaded" }
-        if matches == occurrences.count { return matches == 1 ? "1 result" : "\(total) results" }
-        return "\(matches.formatted()) of \(total) results"
+        if occurrencesTruncated {
+            return matches == occurrences.count ? "\(total) indexed results loaded" : "\(matches.formatted()) matches among \(total) loaded"
+        }
+        if matches == occurrences.count { return matches == 1 ? "1 passage" : "\(total) passages" }
+        return "\(matches.formatted()) of \(total) passages"
     }
 
     private func occurrenceFilters(books: [String: [LexiconOccurrence]], forms: [String: Int], canSort: Bool) -> some View {
@@ -729,13 +735,16 @@ struct LexiconEntryView: View {
         .buttonStyle(OptionButtonStyle(active: hasOccurrenceOptions || showsOccurrenceFilters))
         .accessibilityHint(hasOccurrenceOptions ? "Occurrence filters are active" : "Filter and sort occurrences")
         .popover(isPresented: $showsOccurrenceFilters, arrowEdge: .bottom) {
+            #if os(macOS)
+            occurrenceFilterPanel(books: books, forms: forms, canSort: canSort)
+                .padding(16)
+                .frame(width: 320)
+            #else
             ScrollView {
                 occurrenceFilterPanel(books: books, forms: forms, canSort: canSort)
                     .padding(16)
             }
-            .frame(idealWidth: 320, maxHeight: 420)
-            #if os(iOS)
-            .frame(maxHeight: .infinity, alignment: .top)
+            .scrollDismissesKeyboard(.interactively)
             .presentationCompactAdaptation(.sheet)
             #endif
         }
@@ -751,6 +760,7 @@ struct LexiconEntryView: View {
                 Button("Done") { showsOccurrenceFilters = false }
                     .buttonStyle(OptionButtonStyle())
             }
+            Text("Narrow results").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             if editions.count > 1 {
                 Picker("Edition", selection: $occurrenceEdition) {
                     Text("All Editions").tag(nil as String?)
@@ -794,7 +804,8 @@ struct LexiconEntryView: View {
                 }
             }
             if canSort {
-                Picker("Sort", selection: $sortByMatches) {
+                Divider()
+                Picker("Order", selection: $sortByMatches) {
                     Text(compact ? "Default Order" : "Scripture Order").tag(false)
                     Text("Most Matches").tag(true)
                 }
@@ -839,8 +850,10 @@ struct LexiconEntryView: View {
                     .textFieldStyle(.roundedBorder)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 1) { choices() }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(height: 144)
+                .accessibilityLabel(list == .books ? "Books" : "Translated Words")
             }
         }
     }

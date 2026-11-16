@@ -422,7 +422,9 @@ struct ScriptureSearchView: View {
 
     var options: some View {
         VStack(alignment: .leading, spacing: 12) {
+            #if os(iOS)
             Text("Match").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            #endif
             Picker("Match", selection: Binding(get: { mode }, set: { set("wordMode", .string(JSString($0.rawValue))) })) {
                 Text("All words").tag(WordMode.all); Text("Any word").tag(WordMode.any); Text("Exact phrase").tag(WordMode.phrase)
             }.modifier(SearchOptionsPickerStyle())
@@ -459,6 +461,7 @@ struct ScriptureSearchView: View {
                     Text("All selected tags").tag(true)
                 }.modifier(SearchOptionsPickerStyle())
             }
+            Divider()
             Text("Results").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Order", selection: Binding(get: { sort }, set: { set("sort", .string(JSString($0))) })) {
                 Text("Scripture order").tag("bookOrder"); Text("Best match first").tag("relevance")
@@ -466,7 +469,9 @@ struct ScriptureSearchView: View {
             Picker("Group by", selection: Binding(get: { grouping }, set: { set("grouping", .string(JSString($0))) })) {
                 Text("By text").tag("text"); Text("By book").tag("book"); Text("No groups").tag("none")
             }.modifier(SearchOptionsPickerStyle())
+            #if os(iOS)
             Text("Context").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            #endif
             Picker("Context", selection: $resultContext) {
                 Text("Verse only").tag(0); Text("±1 verse").tag(1); Text("±2 verses").tag(2)
             }.modifier(SearchOptionsPickerStyle())
@@ -1007,7 +1012,7 @@ private struct SearchOptionsPickerStyle: ViewModifier {
         #if os(iOS)
         content.pickerStyle(.menu).labelsHidden()
         #else
-        content.pickerStyle(.segmented).labelsHidden().clickableCursor().optionHover()
+        content.pickerStyle(.menu).clickableCursor().optionHover()
         #endif
     }
 }
@@ -1037,6 +1042,7 @@ struct BookFilterField: View {
                             Label(Reference.bookName(id), systemImage: "xmark").font(.caption).labelStyle(.titleAndIcon)
                                 .padding(.horizontal, 7).padding(.vertical, 3).background(Color.accentColor.opacity(0.18), in: .capsule)
                         }.buttonStyle(.interactivePlain)
+                            .optionHover()
                     }
                 }
             }
@@ -1078,7 +1084,7 @@ private struct OptionHover: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(Color.primary.opacity((active ? 0.10 : 0) + (enabled && hovered ? 0.08 : 0)),
+            .background(Color.primary.opacity((active ? 0.10 : 0) + (enabled && hovered ? 0.14 : 0)),
                         in: .rect(cornerRadius: 7))
             .contentShape(.rect)
             #if os(macOS)

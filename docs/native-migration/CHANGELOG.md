@@ -1400,3 +1400,8 @@
 
 - Moved Lexicon Filters beside Search Scripture and replaced the split counts with one results summary. The filter panel adds searchable books and translated words.
 - Added pointer hover feedback to Lexicon and Advanced Search controls. The iPhone Dev simulator verified the new book filter and result summary.
+
+### 2026-11-16 — Lexicon and Advanced Search option controls
+
+- Grouped Lexicon occurrence counts, Filters and Search Scripture in the leading section of both entry surfaces. Separated narrowing choices from ordering and strengthened pointer feedback in the two study tools.
+- Verified Mac and iPhone Simulator Debug builds. Mac visual verification could only reach a stale Dev window and needs a fresh isolated pass. No production library used.

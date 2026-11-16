@@ -1632,3 +1632,9 @@ Both native Dev builds passed.
 Restore All to Workspace now reports any archived tabs already open in a different workspace. Those tabs stay in place and the remaining archive members restore normally under the existing global ID rules. Live verification with a synthetic partial collision remains open.
 
 Both native Dev builds passed.
+
+## Lexicon and Advanced Search controls
+
+The full Lexicon entry and compact study inspector share the same Occurrences heading, count, leading Filters and Search Scripture actions. The filter panel groups narrowing choices ahead of Order and opens one searchable Book or Translated Words list at a time. Advanced Search uses compact labeled menu pickers on Mac and clearer hover fills through the shared option style. The Scripture search action still passes the source tab to history and starts an all-texts search.
+
+Both native Debug builds passed. Mac live QA reached H430 but the window still displayed the older Occurrence Options layout while two Dev instances shared the bundle identifier. Relaunch the current build with `--qa-library` after isolating its window, then check pointer movement across the filter rows, a book and translated-word selection, Reset Filters, Search Scripture and Back. On iPhone Simulator, check the filter sheet with the keyboard up at a large text size. The wider app control placement audit remains open.
