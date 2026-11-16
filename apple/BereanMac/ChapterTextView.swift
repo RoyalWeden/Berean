@@ -765,11 +765,25 @@ final class ReaderTextView: NSTextView {
         if NSCursor.current != cursor { cursor.set() }
     }
 
+    // Tracking areas also receive events beneath floating SwiftUI controls.
+    // Only set the text cursor when the reader actually owns the hit.
+    private func ownsPointer(at event: NSEvent) -> Bool {
+        guard let root = window?.contentView else { return false }
+        let point = root.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
+        guard let hit = root.hitTest(point) else { return false }
+        return hit === self || hit.isDescendant(of: self)
+    }
+
     override func cursorUpdate(with event: NSEvent) {
+        guard ownsPointer(at: event) else { return }
         updateReaderCursor(at: event, glyphIndex: nil)
     }
 
     override func mouseMoved(with event: NSEvent) {
+        guard ownsPointer(at: event) else {
+            clearLinkHover()
+            return
+        }
         let index = charIndex(at: event)
         updateReaderCursor(at: event, glyphIndex: index)
         guard let lm = layoutManager, let ts = textStorage else { return }
@@ -797,6 +811,10 @@ final class ReaderTextView: NSTextView {
     }
 
     override func mouseExited(with event: NSEvent) {
+        clearLinkHover()
+    }
+
+    private func clearLinkHover() {
         if let h = hovered, let ts = textStorage, NSMaxRange(h) <= ts.length { layoutManager?.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
         hovered = nil
     }

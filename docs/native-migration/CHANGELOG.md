@@ -1318,3 +1318,7 @@
 ### 2026-11-16 — Mac Scripture selection during window resize
 
 - Preserve an already-visible selection above the floating action bar when the window resizes. Mac Dev built successfully. Fill → Top tile kept John 8:58–59 visible in the scratch reader.
+
+### 2026-11-16 — Mac Scripture pointer ownership
+
+- Limit the reader's cursor updates and link hover to locations where the text view owns the hit. Mac Dev build passed. Direct pointer motion verification remains open.
