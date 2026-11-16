@@ -497,6 +497,11 @@ struct ScriptureView: View {
         let chapter = chapterKey(st)
         let showActions = loadedChapter == chapter && !verses.isEmpty && !selection.isEmpty
         let actionSpace = showActions ? ReaderFloatingControls.selectionHeight : 0
+        #if os(iOS)
+        let bottomClearance = actionSpace + dockClearance
+        #else
+        let bottomClearance = actionSpace
+        #endif
         VStack(spacing: 0) {
             #if os(macOS)
             if loadedChapter == chapter, !verses.isEmpty,
@@ -520,7 +525,7 @@ struct ScriptureView: View {
                         .ignoresSafeArea(.container, edges: .top)
                     }
                     #else
-                    iosReader(st, actionClearance: actionSpace + dockClearance)
+                    iosReader(st, actionClearance: bottomClearance)
                     #endif
                 }
             }
@@ -550,7 +555,7 @@ struct ScriptureView: View {
                     .font(.callout.weight(.medium))
                     .padding(.horizontal, 14).padding(.vertical, 8)
                     .glassEffectCompat()
-                    .padding(pull.direction < 0 ? .top : .bottom, 16)
+                    .padding(pull.direction < 0 ? .top : .bottom, pull.direction < 0 ? 16 : 16 + bottomClearance)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
                     .transition(.opacity)
@@ -601,7 +606,11 @@ struct ScriptureView: View {
         .task(id: "\(st.translation)|\(st.bookId)|\(st.chapter)|\(app.highlightsRevision)") {
             highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
         }
-        .onChange(of: chapter) { _, _ in if app.readerChromeHidden { withAnimation(.snappy) { app.readerChromeHidden = false } } }
+        .onChange(of: chapter) { _, _ in
+            if app.readerChromeHidden {
+                withAnimation(reduceMotion ? nil : .snappy) { app.readerChromeHidden = false }
+            }
+        }
         .onDisappear { app.readerChromeHidden = false }
         .onChange(of: app.chapterStepRequest) { _, request in
             guard let request, request.tabId == tabId else { return }

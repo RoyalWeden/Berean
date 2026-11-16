@@ -1179,3 +1179,7 @@
 ### 2026-11-15 — iPhone floating reader controls
 - The Scripture dock floats above the reading view and releases its scroll clearance when hidden. Verse actions follow the dock’s position.
 - Both Dev builds passed. The iPhone 18 Pro Simulator showed the final three verses of Romans 8 completely above the two floating controls.
+
+### 2026-11-15 — iPhone Scripture chapter edges
+- The next-chapter pull cue clears the floating dock. Scroll direction and toolbar state reset on passage changes.
+- Both Dev builds passed. iPhone Simulator displayed the new chapter and its selected range after a Dev link changed chapters. Pull gestures remain to verify.

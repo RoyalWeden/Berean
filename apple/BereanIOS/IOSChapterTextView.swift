@@ -162,6 +162,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 view.selectedRange = NSRange(location: 0, length: 0)
                 view.setContentOffset(CGPoint(x: 0, y: -view.adjustedContentInset.top), animated: false)
                 coordinator.lastTarget = nil
+                coordinator.resetScrollChrome()
             }
             coordinator.key = key
             coordinator.passageId = passageId
@@ -449,16 +450,25 @@ struct IOSChapterTextView: UIViewRepresentable {
             parent.onChapterPullCommit(requested.direction)
         }
 
+        func resetScrollChrome() {
+            lastScrollY = 0
+            scrollTravel = 0
+            chromeHidden = false
+            chapterPull = nil
+        }
+
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             trackChapterPull(scrollView)
-            let y = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
+            let inset = scrollView.adjustedContentInset
+            let y = scrollView.contentOffset.y + inset.top
             defer { lastScrollY = y }
             // Only user scrolling moves the chrome; programmatic jumps and restores leave it alone.
             guard scrollView.isTracking || scrollView.isDecelerating else { scrollTravel = 0; return }
             let delta = y - lastScrollY
             scrollTravel = (delta > 0) == (scrollTravel > 0) ? scrollTravel + delta : delta   // hysteresis per direction
             let atTop = y < 40
-            let atBottom = y + scrollView.bounds.height >= scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - 8
+            let bottom = max(-inset.top, scrollView.contentSize.height + inset.bottom - scrollView.bounds.height)
+            let atBottom = scrollView.contentOffset.y >= bottom - 8
             let hide: Bool
             if atTop || atBottom { hide = false } else if scrollTravel > 36 { hide = true } else if scrollTravel < -24 { hide = false } else { return }
             guard hide != chromeHidden else { return }
