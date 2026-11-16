@@ -1594,3 +1594,5 @@ Native saved workspace snapshots now keep History and Calendar alongside Scriptu
 Opening a single archived tab in another workspace now uses the existing cross-workspace Back/Forward route. This covers Restore to Source and the case where the same tab is already open there after another device restored it. Group restore still keeps the reader in place. The Restore to Source command now uses the workspace’s readable label. Live check pending: restore one result to its source, verify the remaining archive entries, and use Back to return.
 
 Both native Dev builds passed.
+
+Restoring into a workspace with no active tab now reselects the original active tab when it was part of that archive and is being restored to the same workspace. Older archive metadata falls back to the first restored tab. Batch restore reconciles the destination order once using the existing missing-neighbor placement rule. Both native Dev builds and three archive ordering/partial-restore tests passed. A live Archive All → Restore All check remains open.
