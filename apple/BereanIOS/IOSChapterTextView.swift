@@ -786,9 +786,12 @@ struct IOSChapterTextView: UIViewRepresentable {
             return verse
         }
 
-        private func verseAtTap(_ point: CGPoint, in view: UITextView) -> Int? {
-            if let verse = verseInGutter(point, in: view) { return verse }
-            guard view.selectedRange.length == 0 else { return nil }
+        private enum ReaderTap {
+            case verse(Int)
+            case chapterStep(Int)
+        }
+
+        private func characterAtTap(_ point: CGPoint, in view: UITextView) -> Int? {
             let container = view.textContainer
             let layout = view.layoutManager
             let inset = view.textContainerInset
@@ -797,27 +800,37 @@ struct IOSChapterTextView: UIViewRepresentable {
             guard glyph < layout.numberOfGlyphs,
                   layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(location) else { return nil }
             let index = layout.characterIndexForGlyph(at: glyph)
-            guard index < view.textStorage.length,
-                  view.textStorage.attribute(.link, at: index, effectiveRange: nil) == nil else { return nil }
-            return bodyRanges.first { NSLocationInRange(index, $0.value) }?.key
+            return index < view.textStorage.length ? index : nil
+        }
+
+        private func readerTap(at point: CGPoint, in view: UITextView) -> ReaderTap? {
+            // Let UIKit handle existing text selection, handles, and linked glyphs, including verse markers.
+            guard view.selectedRange.length == 0 else { return nil }
+            let character = characterAtTap(point, in: view)
+            if let character,
+               view.textStorage.attribute(.link, at: character, effectiveRange: nil) != nil { return nil }
+            if let verse = verseInGutter(point, in: view) { return .verse(verse) }
+            if let character {
+                return bodyRanges.first { NSLocationInRange(character, $0.value) }.map { .verse($0.key) }
+            }
+
+            // Keep navigation in the outer margin. Wider reading layouts leave less margin for this gesture.
+            guard parent.selectedVerses.isEmpty else { return nil }
+            let x = point.x - view.bounds.minX
+            let inset = view.textContainerInset
+            let fragmentPadding = view.textContainer.lineFragmentPadding
+            if x >= 0 && x < min(30, inset.left + fragmentPadding) { return .chapterStep(-1) }
+            if x <= view.bounds.width && x > view.bounds.width - min(30, inset.right + fragmentPadding) { return .chapterStep(1) }
+            return nil
         }
 
         @objc func tapVerse(_ gesture: UITapGestureRecognizer) {
-            guard let view = gesture.view as? UITextView else { return }
-            let point = gesture.location(in: view)
-            if let verse = verseAtTap(point, in: view) { toggleVerse(verse, in: view); return }
-            if let step = edgeStep(point, in: view) { parent.onStep(step) }
-        }
-
-        /// A tap in the empty outer margin turns the chapter (left = previous, right = next), as in the original reader.
-        /// Only when nothing is selected, so a mis-tap never throws away a selection.
-        private func edgeStep(_ point: CGPoint, in view: UITextView) -> Int? {
-            guard parent.selectedVerses.isEmpty, view.selectedRange.length == 0 else { return nil }
-            let x = point.x - view.bounds.minX
-            let zone: CGFloat = 30
-            if x < zone { return -1 }
-            if x > view.bounds.width - zone { return 1 }
-            return nil
+            guard let view = gesture.view as? UITextView,
+                  let tap = readerTap(at: gesture.location(in: view), in: view) else { return }
+            switch tap {
+            case let .verse(verse): toggleVerse(verse, in: view)
+            case let .chapterStep(step): parent.onStep(step)
+            }
         }
 
         private func toggleVerse(_ verse: Int, in view: UITextView) {
@@ -828,8 +841,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             guard gesture is UITapGestureRecognizer, let view = gesture.view as? UITextView else { return true }
-            let point = touch.location(in: view)
-            return verseAtTap(point, in: view) != nil || edgeStep(point, in: view) != nil
+            return readerTap(at: touch.location(in: view), in: view) != nil
         }
 
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {

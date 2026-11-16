@@ -1187,3 +1187,7 @@
 ### 2026-11-15 — Keep newly selected verses in view
 - The reader brings a contiguous selected group clear of the floating controls when it fits. For a taller group it prioritizes the newly selected verse.
 - Mac and iPhone Dev builds passed, along with nine focused range and clearance assertions. Live selection interaction remains to verify.
+
+### 2026-11-15 — Scripture taps near the iPhone screen edge
+- Chapter-turn taps stay in the empty margin so they do not intercept linked Scripture content. UIKit keeps control of active text selections and their handles.
+- The iPhone Dev build passed and opened John 3:16–18 in Simulator. Direct gesture checks remain open.
