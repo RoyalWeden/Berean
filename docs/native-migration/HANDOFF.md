@@ -1580,3 +1580,7 @@ Both native Dev builds passed.
 Back and Forward can follow an existing tab-history link after either tab moves to another live workspace. The lookup keeps local tabs first, skips closed or archived tabs, and changes workspaces only when following an existing link. Same-tab navigation still uses its existing location stack. Live check pending: create a Go or floating-search Back link, move its source tab, then use Back and Forward to traverse both workspaces.
 
 Both native Dev builds passed.
+
+Explicitly opening a tab in another live workspace now registers the source tab for Back. This covers workspace/tab search, exact passage matches in Mac floating search and iPhone Go, and cross-workspace Recent Tabs. It uses the existing workspace-aware Back/Forward traversal and verifies that the source still belongs to the workspace it was opened from. Live cross-workspace Back then Forward remains to check.
+
+Both native Dev builds passed.

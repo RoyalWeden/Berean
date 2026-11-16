@@ -986,9 +986,9 @@ final class AppModel {
         UserDefaults.standard.removeObject(forKey: Self.searchHistoryOptionsKey)
     }
 
-    func recordTabReturn(to sourceTabID: String?) {
+    func recordTabReturn(to sourceTabID: String?, in workspaceID: String? = nil) {
         if let sourceTabID, let destination = activeTab?.id, sourceTabID != destination,
-           orderedTabs.contains(where: { $0.id == sourceTabID }) {
+           let source = tabHistoryTarget(sourceTabID), source.workspaceID == (workspaceID ?? currentSessionId) {
             let returnEntry = TabHistoryEntry.tab(sourceTabID)
             if backStack[destination]?.last != returnEntry {
                 backStack[destination, default: []].append(returnEntry)

@@ -118,9 +118,14 @@ extension AppModel {
 
     func openWorkspaceTab(_ match: WorkspaceTabMatch) {
         guard let tab = sessions.first(where: { $0.id == match.workspaceID })?.allTabs.first(where: { $0.id == match.tab.id }) else { return }
-        let sameWorkspace = match.workspaceID == currentSessionId
+        let sourceWorkspace = currentSessionId
+        let sourceTab = activeTab?.id
+        let sameWorkspace = match.workspaceID == sourceWorkspace
         switchSession(match.workspaceID)
         select(tab.id, in: tab.spaceId, rememberPrevious: sameWorkspace)
+        if !sameWorkspace {
+            recordTabReturn(to: sourceTab, in: sourceWorkspace)
+        }
     }
 
     func insertInDisplayOrder(_ id: String, after anchor: String?) {
