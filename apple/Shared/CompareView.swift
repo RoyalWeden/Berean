@@ -1132,6 +1132,14 @@ struct CompareView: View {
         }
     }
 
+    private func allowsSameNumberAlignment(from edition: String, to anchor: BibleState) -> Bool {
+        // Brenton Joel 3 is a verified excerpt of KJV Joel 2. The remaining KJV verses belong to Brenton Joel 2.
+        if anchor.bookId == "JOL", anchor.chapter == 3, ChapterMap.isLxx(anchor.translation), ChapterMap.isKjv(edition) {
+            return false
+        }
+        return true
+    }
+
     private func comparisonChapter(book: String, chapter: Int, edition: String) async -> [ChapterVerseRow] {
         let rows = await app.bible.queryChapter(book, chapter, textId: edition)
         return PsalmSuperscription.apply(rows, textId: edition, bookId: book, chapter: chapter)
@@ -1146,30 +1154,32 @@ struct CompareView: View {
         }
         let aligned = cols.allSatisfy { $0.follows(st) }
         for column in cols where aligned {
-            let c = column.text
-            // The tab's chapter is in its own text's numbering; map it for the column's text.
-            let ch = ChapterMap.mapChapter(st.bookId, st.chapter, from: st.translation, to: c)
-            let chapters = st.bookId == "JON" && st.chapter == 2
-                && ChapterMap.isLxx(st.translation) && ChapterMap.isKjv(c) ? [1, ch] : [ch]
+            let edition = column.text
+            var chapters = ChapterMap.equivalentChapters(st.bookId, st.chapter, from: st.translation, to: edition)
+            if ChapterMap.isLxx(st.translation), ChapterMap.isKjv(edition) {
+                if st.bookId == "JON", st.chapter == 2 { chapters.insert(1, at: 0) }
+                if st.bookId == "MAL", st.chapter == 3 { chapters.append(4) }
+            } else if st.bookId == "JON", st.chapter == 1,
+                      ChapterMap.isKjv(st.translation), ChapterMap.isLxx(edition) {
+                chapters.append(2)
+            }
+
             for chapter in chapters {
+                guard !Task.isCancelled else { return }
                 let chapterRows = chapter == column.chapter
                     ? independent[column.id] ?? []
-                    : await comparisonChapter(book: st.bookId, chapter: chapter, edition: c)
+                    : await comparisonChapter(book: st.bookId, chapter: chapter, edition: edition)
                 for row in chapterRows {
-                    let mapped = st.bookId == "JON"
-                        ? ChapterMap.jonahCounterpart(chapter: chapter, verse: row.verseNum, from: c, to: st.translation)
-                        : nil
-                    if let mapped {
-                        guard mapped.chapter == st.chapter else { continue }
-                    } else if chapter != ch {
-                        continue
+                    if let mapped = ChapterMap.verseCounterpart(st.bookId, chapter: chapter, verse: row.verseNum,
+                                                                from: edition, to: st.translation) {
+                        if mapped.chapter == st.chapter { out[mapped.verse, default: [:]][column.id] = row }
+                    } else if chapter == column.chapter,
+                              allowsSameNumberAlignment(from: edition, to: st),
+                              ChapterMap.verseCounterpart(st.bookId, chapter: st.chapter, verse: row.verseNum,
+                                                          from: st.translation, to: edition) == nil {
+                        out[row.verseNum, default: [:]][column.id] = row
                     }
-                    out[mapped?.verse ?? row.verseNum, default: [:]][column.id] = row
                 }
-            }
-            if st.bookId == "JON", st.chapter == 1, ChapterMap.isKjv(st.translation), ChapterMap.isLxx(c),
-               let opening = await app.bible.queryChapter(st.bookId, 2, textId: c).first(where: { $0.verseNum == 1 }) {
-                out[17, default: [:]][column.id] = opening
             }
         }
         // The aligned grid already shows the gap as an empty LXX cell. Independent panes

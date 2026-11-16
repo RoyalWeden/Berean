@@ -1235,3 +1235,7 @@
 ### 2026-11-16 — Selected verses in independent Compare columns
 - Following columns display selected verses and use the first matching verse as their initial position when they have no saved scroll position.
 - Both Dev builds passed. Mac QA verified matching selected rows in KJVA and LXX with Sync Scrolling off.
+
+### 2026-11-16 — Align Compare rows by known verse counterparts
+- Align verified KJV–Brenton verse differences in Compare, including chapter joins.
+- Both Dev builds passed. Mac QA verified KJVA Psalm 10:1 beside Brenton Psalm 9:22.
