@@ -1391,3 +1391,7 @@
 
 - History shows the passage behind inline Strong’s lookups and can filter by that reference. Opening a related Lexicon entry in a new tab records the source for Back.
 - Both Dev builds and two history store regression tests passed. Live checks are recorded in HANDOFF.
+
+### 2026-11-16 — Reopen a Strong’s source passage
+
+- New Strong’s History entries save their source edition. Open Source Passage returns to the recorded reader location, including the clicked edition in Compare. Both Dev builds passed.

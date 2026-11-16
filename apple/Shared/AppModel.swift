@@ -1018,9 +1018,14 @@ final class AppModel {
         return studyVerse(in: tabId, state: state).map { [$0] } ?? []
     }
 
-    func inspectStrongs(_ id: String, in tabId: String, bookId: String, chapter: Int, verse: Int? = nil) {
+    func inspectStrongs(_ id: String, in tabId: String, textId: String, bookId: String, chapter: Int, verse: Int? = nil) {
         guard !id.isEmpty else { return }
-        recordHistory(type: "strongs-click", title: id, bookId: bookId, chapter: chapter, verse: verse, strongsNum: id)
+        let source = RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let payload = (try? encoder.encode(source)).map { String(decoding: $0, as: UTF8.self) }
+        recordHistory(type: "strongs-click", title: id, bookId: bookId, chapter: chapter,
+                      verse: verse, strongsNum: id, query: payload)
         update(tabId, recordHistory: false) { tab in
             var reader = BibleState(tab.state)
             #if os(macOS)

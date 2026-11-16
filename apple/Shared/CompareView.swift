@@ -1014,7 +1014,7 @@ struct CompareView: View {
                              fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
                              replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily, hideSuppliedWords: hideSuppliedWords,
                              originalText: row.text)
-                    .environment(\.openURL, strongsAction(for: row))
+                    .environment(\.openURL, strongsAction(for: row, textId: column.text))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contextMenu { comparisonVerseActions(row, column: column) }
                 if let tags = chapterTags[TagChapter(row)]?[row.verseNum], !tags.isEmpty {
@@ -1110,11 +1110,11 @@ struct CompareView: View {
         }
     }
 
-    private func strongsAction(for row: ChapterVerseRow) -> OpenURLAction {
+    private func strongsAction(for row: ChapterVerseRow, textId: String) -> OpenURLAction {
         OpenURLAction { url in
             guard url.scheme == "strongs" else { return .systemAction }
             let id = String(url.absoluteString.dropFirst("strongs:".count))
-            app.inspectStrongs(id, in: tabId, bookId: row.bookId, chapter: row.chapter, verse: row.verseNum)
+            app.inspectStrongs(id, in: tabId, textId: textId, bookId: row.bookId, chapter: row.chapter, verse: row.verseNum)
             return .handled
         }
     }

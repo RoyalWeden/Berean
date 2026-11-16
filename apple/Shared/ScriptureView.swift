@@ -1631,7 +1631,7 @@ struct ScriptureView: View {
             app.openLexicon(id, from: app.findTab(tabId))
             app.recordTabReturn(to: tabId)
         } else {
-            app.inspectStrongs(id, in: tabId, bookId: reader.bookId, chapter: reader.chapter, verse: verse)
+            app.inspectStrongs(id, in: tabId, textId: reader.translation, bookId: reader.bookId, chapter: reader.chapter, verse: verse)
         }
     }
     func openInspector(_ tab: String, verse: Int? = nil, selectedVerses: [Int] = []) {

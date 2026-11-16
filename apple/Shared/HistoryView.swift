@@ -245,6 +245,9 @@ struct HistoryView: View {
 
     private func strongsSourceLabel(_ entry: HistoryEntry) -> String? {
         guard entry.type == "strongs-click", let book = entry.bookId, let chapter = entry.chapter else { return nil }
+        if let source = savedPassage(entry) {
+            return "\(source.label) · \(textInfo(source.textId).short)"
+        }
         return Reference.bookChapterVerseLabel(book, chapter: chapter, verse: entry.verse)
     }
 
@@ -300,6 +303,13 @@ struct HistoryView: View {
         }
         .contextMenu {
             if canOpen(entry) { Button("Open") { open(entry) } }
+            if entry.type == "strongs-click", let source = savedPassage(entry) {
+                Button("Open Source Passage", systemImage: "book") {
+                    let passage = ResolvedPassage(textId: source.textId, bookId: source.bookId,
+                                                  chapter: source.chapter, verse: source.verse)
+                    app.visitScripture(passage, returningTo: tabId)
+                }
+            }
             Button("Remove from History", role: .destructive) {
                 try? app.deleteHistoryEntry(entry.id)
                 load()
@@ -316,10 +326,14 @@ struct HistoryView: View {
     }
 
     private func scriptureDestination(_ entry: HistoryEntry) -> RecentPassage? {
-        guard entry.type == "bible", let payload = entry.query,
+        entry.type == "bible" ? savedPassage(entry) : nil
+    }
+
+    private func savedPassage(_ entry: HistoryEntry) -> RecentPassage? {
+        guard let payload = entry.query,
               let passage = try? JSONDecoder().decode(RecentPassage.self, from: Data(payload.utf8)),
               passage.bookId == entry.bookId, passage.chapter == entry.chapter, passage.verse == entry.verse,
-              availableTexts.contains(where: { $0.id == passage.textId }) else { return nil }
+              passage.textId == "kjv" || availableTexts.contains(where: { $0.id == passage.textId }) else { return nil }
         return passage
     }
 
