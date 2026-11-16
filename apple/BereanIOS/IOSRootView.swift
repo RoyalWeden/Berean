@@ -348,8 +348,12 @@ struct IOSRootView: View {
                     }
                     Button("Tag Chapter…", systemImage: "tag") { chapterTagTarget = ChapterTagTarget(st) }
                         .disabled(!hasText)
-                    Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate(tab.id) { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
-                    Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate(tab.id) { $0.compareMode = v } })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
+                    Toggle(isOn: Binding(get: { st.showStrongs }, set: { enabled in
+                        app.update(tab.id, recordHistory: false) { $0.state["showStrongs"] = .bool(enabled) }
+                    })) { Label("Strong's Numbers", systemImage: "number") }
+                    Toggle(isOn: Binding(get: { st.compareMode }, set: { enabled in
+                        app.update(tab.id) { $0.state["compareMode"] = enabled ? .bool(true) : nil }
+                    })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
                     Button("Scripture Display…", systemImage: "textformat.size") { showScriptureDisplay = true }
                     Menu("Chapter Export", systemImage: "square.and.arrow.up") { ChapterExportActions(state: st, tabId: tab.id, hasText: hasText) }
                 }
@@ -390,9 +394,6 @@ struct IOSRootView: View {
         }
     }
 
-    func mutate(_ id: String, _ f: (inout BibleState) -> Void) {
-        app.update(id) { t in var s = BibleState(t.state); f(&s); t.state = s.merged(into: t.state); t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation) }
-    }
 }
 
 /// The tab sheet (the existing iPhone TabCardsSheet, list view): the session row, a tab search, every tab of

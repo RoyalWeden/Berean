@@ -1492,11 +1492,12 @@ struct ScriptureView: View {
             var s = before; f(&s)
             t.state = s.merged(into: t.state)
             if let passage { t.state["nativeSelectedVerses"] = passage.savedSelection }
-            t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation)
-            if recordHistory, s.bookId != before.bookId || s.chapter != before.chapter
-                || s.translation != before.translation || s.verse != before.verse || s.endVerse != before.endVerse {
-                visited = s
+            let moved = s.bookId != before.bookId || s.chapter != before.chapter
+                || s.translation != before.translation || s.verse != before.verse || s.endVerse != before.endVerse
+            if moved || passage != nil {
+                t.title = Reference.readerChapterLabel(s.bookId, s.chapter, textId: s.translation)
             }
+            if recordHistory && moved { visited = s }
         }
         if let passage {
             app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
