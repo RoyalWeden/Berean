@@ -1512,3 +1512,5 @@ Lexicon Occurrences now groups a leading, labeled Filters button and Search Scri
 Both current-source Mac and iPhone Simulator Dev builds passed after the hover and sheet-alignment refinements.
 
 Advanced Scripture Search gives the query its own full-width row, with the current scope, labeled Options, and any active tag chip grouped immediately below in a wrapping layout. Both Dev builds passed. iPhone 18 Pro Simulator verified a zero-match search kept the field and both controls at the top, and tapping Options opened the sheet with Match, Testament, Books, Verse Tags, Results, and Context visible. Live Mac pointer and narrow-window wrap checks remain open.
+
+Advanced Search now shows removable chips for nondefault match mode, testament, books, and verse tags below the query. Clearing one category preserves the others. Both Dev builds passed. On iPhone 18 Pro Simulator, searching grace showed 300 results, choosing New Testament showed 122 and a removable chip, and clearing it restored 300 without reopening Options. Mac interaction and the multi-filter layout at large Dynamic Type remain open.

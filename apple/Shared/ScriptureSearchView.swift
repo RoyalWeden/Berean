@@ -315,33 +315,60 @@ struct ScriptureSearchView: View {
                         .frame(width: 340, height: 420)
                 }
                 #endif
-                if !tagSelection.ids.isEmpty { activeTagFilter }
+                activeSearchFilters
             }
             if query.utf16.count >= 2 { summaryRow }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
-    private var activeTagFilter: some View {
+    @ViewBuilder private var activeSearchFilters: some View {
+        if mode != .all {
+            searchFilterChip(mode == .phrase ? "Exact phrase" : "Any word", kind: "match mode", symbol: "text.magnifyingglass") {
+                set("wordMode", nil)
+            }
+        }
+        if let name = testamentFilterName {
+            searchFilterChip(name, kind: "testament", symbol: "book.closed") { set("testament", nil) }
+        }
+        if !bookFilter.isEmpty {
+            let title = bookFilter.count == 1 ? Reference.bookName(bookFilter[0]) : "\(bookFilter.count) books"
+            searchFilterChip(title, kind: "books", symbol: "books.vertical") { set("bookIds", nil) }
+        }
         let selection = tagSelection
-        let count = selection.ids.count
-        let name = verseTags.first { count == 1 && $0.id == selection.ids.first }?.name
-        let title = name ?? (count == 1 ? "1 tag" : "\(selection.all ? "All" : "Any of") \(count) tags")
-        return Button {
-            setTagIDs([])
-        } label: {
+        if !selection.ids.isEmpty {
+            let count = selection.ids.count
+            let name = verseTags.first { count == 1 && $0.id == selection.ids.first }?.name
+            let title = name ?? (count == 1 ? "1 tag" : "\(selection.all ? "All" : "Any of") \(count) tags")
+            searchFilterChip(title, kind: "verse tags", symbol: "tag") { setTagIDs([]) }
+        }
+    }
+
+    private var testamentFilterName: String? {
+        switch testament {
+        case "OT": "Old Testament"
+        case "NT": "New Testament"
+        case "Apocrypha": "Apocrypha"
+        case "Pseudepigrapha": "Other writings"
+        default: nil
+        }
+    }
+
+    private func searchFilterChip(_ title: String, kind: String, symbol: String, clear: @escaping () -> Void) -> some View {
+        Button(action: clear) {
             HStack(spacing: 6) {
-                Label(title, systemImage: "tag").lineLimit(1)
+                Label(title, systemImage: symbol).lineLimit(1)
                 Image(systemName: "xmark").font(.caption2.weight(.semibold))
             }
             .font(.caption.weight(.medium))
             .padding(.horizontal, 9).padding(.vertical, 5)
+            .frame(maxWidth: 180)
             .background(.quaternary, in: .capsule)
-            .contentShape(.capsule)
         }
-        .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Clear verse tag filters")
+        .buttonStyle(OptionButtonStyle())
+        .accessibilityLabel("Clear \(kind) filter")
         .accessibilityValue(title)
+        .help("Clear \(kind) filter")
     }
 
     var hasActiveOptions: Bool {
