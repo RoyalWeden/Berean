@@ -169,10 +169,13 @@ extension AppModel {
         let label = tabs.count == 1 ? first.title : "\(first.title) and \(tabs.count - 1) more"
         let json = JSON.stringifyString(.array(tabs.map { .object($0.jsObject) }))
         let id = "arch-\(Int64(Date().timeIntervalSince1970 * 1000))-\(Self.newId().prefix(6))"
+        let activeBySpace = Dictionary(uniqueKeysWithValues: SpaceId.allCases.compactMap { space in
+            activeTabId(in: space).map { (space.rawValue, $0) }
+        })
         var placements = archivePlacements
         placements[id] = ArchivePlacement(workspace: currentSessionId, order: displayOrder(for: currentSessionId),
                                           workspaceName: session.name, workspaceLabel: currentWorkspace?.displayName,
-                                          activeTabID: activeTab?.id)
+                                          activeTabID: activeTab?.id, activeBySpace: activeBySpace)
         let group = ArchivedGroup(id: id, label: label, archivedAt: Int64(Date().timeIntervalSince1970 * 1000), tabsJSON: json)
         archivedGroups.insert(group, at: 0)
         let recentGroups = Set(archivedGroups.prefix(50).map(\.id))
@@ -188,6 +191,7 @@ extension AppModel {
         let workspaceName: String?
         let workspaceLabel: String?
         let activeTabID: String?
+        let activeBySpace: [String: String]?
     }
 
     func archiveTitles(includeAliases: Bool = false) -> [String: String] {
@@ -322,14 +326,17 @@ extension AppModel {
         let plan = group.restorePlan(openTabIDs: Set(sessions.flatMap { $0.allTabs.map(\.id) }), only: tabID)
         guard plan.remaining != group else { return }
         let hadActiveTab = activeTab != nil
-        let savedOrder = placement?.workspace == workspace ? placement?.order ?? [] : []
+        let sourcePlacement = placement?.workspace == workspace ? placement : nil
+        let savedOrder = sourcePlacement?.order ?? []
+        let restoredBySpace = Dictionary(grouping: plan.tabs, by: \.spaceId)
         var restoredOrder = displayOrder(for: workspace)
         for tab in plan.tabs {
             sessions[destination].tabs[tab.spaceId, default: []].append(tab)
-            if (sessions[destination].activeTabId[tab.spaceId] ?? nil) == nil {
-                sessions[destination].activeTabId[tab.spaceId] = tab.id
-            }
             restoredOrder = TabPersistence.restoredDisplayOrder(tabID: tab.id, current: restoredOrder, archived: savedOrder)
+        }
+        for (space, tabs) in restoredBySpace where (sessions[destination].activeTabId[space] ?? nil) == nil {
+            let previous = sourcePlacement?.activeBySpace?[space.rawValue]
+            sessions[destination].activeTabId[space] = tabs.first(where: { $0.id == previous })?.id ?? tabs.first?.id
         }
         if !plan.tabs.isEmpty { displayOrders[workspace] = restoredOrder }
         if let remaining = plan.remaining {
@@ -339,7 +346,7 @@ extension AppModel {
             archivePlacements.removeValue(forKey: groupId)
         }
         if workspace == currentSessionId, !hadActiveTab {
-            let original = placement?.workspace == workspace ? placement?.activeTabID : nil
+            let original = sourcePlacement?.activeTabID
             if let tab = plan.tabs.first(where: { $0.id == original }) ?? plan.tabs.first {
                 select(tab.id, in: tab.spaceId, rememberPrevious: false)
                 return
