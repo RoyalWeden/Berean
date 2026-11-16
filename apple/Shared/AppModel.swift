@@ -693,6 +693,15 @@ final class AppModel {
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
     @ObservationIgnored var compareScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var compareColumnScrollVerses: [String: [String: Int]] = [:]
+
+    /// Explicit verse commands jump to the requested selection. Ordinary Compare visits restore scrolling.
+    func prepareCompareJump(in tabId: String, edition: ChapterEdition) {
+        let prefix = edition.key + "|"
+        compareScrollOffsets[tabId] = compareScrollOffsets[tabId]?.filter {
+            !$0.key.hasPrefix("aligned|" + prefix)
+        }
+        compareColumnScrollVerses[tabId] = compareColumnScrollVerses[tabId]?.filter { !$0.key.hasPrefix(prefix) }
+    }
     @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
     /// Lexicon tab id → last search (query, language). In memory only: not written to tab state.
     @ObservationIgnored var lexiconSearches: [String: (query: String, lang: String)] = [:]

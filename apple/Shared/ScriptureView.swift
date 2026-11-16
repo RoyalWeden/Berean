@@ -1044,6 +1044,7 @@ struct ScriptureView: View {
     private var compareSelectionButton: some View {
         Button(selection.count == 1 ? "Compare This Verse" : "Compare Selected Verses",
                systemImage: "rectangle.split.2x1") {
+            app.prepareCompareJump(in: tabId, edition: ChapterEdition(state))
             mutate { $0.compareMode = true }
         }
     }
@@ -1051,6 +1052,7 @@ struct ScriptureView: View {
     private func compareVerse(_ verse: ChapterVerseRow, in state: BibleState) {
         let passage = ResolvedPassage(textId: state.translation, bookId: verse.bookId, chapter: verse.chapter,
                                       verse: verse.verseNum, endVerse: nil)
+        app.prepareCompareJump(in: tabId, edition: ChapterEdition(book: verse.bookId, chapter: verse.chapter, text: state.translation))
         mutate(passage: passage) {
             $0.verse = verse.verseNum
             $0.endVerse = nil

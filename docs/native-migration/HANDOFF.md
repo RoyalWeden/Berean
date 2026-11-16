@@ -1528,3 +1528,7 @@ Text search now probes one extra matching row at its existing limits. Advanced S
 Both Mac and iPhone Simulator Dev builds passed for the exact-limit change.
 
 Compare is now directly available in the full Mac verse action capsule. Previously only its compact overflow variants exposed the selection-specific Compare command. The wide Mac button and compact Mac/iPhone menu share the action and keep the same selected verse state when switching reader modes. Both Dev builds passed. Live check pending: open Compare from a disjoint selection via the wide Mac capsule, repeat from a narrow pane, and confirm selection and Back on both paths.
+
+Explicit Compare commands from Scripture now discard the stale aligned and independent-column Compare scroll positions for the source edition and chapter. Compare can then use the existing selection as its initial anchor. Standard Compare opens, Back/Forward, other chapters, and the reader's own scroll bookmark keep their existing paths. The stacked layout for independently pinned columns is outside this change. Live QA pending: open Compare, scroll far away, leave, tap a new verse and use its Compare action, then check the initial viewport and Back.
+
+Both native Dev builds passed for the Compare jump change.
