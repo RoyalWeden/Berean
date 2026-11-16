@@ -1033,8 +1033,22 @@ struct ScriptureView: View {
             Button("Cross References", systemImage: "arrow.triangle.branch") {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min(), selectedVerses: selection.sorted())
             }
+            Button(selection.count == 1 ? "Compare This Verse" : "Compare Selected Verses",
+                   systemImage: "rectangle.split.2x1") {
+                mutate { $0.compareMode = true }
+            }
         }
         selectedVerseExportActions(st)
+    }
+
+    private func compareVerse(_ verse: ChapterVerseRow, in state: BibleState) {
+        let passage = ResolvedPassage(textId: state.translation, bookId: verse.bookId, chapter: verse.chapter,
+                                      verse: verse.verseNum, endVerse: nil)
+        mutate(passage: passage) {
+            $0.verse = verse.verseNum
+            $0.endVerse = nil
+            $0.compareMode = true
+        }
     }
 
     private func verseMenuLabel(_ title: String, symbol: String) -> some View {
@@ -1593,7 +1607,7 @@ struct ScriptureView: View {
             }
         }
         Button("Add Note") { perform { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } }
-        Button("Compare This Verse") { perform { mutate { $0.verse = v.verseNum; $0.endVerse = nil; $0.compareMode = true } } }
+        Button("Compare This Verse") { perform { compareVerse(v, in: st) } }
         Button("Open in New Tab") { perform { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
     }
     #endif
@@ -2018,7 +2032,7 @@ extension ScriptureView {
         m.addItem(ClosureMenuItem("Verse Notes") { openInspector("notes", verse: v.verseNum) })
         m.addItem(ClosureMenuItem("Cross References", image: "arrow.triangle.branch") { openInspector("crossrefs", verse: v.verseNum) })
         m.addItem(.separator())
-        m.addItem(ClosureMenuItem("Compare This Verse", image: "rectangle.split.2x1") { selection = [v.verseNum]; anchor = v.verseNum; mutate { $0.verse = v.verseNum; $0.endVerse = nil; $0.compareMode = true } })
+        m.addItem(ClosureMenuItem("Compare This Verse", image: "rectangle.split.2x1") { compareVerse(v, in: st) })
         m.addItem(ClosureMenuItem("Open in New Tab") { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) })
         return m
     }

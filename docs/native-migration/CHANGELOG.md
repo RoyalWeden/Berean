@@ -1223,3 +1223,7 @@
 ### 2026-11-16 — Keep visible verse selections in view while rotating
 - Preserve a fully visible contiguous selection after rotation when it fits in the resized viewport.
 - The iPhone Dev build passed. Simulator verified Romans 8:17–19 fully visible after rotation in both directions.
+
+### 2026-11-16 — Compare directly from selected verses
+- Verse action overflow opens Compare in the current tab with the selection carried over. The single-verse context action opens only the chosen verse.
+- Both Dev builds passed. Mac QA verified KJVA and LXX comparison with Genesis 1:1–3 selected.
