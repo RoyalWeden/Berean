@@ -665,6 +665,7 @@ struct MacArchivedTabsSheet: View {
         let terms = archiveQuery.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         let titles = app.archiveTitles()
         let sourceNames = app.archiveSourceNames()
+        let destinations = app.tabMoveDestinations
         let searchTitles = app.archiveTitles(includeAliases: true)
         let groups = app.archivedGroups.map { group in
             (group, group.tabs.filter { tab in
@@ -715,6 +716,29 @@ struct MacArchivedTabsSheet: View {
                                         }
                                     }
                                 }
+                            }
+                            if terms.isEmpty, tabs.count > 1 {
+                                Menu("Restore Group", systemImage: "archivebox") {
+                                    Button("Restore All \(tabs.count) Tabs Here") {
+                                        app.restoreArchived(group.id)
+                                    }
+                                    if let source = sourceNames[group.id] {
+                                        Button("Restore to \(source)") {
+                                            app.restoreArchived(group.id, toSource: true)
+                                        }
+                                    }
+                                    if !destinations.isEmpty {
+                                        Menu("Restore All to Workspace", systemImage: "square.stack") {
+                                            ForEach(destinations) { workspace in
+                                                Button(workspace.moveMenuLabel) { app.restoreArchived(group.id, to: workspace) }
+                                            }
+                                        }
+                                    }
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .clickableCursor()
+                                .optionHover()
                             }
                         }
                     }
