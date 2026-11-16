@@ -525,8 +525,9 @@ struct ScriptureView: View {
                     GeometryReader { geometry in
                         GeometryReader { underlap in
                             let titleBar = max(0, geometry.frame(in: .global).minY - underlap.frame(in: .global).minY)
-                            macReader(st, actionClearance: actionSpace, titleBarClearance: titleBar)
+                            macReader(st, titleBarClearance: titleBar)
                                 .clipped()
+                                .padding(.bottom, actionSpace)
                         }
                         .ignoresSafeArea(.container, edges: .top)
                     }
@@ -1934,7 +1935,7 @@ import AppKit
 
 extension ScriptureView {
     /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
-    func macReader(_ st: BibleState, actionClearance: CGFloat, titleBarClearance: CGFloat) -> some View {
+    func macReader(_ st: BibleState, titleBarClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
         let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
         let suffix = st.translation == "lxx" ? " LXX" : ""
@@ -1943,7 +1944,6 @@ extension ScriptureView {
             header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: readerStyle(st),
             selectedVerses: selection, selectionFocus: selectedVerse, scrollTarget: scrollTarget,
-            actionClearance: actionClearance,
             animateOutline: !reduceMotion && scenePhase == .active,
             scrollRevision: scrollRevision,
             titleBarClearance: titleBarClearance,

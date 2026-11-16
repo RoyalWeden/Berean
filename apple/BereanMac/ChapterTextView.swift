@@ -69,7 +69,6 @@ struct ChapterTextView: NSViewRepresentable {
     var selectedVerses: Set<Int> = []
     var selectionFocus: Int?
     var scrollTarget: Int?
-    var actionClearance: CGFloat = 0
     var animateOutline = true
     var scrollRevision: UUID?
     var titleBarClearance: CGFloat = 0
@@ -150,17 +149,6 @@ struct ChapterTextView: NSViewRepresentable {
         tv.titleBarClearance = titleBarClearance
         tv.updateOutlineMotion()
         let clip = scroll.contentView
-        if scroll.contentInsets.bottom != actionClearance {
-            let bounds = clip.bounds
-            let end = clip.constrainBoundsRect(bounds.offsetBy(dx: 0, dy: clip.documentRect.height)).minY
-            let stayAtEnd = c.lastPassage == passageId && end > clip.documentRect.minY + 1 && bounds.minY >= end - 1
-            scroll.contentInsets.bottom = actionClearance
-            scroll.scrollerInsets.bottom = actionClearance
-            var destination = bounds
-            if stayAtEnd { destination.origin.y = clip.documentRect.maxY + actionClearance }
-            clip.scroll(to: clip.constrainBoundsRect(destination).origin)
-            scroll.reflectScrolledClipView(clip)
-        }
         let previousBounds = clip.bounds
         let passageChanged = c.lastPassage != passageId
         let previousSelection = c.renderedSelection
@@ -223,7 +211,7 @@ struct ChapterTextView: NSViewRepresentable {
                 tv.layoutManager?.ensureLayout(for: container)
                 let clip = scroll.contentView
                 let top = clip.bounds.minY + tv.visibleTitleBarClearance
-                let bottom = clip.bounds.maxY - c.parent.actionClearance
+                let bottom = clip.bounds.maxY
                 guard top <= bottom else { return }
                 for range in selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: c.verseRanges) {
                     guard let first = tv.firstVerseLineTop(in: range),
@@ -286,7 +274,7 @@ struct ChapterTextView: NSViewRepresentable {
                        lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
                        let bottom = tv.lastVerseLineBottom(in: lastRange) {
                         let lastLine = tv.convert(NSPoint(x: 0, y: bottom), to: clip).y + ReaderFloatingControls.readingGap
-                        let readingHeight = proposed.height - c.parent.actionClearance
+                        let readingHeight = proposed.height
                         if lastLine - top <= readingHeight - titleBarClearance {
                             proposed.origin.y = max(proposed.origin.y, lastLine - readingHeight)
                         }
@@ -530,7 +518,7 @@ struct ChapterTextView: NSViewRepresentable {
             let visiblePreferred = preferred.flatMap { verse -> Int? in
                 guard let range = verseRanges[verse], let first = view.firstVerseLineTop(in: range) else { return nil }
                 let y = view.convert(NSPoint(x: 0, y: first), to: clip).y
-                return y >= clip.bounds.minY + view.visibleTitleBarClearance && y < clip.bounds.maxY - parent.actionClearance ? verse : nil
+                return y >= clip.bounds.minY + view.visibleTitleBarClearance && y < clip.bounds.maxY ? verse : nil
             }
             let verse = visiblePreferred ?? readingAnchor(at: clip.bounds.minY, in: view)?.verse
             return ScriptureReadingPosition(offset: offset, verse: verse, selectedVerses: parent.selectedVerses,

@@ -1305,3 +1305,8 @@
 
 - Reserve real reader viewport space while the verse action bar is visible so the controls cannot cover mid-chapter lines. The dock-only layout returns when selection clears.
 - iOS Dev build passed. On iPhone 18 Pro Simulator, verified John 8:26–28 and a newly selected verse 33 near the bottom edge, then cleared selection. Mac behavior was outside this change.
+
+### 2026-11-16 — Mac verse action clearance — MAC UI VERIFIED
+
+- Place the floating action bar below the actual reader viewport and use the clip bounds for selection navigation.
+- Mac Dev build passed. Verified unobstructed mid-chapter text on John 8:26–28, the last verse on John 8:59, and clearing with Escape using the scratch library.
