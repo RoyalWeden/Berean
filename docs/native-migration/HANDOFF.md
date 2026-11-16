@@ -1540,3 +1540,5 @@ Both native Dev builds passed for stacked Compare navigation.
 Compare History now records disjoint verse groups in its existing optional passage payload, using the same selection validation as Scripture. Reopening restores those groups and the active verse; a different group selection also distinguishes otherwise identical open Compare tabs. Older entries still decode. Live check pending: select two nonadjacent verses, open Compare, reopen its History entry, then confirm both verses are highlighted and that Back returns to History.
 
 Both native Dev builds passed for Compare History verse groups.
+
+New Compare History snapshots preserve independent scrolling alongside the existing columns, pinned passages, and verse groups. Reopening only reuses a matching Compare tab when its effective scrolling mode also matches. Older History payloads retain the synchronized default. Changing Sync Scrolling alone remains a presentation change and does not create a History row. Both native Dev builds passed. Live check pending: turn Sync Scrolling off, create a new Compare History entry by changing the passage, close the tab, and reopen the entry.

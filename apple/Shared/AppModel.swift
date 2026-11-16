@@ -674,7 +674,9 @@ final class AppModel {
                 let destination = CompareHistoryDestination(state: after.state)
                 if !BibleState(before.state).compareMode || CompareHistoryDestination(state: before.state) != destination {
                     let passage = destination.passage
-                    let payload = (try? JSONEncoder().encode(destination)).flatMap { String(data: $0, encoding: .utf8) }
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = .sortedKeys
+                    let payload = (try? encoder.encode(destination)).map { String(decoding: $0, as: UTF8.self) }
                     self.recordHistory(type: "compare", title: "Compare · \(passage.label)",
                                        bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, query: payload)
                 }
@@ -1195,6 +1197,7 @@ final class AppModel {
         reader.compareMode = true
         var state = reader.object
         state["compareColumns"] = .array(destination?.columns.map(\.value) ?? [])
+        if destination?.independentScrolling == true { state["compareSyncScroll"] = .bool(false) }
         if let verse, reader.endVerse == nil,
            let groups = destination?.passage.verseGroups, groups.count > 1,
            groups.allSatisfy({ (1...999).contains($0.lowerBound) && (1...999).contains($0.upperBound) }),

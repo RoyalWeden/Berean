@@ -26,6 +26,8 @@ struct CompareHistoryDestination: Codable, Equatable {
 
     let passage: RecentPassage
     let columns: [Column]
+    // Missing in older entries; the reader’s default is synchronized scrolling.
+    let independentScrolling: Bool?
 
     init(state: JSObject) {
         let reader = BibleState(state)
@@ -33,6 +35,7 @@ struct CompareHistoryDestination: Codable, Equatable {
         passage = RecentPassage(textId: reader.translation, bookId: reader.bookId, chapter: reader.chapter,
                                 verse: reader.verse, endVerse: reader.endVerse,
                                 verseGroups: groups.count > 1 ? groups : nil)
+        independentScrolling = state["compareSyncScroll"]?.boolValue == false ? true : nil
         columns = CompareColumn.resolved(in: state).map {
             Column(textId: $0.text, bookId: $0.book, chapter: $0.chapter, pinned: $0.isPinned)
         }
