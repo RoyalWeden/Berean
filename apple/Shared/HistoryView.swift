@@ -28,6 +28,8 @@ struct CompareHistoryDestination: Codable, Equatable {
     let columns: [Column]
     // Missing in older entries; the reader’s default is synchronized scrolling.
     let independentScrolling: Bool?
+    let showStrongs: Bool?
+    let hiddenAnnotations: [String]?
 
     init(state: JSObject) {
         let reader = BibleState(state)
@@ -36,6 +38,9 @@ struct CompareHistoryDestination: Codable, Equatable {
                                 verse: reader.verse, endVerse: reader.endVerse,
                                 verseGroups: groups.count > 1 ? groups : nil)
         independentScrolling = state["compareSyncScroll"]?.boolValue == false ? true : nil
+        showStrongs = reader.showStrongs ? true : nil
+        let hidden = Set((state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
+        hiddenAnnotations = hidden.isEmpty ? nil : hidden.sorted()
         columns = CompareColumn.resolved(in: state).map {
             Column(textId: $0.text, bookId: $0.book, chapter: $0.chapter, pinned: $0.isPinned)
         }

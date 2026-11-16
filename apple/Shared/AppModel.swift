@@ -1194,10 +1194,14 @@ final class AppModel {
         reader.translation = destination?.passage.textId ?? defaultText
         reader.verse = verse
         reader.endVerse = destination?.passage.endVerse
+        reader.showStrongs = destination?.showStrongs == true
         reader.compareMode = true
         var state = reader.object
         state["compareColumns"] = .array(destination?.columns.map(\.value) ?? [])
         if destination?.independentScrolling == true { state["compareSyncScroll"] = .bool(false) }
+        if let hidden = destination?.hiddenAnnotations, !hidden.isEmpty {
+            state["hiddenAnnotations"] = .array(hidden.map { .string(JSString($0)) })
+        }
         if let verse, reader.endVerse == nil,
            let groups = destination?.passage.verseGroups, groups.count > 1,
            groups.allSatisfy({ (1...999).contains($0.lowerBound) && (1...999).contains($0.upperBound) }),
