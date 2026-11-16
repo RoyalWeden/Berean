@@ -176,10 +176,13 @@ extension AppModel {
     func duplicate(_ item: WorkspaceItem) {
         let source: Session
         let order: [String]
+        let preferredSpace: SpaceId?
         switch item.kind {
         case .live(let s):
             guard let ses = sessions.first(where: { $0.id == s }) else { return }
-            source = ses; order = displayOrder(for: s)
+            source = ses
+            order = displayOrder(for: s)
+            preferredSpace = workspaceReadingSpace(s)
         case .saved(let w):
             guard let ws = savedWorkspaces.first(where: { $0.id == w }) else { return }
             let p = WorkspaceSnapshot.parse(ws.stateJSON)
@@ -187,6 +190,7 @@ extension AppModel {
             for sp in WorkspaceSnapshot.spaces { tabs[sp] = p.tabs(in: sp).compactMap { BereanWorkspace.Tab(jsObject: $0) } }
             source = Session(id: "", name: ws.name, icon: p.icon, tabs: tabs, activeTabId: p.activeTabId)
             order = p.displayOrder
+            preferredSpace = p.preferredSpace
         }
         var idMap: [String: String] = [:]
         var tabs: [SpaceId: [BereanWorkspace.Tab]] = [:]
@@ -199,7 +203,7 @@ extension AppModel {
         let copy = Session(id: Self.newId(), name: "\(item.name) Copy", icon: source.icon, tabs: tabs, activeTabId: active)
         sessions.append(copy)
         displayOrders[copy.id] = order.compactMap { idMap[$0] }
-        switchSession(copy.id)
+        switchSession(copy.id, preferredSpace: preferredSpace)
     }
 
     /// Deletes the workspace: a live one's session (its linked saved copy too), or a saved snapshot.

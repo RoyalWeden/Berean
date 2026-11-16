@@ -311,6 +311,10 @@ final class AppModel {
     var sessionIndex: Int { sessions.firstIndex { $0.id == currentSessionId } ?? 0 }
     var session: Session { sessions.isEmpty ? Session(id: "", name: "") : sessions[sessionIndex] }
 
+    func workspaceReadingSpace(_ id: String) -> SpaceId? {
+        id == currentSessionId ? activeSpace : workspaceSpaces[id].flatMap(SpaceId.init(rawValue:))
+    }
+
     func switchSession(_ id: String, preferredSpace: SpaceId? = nil, rememberPrevious: Bool = true) {
         guard id != currentSessionId, let destination = sessions.first(where: { $0.id == id }) else { return }
         if rememberPrevious { rememberActiveTab() }

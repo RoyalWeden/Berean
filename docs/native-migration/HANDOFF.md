@@ -1584,3 +1584,7 @@ Both native Dev builds passed.
 Explicitly opening a tab in another live workspace now registers the source tab for Back. This covers workspace/tab search, exact passage matches in Mac floating search and iPhone Go, and cross-workspace Recent Tabs. It uses the existing workspace-aware Back/Forward traversal and verifies that the source still belongs to the workspace it was opened from. Live cross-workspace Back then Forward remains to check.
 
 Both native Dev builds passed.
+
+Duplicating a workspace now opens the copy in the source workspace’s active or remembered Space. Saved snapshots use their recorded preferred Space, with the existing fallback for older snapshots or empty Spaces. The duplicate still remaps tab IDs, active tabs, origins, and mixed display order. Live check pending: duplicate a saved workspace recorded on Notes while currently reading Scripture.
+
+Both native Dev builds passed.
