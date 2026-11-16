@@ -1310,3 +1310,7 @@
 
 - Place the floating action bar below the actual reader viewport and use the clip bounds for selection navigation.
 - Mac Dev build passed. Verified unobstructed mid-chapter text on John 8:26–28, the last verse on John 8:59, and clearing with Escape using the scratch library.
+
+### 2026-11-16 — Restore scrolling beneath floating verse actions
+
+- Restored the overlapping glass action bars for both readers after the owner clarified that Scripture should extend behind them. Retained bottom scrolling clearance and selection reveal.
