@@ -1598,3 +1598,7 @@ Both native Dev builds passed.
 Restoring into a workspace with no active tab now reselects the original active tab when it was part of that archive and is being restored to the same workspace. Older archive metadata falls back to the first restored tab. Batch restore reconciles the destination order once using the existing missing-neighbor placement rule. Both native Dev builds and three archive ordering/partial-restore tests passed. A live Archive All → Restore All check remains open.
 
 New archive placements remember each Space’s selected tab. When restoring to the original workspace, a Space that has no active tab selects its archived selection if that tab is in the restore batch. Spaces with live selections keep them. Old metadata decodes with the existing first-tab fallback. Both native Dev builds passed. Live check pending: select a nonfirst tab in two Spaces, archive all, restore the group, and check both Space selections.
+
+Native tab rendering and persistence now share display-order reconciliation. It keeps the first occurrence of each live ID, drops stale and repeated IDs, and appends missing live tabs in Space order. Sixteen focused workspace and archive tests passed, including the legacy workspace/tab goldens and a malformed-order regression. Live verification with a repaired workspace remains open.
+
+Both native Dev builds passed.

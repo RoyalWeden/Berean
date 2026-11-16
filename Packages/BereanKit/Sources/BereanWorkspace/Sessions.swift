@@ -76,6 +76,13 @@ public enum TabPersistence {
         public init() {}
     }
 
+    /// Keep the first position of each live tab, then append tabs missing from the saved order.
+    public static func reconciledDisplayOrder(tabIDs: [String], stored: [String]) -> [String] {
+        let live = Set(tabIDs)
+        var seen = Set<String>()
+        return (stored + tabIDs).filter { live.contains($0) && seen.insert($0).inserted }
+    }
+
     /// Insert a restored tab beside a surviving neighbor without reordering open tabs.
     public static func restoredDisplayOrder(tabID: String, current: [String], archived: [String]) -> [String] {
         var order = current.filter { $0 != tabID }
@@ -137,10 +144,7 @@ public enum TabPersistence {
                 for (id, k) in assignOrderKeys(list.map(\.id), existing: previous.tabs) { keys.tabs[id] = k }
                 all += list
             }
-            let present = Set(all.map(\.id))
-            let stored = (displayOrders[s.id] ?? []).filter { present.contains($0) }
-            let seen = Set(stored)
-            let displayIds = stored + all.map(\.id).filter { !seen.contains($0) }
+            let displayIds = reconciledDisplayOrder(tabIDs: all.map(\.id), stored: displayOrders[s.id] ?? [])
             for (id, k) in assignOrderKeys(displayIds, existing: previous.display) { keys.display[id] = k }
             for t in all {
                 let type = t.tabType ?? .bible

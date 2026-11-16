@@ -379,3 +379,8 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     #expect(TabPersistence.restoredDisplayOrder(tabID: "b", current: ["new", "b"], archived: [])
             == ["new", "b"])
 }
+
+@Test func displayOrderDiscardsStaleAndRepeatedIDs() {
+    #expect(TabPersistence.reconciledDisplayOrder(tabIDs: ["a", "b", "c"], stored: ["b", "gone", "b", "a"])
+            == ["b", "a", "c"])
+}

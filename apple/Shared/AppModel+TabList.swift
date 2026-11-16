@@ -18,11 +18,7 @@ extension AppModel {
     /// (space order) — the same reconciliation as the store's `reorderTabDisplay`.
     func displayOrder(for sessionId: String) -> [String] {
         guard let s = sessions.first(where: { $0.id == sessionId }) else { return [] }
-        let all = s.allTabs.map(\.id)
-        let present = Set(all)
-        let stored = (displayOrders[sessionId] ?? []).filter { present.contains($0) }
-        let seen = Set(stored)
-        return stored + all.filter { !seen.contains($0) }
+        return TabPersistence.reconciledDisplayOrder(tabIDs: s.allTabs.map(\.id), stored: displayOrders[sessionId] ?? [])
     }
 
     /// The current session's tabs in display order (pinned first, as in the existing sidebar).
