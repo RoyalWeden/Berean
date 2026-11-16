@@ -46,12 +46,29 @@ struct WorkspaceItem: Identifiable, Hashable {
     }
 
     func previewLabels(matching query: String = "") -> [String] {
-        let unmatched = termsOutsideName(query)
-        let matchingTitles = tabTitles.filter { title in
-            unmatched.allSatisfy { normalized(title).localizedStandardContains(String($0)) }
-        }
+        let unmatched = Set(termsOutsideName(query))
         var seen = Set<String>()
-        return Array(matchingTitles.filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(2))
+        let titles = tabTitles.filter { !$0.isEmpty && seen.insert($0).inserted }
+        guard !unmatched.isEmpty else { return Array(titles.prefix(2)) }
+
+        let candidates = titles.map { title in
+            let searchable = normalized(title)
+            return (title: title, matched: unmatched.filter { searchable.localizedStandardContains(String($0)) })
+        }
+        let complete = candidates.filter { $0.matched == unmatched }
+        if !complete.isEmpty { return Array(complete.prefix(2).map(\.title)) }
+        guard candidates.reduce(into: Set<Substring>(), { $0.formUnion($1.matched) }) == unmatched else { return [] }
+
+        // Show two different pieces of evidence when a query names more than one tab.
+        var remaining = unmatched
+        var previews: [String] = []
+        for _ in 0..<2 {
+            let best = candidates.max { $0.matched.intersection(remaining).count < $1.matched.intersection(remaining).count }
+            guard let best, !best.matched.isDisjoint(with: remaining) else { break }
+            previews.append(best.title)
+            remaining.subtract(best.matched)
+        }
+        return previews
     }
 
     func matches(_ query: String) -> Bool {

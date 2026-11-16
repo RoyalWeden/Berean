@@ -250,7 +250,9 @@ struct BereanSidebar: View {
                         Section("Workspaces") {
                             ForEach(workspaces) { workspace in
                                 Button { openWorkspaceSearchResult(workspace) } label: {
-                                    searchResultLabel(title: workspace.displayName, detail: workspace.displayDetail,
+                                    let preview = workspace.previewLabels(matching: query).filter { $0 != workspace.displayName }
+                                    let detail = ([workspace.displayDetail] + preview).joined(separator: " · ")
+                                    searchResultLabel(title: workspace.displayName, detail: detail,
                                                       symbol: workspace.isSaved ? "square.stack.3d.up" : WorkspaceIcon.symbol(workspace.icon),
                                                       tint: .secondary)
                                 }

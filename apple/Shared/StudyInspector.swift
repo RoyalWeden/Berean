@@ -343,8 +343,9 @@ struct CommandPalette: View {
                 })
             }
             for workspace in app.workspaceItems.filter({ $0.matches(trimmed) }).prefix(6) {
-                let detail = workspace.tabTitles.first { $0.localizedCaseInsensitiveContains(trimmed) } ?? workspace.preview ?? ""
-                out.append(Item(id: workspace.id, group: "Workspaces", title: workspace.displayName, detail: detail == workspace.displayName ? workspace.displayDetail : detail,
+                let preview = workspace.previewLabels(matching: trimmed).filter { $0 != workspace.displayName }
+                let detail = preview.isEmpty ? workspace.displayDetail : preview.joined(separator: " · ")
+                out.append(Item(id: workspace.id, group: "Workspaces", title: workspace.displayName, detail: detail,
                                 symbol: "square.stack") { _ in app.open(workspace) })
             }
         }
