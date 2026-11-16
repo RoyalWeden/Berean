@@ -218,6 +218,11 @@ extension AppModel {
         }
     }
 
+    func canRestoreArchiveToSource(_ groupID: String) -> Bool {
+        guard let workspaceID = archivePlacements[groupID]?.workspace else { return false }
+        return sessions.contains { $0.id == workspaceID }
+    }
+
     func archiveSourceNames() -> [String: String] {
         let names = Dictionary(uniqueKeysWithValues: sessions.filter { $0.id != currentSessionId }
             .map { ($0.id, WorkspaceItem(session: $0).displayName) })

@@ -36,10 +36,16 @@ struct TabCleanupView: View {
                 if let receipt {
                     Section {
                         Label("Archived \(receipt.tabs.count) tab\(receipt.tabs.count == 1 ? "" : "s")", systemImage: "archivebox")
-                        Button("Undo Archive", systemImage: "arrow.uturn.backward") {
-                            app.restoreArchived(receipt.id, toSource: true)
+                        let canRestoreToSource = app.canRestoreArchiveToSource(receipt.id)
+                        if !canRestoreToSource {
+                            Text("Original workspace unavailable. You can restore these tabs here.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Button(canRestoreToSource ? "Undo Archive" : "Restore Here", systemImage: "arrow.uturn.backward") {
+                            app.restoreArchived(receipt.id, toSource: canRestoreToSource)
                             if !app.archivedGroups.contains(where: { $0.id == receipt.id }) { archivedGroupID = nil }
                         }
+                        .disabled(receipt.tabs.isEmpty)
                         .buttonStyle(.borderless)
                         .clickableCursor()
                     }

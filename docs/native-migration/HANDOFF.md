@@ -1620,3 +1620,7 @@ Both native Dev builds passed.
 Tab Cleanup now explains that exact duplicates share tab settings and saved browsing position. A suggested duplicate's context menu can open the copy that will remain, for review before cleanup. The move receipt uses the readable destination label, and an ineligible archive attempt is visible even while an earlier archive is still undoable. Live context-menu and receipt checks remain open.
 
 Both native Dev builds passed.
+
+Tab Cleanup’s archive receipt now checks whether the original workspace is still live. If that destination is unavailable, it explains why Undo is unavailable and offers an explicit Restore Here action. If the user switched workspaces and the original still exists, Undo continues to restore there. Live check pending for a receipt whose workspace is no longer live.
+
+Both native Dev builds passed.
