@@ -534,7 +534,7 @@ struct TabCardsSheet: View {
         let ids = Array(selectedTabIDs.intersection(selectableIDs))
         let count = app.moveInactiveTabs(ids, to: workspace, duplicatesOnly: false, keepingRecent: false)
         let message = count == 0 ? "No selected tabs were moved."
-            : "Moved \(count) tab\(count == 1 ? "" : "s") to \(workspace.name)."
+            : "Moved \(count) tab\(count == 1 ? "" : "s") to \(workspace.displayName)."
         movedTabsNotice = message
         AccessibilityNotification.Announcement(message).post()
         finishSelection()

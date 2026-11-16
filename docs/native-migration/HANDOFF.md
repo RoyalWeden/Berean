@@ -1572,3 +1572,7 @@ Both native Dev builds passed for the workspace collision fix.
 Recent Tabs uses the workspace picker’s passage-based label for automatically named workspaces. Mac’s Return to command uses the tab’s full navigation label (including a selected range) and names the destination workspace when it differs from the current one. Both Dev builds passed. Live check pending: switch between two unnamed workspaces and verify Return to and Recent Tabs identify the destination before opening it.
 
 Move to Workspace now labels destinations with a second open tab when available, the stored numbered name when different, and the tab count. It applies to the Mac sidebar, iPhone individual and bulk moves, and Tab Cleanup. Both Dev builds passed. Standalone assertions verified distinct labels for two Session 8 workspaces that share John 1 but contain different second tabs. Runtime menu truncation and move interactions remain to check.
+
+Moving tabs to another workspace now chooses the first surviving tab after a moved active tab in each affected Space, then falls back to the preceding survivor. This fixes the case where earlier tabs in the same move shifted the old index past the intended neighbor. The iPhone bulk-move receipt uses the readable workspace label. Live check pending with several moved tabs surrounding a remembered active tab in a background Space.
+
+Both native Dev builds passed.

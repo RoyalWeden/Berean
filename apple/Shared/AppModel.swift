@@ -620,7 +620,9 @@ final class AppModel {
             source.tabs[space] = remaining
             if let current = source.activeTabId[space] ?? nil, movedIDs.contains(current),
                let index = original.firstIndex(where: { $0.id == current }) {
-                source.activeTabId[space] = remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
+                let next = original.dropFirst(index + 1).first { !movedIDs.contains($0.id) }
+                    ?? original.prefix(index).last { !movedIDs.contains($0.id) }
+                source.activeTabId[space] = next?.id
             }
             destination.tabs[space, default: []].append(contentsOf: additions)
             if (destination.activeTabId[space] ?? nil) == nil { destination.activeTabId[space] = additions.first?.id }
