@@ -498,24 +498,49 @@ private struct StudyTrailStopsView: View {
 
     private func mapSticky(_ note: StudyTrailService.Sticky) -> some View {
         let isSection = note.kind == .section
-        return Label {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(note.title.isEmpty ? (isSection ? "Section Header" : "Sticky Note") : note.title)
-                    .font(isSection ? .headline : .subheadline.weight(.medium))
-                if !note.body.isEmpty {
-                    Text(note.body)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+        let title = note.title.isEmpty ? (isSection ? "Section Header" : "Sticky Note") : note.title
+        return HStack(alignment: .top, spacing: 8) {
+            Label {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(isSection ? .headline : .subheadline.weight(.medium))
+                    if !note.body.isEmpty {
+                        Text(note.body)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
                 }
+            } icon: {
+                Image(systemName: isSection ? "text.alignleft" : "note.text")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
-        } icon: {
-            Image(systemName: isSection ? "text.alignleft" : "note.text")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
+            Spacer(minLength: 0)
+            Menu {
+                StickyAnchorMenu(note: note, stops: stops) { anchor in
+                    moveSticky(note, to: anchor)
+                }
+            } label: {
+                Label("Actions for \(title)", systemImage: "ellipsis.circle")
+                    .labelStyle(.iconOnly)
+            }
+            .menuIndicator(.hidden)
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .clickableCursor()
         }
-        .contextMenu {
-            Button("Manage Sticky Notes", systemImage: "note.text") { showsStickies = true }
+    }
+
+    private func moveSticky(_ note: StudyTrailService.Sticky, to anchor: String?) {
+        do {
+            guard let service = app.studyTrailService,
+                  try service.moveSticky(id: note.id, in: trail.id, to: anchor, at: StudyTrailView.now()) else {
+                actionMessage = "The sticky note could not be moved."
+                return
+            }
+            load()
+        } catch {
+            actionMessage = "The sticky note could not be moved."
         }
     }
 
@@ -1021,6 +1046,9 @@ private struct StudyTrailStickiesView: View {
                         }
                         .buttonStyle(.interactivePlain)
                         .contextMenu {
+                            StickyAnchorMenu(note: note, stops: stops) { anchor in
+                                update { try $0.moveSticky(id: note.id, in: trailID, to: anchor, at: StudyTrailView.now()) }
+                            }
                             Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = note }
                         }
                     }
@@ -1130,6 +1158,43 @@ private struct StudyTrailStickiesView: View {
             #if os(macOS)
             .frame(minWidth: 360, minHeight: 245)
             #endif
+        }
+    }
+}
+
+private struct StickyAnchorMenu: View {
+    @Environment(AppModel.self) private var app
+    let note: StudyTrailService.Sticky
+    let stops: [StudyTrailService.Stop]
+    let move: (String?) -> Void
+
+    var body: some View {
+        let labels = stops.map { stop in
+            let edition = stop.translation ?? app.defaultText
+            let chapter = Reference.readerChapterLabel(stop.bookId, stop.chapter, textId: edition)
+            return "\(chapter) · \(textInfo(edition).short)"
+        }
+        let counts = Dictionary(grouping: labels, by: { $0 }).mapValues(\.count)
+        Menu("Move to Passage", systemImage: "arrow.turn.down.right") {
+            ForEach(stops.indices, id: \.self) { index in
+                let stop = stops[index]
+                let title = counts[labels[index], default: 0] > 1
+                    ? "\(labels[index]) · Stop \(index + 1)" : labels[index]
+                Button {
+                    move(stop.id)
+                } label: {
+                    if stop.id == note.anchorID {
+                        Label(title, systemImage: "checkmark")
+                    } else {
+                        Text(title)
+                    }
+                }
+                .disabled(stop.id == note.anchorID)
+            }
+        }
+        .disabled(stops.isEmpty)
+        if note.anchorID != nil {
+            Button("Remove Passage Anchor", systemImage: "pin.slash") { move(nil) }
         }
     }
 }

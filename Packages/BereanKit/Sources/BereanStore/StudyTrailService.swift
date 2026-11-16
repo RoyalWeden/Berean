@@ -224,6 +224,21 @@ public struct StudyTrailService {
                   .text(id), .text(trailID)]).changes == 1
     }
 
+    public func moveSticky(id: String, in trailID: String, to anchorID: String?, at time: Int64) throws -> Bool {
+        try db.run("""
+            UPDATE trail_notes
+            SET anchor_node_id = ?1,
+                order_index = COALESCE((SELECT n.order_index FROM trail_nodes n
+                                        WHERE n.id = ?1 AND n.trail_session_id = ?4), 0),
+                updated_at = ?2
+            WHERE id = ?3 AND trail_session_id = ?4 AND trail_session_id <> '__loose_stops__'
+              AND anchor_node_id IS NOT ?1
+              AND (?1 IS NULL OR EXISTS (SELECT 1 FROM trail_nodes n
+                                         WHERE n.id = ?1 AND n.trail_session_id = ?4))
+            """, [anchorID.map(SQLiteValue.text) ?? .null, .integer(time),
+                  .text(id), .text(trailID)]).changes == 1
+    }
+
     public func deleteSticky(id: String, in trailID: String) throws -> Bool {
         try transaction {
             guard try db.run("""

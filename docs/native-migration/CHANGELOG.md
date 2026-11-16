@@ -1171,3 +1171,7 @@
 ### 2026-11-15 — Sticky notes in Study Trail Map
 - Map shows sticky notes at their saved stops, and library and trail searches include sticky titles and bodies.
 - Both Dev builds and all 140 Swift tests passed. Mac scratch QA verified map placement and both search paths. The iPhone Dev build launched in Simulator.
+
+### 2026-11-15 — Move Study Trail sticky notes
+- Sticky notes and section headers can move to another recorded passage or become unanchored.
+- Both Dev builds and all 140 Swift tests passed. The Mac map control was checked in the running app. The move and detach actions were verified at the service layer.
