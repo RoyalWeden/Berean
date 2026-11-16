@@ -118,10 +118,14 @@ extension AppModel {
 
     func openWorkspaceTab(_ match: WorkspaceTabMatch) {
         guard let tab = sessions.first(where: { $0.id == match.workspaceID })?.allTabs.first(where: { $0.id == match.tab.id }) else { return }
+        openWorkspaceTab(tab, workspaceID: match.workspaceID)
+    }
+
+    private func openWorkspaceTab(_ tab: Tab, workspaceID: String) {
         let sourceWorkspace = currentSessionId
         let sourceTab = activeTab?.id
-        let sameWorkspace = match.workspaceID == sourceWorkspace
-        switchSession(match.workspaceID)
+        let sameWorkspace = workspaceID == sourceWorkspace
+        switchSession(workspaceID)
         select(tab.id, in: tab.spaceId, rememberPrevious: sameWorkspace)
         if !sameWorkspace {
             recordTabReturn(to: sourceTab, in: sourceWorkspace)
@@ -220,7 +224,8 @@ extension AppModel {
     }
 
     func archiveSourceNames() -> [String: String] {
-        let names = Dictionary(uniqueKeysWithValues: sessions.filter { $0.id != currentSessionId }.map { ($0.id, $0.name) })
+        let names = Dictionary(uniqueKeysWithValues: sessions.filter { $0.id != currentSessionId }
+            .map { ($0.id, WorkspaceItem(session: $0).displayName) })
         return archivePlacements.compactMapValues { names[$0.workspace] }
     }
 
@@ -354,15 +359,13 @@ extension AppModel {
                 archivedGroups.remove(at: index)
                 archivePlacements.removeValue(forKey: groupID)
             }
-            switchSession(workspace.id)
-            select(liveTab.id, in: liveTab.spaceId)
+            openWorkspaceTab(liveTab, workspaceID: workspace.id)
             return
         }
         guard let destination = toSource ? archivePlacements[groupID]?.workspace : currentSessionId else { return }
         restoreArchived(groupID, toSource: toSource, only: tabID)
         guard sessions.first(where: { $0.id == destination })?.allTabs.contains(where: { $0.id == tabID }) == true else { return }
-        if destination != currentSessionId { switchSession(destination) }
-        select(tab.id, in: tab.spaceId)
+        openWorkspaceTab(tab, workspaceID: destination)
     }
 
     func dismissArchived(_ groupId: String) {

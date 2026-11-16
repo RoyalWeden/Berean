@@ -1590,3 +1590,7 @@ Duplicating a workspace now opens the copy in the source workspace’s active or
 Both native Dev builds passed.
 
 Native saved workspace snapshots now keep History and Calendar alongside Scripture and other tabs. The mixed display order, selected utility tab, and preferred Space survive restore even if a tab ID collides. Both Dev builds and five focused tests passed, including the TypeScript-generated legacy snapshot goldens. The legacy client’s own snapshot parser still omits these native utility types. Live Save Workspace → reopen remains to verify.
+
+Opening a single archived tab in another workspace now uses the existing cross-workspace Back/Forward route. This covers Restore to Source and the case where the same tab is already open there after another device restored it. Group restore still keeps the reader in place. The Restore to Source command now uses the workspace’s readable label. Live check pending: restore one result to its source, verify the remaining archive entries, and use Back to return.
+
+Both native Dev builds passed.
