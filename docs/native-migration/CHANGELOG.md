@@ -1280,3 +1280,8 @@
 
 - **Changes:** Focus the iPhone Go field after presentation and resolve immediate submission against the current input, including exact titles in the Notes matches. Size the Lexicon Entry Guide control for the platform toolbar and anchor its guide to the icon.
 - **Verification:** The iPhone 18 Pro simulator showed the Go field's insertion cursor, opened a synthetic exact-title note from Scripture when submitted before the results task ran, and rendered the revised Lexicon info control. Mac Dev scratch QA opened the guide from the toolbar and dismissed it with Done. Temporary launch fixtures lived in the scratch checkout. Physical iPhone touch remains unverified.
+
+### 2026-11-16 — Cross-reference previews — MAC UI VERIFIED
+
+- Split the reference link from its inline preview. The preview can expand when clipped at the current width, and the row menu now offers Open.
+- Mac Dev scratch QA expanded and collapsed Mark 13:19 from Genesis 1:1 in TSKe and verified that shorter adjacent previews showed no toggle. iPhone touch and VoiceOver remain open.

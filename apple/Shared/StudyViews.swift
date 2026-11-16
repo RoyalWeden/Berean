@@ -1118,21 +1118,25 @@ struct CrossRefsView: View {
             row.text, tagged: nil, textId: passage.textId, replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules
         )
         return HStack(alignment: .top, spacing: 4) {
-            Button {
-                openReference(passage, fromVerse: fromVerse)
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
+                Button {
+                    openReference(passage, fromVerse: fromVerse)
+                } label: {
                     HStack {
                         Text(passage.textId == "kjva" ? passage.label : referenceForCopy(passage.label, textId: passage.textId))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.accentColor)
-                        Spacer()
-                        if let detail = row.detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                        Spacer(minLength: 4)
+                        if let detail = row.detail {
+                            Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
-                    Text(preview).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                    .contentShape(.rect)
                 }
-                .contentShape(.rect)
-            }.buttonStyle(.interactivePlain)
+                .buttonStyle(.interactivePlain)
+                if !preview.isEmpty { CrossReferencePreview(text: preview) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contextMenu { referenceActions(passage, fromVerse: fromVerse, sourceNote: row.noteID) }
             VerseActionsMenu(label: "Actions for \(passage.label), \(textInfo(passage.textId).short)") {
                 referenceActions(passage, fromVerse: fromVerse, sourceNote: row.noteID)
@@ -1164,6 +1168,9 @@ struct CrossRefsView: View {
     }
 
     @ViewBuilder private func referenceActions(_ passage: ResolvedPassage, fromVerse: Int, sourceNote: String?) -> some View {
+        Button("Open", systemImage: "arrow.up.right") {
+            openReference(passage, fromVerse: fromVerse)
+        }
         let reference = referenceForCopy(passage.label, textId: passage.textId)
         Button("Copy", systemImage: "doc.on.doc") {
             Task {
@@ -1185,6 +1192,51 @@ struct CrossRefsView: View {
         }
         Button("Open in New Tab", systemImage: "plus.square") {
             openReference(passage, fromVerse: fromVerse, newTab: true)
+        }
+    }
+}
+
+private struct CrossReferencePreview: View {
+    let text: String
+    @State private var expanded = false
+    @State private var collapsedHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
+
+    private var preview: some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            preview
+                .lineLimit(expanded ? nil : 3)
+                .fixedSize(horizontal: false, vertical: true)
+                .background {
+                    preview.lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { collapsedHeight = $0 }
+                        .hidden().accessibilityHidden(true)
+                }
+                .background {
+                    preview.lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { fullHeight = $0 }
+                        .hidden().accessibilityHidden(true)
+                }
+            if expanded || fullHeight > collapsedHeight + 1 {
+                Button {
+                    withAnimation(.snappy) { expanded.toggle() }
+                } label: {
+                    Label(expanded ? "Show Less" : "Show More", systemImage: expanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.vertical, 5)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            }
         }
     }
 }
