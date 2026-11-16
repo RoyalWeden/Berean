@@ -196,16 +196,27 @@ extension AppModel {
         let live = Dictionary(uniqueKeysWithValues: sessions.filter { sourceIDs.contains($0.id) }
             .map { ($0.id, WorkspaceItem(session: $0)) })
         return Dictionary(uniqueKeysWithValues: archivedGroups.map { group in
-            let label = group.label.isEmpty ? "Archived tabs" : group.label
-            guard let placement = placements[group.id] else { return (group.id, label) }
-            let source = live[placement.workspace]
-            let name = source?.displayName ?? placement.workspaceLabel ?? placement.workspaceName
+            let storedLabel = group.label.isEmpty ? "Archived tabs" : group.label
+            let label = archiveDisplayLabel(group, fallback: storedLabel)
+            let placement = placements[group.id]
+            let source = placement.flatMap { live[$0.workspace] }
+            let name = source?.displayName ?? placement?.workspaceLabel ?? placement?.workspaceName
             if includeAliases {
-                let aliases = [name, source?.name, placement.workspaceLabel, placement.workspaceName].compactMap { $0 }
-                return (group.id, ([label] + aliases).joined(separator: " ").replacingOccurrences(of: "–", with: "-"))
+                let aliases = [name, source?.name, placement?.workspaceLabel, placement?.workspaceName].compactMap { $0 }
+                let labels = label == storedLabel ? [label] : [label, storedLabel]
+                return (group.id, (labels + aliases).joined(separator: " ").replacingOccurrences(of: "–", with: "-"))
             }
             return (group.id, name.map { "\(label) · \($0)" } ?? label)
         })
+    }
+
+    private func archiveDisplayLabel(_ group: ArchivedGroup, fallback: String) -> String {
+        let tabs = group.tabs
+        guard let first = tabs.first, first.tabType == .bible else { return fallback }
+        let suffix = tabs.count == 1 ? "" : " and \(tabs.count - 1) more"
+        // Only replace the generated label. Keep imported labels and groups with unreadable records intact.
+        guard group.label == first.title + suffix else { return fallback }
+        return first.navigationLabel + suffix
     }
 
     private var archivePlacements: [String: ArchivePlacement] {
