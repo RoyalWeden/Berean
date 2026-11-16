@@ -1422,3 +1422,7 @@
 ### 2026-11-16 — Consistent archive feedback in iPhone Tabs
 
 - Reused bulk archive feedback for individual swipe and context-menu actions and offered Restore Here when the source workspace cannot accept Undo. iOS Dev build and simulator launch passed.
+
+### 2026-11-16 — Undo archive from the Mac sidebar
+
+- Added a sidebar notice with Undo after archiving one or all tabs. Verified the last-tab archive and Undo in the Mac Dev scratch library.

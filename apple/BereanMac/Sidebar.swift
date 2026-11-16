@@ -10,6 +10,7 @@ struct BereanSidebar: View {
     @AppStorage("sidebarGroupBySpace") private var groupBySpace = false
     @AppStorage("sidebarArchiveExpanded") private var archiveExpanded = false
     let browseArchive: () -> Void
+    @State private var undoArchiveID: String?
     @State private var dragging: String?
     @State private var renaming: WorkspaceItem?
     @State private var deleting: WorkspaceItem?
@@ -45,6 +46,9 @@ struct BereanSidebar: View {
                 }
                 .scrollIndicators(.never)
             }
+            if let undoArchiveID, let group = app.archivedGroups.first(where: { $0.id == undoArchiveID }) {
+                archiveNotice(group)
+            }
         }
         .background {
             Rectangle().fill(.regularMaterial)
@@ -57,7 +61,8 @@ struct BereanSidebar: View {
         .contextMenu {
             Toggle("Group Tabs by Space", isOn: $groupBySpace)
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
-            Button("Archive All Tabs") { app.archiveAllTabs() }.disabled(app.orderedTabs.isEmpty)
+            Button("Archive All Tabs") { archiveWithUndo(app.orderedTabs.map(\.id)) }
+                .disabled(app.orderedTabs.isEmpty)
         }
         .sheet(isPresented: $showsWorkspaceSearch) { workspaceTabSearch }
         .sheet(isPresented: $showTabCleanup) { TabCleanupView().frame(minWidth: 360, minHeight: 420) }
@@ -446,12 +451,40 @@ struct BereanSidebar: View {
                 }
             }
         }
-        Button("Archive Tab") { app.archive([tab.id]) }
+        Button("Archive Tab") { archiveWithUndo([tab.id]) }
         Divider()
         Button("Close Tab", role: .destructive) { app.close(tab.id) }
     }
 
     // MARK: archive
+
+    private func archiveWithUndo(_ tabIDs: [String]) {
+        if let group = app.archive(tabIDs) { undoArchiveID = group.id }
+    }
+
+    private func archiveNotice(_ group: ArchivedGroup) -> some View {
+        let hasSource = app.canRestoreArchiveToSource(group.id)
+        return HStack(spacing: 6) {
+            Label("\(group.tabs.count) archived", systemImage: "archivebox")
+                .font(.caption)
+                .fixedSize()
+            Spacer(minLength: 0)
+            Button(hasSource ? "Undo" : "Restore Here") {
+                app.restoreArchived(group.id, toSource: hasSource)
+                if !app.archivedGroups.contains(where: { $0.id == group.id }) {
+                    undoArchiveID = nil
+                }
+            }
+            .buttonStyle(OptionButtonStyle())
+            Button("Dismiss archive notice", systemImage: "xmark") { undoArchiveID = nil }
+                .labelStyle(.iconOnly)
+                .buttonStyle(OptionButtonStyle())
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.quaternary, in: .rect(cornerRadius: 8))
+        .padding(8)
+    }
 
     var archive: some View {
         let titles = archiveExpanded ? app.archiveTitles() : [:]
