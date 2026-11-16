@@ -246,6 +246,23 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         }
     }
 
+    @Test func nativeUtilityTabsSurviveSnapshots() {
+        let reader = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "John 1")
+        let history = Tab(id: "history", spaceId: .search, type: "history", title: "History")
+        let calendar = Tab(id: "calendar", spaceId: .notes, type: "calendar", title: "Calendar")
+        let session = Session(id: "study", name: "Study",
+                              tabs: [.scripture: [reader], .search: [history], .notes: [calendar]],
+                              activeTabId: [.search: history.id, .notes: calendar.id])
+        let order = [history.id, reader.id, calendar.id]
+        let parsed = WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: session, displayOrder: order, preferredSpace: .search))
+        let restored = parsed.restoreSession(id: "snapshot", name: "Study", reservedIDs: [history.id]) { "history-copy" }
+        #expect(parsed.preferredSpace == .search)
+        #expect(restored.displayOrder == ["history-copy", reader.id, calendar.id])
+        #expect(restored.session.tabs(in: .search).map(\.tabType) == [.history])
+        #expect(restored.session.tabs(in: .notes) == [calendar])
+        #expect(restored.session.activeTabId[.search] == "history-copy")
+    }
+
     @Test func sessionRoundTrip() {
         let s = Session(id: "s1", name: "Study", icon: "book", tabs: [
             .scripture: [Tab(id: "t1", spaceId: .scripture, type: "bible", title: "John 3", state: JSValue(dictionaryLiteral: ("book", "John"), ("chapter", 3)).object)],

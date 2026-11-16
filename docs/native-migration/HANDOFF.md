@@ -1588,3 +1588,5 @@ Both native Dev builds passed.
 Duplicating a workspace now opens the copy in the source workspace’s active or remembered Space. Saved snapshots use their recorded preferred Space, with the existing fallback for older snapshots or empty Spaces. The duplicate still remaps tab IDs, active tabs, origins, and mixed display order. Live check pending: duplicate a saved workspace recorded on Notes while currently reading Scripture.
 
 Both native Dev builds passed.
+
+Native saved workspace snapshots now keep History and Calendar alongside Scripture and other tabs. The mixed display order, selected utility tab, and preferred Space survive restore even if a tab ID collides. Both Dev builds and five focused tests passed, including the TypeScript-generated legacy snapshot goldens. The legacy client’s own snapshot parser still omits these native utility types. Live Save Workspace → reopen remains to verify.

@@ -8,7 +8,7 @@ import BereanCore
 /// Tabs are kept as JavaScript objects so unknown fields written by other clients survive a round trip.
 public enum WorkspaceSnapshot {
     public static let spaces: [SpaceId] = [.scripture, .notes, .lexicon, .youtube, .search]
-    static let tabTypes: Set<String> = ["bible", "note", "lexicon", "youtube", "search", "pdf", "tags"]
+    static let tabTypes: Set<String> = ["bible", "note", "lexicon", "youtube", "search", "pdf", "tags", "history", "calendar"]
 
     public struct Parsed: Equatable, Sendable {
         public var tabs: [SpaceId: [JSObject]]
