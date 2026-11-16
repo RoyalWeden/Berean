@@ -1554,3 +1554,7 @@ Stacked Compare now carries the first visible surviving column's verse across a 
 iPhone Go groups its existing shortcuts in an adaptive grid, with Scripture, Notes, History, and Lexicon first. Accessibility Dynamic Type uses a wider minimum column. Search/result and tab-reuse behavior use their existing routes. Both Dev builds passed. iPhone 18 Pro Simulator verified all seven shortcuts fit on the first screen with the keyboard closed, then opened History directly and confirmed Go dismissed. Large text and software-keyboard coverage remain to check.
 
 iPhone Go now records a return to the source tab when a destination opens another tab in the same workspace. Today’s Note honors explicit New Tab while opening the same daily note through the existing date lookup. Both Dev builds passed. iPhone 18 Pro Simulator verified Genesis 1 → Go → History → More → Back returned to Genesis. The Today’s Note reuse-versus-new-tab interaction remains unverified.
+
+Go’s passage result now shows Open Tab when the exact reference and edition already exist in the current workspace. That indicator uses the same match predicate as tab reuse and is omitted in explicit New Tab mode. Repeated cross-tab navigation from the same source no longer appends consecutive duplicate Back stops. Live checks pending: find an already-open passage in Go, verify reuse and the indicator, then repeat from the same source after manually switching tabs.
+
+Both native Dev builds passed.

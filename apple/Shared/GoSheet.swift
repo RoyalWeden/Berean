@@ -131,12 +131,18 @@ struct GoSheet: View {
 
     @ViewBuilder private var results: some View {
         if let ref = resolvedPassage {
+            let isOpen = !newTab && app.tabs(in: .scripture).contains(where: ref.isShown(in:))
             Section("Passage") {
                 Button { finish { app.visitScripture(ref, reuseTab: !newTab) } } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(ref.label)
-                            Text(textInfo(ref.textId).name).font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 6) {
+                                Text(textInfo(ref.textId).name)
+                                if isOpen { Text("· Open Tab") }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             if let passagePreview, passagePreview.passage == ref, !passagePreview.text.isEmpty {
                                 Text(passagePreview.text)
                                     .font(.caption)

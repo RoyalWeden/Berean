@@ -687,7 +687,7 @@ final class AppModel {
 
     // MARK: in-tab history (⌘[ / ⌘]) — the place a tab shows, not presentation details like scroll or panels
 
-    private enum TabHistoryEntry {
+    private enum TabHistoryEntry: Equatable {
         case location(String, JSObject)
         case tab(String)
     }
@@ -976,8 +976,11 @@ final class AppModel {
     func recordTabReturn(to sourceTabID: String?) {
         if let sourceTabID, let destination = activeTab?.id, sourceTabID != destination,
            orderedTabs.contains(where: { $0.id == sourceTabID }) {
-            backStack[destination, default: []].append(.tab(sourceTabID))
-            if backStack[destination, default: []].count > 100 { backStack[destination]?.removeFirst() }
+            let returnEntry = TabHistoryEntry.tab(sourceTabID)
+            if backStack[destination]?.last != returnEntry {
+                backStack[destination, default: []].append(returnEntry)
+                if backStack[destination, default: []].count > 100 { backStack[destination]?.removeFirst() }
+            }
             forwardStack[destination] = []
             forwardStack[sourceTabID] = []
         }
