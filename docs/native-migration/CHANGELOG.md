@@ -1300,3 +1300,8 @@
 
 - iOS 27, iPhone 18 Pro in Xcode Device Hub. Opened and dismissed the full Lexicon entry guide, expanded a verse group by tapping its row, expanded John 8:26–28 inline, and opened the range from its long-press menu. The reader showed verses 26–28 within a single selection outline.
 - Physical-device behavior, VoiceOver, clipboard and the remaining cross-reference sources were outside this run.
+
+### 2026-11-16 — iPhone verse action clearance — SIMULATOR VERIFIED
+
+- Reserve real reader viewport space while the verse action bar is visible so the controls cannot cover mid-chapter lines. The dock-only layout returns when selection clears.
+- iOS Dev build passed. On iPhone 18 Pro Simulator, verified John 8:26–28 and a newly selected verse 33 near the bottom edge, then cleared selection. Mac behavior was outside this change.

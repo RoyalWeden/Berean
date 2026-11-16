@@ -531,7 +531,10 @@ struct ScriptureView: View {
                         .ignoresSafeArea(.container, edges: .top)
                     }
                     #else
-                    iosReader(st, actionClearance: bottomClearance)
+                    // Keep the action bar in its own space while keeping its glass surface floating.
+                    // A scroll inset alone only protects the chapter end, so mid-chapter lines can sit behind it.
+                    iosReader(st, actionClearance: showActions ? 0 : dockClearance)
+                        .padding(.bottom, showActions ? bottomClearance : 0)
                     #endif
                 }
             }
