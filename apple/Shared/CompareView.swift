@@ -166,10 +166,11 @@ struct CompareView: View {
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
     @State private var independentVisibleVerses: [Int: Int] = [:]
+    @State private var visibleIndependentRows: [Int: Set<Int>] = [:]
     @State private var visibleStackedVerses: [Int: Set<Int>] = [:]
     @State private var scrollingColumn: Int?
     #if os(macOS)
-    @State private var wheelDriver: (event: TimeInterval, column: Int)?
+    @State private var wheelDriver: (deadline: TimeInterval, column: Int)?
     #endif
     @State private var lastScrolledColumn: Int?
     @State private var visibleAlignedVerses: Set<Int> = []
@@ -242,6 +243,9 @@ struct CompareView: View {
             visibleStackedVerses = [:]
             scrollingColumn = nil
             lastScrolledColumn = nil
+            #if os(macOS)
+            wheelDriver = nil
+            #endif
             visibleAlignedVerses = []
             pendingAlignedVerse = nil
             restoredSharedScrollKey = nil
@@ -609,12 +613,12 @@ struct CompareView: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 12) {
-                                independentVerses(column, compact: compact)
+                                independentVerses(column, compact: compact, independentPassage: passage)
                             }
                             .scrollTargetLayout()
                             .padding(compact ? 8 : 16)
                         }
-                        .scrollPosition(id: independentPosition(for: column, in: columns, passage: passage), anchor: .top)
+                        .scrollPosition(id: independentPosition(for: column, passage: passage), anchor: .top)
                         .onScrollPhaseChange { _, phase in
                             switch phase {
                             case .interacting:
@@ -625,6 +629,15 @@ struct CompareView: View {
                             default: break
                             }
                         }
+                        #if os(macOS)
+                        .background {
+                            CompareWheelRegion {
+                                wheelDriver = (ProcessInfo.processInfo.systemUptime + 0.25, column.id)
+                                lastScrolledColumn = column.id
+                            }
+                            .allowsHitTesting(false)
+                        }
+                        #endif
                         .id(column.label)
                         .task(id: column.historyKey) {
                             let key = columnScrollKey(column.id, passage: passage)
@@ -652,7 +665,7 @@ struct CompareView: View {
         }
     }
 
-    private func independentPosition(for column: CompareColumn, in columns: [CompareColumn], passage: String) -> Binding<Int?> {
+    private func independentPosition(for column: CompareColumn, passage: String) -> Binding<Int?> {
         Binding(get: { independentVisibleVerses[column.id] }, set: { verse in
             guard passage == passageKey(state, self.columns) else { return }
             independentVisibleVerses[column.id] = verse
@@ -660,32 +673,35 @@ struct CompareView: View {
                 let key = columnScrollKey(column.id, passage: passage)
                 app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
             }
-            guard syncScrolling, let verse, drivesScrollSync(column.id) else { return }
-            for destination in columns where destination.id != column.id && destination.book == column.book {
-                guard let mapped = ChapterMap.synchronizedVerse(column.book, chapter: column.chapter, verse: verse,
-                                                                 from: column.text, destinationChapter: destination.chapter,
-                                                                 to: destination.text),
-                      let match = correspondingVerse(mapped, in: destination) else { continue }
-                if independentVisibleVerses[destination.id] != match {
-                    independentVisibleVerses[destination.id] = match
-                }
-            }
         })
     }
 
-    private func drivesScrollSync(_ column: Int) -> Bool {
-        if let scrollingColumn { return scrollingColumn == column }
-        #if os(macOS)
-        // Wheel input can update a scroll position without entering SwiftUI's interacting phase.
-        if let event = NSApp.currentEvent, event.type == .scrollWheel {
-            if wheelDriver?.event != event.timestamp {
-                wheelDriver = (event.timestamp, column)
-                lastScrolledColumn = column
+    private func updateIndependentVisibility(_ verse: Int, column: CompareColumn, passage: String, visible: Bool) {
+        guard passage == loadedPassage else { return }
+        if visible {
+            visibleIndependentRows[column.id, default: []].insert(verse)
+        } else {
+            visibleIndependentRows[column.id]?.remove(verse)
+        }
+        guard syncScrolling, drivesScrollSync(column.id), let top = visibleIndependentRows[column.id]?.min() else { return }
+        for destination in columns where destination.id != column.id && destination.book == column.book {
+            guard let mapped = ChapterMap.synchronizedVerse(column.book, chapter: column.chapter, verse: top,
+                                                             from: column.text, destinationChapter: destination.chapter,
+                                                             to: destination.text),
+                  let match = correspondingVerse(mapped, in: destination) else { continue }
+            if independentVisibleVerses[destination.id] != match {
+                independentVisibleVerses[destination.id] = match
             }
-            return wheelDriver?.column == column
+        }
+    }
+
+    private func drivesScrollSync(_ column: Int) -> Bool {
+        #if os(macOS)
+        if let wheelDriver, ProcessInfo.processInfo.systemUptime <= wheelDriver.deadline {
+            return wheelDriver.column == column
         }
         #endif
-        return false
+        return scrollingColumn == column
     }
 
     private func columnScrollKey(_ id: Int, passage: String) -> String {
@@ -850,7 +866,7 @@ struct CompareView: View {
     }
 
     @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false,
-                                                stackedPassage: String? = nil) -> some View {
+                                                stackedPassage: String? = nil, independentPassage: String? = nil) -> some View {
         if let verses = independentRows[column.id], !verses.isEmpty {
             let selected = Set(selectedRows(in: column, source: state).map(\.verseNum))
             ForEach(verses, id: \.verseNum) { row in
@@ -864,6 +880,14 @@ struct CompareView: View {
                         }
                         .onDisappear {
                             trackStackedVerse(row.verseNum, columnID: column.id, passage: stackedPassage, visible: false)
+                        }
+                } else if let independentPassage {
+                    content
+                        .onScrollVisibilityChange(threshold: 0.2) { visible in
+                            updateIndependentVisibility(row.verseNum, column: column, passage: independentPassage, visible: visible)
+                        }
+                        .onDisappear {
+                            updateIndependentVisibility(row.verseNum, column: column, passage: independentPassage, visible: false)
                         }
                 } else {
                     content
@@ -1431,3 +1455,37 @@ struct CompareView: View {
         }
     }
 }
+
+#if os(macOS)
+/// Identify the wheel's pane before SwiftUI publishes either scroll position.
+private struct CompareWheelRegion: NSViewRepresentable {
+    let onWheel: () -> Void
+
+    func makeNSView(context: Context) -> Region { Region() }
+    func updateNSView(_ view: Region, context: Context) { view.onWheel = onWheel }
+    static func dismantleNSView(_ view: Region, coordinator: Void) { view.stopMonitoring() }
+
+    final class Region: NSView {
+        var onWheel: (() -> Void)?
+        private var monitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            stopMonitoring()
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                if let self, event.window === window,
+                   visibleRect.contains(convert(event.locationInWindow, from: nil)) {
+                    onWheel?()
+                }
+                return event
+            }
+        }
+
+        func stopMonitoring() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+    }
+}
+#endif
