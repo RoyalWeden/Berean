@@ -363,14 +363,12 @@ struct LexiconEntryView: View {
                                     Spacer(minLength: 4)
                                     occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1)
                                 }
-                                let activeFilters = [
-                                    occurrenceEdition.map { textInfo($0).short },
-                                    occurrenceBook.map { Reference.bookName($0) },
-                                    selectedRenderings.isEmpty ? nil : "\(selectedRenderings.count) translated words"
-                                ].compactMap { $0 }
-                                if !activeFilters.isEmpty {
-                                    Text(activeFilters.joined(separator: " · "))
-                                        .font(.caption)
+                                if hasOccurrenceOptions {
+                                    activeOccurrenceOptions
+                                }
+                                if occurrenceMatches.isEmpty {
+                                    Text("No occurrences match these filters.")
+                                        .font(.callout)
                                         .foregroundStyle(.secondary)
                                 }
                             }
@@ -639,8 +637,53 @@ struct LexiconEntryView: View {
         #endif
     }
 
+    private var hasOccurrenceOptions: Bool {
+        occurrenceEdition != nil || occurrenceBook != nil || !selectedRenderings.isEmpty || sortByMatches
+    }
+
+    private var activeOccurrenceOptions: some View {
+        FlowLayout(spacing: 6) {
+            if let occurrenceEdition {
+                occurrenceOptionChip(textInfo(occurrenceEdition).short, kind: "edition") { self.occurrenceEdition = nil }
+            }
+            if let occurrenceBook {
+                occurrenceOptionChip(Reference.bookName(occurrenceBook), kind: "book") { self.occurrenceBook = nil }
+            }
+            if !selectedRenderings.isEmpty {
+                let title = selectedRenderings.count == 1
+                    ? selectedRenderings.first ?? ""
+                    : "\(selectedRenderings.count) translated words"
+                occurrenceOptionChip(title, kind: "translated words") { selectedRenderings = [] }
+            }
+            if sortByMatches {
+                occurrenceOptionChip("Most Matches", kind: "sort") { sortByMatches = false }
+            }
+        }
+    }
+
+    private func occurrenceOptionChip(_ title: String, kind: String, clear: @escaping () -> Void) -> some View {
+        Button {
+            clear()
+            visibleOccurrences = 40
+        } label: {
+            HStack(spacing: 5) {
+                Text(title).lineLimit(1)
+                Image(systemName: "xmark").font(.caption2.weight(.semibold))
+            }
+            .font(.caption)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(.quaternary, in: .capsule)
+            .frame(minHeight: entryControlHeight)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel("Clear \(kind): \(title)")
+        .help("Clear \(kind)")
+    }
+
     private func occurrenceFilters(books: [String: [LexiconOccurrence]], forms: [String: Int], canSort: Bool) -> some View {
-        let filtered = occurrenceEdition != nil || occurrenceBook != nil || !selectedRenderings.isEmpty || sortByMatches
+        let filtered = hasOccurrenceOptions
         return Menu {
             if editions.count > 1 {
                 Picker("Edition", selection: Binding(get: { occurrenceEdition }, set: {

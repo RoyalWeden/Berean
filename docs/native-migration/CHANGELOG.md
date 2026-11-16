@@ -1354,3 +1354,7 @@
 ### 2026-11-16 — Inline Strong’s title on iPhone
 
 - Keep the Strong’s number in the navigation bar and lead the entry body with its headword. iOS Dev built successfully. iPhone 17e simulator verified the full H3068 title and Info access.
+
+### 2026-11-16 — Removable Lexicon occurrence filters
+
+- Show active occurrence settings as individual removable chips. Both Dev targets built in the scratch checkout. Mac QA verified independent edition and book clearing.
