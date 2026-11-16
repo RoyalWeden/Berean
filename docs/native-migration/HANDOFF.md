@@ -1662,3 +1662,7 @@ iOS 27 iPhone 18 Pro Dev live check on `d9294c2f`: with the archive Undo notice 
 Mac Dev scratch-library follow-up: opened Genesis 1:30–31 via Go. The wrapped verses appeared in one dashed, faintly filled outline, and the complete final line sat above the floating action capsule. Clear dismissed the capsule, and clicking the verse 31 link selected it again and restored the actions. This covers the normal-width single-chapter reader. Narrow windows and larger reader text remain open.
 
 Verse selection controls expose the selected reference as their accessibility group on iPhone, as on Mac. The compact and overflow action menus carry explicit accessible names on the actual controls, and the narrowest menu now has a Mac tooltip. Both Dev builds passed. Verify with VoiceOver and in a narrow Mac Scripture pane that every action remains accessible through overflow.
+
+## iPhone Scripture note citations
+
+iPhone now uses the same chapter-level citation menu and note cross-reference data as Mac. The chapter menu opens a citing note. An inline arrow is present on verses with note cross references, and opens the inspector on My Notes scoped to that verse. The arrow is excluded from copied Scripture using the existing reader marker attribute. Both Dev builds passed. Live iPhone fixture pending: create a verse note attached to Genesis 1:1 mentioning Exod 20 and Exod 20:11, then open Exodus 20 and check the chapter menu, arrow, scoped reverse reference and marker-free copy.

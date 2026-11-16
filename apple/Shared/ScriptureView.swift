@@ -348,11 +348,9 @@ struct ScriptureView: View {
     @State private var selection: Set<Int> = []
     @State private var anchor: Int?
     @State private var noteCounts: [Int: Int] = [:]
-    #if os(macOS)
     @State private var chapterCitations: (key: String, notes: [Note])?
     @State private var verseCitations: (key: String, links: [Int: [NoteCrossReferences.Link]])?
     @AppStorage("crossrefSource") private var crossRefSource = "tske"
-    #endif
     @State private var highlights: [Int: [Highlight]] = [:]
     @State private var pickerShown = false
     #if os(macOS)
@@ -509,12 +507,10 @@ struct ScriptureView: View {
         let actionAlignment: Alignment = .bottom
         #endif
         VStack(spacing: 0) {
-            #if os(macOS)
             if loadedChapter == chapter, !verses.isEmpty,
                let chapterCitations, chapterCitations.key == chapter, !chapterCitations.notes.isEmpty {
                 chapterCitationMenu(chapterCitations.notes)
             }
-            #endif
             Group {
                 if loadedChapter != chapter {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -599,12 +595,10 @@ struct ScriptureView: View {
             guard loadedChapter == chapter else { return }
             noteCounts = (try? app.notes?.coveringVerseCounts(st.bookId, st.chapter,
                                                               verses: Set(verses.map(\.verseNum)), textId: st.translation)) ?? [:]
-            #if os(macOS)
             let citations = (try? app.notes?.notesCitingChapter(st.bookId, st.chapter, textId: st.translation)) ?? []
             chapterCitations = (chapter, citations)
             let links = (try? app.notes?.crossReferences(bookId: st.bookId, chapter: st.chapter, textId: st.translation))?.byVerse ?? [:]
             verseCitations = (chapter, links)
-            #endif
         }
         .task(id: "\(st.bookId)|\(st.chapter)|\(app.tagsRevision)") {
             if let r = try? app.verseTags?.forChapter(st.bookId, st.chapter) { verseTags = r.verseTags; chapterTags = r.chapterTags } else { verseTags = [:]; chapterTags = [] }
@@ -642,7 +636,6 @@ struct ScriptureView: View {
         }
     }
 
-    #if os(macOS)
     private func chapterCitationMenu(_ notes: [Note]) -> some View {
         Menu {
             ForEach(notes) { note in
@@ -661,7 +654,6 @@ struct ScriptureView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
     }
-    #endif
 
     private func unavailablePassage(_ st: BibleState) -> some View {
         let source = ChapterEdition(st)
@@ -1178,6 +1170,10 @@ struct ScriptureView: View {
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
+            onCitations: { verse in
+                crossRefSource = "notes"
+                openInspector("crossrefs", verse: verse)
+            },
             onVerseTap: { verseClick($0, shift: false) },
             onVerseActions: { number in
                 if let row = verses.first(where: { $0.verseNum == number }) {
@@ -1896,18 +1892,18 @@ extension ScriptureView {
             let whole = highlights[v.verseNum]?.last { $0.startChar == nil && $0.startWord == nil }
             var rendered = ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                        tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
-            #if os(macOS)
             if v.verseNum > 0, let verseCitations, verseCitations.key == chapterKey(st),
                let links = verseCitations.links[v.verseNum], !links.isEmpty {
                 rendered.citationCount = links.count
+                #if os(macOS)
                 rendered.citationPreview = links.prefix(4).map { link in
                     let passage = ResolvedPassage(textId: link.textId, bookId: link.bookId, chapter: link.chapter,
                                                   verse: link.verse, endVerse: link.endVerse)
                     let title = link.note.title.isEmpty ? "Untitled" : link.note.title
                     return "\(passage.label) · \(title)"
                 }.joined(separator: "\n")
+                #endif
             }
-            #endif
             return rendered
         }
     }

@@ -30,6 +30,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
+    var onCitations: (Int) -> Void
     var onVerseTap: (Int) -> Void
     var onVerseActions: (Int) -> Void
     var onTagClick: (String, Int?) -> Void
@@ -680,6 +681,15 @@ struct IOSChapterTextView: UIViewRepresentable {
                         attributes: base.merging([.font: UIFont.systemFont(ofSize: max(8, size * 0.5)),
                                                   .foregroundColor: UIColor.tintColor, .link: URL(string: "berean-verse-notes:\(verse.verse)")!, Self.skip: true]) { _, new in new }))
                 }
+                if verse.citationCount > 0 {
+                    let marker = base.merging([
+                        .font: UIFont.systemFont(ofSize: max(13, size * 0.72), weight: .semibold),
+                        .foregroundColor: UIColor.tintColor,
+                        .link: URL(string: "berean-verse-citations:\(verse.verse)")!,
+                        Self.skip: true,
+                    ]) { _, new in new }
+                    out.append(NSAttributedString(string: "  ↗", attributes: marker))
+                }
                 appendTags(verse.tags, verse: verse.verse, to: out, base: base, dark: dark)
                 out.append(NSAttributedString(string: "\n", attributes: base))
                 verseRanges[verse.verse] = NSRange(location: start, length: out.length - start)
@@ -736,6 +746,11 @@ struct IOSChapterTextView: UIViewRepresentable {
             case "berean-verse-notes":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) else { return nil }
                 return UIAction { [weak self] _ in self?.parent.onNotes(verse) }
+            case "berean-verse-citations":
+                guard let verse = Int(url.absoluteString.dropFirst("berean-verse-citations:".count)) else { return nil }
+                return UIAction(title: "Note Cross References for Verse \(verse)") { [weak self] _ in
+                    self?.parent.onCitations(verse)
+                }
             case "strongs":
                 let id = String(url.absoluteString.dropFirst("strongs:".count))
                 let verse = verseRanges.first { NSLocationInRange(textItem.range.location, $0.value) }?.key

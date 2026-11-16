@@ -1430,3 +1430,7 @@
 ### 2026-11-16 — Reader clearance while archive Undo is visible
 
 - Included the iPhone archive notice in floating reader clearance. Verified selection and separated action, Undo and dock controls in a two-tab simulator workflow.
+
+### 2026-11-16 — iPhone Scripture note citations
+
+- Added the chapter citation menu and tappable verse citation markers that jump to My Notes cross references. Both native Dev builds passed. Simulator fixture verification remains open.
