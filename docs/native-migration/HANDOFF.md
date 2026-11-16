@@ -1616,3 +1616,7 @@ Both native Dev builds passed.
 Exact Duplicates Only now also checks device-local bookmarks and browsing options for Search, Lexicon, Notes, History, and Calendar. Identical persisted tabs that return to different results, filters, folders, or dates stay out of automatic duplicate suggestions. The comparison is intentionally conservative: missing local state differs from an existing bookmark. Live checks remain open for two copies of a search scrolled to different rows and for a Lexicon filter difference.
 
 Both native Dev builds passed.
+
+Tab Cleanup now explains that exact duplicates share tab settings and saved browsing position. A suggested duplicate's context menu can open the copy that will remain, for review before cleanup. The move receipt uses the readable destination label, and an ineligible archive attempt is visible even while an earlier archive is still undoable. Live context-menu and receipt checks remain open.
+
+Both native Dev builds passed.

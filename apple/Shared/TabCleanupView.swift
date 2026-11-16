@@ -43,7 +43,8 @@ struct TabCleanupView: View {
                         .buttonStyle(.borderless)
                         .clickableCursor()
                     }
-                } else if nothingArchived {
+                }
+                if nothingArchived {
                     Text("No selected tabs are still eligible to archive.").foregroundStyle(.secondary)
                 }
                 Section {
@@ -137,6 +138,15 @@ struct TabCleanupView: View {
                                 Image(systemName: tab.symbol).foregroundStyle(tab.tint)
                             }
                         }
+                        .contextMenu {
+                            if let original = originals[tab.id] {
+                                Button("Show Tab Kept Open", systemImage: "square.on.square") {
+                                    guard app.findTab(original.id) != nil else { return }
+                                    app.select(original.id, in: original.spaceId)
+                                    dismiss()
+                                }
+                            }
+                        }
                     }
                 } header: {
                     if hiddenSelection.isEmpty {
@@ -147,6 +157,9 @@ struct TabCleanupView: View {
                 } footer: {
                     if keepingRecent && protectedCount > 0 {
                         Text("\(protectedCount) recently used tab\(protectedCount == 1 ? "" : "s") kept open.")
+                    }
+                    if duplicatesOnly {
+                        Text("Exact duplicates share the same tab settings and saved browsing position.")
                     }
                     Text("Pinned and active tabs stay open. You can restore archived tabs together.")
                 }
@@ -196,7 +209,7 @@ struct TabCleanupView: View {
     private func move(_ ids: [String], to workspace: WorkspaceItem) {
         let count = app.moveInactiveTabs(ids, to: workspace, duplicatesOnly: duplicatesOnly, keepingRecent: keepingRecent)
         moveMessage = count == 0 ? "No selected tabs were moved."
-            : "Moved \(count) tab\(count == 1 ? "" : "s") to \(workspace.name)."
+            : "Moved \(count) tab\(count == 1 ? "" : "s") to \(workspace.displayName)."
         included.removeAll()
     }
 }
