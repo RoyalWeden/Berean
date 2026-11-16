@@ -1295,3 +1295,8 @@
 
 - Expand Classic and TSKe Scripture ranges into the full referenced verse text without leaving the inspector. Fetch the chapter only when the user expands the row.
 - Mac Dev scratch QA verified that Proverbs 8:22–24 displayed all three verses and returned to the first-verse preview on collapse. iPhone touch remains open.
+
+### 2026-11-16 — Cross-reference and Lexicon interaction — IPHONE SIMULATOR VERIFIED
+
+- iOS 27, iPhone 18 Pro in Xcode Device Hub. Opened and dismissed the full Lexicon entry guide, expanded a verse group by tapping its row, expanded John 8:26–28 inline, and opened the range from its long-press menu. The reader showed verses 26–28 within a single selection outline.
+- Physical-device behavior, VoiceOver, clipboard and the remaining cross-reference sources were outside this run.
