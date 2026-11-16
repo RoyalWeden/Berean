@@ -251,8 +251,7 @@ struct CommandPalette: View {
     let close: () -> Void
     @State private var text = ""
     @State private var textSelection: TextSelection?
-    @State private var index = 0
-    @State private var selectionQuery = ""
+    @State private var resultSelection: (query: String, id: Item.ID)?
     @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @State private var noteResults: (query: String, hits: [Note], excerpts: [String: String])?
     @State private var actionsShown = false
@@ -414,8 +413,11 @@ struct CommandPalette: View {
     }
 
     private func selectedIndex(in list: [Item], query: String) -> Int? {
-        let candidate = selectionQuery == query ? index : 0
-        return list.indices.contains(candidate) ? candidate : list.indices.last
+        if let resultSelection, resultSelection.query == query,
+           let index = list.firstIndex(where: { $0.id == resultSelection.id }) {
+            return index
+        }
+        return list.indices.first
     }
 
     private func noteHits(for query: String) -> [Note] {
@@ -431,11 +433,10 @@ struct CommandPalette: View {
         activate(current[selected], inNewTab: inNewTab)
     }
 
-    private func moveSelection(_ delta: Int, in list: [Item], proxy: ScrollViewProxy) {
-        let query = trimmed
-        guard let current = selectedIndex(in: list, query: query) else { return }
-        selectionQuery = query
-        index = min(max(current + delta, 0), list.count - 1)
+    private func moveSelection(_ delta: Int, in list: [Item], query: String, proxy: ScrollViewProxy) {
+        guard query == trimmed, let current = selectedIndex(in: list, query: query) else { return }
+        let index = min(max(current + delta, 0), list.count - 1)
+        resultSelection = (query, list[index].id)
         if index == 0 {
             proxy.scrollTo("paletteResultsStart", anchor: .top)
         } else {
@@ -462,8 +463,8 @@ struct CommandPalette: View {
                         submit(inNewTab: true)
                         return .handled
                     }
-                    .onKeyPress(.downArrow) { moveSelection(1, in: list, proxy: proxy); return .handled }
-                    .onKeyPress(.upArrow) { moveSelection(-1, in: list, proxy: proxy); return .handled }
+                    .onKeyPress(.downArrow) { moveSelection(1, in: list, query: query, proxy: proxy); return .handled }
+                    .onKeyPress(.upArrow) { moveSelection(-1, in: list, query: query, proxy: proxy); return .handled }
                 }
                 .padding(.horizontal, 20)
                 .frame(height: 58)
@@ -501,7 +502,7 @@ struct CommandPalette: View {
                             }
                             .buttonStyle(.interactivePlain)
                             .onHover { inside in
-                                if inside && trimmed == query { selectionQuery = query; index = i }
+                                if inside && trimmed == query { resultSelection = (query, it.id) }
                             }
                             .contextMenu {
                                 resultActions(it)
@@ -514,8 +515,7 @@ struct CommandPalette: View {
                     .id("paletteResultsStart")
                 }
                 .onChange(of: query) {
-                    selectionQuery = query
-                    index = 0
+                    if resultSelection?.query != query { resultSelection = nil }
                     proxy.scrollTo("paletteResultsStart", anchor: .top)
                 }
                 .frame(height: resultsHeight)
@@ -595,8 +595,7 @@ struct CommandPalette: View {
             if let location {
                 textSelection = nil
                 text = location.text
-                selectionQuery = trimmed
-                index = 0
+                resultSelection = nil
                 actionsShown = false
             }
             await Task.yield()

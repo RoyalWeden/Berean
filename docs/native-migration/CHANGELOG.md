@@ -1338,3 +1338,7 @@
 ### 2026-11-16 — Notes excerpts in Mac floating search
 
 - Display matching body excerpts in Notes results. Mac scratch QA verified a body-only match, keyboard selection, and Shift-Return opening a new tab. Both Dev builds passed.
+
+### 2026-11-16 — Stable floating search selection
+
+- Track explicitly selected rows by result ID and current query. Both Dev builds passed, and Mac scratch QA verified arrow selection and Return.
