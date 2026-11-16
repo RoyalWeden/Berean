@@ -1300,10 +1300,16 @@ final class AppModel {
         }
     }
 
+    var canChangeCurrentScriptureTab: Bool {
+        guard let tab = activeTab, tab.tabType == .bible, !tab.isPinned else { return false }
+        return !BibleState(tab.state).compareMode && tab.state["endChapter"]?.numberValue == nil
+    }
+
     /// Go switches to an exact open passage without resetting that tab's saved scroll position.
     func goToScripture(_ passage: ResolvedPassage, newTab: Bool, preferActiveTab: Bool = false) {
         let sourceID = activeTab?.id
-        if !newTab, !preferActiveTab {
+        let changeCurrent = preferActiveTab && canChangeCurrentScriptureTab
+        if !newTab, !changeCurrent {
             let matches = tabs(in: .scripture).filter(passage.isShown(in:))
             if let match = matches.first(where: { $0.id == sourceID }) ?? matches.first {
                 select(match.id, in: .scripture)
@@ -1314,7 +1320,7 @@ final class AppModel {
             }
         }
         visitScripture(passage, reuseTab: !newTab, returningTo: newTab ? nil : sourceID,
-                       preferActiveTab: preferActiveTab)
+                       preferActiveTab: changeCurrent)
     }
 
     func visitScripture(_ passage: ResolvedPassage, reuseTab: Bool = true, returningTo sourceTabID: String? = nil,

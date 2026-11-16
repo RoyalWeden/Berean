@@ -268,6 +268,7 @@ struct CommandPalette: View {
         var excerpt: String? = nil
         var offersOpenMenu = false
         var reusesOpenPassage = false
+        var changesCurrentPassage = false
         var sourceRestore: (name: String, run: () -> Void)?
         var hasActions: Bool { offersOpenMenu || sourceRestore != nil }
         let run: (_ inNewTab: Bool) -> Void
@@ -290,7 +291,8 @@ struct CommandPalette: View {
                                               verse: r.verse, endVerse: r.endVerse, verseGroups: r.verseGroups ?? [])
                 out.append(Item(id: "recent-\(r.id)", group: "Recent", title: r.label, detail: textInfo(r.textId).short,
                                 symbol: "clock.arrow.circlepath", offersOpenMenu: true,
-                                reusesOpenPassage: willReusePassage(passage)) { inNewTab in
+                                reusesOpenPassage: willReusePassage(passage),
+                                changesCurrentPassage: willChangeCurrentPassage) { inNewTab in
                     app.goToScripture(passage, newTab: inNewTab, preferActiveTab: preferActiveTab)
                 })
             }
@@ -299,7 +301,7 @@ struct CommandPalette: View {
             let excerpt = passagePreview.flatMap { $0.passage == ref ? $0.text : nil }
             out.append(Item(id: "go", group: "Go to", title: ref.label,
                             detail: textInfo(ref.textId).name, symbol: "book", excerpt: excerpt, offersOpenMenu: true,
-                            reusesOpenPassage: willReusePassage(ref)) { inNewTab in
+                            reusesOpenPassage: willReusePassage(ref), changesCurrentPassage: willChangeCurrentPassage) { inNewTab in
                 app.goToScripture(ref, newTab: inNewTab, preferActiveTab: preferActiveTab)
             })
             if !newTab { out.append(contentsOf: openTabs(for: ref)) }
@@ -406,8 +408,12 @@ struct CommandPalette: View {
         }
     }
 
+    private var willChangeCurrentPassage: Bool {
+        !newTab && prefersActiveTab && app.canChangeCurrentScriptureTab
+    }
+
     private func willReusePassage(_ passage: ResolvedPassage) -> Bool {
-        !newTab && !prefersActiveTab && app.tabs(in: .scripture).contains(where: passage.isShown(in:))
+        !newTab && !willChangeCurrentPassage && app.tabs(in: .scripture).contains(where: passage.isShown(in:))
     }
 
     private func actionTitle(_ item: Item) -> String {
@@ -419,6 +425,7 @@ struct CommandPalette: View {
         default:
             if newTab && item.offersOpenMenu { return "Open in New Tab" }
             if item.reusesOpenPassage { return "Switch to Tab" }
+            if item.changesCurrentPassage { return "Change Current Tab" }
             switch item.id {
             case "search", "strongs": return "Search Scripture"
             case "notes-search": return "Search Notes"
