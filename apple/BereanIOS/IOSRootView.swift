@@ -47,6 +47,7 @@ struct IOSRootView: View {
         let tabID: String
         let workspaceID: String
     }
+    @State private var pendingStudyDestination: (tabID: String, action: () -> Void)?
     @State private var showTabs = false
     @State private var showGo = false
     @State private var explicitNewTab = false
@@ -284,7 +285,14 @@ struct IOSRootView: View {
                     .inspector(isPresented: Binding(get: { st.rightPanelOpen }, set: { isPresented in
                         guard app.activeTab?.id == tab.id else { return }
                         setStudyPanel(isPresented, in: tab.id)
-                    })) { StudyInspector(tabId: tab.id).presentationDetents([.medium, .large]) }
+                    })) {
+                        StudyInspector(tabId: tab.id, performCrossReferenceDestination: { action in
+                            pendingStudyDestination = (tab.id, action)
+                            setStudyPanel(false, in: tab.id)
+                        })
+                        .presentationDetents([.medium, .large])
+                        .onDisappear { finishStudyDestination(from: tab.id) }
+                    }
             case .lexicon:
                 LexiconTabHost(tab: tab)
             case .search:
@@ -385,6 +393,13 @@ struct IOSRootView: View {
             }
         } label: { bottomItem(symbol: "ellipsis").hoverEffect(.highlight) }
         .accessibilityLabel("More: commands for this tab")
+    }
+
+    private func finishStudyDestination(from tabID: String) {
+        guard let pendingStudyDestination, pendingStudyDestination.tabID == tabID else { return }
+        self.pendingStudyDestination = nil
+        guard app.activeTab?.id == tabID else { return }
+        pendingStudyDestination.action()
     }
 
     private func setStudyPanel(_ isPresented: Bool, in tabID: String, tool: InspectorTool? = nil) {

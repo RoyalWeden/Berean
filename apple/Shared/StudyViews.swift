@@ -1389,7 +1389,7 @@ struct CrossRefsView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.accentColor)
                         Spacer(minLength: 4)
-                        if let detail = row.detail {
+                        if row.noteID == nil, let detail = row.detail {
                             Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
@@ -1399,6 +1399,21 @@ struct CrossRefsView: View {
                 let range = row.noteID == nil && row.verse > 0 && (row.end ?? row.verse) > row.verse ? passage : nil
                 if !preview.isEmpty || range != nil {
                     CrossReferencePreview(text: preview, range: range)
+                }
+                if let noteID = row.noteID, let title = row.detail {
+                    Button {
+                        openSourceNote(noteID)
+                    } label: {
+                        Label(title, systemImage: "note.text")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .frame(minHeight: controlHeight, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.interactivePlain)
+                    .accessibilityLabel("Open source note, \(title)")
+                    .help("Open source note")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

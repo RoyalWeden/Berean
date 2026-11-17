@@ -1848,3 +1848,7 @@ Long-pressing a note now renders its formatted excerpt with the shared Notes pre
 ### Readable Notes table excerpts (2026-11-17)
 
 Notes list, note search, and Go now derive excerpts from the same recognized tables used in Notes previews. They omit Markdown borders and alignment rows and show nonempty cell contents separated by a middle dot. Saved Markdown and copy/export flows are outside this rendering change. Both Dev builds passed. Mac scratch QA saw the table header as readable text in the Notes list and found a later table cell via search. A literal escaped pipe remained visible. iPhone list layout, Go, and long-note performance remain to check.
+
+### Direct source notes from Cross Refs (2026-11-17)
+
+My Notes cross-reference rows now make the citing note title a direct button beneath its excerpt on both platforms. On iPhone, the Scripture study inspector closes before a Cross Refs destination opens, avoiding a blank sheet over the destination. Both Dev builds passed. iPhone 18 Pro Simulator opened the synthetic source note from the Exodus 20:11 citation, confirmed the sheet closed, and used dock Back to recover Exodus 20:11 with the selection intact. Mac source-note activation, wider inspectors, and opening another passage through the iPhone inspector remain to check.

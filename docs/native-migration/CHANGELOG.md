@@ -1587,3 +1587,8 @@
 - **Starting point:** `e61f54aa`, `native/reader-notes`, draft PR #24.
 - **Changes:** Notes excerpts read through recognized cells and omit Markdown table scaffolding.
 - **Verification:** Both Dev builds passed. Mac scratch QA confirmed readable table headers, a matching cell in search, and visible literal pipe content.
+
+### 2026-11-17 — Direct Cross Refs source notes — BUILT, SIMULATOR UI CHECKED
+- **Starting point:** `a923ae80`, `native/reader-notes`, draft PR #24.
+- **Changes:** My Notes cross-reference rows provide a direct link to the citing note. iPhone completes inspector dismissal before navigation.
+- **Verification:** Both Dev builds passed. Simulator QA opened a synthetic note from Exodus 20:11 and used Back to restore the selected verse.

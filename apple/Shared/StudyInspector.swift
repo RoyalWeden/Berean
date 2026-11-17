@@ -51,6 +51,7 @@ extension StudyPanelSlots {
 struct StudyInspector: View {
     @Environment(AppModel.self) private var app
     let tabId: String
+    var performCrossReferenceDestination: ((@escaping () -> Void) -> Void)?
 
     #if os(macOS)
     @State private var dragToken = UUID()
@@ -203,7 +204,7 @@ struct StudyInspector: View {
         } else if panel == .crossrefs {
             CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
                           textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st),
-                          sourceTabID: tabId)
+                          sourceTabID: tabId, performDestination: performCrossReferenceDestination)
         } else {
             StudyLexiconContent(tabId: tabId, reader: st, lexiconKey: lexiconKey)
         }
