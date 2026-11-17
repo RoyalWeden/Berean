@@ -1537,3 +1537,8 @@
 - **Starting point:** `ea496bfa`, `native/reader-notes`, draft PR #24.
 - **Changes:** Keep a reader at chapter end when the floating dock or selection bar changes the scroll inset.
 - **Verification:** Both Dev builds passed. iPhone 18 Pro Simulator verified clear, reselect, and add adjacent verse at Obadiah's final line. Gesture-driven dock reappearance and landscape still need live checks.
+
+### 2026-11-17 — Mac chapter-end position and Notes Unicode — BUILT, VERIFIED
+- **Starting point:** `f38337d4`, `native/reader-notes`, draft PR #24.
+- **Changes:** Mac locks chapter-end position across floating action inset changes. Shared Notes plain-text conversion preserves Unicode by appending contiguous source slices.
+- **Verification:** Both Dev builds and 147 Swift Testing cases passed. Mac scratch QA cleared and reselected the wrapped final verse of Obadiah with the inspector open and confirmed the text stayed above the action bar.

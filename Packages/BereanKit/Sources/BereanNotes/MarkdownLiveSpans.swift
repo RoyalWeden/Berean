@@ -244,15 +244,27 @@ public enum MarkdownLiveSpans {
             }
         }
         var out = ""
-        var i = r.location
-        while i < NSMaxRange(r) {
-            if let (len, rep) = replace[i] { out += rep; i += len; continue }
-            if hidden.contains(i) {
-                // Keep the newline that ends a hidden structure line out of the result only if the whole line was hidden.
-                i += 1; continue
+        var cursor = r.location
+        var visibleStart = cursor
+        while cursor < r.upperBound {
+            let substitution = replace[cursor]
+            if substitution != nil || hidden.contains(cursor) {
+                if cursor > visibleStart {
+                    out += s.substring(with: NSRange(visibleStart..<cursor))
+                }
+                if let (length, replacement) = substitution {
+                    out += replacement
+                    cursor += length
+                } else {
+                    cursor += 1
+                }
+                visibleStart = cursor
+            } else {
+                cursor += 1
             }
-            out += s.substring(with: NSRange(location: i, length: 1))
-            i += 1
+        }
+        if visibleStart < r.upperBound {
+            out += s.substring(with: NSRange(visibleStart..<r.upperBound))
         }
         // Lines that were entirely hidden leave empty lines; collapse runs of 3+ newlines.
         while out.contains("\n\n\n") { out = out.replacingOccurrences(of: "\n\n\n", with: "\n\n") }

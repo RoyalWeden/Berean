@@ -1806,3 +1806,9 @@ Cross Refs now offers Expand All and Collapse All above the verse groups when mo
 ### iPhone Scripture chapter-end clearance (2026-11-17)
 
 Changing the floating controls' bottom inset now keeps a reader already at the chapter end anchored to that end. It uses the same eight-point tolerance as the dock's end detection. At earlier positions, the reader retains its offset. Both Dev builds passed. On iPhone 18 Pro Simulator, opened Obadiah 1:21, cleared and reselected the wrapped final verse, then added verse 20. The complete final verse and single grouped outline stayed above both floating controls. The scrub from hidden to visible dock during a continuous drag, landscape, and physical-device checks remain open.
+
+### Mac Scripture chapter-end clearance and Notes Unicode (2026-11-17)
+
+Mac now keeps the chapter end anchored when selection adds or removes the floating action bar's scroll inset. It uses the same AppKit end calculation when restyling the chapter. Live scratch QA opened Obadiah 1:21 with Cross Refs narrowing the reader, cleared selection, and clicked verse 21 again. Every wrapped line remained above the floating action bar. Wider layouts and pointer-scroll transitions remain open.
+
+The shared Notes plain-text formatter now appends contiguous UTF-16 ranges so emoji and other supplementary characters survive previews and plain-text copy. The previous escaped-pipe regression exposed this under Swift Testing. It now passes alongside all 147 Swift Testing cases in 44 suites, and both Dev builds passed.
