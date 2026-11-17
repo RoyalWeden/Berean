@@ -49,7 +49,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings, lists, and six named highlight colors. Existing legacy highlight colors render in the native editor. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open. |
 | N04 | Tables | implemented | 🟡 | 🟡 | P2 | Markdown tables support insertion, row and column add/delete, whole-table deletion, keyboard cell navigation, and iPhone cell controls in the edit menu and above the software keyboard. Mac whole-table deletion, undo, redo, and note reopening passed live QA. Complete tables render with a header fill and cell borders in the Notes body font. Insertion and undo/redo passed on the iPhone simulator. Previously malformed iPhone separators are recognized without changing stored Markdown. Wide tables and broader editing QA remain open. |
 | N05 | Images and attachments | partial | ❌ | ❌ | P2 | Images shown as alt-text caption only |
-| N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links, wikilinks and bare Scripture references are linked; note-title autocomplete works; book/verse autocomplete remains open |
+| N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links, wikilinks and bare Scripture references are linked; note-title autocomplete includes selected-note passage/excerpt preview; plain verse/Strong’s block suggestions remain open (separate from the existing Scripture Reference picker) |
 | N07 | Autosave | implemented | ✅ | ✅ | — | 600 ms autosave + snapshots on idle/leave/close |
 | N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet with a compact iPhone selector and full-width preview; restore with pre-restore snapshot (golden); undo via text system |
 | N09 | Export, import, print | implemented | ✅ | 🟡 | — | Markdown export, import and copy; system note printing with formatted Markdown. System print preview verified on Mac and iPhone Simulator; Files and multipage output checks remain. |
@@ -409,7 +409,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/{autocomplete,AutocompletePopups,refDecorations,linkModel,LinkEditor}.ts(x)`, `src/lib/{noteRefs,notesCrossRefs,deepLinks}.ts`, `src/components/notes/MarkdownReferenceModal.tsx`.
 - **Known original defects:** Display book labels vs canonical names (Hermas, roman numerals) can drift in titles; vault wikilinks are folder-unaware (memory: M6 issue list, fix status UNVERIFIED).
-- **Native Mac / iPhone:** 🟡 / 🟡 — Links, wikilinks and bare Scripture references are linked; note-title autocomplete works; book/verse autocomplete remains open
+- **Native Mac / iPhone:** 🟡 / 🟡 — Links, wikilinks and bare Scripture references are linked; note-title autocomplete includes selected-note passage/excerpt preview; plain verse/Strong’s block suggestions remain open (separate from the existing Scripture Reference picker)
 - **Native files:** NotesViews.swift openLink
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

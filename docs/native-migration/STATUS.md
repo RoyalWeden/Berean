@@ -149,3 +149,9 @@ Notes/Lexicon query replacement and history refinements are implemented and live
 ## 2026-11-17 Lexicon result navigation checkpoint
 
 Both Debug app builds and 19 focused Workspace tests pass. Simulator verified deep results restoration via Search and relaunch, plus rapid Return and Clear recovery. Mac runtime, broader history coverage, the full updated simulator suite, and remote native CI remain open. See [HANDOFF](HANDOFF.md) for exact reproduction and current Git state.
+
+### 2026-11-17 — Notes completion preview
+
+Selected-note passage/excerpt preview is implemented on both platforms. iPhone Simulator insertion/Undo and five-row bounds passed; both Debug builds pass. Keep the goal active and continue deeper navigation, original block suggestions, remaining parity and accessibility QA from HANDOFF.
+
+Full shared Swift Release suite now passes157 tests/46 suites; see /tmp/berean-current-shared-release-tests.log. This is a host SwiftPM run, not an updated iOS platform-SQLite run.

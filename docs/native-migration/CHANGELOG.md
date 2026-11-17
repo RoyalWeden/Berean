@@ -1681,3 +1681,7 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Verified both Debug builds, focused Workspace conformance (19 tests), and iOS 27 Simulator return and rapid-query behavior. See [HANDOFF](HANDOFF.md) for remaining checks.
 
 - Fixed an additional language-switch scroll shift caused by lazy row height estimates. Final simulator Hebrew → Greek → Hebrew retained its saved viewport; both apps rebuilt successfully.
+
+### 2026-11-17 — Note-link suggestion previews
+
+- Native note-link suggestions show the selected note's passage and excerpt in the glass panel. iPhone Simulator verified preview, insertion and Undo; both apps build. Mac runtime and software keyboard/accessibility checks remain.

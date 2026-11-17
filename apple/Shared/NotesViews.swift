@@ -644,6 +644,7 @@ struct NoteDetailView: View {
     @State private var wikiLinkTargets: [NoteWikiLinkTarget] = []
     @State private var wikiLinkSelection = 0
     @State private var wikiLinkAnchor = CGRect.zero
+    @State private var wikiLinkPreview: Note?
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -1039,9 +1040,11 @@ struct NoteDetailView: View {
     @ViewBuilder private var wikiLinkSuggestions: some View {
         let targets = matchingWikiLinkTargets
         if wikiLinkQuery != nil, !targets.isEmpty {
+            let selected = targets[min(wikiLinkSelection, targets.count - 1)]
             GeometryReader { geometry in
                 let width = min(340.0, geometry.size.width)
-                let height = min(CGFloat(targets.count) * 44 + 30, max(74, geometry.size.height - 12))
+                let previewHeight: CGFloat = geometry.size.height >= 320 ? 96 : 0
+                let height = min(CGFloat(targets.count) * 44 + 30 + previewHeight, max(74, geometry.size.height - 12))
                 let below = wikiLinkAnchor.maxY + 6
                 let y = below + height <= geometry.size.height ? below : max(0, wikiLinkAnchor.minY - height - 6)
                 VStack(alignment: .leading, spacing: 0) {
@@ -1061,12 +1064,36 @@ struct NoteDetailView: View {
                             }
                         }
                     }
+                    if previewHeight > 0 {
+                        Divider()
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let preview = wikiLinkPreview, preview.id == selected.id {
+                                if let reference = preview.verseRef, !reference.isEmpty {
+                                    Text(Reference.formatDottedVerseRef(reference, hermas: app.hermasEdition))
+                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                let excerpt = noteExcerptText(String(preview.content.prefix(2000)))
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                Text(excerpt.isEmpty ? "No content" : String(excerpt.prefix(400)))
+                                    .font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .frame(height: previewHeight, alignment: .topLeading)
+                        .accessibilityElement(children: .combine)
+                    }
                 }
                 .frame(width: width, height: height)
                 .modifier(NoteLinkSuggestionSurface())
                 .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)) }
                 .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
                 .offset(x: min(max(0, wikiLinkAnchor.minX), max(0, geometry.size.width - width)), y: y)
+                .task(id: selected.id) {
+                    let preview = try? app.notes?.one(selected.id)
+                    wikiLinkPreview = preview?.deletedAt == nil ? preview : nil
+                }
             }
         }
     }

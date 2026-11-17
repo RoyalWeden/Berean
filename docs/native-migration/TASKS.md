@@ -219,3 +219,5 @@ See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source refere
 
 - Verify deep Back/Forward and cross-tab offset isolation, then explicit query/language changes seeded at the top. Check current Mac full-row activation and hover when the isolated QA instance can be targeted, then cover VoiceOver and physical iPhone.
 - Run the full updated optimized simulator suite and confirm GitHub native CI on `91a5c259`. See [HANDOFF](HANDOFF.md) for the CI run and local evidence.
+
+- Notes completion preview: simulator passage/excerpt/insertion/Undo passed; verify Mac keyboard/hover target changes, empty/deleted notes, short editor heights, software keyboard and VoiceOver. Next original autocomplete slice is plain verse/Strong’s block insertion, separate from [[ notes.

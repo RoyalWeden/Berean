@@ -394,3 +394,7 @@ A Notes query/filter snapshot or Lexicon query/language belongs to Back/Forward 
 Key live offsets by tab, query, and language. Store the current offset in existing device-local `searchScrollTop` and capture the live value in history. Start explicitly seeded searches at zero. Keep query and language in the established sync allow-list. The current search task owns result publication through typing, Clear, and Return.
 
 Measure bounded Lexicon search rows eagerly so language changes do not use lazy height estimates when restoring offsets. This is limited to the small SQL-capped search result set.
+
+### 2026-11-17 — Preview only the selected note
+
+Preserve the title-only completion index. Read one selected note for a bounded plain excerpt and formatted attachment reference, in a task keyed by target identity. Keep typing/insertion owned by the editor and omit preview where editor height is constrained. Original [[ targets notes; Scripture/Strong's block suggestions are separate workflows.
