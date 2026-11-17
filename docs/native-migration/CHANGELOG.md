@@ -1498,3 +1498,5 @@
 - Scripture search can browse the installed book catalog without typing and filter by full or short name. iPhone Simulator verified selecting and clearing a book filter.
 
 - Scripture search book suggestions honor the selected editions and testament. Verified scoped browsing and reset on iPhone Simulator.
+
+- Scripture search explains conflicting book and scope filters and can clear just the book selection from the empty state. Verified recovery in Mac Dev.

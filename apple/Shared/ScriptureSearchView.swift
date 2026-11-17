@@ -767,19 +767,35 @@ struct ScriptureSearchView: View {
         }
     }
 
+    private var hasIncompatibleBookFilters: Bool {
+        guard !bookFilter.isEmpty, !app.bookCatalog.isEmpty else { return false }
+        let editions = Set(focusText.map { [$0] } ?? targets)
+        let books = Set(bookFilter)
+        return !app.bookCatalog.contains { entry in
+            editions.contains(entry.textId) && books.contains(entry.book.id)
+                && (testament == "all" || entry.book.testament == testament)
+        }
+    }
+
     @ViewBuilder var resultsView: some View {
         if !searchPending && shown.isEmpty {
+            let incompatibleBooks = hasIncompatibleBookFilters
             ContentUnavailableView {
                 Label("No results", systemImage: "magnifyingglass")
             } description: {
-                if !limitedEditions.isEmpty {
+                if incompatibleBooks {
+                    Text("None of the selected books are in the current text or testament scope.")
+                } else if !limitedEditions.isEmpty {
                     Text("No matches in the loaded results. Narrow the search to check for more.")
                 } else if let focusText {
                     Text("Nothing in \(textInfo(focusText).name) matches “\(query)” with the current filters.")
+                } else if testament != "all" || !bookFilter.isEmpty || !tagSelection.ids.isEmpty {
+                    Text("Nothing matches “\(query)” with the current filters.")
                 } else {
                     Text(scope == nil ? "Nothing in any text matches “\(query)”." : "Nothing in \(scopeLabel) matches “\(query)”.")
                 }
             } actions: {
+                if incompatibleBooks { Button("Clear Book Filter") { set("bookIds", nil) } }
                 if focusText != nil { Button("Clear Edition Filter") { set("nativeSearchFocusText", nil) } }
                 if scope != nil { Button("Search All Texts") { set("scopeTexts", nil) } }
                 if hasActiveOptions { Button("Reset Options", action: resetOptions) }
