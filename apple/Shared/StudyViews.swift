@@ -371,6 +371,11 @@ struct LexiconEntryView: View {
                                 Text(occurrenceCountLabel(occurrenceMatches.count))
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(.secondary)
+                                if occurrencesTruncated {
+                                    Text("This preview shows a sample. Open the full entry to see all occurrences.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                                 FlowLayout(spacing: 6) {
                                     occurrenceFilters(books: books, forms: forms, canSort: scoped.count > 1 || sortByMatches)
                                     Button("Search Scripture", systemImage: "magnifyingglass") {
@@ -380,6 +385,13 @@ struct LexiconEntryView: View {
                                     .buttonStyle(OptionButtonStyle())
                                     .accessibilityHint("Search all texts for \(e.strongsNum)")
                                     .help("Search Scripture for \(e.strongsNum)")
+                                    if compact {
+                                        Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
+                                            leaveInspector()
+                                            app.openLexicon(strongsId, reuseTab: true)
+                                        }
+                                        .buttonStyle(OptionButtonStyle())
+                                    }
                                 }
                                 if hasOccurrenceOptions { activeOccurrenceOptions }
                                 if occurrenceMatches.isEmpty {
@@ -393,13 +405,6 @@ struct LexiconEntryView: View {
                                             .buttonStyle(OptionButtonStyle())
                                     }
                                 }
-                            }
-                            if compact, !occurrences.isEmpty {
-                                Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
-                                    leaveInspector()
-                                    app.openLexicon(strongsId, reuseTab: true)
-                                }
-                                .buttonStyle(.interactivePlain)
                             }
                             LazyVStack(alignment: .leading, spacing: 8) {
                                 ForEach(visibleRows, id: \.4) { _, o, _, preview, key in
@@ -734,7 +739,7 @@ struct LexiconEntryView: View {
     private func occurrenceCountLabel(_ matches: Int) -> String {
         let total = occurrences.count.formatted()
         if occurrencesTruncated {
-            return matches == occurrences.count ? "\(total) indexed results loaded" : "\(matches.formatted()) matches among \(total) loaded"
+            return matches == occurrences.count ? "\(total) passages in preview" : "\(matches.formatted()) of \(total) preview passages"
         }
         if matches == occurrences.count { return matches == 1 ? "1 passage" : "\(total) passages" }
         return "\(matches.formatted()) of \(total) passages"

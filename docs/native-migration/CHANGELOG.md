@@ -1502,3 +1502,5 @@
 - Scripture search explains conflicting book and scope filters and can clear just the book selection from the empty state. Verified recovery in Mac Dev.
 
 - Lexicon offers Reset Filters alongside empty occurrence results. Mac Dev verified restoring H430 results after incompatible word and book filters.
+
+- Compact Lexicon identifies sampled occurrences and places the full-entry action alongside occurrence filters and Scripture search.
