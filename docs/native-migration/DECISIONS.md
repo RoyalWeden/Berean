@@ -388,3 +388,9 @@ Complete note-title wikilinks through native text edits rather than replacing th
 ### 2026-11-17 — Auxiliary search state is a navigation location
 
 A Notes query/filter snapshot or Lexicon query/language belongs to Back/Forward even when the tab type and ID stay fixed. External Lexicon navigation seeds the visible view through a tab-scoped request; local typing remains a debounced search. Persist settled Lexicon queries through the existing searchQuery/searchLang allow-list, with no schema or new sync fields. Nil Notes history options mean default/unfiltered options. Explicit completion undo is owned as a literal inverse edit, separate from native typing coalescing.
+
+### 2026-11-17 — Lexicon results retain local viewport state
+
+Key live offsets by tab, query, and language. Store the current offset in existing device-local `searchScrollTop` and capture the live value in history. Start explicitly seeded searches at zero. Keep query and language in the established sync allow-list. The current search task owns result publication through typing, Clear, and Return.
+
+Measure bounded Lexicon search rows eagerly so language changes do not use lazy height estimates when restoring offsets. This is limited to the small SQL-capped search result set.

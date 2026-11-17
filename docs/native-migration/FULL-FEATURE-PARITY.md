@@ -37,7 +37,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Both app bundles carry all 19 supported Scripture IDs. All Texts searches the bundled corpus; Mac opened Didache via ⌘K. |
 | Q02 | Reference search | implemented | ✅ | ✅ | — | References in ⌘K/New/search field go to passage |
 | Q03 | Strong's search | implemented | ✅ | 🟡 | — | Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap), and matched-word snippet highlighting with Word Replacer remapping |
-| Q04 | Lexicon search | implemented | 🟡 | 🟡 | P2 | Lexicon search service ported; no UI entry other than Strong's numbers |
+| Q04 | Lexicon search | implemented | 🟡 | 🟡 | P2 | Dedicated Lexicon tab and palette search with All/Hebrew/Greek filters. Simulator verified deep entry return and relaunch restoration, plus rapid Return/Clear recovery. Mac verification of the revised rows and the broader history/accessibility checks remain open. |
 | Q05 | Notes search | implemented | 🟡 | 🟡 | P1 | Notes home supports folder/global scope, type/status, three FTS match modes, excerpts and live refresh. Mac ⌘K includes notes. |
 | Q06 | Indexing | implemented (FTS), partial (others) | ✅ | ✅ | — | FTS5 per text; deterministic ordering (ADR-0008) |
 | Q07 | Filtering and ranking | implemented / partial ranking | ✅ | 🟡 | — | Testament, books, match mode, scripture/relevance order, grouping by text/book/none |

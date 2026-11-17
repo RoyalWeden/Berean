@@ -1673,3 +1673,11 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Lexicon search replacement updates immediately; query/language restore through history and relaunch, using existing legacy state fields. Simulator verified Hebrew elohim persistence.
 - Mac note completion now uses explicit reciprocal undo edits; separate typing Undo, completion Undo and Redo passed in the live editor.
 - Fixed Release simulator conformance testability and a calendar-sensitive legacy test. All 156 simulator package tests and five focused legacy tests pass locally.
+
+### 2026-11-17 — Lexicon result navigation
+
+- Added full-row Lexicon result actions, a fixed header, and device-local offset restoration through entry navigation and relaunch.
+- Made only the latest search task eligible to publish results and restored iPhone keyboard focus on Clear.
+- Verified both Debug builds, focused Workspace conformance (19 tests), and iOS 27 Simulator return and rapid-query behavior. See [HANDOFF](HANDOFF.md) for remaining checks.
+
+- Fixed an additional language-switch scroll shift caused by lazy row height estimates. Final simulator Hebrew → Greek → Hebrew retained its saved viewport; both apps rebuilt successfully.

@@ -134,3 +134,9 @@ Native [[ note-title suggestions now work on both platforms. Mac keyboard and po
 - Simulator verified Hebrew elohim query/language persistence after relaunch.
 - Mac completion following-typing undo coalescing is fixed for the exercised native editor path: first Undo only later typing, second only completion, Redo completion. This supersedes the earlier open entry for that path.
 - Numeric full-title palette lookup still reproduces; package FTS helper and read-only database queries succeed. Keep diagnosis at the UI/runtime boundary before changing data/search semantics.
+
+### 2026-11-17 Lexicon result follow-up
+
+iOS 27 Simulator verified recovery after rapid typing and Return, Clear refocus, and deep result viewport restore after entry return and relaunch. Mac hover/activation, history across queries and tabs, and accessibility/device checks remain open. Keep numeric full-title palette lookup open pending safe Mac QA targeting.
+
+Final Lexicon follow-up: Hebrew/Greek switching reproduced a several-row offset shift. Eager measurement of the SQL-bounded results fixes the exercised round trip, retaining the exact saved1551.333 offset in Simulator. Deep Back/Forward and seeded resets remain open.

@@ -65,6 +65,20 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         }
     }
 
+    @Test func lexiconQueryPersistsWithoutSyncingItsResultOffset() {
+        var state = JSObject()
+        state["strongsNum"] = .string("")
+        state["searchQuery"] = .string("god")
+        state["searchLang"] = .string("H")
+        state["searchScrollTop"] = .number(1793.3333333333333)
+        let split = TabFields.split(type: .lexicon, state: state)
+        #expect(split.sync["searchQuery"] == state["searchQuery"])
+        #expect(split.sync["searchLang"] == state["searchLang"])
+        #expect(split.sync["searchScrollTop"] == nil)
+        #expect(split.local["searchScrollTop"] == state["searchScrollTop"])
+        #expect(TabFields.merge(type: .lexicon, sync: split.sync, local: split.local) == state)
+    }
+
     @Test func splitMergeStable() {
         for c in g.arr("split") {
             let type = TabType(rawValue: c["type"]!.str)!

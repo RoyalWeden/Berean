@@ -145,3 +145,7 @@ Both apps build with note-title suggestions after [[. Mac keyboard/pointer inser
 ## 2026-11-17 search context and CI checkpoint
 
 Notes/Lexicon query replacement and history refinements are implemented and live checked on Mac. Simulator verified Lexicon query/language after relaunch. Mac completion Undo/Redo separation now passes. Both apps build; optimized simulator conformance passed all 156 tests in 46 suites. The five-case legacy test implicated in CI also passes after a test-only clock fix. Remote CI remains pending a push/rerun; numeric full-title palette note lookup remains under investigation.
+
+## 2026-11-17 Lexicon result navigation checkpoint
+
+Both Debug app builds and 19 focused Workspace tests pass. Simulator verified deep results restoration via Search and relaunch, plus rapid Return and Clear recovery. Mac runtime, broader history coverage, the full updated simulator suite, and remote native CI remain open. See [HANDOFF](HANDOFF.md) for exact reproduction and current Git state.

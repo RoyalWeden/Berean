@@ -14,7 +14,7 @@ Every **new or compacted Claude session** starts with this sequence:
 
 1. Read the repository's current `CLAUDE.md` and any per-directory agent instructions. Verify instructions against current code where contradictory.
 2. Read **this entire playbook** (or, when constrained, its sections 0–4, 8, 12, 15–19, and the precise sections for the next task). Do not act from a vague remembered summary.
-3. Read `docs/native-migration/STATUS.md`, `TASKS.md`, `DECISIONS.md`, `HANDOFF.md`, and the latest entries in `CHANGELOG.md`.
+3. Open the latest checkpoint at the end of [HANDOFF](HANDOFF.md) for the working tree, current CI, and next executable checks. Read `STATUS.md`, `TASKS.md`, `DECISIONS.md`, and the latest entries in `CHANGELOG.md` for the wider migration state.
 4. Open the separately provided **Berean Native Migration Master Specification** and ensure its location is recorded in `STATUS.md`. If unavailable, do not invent content; continue only with tasks safely specified by this playbook and audits, and log the specification as missing.
 5. Consult relevant original audit sections in `docs/native-migration-audit/00` through `17` before altering a sensitive subsystem.
 6. Verify live evidence: `git status --porcelain=v1`, `git branch --show-current`, `git rev-parse HEAD`, `git worktree list`, relevant PR/CI results, current app identities and build scripts. Never assume an old checkpoint is still current.

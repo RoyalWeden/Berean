@@ -214,3 +214,8 @@ See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source refere
 - Completed explicit Mac note-completion Undo/Redo separation, superseding the previous following-typing coalescing item for the tested path.
 - Both native builds pass; optimized simulator conformance passes all 156 tests/46 suites, and five legacy chat regression tests pass. Fixed the two diagnosed prior CI failures; inspect the next pushed run before claiming remote green.
 - Numeric full-title palette lookup remains reproducible; direct read-only NotesService and raw FTS return the expected note. Temporary trace removed because CUA cannot currently disambiguate two running Dev app instances with the same bundle ID. Keep regular Dev untouched.
+
+### 2026-11-17 Lexicon result follow-up queue
+
+- Verify deep Back/Forward and cross-tab offset isolation, then explicit query/language changes seeded at the top. Check current Mac full-row activation and hover when the isolated QA instance can be targeted, then cover VoiceOver and physical iPhone.
+- Run the full updated optimized simulator suite and confirm GitHub native CI on `91a5c259`. See [HANDOFF](HANDOFF.md) for the CI run and local evidence.

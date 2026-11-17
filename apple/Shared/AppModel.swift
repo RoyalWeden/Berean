@@ -710,6 +710,12 @@ final class AppModel {
         if tab.tabType == .lexicon, let search = lexiconSearches[tab.id] {
             snapshot.state["searchQuery"] = .string(JSString(search.query))
             snapshot.state["searchLang"] = .string(JSString(search.lang))
+            let context = LexiconSearchView.ScrollContext(query: search.query.trimmingCharacters(in: .whitespacesAndNewlines), lang: search.lang)
+            let saved = LexiconSearchView.ScrollContext(query: (tab.state["searchQuery"]?.stringValue?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+                                                        lang: tab.state["searchLang"]?.stringValue?.string ?? "all")
+            let offset = lexiconSearchPositions[tab.id]?[context]
+                ?? (saved == context ? CGFloat(tab.state["searchScrollTop"]?.numberValue ?? 0) : 0)
+            snapshot.state["searchScrollTop"] = .number(Double(offset))
         }
         return TabHistoryLocation(tab: snapshot, notesOptions: notesBrowseOptions[tab.id],
                                   notesReturnTab: noteListReturnTabs[tab.id])
@@ -752,6 +758,9 @@ final class AppModel {
         if location.tab.tabType == .lexicon {
             lexiconSearches[id] = (location.tab.state["searchQuery"]?.stringValue?.string ?? "",
                                   location.tab.state["searchLang"]?.stringValue?.string ?? "all")
+            let search = lexiconSearches[id]!
+            let context = LexiconSearchView.ScrollContext(query: search.query.trimmingCharacters(in: .whitespacesAndNewlines), lang: search.lang)
+            lexiconSearchPositions[id, default: [:]][context] = CGFloat(location.tab.state["searchScrollTop"]?.numberValue ?? 0)
             seedLexiconSearch(in: id)
         }
         notesSearchSeed += 1
@@ -773,6 +782,7 @@ final class AppModel {
         compareColumnScrollVerses[tabId] = compareColumnScrollVerses[tabId]?.filter { !$0.key.hasPrefix(prefix) }
     }
     @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
+    @ObservationIgnored var lexiconSearchPositions: [String: [LexiconSearchView.ScrollContext: CGFloat]] = [:]
     /// Live Lexicon query cache. Settled edits also use the legacy searchQuery/searchLang state fields.
     @ObservationIgnored var lexiconSearches: [String: (query: String, lang: String)] = [:]
     struct LexiconSearchRequest: Equatable {
@@ -1181,8 +1191,10 @@ final class AppModel {
         if !newTab, preferActiveTab {
             var state = JSObject(); state["strongsNum"] = .string("")
             state["searchQuery"] = .string(JSString(query)); state["searchLang"] = .string("all")
+            state["searchScrollTop"] = .number(0)
             if replaceCurrentTab(.lexicon, in: .lexicon, title: "Lexicon", state: state), let tab = activeTab {
                 lexiconSearches[tab.id] = (query, "all")
+                lexiconSearchPositions[tab.id, default: [:]][.init(query: query.trimmingCharacters(in: .whitespacesAndNewlines), lang: "all")] = 0
                 seedLexiconSearch(in: tab.id)
                 return
             }
@@ -1193,9 +1205,13 @@ final class AppModel {
                 if !query.isEmpty {
                     $0.state["searchQuery"] = .string(JSString(query))
                     $0.state["searchLang"] = .string("all")
+                    $0.state["searchScrollTop"] = .number(0)
                 }
             }
-            if !query.isEmpty { lexiconSearches[tab.id] = (query, "all") }
+            if !query.isEmpty {
+                lexiconSearches[tab.id] = (query, "all")
+                lexiconSearchPositions[tab.id, default: [:]][.init(query: query.trimmingCharacters(in: .whitespacesAndNewlines), lang: "all")] = 0
+            }
             seedLexiconSearch(in: tab.id)
             return
         }
