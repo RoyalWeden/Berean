@@ -1472,3 +1472,5 @@
 ### 2026-11-17 — Distinguish workspaces with matching names
 
 - Workspace lists and move menus show an ordinal when visible names collide. Existing names, passage previews, and IDs remain intact.
+
+- Workspace Rename opens with the stored name on Mac and iPhone. Verified generated-name prefill and switching between two colliding names in Mac Dev.

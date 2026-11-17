@@ -1017,7 +1017,7 @@ struct SessionsPage: View {
                         }
                         .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
                         .contextMenu {
-                            Button("Rename…", systemImage: "pencil") { name = w.displayName; renaming = w }
+                            Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
                             Button("Duplicate", systemImage: "plus.square.on.square") { app.duplicate(w) }
                             if app.isCurrent(w) {
                                 Button("Save Snapshot…", systemImage: "square.and.arrow.down.on.square") { name = w.name; saving = true }

@@ -363,7 +363,7 @@ struct BereanSidebar: View {
             Button("New Workspace") { app.newWorkspace() }
             Button("Archive Inactive Tabs…") { showTabCleanup = true }.disabled(app.inactiveTabs.isEmpty)
             if let cur = current {
-                Button("Rename Workspace…") { name = cur.displayName; renaming = cur }
+                Button("Rename Workspace…") { name = cur.name; renaming = cur }
                 Button("Duplicate “\(cur.name)”") { app.duplicate(cur) }
                 Menu("Icon") {
                     ForEach(WorkspaceIcon.all, id: \.name) { icon in
