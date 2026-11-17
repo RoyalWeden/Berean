@@ -1828,3 +1828,7 @@ In iPhone Tabs → Workspaces, long-press a live workspace or reveal its leading
 ### Browse another Mac workspace's tabs (2026-11-17)
 
 Mac Workspace → Find Workspace or Tab now has a Browse Tabs button beside each live workspace. It opens the shared workspace tab list used by iPhone, with scoped search, pinned order, and numbered copies. Opening a result switches directly to the existing tab. Both Dev builds passed. Mac scratch QA browsed Study from QA Mirror, typed Obadiah, saw two numbered matches, opened the second, and used Command-[ to return to Jude 1 in QA Mirror. Physical iPhone, Mac keyboard traversal, and VoiceOver activation after the shared-view refactor remain to check.
+
+### Keyboard search within workspace tabs (2026-11-17)
+
+Mac's workspace tab browser focuses search on opening. On both platforms, a query ending in Tab N filters by the displayed copy number, and submitting a nonempty query only opens a tab when exactly one result remains. Both Dev builds passed. Mac scratch QA confirmed autofocus, the two matches for Obadiah, and Return opening Study's Obadiah Tab 2. Return with multiple matches leaves the list open but Mac can move focus off the field. iPhone keyboard submission and Mac VoiceOver remain to check.

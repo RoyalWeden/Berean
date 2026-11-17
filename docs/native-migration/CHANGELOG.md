@@ -1562,3 +1562,8 @@
 - **Starting point:** `73c742a5`, `native/reader-notes`, draft PR #24.
 - **Changes:** Mac workspace search now opens the shared scoped tab browser from live workspace rows.
 - **Verification:** Both Dev builds passed. Mac scratch QA verified scoped search, two numbered matches, direct tab opening, and cross-workspace Back.
+
+### 2026-11-17 — Workspace tab keyboard search — BUILT, MAC UI CHECKED
+- **Starting point:** `4925c3d2`, `native/reader-notes`, draft PR #24.
+- **Changes:** Workspace tab search supports explicit copy numbers and submits a unique result. Mac autofocuses the scoped field.
+- **Verification:** Both Dev builds passed. Mac scratch QA checked initial focus, ambiguous submission, and opening the second Obadiah result using Return.

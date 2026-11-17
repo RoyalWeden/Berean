@@ -82,6 +82,8 @@ extension BereanWorkspace.Tab {
 struct TabSearchField: View {
     let prompt: String
     @Binding var query: String
+    var autofocus = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         Section {
@@ -91,6 +93,8 @@ struct TabSearchField: View {
                     .accessibilityHidden(true)
                 TextField(prompt, text: $query)
                     .autocorrectionDisabled()
+                    .focused($searchFocused)
+                    .onAppear { if autofocus { searchFocused = true } }
                     #if os(iOS)
                     .submitLabel(.search)
                     #endif
@@ -120,20 +124,28 @@ struct WorkspaceTabsPage: View {
         let session = app.sessions.first { WorkspaceItem.Kind.live($0.id) == workspace.kind }
         let tabs = session.map { app.orderedTabs(in: $0) } ?? []
         let indices = AppModel.sameTitleTabIndices(tabs)
+        let copyNumber = terms.count >= 2 && terms[terms.count - 2].lowercased() == "tab"
+            ? terms.last.flatMap { Int($0) }
+            : nil
+        let titleTerms = copyNumber == nil ? terms[...] : terms.dropLast(2)
         let matches = tabs.filter { tab in
+            guard copyNumber == nil || indices[tab.id] == copyNumber else { return false }
             let searchable = tab.navigationSearchText
-            return terms.allSatisfy { searchable.localizedStandardContains(String($0)) }
+            return titleTerms.allSatisfy { searchable.localizedStandardContains(String($0)) }
         }
         List {
             if let session, !tabs.isEmpty {
-                TabSearchField(prompt: "Search tabs in this workspace", query: $query)
+                TabSearchField(prompt: "Search tabs in this workspace", query: $query, autofocus: autofocus)
+                    .onSubmit {
+                        guard !terms.isEmpty, matches.count == 1, let tab = matches.first else { return }
+                        open(tab, in: session.id)
+                    }
                 if matches.isEmpty {
                     ContentUnavailableView.search(text: query)
                 }
                 ForEach(matches) { tab in
                     Button {
-                        app.openWorkspaceTab(.init(workspaceID: session.id, workspaceName: workspace.displayName, tab: tab))
-                        onOpen()
+                        open(tab, in: session.id)
                     } label: {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
@@ -160,5 +172,18 @@ struct WorkspaceTabsPage: View {
         #else
         .listStyle(.plain)
         #endif
+    }
+
+    private var autofocus: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
+    private func open(_ tab: BereanWorkspace.Tab, in sessionID: String) {
+        app.openWorkspaceTab(.init(workspaceID: sessionID, workspaceName: workspace.displayName, tab: tab))
+        onOpen()
     }
 }
