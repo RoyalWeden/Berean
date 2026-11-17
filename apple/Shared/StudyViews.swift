@@ -1122,7 +1122,13 @@ struct CrossRefsView: View {
     }
 
     var body: some View {
-        let reference = "\(selectionKey)|\(showingChapter)|\(source)|\(source == "notes" ? app.notesRevision : 0)"
+        let scope = "\(selectionKey)|\(showingChapter)"
+        let reference = "\(scope)|\(source)|\(source == "notes" ? app.notesRevision : 0)"
+        let usesVerseGroups = showingChapter || scopedSelection.count > 1
+        let byVerse = usesVerseGroups ? Dictionary(grouping: groups, by: \.verse) : [:]
+        let expandable = Set(byVerse.compactMap { number, groups in
+            groups.contains { !$0.rows.isEmpty } ? number : nil
+        })
         VStack(spacing: 0) {
             HStack {
                 Text(ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter,
@@ -1176,10 +1182,12 @@ struct CrossRefsView: View {
             } else if groups.isEmpty && indirectNotes.isEmpty {
                 ContentUnavailableView("No cross references", systemImage: "arrow.triangle.branch")
             } else {
+                if expandable.count > 1 {
+                    verseGroupControls(expandable)
+                }
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        if showingChapter || scopedSelection.count > 1 {
-                            let byVerse = Dictionary(grouping: groups, by: \.verse)
+                        if usesVerseGroups {
                             ForEach(byVerse.keys.sorted(), id: \.self) { number in
                                 verseSection(number, groups: byVerse[number] ?? [])
                             }
@@ -1207,10 +1215,8 @@ struct CrossRefsView: View {
                 .id(reference)
             }
         }
-        .task(id: reference) {
-            expandedVerses = []
-            await load(reference)
-        }
+        .task(id: reference) { await load(reference) }
+        .onChange(of: scope) { expandedVerses.removeAll() }
         .onChange(of: selectionKey) { chapterScopeOverride = nil }
     }
 
@@ -1220,6 +1226,31 @@ struct CrossRefsView: View {
         #else
         44
         #endif
+    }
+
+    private func verseGroupControls(_ expandable: Set<Int>) -> some View {
+        let allExpanded = expandable.isSubset(of: expandedVerses)
+        let title = allExpanded ? "Collapse All" : "Expand All"
+        return HStack {
+            Text("By Verse")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button {
+                if allExpanded { expandedVerses.subtract(expandable) }
+                else { expandedVerses.formUnion(expandable) }
+            } label: {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: controlHeight)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .help(allExpanded ? "Collapse all verse groups" : "Expand all verse groups")
+        }
+        .padding(.horizontal, 12)
     }
 
     @ViewBuilder private func verseSection(_ number: Int, groups: [ReferenceGroup]) -> some View {

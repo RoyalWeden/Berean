@@ -1527,3 +1527,8 @@
 - **Changes:** Table commands target only the recognized block at the caret. Escaped pipes in recognized rows display as literal cell content while retaining their Markdown source.
 - **Verification:** Mac and iOS Simulator builds passed. Targeted Swift checks covered adjacent tables, rejected malformed rows, and checked escaped pipes in headers and inline code. Mac scratch QA verified literal pipe display, Add Column After on the second of two adjacent tables, and Undo.
 - **Follow-up:** Retained command support for short rows with omitted trailing cells. Both builds passed again, and the focused Swift check covered a short row followed immediately by another table.
+
+### 2026-11-17 — Cross Refs group navigation — BUILT, MAC AND SIMULATOR UI CHECKED
+- **Starting point:** `f96bc1c1`, `native/reader-notes`, draft PR #24.
+- **Changes:** Cross Refs gains bulk verse-group disclosure on Mac and iPhone. Source refreshes keep expanded verses in the current scope.
+- **Verification:** Both Dev builds passed. Mac scratch Genesis 1 and iPhone 18 Pro Simulator John 3 showed reference rows after Expand All and returned to the compact verse list after Collapse All.

@@ -1798,3 +1798,7 @@ Table previews share the editor's pipe parser, preserve separate adjacent tables
 ### Notes table boundaries and literal pipes (2026-11-17)
 
 Editable table commands now use confirmed header, separator, and row widths to identify the table at the caret. Adjacent tables remain independent even without a blank line between them. Within a recognized table, escaped pipes display literally in prose and inline code while the TextKit source keeps the escape syntax. Unrelated lines retain their existing display. Both Dev builds and focused Swift checks passed. Mac scratch QA observed a literal pipe in the first table, added a column to the second table without changing the first, and used Undo. iPhone edit actions and cell-local wrapping before the last column still need work. Short Markdown rows with omitted trailing cells remain eligible for the existing table commands.
+
+### Cross Refs chapter navigation (2026-11-17)
+
+Cross Refs now offers Expand All and Collapse All above the verse groups when more than one verse has results. Whole-row single-verse toggles and the source menu remain available. Expanded verse numbers survive a source refresh or Notes revision in the same scope, and reset on passage or scope change. Both Dev builds passed. Mac scratch QA switched Genesis 1:5 to whole-chapter TSKe and verified expansion and collapse. iPhone 18 Pro Simulator repeated the interaction in the John 3 sheet. Classic, My Notes refresh, very long chapters, and keyboard/VoiceOver activation remain to verify.
