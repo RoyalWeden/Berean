@@ -1427,6 +1427,32 @@ private enum NotePreviewBlock {
     }
 }
 
+/// Compact note rows read across the cells of a table, leaving its Markdown intact.
+func noteExcerptText(_ source: String) -> String {
+    guard source.contains("|") else { return MarkdownLiveSpans.plainText(source) }
+    let blocks = NotePreviewBlock.parse(source)
+    guard blocks.contains(where: { if case .table = $0 { true } else { false } }) else {
+        return MarkdownLiveSpans.plainText(source)
+    }
+    return blocks.map { block in
+        switch block {
+        case .line(let line):
+            return MarkdownLiveSpans.plainText(line)
+        case .code(let lines):
+            return lines.joined(separator: "\n")
+        case .callout(let kind, let title, let body):
+            return kind.label + ": " + MarkdownLiveSpans.plainText(title + "\n" + body)
+        case .table(let table):
+            return table.rows.map { row in
+                row.map { cell in
+                    notePreviewInline(cell).map { String($0.0.characters) }.joined()
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }.filter { !$0.isEmpty }.joined(separator: " · ")
+            }.joined(separator: "\n")
+        }
+    }.joined(separator: "\n")
+}
+
 /// Feed the editor's custom highlight syntax through Foundation Markdown without
 /// breaking emphasis or links that span a highlight boundary.
 private func notePreviewInline(_ source: String) -> [(AttributedString, String?)] {

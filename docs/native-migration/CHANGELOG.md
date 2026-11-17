@@ -1582,3 +1582,8 @@
 - **Starting point:** `476d3a22`, `native/reader-notes`, draft PR #24.
 - **Changes:** Note context previews render a formatted excerpt including tables.
 - **Verification:** Both native builds passed. iPhone 18 Pro Simulator displayed a table grid in the long-press preview and opened the editable note from its menu.
+
+### 2026-11-17 — Notes table excerpts — BUILT, MAC UI CHECKED
+- **Starting point:** `e61f54aa`, `native/reader-notes`, draft PR #24.
+- **Changes:** Notes excerpts read through recognized cells and omit Markdown table scaffolding.
+- **Verification:** Both Dev builds passed. Mac scratch QA confirmed readable table headers, a matching cell in search, and visible literal pipe content.

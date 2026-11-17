@@ -12,7 +12,7 @@ struct NotesFolderScrollContext: Hashable {
 }
 
 func noteSearchPreview(_ note: Note, query: String, mode: NotesWordMode = .all) -> String {
-    let plain = MarkdownLiveSpans.plainText(note.content)
+    let plain = noteExcerptText(note.content)
     if !query.isEmpty {
         let words = NotesService.cleanWords(query)
         let terms = mode == .phrase ? [words.joined(separator: " ")] : words

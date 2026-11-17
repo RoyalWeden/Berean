@@ -1844,3 +1844,7 @@ Notes search keeps an opened result as its centering anchor across repeated Back
 ### Formatted iPhone Notes previews (2026-11-17)
 
 Long-pressing a note now renders its formatted excerpt with the shared Notes preview renderer. The preview is bounded to the first 4,000 characters and keeps the native context actions. Both Dev builds passed. iPhone 18 Pro Simulator displayed a shaded table header and grid in a long-press preview, then opened the same note in the editor. Longer excerpts, callouts and accessibility sizes remain to verify. The compact list row still shows raw pipe delimiters for a table-only note and should be cleaned separately.
+
+### Readable Notes table excerpts (2026-11-17)
+
+Notes list, note search, and Go now derive excerpts from the same recognized tables used in Notes previews. They omit Markdown borders and alignment rows and show nonempty cell contents separated by a middle dot. Saved Markdown and copy/export flows are outside this rendering change. Both Dev builds passed. Mac scratch QA saw the table header as readable text in the Notes list and found a later table cell via search. A literal escaped pipe remained visible. iPhone list layout, Go, and long-note performance remain to check.
