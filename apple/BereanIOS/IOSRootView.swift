@@ -972,7 +972,11 @@ struct SessionsPage: View {
 
     var body: some View {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let workspaces = app.workspaceItems.filter { $0.matches(search) }
+        let matches = app.workspaceItems.filter { $0.matches(search) }
+        // Keep the current workspace visible when browsing a long list.
+        let workspaces = search.isEmpty
+            ? matches.filter(app.isCurrent) + matches.filter { !app.isCurrent($0) }
+            : matches
         let tabs = app.matchingWorkspaceTabs(search)
         let exactWorkspaces = WorkspaceItem.exactMatches(for: search, in: workspaces)
         return List {
@@ -1032,9 +1036,6 @@ struct SessionsPage: View {
                             if app.canDelete(w) { Button("Delete…", systemImage: "trash", role: .destructive) { deleting = w } }
                         }
                     }
-                    if search.isEmpty {
-                        Button { app.newWorkspace(); closeTabs() } label: { Label("New Workspace", systemImage: "plus") }
-                    }
                 } header: {
                     if !search.isEmpty { Text("Workspaces") }
                 } footer: {
@@ -1044,6 +1045,14 @@ struct SessionsPage: View {
             WorkspaceTabResults(title: "Open Tabs", matches: tabs, onOpen: closeTabs)
         }
         .navigationTitle("Workspaces")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("New Workspace", systemImage: "plus") {
+                    app.newWorkspace()
+                    closeTabs()
+                }
+            }
+        }
         .scrollDismissesKeyboard(.interactively)
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)

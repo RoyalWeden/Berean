@@ -1478,3 +1478,5 @@
 - Tab search, recent tabs and already-open passage destinations use duplicate-aware workspace labels. Verified selection of the second identical tab result in Mac Dev.
 
 - Archived tab titles and restore actions distinguish same-name live workspaces. Verified restoration to the second matching workspace in Mac Dev.
+
+- The iPhone workspace picker shows the current workspace first and puts New Workspace in the header. Verified switching and creation on iPhone 18 Pro Simulator.
