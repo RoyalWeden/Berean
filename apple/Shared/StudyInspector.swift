@@ -92,7 +92,7 @@ struct StudyInspector: View {
             #if os(macOS)
             macPaneHeader(panel, tabs: tabs, secondary: secondary)
             #else
-            Picker("Study pane", selection: Binding(get: { panel }, set: focusTool)) {
+            Picker("Study pane", selection: Binding(get: { panel }, set: { focusTool($0) })) {
                 ForEach(tabs) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
