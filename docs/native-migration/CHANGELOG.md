@@ -1526,3 +1526,4 @@
 - **Starting point:** `36f56088`, `native/reader-notes`, draft PR #24.
 - **Changes:** Table commands target only the recognized block at the caret. Escaped pipes in recognized rows display as literal cell content while retaining their Markdown source.
 - **Verification:** Mac and iOS Simulator builds passed. Targeted Swift checks covered adjacent tables, rejected malformed rows, and checked escaped pipes in headers and inline code. Mac scratch QA verified literal pipe display, Add Column After on the second of two adjacent tables, and Undo.
+- **Follow-up:** Retained command support for short rows with omitted trailing cells. Both builds passed again, and the focused Swift check covered a short row followed immediately by another table.

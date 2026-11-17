@@ -331,7 +331,10 @@ private func noteTableContext(in text: NSString, selection: NSRange)
     for span in spans where span.kind == .tableRow || span.kind == .tableRule {
         let startsTable = headers.contains(span.range.location)
         let cellCount = MarkdownLiveSpans.tableCells(in: text, range: span.range).count
-        if let last = block.last, startsTable || cellCount != columns
+        let fitsTable = span.kind == .tableRow
+            ? cellCount > 0 && cellCount <= columns
+            : block.count == 1 && cellCount == columns
+        if let last = block.last, startsTable || !fitsTable
             || text.lineRange(for: last.range).upperBound != span.range.location {
             if block.contains(where: { $0.range.location == selectedLine.location }) { break }
             block.removeAll(keepingCapacity: true)
