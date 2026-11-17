@@ -1623,3 +1623,5 @@
 
 - Command-L search replacement clears old result restrictions to match the palette's requested search. Back and Forward restore filters even when the query stays the same.
 - Both Dev builds passed. Mac scratch QA verified filter clearing and repeated navigation with the tab count unchanged. Compare Command-L and Back were also verified in a pinned tab.
+
+Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suites (`swift test -c release`, 36.746 seconds). Both Dev build logs are `/tmp/berean-BereanMac-location-filters.log` and `/tmp/berean-BereanIOS-location-filters.log`. Mac QA used the isolated `--qa-library` build.
