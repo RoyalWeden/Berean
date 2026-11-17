@@ -54,7 +54,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet with a compact iPhone selector and full-width preview; restore with pre-restore snapshot (golden); undo via text system |
 | N09 | Export, import, print | implemented | ✅ | 🟡 | — | Markdown export, import and copy; system note printing with formatted Markdown. System print preview verified on Mac and iPhone Simulator; Files and multipage output checks remain. |
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
-| N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes home supports folder navigation, sort/group, pin/trash/restore and scoped search. Board and advanced appearance parity remain. |
+| N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes supports folder navigation, List/Gallery, sort/group, bulk selection/share, pin/trash/restore and scoped search. Gallery opening and return passed on Mac and iPhone simulator. Layout and All Notes location survived relaunch on both platforms. Board, collapsible sections and broader accessibility QA remain. |
 | N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have month and week grids, direct month/year navigation, and a scrollable daily-note timeline with previews and calendar return. Date-to-note navigation uses the legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
 | N13 | Idiom / reference-book editor | implemented, niche | ❌ | ❌ | P3 | Idiom editor not ported |
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
@@ -454,7 +454,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/{NotesHomePanel,NotesFolderView,NotesBoardView,NotesList,NoteContextMenu,NoteIcon*,NoteStatusDropdown,folderTreeGeometry}.tsx`, `src/mobile/notes/{NotesHomePage,VirtualNoteList,TrashPage,FolderPicker,notesHomeModel}.ts(x)`, `notesService` folder functions.
 - **Known original defects:** Folder delete cascades (`folderDeleteDeep`) rely on sync `dependents`.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Notes home supports folder navigation, sort/group, pin/trash/restore and scoped search. Board and advanced appearance parity remain.
+- **Native Mac / iPhone:** 🟡 / 🟡 — Notes supports folder navigation, List/Gallery, sort/group, bulk selection/share, pin/trash/restore and scoped search. Gallery opening and return passed on Mac and iPhone simulator. Layout and All Notes location survived relaunch on both platforms. Board, collapsible sections and broader accessibility QA remain.
 - **Native files:** NotesViews.swift NotesHomeView
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

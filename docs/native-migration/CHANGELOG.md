@@ -1625,3 +1625,9 @@
 - Both Dev builds passed. Mac scratch QA verified filter clearing and repeated navigation with the tab count unchanged. Compare Command-L and Back were also verified in a pinned tab.
 
 Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suites (`swift test -c release`, 36.746 seconds). Both Dev build logs are `/tmp/berean-BereanMac-location-filters.log` and `/tmp/berean-BereanIOS-location-filters.log`. Mac QA used the isolated `--qa-library` build.
+
+### 2026-11-17 — Notes gallery and folder restoration
+
+- Added optional adaptive Gallery in Notes Options on Mac and iPhone, sharing note-opening, selection and context actions with List.
+- Fixed Notes folder location being dropped during local tab persistence.
+- Both native builds passed. Mac and simulator QA verified gallery opening, return navigation and relaunch. All 148 shared Swift tests passed.

@@ -112,3 +112,7 @@
 ## 2026-11-17 current-location verification
 
 - Both Dev targets build after search replacement and history corrections. Mac scratch QA verified Command-L replacing a filtered Search tab, Back restoring filters, Forward restoring the broad search, and pinned Compare passage replacement with Back. See the latest HANDOFF entry for exact cases and outstanding UI checks.
+
+## 2026-11-17 Notes browse parity
+
+- Notes offers adaptive Gallery and List on Mac and iPhone. Runtime QA covered Mac selection/search/Back and simulator card opening/return. Both apps restored Gallery and All Notes across relaunch after the local-folder persistence fix. Both Dev builds and 148 Swift tests passed. Remaining Notes checks are in the latest HANDOFF entry.

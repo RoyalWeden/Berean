@@ -349,3 +349,8 @@ show their content without the side-by-side or thread chrome. A full structured 
 
 - Explicit palette search replacement uses the search scope described by the selected action and clears previous result restrictions. Sort and grouping remain presentation preferences. History identifies a Search destination by query and result-defining filters, including the focused edition.
 - Command-L changes a Compare tab's anchor passage while retaining Compare and its column-following rules. Mac runtime verified replacement and Back in a pinned tab.
+
+## 2026-11-17 Notes browse presentation
+
+- Gallery is a device-local Notes preference under `nativeNotesHomeLayout`. List is the default. The same note button supplies activation, selection and context actions for both presentations.
+- Native Notes `listFolderId` is persisted with local tab state. It already exists in the legacy NoteTabState model. Its absence from the allow-list caused a verified relaunch reset. The sync field set and database schema keep their existing contracts.

@@ -87,3 +87,9 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 
 - Fixed Command-L Search All Texts inheriting filters from the replaced search. Back and Forward now distinguish destinations with the same query and different result restrictions. Mac runtime verified testament restoration. Both Dev builds passed.
 - Cursor tracking review retained AppKit's superview-coordinate hit-test contract. Continuous pointer-motion verification remains open, along with IME Find input and compact Find layouts.
+
+### 2026-11-17 Notes browse follow-up
+
+- Added adaptive Notes Gallery on both platforms. Mac selection/search/Back and simulator opening/return passed live QA.
+- Fixed Notes folder resetting to the folders screen on relaunch by persisting `listFolderId` locally. Both apps reopened All Notes in Gallery after relaunch. All 148 Swift tests passed.
+- Long-gallery positions, accessibility sizes, iPhone gallery bulk actions and custom-folder relaunch remain to verify.

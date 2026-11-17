@@ -53,6 +53,18 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         #expect(TabFields.merge(type: .bible, sync: split.sync, local: split.local) == state)
     }
 
+    @Test func notesFolderLocationSurvivesLocalPersistence() {
+        for location in [JSValue.null, js("all"), js("trash"), js("sys:verse"), js("folder-qa")] {
+            var state = JSObject()
+            state["noteId"] = .null
+            state["listFolderId"] = location
+            let split = TabFields.split(type: .note, state: state)
+            #expect(split.sync["listFolderId"] == nil)
+            #expect(split.local["listFolderId"] == location)
+            #expect(TabFields.merge(type: .note, sync: split.sync, local: split.local) == state)
+        }
+    }
+
     @Test func splitMergeStable() {
         for c in g.arr("split") {
             let type = TabType(rawValue: c["type"]!.str)!

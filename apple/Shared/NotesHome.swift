@@ -42,6 +42,7 @@ struct NotesHomeView: View {
     @State private var browseOptions = BrowseOptions()
     @State private var searchResult: SearchResult?
     @AppStorage("notesHomeSort") private var sort = "modified"        // modified | created | name
+    @AppStorage("nativeNotesHomeLayout") private var layout = "list"       // device-local list | gallery
     @AppStorage("notesHomeGrouping") private var grouping = "none"    // none | status | folder | type
     @State private var renamingFolder: NoteFolder?
     @State private var newFolderParent: String??                      // .some(nil) = new top-level folder
@@ -354,12 +355,7 @@ struct NotesHomeView: View {
                         }
                         if !matching.isEmpty {
                             folderSectionHeading("\(matching.count) note\(matching.count == 1 ? "" : "s")")
-                            ForEach(matching) { note in
-                                noteRow(note, searchPosition: position)
-                                    .padding(.vertical, 8)
-                                    .overlay(alignment: .bottom) { Divider() }
-                                    .id(note.id)
-                            }
+                            noteCollection(matching, searchPosition: position)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -546,12 +542,7 @@ struct NotesHomeView: View {
                     }
                     ForEach(visibleSections) { section in
                         folderSectionHeading(section.title)
-                        ForEach(section.notes) { note in
-                            noteRow(note)
-                                .padding(.vertical, 8)
-                                .overlay(alignment: .bottom) { Divider() }
-                                .id("note:" + note.id)
-                        }
+                        noteCollection(section.notes)
                     }
                     if loadedNotes && visibleCount == 0 && hasFilters {
                         ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
@@ -606,6 +597,11 @@ struct NotesHomeView: View {
     }
 
     @ViewBuilder private var viewOptions: some View {
+        Picker("Layout", selection: $layout) {
+            Label("List", systemImage: "list.bullet").tag("list")
+            Label("Gallery", systemImage: "square.grid.2x2").tag("gallery")
+        }
+        .pickerStyle(.menu)
         Picker("Sort", selection: $sort) { Text("Date Edited").tag("modified"); Text("Date Created").tag("created"); Text("Title").tag("name") }
             .pickerStyle(.menu)
         Picker("Group", selection: $grouping) { Text("By Date").tag("none"); Text("By Status").tag("status"); Text("By Folder").tag("folder"); Text("By Type").tag("type") }
@@ -669,7 +665,69 @@ struct NotesHomeView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
-    func noteRow(_ n: Note, searchPosition: SearchPosition? = nil) -> some View {
+    private var galleryColumns: [GridItem] {
+        #if os(macOS)
+        [GridItem(.adaptive(minimum: 220), spacing: 14, alignment: .top)]
+        #else
+        [GridItem(.adaptive(minimum: 150), spacing: 14, alignment: .top)]
+        #endif
+    }
+
+    @ViewBuilder private func noteCollection(_ notes: [Note], searchPosition: SearchPosition? = nil) -> some View {
+        if layout == "gallery" {
+            LazyVGrid(columns: galleryColumns, alignment: .leading, spacing: 14) {
+                ForEach(notes) { note in
+                    noteRow(note, searchPosition: searchPosition, gallery: true)
+                        .id(searchPosition == nil ? "note:" + note.id : note.id)
+                }
+            }
+            .scrollTargetLayout()
+            .padding(.vertical, 8)
+        } else {
+            ForEach(notes) { note in
+                noteRow(note, searchPosition: searchPosition)
+                    .padding(.vertical, 8)
+                    .overlay(alignment: .bottom) { Divider() }
+                    .id(searchPosition == nil ? "note:" + note.id : note.id)
+            }
+        }
+    }
+
+    private func noteCard(_ n: Note) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 6) {
+                Self.noteTitle(n).font(.headline).lineLimit(2)
+                Spacer(minLength: 0)
+                if selecting {
+                    Image(systemName: selectedNotes.contains(n.id) ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selectedNotes.contains(n.id) ? Color.accentColor : Color.secondary)
+                        .accessibilityHidden(true)
+                } else if n.pinned {
+                    Image(systemName: "pin.fill").font(.caption).foregroundStyle(.orange)
+                }
+            }
+            Text(searchRequest.text.isEmpty ? String(noteExcerptText(n.content).prefix(1200)) : preview(n))
+                .font(.subheadline).foregroundStyle(.secondary)
+                .lineLimit(4).frame(maxWidth: .infinity, alignment: .topLeading)
+            Spacer(minLength: 0)
+            if let status = Self.statuses.first(where: { $0.id == n.status }) {
+                Text(status.label).font(.caption.weight(.medium)).foregroundStyle(status.color)
+            }
+            if location == "all" || location == nil || !browseOptions.query.isEmpty,
+               let folder = n.folderId.flatMap({ id in folders.first { $0.id == id } }) {
+                Label(folder.name, systemImage: "folder").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Text(Self.dateLabel(sort == "created" ? n.createdAt : n.updatedAt))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
+        .background(.background, in: .rect(cornerRadius: 12))
+        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(selecting && selectedNotes.contains(n.id) ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: 1) }
+        .contentShape(.rect(cornerRadius: 12))
+    }
+
+    func noteRow(_ n: Note, searchPosition: SearchPosition? = nil, gallery: Bool = false) -> some View {
         Button {
             if selecting {
                 withAnimation(.snappy(duration: 0.2)) {
@@ -679,34 +737,38 @@ struct NotesHomeView: View {
             }
             openNoteFromList(n, searchPosition: searchPosition)
         } label: {
-            HStack(spacing: 12) {
-            if selecting {
-                Image(systemName: selectedNotes.contains(n.id) ? "checkmark.circle.fill" : "circle")
-                    .font(.title3).foregroundStyle(selectedNotes.contains(n.id) ? Color.accentColor : Color.secondary)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-                    .accessibilityHidden(true)
-            }
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 6) {
-                    if n.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange) }
-                    Self.noteTitle(n).font(.headline).lineLimit(1)
-                    Spacer()
-                    if let st = Self.statuses.first(where: { $0.id == n.status }) {
-                        Text(st.label).font(.caption2.weight(.medium)).foregroundStyle(st.color).padding(.horizontal, 6).padding(.vertical, 1).background(st.color.opacity(0.15), in: .capsule)
+            if gallery {
+                noteCard(n)
+            } else {
+                HStack(spacing: 12) {
+                    if selecting {
+                        Image(systemName: selectedNotes.contains(n.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.title3).foregroundStyle(selectedNotes.contains(n.id) ? Color.accentColor : Color.secondary)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                            .accessibilityHidden(true)
                     }
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 6) {
+                            if n.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.orange) }
+                            Self.noteTitle(n).font(.headline).lineLimit(1)
+                            Spacer()
+                            if let st = Self.statuses.first(where: { $0.id == n.status }) {
+                                Text(st.label).font(.caption2.weight(.medium)).foregroundStyle(st.color).padding(.horizontal, 6).padding(.vertical, 1).background(st.color.opacity(0.15), in: .capsule)
+                            }
+                        }
+                        HStack(spacing: 6) {
+                            Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
+                            Text(preview(n)).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                        if location == "all" || location == nil || !browseOptions.query.isEmpty, let f = n.folderId.flatMap({ id in folders.first { $0.id == id } }) {
+                            Label(f.name, systemImage: "folder").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 5)
                 }
-                HStack(spacing: 6) {
-                    Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
-                    Text(preview(n)).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                }
-                if location == "all" || location == nil || !browseOptions.query.isEmpty, let f = n.folderId.flatMap({ id in folders.first { $0.id == id } }) {
-                    Label(f.name, systemImage: "folder").font(.caption2).foregroundStyle(.tertiary)
-                }
+                .contentShape(.rect)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 5)
-            }
-            .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
         .accessibilityAddTraits(selecting && selectedNotes.contains(n.id) ? .isSelected : [])

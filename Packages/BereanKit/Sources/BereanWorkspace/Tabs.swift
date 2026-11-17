@@ -65,7 +65,7 @@ public enum TabFields {
                  "rightPanelNoteFocused", "rightPanelExpandAll", "rightPanelExpandAllB", "rightPanelScrollTop", "rightPanelScrollTopB",
                  "rightPanelScrollTops", "rightPanelScrollTopsB",
                  "rightPanelNoteCursorB", "rightPanelNoteFocusedB", "searchScrollTop", "searchScrollAnchor", "searchSortDirection", "searchPreview"],
-        .note: ["scrollTop", "cursorPos", "listScrollTop", "continuousDailyDate"],
+        .note: ["scrollTop", "cursorPos", "listScrollTop", "listFolderId", "continuousDailyDate"],
         .lexicon: ["scrollTop", "searchScrollTop"],
         .youtube: ["scrollTop"],
         .search: ["scrollTop", "results", "scope", "filters", "preview"],
