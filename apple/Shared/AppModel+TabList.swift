@@ -75,6 +75,18 @@ extension AppModel {
         }
     }
 
+    static func sameTitleTabIndices(_ ordered: [BereanWorkspace.Tab]) -> [String: Int] {
+        let pinnedFirst = ordered.filter(\.isPinned) + ordered.filter { !$0.isPinned }
+        let tabsByLabel = Dictionary(grouping: pinnedFirst) { [$0.navigationLabel, $0.navigationDetail] }
+        var sameTitleIndices: [String: Int] = [:]
+        for tabs in tabsByLabel.values where tabs.count > 1 {
+            for (index, tab) in tabs.enumerated() {
+                sameTitleIndices[tab.id] = index + 1
+            }
+        }
+        return sameTitleIndices
+    }
+
     func matchingWorkspaceTabs(_ query: String) -> [WorkspaceTabMatch] {
         let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
         guard !terms.isEmpty else { return [] }
@@ -88,13 +100,7 @@ extension AppModel {
             let includesTabTerms = !terms.allSatisfy { displayName.localizedStandardContains(String($0)) }
             let workspaceText = includesTabTerms ? item.name + " " + displayName : item.name
             let ordered = displayOrder(for: workspace.id).compactMap { tabsByID[$0] }
-            let tabsByLabel = Dictionary(grouping: ordered) { [$0.navigationLabel, $0.navigationDetail] }
-            var sameTitleIndices: [String: Int] = [:]
-            for tabs in tabsByLabel.values where tabs.count > 1 {
-                for (index, tab) in tabs.enumerated() {
-                    sameTitleIndices[tab.id] = index + 1
-                }
-            }
+            let sameTitleIndices = Self.sameTitleTabIndices(ordered)
             for tab in ordered {
                 let tabText = tab.navigationSearchText
                 let match = WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: item.tabDestinationName, tab: tab,

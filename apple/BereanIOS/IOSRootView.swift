@@ -458,6 +458,7 @@ struct TabCardsSheet: View {
 
     var body: some View {
         let visibleTabs = shown
+        let sameTitleIndices = hasQuery ? AppModel.sameTitleTabIndices(app.orderedTabs) : [:]
         let eligible = selectableIDs(in: visibleTabs)
         let otherMatches = isSelecting ? [] : app.matchingWorkspaceTabs(query).filter {
             $0.workspaceID != app.currentSessionId && matchesFilters($0.tab)
@@ -493,7 +494,7 @@ struct TabCardsSheet: View {
                     if layout == "grid" {
                         if !visibleTabs.isEmpty {
                             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                                ForEach(sortedTabs(pinned + others)) { card($0, eligible: eligible.contains($0.id)) }
+                                ForEach(sortedTabs(pinned + others)) { card($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }
                             }
                             .padding(.vertical, 6)
                             .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
@@ -503,7 +504,7 @@ struct TabCardsSheet: View {
                         ForEach(pinned) { row($0, eligible: eligible.contains($0.id)) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
                         ForEach(others) { row($0, eligible: eligible.contains($0.id)) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
                     } else {
-                        ForEach(sortedTabs(pinned + others)) { row($0, eligible: eligible.contains($0.id)) }
+                        ForEach(sortedTabs(pinned + others)) { row($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }
                     }
                     if visibleTabs.isEmpty && (isSelecting || otherMatches.isEmpty) { Text(!hasQuery && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
                 }
@@ -733,13 +734,14 @@ struct TabCardsSheet: View {
         .accessibilityLabel("Remove \(category) filter: \(title)")
     }
 
-    func row(_ tab: BereanWorkspace.Tab, eligible: Bool) -> some View {
+    func row(_ tab: BereanWorkspace.Tab, eligible: Bool, sameTitleIndex: Int? = nil) -> some View {
         Button { openOrSelect(tab, eligible: eligible) } label: {
             HStack {
                 Image(systemName: tab.symbol).foregroundStyle(tab.tint).frame(width: 24)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(tab.navigationLabel).foregroundStyle(.primary)
-                    Text(tab.navigationDetail).font(.caption).foregroundStyle(.secondary)
+                    let detail = sameTitleIndex.map { "\(tab.navigationDetail) · Tab \($0)" } ?? tab.navigationDetail
+                    Text(detail).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if tab.isPinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(.secondary) }
@@ -774,7 +776,7 @@ struct TabCardsSheet: View {
     }
 
     /// A tab as a card: tinted header with its kind, title and detail, × to close; the current tab is outlined.
-    func card(_ tab: BereanWorkspace.Tab, eligible: Bool) -> some View {
+    func card(_ tab: BereanWorkspace.Tab, eligible: Bool, sameTitleIndex: Int? = nil) -> some View {
         let current = isSelecting ? selectedTabIDs.contains(tab.id) : tab.id == app.activeTab?.id
         return Button { openOrSelect(tab, eligible: eligible) } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -795,6 +797,9 @@ struct TabCardsSheet: View {
                     let detail = tab.navigationDetail.replacingOccurrences(of: "Scripture · ", with: "")
                     if !detail.isEmpty, detail != kind, detail != tab.spaceId.title, detail != tab.navigationLabel {
                         Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    if let sameTitleIndex {
+                        Text("Tab \(sameTitleIndex)").font(.caption).foregroundStyle(.secondary)
                     }
                     TabCardPreview(tab: tab)
                     Spacer(minLength: 0)
