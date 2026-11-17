@@ -1602,3 +1602,6 @@
 - **Starting point:** `45bf2b4e`, `native/reader-notes`, draft PR #24.
 - **Changes:** Compare column close makes the exit explicit and preserves the sole passage in legacy configurations. iPhone Exit Compare can restore the visible main-translation verse.
 - **Verification:** Both Dev builds passed. Mac scratch QA closed to LXX and restored both columns with Back. Simulator QA returned to selected Genesis 3:3 from Compare.
+
+### 2026-11-17 — Compare viewport bookmarks
+- Both Dev builds passed. Mac scratch QA preserved the scrolled LXX position across opening the reader and going Back. Stacked layout changes still need a live pass.

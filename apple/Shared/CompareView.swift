@@ -745,11 +745,22 @@ struct CompareView: View {
                 if let bookmark = reorderedStackedAnchor, bookmark.passage == passage {
                     reorderedStackedAnchor = nil
                     proxy.scrollTo(bookmark.target, anchor: .top)
+                } else if let column = columns.first(where: { $0.id == lastScrolledColumn }),
+                          let verse = app.compareColumnScrollVerses[tabId]?[columnScrollKey(column.id, passage: passage)] {
+                    proxy.scrollTo(StackedVerseTarget(columnID: column.id, verse: verse), anchor: .top)
                 } else if let target = stackedSelectionTarget(in: columns, state: state) {
                     proxy.scrollTo(target, anchor: .top)
                 }
             }) {
                 independentComparison(columns, passage: passage)
+            }
+            .onScrollPhaseChange { old, new in
+                guard old != .idle, new == .idle, app.activeTab?.id == tabId, loadedPassage == passage else { return }
+                for (id, verses) in visibleStackedVerses {
+                    if let verse = verses.min() {
+                        app.compareColumnScrollVerses[tabId, default: [:]][columnScrollKey(id, passage: passage)] = verse
+                    }
+                }
             }
         }
     }
@@ -1443,12 +1454,15 @@ struct CompareView: View {
             }.first
             return row.map { ($0.chapter, $0.verseNum) }
         }
-        if !canShowIndependentPanes(width: compareWidth, count: columns.count) {
-            let verse = visibleStackedVerses[column.id]?.min() ?? independentRows[column.id]?.first?.verseNum
-            return verse.map { (column.chapter, $0) }
-        }
         let key = columnScrollKey(column.id, passage: passage)
-        let verse = independentVisibleVerses[column.id] ?? app.compareColumnScrollVerses[tabId]?[key]
+        let saved = app.compareColumnScrollVerses[tabId]?[key]
+            ?? column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) }
+        let verse: Int?
+        if canShowIndependentPanes(width: compareWidth, count: columns.count) {
+            verse = independentVisibleVerses[column.id] ?? saved
+        } else {
+            verse = visibleStackedVerses[column.id]?.min() ?? saved ?? independentRows[column.id]?.first?.verseNum
+        }
         return verse.map { (column.chapter, $0) }
     }
 
@@ -1496,7 +1510,8 @@ struct CompareView: View {
             survivors += 1
             let oldKey = columnScrollKey(source.id, passage: oldPassage)
             let mapped = alignedVerse.flatMap { mappedVerse($0, in: source, source: anchor) }
-            if let verse = independentVisibleVerses[source.id] ?? app.compareColumnScrollVerses[tabId]?[oldKey] ?? mapped {
+            if let verse = visibleStackedVerses[source.id]?.min() ?? independentVisibleVerses[source.id]
+                ?? app.compareColumnScrollVerses[tabId]?[oldKey] ?? mapped {
                 let newKey = columnScrollKey(reindexed[index].id, passage: newPassage)
                 app.compareColumnScrollVerses[tabId, default: [:]][newKey] = verse
             }

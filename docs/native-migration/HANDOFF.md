@@ -1860,3 +1860,7 @@ Book choices follow Scripture order. Book and rendering counts are aligned separ
 ### Compare exit and retained passage (2026-11-17)
 
 Close Column names its transition to the reader when the comparison would have one or zero columns left. A legacy comparison with one saved column goes to that column's passage when closed. On iPhone, the explicit Exit Compare button saves the visible verse from the main translation when available, keeping the comparison configuration for reentry. Both Dev builds passed. Mac scratch QA closed KJVA from a Genesis 2 comparison, confirmed the single LXX reader and Compare off, then used Back to restore both columns. iPhone Simulator exited Compare for selected Genesis 3:3 and recovered the selected reader. Legacy single-column state and exit after manually scrolling the comparison remain to verify.
+
+### Compare reading positions across layouts
+
+Stacked comparisons now save each visible column's verse after scrolling. Reordering carries those bookmarks with the columns, and returning to one reader can use a saved or legacy column verse. Both Dev builds passed. Mac scratch QA opened an independently scrolled Genesis 2 LXX column in the reader near its end, then used Back to recover the two panes. Live stacked transitions and drag reordering remain open.
