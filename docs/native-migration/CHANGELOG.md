@@ -1490,3 +1490,5 @@
 - Scripture search results show a live indicator for saved verse highlights and disable removal when the result has no saved marks. Mac Dev verified apply and remove without leaving results.
 
 - Scripture search rows share saved-highlight reads by chapter and edition. A focused check verified cache reuse and refresh after a change.
+
+- Search highlight menus show a checkmark for the saved whole-verse color. iPhone Simulator verified highlight and removal from overflow and long-press menus.

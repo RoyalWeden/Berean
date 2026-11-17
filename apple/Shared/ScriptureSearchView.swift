@@ -24,6 +24,10 @@ private final class SearchHighlightCache {
     }
 }
 
+private func wholeVerseColor(in marks: [Highlight]) -> String? {
+    marks.last { $0.startChar == nil && $0.startWord == nil }?.color
+}
+
 private struct SearchResultHighlights<Content: View>: View {
     @Environment(AppModel.self) private var app
     let hit: ScriptureHit
@@ -900,7 +904,7 @@ struct ScriptureSearchView: View {
                                     .padding(.horizontal, 5).padding(.vertical, 1).background(Color.secondary.opacity(0.12), in: .capsule)
                             }
                             if !marks.isEmpty {
-                                let color = marks.last(where: { $0.startChar == nil && $0.startWord == nil })?.color
+                                let color = wholeVerseColor(in: marks)
                                 Image(systemName: "highlighter")
                                     .font(.caption)
                                     .foregroundStyle(color.map(Color.highlight) ?? .secondary)
@@ -950,8 +954,9 @@ struct ScriptureSearchView: View {
         }
         if let highlights = app.highlights {
             Menu("Highlight", systemImage: "highlighter") {
+                let current = wholeVerseColor(in: marks)
                 ForEach(highlightColors, id: \.self) { color in
-                    Button(color.capitalized, systemImage: "circle.fill") {
+                    Button(color.capitalized, systemImage: current == color ? "checkmark" : "circle.fill") {
                         app.attempt("Couldn’t highlight the verse") {
                             try highlights.setVerseColor(bookId: hit.bookId, chapter: hit.chapter, verse: hit.verseNum,
                                                          color: color, textId: hit.textId)
