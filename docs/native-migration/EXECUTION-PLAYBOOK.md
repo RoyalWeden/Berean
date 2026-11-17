@@ -699,3 +699,7 @@ Next ready task:
 ### Notes browse runtime checks after 2026-11-17
 
 Use the shared `openNoteFromList` path for gallery and list activation and context actions so folder and search return anchors stay consistent. Validate a card beyond the initial viewport, then repeat Back/Forward. Test disclosure with an explicitly selected note and confirm the hidden selection count before exercising bulk actions. Keep collapse state scoped by location and grouping, and keep search matches visible.
+
+### Cursor regression checks
+
+Build the Mac Dev app and launch the scratch library with `BEREAN_CURSOR_TRACE=1` to record the settled expected/actual cursor after real input events. Check multiple points inside one control, enabled and disabled states, and text/link/resize areas nearby. Use the event-delivered point during dispatch, and coalesce subsequent refreshes. Keep the trace opt-in and treat a successful sample as evidence only for that tested path.

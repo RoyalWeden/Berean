@@ -99,3 +99,8 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 - Added collapsible section headings on both platforms, including note counts, disclosure accessibility values and retained state per folder/grouping.
 - Fixed reproduced gallery history loss. Mac scroll-bar position returned from 1 to about 0.058 before the correction and stayed at 1 through repeated Back/Forward afterward.
 - Mac verified search through collapsed sections, disclosure persistence and selection counts. Simulator verified tapping headings away from the chevron and selected counts after collapse. Custom-folder disclosure, touch scroll restoration and accessibility sizes remain open.
+
+### 2026-11-17 Notes targets and cursor follow-up
+
+- Mac Notes has glass groups and leading aligned content. Whole-row opening passed in Mac custom folders and simulator All Notes.
+- Updated shared Mac clickable cursor handling to settle after dispatch and use the delivered event point. Sampled SwiftUI disclosure and enabled toolbar controls retained the hand after movement, while disabled Back retained the arrow. Broader control and manual-motion coverage remains open.

@@ -2398,7 +2398,7 @@ private struct VerseActionControlAppearance: ViewModifier {
                     .padding(2)
             }
             .onHover { hovering = $0 }
-            .pointerStyle(isEnabled ? .link : .default)
+            .clickableCursor()
             #else
             .hoverEffect(.highlight, isEnabled: isEnabled)
             #endif
@@ -2462,7 +2462,7 @@ struct InteractivePlainButtonStyle: ButtonStyle {
         configuration.label
             .opacity(isEnabled ? (configuration.isPressed ? 0.65 : 1) : 0.45)
             #if os(macOS)
-            .pointerStyle(isEnabled ? .link : .default)
+            .clickableCursor()
             #else
             .hoverEffect(.highlight, isEnabled: isEnabled)
             #endif
@@ -2492,7 +2492,9 @@ private struct ClickableCursorModifier: ViewModifier {
     @Environment(\.isEnabled) private var isEnabled
 
     func body(content: Content) -> some View {
-        content.pointerStyle(requested && isEnabled ? .link : .default)
+        content
+            .pointerStyle(requested && isEnabled ? .link : .default)
+            .background { ClickableCursorRegion(enabled: requested && isEnabled) }
     }
 }
 #endif

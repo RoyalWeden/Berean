@@ -120,3 +120,8 @@
 ## 2026-11-17 Notes section and history verification
 
 - Both native builds include collapsible Notes sections, selection feedback for hidden cards and the corrected gallery return anchor. Mac runtime verified repeated Back/Forward at the gallery end and persisted disclosure by grouping. Simulator verified heading taps and hidden selection counts. The latest HANDOFF lists remaining touch, custom-folder and accessibility checks.
+
+## 2026-11-17 Notes surface and cursor checkpoint
+
+- Mac Notes folder groups use native glass, and both platforms have larger leading-aligned row targets. Mac and simulator verified opening from blank row space. Shared cursor handling has direct Debug samples for disclosure/toolbar movement and disabled Back. See HANDOFF for remaining coverage.
+- Owner requires original-quality Read Aloud voices. M05 remains open with the Kokoro/Berean Voices path.

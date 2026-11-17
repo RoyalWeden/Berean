@@ -1637,3 +1637,9 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Added full-width disclosure headings and retained per-folder/grouping collapse state on both platforms. Hidden selected notes retain visible counts, and Select Visible acts on expanded sections.
 - Fixed returning from a lower gallery card resetting the viewport near the top.
 - Both Dev builds passed. Mac verified repeated gallery history, search, selection and disclosure persistence. iPhone Simulator verified heading taps and hidden-selection feedback.
+
+### 2026-11-17 — Notes glass and stable control cursors
+
+- Mac Notes folders use larger native glass groups. Folder and note rows align leading, with full-width folder targets and consistent hover feedback. Simulator verified opening All Notes from the row gap.
+- Mac cursor ownership now runs after event dispatch and respects explicit SwiftUI disabled state. Debug samples verified hand cursors after movement across a disclosure and enabled toolbar button, plus the arrow over disabled Back.
+- Recorded the owner's requirement for original-quality Read Aloud voices. M05 remains open.

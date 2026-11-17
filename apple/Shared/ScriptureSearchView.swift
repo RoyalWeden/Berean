@@ -1211,7 +1211,7 @@ struct OptionButtonStyle: ButtonStyle {
             .opacity(enabled ? (configuration.isPressed ? 0.65 : 1) : 0.45)
             .optionHover(active: active)
             #if os(macOS)
-            .pointerStyle(enabled ? .link : .default)
+            .clickableCursor()
             #endif
     }
 }

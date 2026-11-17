@@ -360,3 +360,9 @@ show their content without the side-by-side or thread chrome. A full structured 
 - Notes disclosure state is scoped to folder and grouping and stored locally. Search shows every matching result regardless of browse disclosure state.
 - Bulk selection explicitly names Select Visible when sections are collapsed. Existing selections retain their counts and actions across disclosure changes.
 - Folder note opening records the clicked note as its return anchor. A collapsed destination uses the section heading as a fallback.
+
+## 2026-11-17 voice quality and native browse controls
+
+- Owner explicitly rejected Apple speech voices for quality. Native Read Aloud must use the original Kokoro/Berean Voices quality path, including the model integrity and licensing gates in the master specification.
+- Native Notes navigation uses full-row targets with leading multiline content. Mac folder groups use rectangular Liquid Glass on current systems and material fallback on earlier supported systems.
+- Cursor resolution uses delivered event coordinates and registered SwiftUI intent regions after AppKit dispatch. Explicit SwiftUI enabled state takes priority over a toolbar wrapper with an unavailable enabled-state accessor.

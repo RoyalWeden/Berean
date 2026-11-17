@@ -1,31 +1,139 @@
 import AppKit
 import ObjectiveC
+import SwiftUI
 
 /// Pointing-hand cursor over every enabled native control (buttons, pop-up / pull-down menus, segmented pickers,
 /// checkboxes, toolbar buttons). SwiftUI hosts most of its Mac controls in AppKit views, and those reset their cursor
 /// rects to the arrow, so per-view `pointerStyle` can't reach toolbar items and bordered buttons. Installing a
 /// `resetCursorRects` override once covers all of them; plain SwiftUI buttons use `.interactivePlain`.
 enum ClickableCursor {
+    @MainActor private static var installed = false
     @MainActor static func install() {
+        guard !installed else { return }
+        installed = true
         for cls: AnyClass in [NSButton.self, NSSegmentedControl.self] { swizzle(cls, with: #selector(NSControl.berean_resetCursorRects)) }
         // Toolbar items are SwiftUI hosting views inside AppKit's private item viewer (no NSButton to hook).
         if let viewer = NSClassFromString("NSToolbarItemViewer") { swizzle(viewer, with: #selector(NSView.berean_toolbarResetCursorRects)) }
+        swizzle(type(of: NSApplication.shared), original: #selector(NSApplication.sendEvent(_:)),
+                with: #selector(NSApplication.berean_sendEvent(_:)))
+        #if DEBUG
+        ClickableCursorDebug.recordEvent("installed:\(type(of: NSApplication.shared))")
+        #endif
         // Toolbar items change enabled state without resetting cursor rects (Back gains history); re-check after events.
         NotificationCenter.default.addObserver(forName: NSWindow.didUpdateNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { ToolbarCursorWatch.refresh() }
         }
     }
 
-    private static func swizzle(_ cls: AnyClass, with replacement: Selector) {
-        let original = #selector(NSView.resetCursorRects)
+    private static func swizzle(_ cls: AnyClass, original: Selector = #selector(NSView.resetCursorRects), with replacement: Selector) {
         guard let replacementMethod = class_getInstanceMethod(cls, replacement),
               let originalMethod = class_getInstanceMethod(cls, original) else { return }
         // Give the class its own copy first (a no-op when it already overrides), so the exchange never touches
         // NSView's implementation, then exchange it with a class-local copy of the replacement.
         _ = class_addMethod(cls, original, method_getImplementation(originalMethod), method_getTypeEncoding(originalMethod))
-        guard class_addMethod(cls, replacement, method_getImplementation(replacementMethod), method_getTypeEncoding(replacementMethod)),
-              let own = class_getInstanceMethod(cls, original), let mine = class_getInstanceMethod(cls, replacement) else { return }
+        _ = class_addMethod(cls, replacement, method_getImplementation(replacementMethod), method_getTypeEncoding(replacementMethod))
+        guard let own = class_getInstanceMethod(cls, original), let mine = class_getInstanceMethod(cls, replacement) else { return }
         method_exchangeImplementations(own, mine)
+    }
+}
+
+extension NSApplication {
+    @objc func berean_sendEvent(_ event: NSEvent) {
+        berean_sendEvent(event)
+        switch event.type {
+        case .mouseMoved, .cursorUpdate, .mouseEntered, .mouseExited, .leftMouseDragged, .rightMouseDragged,
+             .leftMouseUp, .rightMouseUp:
+            // Run after AppKit and SwiftUI have processed the event, including child-view cursor resets.
+            StableClickableCursor.refresh(in: event.window, at: event.locationInWindow)
+            StableClickableCursor.scheduleRefresh(in: event.window, at: event.locationInWindow)
+        default: break
+        }
+    }
+}
+
+/// A passive cursor region. Hit testing continues through to the actual SwiftUI button.
+struct ClickableCursorRegion: NSViewRepresentable {
+    let enabled: Bool
+
+    func makeNSView(context: Context) -> Region {
+        let region = Region()
+        region.enabled = enabled
+        StableClickableCursor.register(region)
+        return region
+    }
+
+    func updateNSView(_ region: Region, context: Context) {
+        region.enabled = enabled
+    }
+
+    final class Region: NSView {
+        var enabled = true
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+}
+
+@MainActor private enum StableClickableCursor {
+    private static let regions = NSHashTable<ClickableCursorRegion.Region>.weakObjects()
+    private static var refreshPending = false
+    private static weak var pendingWindow: NSWindow?
+    private static var pendingPoint = NSPoint.zero
+
+    static func register(_ region: ClickableCursorRegion.Region) { regions.add(region) }
+
+    static func scheduleRefresh(in window: NSWindow?, at point: NSPoint) {
+        pendingWindow = window
+        pendingPoint = point
+        guard !refreshPending else { return }
+        refreshPending = true
+        DispatchQueue.main.async {
+            refreshPending = false
+            guard let source = pendingWindow else { return }
+            let target = NSApp.keyWindow ?? source
+            let point = target === source ? pendingPoint
+                : target.convertPoint(fromScreen: source.convertPoint(toScreen: pendingPoint))
+            refresh(in: target, at: point)
+        }
+    }
+
+    static func refresh(in window: NSWindow?, at point: NSPoint) {
+        guard let window, let content = window.contentView else { return }
+        let root = content.superview ?? content
+        let rootPoint = root.superview?.convert(point, from: nil) ?? point
+        let target = root.hitTest(rootPoint)
+        guard let hit = target else { return }
+        var ancestor: NSView? = hit
+        var toolbar: NSView?
+        while let view = ancestor {
+            if let control = view as? NSButton { setHand(control.isEnabled, in: window, at: point, source: "button"); return }
+            if let control = view as? NSSegmentedControl { setHand(control.isEnabled, in: window, at: point, source: "segments"); return }
+            if String(describing: type(of: view)) == "NSToolbarItemViewer", !view.containsEditableText {
+                toolbar = view
+                break
+            }
+            ancestor = view.superview
+        }
+        let matching = regions.allObjects.filter { region in
+            guard region.window === window, !region.isHiddenOrHasHiddenAncestor else { return false }
+            let local = region.convert(point, from: nil)
+            // SwiftUI gives the passive background its own platform-view wrapper.
+            // The rendered button and that wrapper are siblings in the containing group.
+            guard region.visibleRect.contains(local), let host = region.superview?.superview,
+                  hit === host || hit.isDescendant(of: host) else { return false }
+            return true
+        }
+        if let region = matching.min(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
+            setHand(region.enabled, in: window, at: point, source: "SwiftUI")
+        } else if let toolbar {
+            setHand(toolbar.toolbarItemEnabled != false, in: window, at: point, source: "toolbar")
+        }
+    }
+
+    private static func setHand(_ enabled: Bool, in window: NSWindow, at point: NSPoint, source: String) {
+        let cursor: NSCursor = enabled ? .pointingHand : .arrow
+        if NSCursor.current != cursor { cursor.set() }
+        #if DEBUG
+        ClickableCursorDebug.trace(enabled: enabled, in: window, at: point, source: source)
+        #endif
     }
 }
 
@@ -66,6 +174,26 @@ extension NSControl {
 
 #if DEBUG
 enum ClickableCursorDebug {
+    @MainActor static func recordEvent(_ event: String) {
+        guard ProcessInfo.processInfo.environment["BEREAN_CURSOR_TRACE"] != nil else { return }
+        try? event.write(toFile: NSTemporaryDirectory() + "berean-cursor-event.txt", atomically: true, encoding: .utf8)
+    }
+
+    @MainActor static func trace(enabled: Bool, in window: NSWindow, at point: NSPoint, source: String) {
+        guard ProcessInfo.processInfo.environment["BEREAN_CURSOR_TRACE"] != nil else { return }
+        let mouse = window.mouseLocationOutsideOfEventStream
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) { [weak window] in
+            guard let window, window.mouseLocationOutsideOfEventStream == mouse else { return }
+            let actual = NSCursor.current == .pointingHand ? "hand"
+                : NSCursor.current == .arrow ? "arrow" : NSCursor.current == .iBeam ? "text" : "other"
+            let record: [String: Any] = ["expected": enabled ? "hand" : "arrow", "actual": actual,
+                                       "source": source, "x": point.x, "y": point.y]
+            if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
+                try? data.write(to: URL(fileURLWithPath: NSTemporaryDirectory() + "berean-cursor-state.json"), options: .atomic)
+            }
+        }
+    }
+
     @MainActor static func dumpToolbar() {
         guard ProcessInfo.processInfo.environment["BEREAN_CURSOR_DEBUG"] != nil else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {

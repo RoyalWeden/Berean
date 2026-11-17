@@ -404,7 +404,60 @@ struct NotesHomeView: View {
         return notes.filter { $0.folderId == loc }.count
     }
 
-    var foldersHome: some View {
+    @ViewBuilder var foldersHome: some View {
+        #if os(macOS)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 2) {
+                    locationRow("all", "All Notes", "tray.full", count("all"))
+                    ForEach(Self.system.filter { count("sys:\($0.key)") > 0 || $0.key == "daily" || $0.key == "verse" }, id: \.key) { s in
+                        Divider().padding(.leading, 36)
+                        locationRow("sys:\(s.key)", s.name, s.symbol, count("sys:\(s.key)"))
+                    }
+                }
+                .modifier(NotesHomeGlassSurface())
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("My Folders").font(.headline).accessibilityAddTraits(.isHeader)
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, depth in
+                            folderRow(f, depth: depth)
+                        }
+                        if folders.isEmpty {
+                            Button { folderName = ""; newFolderParent = .some(nil) } label: {
+                                Label("New Folder…", systemImage: "folder.badge.plus")
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .padding(.horizontal, 8).contentShape(.rect)
+                            }
+                            .buttonStyle(NotesHomeRowButtonStyle())
+                        }
+                    }
+                    .modifier(NotesHomeGlassSurface())
+                }
+
+                locationRow("trash", "Trash", "trash", trash.count)
+                    .modifier(NotesHomeGlassSurface())
+
+                let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
+                if !recent.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Recently Edited").font(.headline).accessibilityAddTraits(.isHeader)
+                        if layout == "gallery" {
+                            noteCollection(recent)
+                        } else {
+                            VStack(alignment: .leading, spacing: 2) {
+                                ForEach(recent) { noteRow($0) }
+                            }
+                            .modifier(NotesHomeGlassSurface())
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        #else
         List {
             Section {
                 locationRow("all", "All Notes", "tray.full", count("all"))
@@ -415,13 +468,18 @@ struct NotesHomeView: View {
             Section {
                 ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, depth in folderRow(f, depth: depth) }
                 if folders.isEmpty {
-                    Button { folderName = ""; newFolderParent = .some(nil) } label: { Label("New Folder…", systemImage: "folder.badge.plus") }.buttonStyle(.interactivePlain).foregroundStyle(.secondary)
+                    Button { folderName = ""; newFolderParent = .some(nil) } label: {
+                        Label("New Folder…", systemImage: "folder.badge.plus")
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(.rect)
+                    }.buttonStyle(NotesHomeRowButtonStyle()).foregroundStyle(.secondary)
                 }
             } header: { Text("My Folders") }
             Section { locationRow("trash", "Trash", "trash", trash.count) }
             let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
             if !recent.isEmpty { Section("Recently Edited") { ForEach(recent) { noteRow($0) } } }
         }
+        #endif
     }
 
     func tree(parent: String?, depth: Int) -> [(NoteFolder, Int)] {
@@ -431,28 +489,36 @@ struct NotesHomeView: View {
 
     func locationRow(_ loc: String, _ name: String, _ symbol: String, _ n: Int) -> some View {
         Button { go(loc) } label: {
-            HStack { Label(name, systemImage: symbol); Spacer(); Text("\(n)").foregroundStyle(.secondary).monospacedDigit(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
-                .font(.body)
-                .frame(minHeight: 36)
-                .contentShape(.rect)
+            HStack(spacing: 12) {
+                Image(systemName: symbol).frame(width: 20).foregroundStyle(.tint)
+                Text(name).frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(n)").foregroundStyle(.secondary).monospacedDigit()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .font(.body).multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 8)
+            .contentShape(.rect)
         }
-        .buttonStyle(.interactivePlain)
+        .buttonStyle(NotesHomeRowButtonStyle())
         .accessibilityLabel("\(name), \(n) notes")
     }
 
     func folderRow(_ f: NoteFolder, depth: Int) -> some View {
         Button { browseOptions.query = ""; go(f.id) } label: {
-            HStack {
-                Label(f.name, systemImage: "folder").padding(.leading, CGFloat(depth) * 16)
-                Spacer()
+            HStack(spacing: 12) {
+                Image(systemName: "folder").frame(width: 20).foregroundStyle(.tint)
+                    .padding(.leading, CGFloat(depth) * 16)
+                Text(f.name).frame(maxWidth: .infinity, alignment: .leading)
                 Text("\(count(f.id))").foregroundStyle(.secondary).monospacedDigit()
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
             }
-            .font(.body)
-            .frame(minHeight: 36)
+            .font(.body).multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 8)
             .contentShape(.rect)
         }
-        .buttonStyle(.interactivePlain)
+        .buttonStyle(NotesHomeRowButtonStyle())
         .contextMenu {
             Button("New Note Here") { if let id = app.newNote() { try? app.notes?.setFolder(id, f.id) } }
             Button("New Subfolder…") { folderName = ""; newFolderParent = .some(f.id) }
@@ -590,6 +656,9 @@ struct NotesHomeView: View {
             }
         }
         .id(context)
+        #if os(macOS)
+        .background(Color(nsColor: .windowBackgroundColor))
+        #endif
     }
 
     /// Device-local disclosure state, independent for each folder and grouping. Missing keys are expanded.
@@ -838,10 +907,13 @@ struct NotesHomeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 5)
                 }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.horizontal, 8)
                 .contentShape(.rect)
             }
         }
-        .buttonStyle(.interactivePlain)
+        .multilineTextAlignment(.leading)
+        .buttonStyle(NotesHomeRowButtonStyle())
         .accessibilityAddTraits(selecting && selectedNotes.contains(n.id) ? .isSelected : [])
         #if os(iOS)
         // Long-press peeks at the note (original NotePeek) above the actions.
@@ -957,6 +1029,58 @@ struct NotesHomeView: View {
                     #endif
                 }
             }
+        }
+    }
+}
+
+/// Rectangular glass belongs to a group, while rows retain one consistent hover target.
+private struct NotesHomeGlassSurface: ViewModifier {
+    @ViewBuilder func body(content: Content) -> some View {
+        #if os(macOS)
+        if #available(macOS 26.0, *) {
+            content.padding(10)
+                .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        } else {
+            content.padding(10)
+                .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+private struct NotesHomeRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Row(configuration: configuration)
+    }
+
+    private struct Row: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var hovering = false
+
+        var body: some View {
+            configuration.label
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    #if os(macOS)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.primary.opacity(configuration.isPressed ? 0.10 : hovering ? 0.055 : 0))
+                    #else
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.primary.opacity(configuration.isPressed ? 0.08 : 0))
+                    #endif
+                }
+                #if os(macOS)
+                .onHover { hovering = $0 }
+                .clickableCursor()
+                #else
+                .hoverEffect(.highlight, isEnabled: isEnabled)
+                #endif
+                .opacity(isEnabled ? 1 : 0.45)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+                .animation(.easeOut(duration: 0.12), value: hovering)
         }
     }
 }

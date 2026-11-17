@@ -751,7 +751,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/lib/tts/{ttsEngine,ttsBackend,textPrep,extractSpokenText,nativeSpeechBackend}.ts`, `src/lib/tts/kokoro/*`, `src/hooks/{useTTSPlayback,useKokoroModelDownload}.ts`, `src/components/audio/*`, `electron/ipc/{ttsModel,ttsAudioCache}.ts`, `electron/{ttsModelManifest,ttsModelProtocol}.ts`, `src/mobile
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Read Aloud not ported
+- **Native Mac / iPhone:** ❌ / ❌ — Read Aloud remains open. Owner requires original Kokoro/Berean Voices quality and rejected Apple voices on 2026-11-17.
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
