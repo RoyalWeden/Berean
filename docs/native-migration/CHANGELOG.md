@@ -1506,3 +1506,5 @@
 - Compact Lexicon identifies sampled occurrences and places the full-entry action alongside occurrence filters and Scripture search.
 
 - Opening the full Lexicon from a filtered compact entry carries over occurrence filters. Mac Dev verified expanding the H430 sample while retaining the 1 Chronicles filter.
+
+- Lexicon paging controls wrap in narrow views and offer Show Fewer after a single expansion. Mac Dev verified paging and Back to a filtered entry.

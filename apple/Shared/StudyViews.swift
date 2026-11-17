@@ -409,20 +409,21 @@ struct LexiconEntryView: View {
                                                   expanded: matchingDestinations.contains(.occurrence(key)))
                                 }
                             }
-                            if occurrenceMatches.count > visibleOccurrences {
-                                HStack(spacing: 16) {
-                                    Button("Show More Occurrences", systemImage: "chevron.down") {
-                                        visibleOccurrences += 40
+                            FlowLayout(spacing: 8) {
+                                if occurrenceMatches.count > visibleOccurrences {
+                                    Button("Show More", systemImage: "chevron.down") {
+                                        visibleOccurrences = min(visibleOccurrences + 40, occurrenceMatches.count)
                                     }
-                                    Button(occurrencesTruncated ? "Show All Loaded" : "Show All \(occurrenceMatches.count)") {
+                                    .help("Show the next page of occurrences")
+                                    Button(occurrencesTruncated ? "Show All Loaded" : "Show All \(occurrenceMatches.count.formatted())") {
                                         visibleOccurrences = occurrenceMatches.count
                                     }
                                 }
-                                .buttonStyle(.interactivePlain)
-                            } else if visibleOccurrences > 40, occurrenceMatches.count > 40 {
-                                Button("Show Fewer", systemImage: "chevron.up") { visibleOccurrences = 40 }
-                                    .buttonStyle(.interactivePlain)
+                                if visibleRows.count > 40 {
+                                    Button("Show Fewer", systemImage: "chevron.up") { visibleOccurrences = 40 }
+                                }
                             }
+                            .buttonStyle(OptionButtonStyle())
                         }
                     } else if loaded && entry == nil {
                         ContentUnavailableView("No entry for \(strongsId)", systemImage: "character.book.closed")
