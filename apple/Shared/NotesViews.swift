@@ -36,6 +36,7 @@ struct NoteFormatRequest: Equatable {
         case inline(String, String)
         case link(String, selection: NSRange?)
         case highlight(String?)
+        case removeHighlight
         case heading(Int)
         case list(NoteListStyle)
         case callout(NoteCalloutKind)
@@ -721,6 +722,10 @@ struct NoteDetailView: View {
                                         Image(systemName: "circle.fill").foregroundStyle(Color.highlight(color))
                                     }
                                 }
+                            }
+                            Divider()
+                            Button("Remove Highlight", systemImage: "eraser") {
+                                formatRequest = NoteFormatRequest(action: .removeHighlight)
                             }
                         }
                     } label: {

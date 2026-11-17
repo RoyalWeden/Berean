@@ -59,6 +59,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .inline(let open, let close): tv.wrap(open, close)
                 case .link(let destination, let selection): tv.insertLink(destination, at: selection ?? tv.selectedRange)
                 case .highlight(let color): tv.setHighlight(color)
+                case .removeHighlight: tv.removeHighlight()
                 case .heading(let level): tv.setHeading(level)
                 case .list(let style): tv.setList(style)
                 case .callout(let kind): tv.insertCallout(kind)

@@ -73,6 +73,10 @@ struct RichNoteEditor: NSViewRepresentable {
                         editor.replace(edit.range, with: edit.replacement, select: edit.selection)
                     }
                 case .highlight(let color): editor.setHighlight(color)
+                case .removeHighlight:
+                    if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
+                        editor.replace(edit.range, with: edit.replacement, select: edit.selection)
+                    }
                 case .heading(let level): editor.setHeading(level)
                 case .list(let style): editor.setList(style)
                 case .callout(let kind): editor.insertCallout(kind)
