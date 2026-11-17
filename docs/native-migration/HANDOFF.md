@@ -1884,3 +1884,11 @@ Find sizes to the actual reader pane. Under 270 points it shortens visual labels
 ### Mac reader cursor ownership
 
 The Scripture text view no longer registers AppKit's blanket I-beam cursor rectangle underneath the floating toolbar. It uses the existing hit-tested tracking area to set the cursor when entering or moving over actual reader content, leaving toolbar controls in charge of their own cursor. Mac Dev built. Scratch QA opened G5485 from Romans 5 and closed the inspector through the toolbar. Continuous cursor movement across the toolbar still needs direct visual verification.
+
+### Current-tab search filters and Compare location QA (2026-11-17)
+
+Command-L followed by Search All Texts now explicitly clears old edition, book, testament, match-mode and tag restrictions when replacing the current Search tab. Search scope is written as JSON null when All Texts is requested, so merging state cannot retain a previous edition. Sort and grouping remain the user's presentation preferences. Search navigation history now includes result-defining filters and the focused edition, allowing Back to recover the filtered destination even when its query is unchanged.
+
+Both Dev builds passed. Mac scratch QA set New Testament on the existing eaten drunk presence search, used Command-L with the same selected query and Return, confirmed the filter disappeared with eight tabs still open, then confirmed Back restored New Testament and Forward cleared it again. Separately verified Command-L in a pinned Compare tab changed Romans 5:2 to Matthew 19:4 in place with eight tabs, updated both following column headers, and Back restored Romans 5 and both columns. Compare remains enabled during location editing, following its existing passage-change behavior. Independent pinned columns and a new explicit edition search still need live QA.
+
+PR stack rechecked on November 17. #22 remains open against main, #23 remains open against native/m7-export, and draft #24 remains open against native/m6-navigation. CI for the prior #24 head was queued. Continue owner-reviewed merge order and verify retargeting before any merge. Remaining immediate UI checks include continuous cursor motion over toolbar controls, very narrow Find layouts, IME typing, and physical iPhone behavior. This focused change was exercised on Mac and compiled for iPhone.

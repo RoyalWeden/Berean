@@ -750,7 +750,9 @@ final class AppModel {
             if let folder = t.state["listFolderId"]?.stringValue?.string { return "folder:" + folder }
             return "notes-home"
         case .lexicon: keys = ["strongsNum"]
-        case .search: keys = ["query"]
+        case .search:
+            keys = ["query", "scopeTexts", "bookIds", "wordMode", "testament",
+                    "tagFilter", "tagFilterAll", "nativeSearchFocusText"]
         default: keys = []
         }
         let base = keys.map { k in t.state[k].flatMap { $0 == .null ? nil : JSON.stringify($0).string } ?? "-" }.joined(separator: "|")
@@ -908,8 +910,17 @@ final class AppModel {
         let query = qualified?.query ?? rawQuery
         let scope = qualified.map { JSValue.array([.string(JSString($0.text))]) }
         recordScriptureSearch(rawQuery)
-        var o = JSObject(); o["query"] = .string(JSString(query)); o["scopeTexts"] = scope
+        var o = JSObject()
+        o["query"] = .string(JSString(query))
+        o["scopeTexts"] = scope ?? .null
         o["nativeSearchFocusText"] = .null
+        if preferActiveTab {
+            // The palette describes a fresh search across the requested texts.
+            // Explicit current-tab navigation can replace a filtered search too.
+            for key in ["bookIds", "wordMode", "testament", "tagFilter", "tagFilterAll"] {
+                o[key] = .null
+            }
+        }
         if reuseTab {
             let isCompatibleSearch: (BereanWorkspace.Tab) -> Bool = { tab in
                 Self.matchesPlainSearchFilters(tab.state, requested: o)

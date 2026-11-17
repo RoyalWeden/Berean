@@ -1618,3 +1618,8 @@
 
 ### Mac reader cursor ownership
 - Removed the text view's overlapping AppKit cursor rectangle. Mac Dev built and scratch QA exercised the reader link and toolbar click paths. Cursor motion remains open.
+
+### 2026-11-17 — Current-tab search scope and history
+
+- Command-L search replacement clears old result restrictions to match the palette's requested search. Back and Forward restore filters even when the query stays the same.
+- Both Dev builds passed. Mac scratch QA verified filter clearing and repeated navigation with the tab count unchanged. Compare Command-L and Back were also verified in a pinned tab.

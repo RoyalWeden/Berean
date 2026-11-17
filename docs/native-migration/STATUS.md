@@ -108,3 +108,7 @@
 ## 2026-11-17 Notes editor typography
 
 - Both native editors render a grid for complete Markdown tables and use the Notes body font in cells. Format now includes Inline Code. Dev builds, Mac visual and editing QA, and iPhone Simulator insertion and undo/redo passed. See HANDOFF for legacy separator recovery and wide-table checks.
+
+## 2026-11-17 current-location verification
+
+- Both Dev targets build after search replacement and history corrections. Mac scratch QA verified Command-L replacing a filtered Search tab, Back restoring filters, Forward restoring the broad search, and pinned Compare passage replacement with Back. See the latest HANDOFF entry for exact cases and outstanding UI checks.

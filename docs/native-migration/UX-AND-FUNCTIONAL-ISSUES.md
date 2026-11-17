@@ -82,3 +82,8 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 - SHARED-FUNC-035 — FIXED: lexicon search missed accent-free spellings (shalom, chesed) (`639b41ad`).
 - SHARED-UI-036 — FIXED: destructive note/history/tag actions swallowed errors; now reported through `userMessage` (`b6223db3`).
 - Full list of the session's features and their verification: HANDOFF.md "2026-11-14 evening checkpoint" + AUDIT-2026-11-14.md.
+
+### 2026-11-17 current-location follow-up
+
+- Fixed Command-L Search All Texts inheriting filters from the replaced search. Back and Forward now distinguish destinations with the same query and different result restrictions. Mac runtime verified testament restoration. Both Dev builds passed.
+- Cursor tracking review retained AppKit's superview-coordinate hit-test contract. Continuous pointer-motion verification remains open, along with IME Find input and compact Find layouts.

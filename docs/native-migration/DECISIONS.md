@@ -344,3 +344,8 @@ show their content without the side-by-side or thread chrome. A full structured 
 - **D-2026-11-15-c Display-only daily titles:** daily notes/tabs/history show long or compact dates; stored titles unchanged.
 - **D-2026-11-15-d Note references auto-link** by reusing the `berean-note:` route (passage first, then note title) instead of a new scheme.
 - **D-2026-11-15-e Auto em dash** follows the original: on by default, never converts dashes that start a line (keeps `---` dividers).
+
+## 2026-11-17 current-location search
+
+- Explicit palette search replacement uses the search scope described by the selected action and clears previous result restrictions. Sort and grouping remain presentation preferences. History identifies a Search destination by query and result-defining filters, including the focused edition.
+- Command-L changes a Compare tab's anchor passage while retaining Compare and its column-following rules. Mac runtime verified replacement and Back in a pinned tab.
