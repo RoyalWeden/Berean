@@ -1832,3 +1832,7 @@ Mac Workspace → Find Workspace or Tab now has a Browse Tabs button beside each
 ### Keyboard search within workspace tabs (2026-11-17)
 
 Mac's workspace tab browser focuses search on opening. On both platforms, a query ending in Tab N filters by the displayed copy number, and submitting a nonempty query only opens a tab when exactly one result remains. Both Dev builds passed. Mac scratch QA confirmed autofocus, the two matches for Obadiah, and Return opening Study's Obadiah Tab 2. Return with multiple matches leaves the list open but Mac can move focus off the field. iPhone keyboard submission and Mac VoiceOver remain to check.
+
+### Scripture Search scroll across repeated history (2026-11-17)
+
+Word and tag-only search now restore through a tracked ScrollPosition. The clicked result stays centered across repeated Back/Forward visits. A later manual scroll or Jump to section records the updated position for ordinary tab switches. Mac scratch QA scrolled in H430's 2,242 matches, opened Genesis 3:3, and saw two Back visits return to the same scroll-bar value, with Forward reopening Genesis 3:3. A subsequent manual scroll followed by a Lexicon tab switch restored the later viewport within one row. iPhone touch and tagged-only live verification remain open.

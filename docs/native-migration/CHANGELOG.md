@@ -1567,3 +1567,8 @@
 - **Starting point:** `4925c3d2`, `native/reader-notes`, draft PR #24.
 - **Changes:** Workspace tab search supports explicit copy numbers and submits a unique result. Mac autofocuses the scoped field.
 - **Verification:** Both Dev builds passed. Mac scratch QA checked initial focus, ambiguous submission, and opening the second Obadiah result using Return.
+
+### 2026-11-17 — Repeated Scripture search returns — BUILT, MAC UI CHECKED
+- **Starting point:** `b1b3ff4f`, `native/reader-notes`, draft PR #24.
+- **Changes:** Scripture search keeps the clicked result centered across repeated Back and Forward and remembers subsequent manual scrolling.
+- **Verification:** Both Dev builds passed. Mac scratch QA reproduced both the repeated return to Genesis 3:3 and restoring a later manual viewport after switching tabs.
