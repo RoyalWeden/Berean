@@ -1615,3 +1615,6 @@
 
 ### Mac Find adapts to pane width
 - Mac Dev built. Scratch QA confirmed query focus and match navigation survived widening the study panel. The two compact layout thresholds remain to test live.
+
+### Mac reader cursor ownership
+- Removed the text view's overlapping AppKit cursor rectangle. Mac Dev built and scratch QA exercised the reader link and toolbar click paths. Cursor motion remains open.

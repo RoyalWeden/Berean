@@ -1880,3 +1880,7 @@ A same-passage TextKit rebuild now recomputes the current Find results and reapp
 ### Mac Find in narrow reader panes
 
 Find sizes to the actual reader pane. Under 270 points it shortens visual labels while retaining full accessibility labels. Under 180 points it stacks the search input above the controls without replacing the text field. Focusing an automatic Find field restarts its idle timer. Mac Dev built. Scratch QA widened the study panel, kept the query and field focus, and advanced to the next result with Command-G. The pane remained above the compact threshold in that test, so both compact layouts still need live checks.
+
+### Mac reader cursor ownership
+
+The Scripture text view no longer registers AppKit's blanket I-beam cursor rectangle underneath the floating toolbar. It uses the existing hit-tested tracking area to set the cursor when entering or moving over actual reader content, leaving toolbar controls in charge of their own cursor. Mac Dev built. Scratch QA opened G5485 from Romans 5 and closed the inspector through the toolbar. Continuous cursor movement across the toolbar still needs direct visual verification.

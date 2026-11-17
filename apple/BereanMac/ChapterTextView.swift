@@ -853,6 +853,12 @@ final class ReaderTextView: NSTextView {
         super.mouseDown(with: event)
     }
 
+    override func resetCursorRects() {
+        // NSTextView registers its I-beam for the entire document rectangle,
+        // including text under floating controls. The hit-tested tracking area
+        // below supplies the reader cursor, so AppKit and SwiftUI have one owner.
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
@@ -909,6 +915,11 @@ final class ReaderTextView: NSTextView {
     }
 
     override func cursorUpdate(with event: NSEvent) {
+        guard ownsPointer(at: event) else { return }
+        updateReaderCursor(at: event, glyphIndex: nil)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
         guard ownsPointer(at: event) else { return }
         updateReaderCursor(at: event, glyphIndex: nil)
     }
