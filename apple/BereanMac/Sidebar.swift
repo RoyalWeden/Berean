@@ -26,12 +26,17 @@ struct BereanSidebar: View {
     @FocusState private var tabFilterFocused: Bool
 
     var body: some View {
+        let sameTitleIndices = isFilteringTabs ? AppModel.sameTitleTabIndices(app.orderedTabs) : [:]
         VStack(spacing: 0) {
             header
             GeometryReader { geo in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        if groupBySpace { groupedTabs } else { orderedTabs }
+                        if groupBySpace {
+                            groupedTabs(sameTitleIndices: sameTitleIndices)
+                        } else {
+                            orderedTabs(sameTitleIndices: sameTitleIndices)
+                        }
                         if isFilteringTabs && matchingTabs.isEmpty {
                             Text("No matching tabs").font(.callout).foregroundStyle(.secondary).padding(10)
                         }
@@ -391,25 +396,25 @@ struct BereanSidebar: View {
         return app.matchingOpenTabs(query).filter { tabTypeFilter == nil || $0.tabType == tabTypeFilter }
     }
 
-    @ViewBuilder var orderedTabs: some View {
+    @ViewBuilder func orderedTabs(sameTitleIndices: [String: Int]) -> some View {
         let pinned = matchingTabs.filter(\.isPinned), others = matchingTabs.filter { !$0.isPinned }
         if !pinned.isEmpty {
             sectionLabel("Pinned")
-            ForEach(pinned) { row($0) }
+            ForEach(pinned) { row($0, sameTitleIndex: sameTitleIndices[$0.id]) }
             Divider().padding(.vertical, 6).padding(.horizontal, 6)
         }
-        ForEach(others) { row($0) }
+        ForEach(others) { row($0, sameTitleIndex: sameTitleIndices[$0.id]) }
         if !isFilteringTabs && app.orderedTabs.isEmpty {
             Text("No tabs. Press ⌘T to open a passage, a Strong's number or a search.").font(.callout).foregroundStyle(.secondary).padding(10)
         }
     }
 
-    @ViewBuilder var groupedTabs: some View {
+    @ViewBuilder func groupedTabs(sameTitleIndices: [String: Int]) -> some View {
         ForEach(SpaceId.allCases) { space in
             let tabs = matchingTabs.filter { $0.spaceId == space }
             if !tabs.isEmpty {
                 sectionLabel(space.title)
-                ForEach(tabs) { row($0) }
+                ForEach(tabs) { row($0, sameTitleIndex: sameTitleIndices[$0.id]) }
             }
         }
     }
@@ -419,9 +424,10 @@ struct BereanSidebar: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder func row(_ tab: BereanWorkspace.Tab) -> some View {
+    @ViewBuilder func row(_ tab: BereanWorkspace.Tab, sameTitleIndex: Int?) -> some View {
         let row = SidebarTabRow(tab: tab, isActive: app.activeTab?.id == tab.id, isDragging: dragging == tab.id,
-                               onSelect: { app.select(tab.id, in: tab.spaceId) }, onClose: { app.close(tab.id) })
+                               onSelect: { app.select(tab.id, in: tab.spaceId) }, onClose: { app.close(tab.id) },
+                               sameTitleIndex: sameTitleIndex)
             .contextMenu { tabMenu(tab) }
         if isFilteringTabs {
             row
@@ -567,10 +573,12 @@ struct SidebarTabRow: View {
     let isDragging: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    var sameTitleIndex: Int? = nil
     @State private var hovering = false
 
     var body: some View {
         let comparing = tab.tabType == .bible && BibleState(tab.state).compareMode
+        let tabNumber = sameTitleIndex.map { "Tab \($0)" }
         HStack(spacing: 8) {
             Image(systemName: comparing ? "rectangle.split.2x1" : tab.symbol).font(.system(size: 13, weight: .medium)).foregroundStyle(tab.tint).frame(width: 18)
             Text(tab.navigationLabel)
@@ -583,6 +591,12 @@ struct SidebarTabRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .fixedSize()
+            }
+            if let tabNumber {
+                Text(tabNumber)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                     .fixedSize()
             }
             ZStack {
@@ -611,12 +625,12 @@ struct SidebarTabRow: View {
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
         .pointerStyle(.link)
-        .help("\(tab.navigationLabel) · \(tab.navigationDetail)")
+        .help(([tab.navigationLabel, tab.navigationDetail] + [tabNumber].compactMap { $0 }).joined(separator: " · "))
         .animation(.easeOut(duration: 0.12), value: hovering)
         .animation(.easeOut(duration: 0.15), value: isActive)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
-        .accessibilityLabel("\(tab.navigationLabel), \(tab.navigationDetail)\(tab.isPinned ? ", pinned" : "")")
+        .accessibilityLabel(([tab.navigationLabel, tab.navigationDetail] + [tabNumber, tab.isPinned ? "Pinned" : nil].compactMap { $0 }).joined(separator: ", "))
         .accessibilityAction { onSelect() }
     }
 }
