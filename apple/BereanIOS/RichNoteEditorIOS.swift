@@ -35,7 +35,11 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         tv.alwaysBounceVertical = true
         tv.smartQuotesType = .no
         tv.smartDashesType = .no
-        tv.adjustsFontForContentSizeCategory = true
+        // TextKit runs carry explicit fonts, so refresh the entire attributed layout.
+        tv.registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) {
+            (editor: NoteUITextView, _: UITraitCollection) in
+            editor.coordinator?.restyle()
+        }
         tv.spellCheckingType = spellCheck ? .yes : .no
         tv.text = text
         tv.accessibilityLabel = "Note text"
@@ -159,7 +163,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             guard let tv = textView else { return }
             let storage = tv.textStorage
             let text = tv.text ?? ""
-            let size = UIFontMetrics(forTextStyle: .body).scaledValue(for: parent.fontSize)
+            let size = UIFontMetrics(forTextStyle: .body).scaledValue(for: parent.fontSize, compatibleWith: tv.traitCollection)
             let para = NSMutableParagraphStyle(); para.lineSpacing = 3; para.paragraphSpacing = 6
             let all = NSRange(location: 0, length: storage.length)
             let sel = tv.selectedRange
