@@ -691,10 +691,22 @@ struct NoteDetailView: View {
                     }
                     .menuIndicator(.hidden)
                     .help("Format selected note text")
-                    // Insert menu (original note editor "+"): Scripture reference, link, quote, divider, checklist.
                     Menu {
                         Button("Scripture Reference…", systemImage: "book") { insertingReference = true }
                         Button("Link", systemImage: "link") { formatRequest = NoteFormatRequest(action: .inline("[", "](https://)")) }
+                        Section {
+                            Menu("Heading", systemImage: "textformat.size") {
+                                ForEach(1...3, id: \.self) { level in
+                                    Button("Heading \(level)") { formatRequest = NoteFormatRequest(action: .heading(level)) }
+                                }
+                            }
+                            Button(NoteListStyle.bullet.title, systemImage: NoteListStyle.bullet.symbol) {
+                                formatRequest = NoteFormatRequest(action: .list(.bullet))
+                            }
+                            Button("Table", systemImage: "tablecells") {
+                                formatRequest = NoteFormatRequest(action: .insertTable)
+                            }
+                        }
                         Button("Quote", systemImage: "text.quote") { formatRequest = NoteFormatRequest(action: .inline("\n> ", "")) }
                         Menu("Callout", systemImage: "exclamationmark.bubble") {
                             ForEach(NoteCalloutKind.allCases, id: \.self) { kind in
@@ -709,7 +721,7 @@ struct NoteDetailView: View {
                         Label("Insert", systemImage: "plus")
                     }
                     .menuIndicator(.hidden)
-                    .help("Insert a Scripture reference, link, quote, checklist or divider")
+                    .help("Insert a Scripture reference, link, or note structure")
                 }
                 #if os(macOS)
                 if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
