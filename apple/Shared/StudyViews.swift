@@ -388,6 +388,10 @@ struct LexiconEntryView: View {
                                          : "No occurrences match these filters.")
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
+                                    if hasOccurrenceOptions {
+                                        Button("Reset Filters", systemImage: "arrow.counterclockwise", action: resetOccurrenceFilters)
+                                            .buttonStyle(OptionButtonStyle())
+                                    }
                                 }
                             }
                             if compact, !occurrences.isEmpty {
@@ -676,6 +680,16 @@ struct LexiconEntryView: View {
         occurrenceEdition != nil || occurrenceBook != nil || !selectedRenderings.isEmpty || sortByMatches
     }
 
+    private func resetOccurrenceFilters() {
+        occurrenceEdition = nil
+        occurrenceBook = nil
+        selectedRenderings = []
+        sortByMatches = false
+        visibleOccurrences = 40
+        occurrenceFilterList = nil
+        occurrenceFilterQuery = ""
+    }
+
     private var activeOccurrenceOptions: some View {
         FlowLayout(spacing: 6) {
             if let occurrenceEdition {
@@ -812,14 +826,8 @@ struct LexiconEntryView: View {
                 .pickerStyle(.menu).clickableCursor().optionHover()
             }
             if hasOccurrenceOptions {
-                Button("Reset Filters") {
-                    occurrenceEdition = nil
-                    occurrenceBook = nil
-                    selectedRenderings = []
-                    sortByMatches = false
-                    occurrenceFilterList = nil
-                }
-                .buttonStyle(OptionButtonStyle())
+                Button("Reset Filters", action: resetOccurrenceFilters)
+                    .buttonStyle(OptionButtonStyle())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
