@@ -1557,3 +1557,8 @@
 - **Starting point:** `6d290385`, `native/reader-notes`, draft PR #24.
 - **Changes:** Live workspaces have a Browse Tabs action with a scoped search and direct opening of an existing tab.
 - **Verification:** Both Dev builds passed. Simulator QA browsed the Study workspace from a different workspace and opened its existing John 3 tab.
+
+### 2026-11-17 — Mac workspace tab browsing — BUILT, MAC UI CHECKED
+- **Starting point:** `73c742a5`, `native/reader-notes`, draft PR #24.
+- **Changes:** Mac workspace search now opens the shared scoped tab browser from live workspace rows.
+- **Verification:** Both Dev builds passed. Mac scratch QA verified scoped search, two numbered matches, direct tab opening, and cross-workspace Back.

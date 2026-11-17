@@ -19,6 +19,7 @@ struct BereanSidebar: View {
     @State private var name = ""
     @State private var showsWorkspaceSearch = false
     @State private var workspaceQuery = ""
+    @State private var browsingWorkspace: WorkspaceItem?
     @FocusState private var workspaceSearchFocused: Bool
     @State private var showsTabFilter = false
     @State private var tabQuery = ""
@@ -90,7 +91,28 @@ struct BereanSidebar: View {
             Button("Archive All Tabs") { archiveWithUndo(app.orderedTabs.map(\.id)) }
                 .disabled(app.orderedTabs.isEmpty)
         }
-        .sheet(isPresented: $showsWorkspaceSearch) { workspaceTabSearch }
+        .sheet(isPresented: $showsWorkspaceSearch, onDismiss: { browsingWorkspace = nil }) {
+            if let workspace = browsingWorkspace {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Button("Workspaces", systemImage: "chevron.left") { browsingWorkspace = nil }
+                            .buttonStyle(.interactivePlain)
+                        Spacer()
+                        Text(workspace.displayName).font(.headline).lineLimit(1)
+                        Spacer()
+                        Button("Cancel") { showsWorkspaceSearch = false }
+                            .keyboardShortcut(.cancelAction)
+                    }
+                    Divider()
+                    WorkspaceTabsPage(workspace: workspace, onOpen: { showsWorkspaceSearch = false })
+                        .id(workspace.id)
+                }
+                .padding(16)
+                .frame(width: 460, height: 390)
+            } else {
+                workspaceTabSearch
+            }
+        }
         .sheet(isPresented: $showTabCleanup) { TabCleanupView().frame(minWidth: 360, minHeight: 420) }
         .alert("Rename Workspace", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
@@ -291,14 +313,33 @@ struct BereanSidebar: View {
                     if !workspaces.isEmpty {
                         Section("Workspaces") {
                             ForEach(workspaces) { workspace in
-                                Button { openWorkspaceSearchResult(workspace) } label: {
-                                    let preview = workspace.previewLabels(matching: query).filter { $0 != workspace.displayName }
-                                    let detail = ([workspace.displayDetail] + preview).joined(separator: " · ")
-                                    searchResultLabel(title: workspace.displayName, detail: detail,
-                                                      symbol: workspace.isSaved ? "square.stack.3d.up" : WorkspaceIcon.symbol(workspace.icon),
-                                                      tint: .secondary)
+                                HStack(spacing: 8) {
+                                    Button { openWorkspaceSearchResult(workspace) } label: {
+                                        let preview = workspace.previewLabels(matching: query).filter { $0 != workspace.displayName }
+                                        let detail = ([workspace.displayDetail] + preview).joined(separator: " · ")
+                                        searchResultLabel(title: workspace.displayName, detail: detail,
+                                                          symbol: workspace.isSaved ? "square.stack.3d.up" : WorkspaceIcon.symbol(workspace.icon),
+                                                          tint: .secondary, showsArrow: workspace.isSaved)
+                                    }
+                                    .buttonStyle(.interactivePlain)
+                                    if !workspace.isSaved {
+                                        Button {
+                                            browsingWorkspace = workspace
+                                        } label: {
+                                            Image(systemName: "rectangle.on.rectangle")
+                                                .frame(width: 30, height: 30)
+                                                .contentShape(.rect)
+                                        }
+                                        .buttonStyle(.interactivePlain)
+                                        .accessibilityLabel("Browse Tabs in \(workspace.displayName)")
+                                        .help("Browse Tabs in \(workspace.displayName)")
+                                    }
                                 }
-                                .buttonStyle(.interactivePlain)
+                                .accessibilityActions {
+                                    if !workspace.isSaved {
+                                        Button("Browse Tabs") { browsingWorkspace = workspace }
+                                    }
+                                }
                             }
                         }
                     }
@@ -323,7 +364,7 @@ struct BereanSidebar: View {
         .onAppear { workspaceSearchFocused = true }
     }
 
-    private func searchResultLabel(title: String, detail: String, symbol: String, tint: Color) -> some View {
+    private func searchResultLabel(title: String, detail: String, symbol: String, tint: Color, showsArrow: Bool = true) -> some View {
         HStack(spacing: 10) {
             Image(systemName: symbol).foregroundStyle(tint).frame(width: 20)
             VStack(alignment: .leading) {
@@ -331,7 +372,7 @@ struct BereanSidebar: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
-            Image(systemName: "arrow.right").foregroundStyle(.secondary)
+            if showsArrow { Image(systemName: "arrow.right").foregroundStyle(.secondary) }
         }
         .padding(.vertical, 4)
         .contentShape(.rect)

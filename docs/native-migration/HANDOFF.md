@@ -1824,3 +1824,7 @@ When workspace labels collide, picker previews now prefer an open tab title that
 ### Browse another iPhone workspace's tabs (2026-11-17)
 
 In iPhone Tabs → Workspaces, long-press a live workspace or reveal its leading swipe action and choose Browse Tabs. The page lists and searches that workspace's open tabs in pinned-first display order while the current reader stays in place. Opening a row uses the existing workspace/tab navigation path, including the return history. Same-title numbers and pinned labels are visible in the list. Both Dev builds passed. On iPhone 18 Pro Simulator, long-pressed Study from Study Phone, saw John 3 and Untitled while Obadiah stayed in the reader, then opened the existing John 3 tab. Leading swipe, search, and Back after cross-workspace open still need direct checks. Saved snapshots continue to open through the existing workspace action.
+
+### Browse another Mac workspace's tabs (2026-11-17)
+
+Mac Workspace → Find Workspace or Tab now has a Browse Tabs button beside each live workspace. It opens the shared workspace tab list used by iPhone, with scoped search, pinned order, and numbered copies. Opening a result switches directly to the existing tab. Both Dev builds passed. Mac scratch QA browsed Study from QA Mirror, typed Obadiah, saw two numbered matches, opened the second, and used Command-[ to return to Jude 1 in QA Mirror. Physical iPhone, Mac keyboard traversal, and VoiceOver activation after the shared-view refactor remain to check.
