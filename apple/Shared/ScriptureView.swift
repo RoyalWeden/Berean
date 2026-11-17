@@ -31,7 +31,7 @@ struct ScriptureEditionArrival {
     var capture: (Int?) -> ScriptureReadingPosition? = { _ in nil }
 }
 
-struct ChapterEdition: Equatable {
+struct ChapterEdition: Hashable {
     let book: String
     let chapter: Int
     let text: String

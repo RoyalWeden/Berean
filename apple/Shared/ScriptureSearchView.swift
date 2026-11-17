@@ -5,16 +5,40 @@ import BereanText
 import BereanReference
 import BereanNotes
 
+@MainActor
+private final class SearchHighlightCache {
+    private var revision: Int?
+    private var chapters: [ChapterEdition: [Int: [Highlight]]] = [:]
+
+    func marks(book: String, chapter: Int, text: String, verse: Int, revision: Int,
+               load: () throws -> [Int: [Highlight]]) -> [Highlight] {
+        if self.revision != revision {
+            chapters.removeAll(keepingCapacity: true)
+            self.revision = revision
+        }
+        let key = ChapterEdition(book: book, chapter: chapter, text: text)
+        if let cached = chapters[key] { return cached[verse] ?? [] }
+        guard let loaded = try? load() else { return [] }
+        chapters[key] = loaded
+        return loaded[verse] ?? []
+    }
+}
+
 private struct SearchResultHighlights<Content: View>: View {
     @Environment(AppModel.self) private var app
     let hit: ScriptureHit
+    let cache: SearchHighlightCache
     @ViewBuilder let content: ([Highlight]) -> Content
     @State private var marks: [Highlight] = []
 
     var body: some View {
         content(marks)
             .task(id: app.highlightsRevision) {
-                marks = (try? app.highlights?.chapter(hit.bookId, hit.chapter, textId: hit.textId)[hit.verseNum]) ?? []
+                guard let highlights = app.highlights else { marks = []; return }
+                marks = cache.marks(book: hit.bookId, chapter: hit.chapter, text: hit.textId,
+                                    verse: hit.verseNum, revision: app.highlightsRevision) {
+                    try highlights.chapter(hit.bookId, hit.chapter, textId: hit.textId)
+                }
             }
     }
 }
@@ -153,6 +177,7 @@ struct ScriptureSearchView: View {
         guard wordsInsteadOf != query, let p = app.resolvePassage(passageQuery), p.verse != nil, p.verseGroups.count <= 1 else { return nil }
         return p
     }
+    @State private var highlightCache = SearchHighlightCache()
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
     @State private var showOptions = false
@@ -860,7 +885,7 @@ struct ScriptureSearchView: View {
     func row(_ h: ScriptureHit) -> some View {
         let passage = ResolvedPassage(textId: h.textId, bookId: h.bookId, chapter: h.chapter, verse: h.verseNum)
         let edition = textInfo(h.textId)
-        return SearchResultHighlights(hit: h) { marks in
+        return SearchResultHighlights(hit: h, cache: highlightCache) { marks in
             HStack(alignment: .top, spacing: 8) {
                 Button {
                     openResult(h, passage: passage)
