@@ -2019,3 +2019,11 @@ Both app Debug builds pass (/tmp/berean-link-preview-mac.log, /tmp/berean-link-p
 Parity clarification: original [[ autocomplete is notes-only. Native Scripture Reference insertion already uses PassagePicker. Original plain-reference/Strong's Insert scripture block/Insert Strong's block suggestions are separate unfinished features; do not conflate them with book suggestions in [[. CI44183151529 was queued at the last check; older44180828937 was canceled after the next push. Recheck current head, not an obsolete run. Goal remains active.
 
 Full shared Release regression at the preview checkpoint passed157 tests/46 suites in37.131 seconds (/tmp/berean-current-shared-release-tests.log). This includes the Lexicon field contract. Xcode optimized simulator rerun remains separate/pending.
+
+### Snapshot active-tab fallback (2026-11-17)
+
+After preview commit71d83636, fixed WorkspaceSnapshot.Parsed.restoreSession fallback when its public mutable activeTabId has a missing, explicit nil or stale value. Dictionary assignment's String?? inference lifted nil and bypassed ?? first restored tab. Explicit String? locals for both mapped ID and coalesced selection remove that context. Normal snapshot parse already repairs invalid IDs, so this closes the public Parsed/restore boundary rather than demonstrating a production data loss. No persisted schema or ID strategy changes.
+
+Two focused tests pass (/tmp/berean-snapshot-active-tests.log): missing/nil/stale fallback to remapped first tab, valid second-tab remap, empty spaces and preserved display order. The first attempted single-local fix failed all three fallback assertions; both typed locals pass. Full157 suite ran before these two tests/fix; do not claim full159 run. Both final app builds passed (/tmp/berean-snapshot-fallback-mac.log, /tmp/berean-snapshot-fallback-ios.log). Remaining original-app parity and interaction matrix remain active.
+
+Final shared Release rerun including the snapshot fallback fix and both new tests PASSED159 tests/47 suites in37.410 seconds (/tmp/berean-snapshot-full-release-tests.log). This supersedes the earlier full159-pending statement for host SwiftPM only; optimized iOS simulator and current GitHub CI remain separate checks.

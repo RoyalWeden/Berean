@@ -163,7 +163,11 @@ extension WorkspaceSnapshot.Parsed {
                 return tab
             }
             idsBySpace[space] = firstIDInSpace
-            active[space] = (activeTabId[space] ?? nil).flatMap { firstIDInSpace[$0] } ?? restoredTabs[space]?.first?.id
+            // Keep coalescing outside the dictionary's String?? assignment
+            // context, which can lift nil to .some(nil) and skip the fallback.
+            let preferred: String? = (activeTabId[space] ?? nil).flatMap { firstIDInSpace[$0] }
+            let selected: String? = preferred ?? restoredTabs[space]?.first?.id
+            active[space] = selected
         }
         restoredTabs = restoredTabs.mapValues { list in
             list.map { tab in

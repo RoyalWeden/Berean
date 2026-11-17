@@ -398,3 +398,7 @@ Measure bounded Lexicon search rows eagerly so language changes do not use lazy 
 ### 2026-11-17 — Preview only the selected note
 
 Preserve the title-only completion index. Read one selected note for a bounded plain excerpt and formatted attachment reference, in a task keyed by target identity. Keep typing/insertion owned by the editor and omit preview where editor height is constrained. Original [[ targets notes; Scripture/Strong's block suggestions are separate workflows.
+
+### 2026-11-17 — Optional dictionary restore assignment
+
+Evaluate the active-tab fallback as an explicitly typed String? before storing in [SpaceId:String?]. Its subscript assignment expects String?? and can otherwise lift a nil preferred value into .some(nil), bypassing the fallback. Keep the regression matrix for public Parsed mutations as well as normal parse paths.

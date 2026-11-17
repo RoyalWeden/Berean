@@ -155,3 +155,5 @@ Both Debug app builds and 19 focused Workspace tests pass. Simulator verified de
 Selected-note passage/excerpt preview is implemented on both platforms. iPhone Simulator insertion/Undo and five-row bounds passed; both Debug builds pass. Keep the goal active and continue deeper navigation, original block suggestions, remaining parity and accessibility QA from HANDOFF.
 
 Full shared Swift Release suite now passes157 tests/46 suites; see /tmp/berean-current-shared-release-tests.log. This is a host SwiftPM run, not an updated iOS platform-SQLite run.
+
+Final host Swift Release regression including snapshot fallback passes159 tests/47 suites. Both final app builds pass. Remote CI and optimized platform-SQLite rerun remain pending.

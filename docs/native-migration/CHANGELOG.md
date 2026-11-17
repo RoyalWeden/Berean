@@ -1685,3 +1685,7 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 ### 2026-11-17 — Note-link suggestion previews
 
 - Native note-link suggestions show the selected note's passage and excerpt in the glass panel. iPhone Simulator verified preview, insertion and Undo; both apps build. Mac runtime and software keyboard/accessibility checks remain.
+
+### 2026-11-17 — Workspace snapshot selection fallback
+
+- Restoring a public Parsed snapshot with a missing/stale active tab now chooses its first restored tab. Added remapped-identity and empty-space regressions; two focused tests pass. Normal serialized snapshot parsing already repaired these values.
