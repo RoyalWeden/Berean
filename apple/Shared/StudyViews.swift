@@ -360,6 +360,7 @@ struct LexiconEntryView: View {
                             Text("Occurrences")
                                 .font(.headline)
                                 .accessibilityAddTraits(.isHeader)
+                                .id("occurrences-heading")
                             if occurrencesLoading {
                                 ProgressView().accessibilityLabel("Loading occurrences")
                             } else if occurrences.isEmpty {
@@ -420,7 +421,10 @@ struct LexiconEntryView: View {
                                     }
                                 }
                                 if visibleRows.count > 40 {
-                                    Button("Show Fewer", systemImage: "chevron.up") { visibleOccurrences = 40 }
+                                    Button("Show Fewer", systemImage: "chevron.up") {
+                                        visibleOccurrences = 40
+                                        proxy.scrollTo("occurrences-heading", anchor: .top)
+                                    }
                                 }
                             }
                             .buttonStyle(OptionButtonStyle())
@@ -448,15 +452,18 @@ struct LexiconEntryView: View {
                 guard !compact, !occurrencesLoading,
                       entry?.strongsNum == strongsId.uppercased() else { return }
                 defer { if !Task.isCancelled { restoredScrollEntry = strongsId } }
-                if let key = app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId),
+                let pendingReturn = app.lexiconOccurrenceReturns[tabId]?[strongsId]
+                if let key = pendingReturn,
                    let index = matchingOccurrences(indexedOccurrences(
                        editionOccurrences.filter { occurrenceBook == nil || $0.bookId == occurrenceBook }
                    )).firstIndex(where: { $0.4 == key }) {
                     let requiredLimit = (index / 40 + 1) * 40
                     visibleOccurrences = max(visibleOccurrences, requiredLimit)
                     await Task.yield()
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled, app.activeTab?.id == tabId,
+                          app.lexiconOccurrenceReturns[tabId]?[strongsId] == key else { return }
                     proxy.scrollTo(key, anchor: .center)
+                    app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
                     // Discard the older browsing offset after an explicit return.
                     app.lexiconScrollOffsets[tabId]?.removeValue(forKey: strongsId)
                 } else if !restoredWithChangedWordReplacement,
@@ -466,6 +473,11 @@ struct LexiconEntryView: View {
                     scrollPosition.scrollTo(y: offset)
                 } else {
                     scrollPosition.scrollTo(edge: .top)
+                }
+                if let pendingReturn, !Task.isCancelled, app.activeTab?.id == tabId,
+                   app.lexiconOccurrenceReturns[tabId]?[strongsId] == pendingReturn {
+                    // The matching occurrence may have been filtered out while away.
+                    app.lexiconOccurrenceReturns[tabId]?.removeValue(forKey: strongsId)
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {

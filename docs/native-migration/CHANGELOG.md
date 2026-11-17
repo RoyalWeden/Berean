@@ -1508,3 +1508,5 @@
 - Opening the full Lexicon from a filtered compact entry carries over occurrence filters. Mac Dev verified expanding the H430 sample while retaining the 1 Chronicles filter.
 
 - Lexicon paging controls wrap in narrow views and offer Show Fewer after a single expansion. Mac Dev verified paging and Back to a filtered entry.
+
+- Collapsing Lexicon occurrences returns to their heading. Back retains the occurrence target through layout. Both paths were verified on Mac.
