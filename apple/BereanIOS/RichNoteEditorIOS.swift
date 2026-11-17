@@ -332,12 +332,24 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         /// Edit menu: formatting and Copy as Plain Text join the standard items.
         func textView(_ textView: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
             guard let tv = textView as? NoteUITextView else { return nil }
+            let colors = (highlightColors + ["orange"]).map { color in
+                UIAction(title: color.capitalized, image: UIImage(systemName: "highlighter")) { _ in
+                    tv.setHighlight(color)
+                }
+            }
+            let highlight = UIMenu(title: "Highlight", image: UIImage(systemName: "highlighter"), children: [
+                UIAction(title: "Default") { _ in tv.setHighlight(nil) }
+            ] + colors + [
+                UIAction(title: "Remove Highlight", image: UIImage(systemName: "eraser")) { _ in
+                    tv.removeHighlight()
+                }
+            ])
             let format = UIMenu(title: "Format", image: UIImage(systemName: "textformat"), children: [
                 UIAction(title: "Bold", image: UIImage(systemName: "bold")) { _ in tv.wrap("**", "**") },
                 UIAction(title: "Italic", image: UIImage(systemName: "italic")) { _ in tv.wrap("*", "*") },
                 UIAction(title: "Underline", image: UIImage(systemName: "underline")) { _ in tv.wrap("<u>", "</u>") },
                 UIAction(title: "Strikethrough", image: UIImage(systemName: "strikethrough")) { _ in tv.wrap("~~", "~~") },
-                UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { _ in tv.setHighlight(nil) },
+                highlight,
                 UIAction(title: "Insert Link…", image: UIImage(systemName: "link")) { [weak self] _ in
                     self?.parent.onInsertLink(range)
                 },
@@ -418,6 +430,10 @@ final class NoteUITextView: UITextView {
 
     func wrap(_ open: String, _ close: String) {
         applyFormatEdit(noteFormatEdit(in: (text ?? "") as NSString, selection: selectedRange, opening: open, closing: close))
+    }
+
+    func removeHighlight() {
+        applyFormatEdit(noteRemoveHighlightEdit(in: (text ?? "") as NSString, selection: selectedRange))
     }
 
     func setHighlight(_ color: String?) {
