@@ -21,7 +21,7 @@ struct RichNoteEditor: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let storage = NSTextStorage()
-        let layout = NSLayoutManager()
+        let layout = NoteTableLayout()
         layout.delegate = context.coordinator
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
@@ -77,6 +77,10 @@ struct RichNoteEditor: NSViewRepresentable {
                     if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
                         editor.replace(edit.range, with: edit.replacement, select: edit.selection)
                     }
+                case .inlineCode:
+                    if let edit = noteInlineCodeEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
+                        editor.replace(edit.range, with: edit.replacement, select: edit.selection)
+                    }
                 case .heading(let level): editor.setHeading(level)
                 case .list(let style): editor.setList(style)
                 case .callout(let kind): editor.insertCallout(kind)
@@ -119,7 +123,8 @@ struct RichNoteEditor: NSViewRepresentable {
             storage.setAttributes([.font: body, .foregroundColor: NSColor.labelColor, .paragraphStyle: para], range: all)
             hidden = IndexSet(); substitutions = [:]
             var explicitLinks = IndexSet()
-            for sp in MarkdownLiveSpans.spans(text) where NSMaxRange(sp.range) <= storage.length {
+            let spans = MarkdownLiveSpans.spans(text)
+            for sp in spans where NSMaxRange(sp.range) <= storage.length {
                 let r = sp.range
                 switch sp.kind {
                 case .hidden: hidden.insert(integersIn: r.location..<NSMaxRange(r))
@@ -156,7 +161,6 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .codeBlock:
                     storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.9, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor.withAlphaComponent(0.5)], range: r)
                 case .tableRow:
-                    storage.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular), range: r)
                     let cells = MarkdownLiveSpans.tableCells(in: text as NSString, range: r)
                     if !cells.isEmpty {
                         for delimiter in [r.location] + cells.map(\.upperBound) {
@@ -165,11 +169,9 @@ struct RichNoteEditor: NSViewRepresentable {
                         }
                     }
                 case .tableHeader:
-                    storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .semibold),
-                                           .backgroundColor: NSColor.labelColor.withAlphaComponent(0.07)], range: r)
+                    storage.addAttribute(.font, value: ScriptureFont.nativeFont(parent.fontFamily, size: size, weight: .semibold), range: r)
                 case .tableRule, .rule:
-                    storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor,
-                                           .font: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular)], range: r)
+                    storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: r)
                 case .image:
                     storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .backgroundColor: NSColor.quaternaryLabelColor], range: r)
                 case .structure: break
@@ -185,6 +187,7 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
                 }
             }
+            (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
             storage.endEditing()
             if let lm = tv.layoutManager { lm.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil); lm.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil) }
             tv.typingAttributes = [.font: body, .foregroundColor: NSColor.labelColor, .paragraphStyle: para]

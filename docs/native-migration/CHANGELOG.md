@@ -1438,3 +1438,9 @@
 ### 2026-11-16 — Keep the Mac study panel when browsing history
 
 - Keep each Scripture tab’s inspector visibility when leaving and returning to it. Verified Back and Forward across a TSKe cross reference opened in a new tab.
+
+### 2026-11-17 — Notes formatting and editable tables
+
+- Mac and iPhone notes use the body font for editable table cells and draw header shading and cell borders. Notes previews show vertical dividers. Format includes Inline Code.
+- UIKit table insertion preserves ASCII Markdown separators. Mac scratch verified live rendering and cell editing. iPhone 18 Pro Simulator verified insertion, Undo and Redo. Both Dev builds passed.
+- Full SwiftPM testing encountered local package file and resource staging timeouts. Existing iPhone notes with substituted em-dash separators and wide-table layout need follow-up.

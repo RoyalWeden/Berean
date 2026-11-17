@@ -40,11 +40,11 @@ public enum MarkdownLiveSpans {
     nonisolated(unsafe) static let ruleLine = rx("^[ \\t]*(?:-[ \\t]*){3,}$|^[ \\t]*(?:\\*[ \\t]*){3,}$|^[ \\t]*(?:_[ \\t]*){3,}$")
     nonisolated(unsafe) static let tableRule = rx("^[ \\t]*\\|?[ \\t]*:?-{3,}:?[ \\t]*(?:\\|[ \\t]*:?-{3,}:?[ \\t]*)*\\|?[ \\t]*$")
     nonisolated(unsafe) static let structureLine = rx("^[ \\t]*<!--\\s*/?berean:[^>]*-->[ \\t]*$")
-    nonisolated(unsafe) static let fence = rx("^[ \\t]*(```|~~~)")
+    nonisolated(unsafe) static let fence = rx("^[ \\t]*(?:`{3,}[^`]*$|~{3,})")
 
     // Inline patterns, applied in order; earlier matches win (code spans first, so their contents stay literal).
     nonisolated(unsafe) static let inline: [(NSRegularExpression, (NSTextCheckingResult, NSString) -> [Span])] = [
-        (rx("(`+)(.+?)\\1"), { m, _ in [Span(m.range(at: 1), .hidden), Span(m.range(at: 2), .code), Span(NSRange(location: NSMaxRange(m.range(at: 2)), length: m.range(at: 1).length), .hidden)] }),
+        (rx("(?<!`)(`+)(?!`)(.+?)(?<!`)\\1(?!`)"), { m, _ in [Span(m.range(at: 1), .hidden), Span(m.range(at: 2), .code), Span(NSRange(location: NSMaxRange(m.range(at: 2)), length: m.range(at: 1).length), .hidden)] }),
         (rx("!\\[([^\\]]*)\\]\\(((?:[^()\\\\]|\\\\.)*)\\)"), { m, s in
             let rawAlt = s.substring(with: m.range(at: 1)) as NSString
             let w = rawAlt.range(of: "|w", options: .backwards)

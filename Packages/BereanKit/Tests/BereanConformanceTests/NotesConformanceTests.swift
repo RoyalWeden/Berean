@@ -402,6 +402,15 @@ func noteJSON(_ n: Note) -> JSValue {
 }
 
 @Suite("markdown live preview spans") struct MarkdownLiveSpansTests {
+    @Test func inlineCodeWithBacktickRuns() {
+        let markdown = "```a``b```"
+        let spans = MarkdownLiveSpans.spans(markdown)
+        #expect(spans.contains { $0.kind == .code && $0.range == NSRange(location: 3, length: 4) })
+        #expect(!spans.contains { $0.kind == .codeBlock })
+        #expect(plain(markdown) == "a``b")
+        #expect(MarkdownLiveSpans.spans("```swift\ntext\n```").contains { $0.kind == .codeBlock })
+    }
+
     func plain(_ s: String) -> String { MarkdownLiveSpans.plainText(s) }
 
     @Test func inlineMarkupIsHidden() {

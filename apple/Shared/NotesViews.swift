@@ -37,6 +37,7 @@ struct NoteFormatRequest: Equatable {
         case link(String, selection: NSRange?)
         case highlight(String?)
         case removeHighlight
+        case inlineCode
         case heading(Int)
         case list(NoteListStyle)
         case callout(NoteCalloutKind)
@@ -82,6 +83,40 @@ func noteFormatEdit(in text: NSString, selection: NSRange, opening: String, clos
     }
     return (selection, opening + inner + closing,
             NSRange(location: selection.location + prefixLength, length: selection.length))
+}
+
+func noteInlineCodeEdit(in text: NSString, selection: NSRange)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+    let selected = text.substring(with: selection)
+    guard selected.rangeOfCharacter(from: .newlines) == nil else { return nil }
+    let line = text.lineRange(for: NSRange(location: selection.location, length: 0))
+    let source = text.substring(with: line)
+    for span in MarkdownLiveSpans.spans(source) {
+        guard case .code = span.kind else { continue }
+        let body = NSRange(location: line.location + span.range.location, length: span.range.length)
+        guard body == selection else {
+            if NSIntersectionRange(body, selection).length > 0 || NSLocationInRange(selection.location, body) { return nil }
+            continue
+        }
+        var start = body.location
+        while start > line.location, text.character(at: start - 1) == 96 { start -= 1 }
+        let delimiterLength = body.location - start
+        guard delimiterLength > 0, NSMaxRange(body) + delimiterLength <= NSMaxRange(line) else { return nil }
+        let delimiter = String(repeating: "`", count: delimiterLength)
+        guard text.substring(with: NSRange(location: NSMaxRange(body), length: delimiterLength)) == delimiter else { return nil }
+        let inner = selected.hasPrefix(" ") && selected.hasSuffix(" ") ? String(selected.dropFirst().dropLast()) : selected
+        let content = inner.hasPrefix("`") || inner.hasSuffix("`") ? inner : selected
+        return (NSRange(location: start, length: body.length + 2 * delimiterLength),
+                content, NSRange(location: start, length: content.utf16.count))
+    }
+    // Adjacent backticks need padding to keep the opening and closing runs distinct.
+    let ticks = try! NSRegularExpression(pattern: "`+")
+    let length = ticks.matches(in: selected, range: NSRange(location: 0, length: selection.length)).map(\.range.length).max() ?? 0
+    let delimiter = String(repeating: "`", count: length + 1)
+    let pad = selected.hasPrefix("`") || selected.hasSuffix("`") ? " " : ""
+    return (selection, delimiter + pad + selected + pad + delimiter,
+            NSRange(location: selection.location + delimiter.utf16.count, length: selection.length + 2 * pad.utf16.count))
 }
 
 private let noteHighlightPattern = try! NSRegularExpression(
@@ -708,6 +743,9 @@ struct NoteDetailView: View {
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")
                         formatButton("Underline", symbol: "underline", prefix: "<u>", suffix: "</u>")
                         formatButton("Strikethrough", symbol: "strikethrough", prefix: "~~", suffix: "~~")
+                        Button("Inline Code", systemImage: "chevron.left.forwardslash.chevron.right") {
+                            formatRequest = NoteFormatRequest(action: .inlineCode)
+                        }
                         Menu("Highlight", systemImage: "highlighter") {
                             Button("Default", systemImage: "highlighter") {
                                 formatRequest = NoteFormatRequest(action: .highlight(nil))
@@ -1097,6 +1135,11 @@ struct MarkdownText: View {
                                 .padding(.vertical, 8)
                                 .frame(minWidth: 88, maxWidth: 240, alignment: table.alignments[column].frame)
                                 .gridColumnAlignment(table.alignments[column].frame.horizontal)
+                                .overlay(alignment: .trailing) {
+                                    if column < table.alignments.count - 1 {
+                                        Rectangle().fill(.quaternary).frame(width: 1).accessibilityHidden(true)
+                                    }
+                                }
                                 .accessibilityAddTraits(row == 0 ? .isHeader : [])
                         }
                     }

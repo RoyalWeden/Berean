@@ -1720,3 +1720,11 @@ iOS 27 iPhone 18 Pro simulator live follow-up on `50e140c4`: in the Dev citation
 iPhone Notes selection Format → Highlight now exposes the same six colors as the main Format menu and an explicit Remove Highlight action. Removal handles default and named Markdown marks, preserves the selection or caret, and leaves partially selected highlights intact. iOS Dev built successfully, and focused Swift checks passed for default and named removal, caret preservation, and partial selection. Live iPhone selection-menu and Undo checks remain open.
 
 Mac and iPhone Notes Format → Highlight now includes Remove Highlight in the editor toolbar, using the same default and named-mark removal as the iPhone selection menu. Both Dev builds passed. Mac scratch QA selected a blue highlight, removed it through the toolbar without changing the label text, and verified Command-Z restored the original markup. iPhone toolbar interaction still needs a live check.
+
+### 2026-11-17 Notes typography and tables
+
+Mac and iPhone now draw editable Markdown tables with a shaded header, cell dividers, and the same font as the rest of the note. Incomplete tables and lines outside a recognized table keep their ordinary text layout. Notes previews also show vertical dividers. Inline Code is available from Format on both platforms and from the iPhone selection menu, and explicit code keeps its monospaced font.
+
+Both Dev builds passed. Mac scratch QA pasted a table with prose and inline code, checked its grid visually, and edited a populated cell. iPhone 18 Pro Simulator verified Insert → Table with the corrected literal separator plus Undo and Redo. The focused AppKit checks measured aligned columns with Unicode content and confirmed the Markdown source stayed intact. The focused inline-code checks and Mac format toggle passed. The full SwiftPM run was blocked by local package source and resource staging timeouts.
+
+UIKit had replaced the separator's ASCII hyphens with em dashes in new iPhone tables. The insertion path now preserves the literal delimiter. Next check existing affected Dev notes and recover the separator only where there is clear table structure, then verify populated cells, large Dynamic Type, and narrow and wide tables on iPhone. Keep the correction display-only where possible and retain the original note bytes until an explicit edit.

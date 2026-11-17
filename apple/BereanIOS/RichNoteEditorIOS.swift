@@ -19,7 +19,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
 
     func makeUIView(context: Context) -> NoteUITextView {
         let storage = NSTextStorage()
-        let layout = NSLayoutManager()
+        let layout = NoteTableLayout()
         layout.delegate = context.coordinator
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
@@ -60,6 +60,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .link(let destination, let selection): tv.insertLink(destination, at: selection ?? tv.selectedRange)
                 case .highlight(let color): tv.setHighlight(color)
                 case .removeHighlight: tv.removeHighlight()
+                case .inlineCode: tv.toggleInlineCode()
                 case .heading(let level): tv.setHeading(level)
                 case .list(let style): tv.setList(style)
                 case .callout(let kind): tv.insertCallout(kind)
@@ -166,7 +167,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             storage.setAttributes([.font: font(size), .foregroundColor: UIColor.label, .paragraphStyle: para], range: all)
             hidden = IndexSet(); substitutions = [:]
             var explicitLinks = IndexSet()
-            for sp in MarkdownLiveSpans.spans(text) where NSMaxRange(sp.range) <= storage.length {
+            let spans = MarkdownLiveSpans.spans(text)
+            for sp in spans where NSMaxRange(sp.range) <= storage.length {
                 let r = sp.range
                 switch sp.kind {
                 case .hidden: hidden.insert(integersIn: r.location..<NSMaxRange(r))
@@ -195,7 +197,6 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     storage.addAttribute(Self.taskAttribute, value: NoteTaskLink.url(for: r), range: NSRange(location: r.location, length: 1))
                 case .codeBlock: storage.addAttributes([.font: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular), .backgroundColor: UIColor.secondarySystemFill], range: r)
                 case .tableRow:
-                    storage.addAttribute(.font, value: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular), range: r)
                     let cells = MarkdownLiveSpans.tableCells(in: text as NSString, range: r)
                     if !cells.isEmpty {
                         for delimiter in [r.location] + cells.map(\.upperBound) {
@@ -204,11 +205,9 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                         }
                     }
                 case .tableHeader:
-                    storage.addAttributes([.font: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .semibold),
-                                           .backgroundColor: UIColor.tertiarySystemFill], range: r)
+                    storage.addAttribute(.font, value: font(size, .semibold), range: r)
                 case .tableRule, .rule:
-                    storage.addAttributes([.foregroundColor: UIColor.tertiaryLabel,
-                                           .font: UIFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular)], range: r)
+                    storage.addAttribute(.foregroundColor, value: UIColor.tertiaryLabel, range: r)
                 case .image: storage.addAttributes([.foregroundColor: UIColor.secondaryLabel, .backgroundColor: UIColor.tertiarySystemFill], range: r)
                 case .structure: break
                 }
@@ -223,6 +222,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
                 }
             }
+            (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
             storage.endEditing()
             tv.layoutManager.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil)
             tv.layoutManager.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil)
@@ -351,6 +351,9 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 UIAction(title: "Underline", image: UIImage(systemName: "underline")) { _ in tv.wrap("<u>", "</u>") },
                 UIAction(title: "Strikethrough", image: UIImage(systemName: "strikethrough")) { _ in tv.wrap("~~", "~~") },
                 highlight,
+                UIAction(title: "Inline Code", image: UIImage(systemName: "chevron.left.forwardslash.chevron.right")) { _ in
+                    tv.toggleInlineCode()
+                },
                 UIAction(title: "Insert Link…", image: UIImage(systemName: "link")) { [weak self] _ in
                     self?.parent.onInsertLink(range)
                 },
@@ -433,6 +436,10 @@ final class NoteUITextView: UITextView {
         applyFormatEdit(noteFormatEdit(in: (text ?? "") as NSString, selection: selectedRange, opening: open, closing: close))
     }
 
+    func toggleInlineCode() {
+        applyFormatEdit(noteInlineCodeEdit(in: (text ?? "") as NSString, selection: selectedRange))
+    }
+
     func removeHighlight() {
         applyFormatEdit(noteRemoveHighlightEdit(in: (text ?? "") as NSString, selection: selectedRange))
     }
@@ -485,12 +492,32 @@ final class NoteUITextView: UITextView {
     }
 
     private func applyFormatEdit(_ edit: (range: NSRange, replacement: String, selection: NSRange)?) {
-        guard let edit,
-              let start = position(from: beginningOfDocument, offset: edit.range.location),
+        guard let edit else { return }
+        if edit.replacement.contains("---") {
+            replaceMarkdownLiterally(edit.range, with: edit.replacement, select: edit.selection)
+            return
+        }
+        guard let start = position(from: beginningOfDocument, offset: edit.range.location),
               let end = position(from: start, offset: edit.range.length),
               let range = textRange(from: start, to: end) else { return }
         replace(range, withText: edit.replacement)
         selectedRange = edit.selection
+    }
+
+    /// UIKit can apply text substitutions even to programmatic replacements. Write
+    /// divider and table syntax directly so the Markdown delimiter remains ASCII.
+    private func replaceMarkdownLiterally(_ range: NSRange, with replacement: String, select selection: NSRange) {
+        let source = textStorage.string as NSString
+        guard range.upperBound <= source.length else { return }
+        let previousText = source.substring(with: range)
+        let previousSelection = selectedRange
+        let inserted = NSRange(location: range.location, length: replacement.utf16.count)
+        undoManager?.registerUndo(withTarget: self) { editor in
+            editor.replaceMarkdownLiterally(inserted, with: previousText, select: previousSelection)
+        }
+        textStorage.replaceCharacters(in: range, with: replacement)
+        selectedRange = selection
+        coordinator?.textViewDidChange(self)
     }
 
     func copyPlain() {

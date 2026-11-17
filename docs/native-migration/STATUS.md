@@ -104,3 +104,7 @@
   - verse tags working.
 - Native iPhone: tab sheet, Sessions and saved workspaces (real-tap verified).
 - Open PRs: #22, then #23 (see HANDOFF for merge order).
+
+## 2026-11-17 Notes editor typography
+
+- Both native editors render a grid for complete Markdown tables and use the Notes body font in cells. Format now includes Inline Code. Dev builds, Mac visual and editing QA, and iPhone Simulator insertion and undo/redo passed. See HANDOFF for legacy separator recovery and wide-table checks.
