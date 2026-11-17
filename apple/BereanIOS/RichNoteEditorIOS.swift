@@ -12,6 +12,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
     var detectVerseReferences = true
     var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
+    var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
+    var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
     var onInsertLink: (NSRange) -> Void = { _ in }
     var onLink: (URL) -> Void = { _ in }
 
@@ -64,6 +66,10 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 switch request.action {
                 case .inline(let open, let close): tv.wrap(open, close)
                 case .link(let destination, let selection): tv.insertLink(destination, at: selection ?? tv.selectedRange)
+                case .wikiLink(let completion, let title):
+                    guard tv.markedTextRange == nil,
+                          let edit = completion.edit(in: tv.text ?? "", selection: tv.selectedRange, title: title) else { return }
+                    tv.applyWikiLinkEdit(edit)
                 case .highlight(let color): tv.setHighlight(color)
                 case .removeHighlight: tv.removeHighlight()
                 case .inlineCode: tv.toggleInlineCode()
@@ -83,13 +89,47 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         if spellingSettingChanged { tv.spellCheckingType = spellCheck ? .yes : .no }
         let contentChanged = tv.text != text && !coordinator.editing
         if contentChanged { tv.text = text }
-        if contentChanged || styleChanged { coordinator.restyle() }
+        if (contentChanged || styleChanged) && tv.markedTextRange == nil { coordinator.restyle() }
+        coordinator.scheduleWikiLinkQuery()
     }
 
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate, @preconcurrency NSLayoutManagerDelegate {
         var parent: RichNoteEditorIOS
         weak var textView: NoteUITextView?
         var editing = false
+        private var wikiLinkQueryScheduled = false
+        private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
+        private var publishedWikiLinkAnchor: CGRect?
+
+        /// Read the final UIKit selection after styling and SwiftUI updates settle.
+        func scheduleWikiLinkQuery() {
+            guard !wikiLinkQueryScheduled else { return }
+            wikiLinkQueryScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.wikiLinkQueryScheduled = false
+                let query: NoteWikiLinkCompletion?
+                if let editor = self.textView, editor.isFirstResponder, editor.markedTextRange == nil {
+                    query = NoteWikiLinkCompletion.detect(in: editor.text ?? "", selection: editor.selectedRange)
+                } else {
+                    query = nil
+                }
+                if query != nil, let editor = self.textView, let selection = editor.selectedTextRange {
+                    let anchor = editor.caretRect(for: selection.end)
+                        .offsetBy(dx: -editor.bounds.origin.x, dy: -editor.bounds.origin.y)
+                    if anchor != self.publishedWikiLinkAnchor {
+                        self.publishedWikiLinkAnchor = anchor
+                        self.parent.onWikiLinkAnchor(anchor)
+                    }
+                } else {
+                    self.publishedWikiLinkAnchor = nil
+                }
+                if query != self.publishedWikiLinkQuery {
+                    self.publishedWikiLinkQuery = query
+                    self.parent.onWikiLinkQuery(query)
+                }
+            }
+        }
         private var proseItems: [UIBarButtonItem] = []
         private var cellItems: [UIBarButtonItem] = []
         private weak var previousCellItem: UIBarButtonItem?
@@ -162,7 +202,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         }
 
         func restyle() {
-            guard let tv = textView else { return }
+            guard let tv = textView, tv.markedTextRange == nil else { return }
             let storage = tv.textStorage
             let text = tv.text ?? ""
             let size = UIFontMetrics(forTextStyle: .body).scaledValue(for: parent.fontSize, compatibleWith: tv.traitCollection)
@@ -279,22 +319,29 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         func textViewDidBeginEditing(_ textView: UITextView) {
             NotificationCenter.default.post(name: .bereanNoteEditing, object: true)
             updateTableNavigation()
+            scheduleWikiLinkQuery()
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
             NotificationCenter.default.post(name: .bereanNoteEditing, object: false)
+            scheduleWikiLinkQuery()
         }
 
         func textViewDidChange(_ textView: UITextView) {
             editing = true
             parent.text = textView.text
-            restyle()
+            if textView.markedTextRange == nil { restyle() }
             editing = false
             updateTableNavigation()
+            scheduleWikiLinkQuery()
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
-            defer { updateTableNavigation() }
+            defer {
+                updateTableNavigation()
+                scheduleWikiLinkQuery()
+            }
+            guard textView.markedTextRange == nil else { return }
             let r = textView.selectedRange
             guard r.length == 0, hidden.contains(r.location) else { return }
             var loc = r.location
@@ -432,6 +479,12 @@ final class NoteUITextView: UITextView {
             return
         }
         applyFormatEdit(edit)
+    }
+
+    func applyWikiLinkEdit(_ edit: NoteWikiLinkEdit) {
+        guard markedTextRange == nil else { return }
+        // Keep insertion literal and use the existing undoable source-edit path.
+        replaceMarkdownLiterally(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func insertLink(_ destination: String, at selection: NSRange) {

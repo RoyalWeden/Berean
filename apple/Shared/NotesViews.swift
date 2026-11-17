@@ -30,11 +30,24 @@ extension Color {
     }
 }
 
+private struct NoteLinkSuggestionSurface: ViewModifier {
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            content.glassEffect(.regular, in: .rect(cornerRadius: 14))
+        } else {
+            content.background(.regularMaterial, in: .rect(cornerRadius: 14))
+        }
+    }
+}
+
+enum NoteWikiLinkCommand { case up, down, accept, dismiss }
+
 struct NoteFormatRequest: Equatable {
     let id = UUID()
     enum Action: Equatable {
         case inline(String, String)
         case link(String, selection: NSRange?)
+        case wikiLink(NoteWikiLinkCompletion, String)
         case highlight(String?)
         case removeHighlight
         case inlineCode
@@ -626,6 +639,11 @@ struct NoteDetailView: View {
     @State private var insertingLink = false
     @State private var linkInput = ""
     @State private var linkSelection: NSRange?
+    @State private var wikiLinkQuery: NoteWikiLinkCompletion?
+    @State private var dismissedWikiLinkQuery: NoteWikiLinkCompletion?
+    @State private var wikiLinkTargets: [NoteWikiLinkTarget] = []
+    @State private var wikiLinkSelection = 0
+    @State private var wikiLinkAnchor = CGRect.zero
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -680,15 +698,8 @@ struct NoteDetailView: View {
                             }
                         }
                     }
-                    #if os(macOS)
-                    RichNoteEditor(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled, spellCheck: app.noteSpellCheck, formatRequest: formatRequest) { url in openLink(url) }
-                        .focused($focus, equals: .body)
-                    #else
-                    RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
-                                      spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
-                                      onInsertLink: { showLinkPrompt(selection: $0) }, onLink: openLink)
-                        .focused($focus, equals: .body)
-                    #endif
+                    noteEditor
+                        .overlay(alignment: .topLeading) { wikiLinkSuggestions }
                 }
                 .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
                 .frame(maxWidth: 720, alignment: .leading)
@@ -936,13 +947,7 @@ struct NoteDetailView: View {
                 content = restored; lastSnapshot = restored; reload()
             }
         }
-        .task(id: noteId) {
-            if loadedId != nil, loadedId != noteId { saveNow(); snapshot() }   // leaving a note: consolidate its version
-            reload()
-            loadedId = noteId; lastSnapshot = content
-            let isNew = (note?.content.isEmpty ?? false)
-            if isNew { try? await Task.sleep(for: .milliseconds(150)); focus = (note?.title.isEmpty ?? true) ? .title : .body }
-        }
+        .task(id: noteId) { await prepareNote() }
         // Reflect changes made elsewhere (import, version restore, another window) unless this view has unsaved edits.
         .onChange(of: app.notesRevision) {
             guard let fresh = try? app.notes?.one(noteId), let note, fresh.updatedAt != note.updatedAt,
@@ -956,6 +961,113 @@ struct NoteDetailView: View {
         .onDisappear {
             saveNow()
             if !JSText.trim(content).isEmpty { snapshot() }
+        }
+    }
+
+    private func prepareNote() async {
+        wikiLinkQuery = nil; dismissedWikiLinkQuery = nil; wikiLinkTargets = []
+        if loadedId != nil, loadedId != noteId { saveNow(); snapshot() }
+        reload()
+        loadedId = noteId; lastSnapshot = content
+        if note?.content.isEmpty == true {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            focus = (note?.title.isEmpty ?? true) ? .title : .body
+        }
+    }
+
+    @ViewBuilder private var noteEditor: some View {
+        #if os(macOS)
+        RichNoteEditor(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
+                       spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
+                       onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
+                       onWikiLinkCommand: handleWikiLinkCommand, onLink: openLink)
+            .focused($focus, equals: .body)
+        #else
+        RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
+                          spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
+                          onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
+                          onInsertLink: { showLinkPrompt(selection: $0) }, onLink: openLink)
+            .focused($focus, equals: .body)
+        #endif
+    }
+
+    private var matchingWikiLinkTargets: [NoteWikiLinkTarget] {
+        guard let query = wikiLinkQuery?.query else { return [] }
+        var seen = Set<String>()
+        return Array(wikiLinkTargets.filter { target in
+            target.id != noteId && !target.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && target.title.rangeOfCharacter(from: CharacterSet(charactersIn: "[]|").union(.newlines)) == nil
+                && (query.isEmpty || target.title.localizedStandardContains(query))
+                && seen.insert(target.title).inserted
+        }.prefix(5))
+    }
+
+    private func receiveWikiLinkQuery(_ query: NoteWikiLinkCompletion?) {
+        if query == nil { dismissedWikiLinkQuery = nil }
+        guard query != dismissedWikiLinkQuery || query == nil else { return }
+        if wikiLinkQuery == nil, query != nil {
+            wikiLinkTargets = (try? app.notes?.wikiLinkTargets()) ?? []
+        }
+        if wikiLinkQuery != query { wikiLinkSelection = 0 }
+        wikiLinkQuery = query
+    }
+
+    private func insertWikiLink(_ target: NoteWikiLinkTarget) {
+        guard let query = wikiLinkQuery else { return }
+        formatRequest = NoteFormatRequest(action: .wikiLink(query, target.title))
+        dismissedWikiLinkQuery = query; wikiLinkQuery = nil
+    }
+
+    private func handleWikiLinkCommand(_ command: NoteWikiLinkCommand) -> Bool {
+        guard let query = wikiLinkQuery else { return false }
+        if case .dismiss = command {
+            dismissedWikiLinkQuery = query; wikiLinkQuery = nil
+            return true
+        }
+        let targets = matchingWikiLinkTargets
+        guard !targets.isEmpty else { return false }
+        switch command {
+        case .up: wikiLinkSelection = max(0, wikiLinkSelection - 1)
+        case .down: wikiLinkSelection = min(targets.count - 1, wikiLinkSelection + 1)
+        case .accept: insertWikiLink(targets[min(wikiLinkSelection, targets.count - 1)])
+        case .dismiss: break
+        }
+        return true
+    }
+
+    @ViewBuilder private var wikiLinkSuggestions: some View {
+        let targets = matchingWikiLinkTargets
+        if wikiLinkQuery != nil, !targets.isEmpty {
+            GeometryReader { geometry in
+                let width = min(340.0, geometry.size.width)
+                let height = min(CGFloat(targets.count) * 44 + 30, max(74, geometry.size.height - 12))
+                let below = wikiLinkAnchor.maxY + 6
+                let y = below + height <= geometry.size.height ? below : max(0, wikiLinkAnchor.minY - height - 6)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Link to Note").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).frame(height: 30)
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(targets.enumerated()), id: \.element.id) { index, target in
+                                Button { insertWikiLink(target) } label: {
+                                    Label(target.title, systemImage: "note.text")
+                                        .lineLimit(1).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                        .padding(.horizontal, 12).contentShape(.rect)
+                                        .background(index == wikiLinkSelection ? Color.primary.opacity(0.08) : .clear, in: .rect(cornerRadius: 8))
+                                }
+                                .buttonStyle(.interactivePlain)
+                                .onHover { if $0 { wikiLinkSelection = index } }
+                                .accessibilityLabel("Link to \(target.title)")
+                            }
+                        }
+                    }
+                }
+                .frame(width: width, height: height)
+                .modifier(NoteLinkSuggestionSurface())
+                .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)) }
+                .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+                .offset(x: min(max(0, wikiLinkAnchor.minX), max(0, geometry.size.width - width)), y: y)
+            }
         }
     }
 

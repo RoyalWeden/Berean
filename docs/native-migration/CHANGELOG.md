@@ -1660,3 +1660,9 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Cmd+L changes the current tab across Scripture, Search, Lexicon and Notes while retaining identity, pin and sidebar position. Back/Forward restores the prior type as well as its location.
 - Empty Mac sidebar space uses the arrow.
 - Live QA covered mixed-type history, pinned Compare, an existing destination, Shift-Return New Tab and ordinary Cmd+K reuse. Shared tab-replacement tests cover 200 type/pin combinations.
+
+### 2026-11-17 — Native note-title suggestions
+
+- Added floating note-title suggestions after [[ on Mac and iPhone, with keyboard navigation on Mac and touch selection on iPhone. Existing Markdown remains literal in storage.
+- Verified insertion on both platforms, dismissal/query editing on Mac and separate Undo/Redo on iPhone. Mac's following-typing undo coalescing remains a known refinement.
+- Added Unicode/stale-range/code guards and a title-only query that excludes trashed notes. Five focused tests pass.

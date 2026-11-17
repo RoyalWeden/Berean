@@ -380,3 +380,7 @@ Use a grouped ScrollView with explicit stable targets for iPhone Notes home. The
 ### 2026-11-17 — Location editing owns a tab identity
 
 Cmd+L is explicit replacement of the active tab even across content types and Spaces. It takes priority over matching another destination tab, including a pinned destination. Preserve source ID, pin and global order. Move the source record between Space buckets and keep a full typed location snapshot for history. Ordinary navigation may still reuse an existing destination; explicit New Tab creates one. Use the existing compatible tab-row upsert rather than adding a schema or duplicate tab identity.
+
+### 2026-11-17 — Source-preserving note completion
+
+Complete note-title wikilinks through native text edits rather than replacing the Markdown-backed editor or converting source to attachments. Validate the trigger against the current selection/content when accepting a suggestion. Query titles only, preserving legacy title-based links and avoiding note content/image loading. Restrict this increment to safe note titles; book/chapter suggestions remain a separate N06 gap. Mac keyboard/pointer and iPhone touch choice share the same source helper.

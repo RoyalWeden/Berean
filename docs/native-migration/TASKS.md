@@ -201,3 +201,9 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 | SHARED-FUNC-014 / M4 | both | Remaining Settings sections, then sync through OD-5 gates. |
 
 See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source references and acceptance scenarios across the legacy Electron and Capacitor apps.
+
+### 2026-11-17 interaction follow-up queue
+
+- Cmd+L mixed-type identity/history fix implemented and runtime checked; extend to explicit Notes Search, Lexicon Search, utility/daily destinations and deep result/reader scroll positions.
+- Native note-title [[ completion implemented. Next isolate Mac following-typing undo, verify software keyboard/IME/VoiceOver and chooser scroll behavior, then add Scripture/book suggestions from original autocomplete.
+- Investigate exact multiword note-title search with numeric suffixes (Gallery matches; Gallery QA 07 did not in palette QA). Do not change persistence or FTS schema without evidence.

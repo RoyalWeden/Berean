@@ -123,3 +123,7 @@ Cursor follow-up matrix: verify inactive-window hover after preserving the deliv
 Cross-type Cmd+L is fixed for the directly exercised Scripture/Search/Lexicon/Note matrix; stable ID/order/count and untouched peers were verified in the QA library. Pinned Compare round trip and ordinary Cmd+K/Shift-Return behavior passed. Explicit Notes Search/Lexicon Search/utility combinations and exact long-scroll equality remain QA work. Blank sidebar now explicitly resets to arrow; live sample passed.
 
 During palette QA, Gallery returned imported note hits while Gallery QA 07 did not, despite a direct read-only FTS query matching the imported title. Cause remains unverified; investigate separately from tab replacement.
+
+### 2026-11-17 note completion refinements
+
+Native [[ note-title suggestions now work on both platforms. Mac keyboard and pointer choice, Escape/query editing, plus iPhone touch insertion/Undo/Redo passed. Mac still sometimes undoes completion and following typing together (source restored correctly). Manual wheel/touch scrolling with the chooser open, software keyboard resizing, hardware IME and accessibility sizes need QA.

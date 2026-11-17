@@ -15,6 +15,9 @@ struct RichNoteEditor: NSViewRepresentable {
     var detectVerseReferences = true
     var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
+    var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
+    var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
+    var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -73,6 +76,14 @@ struct RichNoteEditor: NSViewRepresentable {
                     if let edit = noteLinkEdit(in: editor.string as NSString, selection: selection ?? editor.selectedRange(), destination: destination) {
                         editor.replace(edit.range, with: edit.replacement, select: edit.selection)
                     }
+                case .wikiLink(let completion, let title):
+                    guard !editor.hasMarkedText(),
+                          let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), title: title) else { return }
+                    editor.breakUndoCoalescing()
+                    editor.insertText(edit.replacement, replacementRange: edit.range)
+                    editor.setSelectedRange(edit.selection)
+                    editor.breakUndoCoalescing()
+                    editor.undoManager?.setActionName("Insert Note Link")
                 case .highlight(let color): editor.setHighlight(color)
                 case .removeHighlight:
                     if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
@@ -100,14 +111,17 @@ struct RichNoteEditor: NSViewRepresentable {
         let contentChanged = tv.string != text && !c.editing
         if contentChanged { tv.string = text }
         if contentChanged || styleChanged { c.restyle() }
+        if contentChanged { c.publishWikiLinkQuery() }
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
+    @MainActor final class Coordinator: NSObject, NSTextViewDelegate, @preconcurrency NSLayoutManagerDelegate {
         var parent: RichNoteEditor
         weak var textView: NoteTextView?
         var editing = false
         var hidden = IndexSet()
         var substitutions: [Int: (len: Int, glyph: String)] = [:]
+        private var wikiLinkQueryPending = false
+        private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
 
         init(_ p: RichNoteEditor) { parent = p }
 
@@ -239,6 +253,51 @@ struct RichNoteEditor: NSViewRepresentable {
             parent.text = tv.string
             restyle()
             editing = false
+            publishWikiLinkQuery()
+        }
+
+        /// Coalesce notifications and deliver outside representable updates. Read the final caret position
+        /// after replacements, which notify text changes before updating their selection.
+        func publishWikiLinkQuery() {
+            guard !wikiLinkQueryPending else { return }
+            wikiLinkQueryPending = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.wikiLinkQueryPending = false
+                let query = self.textView.flatMap { editor in
+                    editor.window?.firstResponder === editor && !editor.hasMarkedText()
+                        ? NoteWikiLinkCompletion.detect(in: editor.string, selection: editor.selectedRange()) : nil
+                }
+                if query != nil, let editor = self.textView,
+                   let window = editor.window, let scroll = editor.enclosingScrollView {
+                    let screenRect = editor.firstRect(forCharacterRange: editor.selectedRange(), actualRange: nil)
+                    let rect = scroll.convert(window.convertFromScreen(screenRect), from: nil)
+                    let y = scroll.isFlipped ? rect.minY - scroll.bounds.minY : scroll.bounds.maxY - rect.maxY
+                    self.parent.onWikiLinkAnchor(CGRect(x: rect.minX - scroll.bounds.minX, y: y,
+                                                       width: rect.width, height: rect.height))
+                }
+                guard query != self.publishedWikiLinkQuery else { return }
+                self.publishedWikiLinkQuery = query
+                self.parent.onWikiLinkQuery(query)
+            }
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            publishWikiLinkQuery()
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            guard !textView.hasMarkedText(),
+                  NoteWikiLinkCompletion.detect(in: textView.string, selection: textView.selectedRange()) != nil else { return false }
+            let command: NoteWikiLinkCommand
+            switch commandSelector {
+            case #selector(NSResponder.moveUp(_:)): command = .up
+            case #selector(NSResponder.moveDown(_:)): command = .down
+            case #selector(NSResponder.insertNewline(_:)): command = .accept
+            case #selector(NSResponder.cancelOperation(_:)): command = .dismiss
+            default: return false
+            }
+            return parent.onWikiLinkCommand(command)
         }
 
         /// Keeps the caret off hidden markup: it moves past it in the direction of travel.
@@ -291,6 +350,11 @@ final class NoteTextView: NSTextView {
     func setHeading(_ level: Int) {
         guard let edit = noteHeadingEdit(in: string as NSString, selection: selectedRange(), level: level) else { return }
         replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    override func scrollRangeToVisible(_ range: NSRange) {
+        super.scrollRangeToVisible(range)
+        coordinator?.publishWikiLinkQuery()
     }
 
     override func insertNewline(_ sender: Any?) {
