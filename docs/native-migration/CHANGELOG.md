@@ -1492,3 +1492,5 @@
 - Scripture search rows share saved-highlight reads by chapter and edition. A focused check verified cache reuse and refresh after a change.
 
 - Search highlight menus show a checkmark for the saved whole-verse color. iPhone Simulator verified highlight and removal from overflow and long-press menus.
+
+- iPhone Scripture search option pickers stack their labels and values. Verified scrolling and menu readability at Accessibility Large.

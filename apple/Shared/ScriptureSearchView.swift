@@ -465,16 +465,12 @@ struct ScriptureSearchView: View {
 
     var options: some View {
         VStack(alignment: .leading, spacing: 12) {
-            #if os(iOS)
-            Text("Match").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            #endif
             Picker("Match", selection: Binding(get: { mode }, set: { set("wordMode", .string(JSString($0.rawValue))) })) {
                 Text("All words").tag(WordMode.all); Text("Any word").tag(WordMode.any); Text("Exact phrase").tag(WordMode.phrase)
-            }.modifier(SearchOptionsPickerStyle())
-            Text("Testament").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }.modifier(SearchOptionsPickerStyle(title: "Match"))
             Picker("Testament", selection: Binding(get: { testament }, set: { set("testament", .string(JSString($0))) })) {
                 Text("All").tag("all"); Text("Old Testament").tag("OT"); Text("New Testament").tag("NT"); Text("Apocrypha").tag("Apocrypha"); Text("Other writings").tag("Pseudepigrapha")
-            }.pickerStyle(.menu).labelsHidden().clickableCursor().optionHover()
+            }.modifier(SearchOptionsPickerStyle(title: "Testament"))
             Text("Books").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             BookFilterField(selected: bookFilter) { ids in set("bookIds", ids.isEmpty ? nil : .array(ids.map { .string(JSString($0)) })) }
             Text("Verse Tags").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -502,22 +498,19 @@ struct ScriptureSearchView: View {
                 Picker("Match Tags", selection: Binding(get: { tagSelection.all }, set: { set("tagFilterAll", $0 ? .bool(true) : nil) })) {
                     Text("Any selected tag").tag(false)
                     Text("All selected tags").tag(true)
-                }.modifier(SearchOptionsPickerStyle())
+                }.modifier(SearchOptionsPickerStyle(title: "Match Tags"))
             }
             Divider()
             Text("Results").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Picker("Order", selection: Binding(get: { sort }, set: { set("sort", .string(JSString($0))) })) {
                 Text("Scripture order").tag("bookOrder"); Text("Best match first").tag("relevance")
-            }.modifier(SearchOptionsPickerStyle())
+            }.modifier(SearchOptionsPickerStyle(title: "Order"))
             Picker("Group by", selection: Binding(get: { grouping }, set: { set("grouping", .string(JSString($0))) })) {
                 Text("By text").tag("text"); Text("By book").tag("book"); Text("No groups").tag("none")
-            }.modifier(SearchOptionsPickerStyle())
-            #if os(iOS)
-            Text("Context").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            #endif
+            }.modifier(SearchOptionsPickerStyle(title: "Group by"))
             Picker("Context", selection: $resultContext) {
                 Text("Verse only").tag(0); Text("±1 verse").tag(1); Text("±2 verses").tag(2)
-            }.modifier(SearchOptionsPickerStyle())
+            }.modifier(SearchOptionsPickerStyle(title: "Context"))
             if hasActiveOptions {
                 Button("Reset Options", action: resetOptions)
                     .buttonStyle(OptionButtonStyle())
@@ -1081,9 +1074,19 @@ private struct SearchResultContext: View {
 
 /// Menus keep the full choice labels available in the iPhone sheet at large text sizes.
 private struct SearchOptionsPickerStyle: ViewModifier {
+    let title: String
+
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.pickerStyle(.menu).labelsHidden()
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            content.pickerStyle(.menu)
+                .labelsHidden()
+                .frame(minHeight: 44, alignment: .leading)
+        }
         #else
         content.pickerStyle(.menu).clickableCursor().optionHover()
         #endif
