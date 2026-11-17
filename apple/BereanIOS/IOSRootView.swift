@@ -484,6 +484,9 @@ struct TabCardsSheet: View {
                     }
                     .accessibilityHint("\(eligible.count) eligible tabs in this view")
                 }
+                if !isSelecting {
+                    workspaceSwitcher
+                }
                 if !isSelecting, !hasQuery, !isFiltering {
                     workspaceActions
                     WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
@@ -680,21 +683,32 @@ struct TabCardsSheet: View {
             .accessibilityHidden(true)
     }
 
-    @ViewBuilder
-    private var workspaceActions: some View {
+    private var workspaceSwitcher: some View {
         let workspace = app.currentWorkspace
-        Section {
+        return Section {
             NavigationLink { SessionsPage(closeTabs: { dismiss() }) } label: {
                 LabeledContent {
                     Text(workspace?.tabCountLabel ?? "")
                 } label: {
-                    Label(workspace?.displayName ?? app.session.name, systemImage: WorkspaceIcon.symbol(app.session.icon))
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(workspace?.displayName ?? app.session.name)
+                                .fontWeight(.semibold)
+                                .lineLimit(1)
+                            if let workspace, workspace.displayName != workspace.name {
+                                Text(workspace.name).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: WorkspaceIcon.symbol(app.session.icon))
+                    }
                 }
             }
             .accessibilityHint("Switch, create or manage workspaces")
         }
+    }
+
+    private var workspaceActions: some View {
         Section {
             Button(action: onNewTab) { Label("New Tab", systemImage: "plus") }
             if !app.inactiveTabs.isEmpty {
