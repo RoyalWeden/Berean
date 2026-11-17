@@ -1185,7 +1185,7 @@ struct MarkdownText: View {
                     .contentShape(.rect)
             }
             #if os(macOS)
-            .pointerStyle(.link)
+            .clickableCursor()
             #endif
             .accessibilityLabel("Open \(passage.label) in Scripture")
         } else if t.hasPrefix("### ") { inline(String(t.dropFirst(4))).font(.title3.bold()) }

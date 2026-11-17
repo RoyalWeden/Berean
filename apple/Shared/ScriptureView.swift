@@ -1351,7 +1351,7 @@ struct ScriptureView: View {
             Button("Scripture Display", systemImage: "textformat.size") {
                 displayOptionsShown.toggle()
             }
-            .pointerStyle(.link)
+            .clickableCursor()
             .help("Adjust Scripture font, spacing and width")
             .popover(isPresented: $displayOptionsShown, arrowEdge: .bottom) {
                 Form { ScriptureDisplayOptions(); ScriptureAnnotationOptions() }
@@ -1365,20 +1365,20 @@ struct ScriptureView: View {
                 })) {
                     Label("LXX", systemImage: "arrow.left.arrow.right")
                 }
-                .pointerStyle(.link)
+                .clickableCursor()
                 .help("Switch to \(textInfo(target.text).name)")
             }
         }
         if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
         ToolbarItemGroup {
             Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
-                .pointerStyle(.link)
+                .clickableCursor()
                 .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
             Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
-                .pointerStyle(.link)
+                .clickableCursor()
                 .help("Show Strong's numbers")
             Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { v in mutate { $0.rightPanelOpen = v } })) { Label("Study Panel", systemImage: "sidebar.trailing") }
-                .pointerStyle(.link)
+                .clickableCursor()
                 .keyboardShortcut("i", modifiers: [.command, .option]).help("Study panel: notes, lexicon, cross references (⌥⌘I)")
         }
         if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
@@ -1395,7 +1395,7 @@ struct ScriptureView: View {
                 Label("Chapter Actions", systemImage: "square.and.arrow.up")
             }
             .menuIndicator(.hidden)
-            .pointerStyle(.link)
+            .clickableCursor()
             .help("Tag, copy, or share the chapter")
         }
         #endif
@@ -1414,7 +1414,7 @@ struct ScriptureView: View {
         Button { step(-1) } label: { passageArrow("Previous Chapter", "chevron.backward") }
             .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).help("Previous chapter (⌥⌘←)")
             #if os(macOS)
-            .pointerStyle(canStep(-1, from: st) ? .link : .default)
+            .clickableCursor(canStep(-1, from: st))
             #endif
             .disabled(!canStep(-1, from: st))
         Button { pickerShown.toggle() } label: {
@@ -1440,14 +1440,14 @@ struct ScriptureView: View {
             #endif
         }
         #if os(macOS)
-        .pointerStyle(.link)
+        .clickableCursor()
         #endif
         .accessibilityLabel("\(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)), \(textInfo(st.translation).name). Choose passage or text")
         .help("Choose book, chapter or text — search every text or see history")
         Button { step(1) } label: { passageArrow("Next Chapter", "chevron.forward") }
             .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
             #if os(macOS)
-            .pointerStyle(canStep(1, from: st) ? .link : .default)
+            .clickableCursor(canStep(1, from: st))
             #endif
             .disabled(!canStep(1, from: st))
     }

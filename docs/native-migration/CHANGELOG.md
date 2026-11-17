@@ -1460,3 +1460,5 @@
 ### 2026-11-17 — Mac control cursors
 
 - The shared control cursor follows effective enabled state. Native toolbar pointer tracking releases records when their views are discarded.
+
+- Applied the disabled-aware cursor to the Mac chapter toolbar, navigation history, sidebar tabs and Notes preview links. Mac scratch QA confirmed chapter boundary and floating-search control states.

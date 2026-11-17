@@ -642,7 +642,7 @@ struct SidebarTabRow: View {
         .contentShape(.rect)
         .onTapGesture(perform: onSelect)
         .onHover { hovering = $0 }
-        .pointerStyle(.link)
+        .clickableCursor()
         .help(([tab.navigationLabel, tab.navigationDetail] + [tabNumber].compactMap { $0 }).joined(separator: " · "))
         .animation(.easeOut(duration: 0.12), value: hovering)
         .animation(.easeOut(duration: 0.15), value: isActive)
@@ -658,7 +658,7 @@ struct SidebarRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(configuration.isPressed ? 0.10 : hovering ? 0.06 : 0)))
-            .pointerStyle(.link)
+            .clickableCursor()
             .onHover { hovering = $0 }
     }
 }
@@ -669,7 +669,7 @@ struct SidebarCloseButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(.secondary)
             .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovering ? 0.09 : 0)))
-            .pointerStyle(.link)
+            .clickableCursor()
             .onHover { hovering = $0 }
     }
 }

@@ -40,6 +40,7 @@ struct MacRootView: View {
                         Color.black.opacity(paletteDimOpacity)
                             .contentShape(.rect)
                             .onTapGesture { app.commandPaletteShown = false }
+                            .pointerStyle(.default)
                             .accessibilityHidden(true)
                         CommandPalette(newTab: app.commandPaletteCreatesTab,
                                        resultsHeight: min(390, max(100, geometry.size.height - 156)),
@@ -71,17 +72,17 @@ struct MacRootView: View {
         Button { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } } label: {
             Label(columns == .detailOnly ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.left")
         }
-        .pointerStyle(.link)
+        .clickableCursor()
         .help(columns == .detailOnly ? "Show Sidebar (⌃⌘S)" : "Hide Sidebar (⌃⌘S)")
         historyButtons
     }
 
     @ViewBuilder var historyButtons: some View {
         Button { app.goBack() } label: { Label("Back", systemImage: "chevron.backward") }
-            .pointerStyle(app.canGoBack ? .link : .default)
+            .clickableCursor(app.canGoBack)
             .disabled(!app.canGoBack).help("Back (⌘[)")
         Button { app.goForward() } label: { Label("Forward", systemImage: "chevron.forward") }
-            .pointerStyle(app.canGoForward ? .link : .default)
+            .clickableCursor(app.canGoForward)
             .disabled(!app.canGoForward).help("Forward (⌘])")
     }
 
