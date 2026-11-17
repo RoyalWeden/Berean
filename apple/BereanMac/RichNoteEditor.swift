@@ -10,7 +10,7 @@ import BereanReference
 /// Copy as Plain Text (⌥⇧⌘C) puts the readable text only.
 struct RichNoteEditor: NSViewRepresentable {
     @Binding var text: String
-    var fontSize: CGFloat = 15
+    var fontSize: CGFloat = NSFont.systemFontSize
     var fontFamily = "system"
     var detectVerseReferences = true
     var spellCheck = true
@@ -24,7 +24,7 @@ struct RichNoteEditor: NSViewRepresentable {
         let layout = NoteTableLayout()
         layout.delegate = context.coordinator
         storage.addLayoutManager(layout)
-        let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        let container = NoteTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         layout.addTextContainer(container)
         let tv = NoteTextView(frame: .zero, textContainer: container)
@@ -33,7 +33,8 @@ struct RichNoteEditor: NSViewRepresentable {
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
         tv.drawsBackground = false
-        tv.textContainerInset = NSSize(width: 0, height: 8)
+        tv.textContainerInset = NSSize(width: 0, height: 6)
+        container.lineFragmentPadding = 0
         tv.autoresizingMask = [.width]
         tv.isVerticallyResizable = true
         tv.minSize = NSSize(width: 0, height: 0)

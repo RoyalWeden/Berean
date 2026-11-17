@@ -669,7 +669,7 @@ struct NoteDetailView: View {
                         }
                     }
                     #if os(macOS)
-                    RichNoteEditor(text: $content, fontSize: 15, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled, spellCheck: app.noteSpellCheck, formatRequest: formatRequest) { url in openLink(url) }
+                    RichNoteEditor(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled, spellCheck: app.noteSpellCheck, formatRequest: formatRequest) { url in openLink(url) }
                         .focused($focus, equals: .body)
                     #else
                     RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
@@ -679,7 +679,10 @@ struct NoteDetailView: View {
                     #endif
                 }
                 .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
-                .frame(maxWidth: 760, alignment: .leading).padding(.horizontal, 24).padding(.top, 20).frame(maxWidth: .infinity)
+                .frame(maxWidth: 720, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .frame(maxWidth: .infinity)
             } else {
                 ContentUnavailableView("Note not found", systemImage: "note.text")
             }

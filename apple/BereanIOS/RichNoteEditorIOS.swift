@@ -22,7 +22,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         let layout = NoteTableLayout()
         layout.delegate = context.coordinator
         storage.addLayoutManager(layout)
-        let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        let container = NoteTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         layout.addTextContainer(container)
         let tv = NoteUITextView(frame: .zero, textContainer: container)
@@ -32,6 +32,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         taskTap.delegate = context.coordinator
         tv.addGestureRecognizer(taskTap)
         tv.backgroundColor = .clear
+        tv.textContainerInset = UIEdgeInsets(top: 6, left: 0, bottom: 16, right: 0)
+        container.lineFragmentPadding = 0
         tv.alwaysBounceVertical = true
         tv.smartQuotesType = .no
         tv.smartDashesType = .no

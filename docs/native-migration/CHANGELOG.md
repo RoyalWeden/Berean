@@ -1510,3 +1510,9 @@
 - Lexicon paging controls wrap in narrow views and offer Show Fewer after a single expansion. Mac Dev verified paging and Back to a filtered entry.
 
 - Collapsing Lexicon occurrences returns to their heading. Back retains the occurrence target through layout. Both paths were verified on Mac.
+
+### 2026-11-17 02:33 PST — Notes typography and live table layout — BUILT, UI CHECKED
+- **Starting point:** `7cc913b8`, `native/reader-notes`, draft PR #24.
+- **Changes:** Mac body text uses the standard system size. Both editors align document content with the title while retaining the chosen body family and explicit code styling. Editable tables gain consistent cell insets, Markdown alignment, and fixed dividers for rows whose final cell wraps within the available width.
+- **Verification:** Mac and iOS Simulator Dev builds passed. Mac scratch UI confirmed a wrapped three-column fixture and original Markdown in the editor. iPhone 18 Pro Simulator confirmed Insert → Table displays a shaded header and grid. Device testing and populated narrow-table QA remain open.
+- **Data:** Synthetic scratch/Simulator notes only. See HANDOFF for the next checks.
