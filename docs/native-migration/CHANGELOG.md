@@ -1484,3 +1484,5 @@
 - Return in workspace search leaves ambiguous results visible for a choice. Verified ambiguous and unique tab queries in Mac Dev.
 
 - iPhone workspace rows put identifying details before passage previews and make the full row tappable. Simulator verified ambiguous and exact keyboard submissions.
+
+- Advanced Scripture Search supports opening a verse and applying or removing its highlights from the result menu. Verified the complete cycle in Mac Dev.

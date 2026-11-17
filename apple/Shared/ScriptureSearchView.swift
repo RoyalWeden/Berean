@@ -884,6 +884,7 @@ struct ScriptureSearchView: View {
 
     @ViewBuilder private func resultActions(_ hit: ScriptureHit, passage: ResolvedPassage) -> some View {
         let reference = referenceForCopy(passage.label, textId: hit.textId)
+        Button("Open Verse", systemImage: "book") { openResult(hit, passage: passage) }
         Button("Open in New Tab", systemImage: "plus.square") { openResult(hit, passage: passage, reuseTab: false) }
         Button("Copy Verse", systemImage: "doc.on.doc") {
             Clipboard.copy("\(reference) \(displayText(hit))")
@@ -898,6 +899,24 @@ struct ScriptureSearchView: View {
         Divider()
         Button("Add Note", systemImage: "square.and.pencil") {
             _ = app.newNote(verseRef: "\(hit.bookId).\(hit.chapter).\(hit.verseNum)", textId: hit.textId)
+        }
+        if let highlights = app.highlights {
+            Menu("Highlight", systemImage: "highlighter") {
+                ForEach(highlightColors, id: \.self) { color in
+                    Button(color.capitalized, systemImage: "circle.fill") {
+                        app.attempt("Couldn’t highlight the verse") {
+                            try highlights.setVerseColor(bookId: hit.bookId, chapter: hit.chapter, verse: hit.verseNum,
+                                                         color: color, textId: hit.textId)
+                        }
+                    }
+                }
+                Divider()
+                Button("Remove Highlights", systemImage: "eraser") {
+                    app.attempt("Couldn’t remove the verse highlights") {
+                        try highlights.remove(bookId: hit.bookId, chapter: hit.chapter, verse: hit.verseNum, textId: hit.textId)
+                    }
+                }
+            }
         }
     }
 
