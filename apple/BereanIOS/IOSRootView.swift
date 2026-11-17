@@ -546,21 +546,30 @@ struct TabCardsSheet: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Picker("Tab Space", selection: $spaceFilter) {
-                            Text("All Spaces").tag(nil as SpaceId?)
-                            ForEach(SpaceId.allCases) { space in
-                                Text(space.title).tag(Optional(space))
+                        Menu(spaceFilter.map { "Space: \($0.title)" } ?? "Space", systemImage: "square.stack") {
+                            Picker("Tab Space", selection: $spaceFilter) {
+                                Text("All Spaces").tag(nil as SpaceId?)
+                                ForEach(SpaceId.allCases) { space in
+                                    Text(space.title).tag(Optional(space))
+                                }
                             }
+                            .pickerStyle(.inline)
                         }
-                        Picker("Tab Type", selection: $typeFilter) {
-                            Text("All Types").tag(nil as TabType?)
-                            ForEach(TabType.allCases, id: \.self) { type in
-                                Text(typeTitle(type)).tag(Optional(type))
+                        Menu(typeFilter.map { "Type: \(typeTitle($0))" } ?? "Tab Type", systemImage: "square.grid.2x2") {
+                            Picker("Tab Type", selection: $typeFilter) {
+                                Text("All Types").tag(nil as TabType?)
+                                ForEach(TabType.allCases, id: \.self) { type in
+                                    Text(typeTitle(type)).tag(Optional(type))
+                                }
                             }
+                            .pickerStyle(.inline)
                         }
-                        Picker("Sort", selection: $tabSort) {
-                            Text("Custom Order").tag("custom")
-                            Text("Recently Used").tag("recent")
+                        Menu("Sort", systemImage: "arrow.up.arrow.down") {
+                            Picker("Sort", selection: $tabSort) {
+                                Text("Custom Order").tag("custom")
+                                Text("Recently Used").tag("recent")
+                            }
+                            .pickerStyle(.inline)
                         }
                         if isFiltering {
                             Button("Clear Filters", systemImage: "xmark") {
