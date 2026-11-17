@@ -45,7 +45,13 @@ struct BereanSidebar: View {
                             orderedTabs(sameTitleIndices: sameTitleIndices)
                         }
                         if isFilteringTabs && matchingTabs.isEmpty {
-                            Text("No matching tabs").font(.callout).foregroundStyle(.secondary).padding(10)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("No matching tabs").font(.callout).foregroundStyle(.secondary)
+                                Button("Show All Tabs", action: closeTabFilter)
+                                    .buttonStyle(OptionButtonStyle())
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
                         }
                         if !isFilteringTabs && !app.archivedGroups.isEmpty { archive.padding(.top, 14) }
                     }
