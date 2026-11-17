@@ -1486,3 +1486,5 @@
 - iPhone workspace rows put identifying details before passage previews and make the full row tappable. Simulator verified ambiguous and exact keyboard submissions.
 
 - Advanced Scripture Search supports opening a verse and applying or removing its highlights from the result menu. Verified the complete cycle in Mac Dev.
+
+- Scripture search results show a live indicator for saved verse highlights and disable removal when the result has no saved marks. Mac Dev verified apply and remove without leaving results.

@@ -5,6 +5,20 @@ import BereanText
 import BereanReference
 import BereanNotes
 
+private struct SearchResultHighlights<Content: View>: View {
+    @Environment(AppModel.self) private var app
+    let hit: ScriptureHit
+    @ViewBuilder let content: ([Highlight]) -> Content
+    @State private var marks: [Highlight] = []
+
+    var body: some View {
+        content(marks)
+            .task(id: app.highlightsRevision) {
+                marks = (try? app.highlights?.chapter(hit.bookId, hit.chapter, textId: hit.textId)[hit.verseNum]) ?? []
+            }
+    }
+}
+
 private struct TaggedSearchResult {
     let passage: ResolvedPassage
 
@@ -846,43 +860,52 @@ struct ScriptureSearchView: View {
     func row(_ h: ScriptureHit) -> some View {
         let passage = ResolvedPassage(textId: h.textId, bookId: h.bookId, chapter: h.chapter, verse: h.verseNum)
         let edition = textInfo(h.textId)
-        return HStack(alignment: .top, spacing: 8) {
-            Button {
-                openResult(h, passage: passage)
-            } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(passage.label)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
-                        if grouping != "text" || scope == nil {
-                            Text(edition.short).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 5).padding(.vertical, 1).background(Color.secondary.opacity(0.12), in: .capsule)
+        return SearchResultHighlights(hit: h) { marks in
+            HStack(alignment: .top, spacing: 8) {
+                Button {
+                    openResult(h, passage: passage)
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(passage.label)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                            if grouping != "text" || scope == nil {
+                                Text(edition.short).font(.caption2.weight(.medium)).foregroundStyle(.secondary)
+                                    .padding(.horizontal, 5).padding(.vertical, 1).background(Color.secondary.opacity(0.12), in: .capsule)
+                            }
+                            if !marks.isEmpty {
+                                let color = marks.last(where: { $0.startChar == nil && $0.startWord == nil })?.color
+                                Image(systemName: "highlighter")
+                                    .font(.caption)
+                                    .foregroundStyle(color.map(Color.highlight) ?? .secondary)
+                                    .accessibilityLabel("Highlighted")
+                            }
+                            Spacer()
                         }
-                        Spacer()
+                        if resultContext > 0 {
+                            SearchResultContext(hit: h, span: resultContext, edge: .before)
+                        }
+                        Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(resultContext > 0 ? nil : 4)
+                        if resultContext > 0 {
+                            SearchResultContext(hit: h, span: resultContext, edge: .after)
+                        }
                     }
-                    if resultContext > 0 {
-                        SearchResultContext(hit: h, span: resultContext, edge: .before)
-                    }
-                    Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(resultContext > 0 ? nil : 4)
-                    if resultContext > 0 {
-                        SearchResultContext(hit: h, span: resultContext, edge: .after)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.interactivePlain)
-            .contextMenu {
-                resultActions(h, passage: passage)
-            }
-            VerseActionsMenu(label: "Actions for \(passage.label), \(edition.name)") {
-                resultActions(h, passage: passage)
+                .buttonStyle(.interactivePlain)
+                .contextMenu {
+                    resultActions(h, passage: passage, marks: marks)
+                }
+                VerseActionsMenu(label: "Actions for \(passage.label), \(edition.name)") {
+                    resultActions(h, passage: passage, marks: marks)
+                }
             }
         }
     }
 
-    @ViewBuilder private func resultActions(_ hit: ScriptureHit, passage: ResolvedPassage) -> some View {
+    @ViewBuilder private func resultActions(_ hit: ScriptureHit, passage: ResolvedPassage, marks: [Highlight]) -> some View {
         let reference = referenceForCopy(passage.label, textId: hit.textId)
         Button("Open Verse", systemImage: "book") { openResult(hit, passage: passage) }
         Button("Open in New Tab", systemImage: "plus.square") { openResult(hit, passage: passage, reuseTab: false) }
@@ -916,6 +939,7 @@ struct ScriptureSearchView: View {
                         try highlights.remove(bookId: hit.bookId, chapter: hit.chapter, verse: hit.verseNum, textId: hit.textId)
                     }
                 }
+                .disabled(marks.isEmpty)
             }
         }
     }
