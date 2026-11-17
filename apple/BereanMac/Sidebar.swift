@@ -247,7 +247,7 @@ struct BereanSidebar: View {
         let query = workspaceQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let workspaces = app.workspaceItems.filter { $0.matches(query) }
         let matches = app.matchingWorkspaceTabs(query)
-        let exactWorkspaces = WorkspaceItem.exactMatches(for: query, in: workspaces)
+        let submit = AppModel.workspaceSearchSubmission(query: query, workspaces: workspaces, tabs: matches)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -255,22 +255,23 @@ struct BereanSidebar: View {
                     .textFieldStyle(.plain)
                     .focused($workspaceSearchFocused)
                     .onSubmit {
-                        guard !query.isEmpty, exactWorkspaces.count <= 1 else { return }
-                        if let exact = exactWorkspaces.first {
-                            openWorkspaceSearchResult(exact)
-                        } else if let first = matches.first {
-                            openWorkspaceTab(first)
-                        } else if let first = workspaces.first {
-                            openWorkspaceSearchResult(first)
+                        switch submit {
+                        case .workspace(let workspace): openWorkspaceSearchResult(workspace)
+                        case .tab(let tab): openWorkspaceTab(tab)
+                        case .chooseWorkspace, .chooseTab, .noMatch: return
                         }
                     }
                 Button("Cancel") { showsWorkspaceSearch = false }
                     .keyboardShortcut(.cancelAction)
             }
             Divider()
-            if exactWorkspaces.count > 1 {
-                Text("Choose a workspace below.")
-                    .font(.caption).foregroundStyle(.secondary)
+            switch submit {
+            case .chooseWorkspace:
+                Text("Choose a workspace below.").font(.caption).foregroundStyle(.secondary)
+            case .chooseTab:
+                Text("Choose a tab below.").font(.caption).foregroundStyle(.secondary)
+            default:
+                EmptyView()
             }
             if workspaces.isEmpty && matches.isEmpty {
                 ContentUnavailableView.search(text: query)

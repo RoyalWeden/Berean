@@ -978,25 +978,24 @@ struct SessionsPage: View {
             ? matches.filter(app.isCurrent) + matches.filter { !app.isCurrent($0) }
             : matches
         let tabs = app.matchingWorkspaceTabs(search)
-        let exactWorkspaces = WorkspaceItem.exactMatches(for: search, in: workspaces)
+        let submit = AppModel.workspaceSearchSubmission(query: search, workspaces: workspaces, tabs: tabs)
         return List {
             TabSearchField(prompt: "Workspace, passage, or tab title", query: $query)
                 .onSubmit {
-                    guard !search.isEmpty, exactWorkspaces.count <= 1 else { return }
-                    if let exact = exactWorkspaces.first {
-                        app.open(exact)
-                    } else if let tab = tabs.first {
-                        app.openWorkspaceTab(tab)
-                    } else if let workspace = workspaces.first {
-                        app.open(workspace)
-                    } else {
-                        return
+                    switch submit {
+                    case .workspace(let workspace): app.open(workspace)
+                    case .tab(let tab): app.openWorkspaceTab(tab)
+                    case .chooseWorkspace, .chooseTab, .noMatch: return
                     }
                     closeTabs()
                 }
-            if exactWorkspaces.count > 1 {
-                Text("Choose a workspace below.")
-                    .font(.caption).foregroundStyle(.secondary)
+            switch submit {
+            case .chooseWorkspace:
+                Text("Choose a workspace below.").font(.caption).foregroundStyle(.secondary)
+            case .chooseTab:
+                Text("Choose a tab below.").font(.caption).foregroundStyle(.secondary)
+            default:
+                EmptyView()
             }
             if workspaces.isEmpty && tabs.isEmpty && !search.isEmpty {
                 ContentUnavailableView.search(text: search)

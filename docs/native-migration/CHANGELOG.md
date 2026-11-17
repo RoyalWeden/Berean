@@ -1480,3 +1480,5 @@
 - Archived tab titles and restore actions distinguish same-name live workspaces. Verified restoration to the second matching workspace in Mac Dev.
 
 - The iPhone workspace picker shows the current workspace first and puts New Workspace in the header. Verified switching and creation on iPhone 18 Pro Simulator.
+
+- Return in workspace search leaves ambiguous results visible for a choice. Verified ambiguous and unique tab queries in Mac Dev.

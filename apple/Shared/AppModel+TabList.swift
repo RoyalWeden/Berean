@@ -63,6 +63,28 @@ extension AppModel {
         }
     }
 
+    enum WorkspaceSearchSubmission {
+        case workspace(WorkspaceItem)
+        case tab(WorkspaceTabMatch)
+        case chooseWorkspace
+        case chooseTab
+        case noMatch
+    }
+
+    static func workspaceSearchSubmission(
+        query: String, workspaces: [WorkspaceItem], tabs: [WorkspaceTabMatch]
+    ) -> WorkspaceSearchSubmission {
+        guard !query.isEmpty else { return .noMatch }
+        let exact = WorkspaceItem.exactMatches(for: query, in: workspaces)
+        if exact.count > 1 { return .chooseWorkspace }
+        if let workspace = exact.first { return .workspace(workspace) }
+        if tabs.count > 1 { return .chooseTab }
+        if let tab = tabs.first { return .tab(tab) }
+        if workspaces.count > 1 { return .chooseWorkspace }
+        if let workspace = workspaces.first { return .workspace(workspace) }
+        return .noMatch
+    }
+
     var recentWorkspaceTabs: [WorkspaceTabMatch] {
         let recentIDs = recentTabIDs.filter { $0 != activeTab?.id }
         guard !recentIDs.isEmpty else { return [] }
