@@ -5,6 +5,7 @@ struct TabCleanupView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var included: Set<String> = []
+    @State private var reviewingSelection = false
     @State private var query = ""
     @State private var duplicatesOnly = false
     @State private var keepingRecent = true
@@ -28,7 +29,8 @@ struct TabCleanupView: View {
             (tabType == nil || tab.tabType == tabType)
                 && terms.allSatisfy { tab.navigationSearchText.localizedStandardContains(String($0)) }
         }
-        let visibleIDs = Set(matches.map(\.id))
+        let displayedTabs = reviewingSelection ? selected : matches
+        let visibleIDs = Set(displayedTabs.map(\.id))
         let hiddenSelection = selected.filter { !visibleIDs.contains($0.id) }
         NavigationStack {
             List {
@@ -54,22 +56,24 @@ struct TabCleanupView: View {
                     Text("No selected tabs are still eligible to archive.").foregroundStyle(.secondary)
                 }
                 Section {
-                    HStack {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Filter inactive tabs", text: $query)
-                            .textFieldStyle(.plain)
-                    }
-                    if !kinds.isEmpty {
-                        Picker("Tab Type", selection: $tabType) {
-                            Text("All Types").tag(nil as TabType?)
-                            ForEach(kinds, id: \.self) { kind in
-                                let count = tabs.count { $0.tabType == kind }
-                                Text("\(kind == .bible ? "Scripture" : kind.rawValue.capitalized) (\(count))")
-                                    .tag(Optional(kind))
-                            }
+                    if !reviewingSelection {
+                        HStack {
+                            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                            TextField("Filter inactive tabs", text: $query)
+                                .textFieldStyle(.plain)
                         }
-                        .pickerStyle(.menu)
-                        .clickableCursor()
+                        if !kinds.isEmpty {
+                            Picker("Tab Type", selection: $tabType) {
+                                Text("All Types").tag(nil as TabType?)
+                                ForEach(kinds, id: \.self) { kind in
+                                    let count = tabs.count { $0.tabType == kind }
+                                    Text("\(kind == .bible ? "Scripture" : kind.rawValue.capitalized) (\(count))")
+                                        .tag(Optional(kind))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .clickableCursor()
+                        }
                     }
                     Toggle("Keep Recently Used Tabs", isOn: $keepingRecent)
                         .clickableCursor()
@@ -81,12 +85,25 @@ struct TabCleanupView: View {
                         .onChange(of: duplicatesOnly) {
                             included.removeAll()
                         }
-                    Button(terms.isEmpty && tabType == nil ? "Select All" : "Select Matches", systemImage: "checkmark.circle") {
-                        included.formUnion(matches.map(\.id))
+                    if !reviewingSelection {
+                        Button(terms.isEmpty && tabType == nil ? "Select All" : "Select Matches", systemImage: "checkmark.circle") {
+                            included.formUnion(matches.map(\.id))
+                        }
+                        .buttonStyle(.borderless)
+                        .clickableCursor()
+                        .disabled(matches.allSatisfy { included.contains($0.id) })
                     }
-                    .buttonStyle(.borderless)
-                    .clickableCursor()
-                    .disabled(matches.allSatisfy { included.contains($0.id) })
+                    if reviewingSelection || !selected.isEmpty {
+                        Button {
+                            reviewingSelection.toggle()
+                        } label: {
+                            Label(reviewingSelection ? "Back to Matches" : "Review Selection",
+                                  systemImage: reviewingSelection ? "line.3.horizontal.decrease" : "checklist")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                    }
                     Button("Clear Selection", systemImage: "xmark.circle") { included.removeAll() }
                         .buttonStyle(.borderless)
                         .clickableCursor()
@@ -111,8 +128,10 @@ struct TabCleanupView: View {
                     }
                 }
                 Section {
-                    if matches.isEmpty {
-                        if keepingRecent && protectedCount > 0 && tabs.isEmpty {
+                    if displayedTabs.isEmpty {
+                        if reviewingSelection {
+                            Text("No tabs selected").foregroundStyle(.secondary)
+                        } else if keepingRecent && protectedCount > 0 && tabs.isEmpty {
                             Text("Only recently used tabs match this cleanup mode.")
                                 .foregroundStyle(.secondary)
                         } else {
@@ -120,7 +139,7 @@ struct TabCleanupView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    ForEach(matches) { tab in
+                    ForEach(displayedTabs) { tab in
                         Toggle(isOn: Binding(
                             get: { included.contains(tab.id) },
                             set: { include in
@@ -144,6 +163,7 @@ struct TabCleanupView: View {
                                 Image(systemName: tab.symbol).foregroundStyle(tab.tint)
                             }
                         }
+                        .clickableCursor()
                         .contextMenu {
                             if let original = originals[tab.id] {
                                 Button("Show Tab Kept Open", systemImage: "square.on.square") {
@@ -155,7 +175,9 @@ struct TabCleanupView: View {
                         }
                     }
                 } header: {
-                    if hiddenSelection.isEmpty {
+                    if reviewingSelection {
+                        Text("Reviewing \(selected.count) selected")
+                    } else if hiddenSelection.isEmpty {
                         Text("\(selected.count) selected")
                     } else {
                         Text("\(selected.count) selected · \(hiddenSelection.count) hidden by filters")

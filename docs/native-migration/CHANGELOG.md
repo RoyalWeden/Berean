@@ -1462,3 +1462,7 @@
 - The shared control cursor follows effective enabled state. Native toolbar pointer tracking releases records when their views are discarded.
 
 - Applied the disabled-aware cursor to the Mac chapter toolbar, navigation history, sidebar tabs and Notes preview links. Mac scratch QA confirmed chapter boundary and floating-search control states.
+
+### 2026-11-17 — Review selected inactive tabs
+
+- Archive Inactive Tabs exposes a full selection review on both platforms. Returning to matches restores the filters. Verified the hidden-selection and cancel flow in Mac Dev.
