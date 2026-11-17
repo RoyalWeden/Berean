@@ -1456,3 +1456,7 @@
 ### 2026-11-17 — Wrapped Notes table rows
 
 - Wide editable tables retain visible row boundaries and header shading when content wraps. Short rows avoid extra line breaks caused by trailing padding. Both native builds and the focused AppKit layout check passed.
+
+### 2026-11-17 — Mac control cursors
+
+- The shared control cursor follows effective enabled state. Native toolbar pointer tracking releases records when their views are discarded.

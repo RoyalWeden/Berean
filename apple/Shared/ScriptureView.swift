@@ -2332,12 +2332,23 @@ extension View {
     /// every control inside, so keep text fields out of such containers.
     @ViewBuilder func clickableCursor(_ enabled: Bool = true) -> some View {
         #if os(macOS)
-        pointerStyle(enabled ? .link : .default)
+        modifier(ClickableCursorModifier(requested: enabled))
         #else
         self
         #endif
     }
 }
+
+#if os(macOS)
+private struct ClickableCursorModifier: ViewModifier {
+    let requested: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    func body(content: Content) -> some View {
+        content.pointerStyle(requested && isEnabled ? .link : .default)
+    }
+}
+#endif
 
 struct VerseActionsMenu<Actions: View>: View {
     let label: String

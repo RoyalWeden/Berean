@@ -36,7 +36,7 @@ extension NSView {
         // Skip disabled items (e.g. Back with no history) when the viewer exposes its NSToolbarItem.
         let enabled = toolbarItemEnabled
         ToolbarCursorWatch.record(self, enabled: enabled)
-        if enabled == false { return }
+        guard enabled != false else { return }
         discardCursorRects()
         addCursorRect(visibleRect, cursor: .pointingHand)
     }
@@ -85,24 +85,20 @@ enum ClickableCursorDebug {
 
 /// Remembers each toolbar item viewer's enabled state at its last cursor-rect reset and invalidates its rects when it changes.
 @MainActor enum ToolbarCursorWatch {
-    private static let viewers = NSHashTable<NSView>.weakObjects()
-    private static var states: [ObjectIdentifier: Bool] = [:]
+    private static let states = NSMapTable<NSView, NSNumber>(
+        keyOptions: [.weakMemory, .objectPointerPersonality], valueOptions: .strongMemory
+    )
 
     static func record(_ view: NSView, enabled: Bool?) {
         guard let enabled else { return }
-        viewers.add(view)
-        states[ObjectIdentifier(view)] = enabled
+        states.setObject(NSNumber(value: enabled), forKey: view)
     }
 
     static func refresh() {
-        for view in viewers.allObjects {
-            guard let now = view.toolbarItemEnabledPublic, states[ObjectIdentifier(view)] != now else { continue }
-            states[ObjectIdentifier(view)] = now
+        for view in states.keyEnumerator().allObjects.compactMap({ $0 as? NSView }) {
+            guard let now = view.toolbarItemEnabled, states.object(forKey: view)?.boolValue != now else { continue }
+            states.setObject(NSNumber(value: now), forKey: view)
             view.window?.invalidateCursorRects(for: view)
         }
     }
-}
-
-extension NSView {
-    @MainActor var toolbarItemEnabledPublic: Bool? { toolbarItemEnabled }
 }
