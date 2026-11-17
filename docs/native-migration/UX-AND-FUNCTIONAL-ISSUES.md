@@ -117,3 +117,9 @@ Cursor follow-up matrix: verify inactive-window hover after preserving the deliv
 
 - Native switch movement is runtime verified (Verse Numbers, hand/hand), and its QA preference was restored. SwiftUI enabled-state refresh is implemented, with stationary-pointer runtime verification remaining.
 - iPhone Notes home recent-note return now restores the lower viewport; repeated third/last recent note return passed in Simulator. Ordinary touch-scroll saving and missing-recent fallback remain unverified.
+
+### 2026-11-17 location-editing regression
+
+Cross-type Cmd+L is fixed for the directly exercised Scripture/Search/Lexicon/Note matrix; stable ID/order/count and untouched peers were verified in the QA library. Pinned Compare round trip and ordinary Cmd+K/Shift-Return behavior passed. Explicit Notes Search/Lexicon Search/utility combinations and exact long-scroll equality remain QA work. Blank sidebar now explicitly resets to arrow; live sample passed.
+
+During palette QA, Gallery returned imported note hits while Gallery QA 07 did not, despite a direct read-only FTS query matching the imported title. Cause remains unverified; investigate separately from tab replacement.

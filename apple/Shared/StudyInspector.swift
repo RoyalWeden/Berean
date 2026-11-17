@@ -331,7 +331,7 @@ struct CommandPalette: View {
             let words = qualified?.query ?? trimmed
             out.append(Item(id: "search", group: "Search", title: "Search \(scope) for “\(words)”", detail: qualified == nil ? "Scripture and other writings" : "", symbol: "magnifyingglass", offersOpenMenu: true) { inNewTab in app.openSearch(trimmed, reuseTab: !inNewTab, preferActiveTab: preferActiveTab) })
             out.append(Item(id: "notes-search", group: "Search", title: "Search Notes for “\(trimmed)”", detail: "Titles and text",
-                            symbol: "note.text") { _ in app.openNotesSearch(trimmed) })
+                            symbol: "note.text", offersOpenMenu: true) { inNewTab in app.openNotesSearch(trimmed, newTab: inNewTab, preferActiveTab: preferActiveTab) })
         }
         for n in noteHits.filter({ hit in !exactNotes.contains { $0.id == hit.id } }).prefix(6) {
             out.append(noteItem(n, group: "Notes"))
@@ -355,12 +355,12 @@ struct CommandPalette: View {
         }
         var commands: [(String, String, (Bool) -> Void)] = [
             ("New Note", "square.and.pencil", { _ in app.newNote() }),
-            ("Today's Note", "calendar", { inNewTab in app.openTodayDailyNote(newTab: inNewTab) }),
-            ("Calendar", "calendar", { inNewTab in app.openCalendar(newTab: inNewTab) }),
-            ("Notes", "tray.full", { inNewTab in app.openNotesHome(newTab: inNewTab) }),
-            ("History", "clock", { inNewTab in app.openHistory(newTab: inNewTab) }),
-            ("Tags", "tag", { inNewTab in app.openTags(newTab: inNewTab) }),
-            ("Search Lexicon", "character.book.closed", { inNewTab in app.openLexiconSearch(newTab: inNewTab) }),
+            ("Today's Note", "calendar", { inNewTab in app.openTodayDailyNote(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("Calendar", "calendar", { inNewTab in app.openCalendar(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("Notes", "tray.full", { inNewTab in app.openNotesHome(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("History", "clock", { inNewTab in app.openHistory(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("Tags", "tag", { inNewTab in app.openTags(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("Search Lexicon", "character.book.closed", { inNewTab in app.openLexiconSearch(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("New Workspace", "square.stack", { _ in app.newWorkspace() }),
         ]
         if let tab = app.activeTab {
@@ -391,7 +391,7 @@ struct CommandPalette: View {
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber),
            trimmed.split(separator: " ").count <= 2 {
             out.append(Item(id: "lexicon-search", group: "Lexicon", title: "Search Lexicon for “\(trimmed)”", detail: "",
-                            symbol: "character.book.closed", offersOpenMenu: true) { inNewTab in app.openLexiconSearch(trimmed, newTab: inNewTab) })
+                            symbol: "character.book.closed", offersOpenMenu: true) { inNewTab in app.openLexiconSearch(trimmed, newTab: inNewTab, preferActiveTab: preferActiveTab) })
         }
         if !leading.isEmpty {
             let at = out.firstIndex { $0.group != "Recent" && $0.group != "Go to" && $0.group != "Open in Other Workspaces" } ?? out.count
@@ -410,7 +410,7 @@ struct CommandPalette: View {
     }
 
     private var willChangeCurrentPassage: Bool {
-        !newTab && prefersActiveTab && app.canChangeCurrentScriptureTab
+        !newTab && prefersActiveTab && app.canChangeCurrentTab
     }
 
     private func willReusePassage(_ passage: ResolvedPassage) -> Bool {
@@ -425,6 +425,7 @@ struct CommandPalette: View {
         case "Commands": return "Run Command"
         default:
             if newTab && item.offersOpenMenu { return "Open in New Tab" }
+            if prefersActiveTab && item.offersOpenMenu { return "Change Current Tab" }
             if item.reusesOpenPassage { return "Switch to Tab" }
             if item.changesCurrentPassage { return "Change Current Tab" }
             switch item.id {

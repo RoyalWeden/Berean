@@ -111,6 +111,10 @@ struct ClickableCursorRegion: NSViewRepresentable {
         let rootPoint = root.superview?.convert(point, from: nil) ?? point
         let target = root.hitTest(rootPoint)
         guard let hit = target else { return }
+        if hit is WindowDragArea.DragView {
+            setHand(false, in: window, at: point, source: "sidebar space")
+            return
+        }
         var ancestor: NSView? = hit
         var toolbar: NSView?
         while let view = ancestor {

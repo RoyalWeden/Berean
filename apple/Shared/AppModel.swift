@@ -430,15 +430,16 @@ final class AppModel {
         return e.id
     }
 
-    func openHistory(newTab: Bool = false) {
-        openUtilityTab(.history, in: .search, title: "History", newTab: newTab)
+    func openHistory(newTab: Bool = false, preferActiveTab: Bool = false) {
+        openUtilityTab(.history, in: .search, title: "History", newTab: newTab, preferActiveTab: preferActiveTab)
     }
 
-    func openTags(newTab: Bool = false) {
-        openUtilityTab(.tags, in: .notes, title: "Tags", newTab: newTab)
+    func openTags(newTab: Bool = false, preferActiveTab: Bool = false) {
+        openUtilityTab(.tags, in: .notes, title: "Tags", newTab: newTab, preferActiveTab: preferActiveTab)
     }
 
-    func openUtilityTab(_ type: TabType, in space: SpaceId, title: String, newTab: Bool) {
+    func openUtilityTab(_ type: TabType, in space: SpaceId, title: String, newTab: Bool, preferActiveTab: Bool = false) {
+        if !newTab, preferActiveTab, replaceCurrentTab(type, in: space, title: title, state: JSObject()) { return }
         if !newTab {
             let matching = session.allTabs.filter { $0.tabType == type }
             if let tab = matching.first(where: { activeTabId(in: $0.spaceId) == $0.id }) ?? matching.first {
@@ -672,7 +673,7 @@ final class AppModel {
                    Self.selectionLocation(before) != Self.selectionLocation(after) {
                     sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
                 }
-                backStack[tabId, default: []].append(.location(before.title, before.state))
+                backStack[tabId, default: []].append(.location(historyLocation(before)))
                 if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
                 forwardStack[tabId] = []
             }
@@ -693,9 +694,68 @@ final class AppModel {
 
     // MARK: in-tab history (⌘[ / ⌘]) — the place a tab shows, not presentation details like scroll or panels
 
+    private struct TabHistoryLocation: Equatable {
+        var tab: BereanWorkspace.Tab
+        var notesOptions: NotesHomeView.BrowseOptions?
+        var notesReturnTab: String?
+    }
+
     private enum TabHistoryEntry: Equatable {
-        case location(String, JSObject)
+        case location(TabHistoryLocation)
         case tab(String)
+    }
+
+    private func historyLocation(_ tab: BereanWorkspace.Tab) -> TabHistoryLocation {
+        var snapshot = tab
+        if tab.tabType == .lexicon, let search = lexiconSearches[tab.id] {
+            snapshot.state["searchQuery"] = .string(JSString(search.query))
+            snapshot.state["searchLang"] = .string(JSString(search.lang))
+        }
+        return TabHistoryLocation(tab: snapshot, notesOptions: notesBrowseOptions[tab.id],
+                                  notesReturnTab: noteListReturnTabs[tab.id])
+    }
+
+    /// Explicit location editing keeps this tab's identity, pin and sidebar position,
+    /// including when the destination belongs to another Space or content type.
+    @discardableResult
+    private func replaceCurrentTab(_ type: TabType, in space: SpaceId, title: String, state: JSObject,
+                                   origin: BereanWorkspace.Tab? = nil) -> Bool {
+        guard let current = activeTab else { return false }
+        if current.tabType == type, current.spaceId == space {
+            update(current.id) { tab in
+                for field in state.entries { tab.state[field.key.string] = field.value }
+                tab.title = title
+            }
+            return true
+        }
+        let previous = historyLocation(current)
+        let destination = BereanWorkspace.Tab(id: current.id, spaceId: space, type: type.rawValue,
+                                              title: title, state: state,
+                                              originTabId: origin?.id, originSpaceId: origin?.spaceId)
+        guard sessions[sessionIndex].replaceTabContent(current.id, with: destination) != nil else { return false }
+        backStack[current.id, default: []].append(.location(previous))
+        if backStack[current.id]!.count > 100 { backStack[current.id]!.removeFirst() }
+        forwardStack[current.id] = []
+        noteListReturnTabs.removeValue(forKey: current.id)
+        notesBrowseOptions.removeValue(forKey: current.id)
+        lexiconSearches.removeValue(forKey: current.id)
+        studyVerseFocus.removeValue(forKey: current.id)
+        activeSpace = space
+        scheduleSave()
+        return true
+    }
+
+    private func restoreLocation(_ location: TabHistoryLocation, for id: String) {
+        guard sessions[sessionIndex].replaceTabContent(id, with: location.tab) != nil else { return }
+        notesBrowseOptions[id] = location.notesOptions
+        noteListReturnTabs[id] = location.notesReturnTab
+        if location.tab.tabType == .lexicon {
+            lexiconSearches[id] = (location.tab.state["searchQuery"]?.stringValue?.string ?? "",
+                                  location.tab.state["searchLang"]?.stringValue?.string ?? "all")
+        }
+        studyVerseFocus.removeValue(forKey: id)
+        activeSpace = location.tab.spaceId
+        scheduleSave()
     }
 
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
@@ -792,10 +852,10 @@ final class AppModel {
             let destination: String
             let reverse: TabHistoryEntry
             switch entry {
-            case .location(let title, let state):
+            case .location(let location):
                 destination = current.id
-                reverse = .location(current.title, current.state)
-                update(current.id, recordHistory: false) { $0.title = title; $0.state = state }
+                reverse = .location(historyLocation(current))
+                restoreLocation(location, for: current.id)
             case .tab(let id):
                 guard let target = tabHistoryTarget(id) else { continue }
                 destination = id
@@ -850,6 +910,7 @@ final class AppModel {
                              preferActiveTab: Bool = false,
                              canReplace: (BereanWorkspace.Tab) -> Bool = { _ in true },
                              matches: ((BereanWorkspace.Tab) -> Bool)? = nil) {
+        if preferActiveTab, replaceCurrentTab(type, in: space, title: title, state: state, origin: origin) { return }
         let candidates = tabs(in: space).filter { $0.tabType == type }
         let currentId = activeTabId(in: space)
         let writable = candidates.filter { !$0.isPinned && canReplace($0) }
@@ -1102,7 +1163,15 @@ final class AppModel {
     }
 
     /// A Lexicon tab on the search view (no entry yet), optionally seeded with a query.
-    func openLexiconSearch(_ query: String = "", newTab: Bool = false) {
+    func openLexiconSearch(_ query: String = "", newTab: Bool = false, preferActiveTab: Bool = false) {
+        if !newTab, preferActiveTab {
+            var state = JSObject(); state["strongsNum"] = .string("")
+            state["searchQuery"] = .string(JSString(query)); state["searchLang"] = .string("all")
+            if replaceCurrentTab(.lexicon, in: .lexicon, title: "Lexicon", state: state), let tab = activeTab {
+                lexiconSearches[tab.id] = (query, "all")
+                return
+            }
+        }
         if !newTab, let tab = activeTab, tab.tabType == .lexicon {
             update(tab.id) { $0.state["strongsNum"] = .string(""); $0.title = "Lexicon" }
             if !query.isEmpty { lexiconSearches[tab.id] = (query, "all") }
@@ -1136,8 +1205,8 @@ final class AppModel {
     var notesSearchSeed = 0
 
     /// Opens Notes Home searching every note for `query` (original Floating Search "Search Notes").
-    func openNotesSearch(_ query: String) {
-        openNotesHome()
+    func openNotesSearch(_ query: String, newTab: Bool = false, preferActiveTab: Bool = false) {
+        openNotesHome(newTab: newTab, preferActiveTab: preferActiveTab)
         guard let tab = activeTab else { return }
         var options = notesBrowseOptions[tab.id] ?? NotesHomeView.BrowseOptions()
         options.query = query
@@ -1146,7 +1215,11 @@ final class AppModel {
         notesSearchSeed += 1
     }
 
-    func openNotesHome(newTab: Bool = false) {
+    func openNotesHome(newTab: Bool = false, preferActiveTab: Bool = false) {
+        if !newTab, preferActiveTab {
+            var state = JSObject(); state["noteId"] = .null; state["listFolderId"] = .null
+            if replaceCurrentTab(.note, in: .notes, title: "Notes", state: state) { return }
+        }
         if !newTab {
             let homeTabs = tabs(in: .notes).filter {
                 $0.tabType == .note && $0.state["noteId"]?.stringValue == nil
@@ -1189,6 +1262,10 @@ final class AppModel {
         }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = note?.displayTitle ?? "Notes"
+        if !newTab, preferActiveTab, replaceCurrentTab(.note, in: .notes, title: title, state: o) {
+            if let tab = activeTab { noteListReturnTabs.removeValue(forKey: tab.id) }
+            return
+        }
         let writableActive = preferActiveTab && activeTab?.tabType == .note
         if !newTab, !writableActive, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
             noteListReturnTabs[exact.id] = source == exact.id ? nil : source
@@ -1323,14 +1400,14 @@ final class AppModel {
         }
     }
 
-    var canChangeCurrentScriptureTab: Bool {
-        activeTab?.tabType == .bible
+    var canChangeCurrentTab: Bool {
+        activeTab != nil
     }
 
     /// Go switches to an exact open passage without resetting that tab's saved scroll position.
     func goToScripture(_ passage: ResolvedPassage, newTab: Bool, preferActiveTab: Bool = false) {
         let sourceID = activeTab?.id
-        let changeCurrent = preferActiveTab && canChangeCurrentScriptureTab
+        let changeCurrent = preferActiveTab && activeTab != nil
         if !newTab, !changeCurrent {
             let matches = tabs(in: .scripture).filter(passage.isShown(in:))
             if let match = matches.first(where: { $0.id == sourceID }) ?? matches.first {

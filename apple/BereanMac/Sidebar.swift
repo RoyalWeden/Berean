@@ -62,7 +62,7 @@ struct BereanSidebar: View {
                     .padding(.bottom, 8)
                     .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
                     // Empty sidebar space (between and below rows) moves the window; rows and buttons take their own clicks.
-                    .background(WindowDragArea(onDoubleClick: { app.showCommandPalette(newTab: true) }))
+                    .background(WindowDragArea(onDoubleClick: { app.showCommandPalette(newTab: true) }).clickableCursor(false))
                     .animation(.snappy(duration: 0.18), value: app.orderedTabs.map(\.id))
                 }
                 .scrollIndicators(.never)
@@ -189,7 +189,7 @@ struct BereanSidebar: View {
             }
         }
         .padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 8)
-        .background(WindowDragArea())   // below the title bar only, so the toolbar's own buttons keep their clicks
+        .background(WindowDragArea().clickableCursor(false))   // below the title bar only, so the toolbar's own buttons keep their clicks
     }
 
     private var tabFilterControls: some View {
@@ -734,6 +734,11 @@ struct WindowDragArea: NSViewRepresentable {
 
     final class DragView: NSView {
         var onDoubleClick: (() -> Void)?
+
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            addCursorRect(visibleRect, cursor: .arrow)
+        }
 
         override func mouseDown(with event: NSEvent) {
             if event.clickCount == 2 {

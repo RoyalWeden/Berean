@@ -1654,3 +1654,9 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 
 - Extended Mac pointing-hand coverage to native switches and added enabled-state refresh for hovered SwiftUI regions. Live movement inside a Settings switch retained the hand.
 - iPhone Notes home now has grouped scroll anchors and clear space above the dock. Repeated recent-note opening/return restored the lower viewport in Simulator.
+
+### 2026-11-17 — Cross-type location editing
+
+- Cmd+L changes the current tab across Scripture, Search, Lexicon and Notes while retaining identity, pin and sidebar position. Back/Forward restores the prior type as well as its location.
+- Empty Mac sidebar space uses the arrow.
+- Live QA covered mixed-type history, pinned Compare, an existing destination, Shift-Return New Tab and ordinary Cmd+K reuse. Shared tab-replacement tests cover 200 type/pin combinations.

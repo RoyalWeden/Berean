@@ -703,3 +703,7 @@ Use the shared `openNoteFromList` path for gallery and list activation and conte
 ### Cursor regression checks
 
 Build the Mac Dev app and launch the scratch library with `BEREAN_CURSOR_TRACE=1` to record the settled expected/actual cursor after real input events. Check multiple points inside one control, enabled and disabled states, and text/link/resize areas nearby. Use the event-delivered point during dispatch, and coalesce subsequent refreshes. Keep the trace opt-in and treat a successful sample as evidence only for that tested path.
+
+### Location-editing regression gate (2026-11-17)
+
+For Cmd+L, test both same- and different-type destinations with existing exact matches and pinned current tabs. Assert source ID, pin, global display order and total count remain fixed and peer content does not change. Traverse Back and Forward across every type change; check actual scroll anchors separately. Test Cmd+K reuse and explicit New Tab overrides alongside replacement. Use only the named native QA library and read-only database inspection as supporting evidence.

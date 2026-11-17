@@ -376,3 +376,7 @@ show their content without the side-by-side or thread chrome. A full structured 
 ### 2026-11-17 — iPhone Notes home scroll ownership
 
 Use a grouped ScrollView with explicit stable targets for iPhone Notes home. The initial native List compiled but failed the observed recent-note return; replacing it preserved the grouped appearance and made explicit anchor return work. Retain device-local per-tab state and missing-recent fallback. Do not claim idle touch-scroll restoration from this explicit-return evidence. Native switches are separate NSControl instances and need cursor handling alongside NSButton and NSSegmentedControl.
+
+### 2026-11-17 — Location editing owns a tab identity
+
+Cmd+L is explicit replacement of the active tab even across content types and Spaces. It takes priority over matching another destination tab, including a pinned destination. Preserve source ID, pin and global order. Move the source record between Space buckets and keep a full typed location snapshot for history. Ordinary navigation may still reuse an existing destination; explicit New Tab creates one. Use the existing compatible tab-row upsert rather than adding a schema or duplicate tab identity.

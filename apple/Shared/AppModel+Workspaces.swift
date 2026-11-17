@@ -274,25 +274,25 @@ extension AppModel {
 }
 
 extension AppModel {
-    func openCalendar(newTab: Bool = false) {
-        openUtilityTab(.calendar, in: .notes, title: "Calendar", newTab: newTab)
+    func openCalendar(newTab: Bool = false, preferActiveTab: Bool = false) {
+        openUtilityTab(.calendar, in: .notes, title: "Calendar", newTab: newTab, preferActiveTab: preferActiveTab)
     }
 
-    func openTodayDailyNote(newTab: Bool = false) {
-        openDailyNote(DailyNoteDay.dateKey(DailyNotePreferences.today()), newTab: newTab)
+    func openTodayDailyNote(newTab: Bool = false, preferActiveTab: Bool = false) {
+        openDailyNote(DailyNoteDay.dateKey(DailyNotePreferences.today()), newTab: newTab, preferActiveTab: preferActiveTab)
     }
 
-    func openDailyNote(_ key: String, fromCalendar source: String? = nil, newTab: Bool = false) {
+    func openDailyNote(_ key: String, fromCalendar source: String? = nil, newTab: Bool = false, preferActiveTab: Bool = false) {
         guard let notes else {
             userMessage = "The notes library is unavailable."
             return
         }
         do {
             if let hit = try notes.dailyDates().first(where: { $0.dateKey == key }) {
-                openNote(hit.noteId, newTab: newTab, fromList: source)
+                openNote(hit.noteId, newTab: newTab, fromList: source, preferActiveTab: preferActiveTab)
             } else {
                 let created = try notes.create(.init(type: "daily", title: "Daily — \(key)", content: ""))
-                openNote(created.note.id, newTab: newTab, fromList: source)
+                openNote(created.note.id, newTab: newTab, fromList: source, preferActiveTab: preferActiveTab)
             }
         } catch {
             userMessage = "Could not open the daily note: \(error)"

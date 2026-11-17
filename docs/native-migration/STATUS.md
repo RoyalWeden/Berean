@@ -133,3 +133,7 @@
 ## 2026-11-17 iPhone home and native switch checkpoint
 
 Both native builds pass. Mac switch movement retained the hand in live QA. iPhone recent-note return restored the lower Notes home with final-row dock clearance. Stationary enabled-state refresh is implemented but unverified; ordinary touch-scroll saving, missing-recent fallback and inactive-window hover remain open. Notes title autocomplete is the next ready editor parity gap.
+
+## 2026-11-17 cross-type Cmd+L checkpoint
+
+Explicit location replacement now retains the current ID/pin/order across types. Live mixed-type Back/Forward, pinned Compare, existing destinations, New Tab override and normal Cmd+K reuse passed; peer records stayed unchanged. Native builds pass and the current working-tree shared suite passed 154 tests. Empty sidebar arrow is verified. See HANDOFF for remaining routing/scroll checks and the pending editor completion checkpoint.
