@@ -114,6 +114,7 @@ struct RichNoteEditor: NSViewRepresentable {
             let all = NSRange(location: 0, length: storage.length)
             storage.setAttributes([.font: body, .foregroundColor: NSColor.labelColor, .paragraphStyle: para], range: all)
             hidden = IndexSet(); substitutions = [:]
+            var explicitLinks = IndexSet()
             for sp in MarkdownLiveSpans.spans(text) where NSMaxRange(sp.range) <= storage.length {
                 let r = sp.range
                 switch sp.kind {
@@ -126,6 +127,7 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor], range: r)
                 case .highlight(let c): storage.addAttribute(.backgroundColor, value: NSColor(Color.highlight(c ?? "yellow")).withAlphaComponent(0.35), range: r)
                 case .link(let url):
+                    explicitLinks.insert(integersIn: r.location..<NSMaxRange(r))
                     if let u = URL(string: url) { storage.addAttributes([.link: u, .foregroundColor: NSColor.linkColor, .underlineStyle: NSUnderlineStyle.single.rawValue], range: r) }
                 case .wikilink(let target):
                     storage.addAttributes([.link: URL(string: "berean-note:" + (target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target))!,
@@ -173,6 +175,8 @@ struct RichNoteEditor: NSViewRepresentable {
             // berean-note: route the editor already resolves as a passage first).
             if parent.detectVerseReferences {
                 for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
+                    // Explicit Markdown links own their label even when it reads like a verse.
+                    guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)) else { continue }
                     guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
                     storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
                 }

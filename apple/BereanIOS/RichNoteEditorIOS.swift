@@ -163,6 +163,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             storage.beginEditing()
             storage.setAttributes([.font: font(size), .foregroundColor: UIColor.label, .paragraphStyle: para], range: all)
             hidden = IndexSet(); substitutions = [:]
+            var explicitLinks = IndexSet()
             for sp in MarkdownLiveSpans.spans(text) where NSMaxRange(sp.range) <= storage.length {
                 let r = sp.range
                 switch sp.kind {
@@ -173,7 +174,9 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .underline: storage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: r)
                 case .code: storage.addAttributes([.font: UIFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular), .backgroundColor: UIColor.tertiarySystemFill], range: r)
                 case .highlight(let c): storage.addAttribute(.backgroundColor, value: UIColor(Color.highlight(c ?? "yellow")).withAlphaComponent(0.35), range: r)
-                case .link(let url): if let u = URL(string: url) { storage.addAttribute(.link, value: u, range: r) }
+                case .link(let url):
+                    explicitLinks.insert(integersIn: r.location..<NSMaxRange(r))
+                    if let u = URL(string: url) { storage.addAttribute(.link, value: u, range: r) }
                 case .wikilink(let t): storage.addAttribute(.link, value: URL(string: "berean-note:" + (t.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? t))!, range: r)
                 case .heading(let level):
                     let scale: [CGFloat] = [1.6, 1.35, 1.2, 1.1, 1.05, 1.0]
@@ -212,6 +215,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             // berean-note: route the editor already resolves as a passage first).
             if parent.detectVerseReferences {
                 for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
+                    // Explicit Markdown links own their label even when it reads like a verse.
+                    guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)) else { continue }
                     guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
                     storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
                 }
