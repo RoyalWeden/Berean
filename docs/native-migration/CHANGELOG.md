@@ -1504,3 +1504,5 @@
 - Lexicon offers Reset Filters alongside empty occurrence results. Mac Dev verified restoring H430 results after incompatible word and book filters.
 
 - Compact Lexicon identifies sampled occurrences and places the full-entry action alongside occurrence filters and Scripture search.
+
+- Opening the full Lexicon from a filtered compact entry carries over occurrence filters. Mac Dev verified expanding the H430 sample while retaining the 1 Chronicles filter.

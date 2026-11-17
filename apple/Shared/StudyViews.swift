@@ -386,10 +386,7 @@ struct LexiconEntryView: View {
                                     .accessibilityHint("Search all texts for \(e.strongsNum)")
                                     .help("Search Scripture for \(e.strongsNum)")
                                     if compact {
-                                        Button("Open Full Lexicon", systemImage: "arrow.up.right.square") {
-                                            leaveInspector()
-                                            app.openLexicon(strongsId, reuseTab: true)
-                                        }
+                                        Button("Open Full Lexicon", systemImage: "arrow.up.right.square", action: openFullLexicon)
                                         .buttonStyle(OptionButtonStyle())
                                     }
                                 }
@@ -683,6 +680,23 @@ struct LexiconEntryView: View {
 
     private var hasOccurrenceOptions: Bool {
         occurrenceEdition != nil || occurrenceBook != nil || !selectedRenderings.isEmpty || sortByMatches
+    }
+
+    private func openFullLexicon() {
+        let transfer = hasOccurrenceOptions
+            ? OccurrenceOptions(pageLimit: 40, edition: occurrenceEdition, book: occurrenceBook,
+                                renderings: selectedRenderings, sortByMatches: sortByMatches,
+                                wordReplacerEnabled: app.wordReplacerEnabled)
+            : nil
+        leaveInspector()
+        app.openLexicon(strongsId, reuseTab: true)
+        guard let transfer, let destination = app.activeTab,
+              destination.tabType == .lexicon,
+              destination.state["strongsNum"]?.stringValue?.string == strongsId else { return }
+        if app.lexiconOccurrenceOptions[destination.id]?[strongsId] != transfer {
+            app.lexiconScrollOffsets[destination.id]?.removeValue(forKey: strongsId)
+            app.lexiconOccurrenceOptions[destination.id, default: [:]][strongsId] = transfer
+        }
     }
 
     private func resetOccurrenceFilters() {
