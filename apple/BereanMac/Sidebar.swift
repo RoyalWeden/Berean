@@ -25,6 +25,13 @@ struct BereanSidebar: View {
     @State private var tabTypeFilter: TabType?
     @FocusState private var tabFilterFocused: Bool
 
+    private struct TabFilterState {
+        let query: String
+        let type: TabType?
+    }
+
+    @State private var workspaceTabFilters: [String: TabFilterState] = [:]
+
     var body: some View {
         let sameTitleIndices = isFilteringTabs ? AppModel.sameTitleTabIndices(app.orderedTabs) : [:]
         VStack(spacing: 0) {
@@ -59,9 +66,14 @@ struct BereanSidebar: View {
             Rectangle().fill(.regularMaterial)
                 .ignoresSafeArea(.container, edges: .top)
         }
-        .onChange(of: app.currentSessionId) { _, _ in
-            tabQuery = ""
-            tabTypeFilter = nil
+        .onChange(of: app.currentSessionId) { previous, destination in
+            workspaceTabFilters[previous] = isFilteringTabs
+                ? TabFilterState(query: tabQuery, type: tabTypeFilter) : nil
+            let saved = workspaceTabFilters[destination]
+            tabQuery = saved?.query ?? ""
+            tabTypeFilter = saved?.type
+            showsTabFilter = saved != nil
+            tabFilterFocused = false
         }
         .contextMenu {
             Toggle("Group Tabs by Space", isOn: $groupBySpace)
