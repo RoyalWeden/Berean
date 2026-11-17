@@ -72,6 +72,7 @@ struct LexiconEntryView: View {
     @State private var restoredWithChangedWordReplacement = false
     @State private var showsOccurrenceFilters = false
     @State private var occurrenceFilterList: OccurrenceFilterList?
+    @FocusState private var occurrenceFilterSearchFocused: Bool
     @State private var occurrenceFilterQuery = ""
     private enum OccurrenceFilterList { case books, words }
 
@@ -823,29 +824,40 @@ struct LexiconEntryView: View {
                         occurrenceFilterList = nil
                     } label: { occurrenceChoice("All Books", selected: occurrenceBook == nil) }
                     .buttonStyle(OptionButtonStyle())
-                    ForEach(bookOptions.sorted { (Reference.bookName($0), $0) < (Reference.bookName($1), $1) }, id: \.self) { book in
-                        let name = Reference.bookName(book)
-                        if matchesOccurrenceFilter(name) {
-                            Button {
-                                occurrenceBook = book
-                                occurrenceFilterList = nil
-                            } label: { occurrenceChoice("\(name) (\(books[book]?.count ?? 0))", selected: occurrenceBook == book) }
-                            .buttonStyle(OptionButtonStyle())
+                    let matching = bookOptions.filter { matchesOccurrenceFilter(Reference.bookName($0)) }
+                        .sorted { (Reference.bookOrder($0), $0) < (Reference.bookOrder($1), $1) }
+                    if matching.isEmpty { occurrenceFilterEmpty("No matching books") }
+                    ForEach(matching, id: \.self) { book in
+                        Button {
+                            occurrenceBook = book
+                            occurrenceFilterList = nil
+                        } label: {
+                            occurrenceChoice(Reference.bookName(book), count: books[book]?.count ?? 0,
+                                             selected: occurrenceBook == book)
                         }
+                        .buttonStyle(OptionButtonStyle())
                     }
                 }
             }
             if !wordOptions.isEmpty {
                 occurrenceFilterDisclosure(.words, title: "Translated Words",
                                            value: selectedRenderings.isEmpty ? "Any" : "\(selectedRenderings.count) selected") {
-                    ForEach(wordOptions.sorted { (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1) }, id: \.self) { word in
-                        if matchesOccurrenceFilter(word) {
-                            Button {
-                                if selectedRenderings.contains(word) { selectedRenderings.remove(word) }
-                                else { selectedRenderings.insert(word) }
-                            } label: { occurrenceChoice("\(word) (\(forms[word] ?? 0))", selected: selectedRenderings.contains(word)) }
+                    if !selectedRenderings.isEmpty {
+                        Button("Clear Selected Words", systemImage: "xmark") { selectedRenderings.removeAll() }
                             .buttonStyle(OptionButtonStyle())
+                    }
+                    let ordered = wordOptions.filter(matchesOccurrenceFilter).sorted {
+                        (-(forms[$0] ?? 0), $0) < (-(forms[$1] ?? 0), $1)
+                    }
+                    if ordered.isEmpty { occurrenceFilterEmpty("No matching translated words") }
+                    ForEach(ordered, id: \.self) { word in
+                        Button {
+                            if selectedRenderings.contains(word) { selectedRenderings.remove(word) }
+                            else { selectedRenderings.insert(word) }
+                        } label: {
+                            occurrenceChoice(word, count: forms[word] ?? 0, selected: selectedRenderings.contains(word))
                         }
+                        .buttonStyle(OptionButtonStyle())
                     }
                 }
             }
@@ -886,8 +898,19 @@ struct LexiconEntryView: View {
             }
             .buttonStyle(OptionButtonStyle(active: occurrenceFilterList == list))
             if occurrenceFilterList == list {
-                TextField(list == .books ? "Find a book" : "Find a translated word", text: $occurrenceFilterQuery)
-                    .textFieldStyle(.roundedBorder)
+                HStack(spacing: 4) {
+                    TextField(list == .books ? "Find a book" : "Find a translated word", text: $occurrenceFilterQuery)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($occurrenceFilterSearchFocused)
+                        #if os(macOS)
+                        .onAppear { occurrenceFilterSearchFocused = true }
+                        #endif
+                    if !occurrenceFilterQuery.isEmpty {
+                        Button("Clear filter search", systemImage: "xmark.circle.fill") { occurrenceFilterQuery = "" }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(OptionButtonStyle())
+                    }
+                }
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 1) { choices() }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -903,11 +926,21 @@ struct LexiconEntryView: View {
         return query.isEmpty || value.localizedStandardContains(query)
     }
 
-    private func occurrenceChoice(_ title: String, selected: Bool) -> some View {
+    private func occurrenceFilterEmpty(_ title: String) -> some View {
+        Text(title)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(8)
+    }
+
+    private func occurrenceChoice(_ title: String, count: Int? = nil, selected: Bool) -> some View {
         HStack {
             Text(title)
-            Spacer()
-            if selected { Image(systemName: "checkmark").accessibilityHidden(true) }
+            Spacer(minLength: 4)
+            if let count {
+                Text(count, format: .number).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            Image(systemName: "checkmark").opacity(selected ? 1 : 0).accessibilityHidden(true)
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

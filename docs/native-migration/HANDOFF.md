@@ -1852,3 +1852,7 @@ Notes list, note search, and Go now derive excerpts from the same recognized tab
 ### Direct source notes from Cross Refs (2026-11-17)
 
 My Notes cross-reference rows now make the citing note title a direct button beneath its excerpt on both platforms. On iPhone, the Scripture study inspector closes before a Cross Refs destination opens, avoiding a blank sheet over the destination. Both Dev builds passed. iPhone 18 Pro Simulator opened the synthetic source note from the Exodus 20:11 citation, confirmed the sheet closed, and used dock Back to recover Exodus 20:11 with the selection intact. Mac source-note activation, wider inspectors, and opening another passage through the iPhone inspector remain to check.
+
+### Lexicon occurrence filter feedback (2026-11-17)
+
+Book choices follow Scripture order. Book and rendering counts are aligned separately from their names. Both scoped option searches show an explicit empty state and have a clear-query button. Clear Selected Words resets only the rendering selections without closing the picker. Both Dev builds passed. Mac scratch QA opened H430, confirmed Genesis and Exodus order and counts, searched for an absent book, cleared the query, and selected and cleared gods. Native Mac autofocus was not confirmed in the popover; iPhone touch and VoiceOver remain to verify.

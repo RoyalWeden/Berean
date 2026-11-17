@@ -1592,3 +1592,8 @@
 - **Starting point:** `a923ae80`, `native/reader-notes`, draft PR #24.
 - **Changes:** My Notes cross-reference rows provide a direct link to the citing note. iPhone completes inspector dismissal before navigation.
 - **Verification:** Both Dev builds passed. Simulator QA opened a synthetic note from Exodus 20:11 and used Back to restore the selected verse.
+
+### 2026-11-17 — Lexicon filter feedback — BUILT, MAC UI CHECKED
+- **Starting point:** `7b9be441`, `native/reader-notes`, draft PR #24.
+- **Changes:** Occurrence pickers gain clearer counts, Scripture book order, no-match feedback, and independently clearable search and translated words.
+- **Verification:** Both Dev builds passed. Mac scratch QA exercised the new book and translated-word controls with H430.
