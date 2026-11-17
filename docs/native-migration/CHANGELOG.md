@@ -1547,3 +1547,8 @@
 - **Starting point:** `8b8ee955`, `native/reader-notes`, draft PR #24.
 - **Changes:** Both tab switchers can filter for repeated titles with matching details. iPhone numbers those copies in normal browsing. Mac remembers the active filter per workspace during the current run.
 - **Verification:** Both Dev builds passed. Mac scratch QA verified two numbered Obadiah tabs in the filtered list and restoration of unrelated tabs when cleared.
+
+### 2026-11-17 — Workspace collision hints — BUILT, MAC UI CHECKED
+- **Starting point:** `643c7446`, `native/reader-notes`, draft PR #24.
+- **Changes:** Workspace previews surface a distinguishing tab when labels collide, including when it is farther down the tab list.
+- **Verification:** Both Dev builds passed. Focused Swift checks covered generated names, repeated titles, unique later tabs and query previews. Mac scratch QA used the Jude hint to open the intended same-name workspace.

@@ -14,13 +14,14 @@ struct WorkspaceItem: Identifiable, Hashable {
     var icon: String?
     var tabTitles: [String]
     var matchingNameLabel: String? = nil
+    var distinguishingTab: String? = nil
     var tabCountLabel: String { "\(tabCount) tab\(tabCount == 1 ? "" : "s")" }
 
     /// A passage label makes automatically numbered live workspaces easier to recognize.
     /// The stored name remains available for management and matching legacy names.
     var displayName: String {
         guard !isSaved, hasGeneratedName else { return name }
-        return previewLabels().first ?? name
+        return tabTitles.first { !$0.isEmpty } ?? name
     }
 
     private var hasGeneratedName: Bool {
@@ -43,7 +44,9 @@ struct WorkspaceItem: Identifiable, Hashable {
     }
 
     var menuLabel: String {
-        guard displayName == name else { return tabDestinationName }
+        guard displayName == name else {
+            return [displayName, distinguishingTab, name, matchingNameLabel].compactMap { $0 }.joined(separator: " · ")
+        }
         return [name, preview ?? tabCountLabel, matchingNameLabel].compactMap { $0 }.joined(separator: " · ")
     }
 
@@ -55,15 +58,31 @@ struct WorkspaceItem: Identifiable, Hashable {
     }
 
     static func distinguishingMatchingNames(_ items: [WorkspaceItem]) -> [WorkspaceItem] {
-        let keys = items.map { $0.displayName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) }
-        let counts = keys.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+        func key(_ label: String) -> String {
+            label.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        }
+        let keys = items.map { key($0.displayName) }
+        let groups = Dictionary(grouping: items.indices, by: { keys[$0] })
+        let titleCounts = groups.mapValues { indices in
+            guard indices.count > 1 else { return [String: Int]() }
+            return indices.reduce(into: [String: Int]()) { counts, index in
+                for title in Set(items[index].tabTitles.lazy.filter { !$0.isEmpty }.map(key)) {
+                    counts[title, default: 0] += 1
+                }
+            }
+        }
         var positions: [String: Int] = [:]
-        return zip(items, keys).map { item, key in
+        return zip(items, keys).map { item, groupKey in
             var item = item
-            let count = counts[key, default: 0]
-            let position = positions[key, default: 0] + 1
-            positions[key] = position
+            let count = groups[groupKey]?.count ?? 0
+            let position = positions[groupKey, default: 0] + 1
+            positions[groupKey] = position
             item.matchingNameLabel = count > 1 ? "\(position) of \(count)" : nil
+            let counts = titleCounts[groupKey, default: [:]]
+            item.distinguishingTab = item.tabTitles.first {
+                let tabKey = key($0)
+                return tabKey != groupKey && counts[tabKey] == 1
+            }
             return item
         }
     }
@@ -77,7 +96,10 @@ struct WorkspaceItem: Identifiable, Hashable {
         let unmatched = Set(termsOutsideName(query))
         var seen = Set<String>()
         let titles = tabTitles.filter { !$0.isEmpty && seen.insert($0).inserted }
-        guard !unmatched.isEmpty else { return Array(titles.prefix(2)) }
+        guard !unmatched.isEmpty else {
+            guard let distinguishingTab else { return Array(titles.prefix(2)) }
+            return Array(([distinguishingTab] + titles.filter { $0 != distinguishingTab }).prefix(2))
+        }
 
         let candidates = titles.map { title in
             let searchable = normalized(title)
