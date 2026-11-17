@@ -340,8 +340,6 @@ struct BereanSidebar: View {
         let workspaces = app.workspaceItems
         let current = workspaces.first { app.isCurrent($0) }
         let currentLabel = current?.displayName ?? app.session.name
-        let duplicatePreviews = Set(Dictionary(grouping: workspaces, by: \.displayName)
-            .filter { $0.value.count > 1 }.keys)
         return Menu {
             if let previous = app.recentWorkspaceTabs.first {
                 let title = previous.tab.navigationLabel
@@ -357,7 +355,7 @@ struct BereanSidebar: View {
             Divider()
             ForEach(workspaces) { w in
                 Toggle(isOn: Binding(get: { app.isCurrent(w) }, set: { if $0 { app.open(w) } })) {
-                    Text(w.displayName == w.name || duplicatePreviews.contains(w.displayName) ? w.menuLabel : w.displayName)
+                    Text(w.displayName == w.name || w.matchingNameLabel != nil ? w.menuLabel : w.displayName)
                     Text(w.displayDetail)
                 }
             }

@@ -1468,3 +1468,7 @@
 - Archive Inactive Tabs exposes a full selection review on both platforms. Returning to matches restores the filters. Verified the hidden-selection and cancel flow in Mac Dev.
 
 - Cleanup titles distinguish review from matching tabs on both platforms. Archive and move return to matches after displaying their result. Verified iPhone archive and undo from review.
+
+### 2026-11-17 — Distinguish workspaces with matching names
+
+- Workspace lists and move menus show an ordinal when visible names collide. Existing names, passage previews, and IDs remain intact.

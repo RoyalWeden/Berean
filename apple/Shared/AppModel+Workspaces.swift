@@ -13,6 +13,7 @@ struct WorkspaceItem: Identifiable, Hashable {
     var tabCount: Int
     var icon: String?
     var tabTitles: [String]
+    var matchingNameLabel: String? = nil
     var tabCountLabel: String { "\(tabCount) tab\(tabCount == 1 ? "" : "s")" }
 
     /// A passage label makes automatically numbered live workspaces easier to recognize.
@@ -32,7 +33,8 @@ struct WorkspaceItem: Identifiable, Hashable {
 
     var displayDetail: String {
         let count = isSaved ? "Saved · \(tabCountLabel)" : tabCountLabel
-        return displayName == name ? count : "\(name) · \(count)"
+        return [displayName == name ? nil : name, count, matchingNameLabel]
+            .compactMap { $0 }.joined(separator: " · ")
     }
 
     var tabDestinationName: String {
@@ -40,15 +42,29 @@ struct WorkspaceItem: Identifiable, Hashable {
     }
 
     var menuLabel: String {
-        if displayName != name { return tabDestinationName }
-        return "\(name) · \(preview ?? tabCountLabel)"
+        let label = displayName == name ? "\(name) · \(preview ?? tabCountLabel)" : tabDestinationName
+        return [label, matchingNameLabel].compactMap { $0 }.joined(separator: " · ")
     }
 
     var moveMenuLabel: String {
         let otherTab = previewLabels().first { $0 != displayName && $0 != name }
         let storedName = displayName == name ? nil : name
-        return ([displayName] + [otherTab, storedName, tabCountLabel].compactMap { $0 })
+        return ([displayName] + [otherTab, storedName, tabCountLabel, matchingNameLabel].compactMap { $0 })
             .joined(separator: " · ")
+    }
+
+    static func distinguishingMatchingNames(_ items: [WorkspaceItem]) -> [WorkspaceItem] {
+        let keys = items.map { $0.displayName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) }
+        let counts = keys.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+        var positions: [String: Int] = [:]
+        return zip(items, keys).map { item, key in
+            var item = item
+            let count = counts[key, default: 0]
+            let position = positions[key, default: 0] + 1
+            positions[key] = position
+            item.matchingNameLabel = count > 1 ? "\(position) of \(count)" : nil
+            return item
+        }
     }
 
     var preview: String? {
@@ -134,11 +150,12 @@ extension AppModel {
             return WorkspaceItem(kind: .saved(workspace.id), name: workspace.name,
                                  tabCount: tabs.count, icon: nil, tabTitles: titles)
         }
-        return live + saved
+        return WorkspaceItem.distinguishingMatchingNames(live + saved)
     }
 
     var tabMoveDestinations: [WorkspaceItem] {
-        sessions.filter { $0.id != currentSessionId }.map(WorkspaceItem.init(session:))
+        WorkspaceItem.distinguishingMatchingNames(sessions.map(WorkspaceItem.init(session:)))
+            .filter { !isCurrent($0) }
     }
 
     func moveTab(_ id: String, to item: WorkspaceItem) {
