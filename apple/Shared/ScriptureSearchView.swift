@@ -472,7 +472,9 @@ struct ScriptureSearchView: View {
                 Text("All").tag("all"); Text("Old Testament").tag("OT"); Text("New Testament").tag("NT"); Text("Apocrypha").tag("Apocrypha"); Text("Other writings").tag("Pseudepigrapha")
             }.modifier(SearchOptionsPickerStyle(title: "Testament"))
             Text("Books").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            BookFilterField(selected: bookFilter) { ids in set("bookIds", ids.isEmpty ? nil : .array(ids.map { .string(JSString($0)) })) }
+            BookFilterField(selected: bookFilter, editions: Set(targets), testament: testament) { ids in
+                set("bookIds", ids.isEmpty ? nil : .array(ids.map { .string(JSString($0)) }))
+            }
             Text("Verse Tags").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Menu {
                 ForEach(verseTags) { tag in
@@ -1096,6 +1098,8 @@ private struct SearchOptionsPickerStyle: ViewModifier {
 struct BookFilterField: View {
     @Environment(AppModel.self) private var app
     let selected: [String]
+    let editions: Set<String>
+    let testament: String
     let onChange: ([String]) -> Void
     @State private var text = ""
     @State private var browsing = false
@@ -1107,7 +1111,8 @@ struct BookFilterField: View {
         var seen = Set<String>()
         return app.bookCatalog.compactMap { entry in
             let book = entry.book
-            guard !excluded.contains(book.id), query.isEmpty
+            guard editions.contains(entry.textId), testament == "all" || book.testament == testament,
+                  !excluded.contains(book.id), query.isEmpty
                     || book.name.localizedStandardContains(query)
                     || book.shortName.localizedStandardContains(query),
                   seen.insert(book.id).inserted else { return nil }

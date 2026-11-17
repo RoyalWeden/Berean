@@ -1496,3 +1496,5 @@
 - iPhone Scripture search option pickers stack their labels and values. Verified scrolling and menu readability at Accessibility Large.
 
 - Scripture search can browse the installed book catalog without typing and filter by full or short name. iPhone Simulator verified selecting and clearing a book filter.
+
+- Scripture search book suggestions honor the selected editions and testament. Verified scoped browsing and reset on iPhone Simulator.
