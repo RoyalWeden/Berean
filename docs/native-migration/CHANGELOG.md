@@ -1476,3 +1476,5 @@
 - Workspace Rename opens with the stored name on Mac and iPhone. Verified generated-name prefill and switching between two colliding names in Mac Dev.
 
 - Tab search, recent tabs and already-open passage destinations use duplicate-aware workspace labels. Verified selection of the second identical tab result in Mac Dev.
+
+- Archived tab titles and restore actions distinguish same-name live workspaces. Verified restoration to the second matching workspace in Mac Dev.

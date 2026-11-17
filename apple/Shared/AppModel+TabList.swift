@@ -220,15 +220,13 @@ extension AppModel {
 
     func archiveTitles(includeAliases: Bool = false) -> [String: String] {
         let placements = archivePlacements
-        let sourceIDs = Set(placements.values.map(\.workspace))
-        let live = Dictionary(uniqueKeysWithValues: sessions.filter { sourceIDs.contains($0.id) }
-            .map { ($0.id, WorkspaceItem(session: $0)) })
+        let live = liveArchiveSources(for: placements)
         return Dictionary(uniqueKeysWithValues: archivedGroups.map { group in
             let storedLabel = group.label.isEmpty ? "Archived tabs" : group.label
             let label = archiveDisplayLabel(group, fallback: storedLabel)
             let placement = placements[group.id]
             let source = placement.flatMap { live[$0.workspace] }
-            let name = source?.displayName ?? placement?.workspaceLabel ?? placement?.workspaceName
+            let name = source?.tabDestinationName ?? placement?.workspaceLabel ?? placement?.workspaceName
             if includeAliases {
                 let aliases = [name, source?.name, placement?.workspaceLabel, placement?.workspaceName].compactMap { $0 }
                 let labels = label == storedLabel ? [label] : [label, storedLabel]
@@ -263,9 +261,20 @@ extension AppModel {
     }
 
     func archiveSourceNames() -> [String: String] {
-        let names = Dictionary(uniqueKeysWithValues: sessions.filter { $0.id != currentSessionId }
-            .map { ($0.id, WorkspaceItem(session: $0).displayName) })
-        return archivePlacements.compactMapValues { names[$0.workspace] }
+        let placements = archivePlacements
+        let sources = liveArchiveSources(for: placements)
+        return placements.compactMapValues { placement in
+            guard placement.workspace != currentSessionId else { return nil }
+            return sources[placement.workspace]?.tabDestinationName
+        }
+    }
+
+    private func liveArchiveSources(for placements: [String: ArchivePlacement]) -> [String: WorkspaceItem] {
+        let sourceIDs = Set(placements.values.map(\.workspace))
+        guard !sourceIDs.isEmpty else { return [:] }
+        return Dictionary(uniqueKeysWithValues: zip(sessions, liveWorkspaceItems).compactMap { workspace, item in
+            sourceIDs.contains(workspace.id) ? (workspace.id, item) : nil
+        })
     }
 
     var inactiveTabs: [BereanWorkspace.Tab] {
