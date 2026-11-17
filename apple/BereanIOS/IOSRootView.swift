@@ -978,6 +978,7 @@ struct SessionsPage: View {
     @State private var name = ""
     @State private var saving = false
     @State private var query = ""
+    @State private var browsingWorkspace: WorkspaceItem?
 
     var body: some View {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1031,8 +1032,17 @@ struct SessionsPage: View {
                         }
                         .buttonStyle(.interactivePlain)
                         .accessibilityAddTraits(app.isCurrent(w) ? .isSelected : [])
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            if !w.isSaved {
+                                Button("Browse Tabs", systemImage: "rectangle.on.rectangle") { browsingWorkspace = w }
+                                    .tint(.indigo)
+                            }
+                        }
                         .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
                         .contextMenu {
+                            if !w.isSaved {
+                                Button("Browse Tabs", systemImage: "rectangle.on.rectangle") { browsingWorkspace = w }
+                            }
                             Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
                             Button("Duplicate", systemImage: "plus.square.on.square") { app.duplicate(w) }
                             if app.isCurrent(w) {
@@ -1057,6 +1067,9 @@ struct SessionsPage: View {
             WorkspaceTabResults(title: "Open Tabs", matches: tabs, onOpen: closeTabs)
         }
         .navigationTitle("Workspaces")
+        .navigationDestination(item: $browsingWorkspace) { workspace in
+            WorkspaceTabsPage(workspace: workspace, onOpen: closeTabs)
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("New Workspace", systemImage: "plus") {
@@ -1079,6 +1092,55 @@ struct SessionsPage: View {
         .confirmationDialog("Delete “\(deleting?.name ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
             Button("Delete Workspace", role: .destructive) { if let d = deleting { app.delete(d) }; deleting = nil }
         } message: { Text("Its tabs are closed. This cannot be undone.") }
+    }
+}
+
+private struct WorkspaceTabsPage: View {
+    @Environment(AppModel.self) private var app
+    let workspace: WorkspaceItem
+    let onOpen: () -> Void
+    @State private var query = ""
+
+    var body: some View {
+        let terms = query.replacingOccurrences(of: "–", with: "-").split(whereSeparator: \.isWhitespace)
+        let session = app.sessions.first { WorkspaceItem.Kind.live($0.id) == workspace.kind }
+        let tabs = session.map { app.orderedTabs(in: $0) } ?? []
+        let indices = AppModel.sameTitleTabIndices(tabs)
+        let matches = tabs.filter { tab in
+            let searchable = tab.navigationSearchText
+            return terms.allSatisfy { searchable.localizedStandardContains(String($0)) }
+        }
+        List {
+            if let session, !tabs.isEmpty {
+                TabSearchField(prompt: "Search tabs in this workspace", query: $query)
+                if matches.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                }
+                ForEach(matches) { tab in
+                    Button {
+                        app.openWorkspaceTab(.init(workspaceID: session.id, workspaceName: workspace.displayName, tab: tab))
+                        onOpen()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tab.navigationLabel).foregroundStyle(.primary)
+                                let position = indices[tab.id].map { "Tab \($0)" }
+                                let detail = [tab.navigationDetail, position, tab.isPinned ? "Pinned" : nil]
+                                    .compactMap { $0 }.joined(separator: " · ")
+                                Text(detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: tab.symbol).foregroundStyle(tab.tint)
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView("No Open Tabs", systemImage: "rectangle.on.rectangle")
+            }
+        }
+        .navigationTitle(workspace.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.interactively)
     }
 }
 

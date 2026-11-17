@@ -32,9 +32,11 @@ extension AppModel {
         return true
     }
 
-    var orderedTabs: [BereanWorkspace.Tab] {
-        let byId = Dictionary(uniqueKeysWithValues: session.allTabs.map { ($0.id, $0) })
-        let list = displayOrder(for: currentSessionId).compactMap { byId[$0] }
+    var orderedTabs: [BereanWorkspace.Tab] { orderedTabs(in: session) }
+
+    func orderedTabs(in workspace: Session) -> [BereanWorkspace.Tab] {
+        let byId = Dictionary(uniqueKeysWithValues: workspace.allTabs.map { ($0.id, $0) })
+        let list = displayOrder(for: workspace.id).compactMap { byId[$0] }
         return list.filter(\.isPinned) + list.filter { !$0.isPinned }
     }
 

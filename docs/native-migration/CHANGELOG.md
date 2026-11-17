@@ -1552,3 +1552,8 @@
 - **Starting point:** `643c7446`, `native/reader-notes`, draft PR #24.
 - **Changes:** Workspace previews surface a distinguishing tab when labels collide, including when it is farther down the tab list.
 - **Verification:** Both Dev builds passed. Focused Swift checks covered generated names, repeated titles, unique later tabs and query previews. Mac scratch QA used the Jude hint to open the intended same-name workspace.
+
+### 2026-11-17 — iPhone workspace tab browsing — BUILT, SIMULATOR UI CHECKED
+- **Starting point:** `6d290385`, `native/reader-notes`, draft PR #24.
+- **Changes:** Live workspaces have a Browse Tabs action with a scoped search and direct opening of an existing tab.
+- **Verification:** Both Dev builds passed. Simulator QA browsed the Study workspace from a different workspace and opened its existing John 3 tab.
