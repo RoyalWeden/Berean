@@ -1466,3 +1466,5 @@
 ### 2026-11-17 — Review selected inactive tabs
 
 - Archive Inactive Tabs exposes a full selection review on both platforms. Returning to matches restores the filters. Verified the hidden-selection and cancel flow in Mac Dev.
+
+- Cleanup titles distinguish review from matching tabs on both platforms. Archive and move return to matches after displaying their result. Verified iPhone archive and undo from review.

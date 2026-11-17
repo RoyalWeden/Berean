@@ -192,7 +192,9 @@ struct TabCleanupView: View {
                     Text("Pinned and active tabs stay open. You can restore archived tabs together.")
                 }
             }
+            .navigationTitle(reviewingSelection ? "Review Selection" : "Archive Inactive Tabs")
             #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 HStack {
                     Button(receipt == nil && moveMessage == nil ? "Cancel" : "Done") { dismiss() }
@@ -211,7 +213,6 @@ struct TabCleanupView: View {
                 .padding(.vertical, 6)
             }
             #else
-            .navigationTitle("Archive Inactive Tabs")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(receipt == nil && moveMessage == nil ? "Cancel" : "Done") { dismiss() }.clickableCursor()
@@ -232,6 +233,7 @@ struct TabCleanupView: View {
         if let group { archivedGroupID = group.id }
         nothingArchived = group == nil
         included.removeAll()
+        reviewingSelection = false
     }
 
     private func move(_ ids: [String], to workspace: WorkspaceItem) {
@@ -239,5 +241,6 @@ struct TabCleanupView: View {
         moveMessage = count == 0 ? "No selected tabs were moved."
             : "Moved \(count) tab\(count == 1 ? "" : "s") to \(workspace.displayName)."
         included.removeAll()
+        reviewingSelection = false
     }
 }
