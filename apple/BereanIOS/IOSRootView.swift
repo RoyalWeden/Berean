@@ -509,7 +509,9 @@ struct TabCardsSheet: View {
                     } else {
                         ForEach(sortedTabs(pinned + others)) { row($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }
                     }
-                    if visibleTabs.isEmpty && (isSelecting || otherMatches.isEmpty) { Text(!hasQuery && !isFiltering ? "No open tabs in this workspace." : "No tabs match the current filters.").foregroundStyle(.secondary) }
+                    if visibleTabs.isEmpty && (isSelecting || otherMatches.isEmpty) {
+                        emptyTabResults
+                    }
                 }
                 if !isSelecting { WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() }) }
             }
@@ -572,10 +574,7 @@ struct TabCardsSheet: View {
                             .pickerStyle(.inline)
                         }
                         if isFiltering {
-                            Button("Clear Filters", systemImage: "xmark") {
-                                spaceFilter = nil
-                                typeFilter = nil
-                            }
+                            Button("Clear Filters", systemImage: "xmark", action: clearTabFilters)
                         }
                     } label: {
                         Label("Filter Tabs", systemImage: isFiltering ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
@@ -690,6 +689,26 @@ struct TabCardsSheet: View {
             .font(.body)
             .foregroundStyle(selectedTabIDs.contains(tab.id) ? Color.accentColor : Color.secondary)
             .accessibilityHidden(true)
+    }
+
+    private var emptyTabResults: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(hasQuery || isFiltering ? "No matching tabs" : "No open tabs in this workspace.")
+                .foregroundStyle(.secondary)
+            if hasQuery || isFiltering {
+                Button("Show All Tabs") {
+                    query = ""
+                    clearTabFilters()
+                }
+                .buttonStyle(.borderless)
+                .frame(minHeight: 44)
+            }
+        }
+    }
+
+    private func clearTabFilters() {
+        spaceFilter = nil
+        typeFilter = nil
     }
 
     private var workspaceSwitcher: some View {
