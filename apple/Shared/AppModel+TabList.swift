@@ -64,11 +64,13 @@ extension AppModel {
     }
 
     var recentWorkspaceTabs: [WorkspaceTabMatch] {
-        recentTabIDs.filter { $0 != activeTab?.id }.compactMap { id in
-            for workspace in sessions {
+        let recentIDs = recentTabIDs.filter { $0 != activeTab?.id }
+        guard !recentIDs.isEmpty else { return [] }
+        let workspaces = Array(zip(sessions, liveWorkspaceItems))
+        return recentIDs.compactMap { id in
+            for (workspace, item) in workspaces {
                 if let tab = workspace.allTabs.first(where: { $0.id == id }) {
-                    let label = WorkspaceItem(session: workspace).tabDestinationName
-                    return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: label, tab: tab)
+                    return WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: item.tabDestinationName, tab: tab)
                 }
             }
             return nil
@@ -92,8 +94,7 @@ extension AppModel {
         guard !terms.isEmpty else { return [] }
         var direct: [WorkspaceTabMatch] = []
         var workspaceMatches: [WorkspaceTabMatch] = []
-        for workspace in sessions {
-            let item = WorkspaceItem(session: workspace)
+        for (workspace, item) in zip(sessions, liveWorkspaceItems) {
             let tabsByID = Dictionary(uniqueKeysWithValues: workspace.allTabs.map { ($0.id, $0) })
             let displayName = item.displayName.replacingOccurrences(of: "–", with: "-")
             // A passage by itself should find the workspace and matching tabs, without listing every tab it contains.
@@ -117,12 +118,11 @@ extension AppModel {
 
     func openPassageMatches(_ passage: ResolvedPassage) -> [WorkspaceTabMatch] {
         var matches: [WorkspaceTabMatch] = []
-        for workspace in sessions where workspace.id != currentSessionId {
+        for (workspace, item) in zip(sessions, liveWorkspaceItems) where workspace.id != currentSessionId {
             let candidates = workspace.tabs(in: .scripture).filter(passage.isShown(in:))
             let active = workspace.activeTabId[.scripture] ?? nil
             guard let tab = candidates.first(where: { $0.id == active }) ?? candidates.first else { continue }
-            let label = WorkspaceItem(session: workspace).tabDestinationName
-            matches.append(.init(workspaceID: workspace.id, workspaceName: label, tab: tab))
+            matches.append(.init(workspaceID: workspace.id, workspaceName: item.tabDestinationName, tab: tab))
             if matches.count == 6 { break }
         }
         return matches

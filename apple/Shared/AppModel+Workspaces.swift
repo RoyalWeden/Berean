@@ -38,12 +38,13 @@ struct WorkspaceItem: Identifiable, Hashable {
     }
 
     var tabDestinationName: String {
-        displayName == name ? name : "\(displayName) · \(name)"
+        [displayName, displayName == name ? nil : name, matchingNameLabel]
+            .compactMap { $0 }.joined(separator: " · ")
     }
 
     var menuLabel: String {
-        let label = displayName == name ? "\(name) · \(preview ?? tabCountLabel)" : tabDestinationName
-        return [label, matchingNameLabel].compactMap { $0 }.joined(separator: " · ")
+        guard displayName == name else { return tabDestinationName }
+        return [name, preview ?? tabCountLabel, matchingNameLabel].compactMap { $0 }.joined(separator: " · ")
     }
 
     var moveMenuLabel: String {
@@ -153,9 +154,12 @@ extension AppModel {
         return WorkspaceItem.distinguishingMatchingNames(live + saved)
     }
 
-    var tabMoveDestinations: [WorkspaceItem] {
+    var liveWorkspaceItems: [WorkspaceItem] {
         WorkspaceItem.distinguishingMatchingNames(sessions.map(WorkspaceItem.init(session:)))
-            .filter { !isCurrent($0) }
+    }
+
+    var tabMoveDestinations: [WorkspaceItem] {
+        liveWorkspaceItems.filter { !isCurrent($0) }
     }
 
     func moveTab(_ id: String, to item: WorkspaceItem) {

@@ -1474,3 +1474,5 @@
 - Workspace lists and move menus show an ordinal when visible names collide. Existing names, passage previews, and IDs remain intact.
 
 - Workspace Rename opens with the stored name on Mac and iPhone. Verified generated-name prefill and switching between two colliding names in Mac Dev.
+
+- Tab search, recent tabs and already-open passage destinations use duplicate-aware workspace labels. Verified selection of the second identical tab result in Mac Dev.
