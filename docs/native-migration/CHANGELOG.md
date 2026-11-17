@@ -1452,3 +1452,7 @@
 ### 2026-11-17 — Live Dynamic Type in Notes
 
 - The iPhone editor updates note text and table geometry when the system text size changes. Verified growth and restoration with a populated header and active caret on iPhone 18 Pro Simulator.
+
+### 2026-11-17 — Wrapped Notes table rows
+
+- Wide editable tables retain visible row boundaries and header shading when content wraps. Short rows avoid extra line breaks caused by trailing padding. Both native builds and the focused AppKit layout check passed.

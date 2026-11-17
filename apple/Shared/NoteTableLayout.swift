@@ -84,7 +84,16 @@ final class NoteTableLayout: NSLayoutManager {
                 storage.addAttribute(.paragraphStyle, value: rowStyle, range: source.lineRange(for: range))
                 let boundaries = [range.location] + cells.map(\.upperBound)
                 for (column, boundary) in boundaries.enumerated() {
-                    let padding = column == 0 ? 6 : 12 + columns[column - 1] - cellWidths[offset][column - 1]
+                    let padding: CGFloat
+                    if column == 0 {
+                        padding = 6
+                    } else if column == boundaries.count - 1 {
+                        // The final divider is drawn at the measured edge. Padding
+                        // its glyph would create an empty wrapped line on short rows.
+                        padding = 0
+                    } else {
+                        padding = 12 + columns[column - 1] - cellWidths[offset][column - 1]
+                    }
                     let pipe = NSRange(location: boundary, length: 1)
                     storage.addAttributes([.kern: padding, .foregroundColor: clear], range: pipe)
                     if let font = delimiterText.attribute(.font, at: 0, effectiveRange: nil) {
@@ -124,9 +133,16 @@ final class NoteTableLayout: NSLayoutManager {
                 let line = lineFragmentRect(forGlyphAt: first, effectiveRange: &fragment)
                 let start = line.minX + location(forGlyphAt: first).x
                 let x = row.dividers.map { start + $0 }
-                // On wrap, retain a boundary beside each cell in its own line fragment.
                 guard NSLocationInRange(last, fragment), let end = x.last, end <= line.maxX else {
-                    for glyph in glyphs {
+                    // Keep wrapped text together visually as one table row. Use the
+                    // full line fragment so adjacent rows share their outer edges.
+                    let lastLine = lineFragmentRect(forGlyphAt: last, effectiveRange: nil)
+                    let inset = textContainer(forGlyphAt: first, effectiveRange: nil)?.lineFragmentPadding ?? 0
+                    let box = CGRect(x: line.minX + inset, y: line.minY,
+                                     width: max(0, line.width - 2 * inset), height: lastLine.maxY - line.minY)
+                    if row.header { context.fill(box) }
+                    context.stroke(box)
+                    for glyph in glyphs.dropFirst().dropLast() {
                         let fragment = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
                         let boundary = fragment.minX + location(forGlyphAt: glyph).x
                         context.move(to: CGPoint(x: boundary, y: fragment.minY))
