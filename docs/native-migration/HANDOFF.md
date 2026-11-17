@@ -1876,3 +1876,7 @@ Both Dev builds passed. Mac scratch QA verified New Tab from a blank double-clic
 ### Keep Mac Find active when Scripture display changes
 
 A same-passage TextKit rebuild now recomputes the current Find results and reapplies the active highlight without scrolling the viewport again. The existing match index is retained when possible and clamped when the result count changes. Both Dev builds passed. In Mac scratch QA, Find for grace in Romans 5 stayed on match 2 of 6 while enabling Strong's numbers. Command-G advanced to 3 of 6, and Escape closed the bar. Font and width changes and IME input remain open for live QA.
+
+### Mac Find in narrow reader panes
+
+Find sizes to the actual reader pane. Under 270 points it shortens visual labels while retaining full accessibility labels. Under 180 points it stacks the search input above the controls without replacing the text field. Focusing an automatic Find field restarts its idle timer. Mac Dev built. Scratch QA widened the study panel, kept the query and field focus, and advanced to the next result with Command-G. The pane remained above the compact threshold in that test, so both compact layouts still need live checks.

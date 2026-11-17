@@ -1612,3 +1612,6 @@
 
 ### 2026-11-17 — Mac Find across reader display changes
 - Both Dev builds passed. Mac scratch QA kept the second Romans 5 match through a Strong's toggle and advanced to the third match afterward.
+
+### Mac Find adapts to pane width
+- Mac Dev built. Scratch QA confirmed query focus and match navigation survived widening the study panel. The two compact layout thresholds remain to test live.

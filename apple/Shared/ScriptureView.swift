@@ -534,9 +534,9 @@ struct ScriptureView: View {
                                 .clipped()
                                 .overlay(alignment: .topTrailing) {
                                     if chapterFindVisible {
-                                        chapterFindBar
+                                        chapterFindBar(availableWidth: underlap.size.width - 28)
                                             .padding(.top, titleBar + 8)
-                                            .padding(.trailing, 14)
+                                            .padding(.horizontal, 14)
                                     }
                                 }
                         }
@@ -1956,32 +1956,49 @@ extension ScriptureView {
 import AppKit
 
 extension ScriptureView {
-    private var chapterFindBar: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Find in Chapter", text: $chapterFindQuery)
-                .textFieldStyle(.plain)
-                .focused($chapterFindFocused)
-                .onAppear { if !chapterFindAutomatic { chapterFindFocused = true } }
-                .onSubmit { updateChapterFind(step: 1) }
-                .frame(minWidth: 100, idealWidth: 180)
-            if !chapterFindQuery.isEmpty {
-                Text(chapterFindResult.total == 0 ? "No matches" : "\(chapterFindResult.current) of \(chapterFindResult.total)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
+    private func chapterFindBar(availableWidth: CGFloat) -> some View {
+        let compact = availableWidth < 270
+        let stacked = availableWidth < 180
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 2))
+            : AnyLayout(HStackLayout(spacing: 4))
+        return layout {
+            HStack(spacing: 6) {
+                if !compact {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+                }
+                TextField(compact ? "Find" : "Find in Chapter", text: $chapterFindQuery)
+                    .accessibilityLabel("Find in Chapter")
+                    .textFieldStyle(.plain)
+                    .focused($chapterFindFocused)
+                    .onAppear { if !chapterFindAutomatic { chapterFindFocused = true } }
+                    .onSubmit { updateChapterFind(step: 1) }
+                    .frame(minWidth: 0, maxWidth: .infinity)
             }
-            chapterFindButton("Previous Match", symbol: "chevron.up") { updateChapterFind(step: -1) }
-                .disabled(chapterFindResult.total == 0)
-            chapterFindButton("Next Match", symbol: "chevron.down") { updateChapterFind(step: 1) }
-                .disabled(chapterFindResult.total == 0)
-            chapterFindButton("Close Find", symbol: "xmark", action: closeChapterFind)
+            HStack(spacing: 2) {
+                if !chapterFindQuery.isEmpty {
+                    let count = chapterFindResult.total
+                    let status = count == 0 ? "No matches" : "\(chapterFindResult.current) of \(count)"
+                    Text(compact ? "\(chapterFindResult.current)/\(count)" : status)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                        .accessibilityLabel(status)
+                }
+                chapterFindButton("Previous Match", symbol: "chevron.up") { updateChapterFind(step: -1) }
+                    .disabled(chapterFindResult.total == 0)
+                chapterFindButton("Next Match", symbol: "chevron.down") { updateChapterFind(step: 1) }
+                    .disabled(chapterFindResult.total == 0)
+                chapterFindButton("Close Find", symbol: "xmark", action: closeChapterFind)
+            }
         }
-        .padding(.leading, 12)
+        .padding(.leading, compact ? 8 : 12)
         .padding(.trailing, 5)
         .padding(.vertical, 4)
         .glassEffectCompat(interactive: true)
-        .frame(maxWidth: 390)
+        .frame(width: max(0, min(390, availableWidth)))
+        .onChange(of: chapterFindFocused) { _, focused in
+            if focused, chapterFindAutomatic { chapterFindActivity = UUID() }
+        }
         .onChange(of: chapterFindQuery) { updateChapterFind() }
         .onExitCommand(perform: closeChapterFind)
         .task(id: chapterFindActivity) {
