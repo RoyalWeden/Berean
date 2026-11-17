@@ -56,6 +56,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 guard coordinator?.parent.formatRequest == request, let tv, tv.window != nil else { return }
                 switch request.action {
                 case .inline(let open, let close): tv.wrap(open, close)
+                case .link(let destination): tv.insertLink(destination)
                 case .highlight(let color): tv.setHighlight(color)
                 case .heading(let level): tv.setHeading(level)
                 case .list(let style): tv.setList(style)
@@ -400,6 +401,10 @@ final class NoteUITextView: UITextView {
             return
         }
         applyFormatEdit(edit)
+    }
+
+    func insertLink(_ destination: String) {
+        applyFormatEdit(noteLinkEdit(in: (text ?? "") as NSString, selection: selectedRange, destination: destination))
     }
 
     func wrap(_ open: String, _ close: String) {

@@ -34,6 +34,7 @@ struct NoteFormatRequest: Equatable {
     let id = UUID()
     enum Action: Equatable {
         case inline(String, String)
+        case link(String)
         case highlight(String?)
         case heading(Int)
         case list(NoteListStyle)
@@ -47,6 +48,18 @@ struct NoteFormatRequest: Equatable {
     }
 
     let action: Action
+}
+
+func noteLinkEdit(in text: NSString, selection: NSRange, destination: String)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard selection.location != NSNotFound, NSMaxRange(selection) <= text.length else { return nil }
+    let selected = text.substring(with: selection)
+    let canUseSelection = !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && selected.rangeOfCharacter(from: .newlines) == nil && !selected.contains("]")
+    let range = canUseSelection ? selection : NSRange(location: NSMaxRange(selection), length: 0)
+    let label = canUseSelection ? selected : destination.replacingOccurrences(of: "]", with: "%5D")
+    let replacement = "[\(label)](\(destination))"
+    return (range, replacement, NSRange(location: range.location + (replacement as NSString).length, length: 0))
 }
 
 /// TextKit selections and Markdown delimiter positions both use UTF-16 offsets.
@@ -543,6 +556,8 @@ struct NoteDetailView: View {
     @State private var choosingNoteIcon = false
     @State private var noteIconInput = ""
     @State private var insertingReference = false
+    @State private var insertingLink = false
+    @State private var linkInput = ""
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -693,7 +708,10 @@ struct NoteDetailView: View {
                     .help("Format selected note text")
                     Menu {
                         Button("Scripture Reference…", systemImage: "book") { insertingReference = true }
-                        Button("Link", systemImage: "link") { formatRequest = NoteFormatRequest(action: .inline("[", "](https://)")) }
+                        Button("Link…", systemImage: "link") {
+                            linkInput = ""
+                            insertingLink = true
+                        }
                         Section {
                             Menu("Heading", systemImage: "textformat.size") {
                                 ForEach(1...3, id: \.self) { level in
@@ -798,6 +816,23 @@ struct NoteDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You can restore this note from Trash.")
+        }
+        .alert("Insert Link", isPresented: $insertingLink) {
+            TextField("https://example.com", text: $linkInput)
+                #if os(iOS)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                #endif
+            Button("Insert") {
+                if let destination = noteLinkDestination {
+                    formatRequest = NoteFormatRequest(action: .link(destination))
+                }
+            }
+            .disabled(noteLinkDestination == nil)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter a web address.")
         }
         .sheet(isPresented: $insertingReference) {
             NavigationStack {
@@ -910,6 +945,13 @@ struct NoteDetailView: View {
         #else
         UIApplication.shared.open(url)
         #endif
+    }
+
+    private var noteLinkDestination: String? {
+        let address = linkInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: address), let scheme = url.scheme?.lowercased(),
+              ["https", "http"].contains(scheme), let host = url.host, !host.isEmpty else { return nil }
+        return url.absoluteString.replacingOccurrences(of: ")", with: "%29")
     }
 
     private func formatButton(_ title: String, symbol: String, prefix: String, suffix: String) -> some View {
