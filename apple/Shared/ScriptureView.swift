@@ -29,6 +29,9 @@ struct ScriptureEditionArrival {
 
 @MainActor final class ScripturePositionReader {
     var capture: (Int?) -> ScriptureReadingPosition? = { _ in nil }
+    #if os(macOS)
+    var find: (String, Int) -> (current: Int, total: Int) = { _, _ in (0, 0) }
+    #endif
 }
 
 struct ChapterEdition: Hashable {
@@ -372,6 +375,12 @@ struct ScriptureView: View {
     @State private var positionReader = ScripturePositionReader()
     #if os(macOS)
     @State private var strongsTooltips: [String: String] = [:]
+    @State private var chapterFindQuery = ""
+    @State private var chapterFindVisible = false
+    @State private var chapterFindAutomatic = false
+    @State private var chapterFindActivity = UUID()
+    @State private var chapterFindResult = (current: 0, total: 0)
+    @FocusState private var chapterFindFocused: Bool
     #endif
 
     #if os(iOS)
@@ -523,6 +532,13 @@ struct ScriptureView: View {
                             let titleBar = max(0, geometry.frame(in: .global).minY - underlap.frame(in: .global).minY)
                             macReader(st, actionClearance: actionSpace, titleBarClearance: titleBar)
                                 .clipped()
+                                .overlay(alignment: .topTrailing) {
+                                    if chapterFindVisible {
+                                        chapterFindBar
+                                            .padding(.top, titleBar + 8)
+                                            .padding(.trailing, 14)
+                                    }
+                                }
                         }
                         .ignoresSafeArea(.container, edges: .top)
                     }
@@ -566,6 +582,9 @@ struct ScriptureView: View {
         .onChange(of: ChapterEdition(st)) { _, edition in
             chapterPull = nil
             if pullEndDestination != edition { pullEndDestination = nil }
+            #if os(macOS)
+            if chapterFindVisible { closeChapterFind() }
+            #endif
         }
         .overlay(alignment: actionAlignment) {
             if showActions {
@@ -1937,6 +1956,111 @@ extension ScriptureView {
 import AppKit
 
 extension ScriptureView {
+    private var chapterFindBar: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Find in Chapter", text: $chapterFindQuery)
+                .textFieldStyle(.plain)
+                .focused($chapterFindFocused)
+                .onAppear { if !chapterFindAutomatic { chapterFindFocused = true } }
+                .onSubmit { updateChapterFind(step: 1) }
+                .frame(minWidth: 100, idealWidth: 180)
+            if !chapterFindQuery.isEmpty {
+                Text(chapterFindResult.total == 0 ? "No matches" : "\(chapterFindResult.current) of \(chapterFindResult.total)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+            }
+            chapterFindButton("Previous Match", symbol: "chevron.up") { updateChapterFind(step: -1) }
+                .disabled(chapterFindResult.total == 0)
+            chapterFindButton("Next Match", symbol: "chevron.down") { updateChapterFind(step: 1) }
+                .disabled(chapterFindResult.total == 0)
+            chapterFindButton("Close Find", symbol: "xmark", action: closeChapterFind)
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 5)
+        .padding(.vertical, 4)
+        .glassEffectCompat(interactive: true)
+        .frame(maxWidth: 390)
+        .onChange(of: chapterFindQuery) { updateChapterFind() }
+        .onExitCommand(perform: closeChapterFind)
+        .task(id: chapterFindActivity) {
+            guard chapterFindAutomatic else { return }
+            do { try await Task.sleep(for: .seconds(6)) } catch { return }
+            guard !Task.isCancelled, chapterFindAutomatic else { return }
+            closeChapterFind()
+        }
+    }
+
+    private func chapterFindButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .labelStyle(.iconOnly)
+                .frame(width: 28, height: 26)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .help(title)
+    }
+
+    private func updateChapterFind(step: Int = 0) {
+        chapterFindResult = positionReader.find(chapterFindQuery, step)
+        chapterFindActivity = UUID()
+    }
+
+    private func closeChapterFind() {
+        chapterFindVisible = false
+        chapterFindFocused = false
+        chapterFindAutomatic = false
+        chapterFindQuery = ""
+        chapterFindResult = positionReader.find("", 0)
+    }
+
+    private func handleChapterFindKey(_ event: NSEvent, editing: Bool) -> Bool {
+        guard app.activeTab?.id == tabId, !app.commandPaletteShown, !pickerShown,
+              !displayOptionsShown, versePopover == nil else { return false }
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        if mods == [.command], key == "f", !editing || chapterFindFocused {
+            chapterFindAutomatic = false
+            chapterFindVisible = true
+            chapterFindFocused = true
+            return true
+        }
+        if key == "g", mods == [.command] || mods == [.command, .shift], chapterFindVisible,
+           !editing || chapterFindFocused {
+            updateChapterFind(step: mods.contains(.shift) ? -1 : 1)
+            return true
+        }
+        if chapterFindVisible, event.keyCode == 53, !editing || chapterFindFocused {
+            closeChapterFind()
+            return true
+        }
+        if chapterFindVisible, !editing, mods.isEmpty {
+            if event.keyCode == 51 {
+                if !chapterFindQuery.isEmpty { chapterFindQuery.removeLast() }
+                return true
+            }
+            if event.keyCode == 36 || event.keyCode == 76 {
+                updateChapterFind(step: 1)
+                return true
+            }
+        }
+        guard !editing, mods.subtracting([.shift, .capsLock]).isEmpty,
+              let text = event.characters, !text.isEmpty,
+              text.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }),
+              chapterFindVisible || !text.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        if !chapterFindVisible {
+            chapterFindAutomatic = true
+            chapterFindVisible = true
+            chapterFindQuery = text
+            updateChapterFind()
+        } else {
+            chapterFindQuery += text
+        }
+        return true
+    }
+
     /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
     func macReader(_ st: BibleState, actionClearance: CGFloat, titleBarClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
@@ -1952,6 +2076,7 @@ extension ScriptureView {
             scrollRevision: scrollRevision,
             titleBarClearance: titleBarClearance,
             positionReader: positionReader,
+            onFindKey: handleChapterFindKey,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },

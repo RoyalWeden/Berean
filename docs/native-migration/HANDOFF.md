@@ -1864,3 +1864,11 @@ Close Column names its transition to the reader when the comparison would have o
 ### Compare reading positions across layouts
 
 Stacked comparisons now save each visible column's verse after scrolling. Reordering carries those bookmarks with the columns, and returning to one reader can use a saved or legacy column verse. Both Dev builds passed. Mac scratch QA opened an independently scrolled Genesis 2 LXX column in the reader near its end, then used Back to recover the two panes. Live stacked transitions and drag reordering remain open.
+
+### Mac reader Find, sidebar double-click, and location editing
+
+Double-clicking the blank Mac sidebar tab area opens the New Tab command palette. Single drags still route to AppKit window dragging, and the separate header retains its existing behavior. Command-L prefers the active matching tab type over automatic reuse, including pinned Scripture tabs, and keeps the existing selected location text. Ordinary Go still uses the normal reuse rules.
+
+Mac Scripture Find now floats in glass below the toolbar without resizing the reader. Typing outside an editor starts a search and hides the bar after six idle seconds. Command-F opens a persistent focused search, Command-G and Shift-Command-G step matches, and Escape closes it. The active match is highlighted in the reader and the search excludes generated Strong's and verse markers. The AppKit reader cursor checks the full window hit view and excludes the native title bar before setting its text cursor.
+
+Both Dev builds passed. Mac scratch QA verified New Tab from a blank double-click, Command-L replacing the current Scripture tab when another tab already showed the destination, and replacement in a pinned tab with the tab count unchanged. Also verified type-ahead and idle dismissal, Command-F focus, Command-G, persistent match highlighting, and Escape. Pointer movement and flicker over every toolbar button, IME input, and compact reader widths remain to verify. The iPhone reader still uses native Find.

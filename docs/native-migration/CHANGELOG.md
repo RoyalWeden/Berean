@@ -1605,3 +1605,7 @@
 
 ### 2026-11-17 — Compare viewport bookmarks
 - Both Dev builds passed. Mac scratch QA preserved the scrolled LXX position across opening the reader and going Back. Stacked layout changes still need a live pass.
+
+### 2026-11-17 — Mac reader keyboard and floating controls
+- **Changes:** Blank sidebar double-click opens New Tab search. Command-L explicitly edits the compatible current tab. Mac Scripture Find uses a floating glass bar with type-ahead and idle dismissal. Reader cursor updates exclude the native toolbar.
+- **Verification:** Both Dev builds passed. Mac scratch QA checked double-click, ordinary and pinned Command-L edits, automatic and explicit Find, match navigation and dismissal. Direct pointer-motion verification remains open.

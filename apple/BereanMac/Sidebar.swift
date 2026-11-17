@@ -62,7 +62,7 @@ struct BereanSidebar: View {
                     .padding(.bottom, 8)
                     .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
                     // Empty sidebar space (between and below rows) moves the window; rows and buttons take their own clicks.
-                    .background(WindowDragArea())
+                    .background(WindowDragArea(onDoubleClick: { app.showCommandPalette(newTab: true) }))
                     .animation(.snappy(duration: 0.18), value: app.orderedTabs.map(\.id))
                 }
                 .scrollIndicators(.never)
@@ -730,15 +730,32 @@ struct SidebarCloseButtonStyle: ButtonStyle {
 
 /// An AppKit area that moves the window when dragged (`NSWindow.performDrag`), placed behind sidebar content.
 struct WindowDragArea: NSViewRepresentable {
+    var onDoubleClick: (() -> Void)?
+
     final class DragView: NSView {
+        var onDoubleClick: (() -> Void)?
+
         override func mouseDown(with event: NSEvent) {
-            if event.clickCount == 2 { window?.performZoom(nil); return }   // title-bar convention
+            if event.clickCount == 2 {
+                if let onDoubleClick { onDoubleClick() }
+                else { window?.performZoom(nil) }
+                return
+            }
             window?.performDrag(with: event)
         }
+
         override var mouseDownCanMoveWindow: Bool { true }
     }
-    func makeNSView(context: Context) -> NSView { DragView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    func makeNSView(context: Context) -> DragView {
+        let view = DragView()
+        view.onDoubleClick = onDoubleClick
+        return view
+    }
+
+    func updateNSView(_ nsView: DragView, context: Context) {
+        nsView.onDoubleClick = onDoubleClick
+    }
 }
 
 struct MacArchivedTabsSheet: View {

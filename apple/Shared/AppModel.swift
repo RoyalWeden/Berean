@@ -851,7 +851,9 @@ final class AppModel {
         let candidates = tabs(in: space).filter { $0.tabType == type }
         let currentId = activeTabId(in: space)
         let writable = candidates.filter { !$0.isPinned && canReplace($0) }
-        let preferred = preferActiveTab && activeSpace == space ? writable.first(where: { $0.id == currentId }) : nil
+        // The location command explicitly targets the active tab. Pinned and
+        // specialized tabs remain protected from ordinary destination reuse.
+        let preferred = preferActiveTab && activeSpace == space ? candidates.first(where: { $0.id == currentId }) : nil
         let exact = matches.map { candidates.filter($0) } ?? []
         let destination = preferred ?? exact.first(where: { $0.id == currentId }) ?? exact.first
             ?? writable.first(where: { $0.id == currentId }) ?? writable.first
@@ -1166,7 +1168,7 @@ final class AppModel {
         }
         var o = JSObject(); o["noteId"] = id.map { .string(JSString($0)) } ?? .null; o["isNew"] = .bool(false)
         let title = note?.displayTitle ?? "Notes"
-        let writableActive = preferActiveTab && activeTab?.tabType == .note && activeTab?.isPinned == false
+        let writableActive = preferActiveTab && activeTab?.tabType == .note
         if !newTab, !writableActive, let id, let exact = tabs(in: .notes).first(where: { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }) {
             noteListReturnTabs[exact.id] = source == exact.id ? nil : source
             select(exact.id, in: .notes)
@@ -1174,7 +1176,7 @@ final class AppModel {
             return
         }
         if !newTab, let cur = activeTabId(in: .notes), let t = tabs(in: .notes).first(where: { $0.id == cur }),
-           t.tabType == .note, (!t.isPinned || id == nil), activeSpace == .notes {
+           t.tabType == .note, (!t.isPinned || id == nil || writableActive), activeSpace == .notes {
             noteListReturnTabs.removeValue(forKey: t.id)
             // Keep the Notes home location, so closing the note returns to the same folder.
             var title = title
@@ -1301,8 +1303,7 @@ final class AppModel {
     }
 
     var canChangeCurrentScriptureTab: Bool {
-        guard let tab = activeTab, tab.tabType == .bible, !tab.isPinned else { return false }
-        return !BibleState(tab.state).compareMode && tab.state["endChapter"]?.numberValue == nil
+        activeTab?.tabType == .bible
     }
 
     /// Go switches to an exact open passage without resetting that tab's saved scroll position.

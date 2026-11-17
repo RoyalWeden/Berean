@@ -6,6 +6,27 @@ private final class ChapterPullScrollView: NSScrollView {
     var reader: ChapterTextView.Coordinator?
     private var travel: CGFloat = 0
     private var pull: ChapterPullCue?
+    private var keyboardMonitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        stopKeyboardMonitor()
+        guard window != nil else { return }
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let window, event.window === window, window.isKeyWindow,
+                  window.attachedSheet == nil else { return event }
+            let responder = window.firstResponder
+            let editing = responder is NSTextView && responder !== reader?.textView
+            return reader?.parent?.onFindKey(event, editing) == true ? nil : event
+        }
+    }
+
+    func stopKeyboardMonitor() {
+        if let keyboardMonitor {
+            NSEvent.removeMonitor(keyboardMonitor)
+            self.keyboardMonitor = nil
+        }
+    }
 
     private func publish(_ cue: ChapterPullCue?) {
         guard cue != pull else { return }
@@ -82,6 +103,7 @@ struct ChapterTextView: NSViewRepresentable {
     var scrollRevision: UUID?
     var titleBarClearance: CGFloat = 0
     let positionReader: ScripturePositionReader
+    var onFindKey: (NSEvent, Bool) -> Bool = { _, _ in false }
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
@@ -134,14 +156,14 @@ struct ChapterTextView: NSViewRepresentable {
         tv.delegate = context.coordinator
         tv.coordinator = context.coordinator
         tv.setAccessibilityLabel("Scripture text")
-        tv.usesFindBar = true                     // ⌘F: find in chapter with match navigation (the original's find bar)
-        tv.isIncrementalSearchingEnabled = true
         scroll.documentView = tv
-        scroll.findBarPosition = .aboveContent
         context.coordinator.textView = tv
         positionReader.capture = { [weak coordinator = context.coordinator, weak scroll] preferred in
             guard let coordinator, let scroll else { return nil }
             return coordinator.readingPosition(in: scroll, preferred: preferred)
+        }
+        positionReader.find = { [weak coordinator = context.coordinator] query, step in
+            coordinator?.find(query, step: step) ?? (0, 0)
         }
         return scroll
     }
@@ -154,6 +176,7 @@ struct ChapterTextView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        (scroll as? ChapterPullScrollView)?.stopKeyboardMonitor()
         guard let position = coordinator.readingPosition(in: scroll) else { return }
         coordinator.parent.savePosition(position)
     }
@@ -322,6 +345,83 @@ struct ChapterTextView: NSViewRepresentable {
             return reader.selectedVerses.contains(verse) ? .controlAccentColor : NSColor.controlAccentColor.withAlphaComponent(0.82)
         }
 
+        private var findQuery = ""
+        private var findIndex = 0
+        private var findRanges: [[NSRange]] = []
+        private var findHighlight: [NSRange] = []
+
+        private func clearFindHighlight() {
+            if let textView, let layout = textView.layoutManager {
+                for range in findHighlight where range.upperBound <= textView.string.utf16.count {
+                    layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: range)
+                }
+            }
+            findHighlight.removeAll()
+        }
+
+        private func findMatches(_ query: String, in storage: NSTextStorage) -> [[NSRange]] {
+            let source = storage.string as NSString
+            var matches: [[NSRange]] = []
+            for verse in verseRanges.keys.sorted() {
+                guard let start = verseTextStarts[verse], let paragraph = verseRanges[verse] else { continue }
+                let words = NSMutableString(string: "")
+                var runs: [(display: NSRange, source: NSRange)] = []
+                storage.enumerateAttribute(Self.skipKey, in: NSRange(start..<paragraph.upperBound)) { skip, range, _ in
+                    guard skip == nil else { return }
+                    runs.append((NSRange(location: words.length, length: range.length), range))
+                    words.append(source.substring(with: range))
+                }
+                var cursor = 0
+                while cursor < words.length {
+                    let match = words.range(of: query, options: [.caseInsensitive, .diacriticInsensitive],
+                                            range: NSRange(cursor..<words.length))
+                    guard match.location != NSNotFound, match.length > 0 else { break }
+                    matches.append(runs.compactMap { run in
+                        let part = NSIntersectionRange(match, run.display)
+                        guard part.length > 0 else { return nil }
+                        return NSRange(location: run.source.location + part.location - run.display.location, length: part.length)
+                    })
+                    cursor = match.upperBound
+                }
+            }
+            return matches
+        }
+
+        func find(_ query: String, step: Int) -> (current: Int, total: Int) {
+            clearFindHighlight()
+            if query.isEmpty {
+                findQuery = ""
+                findRanges.removeAll()
+                findIndex = 0
+                return (0, 0)
+            }
+            guard let textView, let storage = textView.textStorage else { return (0, 0) }
+            if query != findQuery {
+                findQuery = query
+                findRanges = findMatches(query, in: storage)
+                let top = readingAnchor(at: textView.enclosingScrollView?.contentView.bounds.minY ?? 0, in: textView)
+                    .flatMap { verseTextStarts[$0.verse] } ?? 0
+                findIndex = findRanges.firstIndex { ($0.first?.location ?? 0) >= top } ?? 0
+            } else if !findRanges.isEmpty {
+                findIndex = (findIndex + step + findRanges.count) % findRanges.count
+            }
+            guard findRanges.indices.contains(findIndex), let range = findRanges[findIndex].first else { return (0, 0) }
+            findHighlight = findRanges[findIndex]
+            for part in findHighlight {
+                textView.layoutManager?.addTemporaryAttribute(.backgroundColor,
+                                                            value: NSColor.systemYellow.withAlphaComponent(0.40), forCharacterRange: part)
+            }
+            if let scroll = textView.enclosingScrollView, let top = textView.firstVerseLineTop(in: range) {
+                let clip = scroll.contentView
+                let y = textView.convert(NSPoint(x: 0, y: top), to: clip).y
+                var bounds = clip.bounds
+                bounds.origin.y = y - max(textView.visibleTitleBarClearance + 64, bounds.height * 0.4)
+                clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
+                scroll.reflectScrolledClipView(clip)
+            }
+            return (findIndex + 1, findRanges.count)
+        }
+
         var verseRanges: [Int: NSRange] = [:]
         /// verse → storage index where its words start (after the gutter).
         var verseTextStarts: [Int: Int] = [:]
@@ -343,6 +443,7 @@ struct ChapterTextView: NSViewRepresentable {
         }
 
         func build(_ p: ChapterTextView) -> NSAttributedString {
+            _ = find("", step: 0)
             let out = NSMutableAttributedString()
             verseRanges = [:]; verseTextStarts = [:]
             markerRanges.removeAll(keepingCapacity: true)
@@ -773,7 +874,9 @@ final class ReaderTextView: NSTextView {
     // Tracking areas also receive events beneath floating SwiftUI controls.
     // Only set the text cursor when the reader actually owns the hit.
     private func ownsPointer(at event: NSEvent) -> Bool {
-        guard let root = window?.contentView else { return false }
+        guard let window, event.locationInWindow.y <= window.contentLayoutRect.maxY,
+              let content = window.contentView else { return false }
+        let root = content.superview ?? content
         let point = root.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
         guard let hit = root.hitTest(point) else { return false }
         return hit === self || hit.isDescendant(of: self)
@@ -901,17 +1004,6 @@ final class ReaderTextView: NSTextView {
     /// (verified 2026-11-08: the key equivalent arrives here, `copy:` never does).
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if mods == [.command], event.charactersIgnoringModifiers?.lowercased() == "f" {
-            let item = NSMenuItem(); item.tag = NSTextFinder.Action.showFindInterface.rawValue
-            performFindPanelAction(item); return true
-        }
-        if event.charactersIgnoringModifiers?.lowercased() == "g",
-           mods == [.command] || mods == [.command, .shift] {
-            let item = NSMenuItem()
-            item.tag = (mods.contains(.shift) ? NSTextFinder.Action.previousMatch : .nextMatch).rawValue
-            performFindPanelAction(item)
-            return true
-        }
         if window?.firstResponder === self, selectedRange().length > 0 || !(coordinator?.parent.selectedVerses.isEmpty ?? true), event.charactersIgnoringModifiers?.lowercased() == "c" {
             if mods == [.command] { copy(nil); return true }
             if mods == [.command, .shift] { copyPlain(nil); return true }
