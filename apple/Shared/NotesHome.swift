@@ -49,7 +49,7 @@ struct NotesHomeView: View {
     @State private var folderName = ""
     @State private var confirmEmptyTrash = false
     @State private var pendingTrash: [String] = []
-    @State private var searchScroll = ScrollPosition()
+    @State private var searchScroll = ScrollPosition(idType: String.self)
     @State private var restoredSearchPosition: SearchPosition?
     @State private var visibleFolderRow: String?
     @State private var loadedNotes = false
@@ -344,47 +344,55 @@ struct NotesHomeView: View {
                 ContentUnavailableView("No matching notes", systemImage: "magnifyingglass")
             } else {
                 let position = SearchPosition(folder: location, options: browseOptions, sort: sort)
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            if !matchingFolders.isEmpty {
-                                folderSectionHeading("Folders")
-                                ForEach(matchingFolders) { folder in
-                                    folderRow(folder, depth: 0).padding(.vertical, 6)
-                                }
-                            }
-                            if !matching.isEmpty {
-                                folderSectionHeading("\(matching.count) note\(matching.count == 1 ? "" : "s")")
-                                ForEach(matching) { note in
-                                    noteRow(note, searchPosition: position)
-                                        .padding(.vertical, 8)
-                                        .overlay(alignment: .bottom) { Divider() }
-                                        .id(note.id)
-                                }
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if !matchingFolders.isEmpty {
+                            folderSectionHeading("Folders")
+                            ForEach(matchingFolders) { folder in
+                                folderRow(folder, depth: 0).padding(.vertical, 6)
                             }
                         }
-                        .padding(.horizontal, 16)
+                        if !matching.isEmpty {
+                            folderSectionHeading("\(matching.count) note\(matching.count == 1 ? "" : "s")")
+                            ForEach(matching) { note in
+                                noteRow(note, searchPosition: position)
+                                    .padding(.vertical, 8)
+                                    .overlay(alignment: .bottom) { Divider() }
+                                    .id(note.id)
+                            }
+                        }
                     }
-                    .scrollPosition($searchScroll)
-                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                        max(0, geometry.contentOffset.y + geometry.contentInsets.top)
-                    } action: { _, offset in
-                        guard app.activeTab?.id == tabId, restoredSearchPosition == position else { return }
-                        app.notesSearchOffsets[tabId, default: [:]][position] = offset
-                    }
-                    .task(id: position) {
-                        guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
-                        restoredSearchPosition = nil
-                        if let id = app.notesSearchReturnRows[tabId]?.removeValue(forKey: position),
-                           matching.contains(where: { $0.id == id }) {
-                            proxy.scrollTo(id, anchor: .center)
-                        } else if let offset = app.notesSearchOffsets[tabId]?[position] {
+                    .padding(.horizontal, 16)
+                    .scrollTargetLayout()
+                }
+                .scrollPosition($searchScroll)
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+                } action: { _, offset in
+                    guard app.activeTab?.id == tabId, restoredSearchPosition == position else { return }
+                    app.notesSearchOffsets[tabId, default: [:]][position] = offset
+                }
+                .onScrollPhaseChange { old, new in
+                    guard old != .idle, new == .idle, old != .animating || searchScroll.isPositionedByUser,
+                          app.activeTab?.id == tabId, restoredSearchPosition == position else { return }
+                    app.notesSearchReturnRows[tabId]?.removeValue(forKey: position)
+                }
+                .task(id: app.activeTab?.id == tabId ? position : nil) {
+                    restoredSearchPosition = nil
+                    await Task.yield()
+                    guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
+                    let anchor = app.notesSearchReturnRows[tabId]?[position]
+                    if let anchor, matching.contains(where: { $0.id == anchor }) {
+                        searchScroll.scrollTo(id: anchor, anchor: .center)
+                    } else {
+                        if anchor != nil { app.notesSearchReturnRows[tabId]?.removeValue(forKey: position) }
+                        if let offset = app.notesSearchOffsets[tabId]?[position] {
                             searchScroll.scrollTo(y: offset)
                         } else {
                             searchScroll.scrollTo(edge: .top)
                         }
-                        restoredSearchPosition = position
                     }
+                    restoredSearchPosition = position
                 }
                 .id(position)
             }
@@ -669,10 +677,7 @@ struct NotesHomeView: View {
                 }
                 return
             }
-            if let searchPosition {
-                app.notesSearchReturnRows[tabId, default: [:]][searchPosition] = n.id
-            }
-            app.openNote(n.id, fromList: tabId)
+            openNoteFromList(n, searchPosition: searchPosition)
         } label: {
             HStack(spacing: 12) {
             if selecting {
@@ -707,9 +712,9 @@ struct NotesHomeView: View {
         .accessibilityAddTraits(selecting && selectedNotes.contains(n.id) ? .isSelected : [])
         #if os(iOS)
         // Long-press peeks at the note (original NotePeek) above the actions.
-        .contextMenu { noteMenu(n) } preview: { notePeek(n) }
+        .contextMenu { noteMenu(n, searchPosition: searchPosition) } preview: { notePeek(n) }
         #else
-        .contextMenu { noteMenu(n) }
+        .contextMenu { noteMenu(n, searchPosition: searchPosition) }
         #endif
         #if os(iOS)
         .swipeActions(edge: .leading) { Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }.tint(.orange) }
@@ -731,9 +736,18 @@ struct NotesHomeView: View {
         .frame(width: 320, height: 360, alignment: .topLeading)
     }
 
-    @ViewBuilder func noteMenu(_ n: Note) -> some View {
-        Button("Open") { app.openNote(n.id) }
-        Button("Open in New Tab", systemImage: "plus.square.on.square") { app.openNote(n.id, newTab: true) }
+    private func openNoteFromList(_ note: Note, searchPosition: SearchPosition?, newTab: Bool = false) {
+        if let searchPosition {
+            app.notesSearchReturnRows[tabId, default: [:]][searchPosition] = note.id
+        }
+        app.openNote(note.id, newTab: newTab, fromList: tabId)
+    }
+
+    @ViewBuilder func noteMenu(_ n: Note, searchPosition: SearchPosition?) -> some View {
+        Button("Open") { openNoteFromList(n, searchPosition: searchPosition) }
+        Button("Open in New Tab", systemImage: "plus.square.on.square") {
+            openNoteFromList(n, searchPosition: searchPosition, newTab: true)
+        }
         ShareLink(item: n.content.isEmpty ? n.displayTitle : "\(n.displayTitle)\n\n\(n.content)", subject: Text(n.displayTitle)) {
             Label("Share…", systemImage: "square.and.arrow.up")
         }

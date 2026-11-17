@@ -1836,3 +1836,7 @@ Mac's workspace tab browser focuses search on opening. On both platforms, a quer
 ### Scripture Search scroll across repeated history (2026-11-17)
 
 Word and tag-only search now restore through a tracked ScrollPosition. The clicked result stays centered across repeated Back/Forward visits. A later manual scroll or Jump to section records the updated position for ordinary tab switches. Mac scratch QA scrolled in H430's 2,242 matches, opened Genesis 3:3, and saw two Back visits return to the same scroll-bar value, with Forward reopening Genesis 3:3. A subsequent manual scroll followed by a Lexicon tab switch restored the later viewport within one row. iPhone touch and tagged-only live verification remain open.
+
+### Notes search and context-menu history (2026-11-17)
+
+Notes search keeps an opened result as its centering anchor across repeated Back and Forward. A deliberate scroll replaces that anchor with the regular offset. The row button and context-menu Open and Open in New Tab all record the originating Notes list and matching result. Both native builds passed. Mac scratch QA searched Neighbor, opened the sole note from its context menu in a new tab, used Back to recover the query and result, then repeated Forward and Back. Centering a result in a long Notes list and the iPhone context menu remain to verify. The iPhone long-press preview still uses raw Markdown; use the version-preview renderer for that surface in a separate change.

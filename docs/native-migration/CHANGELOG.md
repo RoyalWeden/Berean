@@ -1572,3 +1572,8 @@
 - **Starting point:** `b1b3ff4f`, `native/reader-notes`, draft PR #24.
 - **Changes:** Scripture search keeps the clicked result centered across repeated Back and Forward and remembers subsequent manual scrolling.
 - **Verification:** Both Dev builds passed. Mac scratch QA reproduced both the repeated return to Genesis 3:3 and restoring a later manual viewport after switching tabs.
+
+### 2026-11-17 — Notes search history — BUILT, MAC UI CHECKED
+- **Starting point:** `f8851fc5`, `native/reader-notes`, draft PR #24.
+- **Changes:** Notes keeps a search result anchor across repeated history visits and records the source list for context-menu opens.
+- **Verification:** Both Dev builds passed. Mac scratch QA used Open in New Tab from a Notes search, then verified Back, Forward and Back again.
