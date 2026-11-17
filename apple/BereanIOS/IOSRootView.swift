@@ -900,7 +900,7 @@ private struct WorkspaceTabResults: View {
                         Label {
                             VStack(alignment: .leading) {
                                 Text(match.tab.navigationLabel)
-                                Text(match.workspaceName + " · " + match.tab.navigationDetail)
+                                Text(match.searchDetail)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

@@ -51,7 +51,16 @@ extension AppModel {
         let workspaceID: String
         let workspaceName: String
         let tab: BereanWorkspace.Tab
+        var sameTitleIndex: Int? = nil
+        var isCurrent = false
         var id: String { "\(workspaceID)/\(tab.id)" }
+
+        var searchDetail: String {
+            let position = sameTitleIndex.map { "Tab \($0)" }
+            return ([workspaceName, tab.navigationDetail]
+                    + [position, tab.isPinned ? "Pinned" : nil, isCurrent ? "Current" : nil].compactMap { $0 })
+                .joined(separator: " · ")
+        }
     }
 
     var recentWorkspaceTabs: [WorkspaceTabMatch] {
@@ -78,10 +87,18 @@ extension AppModel {
             // A passage by itself should find the workspace and matching tabs, without listing every tab it contains.
             let includesTabTerms = !terms.allSatisfy { displayName.localizedStandardContains(String($0)) }
             let workspaceText = includesTabTerms ? item.name + " " + displayName : item.name
-            for id in displayOrder(for: workspace.id) {
-                guard let tab = tabsByID[id] else { continue }
+            let ordered = displayOrder(for: workspace.id).compactMap { tabsByID[$0] }
+            let tabsByLabel = Dictionary(grouping: ordered) { [$0.navigationLabel, $0.navigationDetail] }
+            var sameTitleIndices: [String: Int] = [:]
+            for tabs in tabsByLabel.values where tabs.count > 1 {
+                for (index, tab) in tabs.enumerated() {
+                    sameTitleIndices[tab.id] = index + 1
+                }
+            }
+            for tab in ordered {
                 let tabText = tab.navigationSearchText
-                let match = WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: item.tabDestinationName, tab: tab)
+                let match = WorkspaceTabMatch(workspaceID: workspace.id, workspaceName: item.tabDestinationName, tab: tab,
+                                              sameTitleIndex: sameTitleIndices[tab.id], isCurrent: tab.id == activeTab?.id)
                 if terms.allSatisfy({ tabText.localizedStandardContains(String($0)) }) {
                     direct.append(match)
                 } else if terms.allSatisfy({ (tabText + " " + workspaceText).localizedStandardContains(String($0)) }) {

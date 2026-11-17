@@ -272,7 +272,7 @@ struct BereanSidebar: View {
                             ForEach(matches) { match in
                                 Button { openWorkspaceTab(match) } label: {
                                     searchResultLabel(title: match.tab.navigationLabel,
-                                                      detail: match.workspaceName + " · " + match.tab.navigationDetail,
+                                                      detail: match.searchDetail,
                                                       symbol: match.tab.symbol, tint: match.tab.tint)
                                 }
                                 .buttonStyle(.interactivePlain)
