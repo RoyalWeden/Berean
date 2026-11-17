@@ -1089,3 +1089,7 @@ Mac Settings Verse Numbers native switch reported settled hand/hand after draggi
 ### 2026-11-17 N06 completion evidence
 
 Native note-title completion after [[ is implemented on both platforms. Mac keyboard/pointer choice and Escape/query editing passed; iPhone touch insertion and separate Undo/Redo passed. Exact stored Markdown was verified in both QA libraries. Source helper covers UTF-16, code/escaped/closed triggers and stale selection. Mac following-typing undo coalescing remains open, along with Scripture/book autocomplete and broader accessibility/scroll/IME checks. N06 stays partial.
+
+### 2026-11-17 query/undo verification update
+
+Mac note completion Undo/Redo now separates following typing in the directly tested path. Notes query history and Lexicon query replacement/history passed live Mac checks; Lexicon query/language survived Simulator relaunch using legacy state keys. Calendar/History/Tags current-tab replacement and backward traversal passed. All 156 optimized package tests in 46 suites passed on simulator SQLite; app builds also pass. These scoped checks do not complete N06 book/Scripture autocomplete or the broader parity gates.

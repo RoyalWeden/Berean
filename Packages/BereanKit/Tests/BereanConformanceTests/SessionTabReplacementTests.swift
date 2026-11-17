@@ -38,6 +38,19 @@ struct SessionTabReplacementTests {
         }
     }
 
+    @Test func sameTypeCanMoveAcrossSpaces() {
+        let previous = Tab(id: "history", spaceId: .notes, type: "history", title: "Old history", isPinned: true)
+        let existing = Tab(id: "existing", spaceId: .search, type: "history", title: "History")
+        let destination = Tab(id: "discarded", spaceId: .search, type: "history", title: "History")
+        var session = Session(id: "s", name: "S", tabs: [.notes: [previous], .search: [existing]], activeTabId: [.notes: previous.id, .search: existing.id])
+        #expect(session.replaceTabContent(previous.id, with: destination) == previous)
+        #expect(session.tabs(in: .notes).isEmpty)
+        #expect(session.tabs(in: .search).map(\.id) == [existing.id, previous.id])
+        #expect(session.tabs(in: .search).first == existing)
+        #expect(session.tabs(in: .search).last?.isPinned == true)
+        #expect(session.activeTabId[.search] == previous.id)
+    }
+
     @Test func repairsOnlyRemovedActiveTabToNearestNeighbor() {
         let a = Tab(id: "a", spaceId: .notes, type: "note", title: "A")
         let b = Tab(id: "b", spaceId: .notes, type: "note", title: "B")

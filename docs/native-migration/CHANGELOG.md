@@ -1666,3 +1666,10 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Added floating note-title suggestions after [[ on Mac and iPhone, with keyboard navigation on Mac and touch selection on iPhone. Existing Markdown remains literal in storage.
 - Verified insertion on both platforms, dismissal/query editing on Mac and separate Undo/Redo on iPhone. Mac's following-typing undo coalescing remains a known refinement.
 - Added Unicode/stale-range/code guards and a title-only query that excludes trashed notes. Five focused tests pass.
+
+### 2026-11-17 — Search context and completion undo
+
+- Notes Search prefills Cmd+L, query changes enter history, and Notes clears the search.
+- Lexicon search replacement updates immediately; query/language restore through history and relaunch, using existing legacy state fields. Simulator verified Hebrew elohim persistence.
+- Mac note completion now uses explicit reciprocal undo edits; separate typing Undo, completion Undo and Redo passed in the live editor.
+- Fixed Release simulator conformance testability and a calendar-sensitive legacy test. All 156 simulator package tests and five focused legacy tests pass locally.

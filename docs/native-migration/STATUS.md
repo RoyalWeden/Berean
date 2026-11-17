@@ -141,3 +141,7 @@ Explicit location replacement now retains the current ID/pin/order across types.
 ## 2026-11-17 native note completion checkpoint
 
 Both apps build with note-title suggestions after [[. Mac keyboard/pointer insertion and iPhone touch insertion are runtime verified; exact Markdown storage was read-only checked. iPhone Undo/Redo boundaries passed. Mac completion may coalesce with immediately following typing; see HANDOFF. Five focused completion tests pass after the earlier full 154-test suite. N06 remains partial for book/Scripture autocomplete and broader interaction QA.
+
+## 2026-11-17 search context and CI checkpoint
+
+Notes/Lexicon query replacement and history refinements are implemented and live checked on Mac. Simulator verified Lexicon query/language after relaunch. Mac completion Undo/Redo separation now passes. Both apps build; optimized simulator conformance passed all 156 tests in 46 suites. The five-case legacy test implicated in CI also passes after a test-only clock fix. Remote CI remains pending a push/rerun; numeric full-title palette note lookup remains under investigation.

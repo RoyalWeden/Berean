@@ -2,11 +2,12 @@ import SwiftUI
 import BereanBible
 import BereanText
 import BereanWorkspace
+import BereanCore
 
 /// Lexicon search / browse — port of the SearchView in src/components/lexicon/LexiconPanel.tsx. Matches Strong's
 /// number, lemma, transliteration and definitions (`LexiconService.search`), filtered to Hebrew, Greek or both.
-/// Shown in a Lexicon tab that has no entry yet; the query lives in `AppModel.lexiconSearches` (per tab, not
-/// persisted, so no new tab-state keys are written for other clients).
+/// Shown in a Lexicon tab that has no entry yet. The live query is cached per tab;
+/// settled edits use the original searchQuery/searchLang state fields for reopening.
 struct LexiconSearchView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
@@ -74,10 +75,14 @@ struct LexiconSearchView: View {
         .task(id: "\(trimmed)|\(lang)") {
             guard restored else { return }
             app.lexiconSearches[tabId] = (query, lang)
-            guard !trimmed.isEmpty else { results = []; return }
-            searching = true
+            searching = !trimmed.isEmpty
             try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled else { return }
+            app.update(tabId, recordHistory: false) {
+                $0.state["searchQuery"] = .string(JSString(query))
+                $0.state["searchLang"] = .string(JSString(lang))
+            }
+            guard !trimmed.isEmpty else { results = []; searching = false; return }
             var found = await app.lexicon.search(trimmed, lang: lang)
             // Accent-free spellings ("shalom", "chesed") also match Strong's transliterations (shâlôwm, cheçed).
             let seen = Set(found.map(\.strongsNum))
@@ -87,9 +92,23 @@ struct LexiconSearchView: View {
             results = found; searching = false
         }
         .onAppear {
-            if !restored, let saved = app.lexiconSearches[tabId] { query = saved.query; lang = saved.lang }
+            if !restored {
+                let state = app.findTab(tabId)?.state
+                query = app.lexiconSearches[tabId]?.query ?? state?["searchQuery"]?.stringValue?.string ?? ""
+                lang = app.lexiconSearches[tabId]?.lang ?? state?["searchLang"]?.stringValue?.string ?? "all"
+            }
             restored = true
             focused = true
+        }
+        .onChange(of: app.lexiconSearchRequest) { _, request in
+            guard let request, request.tabID == tabId else { return }
+            let changesResults = trimmed != request.query.trimmingCharacters(in: .whitespacesAndNewlines) || lang != request.lang
+            query = request.query
+            lang = request.lang
+            if changesResults {
+                results = []
+                searching = !trimmed.isEmpty
+            }
         }
     }
 

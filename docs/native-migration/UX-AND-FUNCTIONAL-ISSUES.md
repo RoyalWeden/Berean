@@ -127,3 +127,10 @@ During palette QA, Gallery returned imported note hits while Gallery QA 07 did n
 ### 2026-11-17 note completion refinements
 
 Native [[ note-title suggestions now work on both platforms. Mac keyboard and pointer choice, Escape/query editing, plus iPhone touch insertion/Undo/Redo passed. Mac still sometimes undoes completion and following typing together (source restored correctly). Manual wheel/touch scrolling with the chooser open, software keyboard resizing, hardware IME and accessibility sizes need QA.
+
+### 2026-11-17 verified query and undo refinements
+
+- Fixed reproduced stale visible Lexicon query and blank Cmd+L Notes query. Notes and Lexicon query Back/Forward passed; Calendar/History/Tags remained in the current tab.
+- Simulator verified Hebrew elohim query/language persistence after relaunch.
+- Mac completion following-typing undo coalescing is fixed for the exercised native editor path: first Undo only later typing, second only completion, Redo completion. This supersedes the earlier open entry for that path.
+- Numeric full-title palette lookup still reproduces; package FTS helper and read-only database queries succeed. Keep diagnosis at the UI/runtime boundary before changing data/search semantics.

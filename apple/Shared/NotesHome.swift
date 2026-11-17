@@ -194,7 +194,7 @@ struct NotesHomeView: View {
             app.notesBrowseOptions[tabId] = options
         }
         .onChange(of: app.notesSearchSeed) { _, _ in
-            if let seeded = app.notesBrowseOptions[tabId] { browseOptions = seeded }
+            browseOptions = app.notesBrowseOptions[tabId] ?? BrowseOptions()
         }
         .task(id: app.notesRevision) { load(); loadedNotes = true }
         .task(id: request) { await runSearch(request) }

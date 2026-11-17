@@ -384,3 +384,7 @@ Cmd+L is explicit replacement of the active tab even across content types and Sp
 ### 2026-11-17 — Source-preserving note completion
 
 Complete note-title wikilinks through native text edits rather than replacing the Markdown-backed editor or converting source to attachments. Validate the trigger against the current selection/content when accepting a suggestion. Query titles only, preserving legacy title-based links and avoiding note content/image loading. Restrict this increment to safe note titles; book/chapter suggestions remain a separate N06 gap. Mac keyboard/pointer and iPhone touch choice share the same source helper.
+
+### 2026-11-17 — Auxiliary search state is a navigation location
+
+A Notes query/filter snapshot or Lexicon query/language belongs to Back/Forward even when the tab type and ID stay fixed. External Lexicon navigation seeds the visible view through a tab-scoped request; local typing remains a debounced search. Persist settled Lexicon queries through the existing searchQuery/searchLang allow-list, with no schema or new sync fields. Nil Notes history options mean default/unfiltered options. Explicit completion undo is owned as a literal inverse edit, separate from native typing coalescing.

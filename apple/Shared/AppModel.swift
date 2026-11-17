@@ -127,8 +127,8 @@ final class AppModel {
                 text = entry.isEmpty ? lexiconSearches[tab.id]?.query ?? "" : entry
             case .search:
                 text = tab.state["query"]?.stringValue?.string ?? ""
-            case .note where tab.state["noteId"]?.stringValue != nil:
-                text = tab.title
+            case .note:
+                text = tab.state["noteId"]?.stringValue != nil ? tab.title : notesBrowseOptions[tab.id]?.query ?? ""
             default:
                 text = ""
             }
@@ -752,7 +752,9 @@ final class AppModel {
         if location.tab.tabType == .lexicon {
             lexiconSearches[id] = (location.tab.state["searchQuery"]?.stringValue?.string ?? "",
                                   location.tab.state["searchLang"]?.stringValue?.string ?? "all")
+            seedLexiconSearch(in: id)
         }
+        notesSearchSeed += 1
         studyVerseFocus.removeValue(forKey: id)
         activeSpace = location.tab.spaceId
         scheduleSave()
@@ -771,8 +773,20 @@ final class AppModel {
         compareColumnScrollVerses[tabId] = compareColumnScrollVerses[tabId]?.filter { !$0.key.hasPrefix(prefix) }
     }
     @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
-    /// Lexicon tab id → last search (query, language). In memory only: not written to tab state.
+    /// Live Lexicon query cache. Settled edits also use the legacy searchQuery/searchLang state fields.
     @ObservationIgnored var lexiconSearches: [String: (query: String, lang: String)] = [:]
+    struct LexiconSearchRequest: Equatable {
+        let tabID: String
+        let query: String
+        let lang: String
+        let nonce = UUID()
+    }
+    var lexiconSearchRequest: LexiconSearchRequest?
+
+    private func seedLexiconSearch(in tabID: String) {
+        let saved = lexiconSearches[tabID] ?? (query: "", lang: "all")
+        lexiconSearchRequest = LexiconSearchRequest(tabID: tabID, query: saved.query, lang: saved.lang)
+    }
     /// A chapter step asked for outside the reader (command palette); the reader for `tabId` performs it.
     struct ChapterStepRequest: Equatable { let tabId: String; let delta: Int; let nonce = UUID() }
     var chapterStepRequest: ChapterStepRequest?
@@ -809,7 +823,7 @@ final class AppModel {
             if let note = t.state["noteId"]?.stringValue?.string { return "editor:" + note }
             if let folder = t.state["listFolderId"]?.stringValue?.string { return "folder:" + folder }
             return "notes-home"
-        case .lexicon: keys = ["strongsNum"]
+        case .lexicon: keys = ["strongsNum", "searchQuery", "searchLang"]
         case .search:
             keys = ["query", "scopeTexts", "bookIds", "wordMode", "testament",
                     "tagFilter", "tagFilterAll", "nativeSearchFocusText"]
@@ -1169,17 +1183,26 @@ final class AppModel {
             state["searchQuery"] = .string(JSString(query)); state["searchLang"] = .string("all")
             if replaceCurrentTab(.lexicon, in: .lexicon, title: "Lexicon", state: state), let tab = activeTab {
                 lexiconSearches[tab.id] = (query, "all")
+                seedLexiconSearch(in: tab.id)
                 return
             }
         }
         if !newTab, let tab = activeTab, tab.tabType == .lexicon {
-            update(tab.id) { $0.state["strongsNum"] = .string(""); $0.title = "Lexicon" }
+            update(tab.id) {
+                $0.state["strongsNum"] = .string(""); $0.title = "Lexicon"
+                if !query.isEmpty {
+                    $0.state["searchQuery"] = .string(JSString(query))
+                    $0.state["searchLang"] = .string("all")
+                }
+            }
             if !query.isEmpty { lexiconSearches[tab.id] = (query, "all") }
+            seedLexiconSearch(in: tab.id)
             return
         }
         var o = JSObject(); o["strongsNum"] = .string("")
         let id = openTab(.lexicon, in: .lexicon, title: "Lexicon", state: o, origin: activeTab)
         if !query.isEmpty { lexiconSearches[id] = (query, "all") }
+        seedLexiconSearch(in: id)
     }
 
     func openLexicon(_ strongs: String, from origin: BereanWorkspace.Tab? = nil, reuseTab: Bool = false,
@@ -1206,19 +1229,40 @@ final class AppModel {
 
     /// Opens Notes Home searching every note for `query` (original Floating Search "Search Notes").
     func openNotesSearch(_ query: String, newTab: Bool = false, preferActiveTab: Bool = false) {
-        openNotesHome(newTab: newTab, preferActiveTab: preferActiveTab)
+        let previous = !newTab ? activeTab.map(historyLocation) : nil
+        openNotesHome(newTab: newTab, preferActiveTab: preferActiveTab, preserveSearch: true)
         guard let tab = activeTab else { return }
         var options = notesBrowseOptions[tab.id] ?? NotesHomeView.BrowseOptions()
         options.query = query
         options.searchEverywhere = true
         notesBrowseOptions[tab.id] = options
         notesSearchSeed += 1
+        if let previous { recordAuxiliaryLocationChange(from: previous) }
     }
 
-    func openNotesHome(newTab: Bool = false, preferActiveTab: Bool = false) {
+    /// Query/filter options live outside tab JSON, but still belong to in-tab history.
+    private func recordAuxiliaryLocationChange(from previous: TabHistoryLocation) {
+        guard let tab = activeTab, tab.id == previous.tab.id, previous != historyLocation(tab) else { return }
+        let entry = TabHistoryEntry.location(previous)
+        if backStack[tab.id]?.last != entry {
+            backStack[tab.id, default: []].append(entry)
+            if backStack[tab.id]!.count > 100 { backStack[tab.id]!.removeFirst() }
+        }
+        forwardStack[tab.id] = []
+    }
+
+    func openNotesHome(newTab: Bool = false, preferActiveTab: Bool = false, preserveSearch: Bool = false) {
         if !newTab, preferActiveTab {
+            let previous = activeTab.map(historyLocation)
             var state = JSObject(); state["noteId"] = .null; state["listFolderId"] = .null
-            if replaceCurrentTab(.note, in: .notes, title: "Notes", state: state) { return }
+            if replaceCurrentTab(.note, in: .notes, title: "Notes", state: state) {
+                if !preserveSearch, let tab = activeTab {
+                    notesBrowseOptions[tab.id] = NotesHomeView.BrowseOptions()
+                    notesSearchSeed += 1
+                    if let previous { recordAuxiliaryLocationChange(from: previous) }
+                }
+                return
+            }
         }
         if !newTab {
             let homeTabs = tabs(in: .notes).filter {

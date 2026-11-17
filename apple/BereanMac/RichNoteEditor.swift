@@ -79,11 +79,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .wikiLink(let completion, let title):
                     guard !editor.hasMarkedText(),
                           let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), title: title) else { return }
-                    editor.breakUndoCoalescing()
-                    editor.insertText(edit.replacement, replacementRange: edit.range)
-                    editor.setSelectedRange(edit.selection)
-                    editor.breakUndoCoalescing()
-                    editor.undoManager?.setActionName("Insert Note Link")
+                    editor.replaceWikiLink(edit.range, with: edit.replacement, select: edit.selection)
                 case .highlight(let color): editor.setHighlight(color)
                 case .removeHighlight:
                     if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
@@ -424,6 +420,39 @@ final class NoteTextView: NSTextView {
         textStorage?.replaceCharacters(in: r, with: s)
         didChangeText()
         setSelectedRange(select)
+    }
+
+    /// Completion is a separate undo action, rather than another native typing insertion.
+    /// Register the inverse explicitly so later typing cannot extend the completion's undo range.
+    func replaceWikiLink(_ range: NSRange, with replacement: String, select selection: NSRange) {
+        let source = string as NSString
+        guard let storage = textStorage,
+              range.location != NSNotFound, range.location >= 0, range.length >= 0, range.location <= source.length,
+              range.length <= source.length - range.location else { return }
+        let resultingLength = source.length - range.length + replacement.utf16.count
+        guard selection.location != NSNotFound, selection.location >= 0, selection.length >= 0, selection.location <= resultingLength,
+              selection.length <= resultingLength - selection.location else { return }
+        let previousText = source.substring(with: range)
+        let previousSelection = selectedRange()
+        let inserted = NSRange(location: range.location, length: replacement.utf16.count)
+        breakUndoCoalescing()
+        let manager = undoManager
+        let registrationEnabled = manager?.isUndoRegistrationEnabled == true
+        if registrationEnabled { manager?.disableUndoRegistration() }
+        // Retain NSTextView's delegate policy, but own the undo record for this replacement.
+        let allowed = shouldChangeText(in: range, replacementString: replacement)
+        if allowed {
+            storage.replaceCharacters(in: range, with: replacement)
+            didChangeText()
+            setSelectedRange(selection)
+        }
+        if registrationEnabled { manager?.enableUndoRegistration() }
+        guard allowed else { return }
+        manager?.registerUndo(withTarget: self) { editor in
+            editor.replaceWikiLink(inserted, with: previousText, select: previousSelection)
+        }
+        manager?.setActionName("Insert Note Link")
+        breakUndoCoalescing()
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {

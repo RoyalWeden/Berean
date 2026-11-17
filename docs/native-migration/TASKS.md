@@ -207,3 +207,10 @@ See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source refere
 - Cmd+L mixed-type identity/history fix implemented and runtime checked; extend to explicit Notes Search, Lexicon Search, utility/daily destinations and deep result/reader scroll positions.
 - Native note-title [[ completion implemented. Next isolate Mac following-typing undo, verify software keyboard/IME/VoiceOver and chooser scroll behavior, then add Scripture/book suggestions from original autocomplete.
 - Investigate exact multiword note-title search with numeric suffixes (Gallery matches; Gallery QA 07 did not in palette QA). Do not change persistence or FTS schema without evidence.
+
+### 2026-11-17 verified follow-up results
+
+- Completed live same-type Lexicon and Notes query replacement/history; utility Calendar/History/Tags kept current identity. Exact deep-scroll and daily destination matrix remain.
+- Completed explicit Mac note-completion Undo/Redo separation, superseding the previous following-typing coalescing item for the tested path.
+- Both native builds pass; optimized simulator conformance passes all 156 tests/46 suites, and five legacy chat regression tests pass. Fixed the two diagnosed prior CI failures; inspect the next pushed run before claiming remote green.
+- Numeric full-title palette lookup remains reproducible; direct read-only NotesService and raw FTS return the expected note. Temporary trace removed because CUA cannot currently disambiguate two running Dev app instances with the same bundle ID. Keep regular Dev untouched.

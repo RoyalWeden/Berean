@@ -707,3 +707,9 @@ Build the Mac Dev app and launch the scratch library with `BEREAN_CURSOR_TRACE=1
 ### Location-editing regression gate (2026-11-17)
 
 For Cmd+L, test both same- and different-type destinations with existing exact matches and pinned current tabs. Assert source ID, pin, global display order and total count remain fixed and peer content does not change. Traverse Back and Forward across every type change; check actual scroll anchors separately. Test Cmd+K reuse and explicit New Tab overrides alongside replacement. Use only the named native QA library and read-only database inspection as supporting evidence.
+
+### Test configuration and duplicate-app targeting checks (2026-11-17)
+
+Optimized Xcode simulator package tests require ENABLE_TESTABILITY=YES for @testable imports; SwiftPM test defaults do not establish that Xcode Release setting. Keep it test-only. Fixed historical-date UI fixtures should control Date without replacing the real async rendering timers.
+
+Before any CUA action after getApp rebinding or agent UI handoff, verify the visible library/workspace fixture. Two running native Dev instances share the same bundle ID, and the tool may resolve the regular Dev process despite a QA bundle path. Do not use or terminate the regular Dev process to work around this. Retain precise known QA IDs/counts as supporting read-only evidence, and leave multi-instance targeting unverified if the API cannot distinguish it.
