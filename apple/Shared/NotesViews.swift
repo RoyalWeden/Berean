@@ -324,16 +324,20 @@ private func noteTableContext(in text: NSString, selection: NSRange)
     guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
     let selectedLine = text.lineRange(for: selection)
     guard selectedLine.length > 0, text.character(at: selectedLine.location) == 124 else { return nil }
-    let spans = MarkdownLiveSpans.spans(text as String).filter {
-        $0.kind == .tableRow || $0.kind == .tableRule
-    }
+    let spans = MarkdownLiveSpans.spans(text as String)
+    let headers = Set(spans.lazy.filter { $0.kind == .tableHeader }.map(\.range.location))
     var block: [MarkdownLiveSpans.Span] = []
-    for span in spans {
-        if let last = block.last, text.lineRange(for: last.range).upperBound != span.range.location {
+    var columns = 0
+    for span in spans where span.kind == .tableRow || span.kind == .tableRule {
+        let startsTable = headers.contains(span.range.location)
+        let cellCount = MarkdownLiveSpans.tableCells(in: text, range: span.range).count
+        if let last = block.last, startsTable || cellCount != columns
+            || text.lineRange(for: last.range).upperBound != span.range.location {
             if block.contains(where: { $0.range.location == selectedLine.location }) { break }
             block.removeAll(keepingCapacity: true)
         }
-        block.append(span)
+        if startsTable { columns = cellCount }
+        if startsTable || !block.isEmpty { block.append(span) }
     }
     guard block.count >= 2, block[0].kind == .tableRow, block[1].kind == .tableRule,
           let row = block.firstIndex(where: { $0.kind == .tableRow && $0.range.location == selectedLine.location }) else {

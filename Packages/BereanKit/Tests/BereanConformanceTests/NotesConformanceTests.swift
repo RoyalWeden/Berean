@@ -465,6 +465,23 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(canonicalRule.map { (canonical as NSString).substring(with: $0.range) } == "| --- | --- |")
     }
 
+    @Test func tableEscapeMarkersAreHiddenOnlyInRecognizedTables() {
+        let markdown = #"""
+        | Name | A\|B |
+        | --- | --- |
+        | 📝 | `C\|D` |
+
+        Outside \| remains unchanged.
+        """#
+        let plainText = plain(markdown)
+        #expect(plainText.contains("| Name | A|B |"))
+        #expect(plainText.contains("| 📝 | C|D |"))
+        #expect(plainText.contains(#"Outside \| remains unchanged."#))
+        let escaped = #"| X\\\|Y | Z |"# as NSString
+        let cells = MarkdownLiveSpans.tableCells(in: escaped, range: NSRange(location: 0, length: escaped.length))
+        #expect(cells.count == 2)
+    }
+
     @Test func tableHeaderRequiresMatchingAdjacentSeparator() {
         let markdown = "| 📝 | a\\|b |\r\n| :--- | ---: |\r\n| one | two |\r\n\r\n| malformed | row |\r\n| --- |"
         let source = markdown as NSString

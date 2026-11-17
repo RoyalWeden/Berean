@@ -1521,3 +1521,8 @@
 - **Starting point:** `64816337`, `native/reader-notes`, draft PR #24.
 - **Changes:** Native note previews share the editor's delimiter parser, retain adjacent tables and give wrapped rows full-height separators. Printed tables use equal columns, source alignment and a shaded header. Mac measures the complete document before previewing it.
 - **Verification:** Both Dev builds passed. Mac scratch print preview showed all rows of a populated three-column fixture. Canceled without printing. Remaining UI checks are in HANDOFF.
+
+### 2026-11-17 — Editable Notes table boundaries — BUILT, MAC UI CHECKED
+- **Starting point:** `36f56088`, `native/reader-notes`, draft PR #24.
+- **Changes:** Table commands target only the recognized block at the caret. Escaped pipes in recognized rows display as literal cell content while retaining their Markdown source.
+- **Verification:** Mac and iOS Simulator builds passed. Targeted Swift checks covered adjacent tables, rejected malformed rows, and checked escaped pipes in headers and inline code. Mac scratch QA verified literal pipe display, Add Column After on the second of two adjacent tables, and Undo.

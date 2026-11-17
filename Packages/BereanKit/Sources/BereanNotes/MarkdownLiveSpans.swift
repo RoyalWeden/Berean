@@ -101,7 +101,11 @@ public enum MarkdownLiveSpans {
                 let columns = tableCells(in: s, range: previousTableRow.range).count
                 let isRule = line.first?.kind == .tableRule || iPhoneTableRule(in: s, range: lineRange, nextLine: end, columns: columns)
                 if isRule, columns > 0, columns == tableCells(in: s, range: lineRange).count {
-                    out.insert(Span(previousTableRow.range, .tableHeader), at: previousTableRow.spanIndex + 1)
+                    var insertion = [Span(previousTableRow.range, .tableHeader)]
+                    if activeTableColumns == 0 {
+                        insertion += tableEscapeSpans(in: s, range: previousTableRow.range)
+                    }
+                    out.insert(contentsOf: insertion, at: previousTableRow.spanIndex + 1)
                     line = [Span(lineRange, .tableRule)]
                     activeTableColumns = columns
                 }
@@ -111,12 +115,29 @@ public enum MarkdownLiveSpans {
                 activeTableColumns = 0
             }
             previousTableRow = line.first?.kind == .tableRow ? (lineRange, out.count) : nil
+            if isRow, activeTableColumns > 0, line.first?.kind == .tableRow {
+                line += tableEscapeSpans(in: s, range: lineRange)
+            }
             out += line
             if end <= lineStart { break }
             lineStart = end
             if lineStart == s.length { break }
         }
         return out
+    }
+
+    /// An escaped pipe is literal in a table cell, including inside inline code.
+    private static func tableEscapeSpans(in text: NSString, range: NSRange) -> [Span] {
+        var spans: [Span] = []
+        var escaped = false
+        for offset in range.location..<range.upperBound {
+            let character = text.character(at: offset)
+            if character == 124, escaped {
+                spans.append(Span(NSRange(location: offset - 1, length: 1), .hidden))
+            }
+            escaped = character == 92 && !escaped
+        }
+        return spans
     }
 
     /// An older iPhone insert command substituted em dashes into the separator.
