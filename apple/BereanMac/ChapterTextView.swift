@@ -146,6 +146,13 @@ struct ChapterTextView: NSViewRepresentable {
         return scroll
     }
 
+    private static func isAtChapterEnd(_ clip: NSClipView) -> Bool {
+        var end = clip.bounds
+        end.origin.y = clip.documentRect.maxY
+        let bottom = clip.constrainBoundsRect(end).minY
+        return bottom > clip.documentRect.minY + 1 && clip.bounds.minY >= bottom - 1
+    }
+
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         guard let position = coordinator.readingPosition(in: scroll) else { return }
         coordinator.parent.savePosition(position)
@@ -158,27 +165,27 @@ struct ChapterTextView: NSViewRepresentable {
         tv.titleBarClearance = titleBarClearance
         tv.updateOutlineMotion()
         let clip = scroll.contentView
-        if scroll.contentInsets.bottom != actionClearance {
-            let bounds = clip.bounds
-            // Adding scroll room for the capsule must leave the text in place.
-            // The selection reveal below moves it only if the capsule overlaps the verse.
+        let passageChanged = c.lastPassage != passageId
+        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
+        let insetChanged = scroll.contentInsets.bottom != actionClearance
+        let wasAtEnd = !passageChanged && (insetChanged || key != c.lastKey) && Self.isAtChapterEnd(clip)
+        if insetChanged {
+            var bounds = clip.bounds
+            // Preserve the chapter end when the floating capsule adds scroll room.
+            // Elsewhere, preserve the visible text and let the selection reveal run separately.
             scroll.contentInsets.bottom = actionClearance
             scroll.scrollerInsets.bottom = actionClearance
+            if wasAtEnd { bounds.origin.y = clip.documentRect.maxY }
             clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
             scroll.reflectScrolledClipView(clip)
         }
         let previousBounds = clip.bounds
-        let passageChanged = c.lastPassage != passageId
         let previousSelection = c.renderedSelection
         let revealSelection = !passageChanged && !selectedVerses.subtracting(previousSelection).isEmpty
-        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
-        if key != c.lastKey || c.lastPassage != passageId {
+        if key != c.lastKey || passageChanged {
             let keepScroll = c.lastPassage == passageId
             let origin = previousBounds.origin
             let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
-            let previousBottom = clip.constrainBoundsRect(previousBounds.offsetBy(dx: 0, dy: clip.documentRect.height)).minY
-            let wasAtEnd = keepScroll && previousBottom > clip.documentRect.minY + 1
-                && origin.y >= previousBottom - 1
             let sel = tv.selectedRanges
             let previousText = tv.string
             tv.readerWidth = style.width
