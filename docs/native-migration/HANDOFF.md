@@ -1856,3 +1856,7 @@ My Notes cross-reference rows now make the citing note title a direct button ben
 ### Lexicon occurrence filter feedback (2026-11-17)
 
 Book choices follow Scripture order. Book and rendering counts are aligned separately from their names. Both scoped option searches show an explicit empty state and have a clear-query button. Clear Selected Words resets only the rendering selections without closing the picker. Both Dev builds passed. Mac scratch QA opened H430, confirmed Genesis and Exodus order and counts, searched for an absent book, cleared the query, and selected and cleared gods. Native Mac autofocus was not confirmed in the popover; iPhone touch and VoiceOver remain to verify.
+
+### Compare exit and retained passage (2026-11-17)
+
+Close Column names its transition to the reader when the comparison would have one or zero columns left. A legacy comparison with one saved column goes to that column's passage when closed. On iPhone, the explicit Exit Compare button saves the visible verse from the main translation when available, keeping the comparison configuration for reentry. Both Dev builds passed. Mac scratch QA closed KJVA from a Genesis 2 comparison, confirmed the single LXX reader and Compare off, then used Back to restore both columns. iPhone Simulator exited Compare for selected Genesis 3:3 and recovered the selected reader. Legacy single-column state and exit after manually scrolling the comparison remain to verify.

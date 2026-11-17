@@ -1597,3 +1597,8 @@
 - **Starting point:** `7b9be441`, `native/reader-notes`, draft PR #24.
 - **Changes:** Occurrence pickers gain clearer counts, Scripture book order, no-match feedback, and independently clearable search and translated words.
 - **Verification:** Both Dev builds passed. Mac scratch QA exercised the new book and translated-word controls with H430.
+
+### 2026-11-17 — Compare exit transitions — BUILT, MAC AND SIMULATOR UI CHECKED
+- **Starting point:** `45bf2b4e`, `native/reader-notes`, draft PR #24.
+- **Changes:** Compare column close makes the exit explicit and preserves the sole passage in legacy configurations. iPhone Exit Compare can restore the visible main-translation verse.
+- **Verification:** Both Dev builds passed. Mac scratch QA closed to LXX and restored both columns with Back. Simulator QA returned to selected Genesis 3:3 from Compare.

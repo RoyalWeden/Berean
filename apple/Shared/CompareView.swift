@@ -259,7 +259,7 @@ struct CompareView: View {
                     .menuIndicator(.hidden)
                     .hoverEffect(.highlight)
                 Button("Exit Compare", systemImage: "xmark") {
-                    app.update(tabId) { $0.state.remove("compareMode") }
+                    exitCompareKeepingColumns(st, columns: cols)
                 }
                 .labelStyle(.iconOnly)
                 .frame(minWidth: 44, minHeight: 44)
@@ -381,6 +381,16 @@ struct CompareView: View {
         }
         .clickableCursor()
         .help("Add a translation or open one in the reader")
+    }
+
+    private func exitCompareKeepingColumns(_ source: BibleState, columns: [CompareColumn]) {
+        if let column = columns.first(where: { $0.text == source.translation && $0.follows(source) }),
+           let reading = readingAnchor(in: column, source: source), reading.chapter == source.chapter {
+            let edition = ChapterEdition(source)
+            app.scriptureReadingPositions[tabId, default: [:]][edition.key] =
+                ScriptureReadingPosition(offset: 0, verse: reading.verse, selectedVerses: selectedVerses(in: source))
+        }
+        app.update(tabId) { $0.state.remove("compareMode") }
     }
 
     private func setSyncScrolling(_ enabled: Bool, state: BibleState, columns: [CompareColumn]) {
@@ -1202,9 +1212,11 @@ struct CompareView: View {
             }
             Divider()
             Button {
-                setColumns(columns.filter { $0.id != column.id })
+                let remaining = columns.filter { $0.id != column.id }
+                // Old workspaces can open Compare with only one saved column.
+                setColumns(remaining.isEmpty ? [column] : remaining)
             } label: {
-                Label("Close Column", systemImage: "xmark")
+                Label(columns.count <= 2 ? "Close Column and Exit Compare" : "Close Column", systemImage: "xmark")
             }
         } label: {
             Label("Actions for \(column.label)", systemImage: "ellipsis.circle")
