@@ -85,6 +85,8 @@ struct SettingsView: View {
                 }
             }
             Toggle("Detect Scripture References", isOn: $app.noteVerseRefsEnabled)
+            Toggle("Suggest Scripture Blocks", isOn: $app.noteVerseBlockSuggest)
+            Toggle("Suggest Strong’s Blocks", isOn: $app.noteStrongsBlockSuggest)
             Toggle("Check Spelling", isOn: $app.noteSpellCheck)
             Toggle("Confirm Before Moving Notes to Trash", isOn: $app.confirmNoteDelete)
             Toggle("Typing -- makes an em dash (—)", isOn: $autoEmDash)

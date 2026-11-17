@@ -402,3 +402,7 @@ Preserve the title-only completion index. Read one selected note for a bounded p
 ### 2026-11-17 — Optional dictionary restore assignment
 
 Evaluate the active-tab fallback as an explicitly typed String? before storing in [SpaceId:String?]. Its subscript assignment expects String?? and can otherwise lift a nil preferred value into .some(nil), bypassing the fallback. Keep the regression matrix for public Parsed mutations as well as normal parse paths.
+
+### 2026-11-17 — Plain reference suggestions preserve note source
+
+Use existing Notes suggestion settings and native undo. Resolve preview content asynchronously and require a matching note, caret and full source before editing. Strong’s uses original dictionary copy text. Scripture requires all requested verses and uses the resolved edition and Word Replacer, preserving the LXX marker where applicable.

@@ -2,6 +2,7 @@ import SwiftUI
 import BereanCore
 import BereanNotes
 import BereanReference
+import BereanText
 import UniformTypeIdentifiers
 
 struct NoteRowView: View {
@@ -48,6 +49,7 @@ struct NoteFormatRequest: Equatable {
         case inline(String, String)
         case link(String, selection: NSRange?)
         case wikiLink(NoteWikiLinkCompletion, String)
+        case referenceBlock(NoteReferenceCompletion, String)
         case highlight(String?)
         case removeHighlight
         case inlineCode
@@ -645,6 +647,14 @@ struct NoteDetailView: View {
     @State private var wikiLinkSelection = 0
     @State private var wikiLinkAnchor = CGRect.zero
     @State private var wikiLinkPreview: Note?
+    @State private var referenceCompletion: NoteReferenceCompletion?
+    @State private var dismissedReferenceCompletion: NoteReferenceCompletion?
+    private struct PreparedReference {
+        let completion: NoteReferenceCompletion
+        let label: String
+        let replacement: String
+    }
+    @State private var preparedReference: PreparedReference?
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -701,6 +711,8 @@ struct NoteDetailView: View {
                     }
                     noteEditor
                         .overlay(alignment: .topLeading) { wikiLinkSuggestions }
+                        .overlay(alignment: .topLeading) { referenceSuggestion }
+                        .task(id: referenceCompletion) { await prepareReference() }
                 }
                 .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
                 .frame(maxWidth: 720, alignment: .leading)
@@ -949,6 +961,8 @@ struct NoteDetailView: View {
             }
         }
         .task(id: noteId) { await prepareNote() }
+        .onChange(of: app.noteStrongsBlockSuggest) { invalidateDisabledReferenceSuggestion() }
+        .onChange(of: app.noteVerseBlockSuggest) { invalidateDisabledReferenceSuggestion() }
         // Reflect changes made elsewhere (import, version restore, another window) unless this view has unsaved edits.
         .onChange(of: app.notesRevision) {
             guard let fresh = try? app.notes?.one(noteId), let note, fresh.updatedAt != note.updatedAt,
@@ -966,7 +980,10 @@ struct NoteDetailView: View {
     }
 
     private func prepareNote() async {
+        // Invalidate any queued native edit before this view is reused for another note.
+        formatRequest = nil
         wikiLinkQuery = nil; dismissedWikiLinkQuery = nil; wikiLinkTargets = []
+        referenceCompletion = nil; dismissedReferenceCompletion = nil; preparedReference = nil
         if loadedId != nil, loadedId != noteId { saveNow(); snapshot() }
         reload()
         loadedId = noteId; lastSnapshot = content
@@ -982,15 +999,143 @@ struct NoteDetailView: View {
         RichNoteEditor(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
                        spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                        onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
-                       onWikiLinkCommand: handleWikiLinkCommand, onLink: openLink)
+                       onReferenceCompletion: receiveReferenceCompletion,
+                       onWikiLinkCommand: handleCompletionCommand, onLink: openLink)
             .focused($focus, equals: .body)
         #else
         RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
                           spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                           onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
+                          onReferenceCompletion: receiveReferenceCompletion,
+                          onWikiLinkCommand: handleCompletionCommand,
                           onInsertLink: { showLinkPrompt(selection: $0) }, onLink: openLink)
             .focused($focus, equals: .body)
         #endif
+    }
+
+    private func referenceSuggestionEnabled(_ completion: NoteReferenceCompletion) -> Bool {
+        switch completion.target {
+        case .strongs: return app.noteStrongsBlockSuggest
+        case .scripture: return app.noteVerseBlockSuggest
+        }
+    }
+
+    private func invalidateDisabledReferenceSuggestion() {
+        if let completion = referenceCompletion, !referenceSuggestionEnabled(completion) {
+            referenceCompletion = nil; preparedReference = nil
+        }
+        if case .referenceBlock(let completion, _) = formatRequest?.action,
+           !referenceSuggestionEnabled(completion) { formatRequest = nil }
+    }
+
+    private func receiveReferenceCompletion(_ completion: NoteReferenceCompletion?) {
+        guard let completion else {
+            referenceCompletion = nil; dismissedReferenceCompletion = nil; preparedReference = nil
+            return
+        }
+        guard completion != dismissedReferenceCompletion else { return }
+        guard referenceSuggestionEnabled(completion) else { return }
+        referenceCompletion = completion
+    }
+
+    private func prepareReference() async {
+        preparedReference = nil
+        guard let completion = referenceCompletion, referenceSuggestionEnabled(completion) else { return }
+        let sourceNoteID = noteId
+        let replacement: String
+        let label: String
+        switch completion.target {
+        case .strongs(let number):
+            guard let entry = await app.lexicon.entry(number) else { return }
+            replacement = entry.dictionaryCopyText
+            label = "Insert Strong’s Block"
+        case .scripture(let source):
+            guard let passage = app.resolvePassage(source, preferring: note?.textId),
+                  let parsed = Reference.parse(source, hermas: app.hermasEdition),
+                  let first = parsed.verse, parsed.endChapter == nil || parsed.endChapter == parsed.chapter else { return }
+            let groups = parsed.verseGroups?.map { ($0.verse, $0.endVerse ?? $0.verse) }
+                ?? [(first, parsed.endVerse ?? first)]
+            var numbers = Set<Int>()
+            for (start, end) in groups {
+                guard start > 0, end >= start, end <= 999 else { return }
+                numbers.formUnion(start...end)
+            }
+            let chapter = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
+            let rows = chapter.filter { numbers.contains($0.verseNum) }
+            // Do not offer a partial block under a reference claiming unavailable verses.
+            guard !rows.isEmpty, rows.count == numbers.count else { return }
+            let lines = rows.map {
+                let text = VerseDisplay.text($0.text, tagged: $0.textTagged, textId: passage.textId,
+                                             replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+                return rows.count == 1 ? text : "\($0.verseNum) \(text)"
+            }
+            let reference = source + (passage.textId == "lxx" && parsed.forcedTranslation != "LXX" ? " LXX" : "")
+            replacement = rows.count == 1 ? reference + " " + lines[0] : reference + "\n" + lines.joined(separator: "\n")
+            label = "Insert Scripture Block"
+        }
+        guard !Task.isCancelled, noteId == sourceNoteID, loadedId == sourceNoteID,
+              referenceCompletion == completion, referenceSuggestionEnabled(completion) else { return }
+        preparedReference = PreparedReference(completion: completion, label: label, replacement: replacement)
+    }
+
+    private func insertReferenceBlock(_ prepared: PreparedReference) {
+        guard referenceCompletion == prepared.completion, referenceSuggestionEnabled(prepared.completion) else { return }
+        formatRequest = NoteFormatRequest(action: .referenceBlock(prepared.completion, prepared.replacement))
+        dismissedReferenceCompletion = prepared.completion
+        referenceCompletion = nil; preparedReference = nil
+    }
+
+    private func handleCompletionCommand(_ command: NoteWikiLinkCommand) -> Bool {
+        if wikiLinkQuery != nil { return handleWikiLinkCommand(command) }
+        guard let completion = referenceCompletion else { return false }
+        switch command {
+        case .dismiss:
+            dismissedReferenceCompletion = completion
+            referenceCompletion = nil; preparedReference = nil
+            return true
+        case .accept:
+            guard let prepared = preparedReference, prepared.completion == completion else { return false }
+            insertReferenceBlock(prepared)
+            return true
+        case .up, .down: return false
+        }
+    }
+
+    @ViewBuilder private var referenceSuggestion: some View {
+        if wikiLinkQuery == nil, let prepared = preparedReference, referenceCompletion == prepared.completion,
+           referenceSuggestionEnabled(prepared.completion) {
+            GeometryReader { geometry in
+                let width = min(360.0, geometry.size.width)
+                let height = min(108.0, geometry.size.height)
+                let below = wikiLinkAnchor.maxY + 6
+                let y = below + height <= geometry.size.height ? below : max(0, wikiLinkAnchor.minY - height - 6)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Button { insertReferenceBlock(prepared) } label: {
+                            Label(prepared.label, systemImage: "text.badge.plus")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .optionHover()
+                        Button("Dismiss Suggestion", systemImage: "xmark") {
+                            _ = handleCompletionCommand(.dismiss)
+                        }
+                        .labelStyle(.iconOnly).buttonStyle(.interactivePlain)
+                        .frame(minWidth: 44, minHeight: 44)
+                    }
+                    Text(String(prepared.replacement.prefix(240)))
+                        .font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, 12).padding(.bottom, 10)
+                .frame(width: width, height: height, alignment: .topLeading)
+                .modifier(NoteLinkSuggestionSurface())
+                .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)) }
+                .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+                .offset(x: min(max(0, wikiLinkAnchor.minX), max(0, geometry.size.width - width)), y: y)
+            }
+        }
     }
 
     private var matchingWikiLinkTargets: [NoteWikiLinkTarget] {

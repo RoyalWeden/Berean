@@ -1689,3 +1689,11 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 ### 2026-11-17 — Workspace snapshot selection fallback
 
 - Restoring a public Parsed snapshot with a missing/stale active tab now chooses its first restored tab. Added remapped-identity and empty-space regressions; two focused tests pass. Normal serialized snapshot parsing already repaired these values.
+
+### 2026-11-17 — Note reference and Strong’s block suggestions
+
+- Added optional previews and source-validated insertion in both native editors, controlled by existing Notes preferences.
+- Preserved literal dictionary text and edition-aware Scripture formatting, including numbered ranges and the LXX marker.
+- Both Debug builds and 166 host Release tests passed. Simulator verified insertion, Undo, dismissal and representative input guards.
+
+- iPhone Return accepts prepared block and note-link suggestions. Both native editors validate the current query before consuming completion keys. Simulator verified both Return paths.

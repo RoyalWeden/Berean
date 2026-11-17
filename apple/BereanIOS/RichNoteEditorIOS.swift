@@ -14,6 +14,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
     var formatRequest: NoteFormatRequest? = nil
     var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
     var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
+    var onReferenceCompletion: (NoteReferenceCompletion?) -> Void = { _ in }
+    var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onInsertLink: (NSRange) -> Void = { _ in }
     var onLink: (URL) -> Void = { _ in }
 
@@ -70,6 +72,10 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     guard tv.markedTextRange == nil,
                           let edit = completion.edit(in: tv.text ?? "", selection: tv.selectedRange, title: title) else { return }
                     tv.applyWikiLinkEdit(edit)
+                case .referenceBlock(let completion, let replacement):
+                    guard tv.markedTextRange == nil,
+                          let edit = completion.edit(in: tv.text ?? "", selection: tv.selectedRange, replacement: replacement) else { return }
+                    tv.applyWikiLinkEdit(edit)
                 case .highlight(let color): tv.setHighlight(color)
                 case .removeHighlight: tv.removeHighlight()
                 case .inlineCode: tv.toggleInlineCode()
@@ -99,6 +105,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         var editing = false
         private var wikiLinkQueryScheduled = false
         private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
+        private var publishedReferenceCompletion: NoteReferenceCompletion?
         private var publishedWikiLinkAnchor: CGRect?
 
         /// Read the final UIKit selection after styling and SwiftUI updates settle.
@@ -114,7 +121,11 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 } else {
                     query = nil
                 }
-                if query != nil, let editor = self.textView, let selection = editor.selectedTextRange {
+                let reference: NoteReferenceCompletion?
+                if query == nil, let editor = self.textView, editor.isFirstResponder, editor.markedTextRange == nil {
+                    reference = NoteReferenceCompletion.detect(in: editor.text ?? "", selection: editor.selectedRange)
+                } else { reference = nil }
+                if query != nil || reference != nil, let editor = self.textView, let selection = editor.selectedTextRange {
                     let anchor = editor.caretRect(for: selection.end)
                         .offsetBy(dx: -editor.bounds.origin.x, dy: -editor.bounds.origin.y)
                     if anchor != self.publishedWikiLinkAnchor {
@@ -127,6 +138,10 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 if query != self.publishedWikiLinkQuery {
                     self.publishedWikiLinkQuery = query
                     self.parent.onWikiLinkQuery(query)
+                }
+                if reference != self.publishedReferenceCompletion {
+                    self.publishedReferenceCompletion = reference
+                    self.parent.onReferenceCompletion(reference)
                 }
             }
         }
@@ -308,6 +323,13 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         }
 
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            if text == "\n", range == textView.selectedRange, range.length == 0, textView.markedTextRange == nil {
+                let wiki = NoteWikiLinkCompletion.detect(in: textView.text, selection: range)
+                let reference = wiki == nil ? NoteReferenceCompletion.detect(in: textView.text, selection: range) : nil
+                if ((wiki != nil && wiki == publishedWikiLinkQuery)
+                    || (reference != nil && reference == publishedReferenceCompletion)),
+                   parent.onWikiLinkCommand(.accept) { return false }
+            }
             guard let dash = NoteAutoEmDash.dashRange(in: textView.text as NSString, range: range, replacement: text),
                   let start = textView.position(from: textView.beginningOfDocument, offset: dash.location),
                   let end = textView.position(from: start, offset: dash.length),

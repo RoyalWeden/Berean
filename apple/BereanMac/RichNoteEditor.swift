@@ -17,6 +17,7 @@ struct RichNoteEditor: NSViewRepresentable {
     var formatRequest: NoteFormatRequest? = nil
     var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
     var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
+    var onReferenceCompletion: (NoteReferenceCompletion?) -> Void = { _ in }
     var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
 
@@ -80,6 +81,10 @@ struct RichNoteEditor: NSViewRepresentable {
                     guard !editor.hasMarkedText(),
                           let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), title: title) else { return }
                     editor.replaceWikiLink(edit.range, with: edit.replacement, select: edit.selection)
+                case .referenceBlock(let completion, let replacement):
+                    guard !editor.hasMarkedText(),
+                          let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), replacement: replacement) else { return }
+                    editor.replaceWikiLink(edit.range, with: edit.replacement, select: edit.selection, actionName: "Insert Reference Block")
                 case .highlight(let color): editor.setHighlight(color)
                 case .removeHighlight:
                     if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
@@ -118,6 +123,7 @@ struct RichNoteEditor: NSViewRepresentable {
         var substitutions: [Int: (len: Int, glyph: String)] = [:]
         private var wikiLinkQueryPending = false
         private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
+        private var publishedReferenceCompletion: NoteReferenceCompletion?
 
         init(_ p: RichNoteEditor) { parent = p }
 
@@ -264,7 +270,11 @@ struct RichNoteEditor: NSViewRepresentable {
                     editor.window?.firstResponder === editor && !editor.hasMarkedText()
                         ? NoteWikiLinkCompletion.detect(in: editor.string, selection: editor.selectedRange()) : nil
                 }
-                if query != nil, let editor = self.textView,
+                let reference = self.textView.flatMap { editor in
+                    editor.window?.firstResponder === editor && !editor.hasMarkedText() && query == nil
+                        ? NoteReferenceCompletion.detect(in: editor.string, selection: editor.selectedRange()) : nil
+                }
+                if query != nil || reference != nil, let editor = self.textView,
                    let window = editor.window, let scroll = editor.enclosingScrollView {
                     let screenRect = editor.firstRect(forCharacterRange: editor.selectedRange(), actualRange: nil)
                     let rect = scroll.convert(window.convertFromScreen(screenRect), from: nil)
@@ -272,9 +282,14 @@ struct RichNoteEditor: NSViewRepresentable {
                     self.parent.onWikiLinkAnchor(CGRect(x: rect.minX - scroll.bounds.minX, y: y,
                                                        width: rect.width, height: rect.height))
                 }
-                guard query != self.publishedWikiLinkQuery else { return }
-                self.publishedWikiLinkQuery = query
-                self.parent.onWikiLinkQuery(query)
+                if query != self.publishedWikiLinkQuery {
+                    self.publishedWikiLinkQuery = query
+                    self.parent.onWikiLinkQuery(query)
+                }
+                if reference != self.publishedReferenceCompletion {
+                    self.publishedReferenceCompletion = reference
+                    self.parent.onReferenceCompletion(reference)
+                }
             }
         }
 
@@ -283,8 +298,13 @@ struct RichNoteEditor: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            guard !textView.hasMarkedText(),
-                  NoteWikiLinkCompletion.detect(in: textView.string, selection: textView.selectedRange()) != nil else { return false }
+            guard !textView.hasMarkedText() else { return false }
+            let wiki = NoteWikiLinkCompletion.detect(in: textView.string, selection: textView.selectedRange())
+            let reference = wiki == nil ? NoteReferenceCompletion.detect(in: textView.string, selection: textView.selectedRange()) : nil
+            // A key can arrive before the coalesced query notification. Let normal
+            // editing continue rather than accepting an older result and losing Return.
+            guard (wiki != nil && wiki == publishedWikiLinkQuery)
+                    || (reference != nil && reference == publishedReferenceCompletion) else { return false }
             let command: NoteWikiLinkCommand
             switch commandSelector {
             case #selector(NSResponder.moveUp(_:)): command = .up
@@ -424,7 +444,7 @@ final class NoteTextView: NSTextView {
 
     /// Completion is a separate undo action, rather than another native typing insertion.
     /// Register the inverse explicitly so later typing cannot extend the completion's undo range.
-    func replaceWikiLink(_ range: NSRange, with replacement: String, select selection: NSRange) {
+    func replaceWikiLink(_ range: NSRange, with replacement: String, select selection: NSRange, actionName: String = "Insert Note Link") {
         let source = string as NSString
         guard let storage = textStorage,
               range.location != NSNotFound, range.location >= 0, range.length >= 0, range.location <= source.length,
@@ -449,9 +469,9 @@ final class NoteTextView: NSTextView {
         if registrationEnabled { manager?.enableUndoRegistration() }
         guard allowed else { return }
         manager?.registerUndo(withTarget: self) { editor in
-            editor.replaceWikiLink(inserted, with: previousText, select: previousSelection)
+            editor.replaceWikiLink(inserted, with: previousText, select: previousSelection, actionName: actionName)
         }
-        manager?.setActionName("Insert Note Link")
+        manager?.setActionName(actionName)
         breakUndoCoalescing()
     }
 

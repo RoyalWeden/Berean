@@ -221,3 +221,8 @@ See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source refere
 - Run the full updated optimized simulator suite and confirm GitHub native CI on `91a5c259`. See [HANDOFF](HANDOFF.md) for the CI run and local evidence.
 
 - Notes completion preview: simulator passage/excerpt/insertion/Undo passed; verify Mac keyboard/hover target changes, empty/deleted notes, short editor heights, software keyboard and VoiceOver. Next original autocomplete slice is plain verse/Strong’s block insertion, separate from [[ notes.
+
+### 2026-11-17 note block suggestion follow-up
+
+- Verify each Notes toggle dismisses current and queued work, and exercise rapid caret/note switching with pending lookups. Cover Mac insertion and Undo when isolated targeting is available, then iPhone software keyboard and VoiceOver.
+- Continue cross-chapter block support and rerun optimized simulator conformance against the new head. See [HANDOFF](HANDOFF.md) for the tested paths and prior CI run.
