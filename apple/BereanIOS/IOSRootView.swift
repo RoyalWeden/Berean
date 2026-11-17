@@ -1008,16 +1008,20 @@ struct SessionsPage: View {
                                 Image(systemName: w.icon.map { WorkspaceIcon.symbol($0) } ?? (w.isSaved ? "square.stack.3d.up" : "square.stack")).foregroundStyle(.secondary).frame(width: 24)
                                 VStack(alignment: .leading) {
                                     Text(w.displayName).font(.body.weight(.medium)).foregroundStyle(.primary)
+                                    Text(w.displayDetail)
+                                        .font(.caption).foregroundStyle(.secondary)
                                     ForEach(w.previewLabels(matching: query).filter { $0 != w.displayName }, id: \.self) { preview in
                                         Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                                     }
-                                    Text(w.displayDetail)
-                                        .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 if app.isCurrent(w) { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Current workspace") }
                             }
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
                         }
+                        .buttonStyle(.interactivePlain)
+                        .accessibilityAddTraits(app.isCurrent(w) ? .isSelected : [])
                         .swipeActions { if app.canDelete(w) { Button("Delete", role: .destructive) { deleting = w } } }
                         .contextMenu {
                             Button("Rename…", systemImage: "pencil") { name = w.name; renaming = w }
