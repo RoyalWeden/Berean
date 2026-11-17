@@ -695,3 +695,7 @@ Next ready task:
 - iPhone App Intents existed (audit 07 corrected audit 03 partial read).
 - `docs/privacy.md` asserted no location data, but sunrise uses location on-device, per audit 17.
 - Some audit agents did not inspect every line, and many findings are INFERRED, UNVERIFIED or BLOCKED. **No document is a substitute for verification against current repo code.**
+
+### Notes browse runtime checks after 2026-11-17
+
+Use the shared `openNoteFromList` path for gallery and list activation and context actions so folder and search return anchors stay consistent. Validate a card beyond the initial viewport, then repeat Back/Forward. Test disclosure with an explicitly selected note and confirm the hidden selection count before exercising bulk actions. Keep collapse state scoped by location and grouping, and keep search matches visible.

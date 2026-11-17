@@ -43,6 +43,7 @@ struct NotesHomeView: View {
     @State private var searchResult: SearchResult?
     @AppStorage("notesHomeSort") private var sort = "modified"        // modified | created | name
     @AppStorage("nativeNotesHomeLayout") private var layout = "list"       // device-local list | gallery
+    @AppStorage("nativeNotesCollapsedSections") private var collapsedSectionsData = Data()
     @AppStorage("notesHomeGrouping") private var grouping = "none"    // none | status | folder | type
     @State private var renamingFolder: NoteFolder?
     @State private var newFolderParent: String??                      // .some(nil) = new top-level folder
@@ -522,11 +523,16 @@ struct NotesHomeView: View {
         return (String(format: "m-%04d-%02d", c.year ?? 0, c.month ?? 0), f.string(from: d))
     }
 
+    private var folderScrollContext: NotesFolderScrollContext {
+        NotesFolderScrollContext(location: location, sort: sort, grouping: grouping,
+                                 type: browseOptions.typeFilter.rawValue, status: browseOptions.statusFilter)
+    }
+
     var folderView: some View {
-        let context = NotesFolderScrollContext(location: location, sort: sort, grouping: grouping,
-                                               type: browseOptions.typeFilter.rawValue, status: browseOptions.statusFilter)
+        let context = folderScrollContext
         let subs = isUserFolder ? folders.filter { $0.parentId == location } : []
         let visibleSections = sections
+        let expandedNotes = visibleSections.filter { !isSectionCollapsed("notes:" + $0.id) }.flatMap(\.notes)
         let visibleCount = visibleSections.reduce(0) { $0 + $1.notes.count }
         return ScrollViewReader { proxy in
             ScrollView {
@@ -535,14 +541,17 @@ struct NotesHomeView: View {
                         .font(.callout).foregroundStyle(.secondary)
                         .padding(.vertical, 8)
                     if !subs.isEmpty {
-                        folderSectionHeading("Folders")
-                        ForEach(subs) { folder in
-                            folderRow(folder, depth: 0).padding(.vertical, 6).id("folder:" + folder.id)
+                        collapsibleSectionHeading("Folders", id: "subfolders", count: subs.count)
+                        if !isSectionCollapsed("subfolders") {
+                            ForEach(subs) { folder in
+                                folderRow(folder, depth: 0).padding(.vertical, 6).id("folder:" + folder.id)
+                            }
                         }
                     }
                     ForEach(visibleSections) { section in
-                        folderSectionHeading(section.title)
-                        noteCollection(section.notes)
+                        collapsibleSectionHeading(section.title, id: "notes:" + section.id, count: section.notes.count,
+                                                  selectedCount: section.notes.filter { selectedNotes.contains($0.id) }.count)
+                        if !isSectionCollapsed("notes:" + section.id) { noteCollection(section.notes) }
                     }
                     if loadedNotes && visibleCount == 0 && hasFilters {
                         ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
@@ -556,14 +565,22 @@ struct NotesHomeView: View {
                 .scrollTargetLayout()
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if selecting { bulkBar(visibleSections.flatMap(\.notes)) }
+                if selecting { bulkBar(visibleSections.flatMap(\.notes), selectable: expandedNotes) }
             }
             .scrollPosition(id: $visibleFolderRow, anchor: .top)
             .task(id: loadedNotes ? context : nil) {
                 guard loadedNotes, !Task.isCancelled else { return }
                 visibleFolderRow = nil
+                await Task.yield()
+                guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
                 if let saved = app.notesFolderPositions[tabId]?[context] {
-                    proxy.scrollTo(saved, anchor: .top)
+                    let collapsedSection = visibleSections.first { section in
+                        isSectionCollapsed("notes:" + section.id) && section.notes.contains { "note:" + $0.id == saved }
+                    }
+                    let hiddenFolder = isSectionCollapsed("subfolders") && subs.contains { "folder:" + $0.id == saved }
+                    let target = collapsedSection.map { sectionAnchor("notes:" + $0.id) }
+                        ?? (hiddenFolder ? sectionAnchor("subfolders") : saved)
+                    proxy.scrollTo(target, anchor: .top)
                 }
             }
             .onScrollPhaseChange { old, new in
@@ -573,6 +590,55 @@ struct NotesHomeView: View {
             }
         }
         .id(context)
+    }
+
+    /// Device-local disclosure state, independent for each folder and grouping. Missing keys are expanded.
+    private var collapsedSectionKeys: Set<String> {
+        (try? JSONDecoder().decode(Set<String>.self, from: collapsedSectionsData)) ?? []
+    }
+
+    private func sectionKey(_ id: String) -> String {
+        // Encode components so folder IDs cannot collide with grouping or section IDs.
+        let data = (try? JSONEncoder().encode([location ?? "", grouping, id])) ?? Data()
+        return data.base64EncodedString()
+    }
+
+    private func sectionAnchor(_ id: String) -> String { "section:" + id }
+
+    private func isSectionCollapsed(_ id: String) -> Bool {
+        collapsedSectionKeys.contains(sectionKey(id))
+    }
+
+    private func collapsibleSectionHeading(_ title: String, id: String, count: Int, selectedCount: Int = 0) -> some View {
+        let collapsed = isSectionCollapsed(id)
+        return Button {
+            var keys = collapsedSectionKeys
+            let key = sectionKey(id)
+            if collapsed { keys.remove(key) } else { keys.insert(key) }
+            if let data = try? JSONEncoder().encode(keys) {
+                withAnimation(.snappy) { collapsedSectionsData = data }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(title).font(.headline).foregroundStyle(.primary)
+                Text("\(count)").monospacedDigit()
+                Spacer(minLength: 8)
+                if selecting && selectedCount > 0 {
+                    Text("\(selectedCount) selected").monospacedDigit()
+                }
+                Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                    .font(.caption2.weight(.semibold))
+            }
+            .font(.subheadline).foregroundStyle(.secondary)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.interactivePlain)
+        .id(sectionAnchor(id))
+        .accessibilityLabel("\(title), \(count)\(selectedCount > 0 ? ", \(selectedCount) selected" : "")")
+        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+        .accessibilityHint(collapsed ? "Expand section" : "Collapse section")
+        .accessibilityAddTraits(.isHeader)
     }
 
     private func folderSectionHeading(_ title: String) -> some View {
@@ -623,13 +689,18 @@ struct NotesHomeView: View {
     }
 
     /// Floating actions for the selected notes.
-    func bulkBar(_ visible: [Note]) -> some View {
+    func bulkBar(_ visible: [Note], selectable: [Note]? = nil) -> some View {
+        let selectableIDs = Set((selectable ?? visible).map(\.id))
+        let allSelected = !selectableIDs.isEmpty && selectableIDs.isSubset(of: selectedNotes)
         let ids = visible.map(\.id).filter(selectedNotes.contains)
         let allPinned = !ids.isEmpty && visible.filter { selectedNotes.contains($0.id) }.allSatisfy(\.pinned)
         return HStack(spacing: 14) {
-            Button(ids.count == visible.count ? "Deselect All" : "Select All") {
-                selectedNotes = ids.count == visible.count ? [] : Set(visible.map(\.id))
+            Button(allSelected || (selectableIDs.isEmpty && !ids.isEmpty) ? "Deselect All"
+                   : selectableIDs.count == visible.count ? "Select All" : "Select Visible") {
+                if allSelected || (selectableIDs.isEmpty && !ids.isEmpty) { selectedNotes = [] }
+                else { selectedNotes.formUnion(selectableIDs) }
             }
+            .disabled(selectableIDs.isEmpty && ids.isEmpty)
             Text("\(ids.count) selected").font(.callout).foregroundStyle(.secondary).monospacedDigit()
             Spacer(minLength: 8)
             Button(allPinned ? "Unpin" : "Pin", systemImage: allPinned ? "pin.slash" : "pin") {
@@ -810,6 +881,8 @@ struct NotesHomeView: View {
     private func openNoteFromList(_ note: Note, searchPosition: SearchPosition?, newTab: Bool = false) {
         if let searchPosition {
             app.notesSearchReturnRows[tabId, default: [:]][searchPosition] = note.id
+        } else if location != nil {
+            app.notesFolderPositions[tabId, default: [:]][folderScrollContext] = "note:" + note.id
         }
         app.openNote(note.id, newTab: newTab, fromList: tabId)
     }

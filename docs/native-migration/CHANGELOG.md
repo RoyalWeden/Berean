@@ -1631,3 +1631,9 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Added optional adaptive Gallery in Notes Options on Mac and iPhone, sharing note-opening, selection and context actions with List.
 - Fixed Notes folder location being dropped during local tab persistence.
 - Both native builds passed. Mac and simulator QA verified gallery opening, return navigation and relaunch. All 148 shared Swift tests passed.
+
+### 2026-11-17 — Collapsible Notes sections and gallery history
+
+- Added full-width disclosure headings and retained per-folder/grouping collapse state on both platforms. Hidden selected notes retain visible counts, and Select Visible acts on expanded sections.
+- Fixed returning from a lower gallery card resetting the viewport near the top.
+- Both Dev builds passed. Mac verified repeated gallery history, search, selection and disclosure persistence. iPhone Simulator verified heading taps and hidden-selection feedback.

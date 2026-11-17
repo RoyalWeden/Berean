@@ -116,3 +116,7 @@
 ## 2026-11-17 Notes browse parity
 
 - Notes offers adaptive Gallery and List on Mac and iPhone. Runtime QA covered Mac selection/search/Back and simulator card opening/return. Both apps restored Gallery and All Notes across relaunch after the local-folder persistence fix. Both Dev builds and 148 Swift tests passed. Remaining Notes checks are in the latest HANDOFF entry.
+
+## 2026-11-17 Notes section and history verification
+
+- Both native builds include collapsible Notes sections, selection feedback for hidden cards and the corrected gallery return anchor. Mac runtime verified repeated Back/Forward at the gallery end and persisted disclosure by grouping. Simulator verified heading taps and hidden selection counts. The latest HANDOFF lists remaining touch, custom-folder and accessibility checks.

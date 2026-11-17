@@ -93,3 +93,9 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 - Added adaptive Notes Gallery on both platforms. Mac selection/search/Back and simulator opening/return passed live QA.
 - Fixed Notes folder resetting to the folders screen on relaunch by persisting `listFolderId` locally. Both apps reopened All Notes in Gallery after relaunch. All 148 Swift tests passed.
 - Long-gallery positions, accessibility sizes, iPhone gallery bulk actions and custom-folder relaunch remain to verify.
+
+### 2026-11-17 Notes section follow-up
+
+- Added collapsible section headings on both platforms, including note counts, disclosure accessibility values and retained state per folder/grouping.
+- Fixed reproduced gallery history loss. Mac scroll-bar position returned from 1 to about 0.058 before the correction and stayed at 1 through repeated Back/Forward afterward.
+- Mac verified search through collapsed sections, disclosure persistence and selection counts. Simulator verified tapping headings away from the chevron and selected counts after collapse. Custom-folder disclosure, touch scroll restoration and accessibility sizes remain open.

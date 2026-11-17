@@ -354,3 +354,9 @@ show their content without the side-by-side or thread chrome. A full structured 
 
 - Gallery is a device-local Notes preference under `nativeNotesHomeLayout`. List is the default. The same note button supplies activation, selection and context actions for both presentations.
 - Native Notes `listFolderId` is persisted with local tab state. It already exists in the legacy NoteTabState model. Its absence from the allow-list caused a verified relaunch reset. The sync field set and database schema keep their existing contracts.
+
+## 2026-11-17 Notes section navigation
+
+- Notes disclosure state is scoped to folder and grouping and stored locally. Search shows every matching result regardless of browse disclosure state.
+- Bulk selection explicitly names Select Visible when sections are collapsed. Existing selections retain their counts and actions across disclosure changes.
+- Folder note opening records the clicked note as its return anchor. A collapsed destination uses the section heading as a fallback.
