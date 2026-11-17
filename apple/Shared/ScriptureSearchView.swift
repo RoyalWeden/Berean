@@ -1098,15 +1098,21 @@ struct BookFilterField: View {
     let selected: [String]
     let onChange: ([String]) -> Void
     @State private var text = ""
+    @State private var browsing = false
 
-    var matches: [String] {
-        let q = text.lowercased()
-        guard !q.isEmpty else { return [] }
-        var seen = Set<String>(), out: [String] = []
-        for c in app.bookCatalog where c.book.name.lowercased().hasPrefix(q) || c.book.shortName.lowercased().hasPrefix(q) {
-            if seen.insert(c.book.id).inserted, !selected.contains(c.book.id) { out.append(c.book.id) }
+    private var matches: [String] {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard browsing || !query.isEmpty else { return [] }
+        let excluded = Set(selected)
+        var seen = Set<String>()
+        return app.bookCatalog.compactMap { entry in
+            let book = entry.book
+            guard !excluded.contains(book.id), query.isEmpty
+                    || book.name.localizedStandardContains(query)
+                    || book.shortName.localizedStandardContains(query),
+                  seen.insert(book.id).inserted else { return nil }
+            return book.id
         }
-        return Array(out.prefix(6))
     }
 
     var body: some View {
@@ -1122,12 +1128,36 @@ struct BookFilterField: View {
                     }
                 }
             }
-            TextField(selected.isEmpty ? "All books — type to choose" : "Add a book", text: $text)
+            Button(browsing ? "Hide Book List" : "Browse Books", systemImage: "list.bullet") {
+                browsing.toggle()
+            }
+            .buttonStyle(OptionButtonStyle(active: browsing))
+            .accessibilityValue(browsing ? "Expanded" : "Collapsed")
+            let available = matches
+            TextField("Find a book", text: $text)
                 .textFieldStyle(.roundedBorder)
-                .onSubmit { if let f = matches.first { onChange(selected + [f]); text = "" } }
-            ForEach(matches, id: \.self) { id in
-                Button { onChange(selected + [id]); text = "" } label: { Text(Reference.bookName(id)).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect) }
+                .accessibilityLabel("Find a book")
+                .onSubmit {
+                    if let id = available.first {
+                        onChange(selected + [id])
+                        text = ""
+                    }
+                }
+            if available.isEmpty, browsing || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("No matching books").font(.caption).foregroundStyle(.secondary)
+            }
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(browsing ? available : Array(available.prefix(6)), id: \.self) { id in
+                    Button {
+                        onChange(selected + [id])
+                        text = ""
+                    } label: {
+                        Text(Reference.bookName(id))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                    }
                     .buttonStyle(OptionButtonStyle())
+                }
             }
         }
     }

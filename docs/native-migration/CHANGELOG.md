@@ -1494,3 +1494,5 @@
 - Search highlight menus show a checkmark for the saved whole-verse color. iPhone Simulator verified highlight and removal from overflow and long-press menus.
 
 - iPhone Scripture search option pickers stack their labels and values. Verified scrolling and menu readability at Accessibility Large.
+
+- Scripture search can browse the installed book catalog without typing and filter by full or short name. iPhone Simulator verified selecting and clearing a book filter.
