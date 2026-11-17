@@ -87,11 +87,10 @@ struct ClickableCursorRegion: NSViewRepresentable {
         refreshPending = true
         DispatchQueue.main.async {
             refreshPending = false
+            // Moving over an inactive window must use that window's controls,
+            // rather than controls at the same screen position in the key window.
             guard let source = pendingWindow else { return }
-            let target = NSApp.keyWindow ?? source
-            let point = target === source ? pendingPoint
-                : target.convertPoint(fromScreen: source.convertPoint(toScreen: pendingPoint))
-            refresh(in: target, at: point)
+            refresh(in: source, at: pendingPoint)
         }
     }
 
@@ -116,15 +115,20 @@ struct ClickableCursorRegion: NSViewRepresentable {
             guard region.window === window, !region.isHiddenOrHasHiddenAncestor else { return false }
             let local = region.convert(point, from: nil)
             // SwiftUI gives the passive background its own platform-view wrapper.
-            // The rendered button and that wrapper are siblings in the containing group.
+            // Rendered buttons may hit their containing group or its hosting view.
             guard region.visibleRect.contains(local), let host = region.superview?.superview,
-                  hit === host || hit.isDescendant(of: host) else { return false }
+                  hit === host || hit.isDescendant(of: host) || host.isDescendant(of: hit) else { return false }
             return true
         }
         if let region = matching.min(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
             setHand(region.enabled, in: window, at: point, source: "SwiftUI")
         } else if let toolbar {
             setHand(toolbar.toolbarItemEnabled != false, in: window, at: point, source: "toolbar")
+        } else {
+            #if DEBUG
+            let nearby = regions.allObjects.filter { $0.window === window && $0.visibleRect.contains($0.convert(point, from: nil)) }.count
+            ClickableCursorDebug.trace(enabled: nil, in: window, at: point, source: "unmanaged:\(type(of: hit)):\(nearby)")
+            #endif
         }
     }
 
@@ -179,14 +183,14 @@ enum ClickableCursorDebug {
         try? event.write(toFile: NSTemporaryDirectory() + "berean-cursor-event.txt", atomically: true, encoding: .utf8)
     }
 
-    @MainActor static func trace(enabled: Bool, in window: NSWindow, at point: NSPoint, source: String) {
+    @MainActor static func trace(enabled: Bool?, in window: NSWindow, at point: NSPoint, source: String) {
         guard ProcessInfo.processInfo.environment["BEREAN_CURSOR_TRACE"] != nil else { return }
         let mouse = window.mouseLocationOutsideOfEventStream
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) { [weak window] in
             guard let window, window.mouseLocationOutsideOfEventStream == mouse else { return }
             let actual = NSCursor.current == .pointingHand ? "hand"
                 : NSCursor.current == .arrow ? "arrow" : NSCursor.current == .iBeam ? "text" : "other"
-            let record: [String: Any] = ["expected": enabled ? "hand" : "arrow", "actual": actual,
+            let record: [String: Any] = ["expected": enabled.map { $0 ? "hand" : "arrow" } ?? "unmanaged", "actual": actual,
                                        "source": source, "x": point.x, "y": point.y]
             if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
                 try? data.write(to: URL(fileURLWithPath: NSTemporaryDirectory() + "berean-cursor-state.json"), options: .atomic)

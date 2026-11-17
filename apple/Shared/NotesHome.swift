@@ -54,6 +54,8 @@ struct NotesHomeView: View {
     @State private var searchScroll = ScrollPosition(idType: String.self)
     @State private var restoredSearchPosition: SearchPosition?
     @State private var visibleFolderRow: String?
+    @State private var visibleHomeRow: String?
+    @State private var restoredHomeContext: NotesFolderScrollContext?
     @State private var loadedNotes = false
     /// Select mode (original Notes home Edit): tap rows to select, then Pin / Move / Trash them together.
     @State private var selecting = false
@@ -406,55 +408,83 @@ struct NotesHomeView: View {
 
     @ViewBuilder var foldersHome: some View {
         #if os(macOS)
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 2) {
-                    locationRow("all", "All Notes", "tray.full", count("all"))
-                    ForEach(Self.system.filter { count("sys:\($0.key)") > 0 || $0.key == "daily" || $0.key == "verse" }, id: \.key) { s in
-                        Divider().padding(.leading, 36)
-                        locationRow("sys:\(s.key)", s.name, s.symbol, count("sys:\(s.key)"))
-                    }
-                }
-                .modifier(NotesHomeGlassSurface())
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("My Folders").font(.headline).accessibilityAddTraits(.isHeader)
+        let context = folderScrollContext
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, depth in
-                            folderRow(f, depth: depth)
-                        }
-                        if folders.isEmpty {
-                            Button { folderName = ""; newFolderParent = .some(nil) } label: {
-                                Label("New Folder…", systemImage: "folder.badge.plus")
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .padding(.horizontal, 8).contentShape(.rect)
-                            }
-                            .buttonStyle(NotesHomeRowButtonStyle())
+                        locationRow("all", "All Notes", "tray.full", count("all")).id("home:location:all")
+                        ForEach(Self.system.filter { count("sys:\($0.key)") > 0 || $0.key == "daily" || $0.key == "verse" }, id: \.key) { s in
+                            Divider().padding(.leading, 36)
+                            locationRow("sys:\(s.key)", s.name, s.symbol, count("sys:\(s.key)")).id("home:location:sys:\(s.key)")
                         }
                     }
-                    .modifier(NotesHomeGlassSurface())
-                }
-
-                locationRow("trash", "Trash", "trash", trash.count)
+                    .scrollTargetLayout()
                     .modifier(NotesHomeGlassSurface())
 
-                let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
-                if !recent.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Recently Edited").font(.headline).accessibilityAddTraits(.isHeader)
-                        if layout == "gallery" {
-                            noteCollection(recent)
-                        } else {
-                            VStack(alignment: .leading, spacing: 2) {
-                                ForEach(recent) { noteRow($0) }
+                        Text("My Folders").font(.headline).accessibilityAddTraits(.isHeader)
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, depth in
+                                folderRow(f, depth: depth).id("folder:" + f.id)
                             }
-                            .modifier(NotesHomeGlassSurface())
+                            if folders.isEmpty {
+                                Button { folderName = ""; newFolderParent = .some(nil) } label: {
+                                    Label("New Folder…", systemImage: "folder.badge.plus")
+                                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                        .padding(.horizontal, 8).contentShape(.rect)
+                                }
+                                .buttonStyle(NotesHomeRowButtonStyle())
+                            }
+                        }
+                        .scrollTargetLayout()
+                        .modifier(NotesHomeGlassSurface())
+                    }
+
+                    locationRow("trash", "Trash", "trash", trash.count)
+                        .id("home:location:trash")
+                        .modifier(NotesHomeGlassSurface())
+
+                    let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
+                    if !recent.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Recently Edited").font(.headline).accessibilityAddTraits(.isHeader).id("home:recent")
+                            if layout == "gallery" {
+                                noteCollection(recent)
+                            } else {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ForEach(recent) { noteRow($0).id("note:" + $0.id) }
+                                }
+                                .scrollTargetLayout()
+                                .modifier(NotesHomeGlassSurface())
+                            }
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+                .scrollTargetLayout()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
+            .scrollPosition(id: $visibleHomeRow, anchor: .top)
+            .onScrollPhaseChange { old, new in
+                guard old != .idle, new == .idle, app.activeTab?.id == tabId,
+                      restoredHomeContext == context, let visibleHomeRow else { return }
+                app.notesFolderPositions[tabId, default: [:]][context] = visibleHomeRow
+            }
+            .task(id: loadedNotes ? context : nil) {
+                guard loadedNotes, !Task.isCancelled else { return }
+                restoredHomeContext = nil
+                visibleHomeRow = nil
+                await Task.yield()
+                guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
+                if let saved = app.notesFolderPositions[tabId]?[context] {
+                    let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
+                    let target = saved.hasPrefix("note:") && !recent.contains(where: { "note:" + $0.id == saved })
+                        ? (recent.isEmpty ? "home:location:all" : "home:recent") : saved
+                    proxy.scrollTo(target, anchor: .top)
+                }
+                restoredHomeContext = context
+            }
         }
         .background(Color(nsColor: .windowBackgroundColor))
         #else
@@ -488,7 +518,12 @@ struct NotesHomeView: View {
     }
 
     func locationRow(_ loc: String, _ name: String, _ symbol: String, _ n: Int) -> some View {
-        Button { go(loc) } label: {
+        Button {
+            if location == nil, browseOptions.query.isEmpty, !hasFilters {
+                app.notesFolderPositions[tabId, default: [:]][folderScrollContext] = "home:location:" + loc
+            }
+            go(loc)
+        } label: {
             HStack(spacing: 12) {
                 Image(systemName: symbol).frame(width: 20).foregroundStyle(.tint)
                 Text(name).frame(maxWidth: .infinity, alignment: .leading)
@@ -505,7 +540,12 @@ struct NotesHomeView: View {
     }
 
     func folderRow(_ f: NoteFolder, depth: Int) -> some View {
-        Button { browseOptions.query = ""; go(f.id) } label: {
+        Button {
+            if location == nil, browseOptions.query.isEmpty, !hasFilters {
+                app.notesFolderPositions[tabId, default: [:]][folderScrollContext] = "folder:" + f.id
+            }
+            browseOptions.query = ""; go(f.id)
+        } label: {
             HStack(spacing: 12) {
                 Image(systemName: "folder").frame(width: 20).foregroundStyle(.tint)
                     .padding(.leading, CGFloat(depth) * 16)
@@ -953,7 +993,7 @@ struct NotesHomeView: View {
     private func openNoteFromList(_ note: Note, searchPosition: SearchPosition?, newTab: Bool = false) {
         if let searchPosition {
             app.notesSearchReturnRows[tabId, default: [:]][searchPosition] = note.id
-        } else if location != nil {
+        } else {
             app.notesFolderPositions[tabId, default: [:]][folderScrollContext] = "note:" + note.id
         }
         app.openNote(note.id, newTab: newTab, fromList: tabId)

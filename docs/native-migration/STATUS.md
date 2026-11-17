@@ -125,3 +125,7 @@
 
 - Mac Notes folder groups use native glass, and both platforms have larger leading-aligned row targets. Mac and simulator verified opening from blank row space. Shared cursor handling has direct Debug samples for disclosure/toolbar movement and disabled Back. See HANDOFF for remaining coverage.
 - Owner requires original-quality Read Aloud voices. M05 remains open with the Kokoro/Berean Voices path.
+
+## 2026-11-17 home return checkpoint
+
+- Both native builds pass after the floating-action cursor hit correction and Notes editor return labels. Mac Notes home retained its lower recent-note viewport across repeated history and tab switches in runtime QA. The home viewport implementation is Mac-only. See HANDOFF for current simulator version and remaining coverage.

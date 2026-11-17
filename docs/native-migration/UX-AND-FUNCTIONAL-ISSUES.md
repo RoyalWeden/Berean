@@ -104,3 +104,11 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 
 - Mac Notes has glass groups and leading aligned content. Whole-row opening passed in Mac custom folders and simulator All Notes.
 - Updated shared Mac clickable cursor handling to settle after dispatch and use the delivered event point. Sampled SwiftUI disclosure and enabled toolbar controls retained the hand after movement, while disabled Back retained the arrow. Broader control and manual-motion coverage remains open.
+
+### 2026-11-17 home and floating control follow-up
+
+- Fixed a sampled arrow cursor over floating Scripture Copy, caused by its hosting-view hit relationship. Repeated drag produced hand/hand after rebuilding.
+- Mac Notes home now retains its viewport across recent-note navigation and ordinary tab switches. The note editor's return label identifies its real destination.
+- Mac runtime passed repeated lower-card navigation and home tab-switch restoration. Missing-recent fallback, iPhone home scrolling and wider manual cursor coverage remain open.
+
+Cursor follow-up matrix: verify inactive-window hover after preserving the delivered event window; verify SwiftUI enabled-state changes under a stationary pointer; sample native switch-style toggles. Floating Copy's arrow/hand regression was reproduced and corrected, but these cases are still open.

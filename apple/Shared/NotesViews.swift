@@ -711,8 +711,8 @@ struct NoteDetailView: View {
                         performDestination { app.openNote(noteId) }
                     }
                 } else {
-                    Button { saveNow(); app.returnToNotesList() } label: { Label("All Notes", systemImage: "chevron.backward") }
-                        .help("Back to the notes list")
+                    Button { saveNow(); app.returnToNotesList() } label: { Label(app.notesListReturnTitle, systemImage: "chevron.backward") }
+                        .help("Back to \(app.notesListReturnTitle)")
                 }
             }
             #if os(macOS)

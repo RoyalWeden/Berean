@@ -366,3 +366,9 @@ show their content without the side-by-side or thread chrome. A full structured 
 - Owner explicitly rejected Apple speech voices for quality. Native Read Aloud must use the original Kokoro/Berean Voices quality path, including the model integrity and licensing gates in the master specification.
 - Native Notes navigation uses full-row targets with leading multiline content. Mac folder groups use rectangular Liquid Glass on current systems and material fallback on earlier supported systems.
 - Cursor resolution uses delivered event coordinates and registered SwiftUI intent regions after AppKit dispatch. Explicit SwiftUI enabled state takes priority over a toolbar wrapper with an unavailable enabled-state accessor.
+
+## 2026-11-17 home browsing and rendered control hits
+
+- Mac Notes home uses the existing per-tab Notes position store with a nil folder location. Direct destination anchors take priority on return, with a Recently Edited fallback for removed recent entries.
+- Notes editor return labels follow the destination used by the existing return action.
+- SwiftUI rendered controls may hit an enclosing hosting view. Passive cursor regions accept that relationship within their clipped event bounds. Unmanaged hits remain under native cursor ownership and are visible to opt-in diagnostics.

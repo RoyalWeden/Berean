@@ -1161,6 +1161,16 @@ final class AppModel {
 
     @ObservationIgnored private var noteListReturnTabs: [String: String] = [:]
 
+    var notesListReturnTitle: String {
+        if let editor = activeTab, let source = noteListReturnTabs[editor.id],
+           let tab = tabs(in: .notes).first(where: { $0.id == source }),
+           tab.tabType == .note, tab.state["noteId"]?.stringValue == nil {
+            return tab.title
+        }
+        let location = activeTab?.state["listFolderId"]?.stringValue?.string
+        return NotesHomeView.title(location, (try? notes?.folders()) ?? [])
+    }
+
     func returnToNotesList() {
         if let editor = activeTab, let source = noteListReturnTabs.removeValue(forKey: editor.id),
            let tab = tabs(in: .notes).first(where: { $0.id == source }),

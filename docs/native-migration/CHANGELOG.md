@@ -1643,3 +1643,9 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Mac Notes folders use larger native glass groups. Folder and note rows align leading, with full-width folder targets and consistent hover feedback. Simulator verified opening All Notes from the row gap.
 - Mac cursor ownership now runs after event dispatch and respects explicit SwiftUI disabled state. Debug samples verified hand cursors after movement across a disclosure and enabled toolbar button, plus the arrow over disabled Back.
 - Recorded the owner's requirement for original-quality Read Aloud voices. M05 remains open.
+
+### 2026-11-17 — Floating actions and Notes home return
+
+- Fixed the hosting-view cursor case over floating Scripture actions. The repeated Copy-button drag now produced a settled hand cursor.
+- Mac Notes home retains its position across note opening, Back/Forward and tab switches. Note editors name their actual Notes list or folder return destination.
+- Both Dev builds passed. Mac runtime verified repeated return to the lower recent-note card and ordinary tab-switch restoration.
