@@ -1342,7 +1342,21 @@ private enum NotePreviewBlock {
     }
 
     static func parse(_ source: String) -> [Self] {
-        let lines = source.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        let normalized = source.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = normalized.components(separatedBy: "\n")
+        var recoveredRules = Set<Int>()
+        if normalized.contains("—") {
+            let sourceText = normalized as NSString
+            let ruleOffsets = Set(MarkdownLiveSpans.spans(normalized).compactMap { span in
+                span.kind == .tableRule && sourceText.substring(with: span.range).contains("—")
+                    ? span.range.location : nil
+            })
+            var offset = 0
+            for (lineIndex, line) in lines.enumerated() {
+                if ruleOffsets.contains(offset) { recoveredRules.insert(lineIndex) }
+                offset += line.utf16.count + 1
+            }
+        }
         var blocks: [Self] = []
         var index = 0
         while index < lines.count {
@@ -1350,7 +1364,7 @@ private enum NotePreviewBlock {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if let mark = trimmed.first, mark == "`" || mark == "~" {
                 let length = trimmed.prefix { $0 == mark }.count
-                if length >= 3 {
+                if length >= 3, mark == "~" || !trimmed.dropFirst(length).contains(mark) {
                     index += 1
                     var code: [String] = []
                     while index < lines.count {
@@ -1384,7 +1398,9 @@ private enum NotePreviewBlock {
                let header = NotePreviewTable.cells(line),
                let separator = NotePreviewTable.cells(lines[index + 1]),
                header.count == separator.count {
-                let alignments = separator.compactMap(NotePreviewTable.alignment)
+                let alignments = recoveredRules.contains(index + 1)
+                    ? Array(repeating: NotePreviewTable.Alignment.leading, count: separator.count)
+                    : separator.compactMap(NotePreviewTable.alignment)
                 if alignments.count == header.count {
                     var table = NotePreviewTable(rows: [header], alignments: alignments)
                     index += 2

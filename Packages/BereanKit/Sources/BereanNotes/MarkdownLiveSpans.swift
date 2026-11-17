@@ -89,17 +89,26 @@ public enum MarkdownLiveSpans {
         var out: [Span] = []
         var inFence = false
         var lineStart = 0
+        var activeTableColumns = 0
         var previousTableRow: (range: NSRange, spanIndex: Int)?
         while lineStart <= s.length {
             var end = 0, contentsEnd = 0
             s.getLineStart(nil, end: &end, contentsEnd: &contentsEnd, for: NSRange(location: lineStart, length: 0))
             let lineRange = NSRange(location: lineStart, length: contentsEnd - lineStart)
-            let line = lineSpans(s, lineRange, inFence: &inFence)
-            if line.first?.kind == .tableRule, let previousTableRow {
+            var line = lineSpans(s, lineRange, inFence: &inFence)
+            let isRow = line.first?.kind == .tableRow
+            if let previousTableRow, line.first?.kind == .tableRule || (isRow && activeTableColumns == 0) {
                 let columns = tableCells(in: s, range: previousTableRow.range).count
-                if columns > 0, columns == tableCells(in: s, range: lineRange).count {
+                let isRule = line.first?.kind == .tableRule || iPhoneTableRule(in: s, range: lineRange, nextLine: end, columns: columns)
+                if isRule, columns > 0, columns == tableCells(in: s, range: lineRange).count {
                     out.insert(Span(previousTableRow.range, .tableHeader), at: previousTableRow.spanIndex + 1)
+                    line = [Span(lineRange, .tableRule)]
+                    activeTableColumns = columns
                 }
+            }
+            if line.first?.kind != .tableRule,
+               !isRow || tableCells(in: s, range: lineRange).count != activeTableColumns {
+                activeTableColumns = 0
             }
             previousTableRow = line.first?.kind == .tableRow ? (lineRange, out.count) : nil
             out += line
@@ -108,6 +117,20 @@ public enum MarkdownLiveSpans {
             if lineStart == s.length { break }
         }
         return out
+    }
+
+    /// An older iPhone insert command substituted em dashes into the separator.
+    /// Only recover that shape between equally sized rows and outside another table.
+    private static func iPhoneTableRule(in text: NSString, range: NSRange, nextLine: Int, columns: Int) -> Bool {
+        guard columns > 0, nextLine < text.length,
+              text.substring(with: range).contains("—") else { return false }
+        let cells = tableCells(in: text, range: range)
+        guard cells.count == columns, cells.allSatisfy({
+            text.substring(with: $0).trimmingCharacters(in: .whitespaces) == "—"
+        }) else { return false }
+        var bodyEnd = 0
+        text.getLineStart(nil, end: nil, contentsEnd: &bodyEnd, for: NSRange(location: nextLine, length: 0))
+        return tableCells(in: text, range: NSRange(location: nextLine, length: bodyEnd - nextLine)).count == columns
     }
 
     /// UTF-16 cell ranges for the outer-pipe format written by both Berean editors.

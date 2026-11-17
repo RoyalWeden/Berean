@@ -451,6 +451,20 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(spans.filter { $0.kind == .tableRule }.count == 1)
     }
 
+    @Test func detectsIPhoneTableSeparatorsWithoutConsumingEmDashCells() {
+        let recovered = "| Topic | Verse |\n| — | — |\n| Prayer | Romans 8:1 |"
+        let canonical = "| Topic | Verse |\n| --- | --- |\n| — | — |\n| Prayer | Romans 8:1 |"
+        let standalone = "| Topic | Verse |\n| — | — |"
+        for markdown in [recovered, canonical] {
+            let spans = MarkdownLiveSpans.spans(markdown)
+            #expect(spans.filter { $0.kind == .tableHeader }.count == 1)
+            #expect(spans.filter { $0.kind == .tableRule }.count == 1)
+        }
+        #expect(!MarkdownLiveSpans.spans(standalone).contains { $0.kind == .tableHeader })
+        let canonicalRule = MarkdownLiveSpans.spans(canonical).first { $0.kind == .tableRule }
+        #expect(canonicalRule.map { (canonical as NSString).substring(with: $0.range) } == "| --- | --- |")
+    }
+
     @Test func tableHeaderRequiresMatchingAdjacentSeparator() {
         let markdown = "| 📝 | a\\|b |\r\n| :--- | ---: |\r\n| one | two |\r\n\r\n| malformed | row |\r\n| --- |"
         let source = markdown as NSString

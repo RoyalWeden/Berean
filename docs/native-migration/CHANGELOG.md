@@ -1444,3 +1444,7 @@
 - Mac and iPhone notes use the body font for editable table cells and draw header shading and cell borders. Notes previews show vertical dividers. Format includes Inline Code.
 - UIKit table insertion preserves ASCII Markdown separators. Mac scratch verified live rendering and cell editing. iPhone 18 Pro Simulator verified insertion, Undo and Redo. Both Dev builds passed.
 - Full SwiftPM testing encountered local package file and resource staging timeouts. Existing iPhone notes with substituted em-dash separators and wide-table layout need follow-up.
+
+### 2026-11-17 — Older iPhone table recovery
+
+- Recognize older iPhone table separators in the editor and preview without rewriting stored notes. Focused Swift checks confirmed that valid tables retain literal em-dash cells, and the iPhone Simulator rendered the previously malformed fixture as a grid.
