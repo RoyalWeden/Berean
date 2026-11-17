@@ -112,3 +112,8 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 - Mac runtime passed repeated lower-card navigation and home tab-switch restoration. Missing-recent fallback, iPhone home scrolling and wider manual cursor coverage remain open.
 
 Cursor follow-up matrix: verify inactive-window hover after preserving the delivered event window; verify SwiftUI enabled-state changes under a stationary pointer; sample native switch-style toggles. Floating Copy's arrow/hand regression was reproduced and corrected, but these cases are still open.
+
+### 2026-11-17 switch and iPhone home follow-up
+
+- Native switch movement is runtime verified (Verse Numbers, hand/hand), and its QA preference was restored. SwiftUI enabled-state refresh is implemented, with stationary-pointer runtime verification remaining.
+- iPhone Notes home recent-note return now restores the lower viewport; repeated third/last recent note return passed in Simulator. Ordinary touch-scroll saving and missing-recent fallback remain unverified.

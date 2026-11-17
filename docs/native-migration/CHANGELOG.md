@@ -1649,3 +1649,8 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Fixed the hosting-view cursor case over floating Scripture actions. The repeated Copy-button drag now produced a settled hand cursor.
 - Mac Notes home retains its position across note opening, Back/Forward and tab switches. Note editors name their actual Notes list or folder return destination.
 - Both Dev builds passed. Mac runtime verified repeated return to the lower recent-note card and ordinary tab-switch restoration.
+
+### 2026-11-17 — Switch cursors and iPhone Notes return
+
+- Extended Mac pointing-hand coverage to native switches and added enabled-state refresh for hovered SwiftUI regions. Live movement inside a Settings switch retained the hand.
+- iPhone Notes home now has grouped scroll anchors and clear space above the dock. Repeated recent-note opening/return restored the lower viewport in Simulator.

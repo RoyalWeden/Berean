@@ -129,3 +129,7 @@
 ## 2026-11-17 home return checkpoint
 
 - Both native builds pass after the floating-action cursor hit correction and Notes editor return labels. Mac Notes home retained its lower recent-note viewport across repeated history and tab switches in runtime QA. The home viewport implementation is Mac-only. See HANDOFF for current simulator version and remaining coverage.
+
+## 2026-11-17 iPhone home and native switch checkpoint
+
+Both native builds pass. Mac switch movement retained the hand in live QA. iPhone recent-note return restored the lower Notes home with final-row dock clearance. Stationary enabled-state refresh is implemented but unverified; ordinary touch-scroll saving, missing-recent fallback and inactive-window hover remain open. Notes title autocomplete is the next ready editor parity gap.

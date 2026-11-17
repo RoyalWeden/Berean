@@ -372,3 +372,7 @@ show their content without the side-by-side or thread chrome. A full structured 
 - Mac Notes home uses the existing per-tab Notes position store with a nil folder location. Direct destination anchors take priority on return, with a Recently Edited fallback for removed recent entries.
 - Notes editor return labels follow the destination used by the existing return action.
 - SwiftUI rendered controls may hit an enclosing hosting view. Passive cursor regions accept that relationship within their clipped event bounds. Unmanaged hits remain under native cursor ownership and are visible to opt-in diagnostics.
+
+### 2026-11-17 — iPhone Notes home scroll ownership
+
+Use a grouped ScrollView with explicit stable targets for iPhone Notes home. The initial native List compiled but failed the observed recent-note return; replacing it preserved the grouped appearance and made explicit anchor return work. Retain device-local per-tab state and missing-recent fallback. Do not claim idle touch-scroll restoration from this explicit-return evidence. Native switches are separate NSControl instances and need cursor handling alongside NSButton and NSSegmentedControl.

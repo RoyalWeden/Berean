@@ -488,26 +488,93 @@ struct NotesHomeView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         #else
-        List {
-            Section {
-                locationRow("all", "All Notes", "tray.full", count("all"))
-                ForEach(Self.system.filter { count("sys:\($0.key)") > 0 || $0.key == "daily" || $0.key == "verse" }, id: \.key) { s in
-                    locationRow("sys:\(s.key)", s.name, s.symbol, count("sys:\(s.key)"))
+        let context = folderScrollContext
+        let folderTree = tree(parent: nil, depth: 0)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    VStack(spacing: 0) {
+                        locationRow("all", "All Notes", "tray.full", count("all")).id("home:location:all")
+                        ForEach(Self.system.filter { count("sys:\($0.key)") > 0 || $0.key == "daily" || $0.key == "verse" }, id: \.key) { s in
+                            Divider().padding(.leading, 44)
+                            locationRow("sys:\(s.key)", s.name, s.symbol, count("sys:\(s.key)")).id("home:location:sys:\(s.key)")
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(4)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 12))
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("My Folders").font(.subheadline).foregroundStyle(.secondary)
+                            .padding(.leading, 8).accessibilityAddTraits(.isHeader)
+                        VStack(spacing: 0) {
+                            ForEach(folderTree, id: \.0.id) { f, depth in
+                                folderRow(f, depth: depth).id("folder:" + f.id)
+                                if f.id != folderTree.last?.0.id {
+                                    Divider().padding(.leading, 44)
+                                }
+                            }
+                            if folders.isEmpty {
+                                Button { folderName = ""; newFolderParent = .some(nil) } label: {
+                                    Label("New Folder…", systemImage: "folder.badge.plus")
+                                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                        .padding(.horizontal, 8).contentShape(.rect)
+                                }.buttonStyle(NotesHomeRowButtonStyle()).foregroundStyle(.secondary)
+                            }
+                        }
+                        .scrollTargetLayout()
+                        .padding(4)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 12))
+                    }
+
+                    locationRow("trash", "Trash", "trash", trash.count).id("home:location:trash")
+                        .padding(4)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 12))
+
+                    let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
+                    if !recent.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Recently Edited").font(.subheadline).foregroundStyle(.secondary)
+                                .padding(.leading, 8).accessibilityAddTraits(.isHeader).id("home:recent")
+                            VStack(spacing: 0) {
+                                ForEach(recent) { note in
+                                    noteRow(note).id("note:" + note.id)
+                                    if note.id != recent.last?.id { Divider().padding(.leading, 8) }
+                                }
+                            }
+                            .scrollTargetLayout()
+                            .padding(4)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 12))
+                        }
+                    }
                 }
+                .scrollTargetLayout()
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                // IOSRootView reserves the dock with a safe-area inset; keep the last row clear of its edge.
+                .padding(.bottom, 32)
             }
-            Section {
-                ForEach(tree(parent: nil, depth: 0), id: \.0.id) { f, depth in folderRow(f, depth: depth) }
-                if folders.isEmpty {
-                    Button { folderName = ""; newFolderParent = .some(nil) } label: {
-                        Label("New Folder…", systemImage: "folder.badge.plus")
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .contentShape(.rect)
-                    }.buttonStyle(NotesHomeRowButtonStyle()).foregroundStyle(.secondary)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .scrollPosition(id: $visibleHomeRow, anchor: .top)
+            .onScrollPhaseChange { old, new in
+                guard old != .idle, new == .idle, app.activeTab?.id == tabId,
+                      restoredHomeContext == context, let visibleHomeRow else { return }
+                app.notesFolderPositions[tabId, default: [:]][context] = visibleHomeRow
+            }
+            .task(id: loadedNotes ? context : nil) {
+                guard loadedNotes, !Task.isCancelled else { return }
+                restoredHomeContext = nil
+                visibleHomeRow = nil
+                await Task.yield()
+                guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
+                if let saved = app.notesFolderPositions[tabId]?[context] {
+                    let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
+                    let target = saved.hasPrefix("note:") && !recent.contains(where: { "note:" + $0.id == saved })
+                        ? (recent.isEmpty ? "home:location:all" : "home:recent") : saved
+                    proxy.scrollTo(target, anchor: .top)
                 }
-            } header: { Text("My Folders") }
-            Section { locationRow("trash", "Trash", "trash", trash.count) }
-            let recent = Array(notes.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
-            if !recent.isEmpty { Section("Recently Edited") { ForEach(recent) { noteRow($0) } } }
+                restoredHomeContext = context
+            }
         }
         #endif
     }

@@ -11,7 +11,7 @@ enum ClickableCursor {
     @MainActor static func install() {
         guard !installed else { return }
         installed = true
-        for cls: AnyClass in [NSButton.self, NSSegmentedControl.self] { swizzle(cls, with: #selector(NSControl.berean_resetCursorRects)) }
+        for cls: AnyClass in [NSButton.self, NSSegmentedControl.self, NSSwitch.self] { swizzle(cls, with: #selector(NSControl.berean_resetCursorRects)) }
         // Toolbar items are SwiftUI hosting views inside AppKit's private item viewer (no NSButton to hook).
         if let viewer = NSClassFromString("NSToolbarItemViewer") { swizzle(viewer, with: #selector(NSView.berean_toolbarResetCursorRects)) }
         swizzle(type(of: NSApplication.shared), original: #selector(NSApplication.sendEvent(_:)),
@@ -63,7 +63,9 @@ struct ClickableCursorRegion: NSViewRepresentable {
     }
 
     func updateNSView(_ region: Region, context: Context) {
+        guard region.enabled != enabled else { return }
         region.enabled = enabled
+        StableClickableCursor.refreshForStateChange(in: region)
     }
 
     final class Region: NSView {
@@ -79,6 +81,15 @@ struct ClickableCursorRegion: NSViewRepresentable {
     private static var pendingPoint = NSPoint.zero
 
     static func register(_ region: ClickableCursorRegion.Region) { regions.add(region) }
+
+    static func refreshForStateChange(in region: ClickableCursorRegion.Region) {
+        // Reuse the latest delivered pointer position, including when a keyboard
+        // action changes enabled state without generating another mouse event.
+        guard let window = region.window, window === pendingWindow,
+              !region.isHiddenOrHasHiddenAncestor,
+              region.visibleRect.contains(region.convert(pendingPoint, from: nil)) else { return }
+        scheduleRefresh(in: window, at: pendingPoint)
+    }
 
     static func scheduleRefresh(in window: NSWindow?, at point: NSPoint) {
         pendingWindow = window
@@ -105,6 +116,7 @@ struct ClickableCursorRegion: NSViewRepresentable {
         while let view = ancestor {
             if let control = view as? NSButton { setHand(control.isEnabled, in: window, at: point, source: "button"); return }
             if let control = view as? NSSegmentedControl { setHand(control.isEnabled, in: window, at: point, source: "segments"); return }
+            if let control = view as? NSSwitch { setHand(control.isEnabled, in: window, at: point, source: "switch"); return }
             if String(describing: type(of: view)) == "NSToolbarItemViewer", !view.containsEditableText {
                 toolbar = view
                 break
