@@ -411,12 +411,13 @@ struct TabCardsSheet: View {
 
     @State private var spaceFilter: SpaceId?
     @State private var typeFilter: TabType?
+    @State private var repeatedTitlesOnly = false
     /// "grid" shows Safari-style tab cards (original TabCardsSheet grid); "list" keeps the compact rows. Device-local.
     @AppStorage("tabCardsLayout") private var layout = "grid"
     /// "custom" = workspace order (drag in list mode); "recent" = most recently used first (original Recent/Custom sort).
     @AppStorage("tabCardsSort") private var tabSort = "custom"
 
-    private var isFiltering: Bool { spaceFilter != nil || typeFilter != nil }
+    private var isFiltering: Bool { spaceFilter != nil || typeFilter != nil || repeatedTitlesOnly }
     private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var canReorder: Bool { !isSelecting && tabSort != "recent" && !isFiltering && !hasQuery }
 
@@ -430,7 +431,10 @@ struct TabCardsSheet: View {
     }
 
     var shown: [BereanWorkspace.Tab] {
-        app.matchingOpenTabs(query, space: spaceFilter).filter(matchesFilters)
+        let repeated = repeatedTitlesOnly ? AppModel.sameTitleTabIndices(app.orderedTabs) : [:]
+        return app.matchingOpenTabs(query, space: spaceFilter).filter {
+            matchesFilters($0) && (!repeatedTitlesOnly || repeated[$0.id] != nil)
+        }
     }
 
     private var selectableIDs: Set<String> {
@@ -458,9 +462,9 @@ struct TabCardsSheet: View {
 
     var body: some View {
         let visibleTabs = shown
-        let sameTitleIndices = hasQuery ? AppModel.sameTitleTabIndices(app.orderedTabs) : [:]
+        let sameTitleIndices = AppModel.sameTitleTabIndices(app.orderedTabs)
         let eligible = selectableIDs(in: visibleTabs)
-        let otherMatches = isSelecting ? [] : app.matchingWorkspaceTabs(query).filter {
+        let otherMatches = isSelecting || repeatedTitlesOnly ? [] : app.matchingWorkspaceTabs(query).filter {
             $0.workspaceID != app.currentSessionId && matchesFilters($0.tab)
         }
         return NavigationStack {
@@ -504,8 +508,8 @@ struct TabCardsSheet: View {
                             .listRowBackground(Color.clear)
                         }
                     } else if canReorder {
-                        ForEach(pinned) { row($0, eligible: eligible.contains($0.id)) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
-                        ForEach(others) { row($0, eligible: eligible.contains($0.id)) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
+                        ForEach(pinned) { row($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
+                        ForEach(others) { row($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }.onMove { app.moveTabs(others.map(\.id), from: $0, to: $1) }
                     } else {
                         ForEach(sortedTabs(pinned + others)) { row($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }
                     }
@@ -573,13 +577,14 @@ struct TabCardsSheet: View {
                             }
                             .pickerStyle(.inline)
                         }
+                        Toggle("Repeated Titles", isOn: $repeatedTitlesOnly)
                         if isFiltering {
                             Button("Clear Filters", systemImage: "xmark", action: clearTabFilters)
                         }
                     } label: {
                         Label("Filter Tabs", systemImage: isFiltering ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                     }
-                    .accessibilityValue([spaceFilter?.title, typeFilter.map(typeTitle)].compactMap { $0 }.joined(separator: ", "))
+                    .accessibilityValue([spaceFilter?.title, typeFilter.map(typeTitle), repeatedTitlesOnly ? "Repeated Titles" : nil].compactMap { $0 }.joined(separator: ", "))
                 }
                 ToolbarItem(placement: .topBarTrailing) { if !isSelecting { Button("Done") { dismiss() } } }
             }
@@ -709,6 +714,7 @@ struct TabCardsSheet: View {
     private func clearTabFilters() {
         spaceFilter = nil
         typeFilter = nil
+        repeatedTitlesOnly = false
     }
 
     private var workspaceSwitcher: some View {
@@ -757,6 +763,9 @@ struct TabCardsSheet: View {
         }
         if let typeFilter {
             filterChip(typeTitle(typeFilter), category: "Type") { self.typeFilter = nil }
+        }
+        if repeatedTitlesOnly {
+            filterChip("Repeated Titles", category: "Tabs") { repeatedTitlesOnly = false }
         }
     }
 

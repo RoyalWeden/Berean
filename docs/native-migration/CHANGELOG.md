@@ -1542,3 +1542,8 @@
 - **Starting point:** `f38337d4`, `native/reader-notes`, draft PR #24.
 - **Changes:** Mac locks chapter-end position across floating action inset changes. Shared Notes plain-text conversion preserves Unicode by appending contiguous source slices.
 - **Verification:** Both Dev builds and 147 Swift Testing cases passed. Mac scratch QA cleared and reselected the wrapped final verse of Obadiah with the inspector open and confirmed the text stayed above the action bar.
+
+### 2026-11-17 — Repeated-title workspace browsing — BUILT, MAC UI CHECKED
+- **Starting point:** `8b8ee955`, `native/reader-notes`, draft PR #24.
+- **Changes:** Both tab switchers can filter for repeated titles with matching details. iPhone numbers those copies in normal browsing. Mac remembers the active filter per workspace during the current run.
+- **Verification:** Both Dev builds passed. Mac scratch QA verified two numbered Obadiah tabs in the filtered list and restoration of unrelated tabs when cleared.

@@ -23,11 +23,13 @@ struct BereanSidebar: View {
     @State private var showsTabFilter = false
     @State private var tabQuery = ""
     @State private var tabTypeFilter: TabType?
+    @State private var repeatedTitlesOnly = false
     @FocusState private var tabFilterFocused: Bool
 
     private struct TabFilterState {
         let query: String
         let type: TabType?
+        let repeatedTitlesOnly: Bool
     }
 
     @State private var workspaceTabFilters: [String: TabFilterState] = [:]
@@ -74,10 +76,11 @@ struct BereanSidebar: View {
         }
         .onChange(of: app.currentSessionId) { previous, destination in
             workspaceTabFilters[previous] = isFilteringTabs
-                ? TabFilterState(query: tabQuery, type: tabTypeFilter) : nil
+                ? TabFilterState(query: tabQuery, type: tabTypeFilter, repeatedTitlesOnly: repeatedTitlesOnly) : nil
             let saved = workspaceTabFilters[destination]
             tabQuery = saved?.query ?? ""
             tabTypeFilter = saved?.type
+            repeatedTitlesOnly = saved?.repeatedTitlesOnly ?? false
             showsTabFilter = saved != nil
             tabFilterFocused = false
         }
@@ -195,8 +198,9 @@ struct BereanSidebar: View {
                         }
                     }
                     .pickerStyle(.inline)
+                    Toggle("Repeated Titles", isOn: $repeatedTitlesOnly)
                 } label: {
-                    Label("Tab Type", systemImage: "line.3.horizontal.decrease")
+                    Label("Tab Filters", systemImage: "line.3.horizontal.decrease")
                         .labelStyle(.iconOnly)
                         .frame(width: 22, height: 22)
                         .contentShape(.rect)
@@ -204,13 +208,19 @@ struct BereanSidebar: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help(tabTypeFilter.map(tabTypeTitle) ?? "All tab types")
+                .help("Filter by tab type or repeated title")
             }
             .padding(.leading, 8)
             .padding(.trailing, 4)
             .padding(.vertical, 3)
             .background(.quaternary.opacity(0.55), in: .rect(cornerRadius: 8))
 
+            if repeatedTitlesOnly {
+                Button("Repeated Titles", systemImage: "xmark") { repeatedTitlesOnly = false }
+                    .font(.caption)
+                    .buttonStyle(.interactivePlain)
+                    .accessibilityLabel("Remove repeated titles filter")
+            }
             if let type = tabTypeFilter {
                 Button {
                     tabTypeFilter = nil
@@ -239,6 +249,7 @@ struct BereanSidebar: View {
     private func closeTabFilter() {
         tabQuery = ""
         tabTypeFilter = nil
+        repeatedTitlesOnly = false
         tabFilterFocused = false
         showsTabFilter = false
     }
@@ -405,12 +416,15 @@ struct BereanSidebar: View {
     // MARK: tabs
 
     private var isFilteringTabs: Bool {
-        tabTypeFilter != nil || !tabQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        repeatedTitlesOnly || tabTypeFilter != nil || !tabQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var matchingTabs: [BereanWorkspace.Tab] {
         let query = tabQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        return app.matchingOpenTabs(query).filter { tabTypeFilter == nil || $0.tabType == tabTypeFilter }
+        let repeated = repeatedTitlesOnly ? AppModel.sameTitleTabIndices(app.orderedTabs) : [:]
+        return app.matchingOpenTabs(query).filter {
+            (tabTypeFilter == nil || $0.tabType == tabTypeFilter) && (!repeatedTitlesOnly || repeated[$0.id] != nil)
+        }
     }
 
     @ViewBuilder func orderedTabs(sameTitleIndices: [String: Int]) -> some View {
