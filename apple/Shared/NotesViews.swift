@@ -34,7 +34,7 @@ struct NoteFormatRequest: Equatable {
     let id = UUID()
     enum Action: Equatable {
         case inline(String, String)
-        case link(String)
+        case link(String, selection: NSRange?)
         case highlight(String?)
         case heading(Int)
         case list(NoteListStyle)
@@ -558,6 +558,7 @@ struct NoteDetailView: View {
     @State private var insertingReference = false
     @State private var insertingLink = false
     @State private var linkInput = ""
+    @State private var linkSelection: NSRange?
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -616,7 +617,9 @@ struct NoteDetailView: View {
                     RichNoteEditor(text: $content, fontSize: 15, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled, spellCheck: app.noteSpellCheck, formatRequest: formatRequest) { url in openLink(url) }
                         .focused($focus, equals: .body)
                     #else
-                    RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled, spellCheck: app.noteSpellCheck, formatRequest: formatRequest) { url in openLink(url) }
+                    RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
+                                      spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
+                                      onInsertLink: { showLinkPrompt(selection: $0) }, onLink: openLink)
                         .focused($focus, equals: .body)
                     #endif
                 }
@@ -709,8 +712,7 @@ struct NoteDetailView: View {
                     Menu {
                         Button("Scripture Reference…", systemImage: "book") { insertingReference = true }
                         Button("Link…", systemImage: "link") {
-                            linkInput = ""
-                            insertingLink = true
+                            showLinkPrompt()
                         }
                         Section {
                             Menu("Heading", systemImage: "textformat.size") {
@@ -826,7 +828,7 @@ struct NoteDetailView: View {
                 #endif
             Button("Insert") {
                 if let destination = noteLinkDestination {
-                    formatRequest = NoteFormatRequest(action: .link(destination))
+                    formatRequest = NoteFormatRequest(action: .link(destination, selection: linkSelection))
                 }
             }
             .disabled(noteLinkDestination == nil)
@@ -945,6 +947,12 @@ struct NoteDetailView: View {
         #else
         UIApplication.shared.open(url)
         #endif
+    }
+
+    private func showLinkPrompt(selection: NSRange? = nil) {
+        linkInput = ""
+        linkSelection = selection
+        insertingLink = true
     }
 
     private var noteLinkDestination: String? {

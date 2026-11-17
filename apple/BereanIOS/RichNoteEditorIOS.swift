@@ -12,6 +12,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
     var detectVerseReferences = true
     var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
+    var onInsertLink: (NSRange) -> Void = { _ in }
     var onLink: (URL) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -56,7 +57,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 guard coordinator?.parent.formatRequest == request, let tv, tv.window != nil else { return }
                 switch request.action {
                 case .inline(let open, let close): tv.wrap(open, close)
-                case .link(let destination): tv.insertLink(destination)
+                case .link(let destination, let selection): tv.insertLink(destination, at: selection ?? tv.selectedRange)
                 case .highlight(let color): tv.setHighlight(color)
                 case .heading(let level): tv.setHeading(level)
                 case .list(let style): tv.setList(style)
@@ -115,7 +116,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             let dismiss = item("keyboard.chevron.compact.down", "Hide Keyboard") { $0.resignFirstResponder() }
             proseItems = formatting + [
                 item("text.quote", "Quote") { $0.wrap("\n> ", "") }, flex,
-                item("link", "Link") { $0.wrap("[", "](https://)") }, flex,
+                item("link", "Insert Link") { [weak self] in self?.parent.onInsertLink($0.selectedRange) }, flex,
                 dismiss,
             ]
             let next = item("chevron.forward", "Next Cell") { $0.moveTableCell(from: $0.selectedRange, backwards: false) }
@@ -337,6 +338,9 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 UIAction(title: "Underline", image: UIImage(systemName: "underline")) { _ in tv.wrap("<u>", "</u>") },
                 UIAction(title: "Strikethrough", image: UIImage(systemName: "strikethrough")) { _ in tv.wrap("~~", "~~") },
                 UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { _ in tv.setHighlight(nil) },
+                UIAction(title: "Insert Link…", image: UIImage(systemName: "link")) { [weak self] _ in
+                    self?.parent.onInsertLink(range)
+                },
             ])
             var items = suggestedActions
             if range.length > 0 { items.insert(UIAction(title: "Copy as Plain Text", image: UIImage(systemName: "doc.plaintext")) { _ in tv.copyPlain() }, at: 0) }
@@ -408,8 +412,8 @@ final class NoteUITextView: UITextView {
         applyFormatEdit(edit)
     }
 
-    func insertLink(_ destination: String) {
-        applyFormatEdit(noteLinkEdit(in: (text ?? "") as NSString, selection: selectedRange, destination: destination))
+    func insertLink(_ destination: String, at selection: NSRange) {
+        applyFormatEdit(noteLinkEdit(in: (text ?? "") as NSString, selection: selection, destination: destination))
     }
 
     func wrap(_ open: String, _ close: String) {

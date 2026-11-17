@@ -68,8 +68,8 @@ struct RichNoteEditor: NSViewRepresentable {
                       let window = editor.window else { return }
                 switch request.action {
                 case .inline(let open, let close): editor.wrapSelection(open, close)
-                case .link(let destination):
-                    if let edit = noteLinkEdit(in: editor.string as NSString, selection: editor.selectedRange(), destination: destination) {
+                case .link(let destination, let selection):
+                    if let edit = noteLinkEdit(in: editor.string as NSString, selection: selection ?? editor.selectedRange(), destination: destination) {
                         editor.replace(edit.range, with: edit.replacement, select: edit.selection)
                     }
                 case .highlight(let color): editor.setHighlight(color)
