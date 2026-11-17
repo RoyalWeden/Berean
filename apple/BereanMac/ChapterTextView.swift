@@ -103,6 +103,7 @@ struct ChapterTextView: NSViewRepresentable {
     var scrollRevision: UUID?
     var titleBarClearance: CGFloat = 0
     let positionReader: ScripturePositionReader
+    var onFindRefresh: (String, Int, Int) -> Void = { _, _, _ in }
     var onFindKey: (NSEvent, Bool) -> Bool = { _, _ in false }
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
@@ -211,8 +212,14 @@ struct ChapterTextView: NSViewRepresentable {
             let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
             let sel = tv.selectedRanges
             let previousText = tv.string
+            c.clearFindHighlight()
             tv.readerWidth = style.width
             tv.textStorage?.setAttributedString(c.build(self))
+            if keepScroll {
+                c.refreshFindAfterRestyle()
+            } else {
+                _ = c.find("", step: 0)
+            }
             tv.needsDisplay = true
             if keepScroll {
                 // Character ranges use UTF-16 offsets, so even canonically equal text can invalidate them.
@@ -350,7 +357,7 @@ struct ChapterTextView: NSViewRepresentable {
         private var findRanges: [[NSRange]] = []
         private var findHighlight: [NSRange] = []
 
-        private func clearFindHighlight() {
+        func clearFindHighlight() {
             if let textView, let layout = textView.layoutManager {
                 for range in findHighlight where range.upperBound <= textView.string.utf16.count {
                     layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: range)
@@ -387,6 +394,31 @@ struct ChapterTextView: NSViewRepresentable {
             return matches
         }
 
+        @MainActor func refreshFindAfterRestyle() {
+            guard !findQuery.isEmpty, let storage = textView?.textStorage else { return }
+            findRanges = findMatches(findQuery, in: storage)
+            findIndex = min(findIndex, max(0, findRanges.count - 1))
+            let current = highlightFindMatch() == nil ? 0 : findIndex + 1
+            let query = findQuery, total = findRanges.count, passage = parent.passageId
+            DispatchQueue.main.async { [weak self] in
+                guard let self, parent.passageId == passage, findQuery == query,
+                      (findRanges.isEmpty ? 0 : findIndex + 1) == current,
+                      findRanges.count == total else { return }
+                parent.onFindRefresh(query, current, total)
+            }
+        }
+
+        private func highlightFindMatch() -> NSRange? {
+            guard findRanges.indices.contains(findIndex), let first = findRanges[findIndex].first else { return nil }
+            findHighlight = findRanges[findIndex]
+            for part in findHighlight {
+                textView?.layoutManager?.addTemporaryAttribute(.backgroundColor,
+                                                               value: NSColor.systemYellow.withAlphaComponent(0.40),
+                                                               forCharacterRange: part)
+            }
+            return first
+        }
+
         func find(_ query: String, step: Int) -> (current: Int, total: Int) {
             clearFindHighlight()
             if query.isEmpty {
@@ -405,12 +437,7 @@ struct ChapterTextView: NSViewRepresentable {
             } else if !findRanges.isEmpty {
                 findIndex = (findIndex + step + findRanges.count) % findRanges.count
             }
-            guard findRanges.indices.contains(findIndex), let range = findRanges[findIndex].first else { return (0, 0) }
-            findHighlight = findRanges[findIndex]
-            for part in findHighlight {
-                textView.layoutManager?.addTemporaryAttribute(.backgroundColor,
-                                                            value: NSColor.systemYellow.withAlphaComponent(0.40), forCharacterRange: part)
-            }
+            guard let range = highlightFindMatch() else { return (0, 0) }
             if let scroll = textView.enclosingScrollView, let top = textView.firstVerseLineTop(in: range) {
                 let clip = scroll.contentView
                 let y = textView.convert(NSPoint(x: 0, y: top), to: clip).y
@@ -443,7 +470,6 @@ struct ChapterTextView: NSViewRepresentable {
         }
 
         func build(_ p: ChapterTextView) -> NSAttributedString {
-            _ = find("", step: 0)
             let out = NSMutableAttributedString()
             verseRanges = [:]; verseTextStarts = [:]
             markerRanges.removeAll(keepingCapacity: true)

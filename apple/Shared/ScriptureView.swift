@@ -2076,6 +2076,11 @@ extension ScriptureView {
             scrollRevision: scrollRevision,
             titleBarClearance: titleBarClearance,
             positionReader: positionReader,
+            onFindRefresh: { query, current, total in
+                if chapterFindVisible, chapterFindQuery == query {
+                    chapterFindResult = (current, total)
+                }
+            },
             onFindKey: handleChapterFindKey,
             restorePosition: { restoreReaderPosition(st) },
             savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
