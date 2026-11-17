@@ -570,7 +570,12 @@ func noteBlockReturnEdit(in text: NSString, selection: NSRange)
         ], documentAttributes: nil)
         if let formatted { view.textStorage?.setAttributedString(formatted) }
         else { view.string = ([title, body].filter { !$0.isEmpty }).joined(separator: "\n\n") }
-        view.sizeToFit()
+        if let container = view.textContainer, let layout = view.layoutManager {
+            container.containerSize = NSSize(width: width, height: .greatestFiniteMagnitude)
+            layout.ensureLayout(for: container)
+            let height = ceil(layout.usedRect(for: container).maxY + 2 * view.textContainerInset.height)
+            view.setFrameSize(NSSize(width: width, height: max(1, height)))
+        }
         let op = NSPrintOperation(view: view, printInfo: printInfo)
         op.jobTitle = title.isEmpty ? "Note" : title
         if let window = NSApp.keyWindow ?? NSApp.mainWindow {
@@ -1138,12 +1143,13 @@ struct MarkdownText: View {
                                 .padding(.vertical, 8)
                                 .frame(minWidth: 88, maxWidth: 240, alignment: table.alignments[column].frame)
                                 .gridColumnAlignment(table.alignments[column].frame.horizontal)
-                                .overlay(alignment: .trailing) {
-                                    if column < table.alignments.count - 1 {
-                                        Rectangle().fill(.quaternary).frame(width: 1).accessibilityHidden(true)
-                                    }
-                                }
                                 .accessibilityAddTraits(row == 0 ? .isHeader : [])
+                            if column < table.alignments.count - 1 {
+                                Rectangle().fill(.quaternary)
+                                    .frame(width: 1)
+                                    .gridCellUnsizedAxes(.vertical)
+                                    .accessibilityHidden(true)
+                            }
                         }
                     }
                     .background(row == 0 ? Color.secondary.opacity(0.10) : .clear)
@@ -1277,25 +1283,12 @@ private struct NotePreviewTable {
     var rows: [[String]]
     let alignments: [Alignment]
 
-    /// Reads the pipe-delimited rows emitted by the legacy editor. Markdown escapes stay
-    /// intact for inline rendering and an escaped pipe never starts a new cell.
+    /// Share delimiter handling with the editor, including escaped pipes.
     static func cells(_ line: String) -> [String]? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("|"), trimmed.hasSuffix("|"), trimmed.count >= 2 else { return nil }
-
-        var cells: [String] = []
-        var cell = ""
-        var escaped = false
-        for character in trimmed.dropFirst() {
-            if character == "|" && !escaped {
-                cells.append(cell.trimmingCharacters(in: .whitespaces))
-                cell = ""
-            } else {
-                cell.append(character)
-            }
-            escaped = character == "\\" && !escaped
-        }
-        return cell.isEmpty && !cells.isEmpty ? cells : nil
+        let text = line.trimmingCharacters(in: .whitespaces) as NSString
+        let cells = MarkdownLiveSpans.tableCells(in: text, range: NSRange(location: 0, length: text.length))
+        guard !cells.isEmpty else { return nil }
+        return cells.map { text.substring(with: $0).trimmingCharacters(in: .whitespaces) }
     }
 
     static func alignment(_ separator: String) -> Alignment? {
@@ -1408,6 +1401,11 @@ private enum NotePreviewBlock {
                     var table = NotePreviewTable(rows: [header], alignments: alignments)
                     index += 2
                     while index < lines.count, let row = NotePreviewTable.cells(lines[index]), row.count == header.count {
+                        if index + 1 < lines.count, let rule = NotePreviewTable.cells(lines[index + 1]),
+                           rule.count == row.count,
+                           recoveredRules.contains(index + 1) || rule.allSatisfy({ NotePreviewTable.alignment($0) != nil }) {
+                            break
+                        }
                         table.rows.append(row)
                         index += 1
                     }
@@ -1500,8 +1498,10 @@ private enum NotePrintMarkup {
             blockquote { border-left: 2pt solid #999; margin: 4pt 0; padding-left: 9pt; }
             .callout { padding: 7pt 9pt; margin: 8pt 0; border-left: 2pt solid #999; background: #f4f4f4; }
             pre, code { font-family: monospace; } pre { white-space: pre-wrap; }
-            table { border-collapse: collapse; margin: 8pt 0; }
-            td, th { border: 1px solid #bbb; padding: 4pt 6pt; text-align: left; }
+            table { border-collapse: collapse; margin: 8pt 0; width: 100%; table-layout: fixed; }
+            td, th { border: 1px solid #bbb; padding: 4pt 6pt; overflow-wrap: break-word; text-align: left; }
+            th { background: #f4f4f4; }
+            .center { text-align: center; } .trailing { text-align: right; }
             </style></head><body>\(heading)\(contents)</body></html>
             """
     }
@@ -1511,11 +1511,18 @@ private enum NotePrintMarkup {
         case .code(let lines):
             return "<pre>\(escape(lines.joined(separator: "\n")))</pre>"
         case .table(let table):
-            let rows = table.rows.enumerated().map { index, cells in
-                let tag = index == 0 ? "th" : "td"
-                return "<tr>" + cells.map { "<\(tag)>\(inline($0))</\(tag)>" }.joined() + "</tr>"
+            let columnWidth = 100.0 / Double(table.alignments.count)
+            func row(_ cells: [String], header: Bool) -> String {
+                let tag = header ? "th" : "td"
+                let scope = header ? " scope=\"col\"" : ""
+                let rendered = zip(cells, table.alignments).map { cell, alignment in
+                    "<\(tag) class=\"\(alignment)\" style=\"width: \(columnWidth)%\"\(scope)>\(inline(cell))</\(tag)>"
+                }
+                return "<tr>\(rendered.joined())</tr>"
             }
-            return "<table>\(rows.joined())</table>"
+            let header = row(table.rows[0], header: true)
+            let body = table.rows.dropFirst().map { row($0, header: false) }.joined()
+            return "<table><thead>\(header)</thead><tbody>\(body)</tbody></table>"
         case .callout(let kind, let title, let body):
             let heading = title.isEmpty ? kind.label : kind.label + " — " + inline(title)
             let contents = body.isEmpty ? "" : NotePreviewBlock.parse(body).map(Self.block).joined()

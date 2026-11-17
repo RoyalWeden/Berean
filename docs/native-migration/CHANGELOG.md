@@ -1516,3 +1516,8 @@
 - **Changes:** Mac body text uses the standard system size. Both editors align document content with the title while retaining the chosen body family and explicit code styling. Editable tables gain consistent cell insets, Markdown alignment, and fixed dividers for rows whose final cell wraps within the available width.
 - **Verification:** Mac and iOS Simulator Dev builds passed. Mac scratch UI confirmed a wrapped three-column fixture and original Markdown in the editor. iPhone 18 Pro Simulator confirmed Insert → Table displays a shaded header and grid. Device testing and populated narrow-table QA remain open.
 - **Data:** Synthetic scratch/Simulator notes only. See HANDOFF for the next checks.
+
+### 2026-11-17 — Notes previews and print sizing — BUILT, MAC PRINT PREVIEW CHECKED
+- **Starting point:** `64816337`, `native/reader-notes`, draft PR #24.
+- **Changes:** Native note previews share the editor's delimiter parser, retain adjacent tables and give wrapped rows full-height separators. Printed tables use equal columns, source alignment and a shaded header. Mac measures the complete document before previewing it.
+- **Verification:** Both Dev builds passed. Mac scratch print preview showed all rows of a populated three-column fixture. Canceled without printing. Remaining UI checks are in HANDOFF.
