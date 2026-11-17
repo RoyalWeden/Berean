@@ -1840,3 +1840,7 @@ Word and tag-only search now restore through a tracked ScrollPosition. The click
 ### Notes search and context-menu history (2026-11-17)
 
 Notes search keeps an opened result as its centering anchor across repeated Back and Forward. A deliberate scroll replaces that anchor with the regular offset. The row button and context-menu Open and Open in New Tab all record the originating Notes list and matching result. Both native builds passed. Mac scratch QA searched Neighbor, opened the sole note from its context menu in a new tab, used Back to recover the query and result, then repeated Forward and Back. Centering a result in a long Notes list and the iPhone context menu remain to verify. The iPhone long-press preview still uses raw Markdown; use the version-preview renderer for that surface in a separate change.
+
+### Formatted iPhone Notes previews (2026-11-17)
+
+Long-pressing a note now renders its formatted excerpt with the shared Notes preview renderer. The preview is bounded to the first 4,000 characters and keeps the native context actions. Both Dev builds passed. iPhone 18 Pro Simulator displayed a shaded table header and grid in a long-press preview, then opened the same note in the editor. Longer excerpts, callouts and accessibility sizes remain to verify. The compact list row still shows raw pipe delimiters for a table-only note and should be cleaned separately.

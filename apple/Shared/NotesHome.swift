@@ -727,10 +727,19 @@ struct NotesHomeView: View {
             Self.noteTitle(n).font(.headline)
             Text(Self.dateLabel(n.updatedAt)).font(.caption).foregroundStyle(.secondary)
             Divider()
-            Text(n.content.isEmpty ? "Empty note" : String(n.content.prefix(900)))
-                .font(.callout).foregroundStyle(n.content.isEmpty ? .secondary : .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
+            if n.content.isEmpty {
+                Text("Empty note")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            } else {
+                ScrollView {
+                    MarkdownText(String(n.content.prefix(4_000)))
+                        .font(.callout)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollIndicators(.hidden)
+            }
         }
         .padding(16)
         .frame(width: 320, height: 360, alignment: .topLeading)

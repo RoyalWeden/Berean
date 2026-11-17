@@ -1577,3 +1577,8 @@
 - **Starting point:** `f8851fc5`, `native/reader-notes`, draft PR #24.
 - **Changes:** Notes keeps a search result anchor across repeated history visits and records the source list for context-menu opens.
 - **Verification:** Both Dev builds passed. Mac scratch QA used Open in New Tab from a Notes search, then verified Back, Forward and Back again.
+
+### 2026-11-17 — Formatted iPhone note previews — BUILT, SIMULATOR UI CHECKED
+- **Starting point:** `476d3a22`, `native/reader-notes`, draft PR #24.
+- **Changes:** Note context previews render a formatted excerpt including tables.
+- **Verification:** Both native builds passed. iPhone 18 Pro Simulator displayed a table grid in the long-press preview and opened the editable note from its menu.
