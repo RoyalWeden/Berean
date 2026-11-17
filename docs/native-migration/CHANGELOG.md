@@ -1532,3 +1532,8 @@
 - **Starting point:** `f96bc1c1`, `native/reader-notes`, draft PR #24.
 - **Changes:** Cross Refs gains bulk verse-group disclosure on Mac and iPhone. Source refreshes keep expanded verses in the current scope.
 - **Verification:** Both Dev builds passed. Mac scratch Genesis 1 and iPhone 18 Pro Simulator John 3 showed reference rows after Expand All and returned to the compact verse list after Collapse All.
+
+### 2026-11-17 — iPhone reader chapter-end clearance — BUILT, SIMULATOR UI CHECKED
+- **Starting point:** `ea496bfa`, `native/reader-notes`, draft PR #24.
+- **Changes:** Keep a reader at chapter end when the floating dock or selection bar changes the scroll inset.
+- **Verification:** Both Dev builds passed. iPhone 18 Pro Simulator verified clear, reselect, and add adjacent verse at Obadiah's final line. Gesture-driven dock reappearance and landscape still need live checks.

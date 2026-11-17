@@ -94,6 +94,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         return view
     }
 
+    private static let chapterEndTolerance: CGFloat = 8
+
     static func dismantleUIView(_ view: ReaderTextView, coordinator: Coordinator) {
         guard let position = coordinator.readingPosition(in: view) else { return }
         coordinator.parent.savePosition(position)
@@ -116,13 +118,18 @@ struct IOSChapterTextView: UIViewRepresentable {
         let revealSelection = samePassage && !selectedVerses.subtracting(previousSelection).isEmpty
         if view.contentInset.bottom != actionClearance {
             let previousOffset = view.contentOffset
-            // Keep the visible text steady as floating controls add scroll room.
-            // When controls disappear, clamp offsets that used the old clearance.
+            let previousInset = view.adjustedContentInset
+            let previousBottom = view.contentSize.height + previousInset.bottom - view.bounds.height
+            let wasAtChapterEnd = samePassage
+                && previousBottom > -previousInset.top + 1
+                && previousOffset.y >= previousBottom - Self.chapterEndTolerance
+            // At the end, keep the last line above the dock as it reappears.
+            // Elsewhere, retain the reading offset and clamp if clearance shrinks.
             view.contentInset.bottom = actionClearance
             view.verticalScrollIndicatorInsets.bottom = actionClearance
             let inset = view.adjustedContentInset
             let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
-            let y = min(max(previousOffset.y, -inset.top), bottom)
+            let y = wasAtChapterEnd ? bottom : min(max(previousOffset.y, -inset.top), bottom)
             view.setContentOffset(CGPoint(x: previousOffset.x, y: y), animated: false)
         }
         if key != coordinator.key || !samePassage {
@@ -570,7 +577,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             scrollTravel = (delta > 0) == (scrollTravel > 0) ? scrollTravel + delta : delta   // hysteresis per direction
             let atTop = y < 40
             let bottom = max(-inset.top, scrollView.contentSize.height + inset.bottom - scrollView.bounds.height)
-            let atBottom = scrollView.contentOffset.y >= bottom - 8
+            let atBottom = scrollView.contentOffset.y >= bottom - IOSChapterTextView.chapterEndTolerance
             let hide: Bool
             if atTop || atBottom { hide = false } else if scrollTravel > 36 { hide = true } else if scrollTravel < -24 { hide = false } else { return }
             guard hide != chromeHidden else { return }

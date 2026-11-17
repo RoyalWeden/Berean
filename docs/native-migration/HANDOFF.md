@@ -1802,3 +1802,7 @@ Editable table commands now use confirmed header, separator, and row widths to i
 ### Cross Refs chapter navigation (2026-11-17)
 
 Cross Refs now offers Expand All and Collapse All above the verse groups when more than one verse has results. Whole-row single-verse toggles and the source menu remain available. Expanded verse numbers survive a source refresh or Notes revision in the same scope, and reset on passage or scope change. Both Dev builds passed. Mac scratch QA switched Genesis 1:5 to whole-chapter TSKe and verified expansion and collapse. iPhone 18 Pro Simulator repeated the interaction in the John 3 sheet. Classic, My Notes refresh, very long chapters, and keyboard/VoiceOver activation remain to verify.
+
+### iPhone Scripture chapter-end clearance (2026-11-17)
+
+Changing the floating controls' bottom inset now keeps a reader already at the chapter end anchored to that end. It uses the same eight-point tolerance as the dock's end detection. At earlier positions, the reader retains its offset. Both Dev builds passed. On iPhone 18 Pro Simulator, opened Obadiah 1:21, cleared and reselected the wrapped final verse, then added verse 20. The complete final verse and single grouped outline stayed above both floating controls. The scrub from hidden to visible dock during a continuous drag, landscape, and physical-device checks remain open.
