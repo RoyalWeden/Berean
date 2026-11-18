@@ -1356,6 +1356,7 @@ struct ScriptureView: View {
                 openInspector("crossrefs", verse: verse)
             },
             onVerseTap: { verseClick($0, shift: false) },
+            onTextSelection: { clearVerseSelection() },
             onVerseActions: { number in
                 if let row = verses.first(where: { $0.verseNum == number }) {
                     tappedVerse = TappedVerse(row: row)

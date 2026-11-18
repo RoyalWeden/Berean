@@ -461,3 +461,7 @@ Tab overview now opens expanded and shows current tabs before creation/cleanup/a
 
 ### 2026-11-18 — Passage preview prepares the reader
 Shared previews now reuse a bounded prepared chapter with separately retained raw rows, warming both Mac palette/CmdL and iPhoneGo destinations without changing excerpts or navigation semantics. Both builds and raw LXXPsalm3 heading→bodyverse2 UI checks pass; current-tab reuse leaves13MacQA/9phone tabs unchanged. Fast submit before preview is ready can still be cold. See HANDOFF for oracle/evidence and remaining selection/performance work.
+
+
+### 2026-11-18 — Reader selection gesture checkpoint
+Use documented dynamic UIGestureRecognizer failure priority for rapid different-verse body intent (touch timestamps within500ms), rather than UITouch.tapCount: actual UIKit double-tap crossed verses while public tapCount stayed1. Marker taps are controls; non-verse links remain UIKit-owned. Preserve native same-body double-tap/longpress and clear whole-verse mode only after a meaningful native range survives the representable update. No private recognizer class conditions, no delegate replacement. See HANDOFF for traces and rejected tapCount prototype.

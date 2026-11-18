@@ -63,6 +63,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onNotes: (Int) -> Void
     var onCitations: (Int) -> Void
     var onVerseTap: (Int) -> Void
+    var onTextSelection: () -> Void = {}
     var onVerseActions: (Int) -> Void
     var onTagClick: (String, Int?) -> Void
     var onHighlight: (Piece, String) -> Void
@@ -644,6 +645,9 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         func resetScrollChrome() {
+            pendingReaderTap = nil
+            previousVerseTap = nil
+            pendingTapTimestamp = 0
             chapterPullActive = false
             chapterPullOrigin = nil
             chapterPullIntent.cancel()
@@ -915,9 +919,31 @@ struct IOSChapterTextView: UIViewRepresentable {
         func textViewDidChangeSelection(_ textView: UITextView) {
             let selection = textView.selectedRange
             let trimmed = readerTextSelection(selection, in: textView.textStorage, excluding: Self.skip)
-            guard trimmed != selection else { return }
-            if trimmed.length == 0 { textView.selectedTextRange = nil }
-            else { textView.selectedRange = trimmed }
+            if trimmed != selection {
+                if trimmed.length == 0 { textView.selectedTextRange = nil }
+                else { textView.selectedRange = trimmed }
+            }
+            if trimmed.length > 0 { beginNativeTextSelection(in: textView) }
+        }
+
+        private var textSelectionCleanupQueued = false
+
+        private func beginNativeTextSelection(in view: UITextView) {
+            guard !parent.selectedVerses.isEmpty, !textSelectionCleanupQueued else { return }
+            textSelectionCleanupQueued = true
+            let passage = parent.passageId
+            // UIKit also reports selection during representable updates. Wait
+            // for a meaningful native range to survive that update before
+            // leaving whole-verse mode, preserving the native handles/menu.
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self else { return }
+                self.textSelectionCleanupQueued = false
+                guard let view, self.passageId == passage, self.parent.passageId == passage,
+                      view.selectedRange.length > 0, !self.parent.selectedVerses.isEmpty else { return }
+                self.previousVerseTap = nil
+                self.pendingReaderTap = nil
+                self.parent.onTextSelection()
+            }
         }
 
         func textView(_ view: UITextView, editMenuForTextIn range: NSRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
@@ -995,7 +1021,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         private enum ReaderTap {
-            case verse(Int)
+            case verse(Int, marker: Bool)
             case chapterStep(Int)
         }
 
@@ -1012,14 +1038,19 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         private func readerTap(at point: CGPoint, in view: UITextView) -> ReaderTap? {
-            // Let UIKit handle existing text selection, handles, and linked glyphs, including verse markers.
+            // Keep native handles and non-verse links with UIKit. Verse numbers
+            // are selection controls, so rapid number taps must not select text.
             guard view.selectedRange.length == 0 else { return nil }
             let character = characterAtTap(point, in: view)
             if let character,
-               view.textStorage.attribute(.link, at: character, effectiveRange: nil) != nil { return nil }
-            if let verse = verseInGutter(point, in: view) { return .verse(verse) }
+               let link = view.textStorage.attribute(.link, at: character, effectiveRange: nil) {
+                guard let url = link as? URL, url.scheme == "berean-verse",
+                      let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
+                return .verse(verse, marker: true)
+            }
+            if let verse = verseInGutter(point, in: view) { return .verse(verse, marker: true) }
             if let character {
-                return bodyRanges.first { NSLocationInRange(character, $0.value) }.map { .verse($0.key) }
+                return bodyRanges.first { NSLocationInRange(character, $0.value) }.map { .verse($0.key, marker: false) }
             }
 
             // Keep navigation in the outer margin. Wider reading layouts leave less margin for this gesture.
@@ -1032,11 +1063,21 @@ struct IOSChapterTextView: UIViewRepresentable {
             return nil
         }
 
+        private static let rapidVerseTapInterval: TimeInterval = 0.5
+        private var pendingReaderTap: ReaderTap?
+        private var pendingTapTimestamp: TimeInterval = 0
+        private var previousVerseTap: (verse: Int, timestamp: TimeInterval)?
+
         @objc func tapVerse(_ gesture: UITapGestureRecognizer) {
-            guard let view = gesture.view as? UITextView,
-                  let tap = readerTap(at: gesture.location(in: view), in: view) else { return }
+            guard let view = gesture.view as? UITextView else { return }
+            // Keep the touch-down target if selection reveal/layout moved the
+            // document while this short tap was being recognized.
+            let tap = pendingReaderTap
+            guard let tap else { return }
             switch tap {
-            case let .verse(verse): toggleVerse(verse, in: view)
+            case let .verse(verse, _):
+                previousVerseTap = (verse, pendingTapTimestamp)
+                toggleVerse(verse, in: view)
             case let .chapterStep(step): parent.onStep(step)
             }
         }
@@ -1049,7 +1090,26 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             guard gesture is UITapGestureRecognizer, let view = gesture.view as? UITextView else { return true }
-            return readerTap(at: touch.location(in: view), in: view) != nil
+            let point = touch.location(in: view)
+            let tap = readerTap(at: point, in: view)
+            pendingReaderTap = tap
+            pendingTapTimestamp = touch.timestamp
+            return tap != nil
+        }
+
+        func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+            // UITextView's word double-tap can span two different verses even
+            // when UIEvent reports separate single taps. Rapid cross-verse taps
+            // mean whole-verse selection; same-verse double-tap stays native.
+            guard gesture is UITapGestureRecognizer, other !== gesture,
+                  let otherTap = other as? UITapGestureRecognizer,
+                  case let .verse(verse, marker) = pendingReaderTap else { return false }
+            // Numbers are controls; keep their UIKit accessibility action, but
+            // let touch taps select/deselect instead of becoming word selection.
+            if marker { return true }
+            guard otherTap.numberOfTapsRequired > 1, let previousVerseTap,
+                  previousVerseTap.verse != verse else { return false }
+            return (0...Self.rapidVerseTapInterval).contains(pendingTapTimestamp - previousVerseTap.timestamp)
         }
 
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {

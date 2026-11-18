@@ -1135,3 +1135,7 @@ Tab overview now opens expanded and shows current tabs before creation/cleanup/a
 
 ### 2026-11-18 — Passage preview prepares the reader
 Shared previews now reuse a bounded prepared chapter with separately retained raw rows, warming both Mac palette/CmdL and iPhoneGo destinations without changing excerpts or navigation semantics. Both builds and raw LXXPsalm3 heading→bodyverse2 UI checks pass; current-tab reuse leaves13MacQA/9phone tabs unchanged. Fast submit before preview is ready can still be cold. See HANDOFF for oracle/evidence and remaining selection/performance work.
+
+
+### 2026-11-18 — Reader selection gesture checkpoint
+iPhone Scripture selection: targeted final-source simulator verification of rapid adjacent body2–4 selection/actions, number2+3 selection and single-toggle, native double-tap/longpress with exclusive native handles/menu, Strong's link and ordinary scroll. Clean Mac+iOS builds pass. Does not close hardware, VoiceOver, accessibility timing, every native selection action or frame-pacing parity.
