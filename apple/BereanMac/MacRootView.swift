@@ -19,7 +19,7 @@ struct MacRootView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
                 // Browser-style: [sidebar] [‹] [›] together in the sidebar's title bar (Yab / Safari / Arc).
                 .toolbar(removing: .sidebarToggle)
-                .toolbar { ToolbarItemGroup(placement: .navigation) { if columns != .detailOnly { navGroup } } }
+                .toolbar { ToolbarItemGroup(placement: .automatic) { if columns != .detailOnly { navGroup } } }
         } detail: {
             detail
                 .toolbar {

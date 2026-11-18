@@ -673,17 +673,18 @@ struct SidebarTabRow: View {
                     .foregroundStyle(.secondary)
                     .fixedSize()
             }
-            if tab.isPinned {
-                Button(action: onUnpin) {
-                    Image(systemName: "pin.fill").font(.system(size: 10))
-                        .frame(width: 18, height: 18)
+            ZStack(alignment: .trailing) {
+                if tab.isPinned {
+                    Button(action: onUnpin) {
+                        Image(systemName: "pin.fill").font(.system(size: 10))
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(SidebarCloseButtonStyle())
+                    .foregroundStyle(hovering ? .secondary : .tertiary)
+                    .help("Unpin Tab")
+                    .accessibilityLabel("Unpin \(tab.navigationLabel)")
+                    .offset(x: hovering ? -26 : 0)
                 }
-                .buttonStyle(SidebarCloseButtonStyle())
-                .foregroundStyle(hovering ? .secondary : .tertiary)
-                .help("Unpin Tab")
-                .accessibilityLabel("Unpin \(tab.navigationLabel)")
-            }
-            ZStack {
                 if hovering {
                     Button(action: onClose) {
                         Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 18, height: 18)
@@ -693,7 +694,9 @@ struct SidebarTabRow: View {
                     .accessibilityLabel("Close \(tab.navigationLabel)")
                 }
             }
-            .frame(width: 18, height: 18)
+            // Keep the title width stable; the pin rests in the close-button
+            // slot and slides left only when the close control is revealed.
+            .frame(width: tab.isPinned ? 44 : 18, height: 18, alignment: .trailing)
         }
         .padding(.leading, 10).padding(.trailing, 6)
         .frame(height: 34)
