@@ -815,9 +815,9 @@ final class AppModel {
     // Bounded read-only chapter preparation shared by readers and adjacent-page prefetch.
     var readerChapterRevision = 0
     @ObservationIgnored var readerPresentations: [ChapterEdition: ScriptureChapterPresentation] = [:]
-    @ObservationIgnored var readerChapterCache: [ChapterEdition: [ChapterVerseRow]] = [:]
+    @ObservationIgnored var readerChapterCache: [ChapterEdition: PreparedReaderChapter] = [:]
     @ObservationIgnored var readerChapterOrder: [ChapterEdition] = []
-    @ObservationIgnored var readerChapterLoads: [ChapterEdition: Task<[ChapterVerseRow], Never>] = [:]
+    @ObservationIgnored var readerChapterLoads: [ChapterEdition: Task<PreparedReaderChapter, Never>] = [:]
     @ObservationIgnored var scriptureReadingPositions: [String: [String: ScriptureReadingPosition]] = [:]
     var scriptureJumpRequest: (tabID: String, chapter: ChapterEdition, revision: UUID)?
     @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition, position: ScriptureReadingPosition?)] = [:]

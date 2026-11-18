@@ -67,18 +67,15 @@ extension AppModel {
     }
 
     func passageExcerpt(_ passage: ResolvedPassage) async -> String? {
-        let text: String?
-        let tagged: String?
-        if let verse = passage.verse {
-            let row = await bible.queryVerse(passage.bookId, passage.chapter, verse, textId: passage.textId)
-            text = row?.text
-            tagged = row?.textTagged
-        } else {
-            let rows = await bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
-            let row = rows.first { $0.verseNum > 0 } ?? rows.first
-            text = row?.text
-            tagged = row?.textTagged
-        }
+        let edition = ChapterEdition(book: passage.bookId, chapter: passage.chapter, text: passage.textId)
+        let chapter = await readerChapter(edition)
+        // Preview the original database row, never a prepared missing-LXX marker
+        // or a superscription moved onto the first verse for the reader.
+        let row: ChapterVerseRow?
+        if let verse = passage.verse { row = chapter.rawRows.first { $0.verseNum == verse } }
+        else { row = chapter.rawRows.first { $0.verseNum > 0 } ?? chapter.rawRows.first }
+        let text = row?.text
+        let tagged = row?.textTagged
         guard let text, !text.isEmpty else { return nil }
         return VerseDisplay.text(text, tagged: tagged, textId: passage.textId,
                                  replacerEnabled: wordReplacerEnabled, rules: WordReplacer.defaultRules)

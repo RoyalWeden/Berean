@@ -99,6 +99,13 @@ private struct AdjacentChapters {
     func destination(_ direction: Int) -> ChapterEdition? { direction < 0 ? previous : next }
 }
 
+/// Preserve raw rows for previews while sharing the exact reader preparation.
+/// Most text/string storage remains shared through Swift copy-on-write values.
+struct PreparedReaderChapter: Sendable {
+    let rawRows: [ChapterVerseRow]
+    let rows: [ChapterVerseRow]
+}
+
 /// A complete, revision-scoped reader input. No annotation work arrives a frame
 /// after the chapter, and warm navigation can render without a loading branch.
 struct ScriptureChapterPresentation {
@@ -115,33 +122,33 @@ struct ScriptureChapterPresentation {
 extension AppModel {
     /// Prepared Scripture is immutable for the lifetime of an installed text database.
     /// Share in-flight work; cancelling a view must not cancel another reader's load.
-    func readerChapter(_ edition: ChapterEdition) async -> [ChapterVerseRow] {
+    func readerChapter(_ edition: ChapterEdition) async -> PreparedReaderChapter {
         if let cached = readerChapterCache[edition] {
             touchReaderChapter(edition)
             return cached
         }
-        let pending: Task<[ChapterVerseRow], Never>
+        let pending: Task<PreparedReaderChapter, Never>
         if let existing = readerChapterLoads[edition] { pending = existing }
         else {
             let bible = bible
             pending = Task {
-                var rows = PsalmSuperscription.apply(
-                    await bible.queryChapter(edition.book, edition.chapter, textId: edition.text),
+                let rawRows = await bible.queryChapter(edition.book, edition.chapter, textId: edition.text)
+                var rows = PsalmSuperscription.apply(rawRows,
                     textId: edition.text, bookId: edition.book, chapter: edition.chapter)
                 if edition.text == "lxx", MissingLxxVerses.eligible(bookId: edition.book, chapter: edition.chapter) {
                     let kjv = await bible.queryChapter(edition.book, edition.chapter, textId: "kjva")
                     rows = MissingLxxVerses.annotate(rows, comparingTo: kjv)
                 }
-                return rows
+                return PreparedReaderChapter(rawRows: rawRows, rows: rows)
             }
             readerChapterLoads[edition] = pending
         }
-        let rows = await pending.value
+        let chapter = await pending.value
         // Every waiter publishes before returning, even if it resumes before the
         // creator. A reader must never observe completed work without its cache.
         if readerChapterCache[edition] == nil {
             readerChapterLoads.removeValue(forKey: edition)
-            readerChapterCache[edition] = rows
+            readerChapterCache[edition] = chapter
             touchReaderChapter(edition)
             let protectedChapter = activeTab.flatMap { tab in
                 tab.tabType == .bible ? ChapterEdition(BibleState(tab.state)) : nil
@@ -156,7 +163,7 @@ extension AppModel {
             }
             readerChapterRevision += 1
         }
-        return rows
+        return chapter
     }
 
     private func touchReaderChapter(_ edition: ChapterEdition) {
@@ -166,7 +173,8 @@ extension AppModel {
 
     func readerPresentation(_ edition: ChapterEdition) -> ScriptureChapterPresentation? {
         _ = readerChapterRevision // Observe completed asynchronous preparation.
-        guard let rows = readerChapterCache[edition] else { return nil }
+        guard let chapter = readerChapterCache[edition] else { return nil }
+        let rows = chapter.rows
         touchReaderChapter(edition)
         let revisions = [notesRevision, tagsRevision, highlightsRevision]
         if let cached = readerPresentations[edition], cached.revisions == revisions { return cached }
