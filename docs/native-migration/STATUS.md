@@ -182,3 +182,6 @@ Shared Kokoro latency/alignment planner now matches48 original TypeScript oracle
 
 ### 2026-11-18 — Spoken preparation parity
 Native spoken-only preparation/word alignment implemented and checked against282number/518token/36verse oracle cases. Original plain fallback corrected to return prepared speech with matching spaces/offsets.179sharedRelease tests,104originalTTS tests, both native builds, speech drift/typecheck/explicit scopedlint pass. M05 synthesis/playback stillunfinished; existing legacy iPhone native ONNX bridge located for reuse.
+
+### 2026-11-18 — Reader follow-up
+Late Mac Strong’s tooltips update in-place rather than replacing the chapter. Actual-helper regression passes (no character edits, correct repeated/fallback metadata), as do background/gesture checks and both app builds. iPhone pulls also evaluate direct travel/final release; successful211pttop pull traced, repeated zero-input simulator bottom drags remain inconclusive. Detailed Scripture viewport persistence is missing across relaunch (memory-only), now prioritized in TASKS. Native phonemizer probe builds but lacks compiled phoneme data; no new app dependency or playback claim.

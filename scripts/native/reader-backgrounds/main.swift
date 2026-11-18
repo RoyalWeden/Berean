@@ -69,3 +69,28 @@ let tagBounds = layout.boundingRect(forGlyphRange: layout.glyphRange(forCharacte
 precondition(alpha(CGPoint(x: tagBounds.midX, y: tagBounds.midY)) > 0.8, "Lost tag's own background")
 precondition(testedLines >= 3, "Fixture did not wrap")
 print("Reader background rendering passed: \(testedLines) wrapped lines, clean gutter/Strong's/trailing space, preserved tag")
+
+final class MetadataEdits: NSObject, NSTextStorageDelegate {
+    var changedCharacters = false
+    func textStorage(_ textStorage: NSTextStorage, didProcessEditing editedMask: NSTextStorageEditActions,
+                     range editedRange: NSRange, changeInLength delta: Int) {
+        changedCharacters = changedCharacters || editedMask.contains(.editedCharacters)
+    }
+}
+let metadata = NSTextStorage(string: "1 G123 word G123")
+metadata.addAttributes([.link: URL(string: "berean-verse:1")!, .toolTip: "Verse actions"], range: NSRange(location: 0, length: 1))
+for range in [NSRange(location: 2, length: 4), NSRange(location: 12, length: 4)] {
+    metadata.addAttributes([.link: URL(string: "strongs:G123")!, .toolTip: "Old gloss"], range: range)
+}
+let edits = MetadataEdits()
+metadata.delegate = edits
+let original = metadata.string
+updateReaderStrongsTooltips(metadata, values: ["G123": "New gloss"])
+precondition(metadata.string.utf16.elementsEqual(original.utf16) && !edits.changedCharacters, "Metadata replaced reader text")
+precondition(metadata.attribute(.toolTip, at: 0, effectiveRange: nil) as? String == "Verse actions", "Metadata changed verse actions")
+for index in [2, 12] {
+    precondition(metadata.attribute(.toolTip, at: index, effectiveRange: nil) as? String == "New gloss", "Missed a repeated Strong's link")
+}
+updateReaderStrongsTooltips(metadata, values: [:])
+precondition(metadata.attribute(.toolTip, at: 2, effectiveRange: nil) as? String == "Strong's G123 — open in the lexicon", "Stale tooltip after clearing metadata")
+print("Reader tooltip metadata passed: repeated links, fallback, no character edits or unrelated tooltip changes")

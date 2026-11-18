@@ -2,6 +2,17 @@ import Foundation
 #if os(macOS)
 import AppKit
 typealias ReaderBackgroundColor = NSColor
+
+/// Late hover metadata must not replace the chapter or reset native selection.
+func updateReaderStrongsTooltips(_ storage: NSTextStorage, values: [String: String]) {
+    storage.beginEditing()
+    storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+        guard let url = value as? URL, url.scheme == "strongs" else { return }
+        let id = String(url.absoluteString.dropFirst("strongs:".count))
+        storage.addAttribute(.toolTip, value: values[id] ?? "Strong's \(id) — open in the lexicon", range: range)
+    }
+    storage.endEditing()
+}
 #else
 import UIKit
 typealias ReaderBackgroundColor = UIColor

@@ -429,3 +429,6 @@ Keep Kokoro’s12/40-word startup/streaming policy separate from WebSpeech’s c
 
 ### 2026-11-18 — Prepared speech owns its alignment string
 Return prepared speech text, preserving spaces used by word offsets, rather than a raw collapsed text string that disagrees with prepared tokens. Apply display/text and Strong’s rules before spoken-only preparation. Preserve blank suppressed-the slots and multi-word replacements as one reader word slot. Correct the original plain path as the oracle; this changes speech cache content hashes, not user IDs/schema/sync. Reuse original native ONNX inference work; no Apple speech fallback or unverified replacement model.
+
+### 2026-11-18 — Hover metadata is not reader content
+Keep asynchronous Strong’s tooltip values out of the reader’s content/style render key. Update only tooltip attributes on existing links, preserving text/selection and avoiding full chapter replacement/scroll restoration. Chapter pull intent uses actual finger travel plus a calibrated indirect overscroll fallback and evaluates release; do not infer physical sensitivity from simulator attempts that delivered zero input.

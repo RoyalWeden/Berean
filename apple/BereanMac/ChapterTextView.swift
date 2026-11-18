@@ -204,7 +204,7 @@ struct ChapterTextView: NSViewRepresentable {
         tv.updateOutlineMotion()
         let clip = scroll.contentView
         let passageChanged = c.lastPassage != passageId
-        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style, tooltips: strongsTooltips)
+        let key = Key(header: header, chapterTags: chapterTags.map(\.name), verses: verses, style: style)
         let insetChanged = scroll.contentInsets.bottom != actionClearance
         let wasAtEnd = !passageChanged && (insetChanged || key != c.lastKey) && Self.isAtChapterEnd(clip)
         if insetChanged {
@@ -253,6 +253,7 @@ struct ChapterTextView: NSViewRepresentable {
                 scroll.reflectScrolledClipView(clip)
             }
             c.lastKey = key
+            c.lastTooltips = strongsTooltips
             if passageChanged {
                 c.lastPassage = passageId
                 c.editionArrival = nil
@@ -262,6 +263,10 @@ struct ChapterTextView: NSViewRepresentable {
                 scroll.reflectScrolledClipView(clip)
                 c.scrolledTo = nil
             }
+        }
+        if c.lastTooltips != strongsTooltips, let storage = tv.textStorage {
+            updateReaderStrongsTooltips(storage, values: strongsTooltips)
+            c.lastTooltips = strongsTooltips
         }
         if c.renderedSelection != selectedVerses {
             if let storage = tv.textStorage {
@@ -337,7 +342,7 @@ struct ChapterTextView: NSViewRepresentable {
     }
 
     struct Key: Equatable {
-        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle; var tooltips: [String: String]
+        var header: [String]; var chapterTags: [String]; var verses: [ReaderVerse]; var style: ReaderStyle
     }
 
     // MARK: - Coordinator: builds the text, routes clicks, copies
@@ -346,6 +351,7 @@ struct ChapterTextView: NSViewRepresentable {
         var parent: ChapterTextView!
         weak var textView: ReaderTextView?
         var lastKey: Key?
+        var lastTooltips: [String: String] = [:]
         var lastPassage = ""
         var scrolledTo: ScriptureScrollTarget?
         var editionArrival: ScriptureEditionArrival?
