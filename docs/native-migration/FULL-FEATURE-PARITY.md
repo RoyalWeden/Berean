@@ -1100,3 +1100,6 @@ S08: shared native background renderer restricts text selection/highlight fills 
 
 ### 2026-11-18 incremental evidence — Notes/calendar
 Daily-folder date discovery now includes a month grid with existing-note dots, month navigation, Today and date picker jump. Mac and iPhone existing-note reuse checked through the original daily identity path. Mac Checklist/Table are direct toolbar controls, native menu shortcuts retained. Formatting Undo/Redo is independent of preceding/following typing. iPhone fixed large Notes/folder heading verified after return; collapsing-title behavior is not implemented. Full native Kokoro engine remainsTODO.
+
+### 2026-11-18 incremental evidence — M05 groundwork
+Kokoro neural latency chunking and UTF16 verse/word alignment metadata now have native service parity against48TypeScript oracle cases.177sharedRelease tests and both app builds pass. Speech preparation, model/voice/cache integration, synthesis, streaming playback and native controls remain unfinished; M05 audio parity is not achieved.

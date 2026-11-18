@@ -18,8 +18,12 @@ import { buildHighlightsGolden } from '../../scripts/golden/highlights'
 import { buildWorkspacesGolden } from '../../scripts/golden/workspaces'
 import { buildNoteMarkdownGolden } from '../../scripts/golden/noteMarkdown'
 import { buildVerseTagsGolden } from '../../scripts/golden/verseTags'
+import { buildSpeechChunksGolden } from '../../scripts/golden/speechChunks'
 
 describe('golden corpus', () => {
+  it('speech-chunks.json matches the original Kokoro chunker', () => {
+    expect(readFileSync(join(GOLDEN_DIR, 'speech-chunks.json'), 'utf8')).toBe(serializeGolden(buildSpeechChunksGolden()))
+  })
   for (const f of buildGoldenCorpus()) {
     it(`${f.name}.json matches the TypeScript oracle`, () => {
       const path = join(GOLDEN_DIR, `${f.name}.json`)

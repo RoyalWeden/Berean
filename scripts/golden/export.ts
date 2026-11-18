@@ -15,9 +15,11 @@ import { buildHighlightsGolden } from './highlights'
 import { buildWorkspacesGolden } from './workspaces'
 import { buildNoteMarkdownGolden } from './noteMarkdown'
 import { buildVerseTagsGolden } from './verseTags'
+import { buildSpeechChunksGolden } from './speechChunks'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
+writeFileSync(join(GOLDEN_DIR, 'speech-chunks.json'), serializeGolden(buildSpeechChunksGolden()))
 for (const f of buildGoldenCorpus()) {
   const text = serializeGolden(f)
   writeFileSync(join(GOLDEN_DIR, `${f.name}.json`), text)

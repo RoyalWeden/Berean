@@ -176,3 +176,6 @@ Daily-folder month grid/marked days and direct Mac Checklist/Table actions imple
 
 ### 2026-11-18 — Chapter pull guard
 Fresh-edge intent and release hysteresis implemented for both native readers, deterministic shared-code regressions and both builds pass. iPhone Mark13→12 end and12→13 start checked. Activation from a later Mark13end viewport was not established; settled edge/dock-inset sensitivity, intermediate feedback, real trackpad and physical phone remain open.
+
+### 2026-11-18 — Read Aloud foundation
+Shared Kokoro latency/alignment planner now matches48 original TypeScript oracle cases.177sharedRelease tests/51suites pass; TypeScript/scopedlint/drift guard and both native builds pass. This is preparation for M05: no native synthesis/voice loading/playback is delivered, Apple voices excluded. See HANDOFF for next pipeline/engine tasks.

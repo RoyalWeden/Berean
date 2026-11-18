@@ -241,3 +241,7 @@ See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source refere
 - Tune top/bottom chapter gestures for sensitivity, feedback and interrupted transitions.
 - Continue original-quality Kokoro/Berean Voices Read Aloud; Apple voices remain explicitly rejected.
 - Make tab switch chrome and saved viewport feel immediate; audit delayed toolbar changes and restoration rather than masking them with animation.
+
+### M05 resume — 2026-11-18
+- Completed foundation only: KokoroChunks neural latency/alignment policy,48original-oracle cases and native conformance. Full177sharedtests and both app builds pass. M05 remainsTODO overall.
+- Next: original buildSpokenWords/textPrep parity including WordReplacer+Strong’s/the suppression and spoken-only pronunciation/number/abbreviation handling; then voice/model/cache contracts, native inference and streamed audio/word alignment/cancel/skip/settings. No Apple voices. Do not present chunk planning as audible ReadAloud.

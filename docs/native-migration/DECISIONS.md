@@ -423,3 +423,6 @@ NotesHome uses an explicit accessible large iPhone heading and inline empty navi
 
 ### 2026-11-18 — Chapter turns require a fresh edge gesture
 Record eligible top/bottom edges when direct dragging starts. Do not turn a chapter merely because a long ordinary scroll arrives at its boundary. Use separate arm/disarm distances so ready feedback tolerates small retreats but users can retract before release. Keep momentum, cancelled/selection-blocked gestures and unavailable destinations ineligible. Physical sensitivity remains a runtime acceptance item.
+
+### 2026-11-18 — Neural ReadAloud uses its original latency policy
+Keep Kokoro’s12/40-word startup/streaming policy separate from WebSpeech’s cutoff-oriented chunks. Preserve UTF16 positions and blank/multi-word slots so replacements do not shift word highlighting. Plan chunks from already-prepared speech tokens; do not change theological/display substitutions in the chunker. Validate against generated original TypeScript fixtures; no Apple speech fallback. This foundation is not a playback engine.
