@@ -44,6 +44,7 @@ struct NotesHomeView: View {
     @AppStorage("notesHomeSort") private var sort = "modified"        // modified | created | name
     @AppStorage("nativeNotesHomeLayout") private var layout = "list"       // device-local list | gallery
     @AppStorage("nativeNotesCollapsedSections") private var collapsedSectionsData = Data()
+    @AppStorage("nativeNotesExpandedFolders") private var expandedFoldersData = Data()
     @AppStorage("notesHomeGrouping") private var grouping = "none"    // none | status | folder | type
     @State private var renamingFolder: NoteFolder?
     @State private var newFolderParent: String??                      // .some(nil) = new top-level folder
@@ -60,6 +61,9 @@ struct NotesHomeView: View {
     /// Select mode (original Notes home Edit): tap rows to select, then Pin / Move / Trash them together.
     @State private var selecting = false
     @State private var selectedNotes: Set<String> = []
+    @State private var choosingNewNotePassage = false
+    @State private var choosingDailyDate = false
+    @State private var newDailyDate = DailyNotePreferences.today()
 
     struct BrowseOptions: Hashable {
         var query = ""
@@ -142,6 +146,9 @@ struct NotesHomeView: View {
             }
         }
         .navigationTitle(Self.title(location, folders))
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.large)
+        #endif
         .toolbar {
             #if os(iOS)
             // iPhone: a compact bar (Back · Select · New Note · ⋯) so the title keeps its room.
@@ -189,6 +196,42 @@ struct NotesHomeView: View {
         }
         .onAppear {
             browseOptions = app.notesBrowseOptions[tabId] ?? BrowseOptions()
+        }
+        .sheet(isPresented: $choosingNewNotePassage) {
+            NavigationStack {
+                PassagePicker(textId: app.defaultText, currentBook: "", currentChapter: 0, onPick: { passage in
+                    let groups = passage.verseGroups.isEmpty ? passage.verse.map { [$0...(passage.endVerse ?? $0)] } ?? [] : passage.verseGroups
+                    let reference = groups.isEmpty ? "\(passage.bookId).\(passage.chapter)" : groups.map {
+                        "\(passage.bookId).\(passage.chapter).\($0.lowerBound)" + ($0.upperBound == $0.lowerBound ? "" : "-\($0.upperBound)")
+                    }.joined(separator: ",")
+                    choosingNewNotePassage = false
+                    if let id = app.newNote(verseRef: reference, textId: passage.textId, title: passage.label, openEditor: false) {
+                        app.openNote(id, fromList: tabId)
+                    }
+                }, compact: true, onPreview: { _ in })
+                .navigationTitle("New Scripture Note")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { choosingNewNotePassage = false } } }
+            }
+            #if os(macOS)
+            .frame(minWidth: 460, minHeight: 520)
+            #endif
+        }
+        .sheet(isPresented: $choosingDailyDate) {
+            NavigationStack {
+                VStack(spacing: 16) {
+                    DatePicker("Date", selection: $newDailyDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .frame(maxWidth: 360)
+                    Button("Open Daily Note") {
+                        choosingDailyDate = false
+                        app.openDailyNote(DailyNoteDay.dateKey(newDailyDate), fromCalendar: tabId)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(24)
+                .navigationTitle("Choose a Day")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { choosingDailyDate = false } } }
+            }
         }
         .onChange(of: browseOptions) { _, options in
             app.notesBrowseOptions[tabId] = options
@@ -250,6 +293,12 @@ struct NotesHomeView: View {
     }
 
     func newNoteHere() {
+        if location == "sys:verse" { choosingNewNotePassage = true; return }
+        if location == "sys:daily" {
+            newDailyDate = DailyNotePreferences.today()
+            choosingDailyDate = true
+            return
+        }
         let id = app.newNote()
         if let id, isUserFolder, let f = location { try? app.notes?.setFolder(id, f) }
     }
@@ -581,7 +630,19 @@ struct NotesHomeView: View {
 
     func tree(parent: String?, depth: Int) -> [(NoteFolder, Int)] {
         folders.filter { $0.parentId == parent }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            .flatMap { [($0, depth)] + tree(parent: $0.id, depth: depth + 1) }
+            .flatMap { [($0, depth)] + (expandedFolders.contains($0.id) ? tree(parent: $0.id, depth: depth + 1) : []) }
+    }
+
+    private var expandedFolders: Set<String> {
+        (try? JSONDecoder().decode(Set<String>.self, from: expandedFoldersData)) ?? []
+    }
+
+    private func toggleFolder(_ id: String) {
+        var expanded = expandedFolders
+        if !expanded.insert(id).inserted { expanded.remove(id) }
+        if let data = try? JSONEncoder().encode(expanded) {
+            withAnimation(.snappy(duration: 0.18)) { expandedFoldersData = data }
+        }
     }
 
     func locationRow(_ loc: String, _ name: String, _ symbol: String, _ n: Int) -> some View {
@@ -607,6 +668,19 @@ struct NotesHomeView: View {
     }
 
     func folderRow(_ f: NoteFolder, depth: Int) -> some View {
+        let hasChildren = folders.contains { $0.parentId == f.id }
+        let expanded = expandedFolders.contains(f.id)
+        return HStack(spacing: 0) {
+            if hasChildren {
+                Button { toggleFolder(f.id) } label: {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44).contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityLabel("\(expanded ? "Collapse" : "Expand") \(f.name)")
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            } else { Color.clear.frame(width: 44).accessibilityHidden(true) }
         Button {
             if location == nil, browseOptions.query.isEmpty, !hasFilters {
                 app.notesFolderPositions[tabId, default: [:]][folderScrollContext] = "folder:" + f.id
@@ -615,7 +689,6 @@ struct NotesHomeView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "folder").frame(width: 20).foregroundStyle(.tint)
-                    .padding(.leading, CGFloat(depth) * 16)
                 Text(f.name).frame(maxWidth: .infinity, alignment: .leading)
                 Text("\(count(f.id))").foregroundStyle(.secondary).monospacedDigit()
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
@@ -626,6 +699,8 @@ struct NotesHomeView: View {
             .contentShape(.rect)
         }
         .buttonStyle(NotesHomeRowButtonStyle())
+        }
+        .padding(.leading, CGFloat(depth) * 16)
         .contextMenu {
             Button("New Note Here") { if let id = app.newNote() { try? app.notes?.setFolder(id, f.id) } }
             Button("New Subfolder…") { folderName = ""; newFolderParent = .some(f.id) }
@@ -707,17 +782,25 @@ struct NotesHomeView: View {
         let visibleSections = sections
         let expandedNotes = visibleSections.filter { !isSectionCollapsed("notes:" + $0.id) }.flatMap(\.notes)
         let visibleCount = visibleSections.reduce(0) { $0 + $1.notes.count }
-        return ScrollViewReader { proxy in
+        return GeometryReader { geometry in
+        ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     Text("\(visibleCount) note\(visibleCount == 1 ? "" : "s")\(subs.isEmpty ? "" : " · \(subs.count) folder\(subs.count == 1 ? "" : "s")")")
                         .font(.callout).foregroundStyle(.secondary)
                         .padding(.vertical, 8)
+                    if location == "sys:daily" {
+                        Button("Browse by Date", systemImage: "calendar") {
+                            newDailyDate = DailyNotePreferences.today()
+                            choosingDailyDate = true
+                        }
+                        .buttonStyle(.bordered).padding(.bottom, 12)
+                    }
                     if !subs.isEmpty {
                         collapsibleSectionHeading("Folders", id: "subfolders", count: subs.count)
                         if !isSectionCollapsed("subfolders") {
-                            ForEach(subs) { folder in
-                                folderRow(folder, depth: 0).padding(.vertical, 6).id("folder:" + folder.id)
+                            ForEach(tree(parent: location, depth: 0), id: \.0.id) { folder, depth in
+                                folderRow(folder, depth: depth).padding(.vertical, 6).id("folder:" + folder.id)
                             }
                         }
                     }
@@ -728,10 +811,12 @@ struct NotesHomeView: View {
                     }
                     if loadedNotes && visibleCount == 0 && hasFilters {
                         ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
+                            .frame(maxWidth: .infinity, minHeight: subs.isEmpty ? max(0, geometry.size.height - 36 - (location == "sys:daily" ? 56 : 0)) : 220)
                     } else if loadedNotes && visibleCount == 0 {
                         ContentUnavailableView {
                             Label("No notes here", systemImage: "note.text")
                         } actions: { Button("New Note") { newNoteHere() } }
+                        .frame(maxWidth: .infinity, minHeight: subs.isEmpty ? max(0, geometry.size.height - 36 - (location == "sys:daily" ? 56 : 0)) : 220)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -761,6 +846,7 @@ struct NotesHomeView: View {
                       let visibleFolderRow else { return }
                 app.notesFolderPositions[tabId, default: [:]][context] = visibleFolderRow
             }
+        }
         }
         .id(context)
         #if os(macOS)

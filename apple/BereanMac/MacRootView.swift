@@ -19,7 +19,7 @@ struct MacRootView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
                 // Browser-style: [sidebar] [‹] [›] together in the sidebar's title bar (Yab / Safari / Arc).
                 .toolbar(removing: .sidebarToggle)
-                .toolbar { ToolbarItemGroup(placement: .automatic) { if columns != .detailOnly { navGroup } } }
+                .toolbar { ToolbarItemGroup(placement: .navigation) { if columns != .detailOnly { navGroup } } }
         } detail: {
             detail
                 .toolbar {
@@ -69,19 +69,26 @@ struct MacRootView: View {
 
     /// [sidebar] [‹] [›] — one group, the same order whether the sidebar is shown or hidden.
     @ViewBuilder var navGroup: some View {
+        HStack(spacing: 8) {
         Button { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } } label: {
             Label(columns == .detailOnly ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.left")
         }
         .clickableCursor()
+        .accessibilityIdentifier(ProcessInfo.processInfo.arguments.contains("--qa-library") ? "berean-native-qa-sidebar-toggle" : "sidebar-toggle")
         .help(columns == .detailOnly ? "Show Sidebar (⌃⌘S)" : "Hide Sidebar (⌃⌘S)")
         historyButtons
+        }
+        .labelStyle(.iconOnly)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder var historyButtons: some View {
         Button { app.goBack() } label: { Label("Back", systemImage: "chevron.backward") }
+            .accessibilityLabel("Back").accessibilityIdentifier("history-back")
             .clickableCursor(app.canGoBack)
             .disabled(!app.canGoBack).help("Back (⌘[)")
         Button { app.goForward() } label: { Label("Forward", systemImage: "chevron.forward") }
+            .accessibilityLabel("Forward").accessibilityIdentifier("history-forward")
             .clickableCursor(app.canGoForward)
             .disabled(!app.canGoForward).help("Forward (⌘])")
     }

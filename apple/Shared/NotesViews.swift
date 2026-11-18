@@ -747,8 +747,10 @@ struct NoteDetailView: View {
                     Menu {
                         Section("Paragraph") {
                             Button("Body") { formatRequest = NoteFormatRequest(action: .heading(0)) }
+                                .keyboardShortcut("0", modifiers: [.command, .option])
                             ForEach(1...3, id: \.self) { level in
                                 Button("Heading \(level)") { formatRequest = NoteFormatRequest(action: .heading(level)) }
+                                    .keyboardShortcut(KeyEquivalent(Character(String(level))), modifiers: [.command, .option])
                             }
                         }
                         Section("Lists") {
@@ -779,9 +781,13 @@ struct NoteDetailView: View {
                             }
                         }
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
+                            .keyboardShortcut("b", modifiers: .command)
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")
+                            .keyboardShortcut("i", modifiers: .command)
                         formatButton("Underline", symbol: "underline", prefix: "<u>", suffix: "</u>")
+                            .keyboardShortcut("u", modifiers: .command)
                         formatButton("Strikethrough", symbol: "strikethrough", prefix: "~~", suffix: "~~")
+                            .keyboardShortcut("x", modifiers: [.command, .shift])
                         Button("Inline Code", systemImage: "chevron.left.forwardslash.chevron.right") {
                             formatRequest = NoteFormatRequest(action: .inlineCode)
                         }
@@ -789,6 +795,7 @@ struct NoteDetailView: View {
                             Button("Default", systemImage: "highlighter") {
                                 formatRequest = NoteFormatRequest(action: .highlight(nil))
                             }
+                            .keyboardShortcut("h", modifiers: [.command, .shift])
                             ForEach(highlightColors + ["orange"], id: \.self) { color in
                                 Button {
                                     formatRequest = NoteFormatRequest(action: .highlight(color))

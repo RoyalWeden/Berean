@@ -406,3 +406,7 @@ Evaluate the active-tab fallback as an explicitly typed String? before storing i
 ### 2026-11-17 — Plain reference suggestions preserve note source
 
 Use existing Notes suggestion settings and native undo. Resolve preview content asynchronously and require a matching note, caret and full source before editing. Strong’s uses original dictionary copy text. Scripture requires all requested verses and uses the resolved edition and Word Replacer, preserving the LXX marker where applicable.
+
+### 2026-11-18 — Contextual Notes creation and bounded cursor ownership
+
+Use the folder’s meaning when creating: Scripture notes choose an attachment; daily notes choose a local day and reuse NotesService’s existing daily identity. Folder expansion is explicit, device-local and collapsed by default, independent of note-group section collapse. Keep whole-row opening separate from a44pt disclosure target. Cursor regions must include both real window-space bounds and local visible bounds; checking only visibleRect permitted distant controls to claim passive space. Preserve native text and resize ownership. Keep navigation icons in one intrinsic-width cluster so Forward cannot alone disappear into overflow.

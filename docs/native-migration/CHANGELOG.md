@@ -1701,3 +1701,11 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 ### 2026-11-18 — Strong’s links in note text
 
 Explicit Strong’s IDs in both note editors open Lexicon, including repeated dictionary references. Simulator verified G5463 navigation. Code, URLs and existing Markdown links retain ownership; fixed an unfinished-wikilink exclusion spanning later paragraphs.
+
+### 2026-11-18 — Notes folders and native controls
+
+- Folder trees start collapsed at each level and remember explicit expansion. Empty folder state is centered. iPhone Notes uses an explicit large title.
+- Verse Notes creates attached passage notes; Daily Notes offers a date chooser and reuses existing daily notes. Simulator verified both.
+- Pinned tabs have Unpin beside Close. Mac navigation stays grouped; native formatting menus declare standard shortcuts.
+- Fixed reproduced hand cursor over passive Notes space by checking actual registered control bounds. Mac live positive and negative cursor checks passed.
+- Both apps build;173shared Release tests pass.

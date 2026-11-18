@@ -140,3 +140,7 @@ Native [[ note-title suggestions now work on both platforms. Mac keyboard and po
 iOS 27 Simulator verified recovery after rapid typing and Return, Clear refocus, and deep result viewport restore after entry return and relaunch. Mac hover/activation, history across queries and tabs, and accessibility/device checks remain open. Keep numeric full-title palette lookup open pending safe Mac QA targeting.
 
 Final Lexicon follow-up: Hebrew/Greek switching reproduced a several-row offset shift. Eager measurement of the SQL-bounded results fixes the exercised round trip, retaining the exact saved1551.333 offset in Simulator. Deep Back/Forward and seeded resets remain open.
+
+### 2026-11-18 owner UX checks
+
+Verified iPhone Verse Notes creation/return, date-aware daily reuse, empty-folder centering and independent nested disclosure. Mac marked QA verified unpin/repin, no overflow at tested width, and passive-space arrow/active-row hand after fixing distant region matches. Explicit large Notes title removes observed inherited inline/blank-title case after reinstall. Continue broad cursor motion/resize, compact toolbar widths, quick formatting, Compare validity, selection clipping/highlight geometry, chapter gestures and tab-switch timing. Read Aloud still requires original Kokoro quality.

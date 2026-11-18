@@ -499,6 +499,7 @@ struct BereanSidebar: View {
     @ViewBuilder func row(_ tab: BereanWorkspace.Tab, sameTitleIndex: Int?) -> some View {
         let row = SidebarTabRow(tab: tab, isActive: app.activeTab?.id == tab.id, isDragging: dragging == tab.id,
                                onSelect: { app.select(tab.id, in: tab.spaceId) }, onClose: { app.close(tab.id) },
+                               onUnpin: { app.togglePin(tab.id) },
                                sameTitleIndex: sameTitleIndex)
             .contextMenu { tabMenu(tab) }
         if isFilteringTabs {
@@ -645,6 +646,7 @@ struct SidebarTabRow: View {
     let isDragging: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    var onUnpin: () -> Void = {}
     var sameTitleIndex: Int? = nil
     @State private var hovering = false
 
@@ -671,6 +673,16 @@ struct SidebarTabRow: View {
                     .foregroundStyle(.secondary)
                     .fixedSize()
             }
+            if tab.isPinned {
+                Button(action: onUnpin) {
+                    Image(systemName: "pin.fill").font(.system(size: 10))
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(SidebarCloseButtonStyle())
+                .foregroundStyle(hovering ? .secondary : .tertiary)
+                .help("Unpin Tab")
+                .accessibilityLabel("Unpin \(tab.navigationLabel)")
+            }
             ZStack {
                 if hovering {
                     Button(action: onClose) {
@@ -679,8 +691,6 @@ struct SidebarTabRow: View {
                     .buttonStyle(SidebarCloseButtonStyle())
                     .help("Close Tab (⌘W)")
                     .accessibilityLabel("Close \(tab.navigationLabel)")
-                } else if tab.isPinned {
-                    Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.tertiary)
                 }
             }
             .frame(width: 18, height: 18)

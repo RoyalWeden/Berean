@@ -161,3 +161,7 @@ Final host Swift Release regression including snapshot fallback passes159 tests/
 ### 2026-11-17 — Note reference and Strong’s block suggestions
 
 Native editors offer previews and literal block insertion for plain Scripture references and Strong’s IDs. Both Debug builds and full host SwiftPM Release (166 tests, 48 suites) pass. Simulator hardware-keyboard verification covered insertion, Undo, LXX, invalid input, formatting guards and dismissal. Mac runtime and iPhone software keyboard checks remain open. See [HANDOFF](HANDOFF.md).
+
+## 2026-11-18 Notes and native controls
+
+Verified iPhone contextual Scripture/daily creation, centered empty folder, nested collapsed-by-default folders and large Notes title. Mac verified unpin/repin, grouped navigation without overflow at tested width and passive-space arrow versus active-row hand after concrete window-bound cursor filtering. Both apps build;173shared Release tests pass. Original-quality Read Aloud, Compare and native character-selection fixes remain active.

@@ -87,6 +87,7 @@ struct ClickableCursorRegion: NSViewRepresentable {
         // action changes enabled state without generating another mouse event.
         guard let window = region.window, window === pendingWindow,
               !region.isHiddenOrHasHiddenAncestor,
+              region.convert(region.bounds, to: nil).contains(pendingPoint),
               region.visibleRect.contains(region.convert(pendingPoint, from: nil)) else { return }
         scheduleRefresh(in: window, at: pendingPoint)
     }
@@ -117,7 +118,9 @@ struct ClickableCursorRegion: NSViewRepresentable {
         }
         var ancestor: NSView? = hit
         var toolbar: NSView?
+        var nativeText = false
         while let view = ancestor {
+            if view is NSTextView || (view as? NSTextField).map({ $0.isEditable || $0.isSelectable }) == true { nativeText = true }
             if let control = view as? NSButton { setHand(control.isEnabled, in: window, at: point, source: "button"); return }
             if let control = view as? NSSegmentedControl { setHand(control.isEnabled, in: window, at: point, source: "segments"); return }
             if let control = view as? NSSwitch { setHand(control.isEnabled, in: window, at: point, source: "switch"); return }
@@ -130,6 +133,9 @@ struct ClickableCursorRegion: NSViewRepresentable {
         let matching = regions.allObjects.filter { region in
             guard region.window === window, !region.isHiddenOrHasHiddenAncestor else { return false }
             let local = region.convert(point, from: nil)
+            // Require the concrete window-space frame as well as visibleRect:
+            // passive SwiftUI wrappers can otherwise match distant points.
+            guard region.convert(region.bounds, to: nil).contains(point), region.bounds.contains(local) else { return false }
             // SwiftUI gives the passive background its own platform-view wrapper.
             // Rendered buttons may hit their containing group or its hosting view.
             guard region.visibleRect.contains(local), let host = region.superview?.superview,
@@ -137,10 +143,20 @@ struct ClickableCursorRegion: NSViewRepresentable {
             return true
         }
         if let region = matching.min(by: { $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height }) {
-            setHand(region.enabled, in: window, at: point, source: "SwiftUI")
+            #if DEBUG
+            let cursorSource = "SwiftUI:\(region.bounds):\(region.convert(NSPoint.zero, to: nil))"
+            #else
+            let cursorSource = "SwiftUI"
+            #endif
+            setHand(region.enabled, in: window, at: point, source: cursorSource)
         } else if let toolbar {
             setHand(toolbar.toolbarItemEnabled != false, in: window, at: point, source: "toolbar")
         } else {
+            // A control's hand must not linger over passive SwiftUI backgrounds.
+            // Native text/link and resize cursors keep ownership.
+            if !nativeText, NSCursor.current == .pointingHand {
+                setHand(false, in: window, at: point, source: "passive space")
+            }
             #if DEBUG
             let nearby = regions.allObjects.filter { $0.window === window && $0.visibleRect.contains($0.convert(point, from: nil)) }.count
             ClickableCursorDebug.trace(enabled: nil, in: window, at: point, source: "unmanaged:\(type(of: hit)):\(nearby)")
