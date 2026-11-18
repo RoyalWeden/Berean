@@ -231,6 +231,12 @@ struct ChapterTextView: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         let c = context.coordinator
+        if let previous = c.parent, previous.passageId != passageId,
+           let position = c.readingPosition(in: scroll) {
+            // Warm chapter changes reuse this view instead of dismantling it.
+            // Save through the outgoing callback, outside the view update.
+            DispatchQueue.main.async { previous.savePosition(position) }
+        }
         c.parent = self
         guard let tv = c.textView else { return }
         tv.titleBarClearance = titleBarClearance

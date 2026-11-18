@@ -153,6 +153,12 @@ struct IOSChapterTextView: UIViewRepresentable {
     func updateUIView(_ view: ReaderTextView, context: Context) {
         let coordinator = context.coordinator
         let shouldFind = coordinator.parent.findRequest != findRequest
+        let previous = coordinator.parent
+        if previous.passageId != passageId, let position = coordinator.readingPosition(in: view) {
+            // A warm replacement keeps the same UITextView, so dismantle won't
+            // capture its outgoing viewport. Don't mutate model state mid-update.
+            DispatchQueue.main.async { previous.savePosition(position) }
+        }
         coordinator.parent = self
         if shouldFind {
             DispatchQueue.main.async { [weak view] in

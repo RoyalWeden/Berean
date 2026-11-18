@@ -180,3 +180,6 @@ Added16chapter read-only preparation cache, shared in-flight loads, actual-neigh
 
 ### 2026-11-18 — Compare follow-up from reader regression pass
 Mac toolbar Compare on/off and chapter-next rendered correctly. Existing persisted LXX New Testament column remains recoverable as unavailable (Choose Passage/Remove), rather than being deleted. One CUA ⌥⌘C attempt did not toggle Compare despite visible help; ⌥⌘→ worked in same pass. Reproduce with/without native text focus and inspect responder/menu conflicts; do not claim fixed from this single observation. Latest fixture Mac13single, iPhonePsalm119mid.
+
+### 2026-11-18 — Direct warm Scripture presentation
+Cached chapters and revision-scoped annotations now render directly for warm navigation; location-scoped selection/scroll targets prevent stale state. Native view reuse captures outgoing viewport;16entry cache protects visible chapter and coalesced waiters publish before returning. Both final native builds pass; Mac34step boundary/history test, local selection/highlight refresh, phone mapped Psalm return and tab restoration checked. Cold misses/frame pacing remain open. Prior-head CI cancelled before runner assignment due hosted macOS capacity; see HANDOFF for exact evidence and next work.

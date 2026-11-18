@@ -99,37 +99,88 @@ private struct AdjacentChapters {
     func destination(_ direction: Int) -> ChapterEdition? { direction < 0 ? previous : next }
 }
 
+/// A complete, revision-scoped reader input. No annotation work arrives a frame
+/// after the chapter, and warm navigation can render without a loading branch.
+struct ScriptureChapterPresentation {
+    let rows: [ChapterVerseRow]
+    let revisions: [Int]
+    let noteCounts: [Int: Int]
+    let chapterCitations: [Note]
+    let verseCitations: [Int: [NoteCrossReferences.Link]]
+    let verseTags: [Int: [TagLite]]
+    let chapterTags: [TagLite]
+    let highlights: [Int: [Highlight]]
+}
+
 extension AppModel {
     /// Prepared Scripture is immutable for the lifetime of an installed text database.
     /// Share in-flight work; cancelling a view must not cancel another reader's load.
     func readerChapter(_ edition: ChapterEdition) async -> [ChapterVerseRow] {
         if let cached = readerChapterCache[edition] {
-            readerChapterOrder.removeAll { $0 == edition }
-            readerChapterOrder.append(edition)
+            touchReaderChapter(edition)
             return cached
         }
-        if let pending = readerChapterLoads[edition] { return await pending.value }
-        let bible = bible
-        let pending = Task {
-            var rows = PsalmSuperscription.apply(
-                await bible.queryChapter(edition.book, edition.chapter, textId: edition.text),
-                textId: edition.text, bookId: edition.book, chapter: edition.chapter)
-            if edition.text == "lxx", MissingLxxVerses.eligible(bookId: edition.book, chapter: edition.chapter) {
-                let kjv = await bible.queryChapter(edition.book, edition.chapter, textId: "kjva")
-                rows = MissingLxxVerses.annotate(rows, comparingTo: kjv)
+        let pending: Task<[ChapterVerseRow], Never>
+        if let existing = readerChapterLoads[edition] { pending = existing }
+        else {
+            let bible = bible
+            pending = Task {
+                var rows = PsalmSuperscription.apply(
+                    await bible.queryChapter(edition.book, edition.chapter, textId: edition.text),
+                    textId: edition.text, bookId: edition.book, chapter: edition.chapter)
+                if edition.text == "lxx", MissingLxxVerses.eligible(bookId: edition.book, chapter: edition.chapter) {
+                    let kjv = await bible.queryChapter(edition.book, edition.chapter, textId: "kjva")
+                    rows = MissingLxxVerses.annotate(rows, comparingTo: kjv)
+                }
+                return rows
             }
-            return rows
+            readerChapterLoads[edition] = pending
         }
-        readerChapterLoads[edition] = pending
         let rows = await pending.value
-        readerChapterLoads.removeValue(forKey: edition)
-        readerChapterCache[edition] = rows
-        readerChapterOrder.removeAll { $0 == edition }
-        readerChapterOrder.append(edition)
-        while readerChapterOrder.count > 16 {
-            readerChapterCache.removeValue(forKey: readerChapterOrder.removeFirst())
+        // Every waiter publishes before returning, even if it resumes before the
+        // creator. A reader must never observe completed work without its cache.
+        if readerChapterCache[edition] == nil {
+            readerChapterLoads.removeValue(forKey: edition)
+            readerChapterCache[edition] = rows
+            touchReaderChapter(edition)
+            let protectedChapter = activeTab.flatMap { tab in
+                tab.tabType == .bible ? ChapterEdition(BibleState(tab.state)) : nil
+            }
+            while readerChapterOrder.count > 16 {
+                // The visible reader derives its presentation from this cache.
+                // Background completions must not evict it into a loading state.
+                let index = readerChapterOrder.firstIndex { $0 != protectedChapter } ?? 0
+                let removed = readerChapterOrder.remove(at: index)
+                readerChapterCache.removeValue(forKey: removed)
+                readerPresentations.removeValue(forKey: removed)
+            }
+            readerChapterRevision += 1
         }
         return rows
+    }
+
+    private func touchReaderChapter(_ edition: ChapterEdition) {
+        readerChapterOrder.removeAll { $0 == edition }
+        readerChapterOrder.append(edition)
+    }
+
+    func readerPresentation(_ edition: ChapterEdition) -> ScriptureChapterPresentation? {
+        _ = readerChapterRevision // Observe completed asynchronous preparation.
+        guard let rows = readerChapterCache[edition] else { return nil }
+        touchReaderChapter(edition)
+        let revisions = [notesRevision, tagsRevision, highlightsRevision]
+        if let cached = readerPresentations[edition], cached.revisions == revisions { return cached }
+        let tags = try? verseTags?.forChapter(edition.book, edition.chapter)
+        let presentation = ScriptureChapterPresentation(rows: rows, revisions: revisions,
+            noteCounts: (try? notes?.coveringVerseCounts(edition.book, edition.chapter,
+                verses: Set(rows.map(\.verseNum)), textId: edition.text)) ?? [:],
+            chapterCitations: (try? notes?.notesCitingChapter(edition.book, edition.chapter, textId: edition.text)) ?? [],
+            verseCitations: (try? notes?.crossReferences(bookId: edition.book, chapter: edition.chapter,
+                textId: edition.text))?.byVerse ?? [:],
+            verseTags: tags?.verseTags ?? [:], chapterTags: tags?.chapterTags ?? [],
+            highlights: (try? highlights?.chapter(edition.book, edition.chapter, textId: edition.text)) ?? [:])
+        readerPresentations[edition] = presentation
+        return presentation
     }
 
     fileprivate func adjacentChapters(to source: ChapterEdition) async -> AdjacentChapters {
@@ -393,7 +444,8 @@ struct ScriptureView: View {
 
     @State private var copiedAction: CopyAction?
     @State private var copyFeedbackID = UUID()
-    @State private var loadedChapter: String?
+    private var presentation: ScriptureChapterPresentation? { app.readerPresentation(ChapterEdition(state)) }
+    private var loadedChapter: String? { presentation == nil ? nil : chapterKey(state) }
     @State private var chapterPull: ChapterPullCue?
     private struct ChapterStepArrival {
         let chapter: ChapterEdition
@@ -401,8 +453,22 @@ struct ScriptureView: View {
     }
     @State private var chapterStepArrival: ChapterStepArrival?
     @AppStorage("chapterPullNavigation") private var chapterPullNavigation = true
-    @State private var verses: [ChapterVerseRow] = []
-    @State private var selectedVerse: Int?
+    private var verses: [ChapterVerseRow] { presentation?.rows ?? [] }
+    private struct SelectionScope: Equatable {
+        let chapter: ChapterEdition
+        let destination: SelectionDestination
+        let disjoint: JSValue?
+    }
+    private var selectionScope: SelectionScope {
+        SelectionScope(chapter: ChapterEdition(state), destination: SelectionDestination(state),
+            disjoint: app.findTab(tabId)?.state["nativeSelectedVerses"])
+    }
+    @State private var storedSelectionScope: SelectionScope?
+    @State private var storedSelectedVerse: Int?
+    private var selectedVerse: Int? {
+        get { storedSelectionScope == selectionScope ? storedSelectedVerse : state.verse }
+        nonmutating set { storedSelectedVerse = newValue }
+    }
     private struct SelectionDestination: Equatable {
         let verse: Int?
         let endVerse: Int?
@@ -422,13 +488,25 @@ struct ScriptureView: View {
     /// Verses selected by clicking verse numbers (⇧-click extends from `anchor`), as in the existing reader.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @State private var selection: Set<Int> = []
-    @State private var anchor: Int?
-    @State private var noteCounts: [Int: Int] = [:]
-    @State private var chapterCitations: (key: String, notes: [Note])?
-    @State private var verseCitations: (key: String, links: [Int: [NoteCrossReferences.Link]])?
+    @State private var storedSelection: Set<Int> = []
+    private var selection: Set<Int> {
+        get { storedSelectionScope == selectionScope ? storedSelection : passageSelection(state) }
+        nonmutating set { storedSelectionScope = selectionScope; storedSelection = newValue }
+    }
+    @State private var storedAnchor: Int?
+    private var anchor: Int? {
+        get { storedSelectionScope == selectionScope ? storedAnchor : state.verse }
+        nonmutating set { storedAnchor = newValue }
+    }
+    private var noteCounts: [Int: Int] { presentation?.noteCounts ?? [:] }
+    private var chapterCitations: (key: String, notes: [Note])? {
+        presentation.map { (chapterKey(state), $0.chapterCitations) }
+    }
+    private var verseCitations: (key: String, links: [Int: [NoteCrossReferences.Link]])? {
+        presentation.map { (chapterKey(state), $0.verseCitations) }
+    }
     @AppStorage("crossrefSource") private var crossRefSource = "tske"
-    @State private var highlights: [Int: [Highlight]] = [:]
+    private var highlights: [Int: [Highlight]] { presentation?.highlights ?? [:] }
     @State private var pickerShown = false
     #if os(macOS)
     private enum VersePopover { case highlight, export }
@@ -438,11 +516,22 @@ struct ScriptureView: View {
     @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showRedLetters") private var showRedLetters = true
-    @State private var scrollTarget: Int?
+    @State private var scrollTargetScope: SelectionScope?
+    @State private var storedScrollTarget: Int?
+    private var scrollTarget: Int? {
+        get {
+            let chapter = ChapterEdition(state)
+            if let jump = app.scriptureJumpRequest, jump.tabID == tabId, jump.chapter == chapter { return state.verse }
+            if scrollTargetScope == selectionScope { return storedScrollTarget }
+            let next = passageSelection(state)
+            return app.savedScripturePosition(tabId: tabId, edition: chapter)?.selectedVerses == next ? nil : state.verse
+        }
+        nonmutating set { scrollTargetScope = selectionScope; storedScrollTarget = newValue }
+    }
     @State private var scrollRevision: UUID?
     @State private var chapterStepTask: Task<Void, Never>?
-    @State private var verseTags: [Int: [TagLite]] = [:]
-    @State private var chapterTags: [TagLite] = []
+    private var verseTags: [Int: [TagLite]] { presentation?.verseTags ?? [:] }
+    private var chapterTags: [TagLite] { presentation?.chapterTags ?? [] }
     @State private var tagging: (ranges: [TagRange], label: String, kind: String)?
 
     @State private var editionAvailability: ChapterEditionAvailability?
@@ -694,23 +783,6 @@ struct ScriptureView: View {
             guard loadedChapter == chapter, consumeVerseJump(for: st) else { return }
             applyPassageSelection(st)
         }
-        .task(id: "\(chapter)|\(loadedChapter ?? "")|\(app.notesRevision)") {
-            guard loadedChapter == chapter else { return }
-            noteCounts = (try? app.notes?.coveringVerseCounts(st.bookId, st.chapter,
-                                                              verses: Set(verses.map(\.verseNum)), textId: st.translation)) ?? [:]
-            let citations = (try? app.notes?.notesCitingChapter(st.bookId, st.chapter, textId: st.translation)) ?? []
-            chapterCitations = (chapter, citations)
-            let links = (try? app.notes?.crossReferences(bookId: st.bookId, chapter: st.chapter, textId: st.translation))?.byVerse ?? [:]
-            verseCitations = (chapter, links)
-        }
-        .task(id: "\(chapter)|\(loadedChapter ?? "")|\(app.tagsRevision)") {
-            guard loadedChapter == chapter, !Task.isCancelled else { return }
-            if let r = try? app.verseTags?.forChapter(st.bookId, st.chapter) { verseTags = r.verseTags; chapterTags = r.chapterTags } else { verseTags = [:]; chapterTags = [] }
-        }
-        .task(id: "\(chapter)|\(loadedChapter ?? "")|\(app.highlightsRevision)") {
-            guard loadedChapter == chapter, !Task.isCancelled else { return }
-            highlights = (try? app.highlights?.chapter(st.bookId, st.chapter, textId: st.translation)) ?? [:]
-        }
         .onChange(of: chapter) { _, _ in
             if app.readerChromeHidden {
                 withAnimation(reduceMotion ? nil : .snappy) { app.readerChromeHidden = false }
@@ -723,32 +795,14 @@ struct ScriptureView: View {
             step(request.delta)
         }
         .task(id: chapter) {
-            guard loadedChapter != chapter else { return }
-            let loaded = await app.readerChapter(ChapterEdition(st))
+            if loadedChapter != chapter { _ = await app.readerChapter(ChapterEdition(st)) }
             let destination = state
             guard !Task.isCancelled, chapterKey(destination) == chapter else { return }
-            installChapter(loaded, for: destination)
+            let isVerseJump = consumeVerseJump(for: destination)
+            if isVerseJump || storedSelectionScope != selectionScope {
+                applyPassageSelection(destination, restoringReader: !isVerseJump)
+            }
         }
-    }
-
-    /// Publish the passage and its annotations together, before the next native layout.
-    private func installChapter(_ loaded: [ChapterVerseRow], for destination: BibleState) {
-        let chapter = chapterKey(destination)
-        noteCounts = (try? app.notes?.coveringVerseCounts(destination.bookId, destination.chapter,
-            verses: Set(loaded.map(\.verseNum)), textId: destination.translation)) ?? [:]
-        chapterCitations = (chapter, (try? app.notes?.notesCitingChapter(destination.bookId, destination.chapter,
-            textId: destination.translation)) ?? [])
-        verseCitations = (chapter, (try? app.notes?.crossReferences(bookId: destination.bookId,
-            chapter: destination.chapter, textId: destination.translation))?.byVerse ?? [:])
-        if let tags = try? app.verseTags?.forChapter(destination.bookId, destination.chapter) {
-            verseTags = tags.verseTags; chapterTags = tags.chapterTags
-        } else { verseTags = [:]; chapterTags = [] }
-        highlights = (try? app.highlights?.chapter(destination.bookId, destination.chapter,
-            textId: destination.translation)) ?? [:]
-        verses = loaded
-        let isVerseJump = consumeVerseJump(for: destination)
-        applyPassageSelection(destination, restoringReader: !isVerseJump)
-        loadedChapter = chapter
     }
 
     private func chapterCitationMenu(_ notes: [Note]) -> some View {
@@ -864,6 +918,10 @@ struct ScriptureView: View {
                 tab.state["nativeSelectedVerses"] = .object(saved)
             }
         }
+        // A local click just wrote the location represented by these local
+        // values. Keep its exact focus and nil scroll target through that write.
+        storedSelectionScope = selectionScope
+        scrollTargetScope = selectionScope
     }
 
     var selectedRows: [ChapterVerseRow] { verses.filter { selection.contains($0.verseNum) } }
@@ -1638,7 +1696,7 @@ struct ScriptureView: View {
             }
             guard let target = neighbors.destination(delta) else { return }
             // Keep the outgoing passage visible until the replacement is ready.
-            let loaded = reader.compareMode ? [] : await app.readerChapter(target)
+            if !reader.compareMode { _ = await app.readerChapter(target) }
             guard !Task.isCancelled, let current = app.activeTab, current.id == source.id else { return }
             let destination = BibleState(current.state)
             guard ChapterEdition(destination) == ChapterEdition(reader),
@@ -1650,7 +1708,7 @@ struct ScriptureView: View {
             }
             chapterStepArrival = ChapterStepArrival(chapter: target, atEnd: fromPull && delta < 0)
             mutate { $0.bookId = target.book; $0.chapter = target.chapter; $0.verse = nil; $0.endVerse = nil }
-            if !reader.compareMode { installChapter(loaded, for: state) }
+            if !reader.compareMode { applyPassageSelection(state, restoringReader: true) }
             #if os(iOS)
             if !fromPull { readerNavigationFeedback() }
             #endif
