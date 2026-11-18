@@ -1,4 +1,73 @@
 import Foundation
+#if os(macOS)
+import AppKit
+typealias ReaderBackgroundColor = NSColor
+#else
+import UIKit
+typealias ReaderBackgroundColor = UIColor
+#endif
+
+/// Keep native character selection and saved highlights on readable glyphs.
+/// TextKit's default paragraph fills can include the hanging indent, gutter,
+/// newline and trailing line space even when those characters are not copied.
+class ReaderTextLayoutManager: NSLayoutManager {
+    private var backgroundOrigin = CGPoint.zero
+    private let skip = NSAttributedString.Key("bereanSkip")
+
+    override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
+        let previous = backgroundOrigin
+        backgroundOrigin = origin
+        defer { backgroundOrigin = previous }
+        super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+    }
+
+    override func fillBackgroundRectArray(_ rectArray: UnsafePointer<CGRect>, count rectCount: Int,
+                                          forCharacterRange charRange: NSRange, color: ReaderBackgroundColor) {
+        guard let storage = textStorage, let container = textContainers.first,
+              charRange.location != NSNotFound, charRange.location <= storage.length,
+              charRange.length <= storage.length - charRange.location else {
+            super.fillBackgroundRectArray(rectArray, count: rectCount, forCharacterRange: charRange, color: color)
+            return
+        }
+        let source = storage.string as NSString
+        let ink = CharacterSet.whitespacesAndNewlines.inverted
+        storage.enumerateAttribute(skip, in: charRange) { excluded, run, _ in
+            guard run.length > 0 else { return }
+            let tag = (storage.attribute(.link, at: run.location, effectiveRange: nil) as? URL)?.scheme == "berean-tag"
+            let tagColor = storage.attribute(.backgroundColor, at: run.location, effectiveRange: nil) as? ReaderBackgroundColor
+            var decoration = excluded != nil && tag && tagColor?.isEqual(color) == true
+            #if os(macOS)
+            let hoverColor = self.temporaryAttribute(.backgroundColor, atCharacterIndex: run.location, effectiveRange: nil) as? NSColor
+            decoration = decoration || (excluded != nil && hoverColor?.isEqual(color) == true)
+            #endif
+            guard excluded == nil || decoration else { return }
+            let glyphs = self.glyphRange(forCharacterRange: run, actualCharacterRange: nil)
+            self.enumerateLineFragments(forGlyphRange: glyphs) { _, usedRect, _, lineGlyphs, _ in
+                let part = NSIntersectionRange(glyphs, lineGlyphs)
+                guard part.length > 0 else { return }
+                let characters = NSIntersectionRange(run, self.characterRange(forGlyphRange: part, actualGlyphRange: nil))
+                let first = source.rangeOfCharacter(from: ink, range: characters)
+                guard first.location != NSNotFound else { return }
+                let last = source.rangeOfCharacter(from: ink, options: .backwards, range: characters)
+                let visible = decoration ? characters : NSRange(location: first.location, length: NSMaxRange(last) - first.location)
+                let visibleGlyphs = self.glyphRange(forCharacterRange: visible, actualCharacterRange: nil)
+                let glyphBounds = self.boundingRect(forGlyphRange: visibleGlyphs, in: container)
+                let bounds = CGRect(x: glyphBounds.minX, y: usedRect.minY,
+                                    width: glyphBounds.width, height: usedRect.height)
+                    .offsetBy(dx: self.backgroundOrigin.x, dy: self.backgroundOrigin.y)
+                // Derive the fill from the character range, rather than the
+                // paragraph rectangles (which deliberately include blank space).
+                // TextKit's drawing context already clips the visible region.
+                guard !bounds.isEmpty else { return }
+                #if os(macOS)
+                NSBezierPath(roundedRect: bounds, xRadius: 2, yRadius: 2).fill()
+                #else
+                UIBezierPath(roundedRect: bounds, cornerRadius: 2).fill()
+                #endif
+            }
+        }
+    }
+}
 
 struct ChapterPullCue: Equatable {
     let direction: Int

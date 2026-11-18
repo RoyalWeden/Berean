@@ -165,3 +165,8 @@ Native editors offer previews and literal block insertion for plain Scripture re
 ## 2026-11-18 Notes and native controls
 
 Verified iPhone contextual Scripture/daily creation, centered empty folder, nested collapsed-by-default folders and large Notes title. Mac verified unpin/repin, grouped navigation without overflow at tested width and passive-space arrow versus active-row hand after concrete window-bound cursor filtering. Both apps build;173shared Release tests pass. Original-quality Read Aloud, Compare and native character-selection fixes remain active.
+
+### 2026-11-18 — Compare validity and selection rendering
+Compare now offers only editions with real mapped chapters and provides repair controls for unavailable saved columns. Mac QA verified repair to an independent LXX chapter, close-last exit and Back/Forward restoration. Mac verse numbers sit beside text with repeated per-verse ellipses removed. Shared reader background drawing is text-only across wrapped lines; Mac native selection and saved partial highlight checked live, plus offscreen AppKit regression. Both platforms build;175 shared Release tests pass. Final tiny all-unavailable removal guard rebuild pending. iPhone selection handles/Compare, physical-device behavior, gesture tuning, tab-switch performance and original-quality Kokoro remain open.
+
+Final Compare removal-guard rebuild passed on both Mac and iOS (/tmp/berean-compare-reader-final-{mac,ios}.log), superseding its pending note above.

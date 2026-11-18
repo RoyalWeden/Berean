@@ -1093,3 +1093,7 @@ Native note-title completion after [[ is implemented on both platforms. Mac keyb
 ### 2026-11-17 query/undo verification update
 
 Mac note completion Undo/Redo now separates following typing in the directly tested path. Notes query history and Lexicon query replacement/history passed live Mac checks; Lexicon query/language survived Simulator relaunch using legacy state keys. Calendar/History/Tags current-tab replacement and backward traversal passed. All 156 optimized package tests in 46 suites passed on simulator SQLite; app builds also pass. These scoped checks do not complete N06 book/Scripture autocomplete or the broader parity gates.
+
+### 2026-11-18 incremental evidence — S08/S13
+S13: actual mapped chapter availability now governs translation choices; unavailable saved columns retain repair controls, independent valid passage selection, disabled invalid FollowMain and filtered OpenInReader. Mac repair/close-last/Back/Forward checked, explicit gutter alignment and removed repeated per-verse menu chrome. iPhone compact/drag coverage remains open.
+S08: shared native background renderer restricts text selection/highlight fills to readable words per wrapped line. Mac live partial Mark13 selection/highlight and offscreen gutter/Strong’s/tag regression pass. iPhone word selection and tap multi-select checked, extended native handles and physical phone pending.

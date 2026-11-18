@@ -1709,3 +1709,10 @@ Explicit Strong’s IDs in both note editors open Lexicon, including repeated di
 - Pinned tabs have Unpin beside Close. Mac navigation stays grouped; native formatting menus declare standard shortcuts.
 - Fixed reproduced hand cursor over passive Notes space by checking actual registered control bounds. Mac live positive and negative cursor checks passed.
 - Both apps build;173shared Release tests pass.
+
+### 2026-11-18 — Compare availability and text-only reader backgrounds
+- Compare filters Add Translation by actual mapped chapter existence. Unavailable saved columns retain their metadata but show Choose Passage/Remove repair controls rather than empty verse cells. Add Another Passage can repair a slot. Follow Main is disabled for editions missing the anchor chapter; Open in Reader lists available columns only.
+- Aligned Mac rows use explicit horizontal gutter/text alignment. Mac per-verse ellipses are removed; right-click actions and note badges remain.
+- Shared TextKit background painting follows readable glyphs on each wrapped line, excludes verse gutters/Strong’s/chips and line-edge whitespace, preserves tag/hover decoration. Native source ranges, copy offsets and saved highlight data are unchanged.
+- Verification: shared Release175 tests/50 suites pass; final Mac/iOS builds pass before the small all-unavailable removal guard (rebuild pending). Mac QA Romans5 invalid LXX→Isaiah52LXX repair, disabled Follow Main, Close Last→reader, Back→Compare, Forward→reader all exercised. Mac Mark13 native drag across7–9 and saved yellow partial highlights show clean gutters and wrapped edges. Offscreen real AppKit renderer checks5 wrapped lines, excluded Strong’s/numbers/trailing space and preserved tag background; added to CI. iPhone27 simulator word selection and tap-based multiple verse actions checked; long multi-line handle extension and phone Compare remain pending.
+- Data: synthetic QA only. No merges, production stores, identities, sync or schema changes.

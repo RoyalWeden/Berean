@@ -358,7 +358,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
     }
 
-    private final class OutlineLayoutManager: NSLayoutManager {
+    private final class OutlineLayoutManager: ReaderTextLayoutManager {
         weak var reader: Coordinator?
         weak var view: ReaderTextView?
 

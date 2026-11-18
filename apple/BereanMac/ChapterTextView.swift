@@ -139,7 +139,7 @@ struct ChapterTextView: NSViewRepresentable {
         scroll.autohidesScrollers = true
         scroll.automaticallyAdjustsContentInsets = false
         let storage = NSTextStorage()
-        let layout = NSLayoutManager()
+        let layout = ReaderTextLayoutManager()
         let container = NSTextContainer()
         storage.addLayoutManager(layout)
         layout.addTextContainer(container)

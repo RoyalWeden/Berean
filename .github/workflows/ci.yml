@@ -91,6 +91,11 @@ jobs:
       - name: BereanKit conformance tests
         run: npm run native:test
 
+      - name: Reader background rendering regression (AppKit)
+        run: |
+          xcrun swiftc apple/Shared/ReaderVerse.swift scripts/native/reader-backgrounds/main.swift -o /tmp/berean-reader-backgrounds
+          /tmp/berean-reader-backgrounds
+
       - name: BereanKit conformance tests on an iOS Simulator (platform SQLite)
         run: npm run native:test:ios
 
