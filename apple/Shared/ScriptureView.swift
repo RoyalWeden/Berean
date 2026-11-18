@@ -110,7 +110,9 @@ struct PreparedReaderChapter: Sendable {
 /// after the chapter, and warm navigation can render without a loading branch.
 struct ScriptureChapterPresentation {
     let rows: [ChapterVerseRow]
-    let revisions: [Int]
+    let notesRevision: Int
+    let tagsRevision: Int
+    let highlightsRevision: Int
     let noteCounts: [Int: Int]
     let chapterCitations: [Note]
     let verseCitations: [Int: [NoteCrossReferences.Link]]
@@ -176,17 +178,47 @@ extension AppModel {
         guard let chapter = readerChapterCache[edition] else { return nil }
         let rows = chapter.rows
         touchReaderChapter(edition)
-        let revisions = [notesRevision, tagsRevision, highlightsRevision]
-        if let cached = readerPresentations[edition], cached.revisions == revisions { return cached }
-        let tags = try? verseTags?.forChapter(edition.book, edition.chapter)
-        let presentation = ScriptureChapterPresentation(rows: rows, revisions: revisions,
-            noteCounts: (try? notes?.coveringVerseCounts(edition.book, edition.chapter,
-                verses: Set(rows.map(\.verseNum)), textId: edition.text)) ?? [:],
-            chapterCitations: (try? notes?.notesCitingChapter(edition.book, edition.chapter, textId: edition.text)) ?? [],
-            verseCitations: (try? notes?.crossReferences(bookId: edition.book, chapter: edition.chapter,
-                textId: edition.text))?.byVerse ?? [:],
-            verseTags: tags?.verseTags ?? [:], chapterTags: tags?.chapterTags ?? [],
-            highlights: (try? highlights?.chapter(edition.book, edition.chapter, textId: edition.text)) ?? [:])
+        let cached = readerPresentations[edition]
+        if let cached, cached.notesRevision == notesRevision, cached.tagsRevision == tagsRevision,
+           cached.highlightsRevision == highlightsRevision { return cached }
+
+        // Annotation writes are independent. A highlight or tag change must not
+        // synchronously rerun the chapter's Notes/citation queries on the main
+        // actor, particularly while the native reader is updating its selection.
+        let noteCounts: [Int: Int]
+        let chapterCitations: [Note]
+        let verseCitations: [Int: [NoteCrossReferences.Link]]
+        if let cached, cached.notesRevision == notesRevision {
+            noteCounts = cached.noteCounts
+            chapterCitations = cached.chapterCitations
+            verseCitations = cached.verseCitations
+        } else {
+            noteCounts = (try? notes?.coveringVerseCounts(edition.book, edition.chapter,
+                verses: Set(rows.map(\.verseNum)), textId: edition.text)) ?? [:]
+            chapterCitations = (try? notes?.notesCitingChapter(edition.book, edition.chapter, textId: edition.text)) ?? []
+            verseCitations = (try? notes?.crossReferences(bookId: edition.book, chapter: edition.chapter,
+                textId: edition.text))?.byVerse ?? [:]
+        }
+        let chapterVerseTags: [Int: [TagLite]]
+        let chapterTags: [TagLite]
+        if let cached, cached.tagsRevision == tagsRevision {
+            chapterVerseTags = cached.verseTags
+            chapterTags = cached.chapterTags
+        } else {
+            let tags = try? verseTags?.forChapter(edition.book, edition.chapter)
+            chapterVerseTags = tags?.verseTags ?? [:]
+            chapterTags = tags?.chapterTags ?? []
+        }
+        let chapterHighlights: [Int: [Highlight]]
+        if let cached, cached.highlightsRevision == highlightsRevision {
+            chapterHighlights = cached.highlights
+        } else {
+            chapterHighlights = (try? highlights?.chapter(edition.book, edition.chapter, textId: edition.text)) ?? [:]
+        }
+        let presentation = ScriptureChapterPresentation(rows: rows,
+            notesRevision: notesRevision, tagsRevision: tagsRevision, highlightsRevision: highlightsRevision,
+            noteCounts: noteCounts, chapterCitations: chapterCitations, verseCitations: verseCitations,
+            verseTags: chapterVerseTags, chapterTags: chapterTags, highlights: chapterHighlights)
         readerPresentations[edition] = presentation
         return presentation
     }
