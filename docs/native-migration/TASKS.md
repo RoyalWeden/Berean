@@ -260,3 +260,8 @@ Mac tooltip-induced full reader rebuild removed; native-helper regression/build 
 
 
 M05 phonemizer checkpoint18Nov: official pinned resources compile; native raw IPA32cases per platform match original on Mac/iPhone simulator. Opt-in scripts/native/phonemizer-probe preserves reproduction. Still need resource/license integration decision, kokoro-js normalization/token IDs, original fp32 inference/style, streaming/cancel and listening; do not mark playback complete.
+
+### 2026-11-18 — Note discovery query lifecycle
+- [x] Reproduce and fix Mac palette full-title missing hits with current-query rendering fallback; rapid replacement/no-match/Return checked.
+- [x] Apply same current-query fallback to iPhone Go; full-title replacement/tap-to-open checked.
+- [ ] Broader IME/paste/metadata-change and CmdL note discovery matrix; note-title wrapping and measured reader/chrome latency remain.

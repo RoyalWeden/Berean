@@ -472,7 +472,9 @@ struct CommandPalette: View {
 
     var body: some View {
         let query = trimmed
-        let list = items(for: query, noteHits: noteResults?.query == query ? noteResults?.hits ?? [] : [])
+        // Match submit(): a stale cache must not suppress current-query notes.
+        let hits = noteResults?.query == query ? noteResults?.hits ?? [] : noteHits(for: query)
+        let list = items(for: query, noteHits: hits)
         let selection = selectedIndex(in: list, query: query)
         let selected = selection.map { list[$0] }
         ScrollViewReader { proxy in
@@ -651,8 +653,9 @@ struct CommandPalette: View {
             guard !Task.isCancelled, passage == resolvePassage(trimmed) else { return }
             passagePreview = excerpt.map { (passage, $0) }
         }
-        .task(id: query) {
-            guard !Task.isCancelled else { return }
+        .onChange(of: query, initial: true) { _, query in
+            // This bounded lookup is synchronous. A cancelled task can leave
+            // noteResults keyed to an earlier keystroke while typing continues.
             let hits = noteHits(for: query)
             let excerpts = hits.reduce(into: [String: String]()) { excerpts, note in
                 excerpts[note.id] = noteSearchPreview(note, query: query)

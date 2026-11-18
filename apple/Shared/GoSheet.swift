@@ -58,11 +58,7 @@ struct GoSheet: View {
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
             if text.isEmpty { focused = true }
         }
-        .task(id: trimmed) {
-            let query = trimmed
-            guard query.count >= 2 else { return }
-            do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
-            guard !Task.isCancelled, query == trimmed else { return }
+        .onChange(of: trimmed, initial: true) { _, query in
             notes = noteMatches(query)
             notesQuery = query
         }
@@ -188,9 +184,10 @@ struct GoSheet: View {
                 }
             }
         }
-        if notesQuery == trimmed && !notes.isEmpty {
+        let noteHits = notesQuery == trimmed ? notes : noteMatches(trimmed)
+        if !noteHits.isEmpty {
             Section("Notes") {
-                ForEach(notes) { note in
+                ForEach(noteHits) { note in
                     Button { finish { app.openNote(note.id, newTab: newTab) } } label: {
                         Label {
                             VStack(alignment: .leading, spacing: 3) {

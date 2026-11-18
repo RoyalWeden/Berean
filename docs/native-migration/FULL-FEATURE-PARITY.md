@@ -1112,3 +1112,5 @@ Implemented local bounded chapter/edition position persistence, including end/ve
 
 
 M05 partial18Nov: reproducible native phonemizer now matches original raw US/British IPA for32cases on each platform. Kokoro normalization/tokenizer, synthesis/playback/cancellation and listening still open; no app dependency added.
+
+18Nov note discovery regression resolved for tested Mac/iPhone paths: exact-title current-query results, rapid replacement and opening. Original FTS semantics retained. Other query/IME/metadata matrices remain partial.

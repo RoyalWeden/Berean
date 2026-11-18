@@ -162,3 +162,6 @@ Resolved underlying memory-only storage with local bounded validated viewport ch
 
 
 Phone selection recheck18Nov: final Mark12:37–39 renders one faint-filled rounded dashed group and floating action bar with text below; persisted verse/endVerse37/39 confirmed. An earlier number tap appeared to replace prior selection; repeat clean number-only and body/number mixed sequences before closing touch consistency.
+
+### 2026-11-18 — Exact note title lookup repaired
+Palette stale cache suppressed GalleryQA07/01 despite correct FTS results. Current-query fallback now renders correct title after rapid typing/replacement, removes old hits on no-match, and Return opens correct note (Mac verified). iPhone Go replacement and note opening also passed. onChange alone was insufficient; fallback is essential. Native DB helper/FTS unchanged. Full query/IME/metadata-refresh matrix remains open.
