@@ -1586,15 +1586,15 @@ struct ScriptureView: View {
         }
         if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
         ToolbarItemGroup {
-            Toggle(isOn: Binding(get: { st.compareMode }, set: { v in mutate { $0.compareMode = v } })) { Label("Compare", systemImage: "rectangle.split.2x1") }
+            Toggle(isOn: Binding(get: { st.compareMode }, set: { app.setReaderCompareMode($0, in: tabId) })) { Label("Compare", systemImage: "rectangle.split.2x1") }
                 .clickableCursor()
-                .keyboardShortcut("c", modifiers: [.command, .option]).help("Compare texts side by side (⌥⌘C)")
+                .help("Compare texts side by side (⌥⌘C)")
             Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                 .clickableCursor()
                 .help("Show Strong's numbers")
-            Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { v in mutate { $0.rightPanelOpen = v } })) { Label("Study Panel", systemImage: "sidebar.trailing") }
+            Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { app.setReaderStudyPanelOpen($0, in: tabId) })) { Label("Study Panel", systemImage: "sidebar.trailing") }
                 .clickableCursor()
-                .keyboardShortcut("i", modifiers: [.command, .option]).help("Study panel: notes, lexicon, cross references (⌥⌘I)")
+                .help("Study panel: notes, lexicon, cross references (⌥⌘I)")
         }
         if #available(macOS 26.0, *) { ToolbarSpacer(.fixed) }
         ToolbarItem {

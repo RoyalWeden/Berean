@@ -60,6 +60,14 @@ struct BereanMacApp: App {
                     .disabled(app.fontSize == ScriptureTextSize.standard)
                 Divider()
                 Button("Toggle Sidebar") { app.sidebarToggleRequest += 1 }.keyboardShortcut("s", modifiers: [.command, .control])
+                Toggle("Compare Texts", isOn: Binding(get: { app.activeReaderState?.compareMode ?? false },
+                                                     set: { app.setReaderCompareMode($0) }))
+                    .keyboardShortcut("c", modifiers: [.command, .option])
+                    .disabled(app.activeReaderState == nil)
+                Toggle("Study Panel", isOn: Binding(get: { app.activeReaderState?.rightPanelOpen ?? false },
+                                                   set: { app.setReaderStudyPanelOpen($0) }))
+                    .keyboardShortcut("i", modifiers: [.command, .option])
+                    .disabled(app.activeReaderState == nil)
             }
             CommandMenu("Go") {
                 Button("History") { app.openHistory() }.keyboardShortcut("y")

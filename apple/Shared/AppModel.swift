@@ -500,6 +500,29 @@ final class AppModel {
     func activeTabId(in space: SpaceId) -> String? { session.activeTabId[space] ?? nil }
     var activeTab: BereanWorkspace.Tab? { activeTabId(in: activeSpace).flatMap { id in tabs(in: activeSpace).first { $0.id == id } } }
 
+    var activeReaderState: BibleState? {
+        guard let tab = activeTab, tab.tabType == .bible else { return nil }
+        return BibleState(tab.state)
+    }
+
+    func setReaderCompareMode(_ enabled: Bool, in tabId: String? = nil) {
+        setReaderFlag(\.compareMode, to: enabled, in: tabId)
+    }
+
+    func setReaderStudyPanelOpen(_ enabled: Bool, in tabId: String? = nil) {
+        setReaderFlag(\.rightPanelOpen, to: enabled, in: tabId)
+    }
+
+    private func setReaderFlag(_ flag: WritableKeyPath<BibleState, Bool>, to enabled: Bool, in tabId: String?) {
+        guard let tab = activeTab, tab.tabType == .bible, tabId == nil || tab.id == tabId,
+              BibleState(tab.state)[keyPath: flag] != enabled else { return }
+        update(tab.id) { tab in
+            var reader = BibleState(tab.state)
+            reader[keyPath: flag] = enabled
+            tab.state = reader.merged(into: tab.state)
+        }
+    }
+
     private func rememberActiveTab() {
         guard let id = activeTab?.id else { return }
         recentTabIDs.removeAll { $0 == id }
