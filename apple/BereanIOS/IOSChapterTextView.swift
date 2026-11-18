@@ -4,21 +4,21 @@ import UIKit
 /// Observe touchdown without competing with scrolling, links, selection or pinch.
 /// A fast pan may be recognized only after much of its travel has occurred.
 private final class ChapterTouchStartObserver: UIGestureRecognizer {
-    var onStart: ((CGPoint) -> Void)?
+    var onStart: ((CGPoint, TimeInterval) -> Void)?
     var onMove: ((CGPoint) -> Void)?
-    var onFinish: ((CGPoint) -> Void)?
+    var onFinish: ((CGPoint, TimeInterval) -> Void)?
     var onCancel: (() -> Void)?
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         let active = event.allTouches?.filter { $0.phase != .ended && $0.phase != .cancelled } ?? Array(touches)
         guard active.count == 1, let touch = touches.first else { onCancel?(); finish(); return }
-        onStart?(touch.location(in: view?.window))
+        onStart?(touch.location(in: view?.window), touch.timestamp)
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
         if let touch = touches.first { onMove?(touch.location(in: view?.window)) }
     }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
-        if let touch = touches.first { onFinish?(touch.location(in: view?.window)) }
+        if let touch = touches.first { onFinish?(touch.location(in: view?.window), touch.timestamp) }
         finish()
     }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { onCancel?(); finish() }
@@ -111,19 +111,25 @@ struct IOSChapterTextView: UIViewRepresentable {
         touchStart.cancelsTouchesInView = false
         touchStart.delaysTouchesBegan = false
         touchStart.delaysTouchesEnded = false
-        touchStart.onStart = { [weak coordinator = context.coordinator, weak view] point in
+        touchStart.onStart = { [weak coordinator = context.coordinator, weak view] point, timestamp in
             guard let view else { return }
+            coordinator?.beginBodyTap(in: view, at: point, timestamp: timestamp)
             coordinator?.beginChapterPull(view, at: point)
         }
         touchStart.onMove = { [weak coordinator = context.coordinator, weak view] point in
             guard let view else { return }
+            coordinator?.moveBodyTap(to: point)
             coordinator?.trackChapterPull(view, at: point)
         }
-        touchStart.onFinish = { [weak coordinator = context.coordinator, weak view] point in
+        touchStart.onFinish = { [weak coordinator = context.coordinator, weak view] point, timestamp in
             guard let view else { return }
+            coordinator?.finishBodyTap(in: view, at: point, timestamp: timestamp)
             coordinator?.finishChapterPull(view, at: point)
         }
-        touchStart.onCancel = { [weak coordinator = context.coordinator] in coordinator?.cancelChapterPull() }
+        touchStart.onCancel = { [weak coordinator = context.coordinator] in
+            coordinator?.cancelBodyTap()
+            coordinator?.cancelChapterPull()
+        }
         view.addGestureRecognizer(touchStart)
 
         let verseTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapVerse(_:)))
@@ -677,7 +683,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         func resetScrollChrome() {
             pendingChapterPullCommit = nil
             pendingReaderTap = nil
-            previousVerseTap = nil
+            bodyTapIntent.reset()
+            rejectedBodyTap = nil
             pendingTapTimestamp = 0
             chapterPullActive = false
             chapterPullOrigin = nil
@@ -867,7 +874,8 @@ struct IOSChapterTextView: UIViewRepresentable {
             switch url.scheme {
             case "berean-verse":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
-                let title = parent.selectedVerses.contains(verse) ? "Deselect Verse \(verse)" : "Select Verse \(verse)"
+                let number = parent.verses.first { $0.verse == verse }?.readerVerse ?? verse
+                let title = parent.selectedVerses.contains(verse) ? "Deselect Verse \(number)" : "Select Verse \(number)"
                 return UIAction(title: title) { [weak self, weak textView] _ in
                     guard let textView else { return }
                     self?.toggleVerse(verse, in: textView)
@@ -877,7 +885,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 return UIAction { [weak self] _ in self?.parent.onNotes(verse) }
             case "berean-verse-citations":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse-citations:".count)) else { return nil }
-                return UIAction(title: "Note Cross References for Verse \(verse)") { [weak self] _ in
+                let number = parent.verses.first { $0.verse == verse }?.readerVerse ?? verse
+                return UIAction(title: "Note Cross References for Verse \(number)") { [weak self] _ in
                     self?.parent.onCitations(verse)
                 }
             case "strongs":
@@ -948,7 +957,13 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            traceTap("native-selection-change", in: textView)
             let selection = textView.selectedRange
+            if selection.length > 0,
+               bodyTapIntent.rejectsNativeSelection(at: ProcessInfo.processInfo.systemUptime) || rejectedBodyTap != nil {
+                textView.selectedTextRange = nil
+                return
+            }
             let trimmed = readerTextSelection(selection, in: textView.textStorage, excluding: Self.skip)
             if trimmed != selection {
                 if trimmed.length == 0 { textView.selectedTextRange = nil }
@@ -971,7 +986,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 self.textSelectionCleanupQueued = false
                 guard let view, self.passageId == passage, self.parent.passageId == passage,
                       view.selectedRange.length > 0, !self.parent.selectedVerses.isEmpty else { return }
-                self.previousVerseTap = nil
+                self.traceTap("clear-whole-selection", in: view)
+                self.bodyTapIntent.reset()
                 self.pendingReaderTap = nil
                 self.parent.onTextSelection()
             }
@@ -984,8 +1000,9 @@ struct IOSChapterTextView: UIViewRepresentable {
             let text = plainText(portions)
             let copy = UIAction(title: "Copy Text", image: UIImage(systemName: "doc.on.doc")) { _ in Clipboard.copy(text) }
             let reference = parent.reference(first.0.verse, last.0.verse)
+            let displayedNumbers = Dictionary(uniqueKeysWithValues: parent.verses.map { ($0.verse, $0.readerVerse) })
             let copyWithReference = UIAction(title: "Copy with Reference", image: UIImage(systemName: "number")) { _ in
-                let lines = portions.map { "\($0.0.verse) \($0.1.trimmingCharacters(in: .whitespacesAndNewlines))" }
+                let lines = portions.map { "\(displayedNumbers[$0.0.verse] ?? $0.0.verse) \($0.1.trimmingCharacters(in: .whitespacesAndNewlines))" }
                 Clipboard.copy(([reference] + lines).joined(separator: "\n"))
             }
             let highlight = UIMenu(title: "Highlight Selection", image: UIImage(systemName: "highlighter"),
@@ -1094,26 +1111,75 @@ struct IOSChapterTextView: UIViewRepresentable {
             return nil
         }
 
-        private static let rapidVerseTapInterval: TimeInterval = 0.5
+        #if DEBUG
+        private var tapTrace: [[String: String]] = []
+        private static let tapTraceQueue = DispatchQueue(label: "berean.reader.tap-diagnostics")
+        #endif
+
+        private func traceTap(_ event: String, in view: UITextView) {
+            #if DEBUG
+            guard ProcessInfo.processInfo.environment["BEREAN_READER_TAP_TRACE"] != nil else { return }
+            tapTrace.append(["event": event, "nativeRange": NSStringFromRange(view.selectedRange),
+                             "selected": parent.selectedVerses.sorted().map(String.init).joined(separator: ","),
+                             "pending": String(describing: pendingReaderTap),
+                             "time": String(ProcessInfo.processInfo.systemUptime)])
+            if tapTrace.count > 128 { tapTrace.removeFirst(tapTrace.count - 128) }
+            guard let data = try? JSONSerialization.data(withJSONObject: tapTrace, options: [.sortedKeys]) else { return }
+            let destination = URL(fileURLWithPath: NSTemporaryDirectory() + "berean-reader-taps.json")
+            Self.tapTraceQueue.async { try? data.write(to: destination, options: .atomic) }
+            #endif
+        }
+
         private var pendingReaderTap: ReaderTap?
         private var pendingTapTimestamp: TimeInterval = 0
-        private var previousVerseTap: (verse: Int, timestamp: TimeInterval)?
+        private var bodyTapIntent = ReaderBodyTapIntent()
+        private var rejectedBodyTap: UUID?
+
+        func beginBodyTap(in view: UITextView, at point: CGPoint, timestamp: TimeInterval) {
+            rejectedBodyTap = nil
+            let local = view.convert(point, from: view.window)
+            let verse: Int?
+            if case let .verse(number, marker: false) = readerTap(at: local, in: view) { verse = number }
+            else { verse = nil }
+            bodyTapIntent.begin(verse: verse, point: point, time: timestamp, hasNativeSelection: view.selectedRange.length > 0)
+            traceTap("body-start-\(verse.map(String.init) ?? "none")", in: view)
+        }
+
+        func moveBodyTap(to point: CGPoint) { bodyTapIntent.move(to: point) }
+        func cancelBodyTap() { bodyTapIntent.cancel(); rejectedBodyTap = nil }
+
+        func finishBodyTap(in view: UITextView, at point: CGPoint, timestamp: TimeInterval) {
+            guard let completion = bodyTapIntent.finish(point: point, time: timestamp, hasNativeSelection: view.selectedRange.length > 0) else { return }
+            if completion.rejectsNativeSelection {
+                let token = UUID()
+                rejectedBodyTap = token
+                // Native tap actions can publish a text range later in this
+                // same event. Keep a verse tap a verse tap until it is drained.
+                DispatchQueue.main.async { [weak self] in
+                    if self?.rejectedBodyTap == token { self?.rejectedBodyTap = nil }
+                }
+            }
+            traceTap("body-complete-\(completion.verse)", in: view)
+            toggleVerse(completion.verse, in: view)
+        }
 
         @objc func tapVerse(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? UITextView else { return }
+            traceTap("recognized-tap", in: view)
             // Keep the touch-down target if selection reveal/layout moved the
             // document while this short tap was being recognized.
             let tap = pendingReaderTap
             guard let tap else { return }
             switch tap {
             case let .verse(verse, _):
-                previousVerseTap = (verse, pendingTapTimestamp)
+                bodyTapIntent.marker(verse: verse, point: gesture.location(in: view.window), time: pendingTapTimestamp)
                 toggleVerse(verse, in: view)
             case let .chapterStep(step): parent.onStep(step)
             }
         }
 
         private func toggleVerse(_ verse: Int, in view: UITextView) {
+            traceTap("toggle-\(verse)", in: view)
             view.selectedTextRange = nil
             parent.onVerseTap(verse)
             if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true { selectionFeedback.selectionChanged() }
@@ -1122,30 +1188,28 @@ struct IOSChapterTextView: UIViewRepresentable {
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             guard gesture is UITapGestureRecognizer, let view = gesture.view as? UITextView else { return true }
             let point = touch.location(in: view)
-            let tap = readerTap(at: point, in: view)
+            let hit = readerTap(at: point, in: view)
+            // Body taps come from the passive touch observer. They must not
+            // wait for UIKit's cross-verse word-double-tap failure graph.
+            let tap: ReaderTap?
+            if case .verse(_, marker: false) = hit { tap = nil } else { tap = hit }
             pendingReaderTap = tap
             pendingTapTimestamp = touch.timestamp
+            traceTap("receive-\(point)", in: view)
             return tap != nil
         }
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
-            // UITextView's word double-tap can span two different verses even
-            // when UIEvent reports separate single taps. Rapid cross-verse taps
-            // mean whole-verse selection; same-verse double-tap stays native.
             guard gesture is UITapGestureRecognizer, other !== gesture,
-                  let otherTap = other as? UITapGestureRecognizer,
-                  case let .verse(verse, marker) = pendingReaderTap else { return false }
-            // Numbers are controls; keep their UIKit accessibility action, but
-            // let touch taps select/deselect instead of becoming word selection.
-            if marker { return true }
-            guard otherTap.numberOfTapsRequired > 1, let previousVerseTap,
-                  previousVerseTap.verse != verse else { return false }
-            return (0...Self.rapidVerseTapInterval).contains(pendingTapTimestamp - previousVerseTap.timestamp)
+                  other is UITapGestureRecognizer,
+                  case .verse(_, marker: true) = pendingReaderTap else { return false }
+            // Verse numbers remain controls, including rapid repeated taps.
+            return true
         }
 
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
             guard let view = gesture.view as? UITextView else { return false }
-            if gesture is UITapGestureRecognizer { return true }
+            if gesture is UITapGestureRecognizer { traceTap("begin-tap", in: view); return true }
             if gesture is UIPinchGestureRecognizer { return view.selectedRange.length == 0 }
             guard parent.selectedVerses.isEmpty, pinchStartSize == nil else { return false }
             let x = gesture.location(in: view).x - view.bounds.minX

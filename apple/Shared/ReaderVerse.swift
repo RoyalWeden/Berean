@@ -80,6 +80,71 @@ class ReaderTextLayoutManager: NSLayoutManager {
     }
 }
 
+/// Distinguish deliberate verse taps from native word selection without making
+/// our tap recognizer compete with UITextView's private gesture dependencies.
+struct ReaderBodyTapIntent {
+    struct Completion: Equatable {
+        let verse: Int
+        let rejectsNativeSelection: Bool
+    }
+    private struct Tap {
+        let verse: Int
+        let point: CGPoint
+        let time: TimeInterval
+        let marker: Bool
+    }
+    private struct Candidate {
+        let tap: Tap
+        let permitsWordSelection: Bool
+    }
+    private var candidate: Candidate?
+    private var previous: Tap?
+    static let maximumTapDuration: TimeInterval = 0.45
+    static let doubleTapInterval: TimeInterval = 0.5
+
+    mutating func begin(verse: Int?, point: CGPoint, time: TimeInterval, hasNativeSelection: Bool) {
+        candidate = nil
+        guard !hasNativeSelection, let verse else {
+            if hasNativeSelection { previous = nil }
+            return
+        }
+        let wordIntent = previous.map {
+            !$0.marker && $0.verse == verse && (0...Self.doubleTapInterval).contains(time - $0.time)
+                && distance($0.point, point) <= 24
+        } ?? false
+        candidate = Candidate(tap: Tap(verse: verse, point: point, time: time, marker: false), permitsWordSelection: wordIntent)
+    }
+
+    mutating func move(to point: CGPoint) {
+        if let candidate, distance(candidate.tap.point, point) > 10 { self.candidate = nil }
+    }
+
+    func rejectsNativeSelection(at time: TimeInterval) -> Bool {
+        guard let candidate else { return false }
+        return !candidate.permitsWordSelection && (0...Self.maximumTapDuration).contains(time - candidate.tap.time)
+    }
+
+    mutating func finish(point: CGPoint, time: TimeInterval, hasNativeSelection: Bool) -> Completion? {
+        move(to: point)
+        guard let candidate else { return nil }
+        self.candidate = nil
+        guard (0...Self.maximumTapDuration).contains(time - candidate.tap.time) else { return nil }
+        previous = Tap(verse: candidate.tap.verse, point: point, time: time, marker: false)
+        if hasNativeSelection && candidate.permitsWordSelection { return nil }
+        return Completion(verse: candidate.tap.verse, rejectsNativeSelection: !candidate.permitsWordSelection)
+    }
+
+    mutating func marker(verse: Int, point: CGPoint, time: TimeInterval) {
+        candidate = nil
+        previous = Tap(verse: verse, point: point, time: time, marker: true)
+    }
+
+    mutating func cancel() { candidate = nil }
+    mutating func reset() { candidate = nil; previous = nil }
+
+    private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }
+}
+
 struct ChapterPullCue: Equatable {
     let direction: Int
     let ready: Bool
