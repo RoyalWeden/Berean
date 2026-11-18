@@ -16,6 +16,23 @@ struct ScriptureReadingPosition: Equatable {
     var returnEdition: ChapterEdition?
     var viewportWidth: CGFloat?
     var verseOffsetFromTop: CGFloat?
+
+    var persisted: ReaderViewport? {
+        ReaderViewport(offset: Double(offset), verse: verse, atEnd: atEnd, selectedVerses: selectedVerses,
+                       width: viewportWidth.map { Double($0) }, verseOffset: verseOffsetFromTop.map { Double($0) })
+    }
+
+    init(_ position: ReaderViewport) {
+        offset = CGFloat(position.offset); verse = position.verse; atEnd = position.atEnd
+        selectedVerses = position.selectedVerses; viewportWidth = position.width.map { CGFloat($0) }
+        verseOffsetFromTop = position.verseOffset.map { CGFloat($0) }
+    }
+
+    init(offset: CGFloat, verse: Int?, atEnd: Bool = false, selectedVerses: Set<Int> = [],
+         returnEdition: ChapterEdition? = nil, viewportWidth: CGFloat? = nil, verseOffsetFromTop: CGFloat? = nil) {
+        self.offset = offset; self.verse = verse; self.atEnd = atEnd; self.selectedVerses = selectedVerses
+        self.returnEdition = returnEdition; self.viewportWidth = viewportWidth; self.verseOffsetFromTop = verseOffsetFromTop
+    }
 }
 
 struct ScriptureEditionArrival {
@@ -123,7 +140,7 @@ extension AppModel {
                                                            from: source.text, to: fallback.text) {
             target = ChapterEdition(book: fallback.book, chapter: mapped.chapter, text: fallback.text)
         }
-        if let position { scriptureReadingPositions[tabId, default: [:]][source.key] = position }
+        if let position { saveScripturePosition(tabId: tabId, edition: source, position: position) }
         scriptureEditionSources[tabId] = (source, target, position)
         reader.translation = target.text
         reader.chapter = target.chapter
@@ -139,11 +156,32 @@ extension AppModel {
         readerNavigationFeedback()
         #endif
     }
+    func savedScripturePosition(tabId: String, edition: ChapterEdition) -> ScriptureReadingPosition? {
+        if let position = scriptureReadingPositions[tabId]?[edition.key] { return position }
+        guard let tab = findTab(tabId), let saved = ReaderViewports.position(in: tab.state, chapter: edition.key) else { return nil }
+        let position = ScriptureReadingPosition(saved)
+        scriptureReadingPositions[tabId, default: [:]][edition.key] = position
+        return position
+    }
+
+    func saveScripturePosition(tabId: String, edition: ChapterEdition, position: ScriptureReadingPosition) {
+        scriptureReadingPositions[tabId, default: [:]][edition.key] = position
+        guard let persisted = position.persisted, let tab = findTab(tabId), tab.tabType == .bible else { return }
+        guard ReaderViewports.position(in: tab.state, chapter: edition.key) != persisted else { return }
+        update(tabId, recordHistory: false) {
+            $0.state = ReaderViewports.updating($0.state, chapter: edition.key, position: persisted)
+        }
+        if let keys = findTab(tabId)?.state[ReaderViewports.field]?.objectValue?.entries.map({ $0.0.string }) {
+            let retained = Set(keys)
+            scriptureReadingPositions[tabId] = scriptureReadingPositions[tabId]?.filter { retained.contains($0.key) }
+        }
+    }
+
     func restoreScripturePosition(tabId: String, edition: ChapterEdition) -> ScriptureReadingPosition? {
         if let transition = scriptureEditionSources[tabId], transition.target == edition {
             scriptureEditionSources.removeValue(forKey: tabId)
-            guard let saved = transition.position ?? scriptureReadingPositions[tabId]?[transition.source.key] else { return nil }
-            if saved.returnEdition == edition, var original = scriptureReadingPositions[tabId]?[edition.key] {
+            guard let saved = transition.position ?? savedScripturePosition(tabId: tabId, edition: transition.source) else { return nil }
+            if saved.returnEdition == edition, var original = savedScripturePosition(tabId: tabId, edition: edition) {
                 original.returnEdition = transition.source
                 return original
             }
@@ -156,7 +194,7 @@ extension AppModel {
             return ScriptureReadingPosition(offset: 0, verse: verse, returnEdition: transition.source)
         }
         scriptureEditionSources.removeValue(forKey: tabId)
-        return scriptureReadingPositions[tabId]?[edition.key]
+        return savedScripturePosition(tabId: tabId, edition: edition)
     }
 
 }
@@ -466,6 +504,11 @@ struct ScriptureView: View {
         #endif
         .toolbar { toolbar(st) }
         .onDisappear { chapterStepTask?.cancel() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active, !st.compareMode, let position = positionReader.capture(nil) else { return }
+            app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: position)
+            app.saveNow()
+        }
         .task(id: st.compareMode ? nil : ChapterEdition(st)) {
             guard !st.compareMode else { return }
             let source = ChapterEdition(st)
@@ -708,7 +751,7 @@ struct ScriptureView: View {
         if onlyIfChanged && next == selection { return }
         selectedVerse = state.verse
         anchor = state.verse
-        let saved = app.scriptureReadingPositions[tabId]?[chapterKey(state)]
+        let saved = app.savedScripturePosition(tabId: tabId, edition: ChapterEdition(state))
         scrollTarget = restoringReader && saved?.selectedVerses == next ? nil : state.verse
         selection = next
     }
@@ -1179,7 +1222,7 @@ struct ScriptureView: View {
             scrollRevision: scrollRevision,
             positionReader: positionReader,
             restorePosition: { restoreReaderPosition(st) },
-            savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
+            savePosition: { app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: $0) },
             findRequest: findRequest,
             reference: { first, last in
                 let suffix = st.translation == "lxx" ? " LXX" : ""
@@ -2100,7 +2143,7 @@ extension ScriptureView {
             },
             onFindKey: handleChapterFindKey,
             restorePosition: { restoreReaderPosition(st) },
-            savePosition: { app.scriptureReadingPositions[tabId, default: [:]][chapterKey(st)] = $0 },
+            savePosition: { app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: $0) },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
             rangeReference: { a, b in "\(referenceChapterLabel(st)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
             verseMenu: { verseNSMenu($0, st) },

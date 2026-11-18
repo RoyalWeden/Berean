@@ -185,3 +185,6 @@ Native spoken-only preparation/word alignment implemented and checked against282
 
 ### 2026-11-18 — Reader follow-up
 Late Mac Strong’s tooltips update in-place rather than replacing the chapter. Actual-helper regression passes (no character edits, correct repeated/fallback metadata), as do background/gesture checks and both app builds. iPhone pulls also evaluate direct travel/final release; successful211pttop pull traced, repeated zero-input simulator bottom drags remain inconclusive. Detailed Scripture viewport persistence is missing across relaunch (memory-only), now prioritized in TASKS. Native phonemizer probe builds but lacks compiled phoneme data; no new app dependency or playback claim.
+
+### 2026-11-18 — Reading position survives relaunch
+Native Scripture now persists bounded validated local per-edition viewport checkpoints. Mac QA and iPhone27 simulator both restored a deep viewport after process relaunch; Mac tab switch also checked.182 shared tests,17 original persistence tests, oracle/lint/typecheck and both builds pass. CI at747aafe0 success for both jobs; newer checkpoint commit requires its own CI. Other tab types, full history/flip matrix and physical-device timing remain open. See latest HANDOFF.

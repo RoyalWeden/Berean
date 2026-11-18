@@ -1758,3 +1758,8 @@ ReadAloud isolated probe (not an app dependency) lives /tmp/berean-kokoro-native
 New concrete scroll gap: scriptureReadingPositions is an ObservationIgnored in-memory map; savePosition closures write that map and teardown captures it. No persisted native viewport record is read/written. Installing/relaunching simulator returnedMark13top after it had been at the end. Existing legacy numeric scrollPosition is allow-listed local but native reader does not use/update it. Next: bounded per-tab native viewport records in local-only tab state (extend both native/TS allowlists + conformance fixtures), finite-value validation, offsets/verse/width/end/selection restoration, checkpoint on settled scroll and lifecycle/dismantle, clear current edition on explicit jump. Keep per-edition memory/flip return behavior and all legacy sync fields/IDs unchanged. Do not broaden this into production-store/schema work.
 
 CI44287280869 on69abe784: legacy SUCCESS, native iOSconformance inprogress at lastcheck. Do not cancel/restart a live job based on observation timeout. Local reader refinements should be committed and pushed after recording current CI status; preserve owner-review22→23→draft24, no merges or production data. Goal active.
+
+### 2026-11-18 — Native Scripture remembers its place
+- Both apps restore local per-chapter/edition reading positions after relaunch and checkpoint settled scrolling.
+- Explicit passage jumps clear only the destination's old viewport; bounded local records preserve legacy tab sync behavior.
+-182 shared and17 original persistence tests pass; Mac/iPhone simulator relaunch checked, both apps build.

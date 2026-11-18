@@ -8,6 +8,19 @@ private final class ChapterPullScrollView: NSScrollView {
     private var pull: ChapterPullCue?
     private var pullIntent = ChapterPullIntent(armDistance: 112, disarmDistance: 92)
     private var keyboardMonitor: Any?
+    private var positionCheckpoint: Task<Void, Never>?
+
+    override func reflectScrolledClipView(_ clipView: NSClipView) {
+        super.reflectScrolledClipView(clipView)
+        guard reader != nil else { return }
+        positionCheckpoint?.cancel()
+        positionCheckpoint = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            guard let self, !Task.isCancelled, let reader,
+                  let position = reader.readingPosition(in: self) else { return }
+            reader.parent.savePosition(position)
+        }
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -23,6 +36,8 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     func stopKeyboardMonitor() {
+        positionCheckpoint?.cancel()
+        positionCheckpoint = nil
         if let keyboardMonitor {
             NSEvent.removeMonitor(keyboardMonitor)
             self.keyboardMonitor = nil
@@ -63,6 +78,7 @@ private final class ChapterPullScrollView: NSScrollView {
             travel = 0
             publish(nil)
             super.scrollWheel(with: event)
+            if let reader, let position = reader.readingPosition(in: self) { reader.parent.savePosition(position) }
             if let direction, let parent = reader?.parent, parent.canPullChapter(direction) {
                 parent.onChapterPullCommit(direction)
             }
@@ -96,6 +112,9 @@ private final class ChapterPullScrollView: NSScrollView {
         }
 
         super.scrollWheel(with: event)
+        if event.momentumPhase.contains(.ended), let reader, let position = reader.readingPosition(in: self) {
+            reader.parent.savePosition(position)
+        }
     }
 }
 

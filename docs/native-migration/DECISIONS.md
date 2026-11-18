@@ -432,3 +432,6 @@ Return prepared speech text, preserving spaces used by word offsets, rather than
 
 ### 2026-11-18 — Hover metadata is not reader content
 Keep asynchronous Strong’s tooltip values out of the reader’s content/style render key. Update only tooltip attributes on existing links, preserving text/selection and avoiding full chapter replacement/scroll restoration. Chapter pull intent uses actual finger travel plus a calibrated indirect overscroll fallback and evaluates release; do not infer physical sensitivity from simulator attempts that delivered zero input.
+
+### 2026-11-18 — Reading geometry is bounded local presentation
+Store native reader geometry under local-only nativeReaderPositions, separate from legacy numeric scrollPosition and synced passage destination. Use explicit recency because canonical JSON reorders keys. Validate finite geometry and cap records to24 per tab. Keep edition-return navigation hints memory-only. Checkpoint settled scrolling plus lifecycle and clear only the requested edition on deliberate passage jumps.

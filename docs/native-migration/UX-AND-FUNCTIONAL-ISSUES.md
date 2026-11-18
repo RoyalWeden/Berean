@@ -156,3 +156,6 @@ Daily-folder calendar markers/date reuse verified on both platforms. Mac Checkli
 Chapter gesture follow-up: deterministic fresh-edge/hysteresis regression and builds pass. iPhone13→12 end and12→13 start work. Repeated activation at a later13end viewport not established: inspect real scroll begin offset versus2pt edge tolerance and dock/contentInset settling. Do not silently lower arm threshold before measuring. Cue rendering/haptic timing, Mac physical trackpad stillpending.
 
 18Nov follow-up: late Mac hover gloss arrival caused full reader rebuild through Key.tooltips; now metadata-only with actual-helper regression. Whole-app tab latency still needs measurement. iPhone pan trace proves211pttop navigation; many failed bottom attempts have0actualinput and are inconclusive. Physical/haptic checks remain. Scripture detail viewport is memory-only and relaunch returned to top; persist validated local-only native viewport records next (TASKS/HANDOFF).
+
+### 2026-11-18 — Relaunch loses native Scripture position
+Resolved underlying memory-only storage with local bounded validated viewport checkpoints. MacQA and iPhone27 simulator deep position restored after relaunch. Mac switch-away/back also retained position. Do not equate this with measured instant switching throughout the app; other tab types, explicit jump/end/resize/LXX matrices remain open.

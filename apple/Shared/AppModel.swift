@@ -1533,6 +1533,9 @@ final class AppModel {
 
     func requestScriptureJump(in tabID: String, to chapter: ChapterEdition) {
         scriptureReadingPositions[tabID]?.removeValue(forKey: chapter.key)
+        update(tabID, recordHistory: false) {
+            $0.state = ReaderViewports.updating($0.state, chapter: chapter.key, position: nil)
+        }
         scriptureJumpRequest = (tabID, chapter, UUID())
     }
 }

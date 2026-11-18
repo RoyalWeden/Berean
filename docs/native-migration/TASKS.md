@@ -251,3 +251,9 @@ M05 continuation18Nov: speech preparation/SpokenText service completed with orig
 ### Reader persistence / responsiveness — evidence18Nov
 P1: detailed Scripture viewport map is memory-only. Add bounded per-edition local tab viewport records, validation, settled-scroll/lifecycle capture and explicit-jump invalidation; extend native/TS local allowlists and test sync isolation/legacy preservation. Test both apps: tab/workspace switch, long chapters, KJV/LXX flips, background/relaunch, changed width/font/selection and history. Existing numerical scrollPosition is local but unused natively. Keep production stores/sync/IDs protected.
 Mac tooltip-induced full reader rebuild removed; native-helper regression/build pass, live arrival/deep-scroll/selection and measured tab latency still open. iPhone direct-pan release implemented; bottom automation often reports zero actual input, so physical sensitivity and cue timing remain acceptance work.
+
+### 2026-11-18 — Viewport checkpoint follow-through
+- [x] Persist bounded validated native Scripture reading geometry in local-only tab state on both platforms; preserve original sync and numeric scrollPosition.
+- [x] Check actual Mac/iPhone simulator relaunch at deep viewport and Mac switch-away/back.
+- [ ] Broaden explicit jump/selection/end/width/font/LXX return matrix across relaunch; other tab-type viewport persistence and measured toolbar latency remain open.
+- [ ] Continue Kokoro native phoneme resource compilation and original fp32 inference/playback; no native audio claimed.

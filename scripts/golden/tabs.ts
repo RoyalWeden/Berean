@@ -17,6 +17,7 @@ const ROOT = resolve(__dirname, '../..')
 
 const states: Array<[TabType, Record<string, unknown>]> = [
   ['bible', { bookId: 'JHN', chapter: 3, verse: 16, translation: 'kjva', showStrongs: true, scrollPosition: 120.5, targetVerse: 16, rightPanelOpen: true, rightPanelWidth: 380,
+    nativeReaderPositions: { 'kjva|JHN|3': { offset: 120.5, verse: 16, atEnd: false, selectedVerses: [16], width: 390, verseOffset: -2.5 } },
     compareMode: true, compareColumns: [{ textId: 'lxx', bookId: 'GEN', chapter: 1, scrollPos: { verseNum: 3, frac: 0.25 } }, { textId: 'kjva', bookId: 'GEN', chapter: 1 }],
     hiddenAnnotations: ['lxx_supply'], scriptureLayout: 'study-grid', rightPanelTab: 'lexicon', rightPanelScrollTops: { notes: 10 }, unknownFutureField: { a: 1 } }],
   ['bible', { bookId: 'GEN', chapter: 1, translation: 'lxx', showStrongs: false, scrollPosition: 0, compareColumns: [{ textId: 'kjva', bookId: 'GEN', chapter: 1 }] }],

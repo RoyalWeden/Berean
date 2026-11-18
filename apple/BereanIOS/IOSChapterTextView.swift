@@ -565,8 +565,18 @@ struct IOSChapterTextView: UIViewRepresentable {
             trackChapterPull(scrollView, ending: true)
             let direction = chapterPullIntent.finish()
             publishChapterPull(nil)
+            if !decelerate { checkpointPosition(in: scrollView) }
             guard let direction, parent.canPullChapter(direction) else { return }
             parent.onChapterPullCommit(direction)
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            checkpointPosition(in: scrollView)
+        }
+
+        private func checkpointPosition(in scrollView: UIScrollView) {
+            guard let view = scrollView as? UITextView, let position = readingPosition(in: view) else { return }
+            parent.savePosition(position)
         }
 
         func resetScrollChrome() {
