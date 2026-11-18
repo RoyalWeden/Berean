@@ -363,7 +363,11 @@ struct ScriptureView: View {
     @State private var copyFeedbackID = UUID()
     @State private var loadedChapter: String?
     @State private var chapterPull: ChapterPullCue?
-    @State private var pullEndDestination: ChapterEdition?
+    private struct ChapterStepArrival {
+        let chapter: ChapterEdition
+        let atEnd: Bool
+    }
+    @State private var chapterStepArrival: ChapterStepArrival?
     @AppStorage("chapterPullNavigation") private var chapterPullNavigation = true
     @State private var verses: [ChapterVerseRow] = []
     @State private var selectedVerse: Int?
@@ -539,9 +543,9 @@ struct ScriptureView: View {
 
     private func restoreReaderPosition(_ state: BibleState) -> ScriptureReadingPosition? {
         let edition = ChapterEdition(state)
-        if pullEndDestination == edition {
-            pullEndDestination = nil
-            return ScriptureReadingPosition(offset: 0, verse: nil, atEnd: true)
+        if let arrival = chapterStepArrival, arrival.chapter == edition {
+            chapterStepArrival = nil
+            return ScriptureReadingPosition(offset: 0, verse: nil, atEnd: arrival.atEnd)
         }
         return app.restoreScripturePosition(tabId: tabId, edition: edition)
     }
@@ -624,7 +628,7 @@ struct ScriptureView: View {
         }
         .onChange(of: ChapterEdition(st)) { _, edition in
             chapterPull = nil
-            if pullEndDestination != edition { pullEndDestination = nil }
+            if chapterStepArrival?.chapter != edition { chapterStepArrival = nil }
             #if os(macOS)
             if chapterFindVisible { closeChapterFind() }
             #endif
@@ -1589,7 +1593,7 @@ struct ScriptureView: View {
                   destination.compareMode == reader.compareMode,
                   destination.verse == reader.verse, destination.endVerse == reader.endVerse,
                   current.state["nativeSelectedVerses"] == source.state["nativeSelectedVerses"] else { return }
-            pullEndDestination = fromPull && delta < 0 ? target : nil
+            chapterStepArrival = ChapterStepArrival(chapter: target, atEnd: fromPull && delta < 0)
             mutate { $0.bookId = target.book; $0.chapter = target.chapter; $0.verse = nil; $0.endVerse = nil }
             #if os(iOS)
             if !fromPull { readerNavigationFeedback() }

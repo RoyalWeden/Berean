@@ -199,3 +199,6 @@ ReadAloud native research18Nov: official eSpeak resource compilation resolved; U
 
 
 18Nov speech checkpoint:184sharedtests pass, both apps build; native full Kokoro English preprocessing/phonemizer104comparisons per platform pass on Mac/iPhone simulator with original data+trace API. No native playback shipped. New owner priority is smooth Scripture scrolling, no chapter loading flash, and short-chapter pull gestures.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.

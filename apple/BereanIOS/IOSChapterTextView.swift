@@ -1,6 +1,37 @@
 import SwiftUI
 import UIKit
 
+/// Observe touchdown without competing with scrolling, links, selection or pinch.
+/// A fast pan may be recognized only after much of its travel has occurred.
+private final class ChapterTouchStartObserver: UIGestureRecognizer {
+    var onStart: ((CGPoint) -> Void)?
+    var onMove: ((CGPoint) -> Void)?
+    var onFinish: ((CGPoint) -> Void)?
+    var onCancel: (() -> Void)?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        let active = event.allTouches?.filter { $0.phase != .ended && $0.phase != .cancelled } ?? Array(touches)
+        guard active.count == 1, let touch = touches.first else { onCancel?(); finish(); return }
+        onStart?(touch.location(in: view?.window))
+    }
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first { onMove?(touch.location(in: view?.window)) }
+    }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first { onFinish?(touch.location(in: view?.window)) }
+        finish()
+    }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { onCancel?(); finish() }
+    override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool { false }
+    override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool { false }
+
+    private func finish() {
+        // Stay possible while observing, then fail. This observer never wins
+        // recognition or requires the native scroll/selection gestures to fail.
+        state = .failed
+    }
+}
+
 /// A chapter is one selectable document. Inline controls participate in UIKit link hit testing
 /// but are excluded from copied text and from persisted highlight offsets.
 struct IOSChapterTextView: UIViewRepresentable {
@@ -75,6 +106,24 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.alwaysBounceVertical = true
         view.accessibilityLabel = "Scripture text"
         view.delegate = context.coordinator
+        let touchStart = ChapterTouchStartObserver()
+        touchStart.cancelsTouchesInView = false
+        touchStart.delaysTouchesBegan = false
+        touchStart.delaysTouchesEnded = false
+        touchStart.onStart = { [weak coordinator = context.coordinator, weak view] point in
+            guard let view else { return }
+            coordinator?.beginChapterPull(view, at: point)
+        }
+        touchStart.onMove = { [weak coordinator = context.coordinator, weak view] point in
+            guard let view else { return }
+            coordinator?.trackChapterPull(view, at: point)
+        }
+        touchStart.onFinish = { [weak coordinator = context.coordinator, weak view] point in
+            guard let view else { return }
+            coordinator?.finishChapterPull(view, at: point)
+        }
+        touchStart.onCancel = { [weak coordinator = context.coordinator] in coordinator?.cancelChapterPull() }
+        view.addGestureRecognizer(touchStart)
 
         let verseTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapVerse(_:)))
         verseTap.delegate = context.coordinator
@@ -527,47 +576,55 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
         }
 
-        private func trackChapterPull(_ scrollView: UIScrollView, ending: Bool = false) {
-            guard scrollView.isDragging || ending,
-                  let view = scrollView as? UITextView, view.selectedRange.length == 0,
-                  parent.selectedVerses.isEmpty else {
-                if scrollView.isDragging || ending {
-                    chapterPullIntent.cancel()
-                    publishChapterPull(nil)
-                }
-                return
-            }
-            // Rubber-band displacement is clamped/animated independently of the
-            // finger (and changes with dock insets). Measure the direct pan;
-            // intent already restricts it to gestures starting at the right edge.
-            let pan = scrollView.panGestureRecognizer.translation(in: scrollView)
+        private var chapterPullActive = false
+        private var chapterPullOrigin: CGPoint?
+
+        func beginChapterPull(_ scrollView: UIScrollView, at point: CGPoint) {
+            cancelChapterPull()
+            guard let view = scrollView as? UITextView, view.selectedRange.length == 0,
+                  parent.selectedVerses.isEmpty, pinchStartSize == nil else { return }
+            chapterPullActive = true
+            chapterPullOrigin = point
             let top = -scrollView.adjustedContentInset.top
             let bottom = max(top, scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - scrollView.bounds.height)
-            let overscroll = scrollView.contentOffset.y < top ? top - scrollView.contentOffset.y
-                : max(0, scrollView.contentOffset.y - bottom)
-            let direction = pan.y != 0 ? (pan.y > 0 ? -1 : 1) : (scrollView.contentOffset.y < top ? -1 : 1)
-            // Indirect scrolling can have no pan translation; retain the old
-            // rubber-band threshold as a fallback in the same intent units.
-            let distance = max(abs(pan.y), overscroll * (112.0 / 68.0))
-            publishChapterPull(chapterPullIntent.update(direction: direction, distance: distance,
-                allowed: (abs(pan.y) > abs(pan.x) || (pan == .zero && overscroll > 0)) && parent.canPullChapter(direction)))
+            let fits = bottom <= top + 1
+            chapterPullIntent.begin(atTop: fits || scrollView.contentOffset.y <= top + 2,
+                                    atBottom: fits || scrollView.contentOffset.y >= bottom - 2)
         }
 
-        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        func trackChapterPull(_ scrollView: UIScrollView, at point: CGPoint) {
+            guard chapterPullActive else { return }
+            guard let view = scrollView as? UITextView, view.selectedRange.length == 0,
+                  parent.selectedVerses.isEmpty, pinchStartSize == nil,
+                  let origin = chapterPullOrigin else { cancelChapterPull(); return }
+            // Window-space touch travel survives clamped short-page scrolling
+            // and fast/coalesced input; UIScrollView may reset pan translation.
+            let travel = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
+            let direction = travel.y > 0 ? -1 : 1
+            publishChapterPull(chapterPullIntent.update(direction: direction, distance: abs(travel.y),
+                allowed: abs(travel.y) > abs(travel.x) && parent.canPullChapter(direction)))
+        }
+
+        func finishChapterPull(_ scrollView: UIScrollView, at point: CGPoint) {
+            guard chapterPullActive else { return }
+            trackChapterPull(scrollView, at: point)
+            chapterPullActive = false
+            chapterPullOrigin = nil
+            let direction = chapterPullIntent.finish()
             publishChapterPull(nil)
-            let top = -scrollView.adjustedContentInset.top
-            let bottom = max(top, scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - scrollView.bounds.height)
-            chapterPullIntent.begin(atTop: scrollView.contentOffset.y <= top + 2,
-                                    atBottom: scrollView.contentOffset.y >= bottom - 2)
+            guard let direction, parent.canPullChapter(direction) else { return }
+            parent.onChapterPullCommit(direction)
+        }
+
+        func cancelChapterPull() {
+            chapterPullActive = false
+            chapterPullOrigin = nil
+            chapterPullIntent.cancel()
+            publishChapterPull(nil)
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-            trackChapterPull(scrollView, ending: true)
-            let direction = chapterPullIntent.finish()
-            publishChapterPull(nil)
             if !decelerate { checkpointPosition(in: scrollView) }
-            guard let direction, parent.canPullChapter(direction) else { return }
-            parent.onChapterPullCommit(direction)
         }
 
         func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
@@ -580,6 +637,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         func resetScrollChrome() {
+            chapterPullActive = false
+            chapterPullOrigin = nil
             chapterPullIntent.cancel()
             lastScrollY = 0
             scrollTravel = 0
@@ -589,7 +648,6 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             (scrollView as? ReaderTextView)?.rememberViewportPosition()
-            trackChapterPull(scrollView)
             let inset = scrollView.adjustedContentInset
             let y = scrollView.contentOffset.y + inset.top
             defer { lastScrollY = y }

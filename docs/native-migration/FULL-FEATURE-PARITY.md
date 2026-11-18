@@ -1120,3 +1120,6 @@ M05 partial18Nov: reproducible native phonemizer now matches original raw US/Bri
 
 
 18Nov M05 partial: original Kokoro English normalization and phonemes verified on both platforms (104comparisons each),184sharedtests and both builds pass. Backend dependency/resources remain probe-only; synthesis/playback/settings/cancel/word timing and quality/device/licensing gates unfinished. Owner reports chapter spinner/stutter/short-page gesture gaps; track as open.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.

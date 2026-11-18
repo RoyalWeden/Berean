@@ -446,3 +446,6 @@ Native speech prototype18Nov: compile phoneme/intonation/dictionary resources fr
 
 
 18Nov Kokoro compatibility: preserve original phonemizer resource data and synthesis-trace IPA semantics rather than assuming current upstream tables or directTextToPhonemes are identical. Expanded cases proved vowel/stress differences. Keep engine/resources in opt-in probe pending packaging/integrity/G2P licensing gate; only UI-free KokoroEnglish preprocessing enters shared app code. Never patch pronunciation ad hoc to hide backend drift.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.

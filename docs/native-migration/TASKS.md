@@ -271,3 +271,6 @@ M05 phonemizer checkpoint18Nov: official pinned resources compile; native raw IP
 
 
 18Nov M05: native KokoroEnglish90normalization/segments+22IPA oracle cases implemented; expanded52raw+52complete native comparisons pass each platform. Original data+trace API required; compiled-resources alternative remains incompatible. Next tokenizer/ONNX/streaming/integrity/licensing/listening. OWNER priority next: smooth reader scroll, immediate chapter display, top-pull feel and bottom pull on short chapters.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.

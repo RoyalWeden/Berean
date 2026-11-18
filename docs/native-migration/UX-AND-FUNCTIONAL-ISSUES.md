@@ -171,3 +171,6 @@ Palette stale cache suppressed GalleryQA07/01 despite correct FTS results. Curre
 
 
 18Nov owner report OPEN: occasional Scripture scroll stutter, brief chapter-loading spinner, bottom pull not working when chapter is shorter than viewport, and top-pull feel. Investigate current reader lifecycle/cache/metadata and geometry at coincident edges; alwaysBounceVertical is already enabled. Preserve selection and deliberate-edge guards. Speech compatibility expanded to exact original phoneme output; audible backend still absent.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.

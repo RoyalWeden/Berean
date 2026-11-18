@@ -22,7 +22,15 @@ for (arm, disarm): (CGFloat, CGFloat) in [(112, 88), (112, 92)] {
     precondition(intent.finish() == 1)
     precondition(intent.finish() == nil, "Gesture committed twice")
 
-    intent.begin(atTop: true, atBottom: true) // Short chapter fits its viewport.
+    // A short chapter has coincident edges: either fresh pull must work, with
+    // exactly one commit even when native pan and scroll callbacks both finish.
+    for direction in [-1, 1] {
+        intent.begin(atTop: true, atBottom: true)
+        precondition(intent.update(direction: direction, distance: arm, allowed: true)?.ready == true)
+        precondition(intent.finish() == direction, "Short chapter could not turn in both directions")
+        precondition(intent.finish() == nil, "Short chapter finished twice")
+    }
+    intent.begin(atTop: true, atBottom: true)
     precondition(intent.update(direction: -1, distance: arm, allowed: true)?.ready == true)
     precondition(intent.update(direction: -1, distance: arm, allowed: false) == nil)
     precondition(intent.finish() == nil, "Unavailable destination committed")

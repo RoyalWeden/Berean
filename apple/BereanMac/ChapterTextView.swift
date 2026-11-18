@@ -8,18 +8,31 @@ private final class ChapterPullScrollView: NSScrollView {
     private var pull: ChapterPullCue?
     private var pullIntent = ChapterPullIntent(armDistance: 112, disarmDistance: 92)
     private var keyboardMonitor: Any?
-    private var positionCheckpoint: Task<Void, Never>?
+    private var positionCheckpoint: Timer?
+    private var checkpointDue: TimeInterval = 0
 
     override func reflectScrolledClipView(_ clipView: NSClipView) {
         super.reflectScrolledClipView(clipView)
         guard reader != nil else { return }
-        positionCheckpoint?.cancel()
-        positionCheckpoint = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-            guard let self, !Task.isCancelled, let reader,
-                  let position = reader.readingPosition(in: self) else { return }
-            reader.parent.savePosition(position)
+        checkpointDue = ProcessInfo.processInfo.systemUptime + 0.35
+        // Scroll reflection can run at the display refresh rate. Keep one idle
+        // timer instead of allocating/cancelling a Swift task for every frame.
+        if positionCheckpoint == nil { scheduleCheckpoint(after: 0.35) }
+    }
+
+    private func scheduleCheckpoint(after delay: TimeInterval) {
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.positionCheckpoint = nil
+                let remaining = self.checkpointDue - ProcessInfo.processInfo.systemUptime
+                if remaining > 0.001 { self.scheduleCheckpoint(after: remaining); return }
+                guard let reader = self.reader, let position = reader.readingPosition(in: self) else { return }
+                reader.parent.savePosition(position)
+            }
         }
+        positionCheckpoint = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     override func viewDidMoveToWindow() {
@@ -36,7 +49,7 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     func stopKeyboardMonitor() {
-        positionCheckpoint?.cancel()
+        positionCheckpoint?.invalidate()
         positionCheckpoint = nil
         if let keyboardMonitor {
             NSEvent.removeMonitor(keyboardMonitor)
@@ -170,6 +183,7 @@ struct ChapterTextView: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
+        scroll.verticalScrollElasticity = .allowed
         scroll.automaticallyAdjustsContentInsets = false
         let storage = NSTextStorage()
         let layout = ReaderTextLayoutManager()

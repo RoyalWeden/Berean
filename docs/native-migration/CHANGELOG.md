@@ -1774,3 +1774,6 @@ ReadAloud development18Nov: added reproducible silent native phonemizer comparis
 
 
 18Nov: added native Kokoro English normalization/segments/IPA cleanup with original-oracle fixtures. Full184sharedtests and both builds pass. Expanded silent Mac/iPhone probe matches52raw+52complete cases using original resources and trace API; playback remains unfinished.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.
