@@ -218,3 +218,7 @@ Shared previews now reuse a bounded prepared chapter with separately retained ra
 
 ### 2026-11-18 — Reader selection gesture checkpoint
 iPhone rapid cross-verse body taps now arbitrate against native word double-tap; numbers remain controls. Native intentional word selection clears whole-verse mode while retaining handles/menu. Both apps build; final iOS marker refinement also builds and runtime rapid2–4/body,2+3/number,single-toggle,Strong's and normal scrolling pass on isolated simulator. Hardware/VoiceOver/full timing matrix remain open. See latest HANDOFF; no migration-completion claim.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+Both apps build after independent annotation revision reuse. Final-source simulator short-page backward/forward pulls now arrive at the correct edge after UIKit releases tracking; Mac sidebar navigation restored to its original sidebar placement and history/selection cycle checked. Pin resting at the far right verified; physical hover animation remains open. See latest HANDOFF for exact logs, synthetic cleanup and runner-capacity CI failures.

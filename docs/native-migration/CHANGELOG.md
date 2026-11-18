@@ -1800,3 +1800,7 @@ Shared previews now reuse a bounded prepared chapter with separately retained ra
 
 ### 2026-11-18 — Reader selection gesture checkpoint
 Keep iPhone verse-number taps and rapid taps across different verse bodies in whole-verse mode; preserve same-verse native double-tap/long-press word selection. Clear whole-verse outline/actions when native word selection begins, without removing handles/menu. Cache touch-down target so reveal/layout cannot redirect tap. No dependencies/data/schema/sync/identity changes. Clean Mac+iOS builds and isolated simulator interaction checks pass; physical/accessibility timing unverified.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+Reuse unchanged Scripture Notes/citation, tag and highlight groups by their own revisions. Fix iPhone chapter-pull momentum scrolling the incoming chapter: wait until tracking/dragging ends, stop residual scrolling, then navigate. Restore shown-sidebar Mac navigation placement at user request. Pin rests in close-button slot and moves left only on hover. Clean app builds and targeted Mac/simulator interactions pass; no production/schema/sync/identity changes.

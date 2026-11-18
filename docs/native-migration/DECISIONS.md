@@ -465,3 +465,7 @@ Shared previews now reuse a bounded prepared chapter with separately retained ra
 
 ### 2026-11-18 — Reader selection gesture checkpoint
 Use documented dynamic UIGestureRecognizer failure priority for rapid different-verse body intent (touch timestamps within500ms), rather than UITouch.tapCount: actual UIKit double-tap crossed verses while public tapCount stayed1. Marker taps are controls; non-verse links remain UIKit-owned. Preserve native same-body double-tap/longpress and clear whole-verse mode only after a meaningful native range survives the representable update. No private recognizer class conditions, no delegate replacement. See HANDOFF for traces and rejected tapCount prototype.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+A passive touch observer can receive release while UIScrollView still tracks. Runtime proved an explicit incoming START was later overwritten by outgoing deceleration; one queue turn alone also failed. Use public tracking/dragging flags with a weak, passage/token-guarded release gate, then stopScrollingAndZooming before navigation. Preserve ordinary scrolling momentum. Restore shown-sidebar .automatic toolbar placement at the user’s direction; retain grouped controls and stable accessibility IDs. Keep pin/title layout stable while the pin moves into the adjacent hover slot.

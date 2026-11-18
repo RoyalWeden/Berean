@@ -290,3 +290,7 @@ Shared previews now reuse a bounded prepared chapter with separately retained ra
 
 ### 2026-11-18 — Reader selection gesture checkpoint
 Reader selection: VERIFIED targeted simulator rapid adjacent body taps, rapid number taps, single number toggle, native word-mode handoff and Strong's link/scroll. TODO physical phone/VoiceOver/accessibility-size timing, broader word-action matrix, frame-pacing measurement and cold fast-submit. Next annotation-domain revision reuse must retain live Notes/tag/highlight invalidation. See HANDOFF for exact builds and fixtures.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+VERIFIED targeted: independent Notes/tag/highlight live invalidation on Mac; final clean iPhone117→116END→117START→118START pull cycle; Mac sidebar placement, hide/show and Back/Forward selection restoration. IMPLEMENTED_UNVERIFIED: pin slide on physical hover (idle trailing position verified). TODO physical pull/selection timing, narrow toolbar/hover, cold fast-submit and frame pacing. M05 Kokoro and broader parity backlog remain active.

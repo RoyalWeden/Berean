@@ -1139,3 +1139,7 @@ Shared previews now reuse a bounded prepared chapter with separately retained ra
 
 ### 2026-11-18 — Reader selection gesture checkpoint
 iPhone Scripture selection: targeted final-source simulator verification of rapid adjacent body2–4 selection/actions, number2+3 selection and single-toggle, native double-tap/longpress with exclusive native handles/menu, Strong's link and ordinary scroll. Clean Mac+iOS builds pass. Does not close hardware, VoiceOver, accessibility timing, every native selection action or frame-pacing parity.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+Reader responsiveness: independent annotation groups reuse unchanged query results; Mac live note/tag/highlight add/remove checked. iPhone short-page chapter pulls now retain intended START/END arrivals after native release, verified in a clean build. Mac sidebar navigation restored and tested through hide/show and history/selection roundtrip. Pin trailing rest position checked; physical hover, accessibility timing, frame pacing and cold-submit parity remain open.

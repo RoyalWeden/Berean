@@ -193,3 +193,7 @@ Shared previews now reuse a bounded prepared chapter with separately retained ra
 
 ### 2026-11-18 — Reader selection gesture checkpoint
 Targeted fix: rapid adjacent iPhone verse-body taps no longer become UIKit word selection; number taps no longer double-toggle/select words. Intentional native word selection removes whole-verse outline/bar. Final clean simulator checks pass; physical phone/VoiceOver/accessibility timing remain open. General scrolling smoothness and cold quick-submit spinner remain measured-work items, not declared resolved. Latest HANDOFF contains exact evidence.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+Fixed reproduced short-page pull arrival regression: outgoing momentum no longer scrolls incoming chapter away from its intended edge after release. Final simulator117→116END→117START→118START passes. Restored Mac Sidebar/Back/Forward to sidebar title area at user request; hide/show/history checks pass. Pin idle-right/hover-left implementation builds, idle-right screenshot verified; physical hover and narrow-window layout still need verification. General scrolling FPS and cold-cache flash are not declared universally fixed.
