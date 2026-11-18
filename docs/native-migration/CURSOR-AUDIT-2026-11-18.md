@@ -1,8 +1,8 @@
 # macOS cursor audit — 2026-11-18
 
-Status: source audit and policy. Replacement implementation and physical-motion verification remain open. This supersedes the old “hand on every clickable thing” requirement: the user explicitly asked for native judgment and no flicker.
+Status: replacement source implemented; focused build/UI verification in progress. Full physical-motion matrix remains open. This supersedes the old “hand on every clickable thing” requirement: the user explicitly asked for native judgment and no flicker.
 
-## Evidence and root mechanisms
+## Evidence and root mechanisms before replacement
 
 `apple/BereanMac/ClickableCursor.swift` installs global method exchanges on NSButton, NSSegmentedControl, NSSwitch, the private NSToolbarItemViewer class and NSApplication.sendEvent. It also observes every window update. After native event dispatch it hit-tests the window, checks a weak registry of SwiftUI cursor regions and sets the cursor immediately and again on a main-queue pass. Toolbar enabled state can be obtained through the private item selector. This is an additional cursor authority on top of AppKit/SwiftUI and native text tracking; it can override a cursor that the actual control just selected. Previous patches fixed false-positive region geometry, but do not remove these competing owners.
 
@@ -46,3 +46,15 @@ For each surface below: enter, move within icon→padding→label, leave into wh
 - Sidebar: pinned/LXX hover slide, close/unpin targets, reorder, blank window-drag area, search/filter field, workspace menu, archived tabs.
 
 A click screenshot alone does not prove continuous cursor stability. Record a physical-motion pass or a diagnostic event stream spanning the interior boundaries. CUA clicks/tiny drags previously failed to produce a reliable hover preview; label those limitations honestly. Do not claim “never flickers” until native-motion evidence covers this matrix.
+
+## Implementation checkpoint (2026-11-18, after published74aeb6c5)
+
+Removed the NSApplication/control/private-toolbar method exchanges, global window-update cursor watcher, weak SwiftUI cursor-region registry, private toolbar-item selector and post-event cursor writes. Existing clickableCursor call sites now use an identity compatibility helper; AppKit/SwiftUI retains ownership, including over nested labels/padding and disabled controls. Explicit native text/link tracking in ChapterTextView/RichNoteEditor, Compare columnResize and sidebar drag-space arrow remain. No blanket default pointerStyle is added around editors.
+
+The remaining ClickableCursor.swift file contains only opt-in DEBUG NativeCursorDiagnostics (BEREAN_CURSOR_TRACE). A local event monitor returns every original event unchanged and writes a bounded64-sample ring of actual cursor/event/coordinates/key-window state, with no user text, private API or cursor writes. Normal builds do not install a monitor. First Mac diagnostic build failed because String(CGFloat) has no matching initializer; corrected to String(describing:), then Mac build passed. New native-palette field build is still live in /tmp/berean-native-palette-field-mac.log and iPhone /tmp/berean-body-tap-priority-ios.log. Do not confuse the earlier field-focus experiment with verified final behavior.
+
+
+Final checkpoint: commit3c38eb5c removes the global cursor machinery. Both final local builds passed (`/tmp/berean-study-close-final-{mac,ios}.log`). No physical pointer-motion samples were captured; button-interior flicker, active/inactive windows, menus and overlay transitions still require that runtime matrix. Native cursor policy is implemented, not universally runtime-verified.
+
+
+Final reader checkpoint: both direct-repo final grouping builds passed and Mac input/copy/range UI checks passed. This does not establish physical cursor-motion/flicker coverage; that matrix remains open. No global cursor override was reintroduced.
