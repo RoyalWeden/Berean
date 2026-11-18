@@ -1,7 +1,7 @@
 // Compile with apple/Shared/ReaderVerse.swift, as in the native CI job.
 import Foundation
 
-for (arm, disarm): (CGFloat, CGFloat) in [(68, 52), (112, 92)] {
+for (arm, disarm): (CGFloat, CGFloat) in [(112, 88), (112, 92)] {
     var intent = ChapterPullIntent(armDistance: arm, disarmDistance: disarm)
     precondition(intent.update(direction: 1, distance: 200, allowed: true) == nil, "Unstarted/momentum gesture armed")
     intent.begin(atTop: false, atBottom: false)

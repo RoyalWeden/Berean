@@ -515,7 +515,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         private var chromeHidden = false
 
         private var chapterPull: ChapterPullCue?
-        private var chapterPullIntent = ChapterPullIntent(armDistance: 68, disarmDistance: 52)
+        private var chapterPullIntent = ChapterPullIntent(armDistance: 112, disarmDistance: 88)
 
         private func publishChapterPull(_ pull: ChapterPullCue?) {
             guard pull != chapterPull else { return }
@@ -527,24 +527,30 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
         }
 
-        private func trackChapterPull(_ scrollView: UIScrollView) {
-            guard scrollView.isDragging,
+        private func trackChapterPull(_ scrollView: UIScrollView, ending: Bool = false) {
+            guard scrollView.isDragging || ending,
                   let view = scrollView as? UITextView, view.selectedRange.length == 0,
                   parent.selectedVerses.isEmpty else {
-                if scrollView.isDragging {
+                if scrollView.isDragging || ending {
                     chapterPullIntent.cancel()
                     publishChapterPull(nil)
                 }
                 return
             }
-            let inset = scrollView.adjustedContentInset
-            let top = -inset.top
-            let bottom = max(top, scrollView.contentSize.height + inset.bottom - scrollView.bounds.height)
-            let offset = scrollView.contentOffset.y
-            let direction = offset < top ? -1 : 1
-            let distance = direction < 0 ? top - offset : offset - bottom
+            // Rubber-band displacement is clamped/animated independently of the
+            // finger (and changes with dock insets). Measure the direct pan;
+            // intent already restricts it to gestures starting at the right edge.
+            let pan = scrollView.panGestureRecognizer.translation(in: scrollView)
+            let top = -scrollView.adjustedContentInset.top
+            let bottom = max(top, scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - scrollView.bounds.height)
+            let overscroll = scrollView.contentOffset.y < top ? top - scrollView.contentOffset.y
+                : max(0, scrollView.contentOffset.y - bottom)
+            let direction = pan.y != 0 ? (pan.y > 0 ? -1 : 1) : (scrollView.contentOffset.y < top ? -1 : 1)
+            // Indirect scrolling can have no pan translation; retain the old
+            // rubber-band threshold as a fallback in the same intent units.
+            let distance = max(abs(pan.y), overscroll * (112.0 / 68.0))
             publishChapterPull(chapterPullIntent.update(direction: direction, distance: distance,
-                                                       allowed: parent.canPullChapter(direction)))
+                allowed: (abs(pan.y) > abs(pan.x) || (pan == .zero && overscroll > 0)) && parent.canPullChapter(direction)))
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
@@ -556,6 +562,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            trackChapterPull(scrollView, ending: true)
             let direction = chapterPullIntent.finish()
             publishChapterPull(nil)
             guard let direction, parent.canPullChapter(direction) else { return }
