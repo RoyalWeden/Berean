@@ -226,3 +226,18 @@ See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source refere
 
 - Verify each Notes toggle dismisses current and queued work, and exercise rapid caret/note switching with pending lookups. Cover Mac insertion and Undo when isolated targeting is available, then iPhone software keyboard and VoiceOver.
 - Continue cross-chapter block support and rerun optimized simulator conformance against the new head. See [HANDOFF](HANDOFF.md) for the tested paths and prior CI run.
+
+### 2026-11-18 owner UX queue
+
+- Identify top-right double-chevron control and make its purpose clear or remove redundant chrome.
+- Pinned tab hover: clickable unpin icon beside Close, with stable title space.
+- Notes formatting: pleasant shortcut presentation and faster common formatting access.
+- Empty folder: center icon, No Notes message and creation action in both axes.
+- Daily Notes folder: calendar-oriented discovery and date-aware creation; Verse Notes folder: create an attached verse note directly.
+- Folders with children: collapsed by default at every nesting level, independently expandable.
+- Audit pointing cursors over noninteractive Notes backgrounds and across other screens. Review home section order; retain Recently Edited at bottom only if it remains sensible.
+- Compare: simplify per-column ellipses and verse numbering, reject unavailable LXX/New Testament comparisons, audit the overall native presentation.
+- Scripture native character selection: show only actual verse glyphs, excluding gutter/numbers and line-leading/trailing blank space; repair partial-highlight appearance from owner screenshot.
+- Tune top/bottom chapter gestures for sensitivity, feedback and interrupted transitions.
+- Continue original-quality Kokoro/Berean Voices Read Aloud; Apple voices remain explicitly rejected.
+- Make tab switch chrome and saved viewport feel immediate; audit delayed toolbar changes and restoration rather than masking them with animation.

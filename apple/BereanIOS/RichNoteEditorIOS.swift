@@ -283,6 +283,12 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
                 }
             }
+            // Link explicit Strong's IDs without changing the saved dictionary/prose source.
+            for ref in NoteStrongsLinks.spans(in: text, markdownSpans: spans) where NSMaxRange(ref.range) <= storage.length {
+                guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)),
+                      let url = URL(string: "berean-native-dev://lexicon/" + ref.number) else { continue }
+                storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
+            }
             (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
             storage.endEditing()
             tv.layoutManager.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil)

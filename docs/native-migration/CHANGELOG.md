@@ -1697,3 +1697,7 @@ Shared Swift regression check after `6db387e5` passed with 147 tests in 44 suite
 - Both Debug builds and 166 host Release tests passed. Simulator verified insertion, Undo, dismissal and representative input guards.
 
 - iPhone Return accepts prepared block and note-link suggestions. Both native editors validate the current query before consuming completion keys. Simulator verified both Return paths.
+
+### 2026-11-18 — Strong’s links in note text
+
+Explicit Strong’s IDs in both note editors open Lexicon, including repeated dictionary references. Simulator verified G5463 navigation. Code, URLs and existing Markdown links retain ownership; fixed an unfinished-wikilink exclusion spanning later paragraphs.
