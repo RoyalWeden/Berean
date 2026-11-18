@@ -164,6 +164,7 @@ struct CompareView: View {
     @State private var chapterNoteCounts: [EditionChapter: [Int: Int]] = [:]
     @State private var chapterHighlights: [EditionChapter: [Int: [Highlight]]] = [:]
     @State private var loadedPassage: String?
+    @State private var eligibleComparisonEditions = Set<String>()
     @State private var compareWidth: CGFloat = 0
     @State private var localVerseSelection: Int?
     @State private var selectionAnchor: (edition: ChapterEdition, verse: Int)?
@@ -218,13 +219,22 @@ struct CompareView: View {
         GeometryReader { geometry in
             if loadedPassage != passage {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if canShowIndependentPanes(width: geometry.size.width, count: cols.count),
-                      !syncScrolling || !cols.allSatisfy({ $0.follows(st) }) {
-                independentPanes(cols, passage: passage, compact: geometry.size.width < CGFloat(cols.count) * 260)
-            } else if !cols.allSatisfy({ $0.follows(st) }) {
-                stackedIndependentComparison(st, cols, passage: passage)
             } else {
-                alignedComparison(st, cols)
+                let visible = cols.filter { availableColumnIDs.contains($0.id) }
+                VStack(spacing: 0) {
+                    unavailableColumns(cols)
+                    if visible.isEmpty {
+                        ContentUnavailableView("Choose a Passage", systemImage: "book",
+                                               description: Text("These saved chapters are unavailable in their editions."))
+                    } else if canShowIndependentPanes(width: geometry.size.width, count: visible.count),
+                              !syncScrolling || !visible.allSatisfy({ $0.follows(st) }) {
+                        independentPanes(visible, passage: passage, compact: geometry.size.width < CGFloat(visible.count) * 260)
+                    } else if !visible.allSatisfy({ $0.follows(st) }) {
+                        stackedIndependentComparison(st, visible, passage: passage)
+                    } else {
+                        alignedComparison(st, visible)
+                    }
+                }
             }
         }
         .task(id: Set(cols.map(ColumnBook.init))) {
@@ -331,18 +341,27 @@ struct CompareView: View {
     }
 
     private func manageTranslations(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
-        Menu {
+        let additions = availableTexts.filter { text in
+            loadedPassage == passageKey(st, cols) && eligibleComparisonEditions.contains(text.id)
+                && !cols.contains { $0.text == text.id && $0.follows(st) }
+        }
+        return Menu {
             if canShowIndependentPanes(width: compareWidth, count: cols.count) {
                 Toggle("Sync Scrolling", isOn: Binding(get: { syncScrolling }, set: { enabled in
                     setSyncScrolling(enabled, state: st, columns: cols)
                 }))
             }
             Menu("Add Translation", systemImage: "plus") {
-                ForEach(availableTexts.filter { text in !cols.contains { $0.text == text.id && $0.follows(st) } }) { text in
+                ForEach(additions) { text in
                     Button(text.name) { setColumns(cols + [CompareColumn(id: (cols.last?.id ?? -1) + 1, text: text.id, anchor: st)]) }
                 }
             }
-            .disabled(cols.count >= 4)
+            .disabled(cols.count >= 4 || additions.isEmpty)
+            Button("Add Another Passage…", systemImage: "book.badge.plus") {
+                editingColumn = cols.first { !availableColumnIDs.contains($0.id) }
+                    ?? CompareColumn(id: (cols.map(\.id).max() ?? -1) + 1, text: st.translation, anchor: st)
+            }
+            .disabled(cols.count >= 4 && cols.allSatisfy { availableColumnIDs.contains($0.id) })
             Menu("Change Column Passage", systemImage: "book") {
                 ForEach(cols) { column in
                     Button(column.label) { editingColumn = column }
@@ -357,6 +376,7 @@ struct CompareView: View {
                         Label(pinned ? "Follow Main Passage · \(column.label)" : "Pin \(column.label)",
                               systemImage: pinned ? "pin.slash" : "pin")
                     }
+                    .disabled(pinned && !eligibleComparisonEditions.contains(column.text))
                 }
             }
             Button {
@@ -367,7 +387,7 @@ struct CompareView: View {
             }
             .disabled(cols.count < 2)
             Section("Open in Reader") {
-                ForEach(cols) { column in
+                ForEach(cols.filter { availableColumnIDs.contains($0.id) }) { column in
                     Button(column.label) { setColumns([column]) }
                 }
             }
@@ -439,9 +459,9 @@ struct CompareView: View {
         #if os(macOS)
         let space = compareWidth - 48 - 18 * CGFloat(cols.count - 1) - (showVerseNumbers ? 50 : 0)
         #endif
-        return Grid(alignment: .topLeading, horizontalSpacing: 18, verticalSpacing: 10) {
-            GridRow {
-                if showVerseNumbers { Text("").gridColumnAlignment(.trailing) }
+        return LazyVStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 18) {
+                if showVerseNumbers { Color.clear.frame(width: controlSize, height: 1) }
                 ForEach(cols) { c in
                     HStack {
                         alignedColumnHeading(c, available: available.contains(c.id))
@@ -459,11 +479,12 @@ struct CompareView: View {
                     #endif
                 }
             }
-            Divider().gridCellUnsizedAxes(.horizontal)
+            Divider()
             ForEach(rows.keys.sorted(), id: \.self) { v in
-                GridRow(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 18) {
                     if showVerseNumbers {
                         verseButton(v, state: st, selected: selected.contains(v))
+                            .frame(width: controlSize)
                     }
                     ForEach(cols) { c in
                         comparisonText(v, text: c, state: st)
@@ -472,12 +493,13 @@ struct CompareView: View {
                             #endif
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .id(v)
                 .onScrollVisibilityChange(threshold: 0.2) { visible in
-                    trackAlignedVerse(v, passage: passageKey(st, cols), visible: visible)
+                    trackAlignedVerse(v, passage: passageKey(st, self.columns), visible: visible)
                 }
                 .onDisappear {
-                    trackAlignedVerse(v, passage: passageKey(st, cols), visible: false)
+                    trackAlignedVerse(v, passage: passageKey(st, self.columns), visible: false)
                 }
             }
         }
@@ -520,10 +542,10 @@ struct CompareView: View {
                 }
                 .id(verse)
                 .onScrollVisibilityChange(threshold: 0.2) { visible in
-                    trackAlignedVerse(verse, passage: passageKey(state, columns), visible: visible)
+                    trackAlignedVerse(verse, passage: passageKey(state, self.columns), visible: visible)
                 }
                 .onDisappear {
-                    trackAlignedVerse(verse, passage: passageKey(state, columns), visible: false)
+                    trackAlignedVerse(verse, passage: passageKey(state, self.columns), visible: false)
                 }
             }
         }
@@ -531,7 +553,41 @@ struct CompareView: View {
     }
 
     private var availableColumnIDs: Set<Int> {
-        Set(rows.values.flatMap { $0.keys })
+        Set(independentRows.filter { !$0.value.isEmpty }.keys).union(rows.values.flatMap { $0.keys })
+    }
+
+    @ViewBuilder private func unavailableColumns(_ columns: [CompareColumn]) -> some View {
+        let unavailable = columns.filter { !availableColumnIDs.contains($0.id) }
+        if !unavailable.isEmpty {
+            VStack(spacing: 4) {
+                ForEach(unavailable) { column in
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(column.label).font(.callout.weight(.medium))
+                            Text("This edition has no chapter here.").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        Button("Choose Passage") { editingColumn = column }
+                            .buttonStyle(.bordered)
+                            .frame(minHeight: 44)
+                        Button("Remove Unavailable Column", systemImage: "xmark") {
+                            let remaining = columns.filter { $0.id != column.id }
+                            if !remaining.isEmpty, remaining.allSatisfy({ !availableColumnIDs.contains($0.id) }) {
+                                // Keep the repair UI instead of opening another
+                                // unavailable saved chapter as a single reader.
+                                app.update(tabId) { $0.state["compareColumns"] = .array(remaining.map { .object($0.record) }) }
+                            } else {
+                                setColumns(remaining)
+                            }
+                        }
+                        .labelStyle(.iconOnly).buttonStyle(.interactivePlain)
+                        .frame(minWidth: 44, minHeight: 44)
+                    }
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            Divider()
+        }
     }
 
     private func alignedColumnHeading(_ column: CompareColumn, available: Bool) -> some View {
@@ -554,7 +610,7 @@ struct CompareView: View {
     }
 
     private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
-        let key = "aligned|" + passageKey(state, columns)
+        let key = "aligned|" + passageKey(state, self.columns)
         return ScrollViewReader { proxy in
             restoredCompareScroll(key: key, preferringVerse: pendingAlignedVerse != nil) {
                 if prefersStackedComparison || compareWidth < CGFloat(columns.count) * 280 + 60 {
@@ -913,8 +969,11 @@ struct CompareView: View {
 
     private func moveColumn(_ column: CompareColumn, by delta: Int) {
         let current = columns
-        guard let source = current.firstIndex(where: { $0.id == column.id && $0.historyKey == column.historyKey }) else { return }
-        moveColumn(column, to: source + delta, in: current)
+        let visible = current.filter { availableColumnIDs.contains($0.id) }
+        guard let source = visible.firstIndex(where: { $0.id == column.id && $0.historyKey == column.historyKey }),
+              visible.indices.contains(source + delta),
+              let target = current.firstIndex(where: { $0.id == visible[source + delta].id }) else { return }
+        moveColumn(column, to: target, in: current)
     }
 
     private func selectedRows(in column: CompareColumn, source: BibleState) -> [ChapterVerseRow] {
@@ -1116,9 +1175,11 @@ struct CompareView: View {
             .accessibilityLabel("\(count) \(count == 1 ? "note" : "notes") for \(comparisonVerseReference(row, column: column))")
             .help("Open verse notes")
         }
+        #if os(iOS)
         VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {
             comparisonVerseActions(row, column: column)
         }
+        #endif
     }
 
     private func openReader(_ row: ChapterVerseRow, in column: CompareColumn, inspector: String? = nil) {
@@ -1216,6 +1277,7 @@ struct CompareView: View {
                 Label(pinned ? "Follow Main Passage" : "Pin Passage",
                       systemImage: pinned ? "pin.slash" : "pin")
             }
+            .disabled(pinned && !eligibleComparisonEditions.contains(column.text))
             Button {
                 setColumns([column])
             } label: {
@@ -1315,6 +1377,9 @@ struct CompareView: View {
             guard !Task.isCancelled else { return }
             independent[column.id] = await comparisonChapter(book: column.book, chapter: column.chapter, edition: column.text)
         }
+        let eligible = await app.bible.comparisonEditions(forBook: st.bookId, chapter: st.chapter, from: st.translation,
+                                                        candidates: availableTexts.map(\.id))
+        guard !Task.isCancelled else { return }
         let aligned = cols.allSatisfy { $0.follows(st) }
         for column in cols where aligned {
             let edition = column.text
@@ -1365,6 +1430,7 @@ struct CompareView: View {
         chapterTags = [:]
         rows = out
         independentRows = independent
+        eligibleComparisonEditions = Set(eligible)
         loadedPassage = passage
     }
 
@@ -1403,6 +1469,15 @@ struct CompareView: View {
 
     private func changePassage(for id: Int, text: String, book: String, chapter: Int) {
         let anchor = state
+        if !columns.contains(where: { $0.id == id }) {
+            var record = JSObject()
+            record["textId"] = .string(JSString(text))
+            record["bookId"] = .string(JSString(book))
+            record["chapter"] = .number(Double(chapter))
+            record["nativePinnedPassage"] = .bool(true)
+            if let column = CompareColumn(id: id, record: record, anchor: anchor) { setColumns(columns + [column]) }
+            return
+        }
         let updated = columns.compactMap { column -> CompareColumn? in
             guard column.id == id else { return column }
             var record = column.record

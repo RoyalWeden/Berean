@@ -71,6 +71,19 @@ public actor BibleService {
         return m
     }
 
+    /// Installed editions containing the mapped chapter, preserving the candidate order.
+    /// Compare must not offer unrelated writings or a nonexistent LXX New Testament.
+    public func comparisonEditions(forBook bookId: String, chapter: Int, from sourceText: String,
+                                   candidates: [String]) -> [String] {
+        var seen = Set<String>()
+        return candidates.compactMap { candidate in
+            let text = JSText.lower(JSText.trim(candidate))
+            guard !text.isEmpty, seen.insert(text).inserted else { return nil }
+            let mapped = ChapterMap.mapChapter(bookId, chapter, from: sourceText, to: text)
+            return chapterNumbers(bookId, textId: text).contains(mapped) ? text : nil
+        }
+    }
+
     public func queryChapter(_ bookId: String, _ chapter: Int, textId: String = "kjva") -> [ChapterVerseRow] {
         guard let db = db(textId) else { return [] }
         let tagged = db.hasColumn("verses", "text_tagged"), titled = db.hasColumn("verses", "title")
