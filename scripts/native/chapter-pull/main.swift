@@ -39,4 +39,28 @@ for (arm, disarm): (CGFloat, CGFloat) in [(112, 88), (112, 92)] {
     intent.cancel()
     precondition(intent.finish() == nil, "Cancelled/selection-blocked gesture committed")
 }
+// Trackpad event streams: stationary packets and lateral jitter must retain a
+// slow vertical cue. Reversing far enough must still retract it, and horizontal
+// motion must never become a chapter command just because one packet is vertical.
+for direction in [-1, 1] {
+    var travel = ChapterPullTravel()
+    var intent = ChapterPullIntent(armDistance: 112, disarmDistance: 92)
+    intent.begin(atTop: true, atBottom: true)
+    for _ in 0..<120 {
+        travel.add(horizontal: 0, vertical: CGFloat(-direction))
+        _ = intent.update(direction: travel.direction, distance: travel.distance, allowed: travel.isVertical)
+        travel.add(horizontal: 0.1, vertical: 0)
+        let cue = intent.update(direction: travel.direction, distance: travel.distance, allowed: travel.isVertical)
+        precondition(cue?.direction == direction || travel.distance < 18)
+        if travel.distance >= 112 { precondition(cue?.ready == true, "Stationary/lateral packet erased a ready pull") }
+    }
+    travel.add(horizontal: 0, vertical: CGFloat(direction * 40))
+    precondition(intent.update(direction: travel.direction, distance: travel.distance, allowed: travel.isVertical)?.ready == false)
+    precondition(intent.finish() == nil, "Retracted slow pull committed")
+    travel.reset()
+    intent.begin(atTop: true, atBottom: true)
+    travel.add(horizontal: 200, vertical: CGFloat(-direction * 120))
+    precondition(intent.update(direction: travel.direction, distance: travel.distance, allowed: travel.isVertical) == nil)
+    precondition(intent.finish() == nil, "Predominantly horizontal movement committed")
+}
 print("Chapter pull intent passed: fresh edges, thresholds, hysteresis, retraction, cancellation, single commit")

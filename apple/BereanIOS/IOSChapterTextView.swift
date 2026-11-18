@@ -591,7 +591,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         func beginChapterPull(_ scrollView: UIScrollView, at point: CGPoint) {
             cancelChapterPull()
             guard let view = scrollView as? UITextView, view.selectedRange.length == 0,
-                  parent.selectedVerses.isEmpty, pinchStartSize == nil else { return }
+                  pinchStartSize == nil else { return }
             chapterPullActive = true
             chapterPullOrigin = point
             let top = -scrollView.adjustedContentInset.top
@@ -604,7 +604,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         func trackChapterPull(_ scrollView: UIScrollView, at point: CGPoint) {
             guard chapterPullActive else { return }
             guard let view = scrollView as? UITextView, view.selectedRange.length == 0,
-                  parent.selectedVerses.isEmpty, pinchStartSize == nil,
+                  pinchStartSize == nil,
                   let origin = chapterPullOrigin else { cancelChapterPull(); return }
             // Window-space touch travel survives clamped short-page scrolling
             // and fast/coalesced input; UIScrollView may reset pan translation.

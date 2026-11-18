@@ -4,7 +4,8 @@ import AppKit
 /// Only a direct, phased trackpad gesture can trigger chapter navigation.
 private final class ChapterPullScrollView: NSScrollView {
     var reader: ChapterTextView.Coordinator?
-    private var travel: CGFloat = 0
+    private var travel = ChapterPullTravel()
+    private var ignoresPullMomentum = false
     private var pull: ChapterPullCue?
     private var pullIntent = ChapterPullIntent(armDistance: 112, disarmDistance: 92)
     private var keyboardMonitor: Any?
@@ -72,27 +73,34 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        if ignoresPullMomentum, !event.momentumPhase.isEmpty {
+            if event.momentumPhase.contains(.ended) { ignoresPullMomentum = false }
+            return
+        }
         if event.phase.contains(.cancelled) {
             pullIntent.cancel()
-            travel = 0
+            travel.reset()
+            ignoresPullMomentum = false
             publish(nil)
         }
         if event.phase.contains(.began) {
+            ignoresPullMomentum = false
             let bounds = contentView.bounds
             let top = documentView?.frame.minY ?? 0
             let bottom = max(top, (documentView?.frame.maxY ?? 0) - bounds.height)
             pullIntent.begin(atTop: bounds.minY <= top + 2, atBottom: bounds.minY >= bottom - 2)
-            travel = 0
+            travel.reset()
             publish(nil)
         }
 
         if event.phase.contains(.ended) {
             let direction = pullIntent.finish()
-            travel = 0
+            travel.reset()
             publish(nil)
             super.scrollWheel(with: event)
             if let reader, let position = reader.readingPosition(in: self) { reader.parent.savePosition(position) }
             if let direction, let parent = reader?.parent, parent.canPullChapter(direction) {
+                ignoresPullMomentum = true
                 parent.onChapterPullCommit(direction)
             }
             return
@@ -100,27 +108,16 @@ private final class ChapterPullScrollView: NSScrollView {
 
         if event.hasPreciseScrollingDeltas, event.momentumPhase.isEmpty, event.phase.contains(.changed),
            let reader, let parent = reader.parent, let text = reader.textView,
-           text.selectedRange().length == 0, parent.selectedVerses.isEmpty {
-            let delta = event.scrollingDeltaY
-            let bounds = contentView.bounds
-            let top = text.frame.minY
-            let bottom = max(top, text.frame.maxY - bounds.height)
-            let direction = delta > 0 ? -1 : 1
-            let againstEdge = direction < 0 ? bounds.minY <= top + 2 : bounds.minY >= bottom - 2
-            let vertical = abs(delta) > abs(event.scrollingDeltaX)
-            if againstEdge, vertical, parent.canPullChapter(direction) {
-                if (travel > 0) != (delta > 0) { travel = 0 }
-                travel += delta
-                let distance = abs(travel)
-                publish(pullIntent.update(direction: direction, distance: distance, allowed: true))
-            } else {
-                travel = 0
-                _ = pullIntent.update(direction: direction, distance: 0, allowed: false)
-                publish(nil)
-            }
+           text.selectedRange().length == 0 {
+            travel.add(horizontal: event.scrollingDeltaX, vertical: event.scrollingDeltaY)
+            // Eligibility was captured at gesture begin. Elastic clip bounds,
+            // stationary packets or one sideways correction must not erase a
+            // slow pull; actual reversal reduces its accumulated distance.
+            publish(pullIntent.update(direction: travel.direction, distance: travel.distance,
+                allowed: travel.isVertical && parent.canPullChapter(travel.direction)))
         } else if event.phase.contains(.changed) {
             pullIntent.cancel()
-            travel = 0
+            travel.reset()
             publish(nil)
         }
 

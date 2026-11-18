@@ -85,6 +85,27 @@ struct ChapterPullCue: Equatable {
     let ready: Bool
 }
 
+/// Track the user's net movement, rather than judging each trackpad event.
+/// Slow pulls contain zero-delta packets and small sideways corrections.
+struct ChapterPullTravel {
+    private var horizontal: CGFloat = 0
+    private var vertical: CGFloat = 0
+
+    var direction: Int { vertical > 0 ? -1 : 1 }
+    var distance: CGFloat { abs(vertical) }
+    var isVertical: Bool { abs(vertical) > abs(horizontal) }
+
+    mutating func add(horizontal x: CGFloat, vertical y: CGFloat) {
+        horizontal += x
+        vertical += y
+    }
+
+    mutating func reset() {
+        horizontal = 0
+        vertical = 0
+    }
+}
+
 /// A deliberate fresh pull at a chapter edge, with hysteresis around release.
 /// Arriving at the edge during an ordinary scroll never arms navigation.
 struct ChapterPullIntent {
