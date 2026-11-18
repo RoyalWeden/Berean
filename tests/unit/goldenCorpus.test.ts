@@ -20,8 +20,12 @@ import { buildNoteMarkdownGolden } from '../../scripts/golden/noteMarkdown'
 import { buildVerseTagsGolden } from '../../scripts/golden/verseTags'
 import { buildSpeechChunksGolden } from '../../scripts/golden/speechChunks'
 import { buildSpeechPreparationGolden } from '../../scripts/golden/speechPreparation'
+import { buildKokoroEnglishGolden } from '../../scripts/golden/kokoroEnglish'
 
 describe('golden corpus', () => {
+  it('kokoro-english.json matches the installed original Kokoro preprocessing', async () => {
+    expect(readFileSync(join(GOLDEN_DIR, 'kokoro-english.json'), 'utf8')).toBe(serializeGolden(await buildKokoroEnglishGolden()))
+  })
   it('speech-preparation.json matches the original speech pipeline', () => {
     expect(readFileSync(join(GOLDEN_DIR, 'speech-preparation.json'), 'utf8')).toBe(serializeGolden(buildSpeechPreparationGolden()))
   })

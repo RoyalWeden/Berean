@@ -1117,3 +1117,6 @@ M05 partial18Nov: reproducible native phonemizer now matches original raw US/Bri
 
 
 18Nov Notes titles wrap on both native platforms and preserve Return-to-body workflow and original single-line metadata; runtime checked on Mac and iPhone27 simulator. Broader accessibility/keyboard/Undo acceptance remains.
+
+
+18Nov M05 partial: original Kokoro English normalization and phonemes verified on both platforms (104comparisons each),184sharedtests and both builds pass. Backend dependency/resources remain probe-only; synthesis/playback/settings/cancel/word timing and quality/device/licensing gates unfinished. Owner reports chapter spinner/stutter/short-page gesture gaps; track as open.

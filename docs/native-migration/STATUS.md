@@ -196,3 +196,6 @@ ReadAloud native research18Nov: official eSpeak resource compilation resolved; U
 
 
 18Nov Notes polish: shared editor title wraps (1…5lines), verified full iPhone title and both-platform Return-to-body. Both builds pass. Daily identity and stored title format preserved.
+
+
+18Nov speech checkpoint:184sharedtests pass, both apps build; native full Kokoro English preprocessing/phonemizer104comparisons per platform pass on Mac/iPhone simulator with original data+trace API. No native playback shipped. New owner priority is smooth Scripture scrolling, no chapter loading flash, and short-chapter pull gestures.

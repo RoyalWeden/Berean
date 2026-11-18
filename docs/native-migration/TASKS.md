@@ -268,3 +268,6 @@ M05 phonemizer checkpoint18Nov: official pinned resources compile; native raw IP
 
 
 18Nov: wrapping note titles implemented; iPhone full title and both-platform Return-to-body verified, Mac multiline paste normalized without changing title. Software keyboard/DynamicType/IME/Undo matrix remains.
+
+
+18Nov M05: native KokoroEnglish90normalization/segments+22IPA oracle cases implemented; expanded52raw+52complete native comparisons pass each platform. Original data+trace API required; compiled-resources alternative remains incompatible. Next tokenizer/ONNX/streaming/integrity/licensing/listening. OWNER priority next: smooth reader scroll, immediate chapter display, top-pull feel and bottom pull on short chapters.

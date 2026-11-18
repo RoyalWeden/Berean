@@ -1,0 +1,1969 @@
+{
+ "format": 1,
+ "vendorSHA256": "31b1db2aa4a7411f55786900f0cbdd0351f1063859b107f9a99699a03b098b7d",
+ "cases": [
+  {
+   "input": "",
+   "normalize": true,
+   "normalized": "",
+   "parts": []
+  },
+  {
+   "input": "",
+   "normalize": false,
+   "normalized": "",
+   "parts": []
+  },
+  {
+   "input": "word",
+   "normalize": true,
+   "normalized": "word",
+   "parts": [
+    {
+     "match": false,
+     "text": "word"
+    }
+   ]
+  },
+  {
+   "input": "word",
+   "normalize": false,
+   "normalized": "word",
+   "parts": [
+    {
+     "match": false,
+     "text": "word"
+    }
+   ]
+  },
+  {
+   "input": " In the beginning. ",
+   "normalize": true,
+   "normalized": "In the beginning.",
+   "parts": [
+    {
+     "match": false,
+     "text": "In the beginning"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": " In the beginning. ",
+   "normalize": false,
+   "normalized": " In the beginning. ",
+   "parts": [
+    {
+     "match": false,
+     "text": " In the beginning"
+    },
+    {
+     "match": true,
+     "text": ". "
+    }
+   ]
+  },
+  {
+   "input": "first, second; third: fourth! why? yes.",
+   "normalize": true,
+   "normalized": "first, second; third: fourth! why? yes.",
+   "parts": [
+    {
+     "match": false,
+     "text": "first"
+    },
+    {
+     "match": true,
+     "text": ", "
+    },
+    {
+     "match": false,
+     "text": "second"
+    },
+    {
+     "match": true,
+     "text": "; "
+    },
+    {
+     "match": false,
+     "text": "third"
+    },
+    {
+     "match": true,
+     "text": ": "
+    },
+    {
+     "match": false,
+     "text": "fourth"
+    },
+    {
+     "match": true,
+     "text": "! "
+    },
+    {
+     "match": false,
+     "text": "why"
+    },
+    {
+     "match": true,
+     "text": "? "
+    },
+    {
+     "match": false,
+     "text": "yes"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "first, second; third: fourth! why? yes.",
+   "normalize": false,
+   "normalized": "first, second; third: fourth! why? yes.",
+   "parts": [
+    {
+     "match": false,
+     "text": "first"
+    },
+    {
+     "match": true,
+     "text": ", "
+    },
+    {
+     "match": false,
+     "text": "second"
+    },
+    {
+     "match": true,
+     "text": "; "
+    },
+    {
+     "match": false,
+     "text": "third"
+    },
+    {
+     "match": true,
+     "text": ": "
+    },
+    {
+     "match": false,
+     "text": "fourth"
+    },
+    {
+     "match": true,
+     "text": "! "
+    },
+    {
+     "match": false,
+     "text": "why"
+    },
+    {
+     "match": true,
+     "text": "? "
+    },
+    {
+     "match": false,
+     "text": "yes"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "(one) [two] {three} «four» “five” ‘six’",
+   "normalize": true,
+   "normalized": "«one» [two] {three} \"four\" \"five\" 'six'",
+   "parts": [
+    {
+     "match": true,
+     "text": "«"
+    },
+    {
+     "match": false,
+     "text": "one"
+    },
+    {
+     "match": true,
+     "text": "» ["
+    },
+    {
+     "match": false,
+     "text": "two"
+    },
+    {
+     "match": true,
+     "text": "] {"
+    },
+    {
+     "match": false,
+     "text": "three"
+    },
+    {
+     "match": true,
+     "text": "} \""
+    },
+    {
+     "match": false,
+     "text": "four"
+    },
+    {
+     "match": true,
+     "text": "\" \""
+    },
+    {
+     "match": false,
+     "text": "five"
+    },
+    {
+     "match": true,
+     "text": "\" "
+    },
+    {
+     "match": false,
+     "text": "'six'"
+    }
+   ]
+  },
+  {
+   "input": "(one) [two] {three} «four» “five” ‘six’",
+   "normalize": false,
+   "normalized": "(one) [two] {three} «four» “five” ‘six’",
+   "parts": [
+    {
+     "match": true,
+     "text": "("
+    },
+    {
+     "match": false,
+     "text": "one"
+    },
+    {
+     "match": true,
+     "text": ") ["
+    },
+    {
+     "match": false,
+     "text": "two"
+    },
+    {
+     "match": true,
+     "text": "] {"
+    },
+    {
+     "match": false,
+     "text": "three"
+    },
+    {
+     "match": true,
+     "text": "} «"
+    },
+    {
+     "match": false,
+     "text": "four"
+    },
+    {
+     "match": true,
+     "text": "» “"
+    },
+    {
+     "match": false,
+     "text": "five"
+    },
+    {
+     "match": true,
+     "text": "” "
+    },
+    {
+     "match": false,
+     "text": "‘six’"
+    }
+   ]
+  },
+  {
+   "input": "before—after… again",
+   "normalize": true,
+   "normalized": "before—after… again",
+   "parts": [
+    {
+     "match": false,
+     "text": "before"
+    },
+    {
+     "match": true,
+     "text": "—"
+    },
+    {
+     "match": false,
+     "text": "after"
+    },
+    {
+     "match": true,
+     "text": "… "
+    },
+    {
+     "match": false,
+     "text": "again"
+    }
+   ]
+  },
+  {
+   "input": "before—after… again",
+   "normalize": false,
+   "normalized": "before—after… again",
+   "parts": [
+    {
+     "match": false,
+     "text": "before"
+    },
+    {
+     "match": true,
+     "text": "—"
+    },
+    {
+     "match": false,
+     "text": "after"
+    },
+    {
+     "match": true,
+     "text": "… "
+    },
+    {
+     "match": false,
+     "text": "again"
+    }
+   ]
+  },
+  {
+   "input": "日本、文字。全角！句読，記号：まだ；どう？",
+   "normalize": true,
+   "normalized": "日本, 文字. 全角! 句読, 記号: まだ; どう?",
+   "parts": [
+    {
+     "match": false,
+     "text": "日本"
+    },
+    {
+     "match": true,
+     "text": ", "
+    },
+    {
+     "match": false,
+     "text": "文字"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "全角"
+    },
+    {
+     "match": true,
+     "text": "! "
+    },
+    {
+     "match": false,
+     "text": "句読"
+    },
+    {
+     "match": true,
+     "text": ", "
+    },
+    {
+     "match": false,
+     "text": "記号"
+    },
+    {
+     "match": true,
+     "text": ": "
+    },
+    {
+     "match": false,
+     "text": "まだ"
+    },
+    {
+     "match": true,
+     "text": "; "
+    },
+    {
+     "match": false,
+     "text": "どう"
+    },
+    {
+     "match": true,
+     "text": "?"
+    }
+   ]
+  },
+  {
+   "input": "日本、文字。全角！句読，記号：まだ；どう？",
+   "normalize": false,
+   "normalized": "日本、文字。全角！句読，記号：まだ；どう？",
+   "parts": [
+    {
+     "match": false,
+     "text": "日本、文字。全角！句読，記号：まだ；どう？"
+    }
+   ]
+  },
+  {
+   "input": "a\tb\rc\nd\u000b e\f f g h﻿i",
+   "normalize": true,
+   "normalized": "a b c\nd e  f g h i",
+   "parts": [
+    {
+     "match": false,
+     "text": "a b c\nd e  f g h i"
+    }
+   ]
+  },
+  {
+   "input": "a\tb\rc\nd\u000b e\f f g h﻿i",
+   "normalize": false,
+   "normalized": "a\tb\rc\nd\u000b e\f f g h﻿i",
+   "parts": [
+    {
+     "match": false,
+     "text": "a\tb\rc\nd\u000b e\f f g h﻿i"
+    }
+   ]
+  },
+  {
+   "input": "one   two   three",
+   "normalize": true,
+   "normalized": "one two   three",
+   "parts": [
+    {
+     "match": false,
+     "text": "one two   three"
+    }
+   ]
+  },
+  {
+   "input": "one   two   three",
+   "normalize": false,
+   "normalized": "one   two   three",
+   "parts": [
+    {
+     "match": false,
+     "text": "one   two   three"
+    }
+   ]
+  },
+  {
+   "input": "one\n   \ntwo",
+   "normalize": true,
+   "normalized": "one\n\ntwo",
+   "parts": [
+    {
+     "match": false,
+     "text": "one\n\ntwo"
+    }
+   ]
+  },
+  {
+   "input": "one\n   \ntwo",
+   "normalize": false,
+   "normalized": "one\n   \ntwo",
+   "parts": [
+    {
+     "match": false,
+     "text": "one\n   \ntwo"
+    }
+   ]
+  },
+  {
+   "input": "Dr. Smith DR. Smith Dr. smith DR. smith",
+   "normalize": true,
+   "normalized": "Doctor Smith Doctor Smith Dr. smith DR. smith",
+   "parts": [
+    {
+     "match": false,
+     "text": "Doctor Smith Doctor Smith Dr"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "smith DR"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "smith"
+    }
+   ]
+  },
+  {
+   "input": "Dr. Smith DR. Smith Dr. smith DR. smith",
+   "normalize": false,
+   "normalized": "Dr. Smith DR. Smith Dr. smith DR. smith",
+   "parts": [
+    {
+     "match": false,
+     "text": "Dr"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Smith DR"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Smith Dr"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "smith DR"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "smith"
+    }
+   ]
+  },
+  {
+   "input": "Mr. Jones MR. Jones Mr. jones MR. jones",
+   "normalize": true,
+   "normalized": "Mister Jones Mister Jones Mister jones MR. jones",
+   "parts": [
+    {
+     "match": false,
+     "text": "Mister Jones Mister Jones Mister jones MR"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "jones"
+    }
+   ]
+  },
+  {
+   "input": "Mr. Jones MR. Jones Mr. jones MR. jones",
+   "normalize": false,
+   "normalized": "Mr. Jones MR. Jones Mr. jones MR. jones",
+   "parts": [
+    {
+     "match": false,
+     "text": "Mr"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Jones MR"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Jones Mr"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "jones MR"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "jones"
+    }
+   ]
+  },
+  {
+   "input": "Ms. Smith MS. Smith Mrs. Jones MRS. Jones",
+   "normalize": true,
+   "normalized": "Miss Smith Miss Smith Mrs Jones Mrs Jones",
+   "parts": [
+    {
+     "match": false,
+     "text": "Miss Smith Miss Smith Mrs Jones Mrs Jones"
+    }
+   ]
+  },
+  {
+   "input": "Ms. Smith MS. Smith Mrs. Jones MRS. Jones",
+   "normalize": false,
+   "normalized": "Ms. Smith MS. Smith Mrs. Jones MRS. Jones",
+   "parts": [
+    {
+     "match": false,
+     "text": "Ms"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Smith MS"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Smith Mrs"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Jones MRS"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Jones"
+    }
+   ]
+  },
+  {
+   "input": "etc. then etc. Then ETC. next",
+   "normalize": true,
+   "normalized": "etc. then etc. Then ETC. next",
+   "parts": [
+    {
+     "match": false,
+     "text": "etc"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "then etc"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Then ETC"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "next"
+    }
+   ]
+  },
+  {
+   "input": "etc. then etc. Then ETC. next",
+   "normalize": false,
+   "normalized": "etc. then etc. Then ETC. next",
+   "parts": [
+    {
+     "match": false,
+     "text": "etc"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "then etc"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Then ETC"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "next"
+    }
+   ]
+  },
+  {
+   "input": "yeah Yeah yea YEAH",
+   "normalize": true,
+   "normalized": "ye'a Ye'a ye'a Ye'a",
+   "parts": [
+    {
+     "match": false,
+     "text": "ye'a Ye'a ye'a Ye'a"
+    }
+   ]
+  },
+  {
+   "input": "yeah Yeah yea YEAH",
+   "normalize": false,
+   "normalized": "yeah Yeah yea YEAH",
+   "parts": [
+    {
+     "match": false,
+     "text": "yeah Yeah yea YEAH"
+    }
+   ]
+  },
+  {
+   "input": "in 1000.",
+   "normalize": true,
+   "normalized": "in 1000.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1000"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1000.",
+   "normalize": false,
+   "normalized": "in 1000.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1000"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1099.",
+   "normalize": true,
+   "normalized": "in 1099.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1099"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1099.",
+   "normalize": false,
+   "normalized": "in 1099.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1099"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1100.",
+   "normalize": true,
+   "normalized": "in 11 hundred.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 11 hundred"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1100.",
+   "normalize": false,
+   "normalized": "in 1100.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1100"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1900.",
+   "normalize": true,
+   "normalized": "in 19 hundred.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 19 hundred"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1900.",
+   "normalize": false,
+   "normalized": "in 1900.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1900"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1905.",
+   "normalize": true,
+   "normalized": "in 19 oh 5.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 19 oh 5"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1905.",
+   "normalize": false,
+   "normalized": "in 1905.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1905"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1999.",
+   "normalize": true,
+   "normalized": "in 19 99.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 19 99"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1999.",
+   "normalize": false,
+   "normalized": "in 1999.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1999"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 2001.",
+   "normalize": true,
+   "normalized": "in 2001.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 2001"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 2001.",
+   "normalize": false,
+   "normalized": "in 2001.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 2001"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 2010.",
+   "normalize": true,
+   "normalized": "in 20 10.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 20 10"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 2010.",
+   "normalize": false,
+   "normalized": "in 2010.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 2010"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 2026.",
+   "normalize": true,
+   "normalized": "in 20 26.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 20 26"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 2026.",
+   "normalize": false,
+   "normalized": "in 2026.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 2026"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1900s.",
+   "normalize": true,
+   "normalized": "in 19 hundreds.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 19 hundreds"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1900s.",
+   "normalize": false,
+   "normalized": "in 1900s.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1900s"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1990s.",
+   "normalize": true,
+   "normalized": "in 19 90s.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 19 90s"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "in 1990s.",
+   "normalize": false,
+   "normalized": "in 1990s.",
+   "parts": [
+    {
+     "match": false,
+     "text": "in 1990s"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "at 1:00",
+   "normalize": true,
+   "normalized": "at 1 o'clock",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 1 o'clock"
+    }
+   ]
+  },
+  {
+   "input": "at 1:00",
+   "normalize": false,
+   "normalized": "at 1:00",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 1"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "00"
+    }
+   ]
+  },
+  {
+   "input": "at 12:00",
+   "normalize": true,
+   "normalized": "at 12 o'clock",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 12 o'clock"
+    }
+   ]
+  },
+  {
+   "input": "at 12:00",
+   "normalize": false,
+   "normalized": "at 12:00",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 12"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "00"
+    }
+   ]
+  },
+  {
+   "input": "at 1:05",
+   "normalize": true,
+   "normalized": "at 1 oh 5",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 1 oh 5"
+    }
+   ]
+  },
+  {
+   "input": "at 1:05",
+   "normalize": false,
+   "normalized": "at 1:05",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 1"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "05"
+    }
+   ]
+  },
+  {
+   "input": "at 12:59",
+   "normalize": true,
+   "normalized": "at 12 59",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 12 59"
+    }
+   ]
+  },
+  {
+   "input": "at 12:59",
+   "normalize": false,
+   "normalized": "at 12:59",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 12"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "59"
+    }
+   ]
+  },
+  {
+   "input": "at 0:30",
+   "normalize": true,
+   "normalized": "at 0:30",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 0"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "30"
+    }
+   ]
+  },
+  {
+   "input": "at 0:30",
+   "normalize": false,
+   "normalized": "at 0:30",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 0"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "30"
+    }
+   ]
+  },
+  {
+   "input": "at 13:05",
+   "normalize": true,
+   "normalized": "at 13:05",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 13"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "05"
+    }
+   ]
+  },
+  {
+   "input": "at 13:05",
+   "normalize": false,
+   "normalized": "at 13:05",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 13"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "05"
+    }
+   ]
+  },
+  {
+   "input": "at 1:23:45",
+   "normalize": true,
+   "normalized": "at 1:23:45",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 1"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "23"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "45"
+    }
+   ]
+  },
+  {
+   "input": "at 1:23:45",
+   "normalize": false,
+   "normalized": "at 1:23:45",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 1"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "23"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "45"
+    }
+   ]
+  },
+  {
+   "input": "at 12:34:56",
+   "normalize": true,
+   "normalized": "at 12:34:56",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 12"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "34"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "56"
+    }
+   ]
+  },
+  {
+   "input": "at 12:34:56",
+   "normalize": false,
+   "normalized": "at 12:34:56",
+   "parts": [
+    {
+     "match": false,
+     "text": "at 12"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "34"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "56"
+    }
+   ]
+  },
+  {
+   "input": "$1 $2 $01 £1 £2",
+   "normalize": true,
+   "normalized": "1 dollar 2 dollars 01 dollars 1 pound 2 pounds",
+   "parts": [
+    {
+     "match": false,
+     "text": "1 dollar 2 dollars 01 dollars 1 pound 2 pounds"
+    }
+   ]
+  },
+  {
+   "input": "$1 $2 $01 £1 £2",
+   "normalize": false,
+   "normalized": "$1 $2 $01 £1 £2",
+   "parts": [
+    {
+     "match": false,
+     "text": "$1 $2 $01 £1 £2"
+    }
+   ]
+  },
+  {
+   "input": "$1.01 $1.10 $2.5 $2.345 £1.01 £2.02",
+   "normalize": true,
+   "normalized": "1 dollar and 1 cent 1 dollar and 10 cents 2 dollars and 50 cents 2 dollars and 345 cents 1 pound and 1 penny 2 pounds and 2 pence",
+   "parts": [
+    {
+     "match": false,
+     "text": "1 dollar and 1 cent 1 dollar and 10 cents 2 dollars and 50 cents 2 dollars and 345 cents 1 pound and 1 penny 2 pounds and 2 pence"
+    }
+   ]
+  },
+  {
+   "input": "$1.01 $1.10 $2.5 $2.345 £1.01 £2.02",
+   "normalize": false,
+   "normalized": "$1.01 $1.10 $2.5 $2.345 £1.01 £2.02",
+   "parts": [
+    {
+     "match": false,
+     "text": "$1"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "01 $1"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "10 $2"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "5 $2"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "345 £1"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "01 £2"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "02"
+    }
+   ]
+  },
+  {
+   "input": "$3 million £4 hundred $5.50 thousand",
+   "normalize": true,
+   "normalized": "3 million dollars 4 hundred pounds 5 point 5 0 thousand dollars",
+   "parts": [
+    {
+     "match": false,
+     "text": "3 million dollars 4 hundred pounds 5 point 5 0 thousand dollars"
+    }
+   ]
+  },
+  {
+   "input": "$3 million £4 hundred $5.50 thousand",
+   "normalize": false,
+   "normalized": "$3 million £4 hundred $5.50 thousand",
+   "parts": [
+    {
+     "match": false,
+     "text": "$3 million £4 hundred $5"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "50 thousand"
+    }
+   ]
+  },
+  {
+   "input": "$3 MILLION £4 HUNDRED $5.50 THOUSAND",
+   "normalize": true,
+   "normalized": "3 MILLION dollars 4 HUNDRED pounds 5 point 5 0 THOUSAND dollars",
+   "parts": [
+    {
+     "match": false,
+     "text": "3 MILLION dollars 4 HUNDRED pounds 5 point 5 0 THOUSAND dollars"
+    }
+   ]
+  },
+  {
+   "input": "$3 MILLION £4 HUNDRED $5.50 THOUSAND",
+   "normalize": false,
+   "normalized": "$3 MILLION £4 HUNDRED $5.50 THOUSAND",
+   "parts": [
+    {
+     "match": false,
+     "text": "$3 MILLION £4 HUNDRED $5"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "50 THOUSAND"
+    }
+   ]
+  },
+  {
+   "input": "1,234,567 and 3.14 and .75",
+   "normalize": true,
+   "normalized": "1234567 and 3 point 1 4 and  point 7 5",
+   "parts": [
+    {
+     "match": false,
+     "text": "1234567 and 3 point 1 4 and  point 7 5"
+    }
+   ]
+  },
+  {
+   "input": "1,234,567 and 3.14 and .75",
+   "normalize": false,
+   "normalized": "1,234,567 and 3.14 and .75",
+   "parts": [
+    {
+     "match": false,
+     "text": "1"
+    },
+    {
+     "match": true,
+     "text": ","
+    },
+    {
+     "match": false,
+     "text": "234"
+    },
+    {
+     "match": true,
+     "text": ","
+    },
+    {
+     "match": false,
+     "text": "567 and 3"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "14 and"
+    },
+    {
+     "match": true,
+     "text": " ."
+    },
+    {
+     "match": false,
+     "text": "75"
+    }
+   ]
+  },
+  {
+   "input": "10-20 3S ABCs BCS X'S XS",
+   "normalize": true,
+   "normalized": "10 to 20 3 S ABC'S BCS X's XS",
+   "parts": [
+    {
+     "match": false,
+     "text": "10 to 20 3 S ABC'S BCS X's XS"
+    }
+   ]
+  },
+  {
+   "input": "10-20 3S ABCs BCS X'S XS",
+   "normalize": false,
+   "normalized": "10-20 3S ABCs BCS X'S XS",
+   "parts": [
+    {
+     "match": false,
+     "text": "10-20 3S ABCs BCS X'S XS"
+    }
+   ]
+  },
+  {
+   "input": "U.S.A. is U.S. Army a.b.c. next",
+   "normalize": true,
+   "normalized": "U-S-A- is U-S. Army a-b-c- next",
+   "parts": [
+    {
+     "match": false,
+     "text": "U-S-A- is U-S"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Army a-b-c- next"
+    }
+   ]
+  },
+  {
+   "input": "U.S.A. is U.S. Army a.b.c. next",
+   "normalize": false,
+   "normalized": "U.S.A. is U.S. Army a.b.c. next",
+   "parts": [
+    {
+     "match": false,
+     "text": "U"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "S"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "A"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "is U"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "S"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Army a"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "b"
+    },
+    {
+     "match": true,
+     "text": "."
+    },
+    {
+     "match": false,
+     "text": "c"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "next"
+    }
+   ]
+  },
+  {
+   "input": "αDr. Smith éMr. Jones ١٢:٣٤ ４２",
+   "normalize": true,
+   "normalized": "αDoctor Smith éMister Jones ١٢:٣٤ ４２",
+   "parts": [
+    {
+     "match": false,
+     "text": "αDoctor Smith éMister Jones ١٢"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "٣٤ ４２"
+    }
+   ]
+  },
+  {
+   "input": "αDr. Smith éMr. Jones ١٢:٣٤ ４２",
+   "normalize": false,
+   "normalized": "αDr. Smith éMr. Jones ١٢:٣٤ ４２",
+   "parts": [
+    {
+     "match": false,
+     "text": "αDr"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Smith éMr"
+    },
+    {
+     "match": true,
+     "text": ". "
+    },
+    {
+     "match": false,
+     "text": "Jones ١٢"
+    },
+    {
+     "match": true,
+     "text": ":"
+    },
+    {
+     "match": false,
+     "text": "٣٤ ４２"
+    }
+   ]
+  },
+  {
+   "input": "!!! [ ] ( ) ???",
+   "normalize": true,
+   "normalized": "!!! [ ] « » ???",
+   "parts": [
+    {
+     "match": true,
+     "text": "!!! [ ] « » ???"
+    }
+   ]
+  },
+  {
+   "input": "!!! [ ] ( ) ???",
+   "normalize": false,
+   "normalized": "!!! [ ] ( ) ???",
+   "parts": [
+    {
+     "match": true,
+     "text": "!!! [ ] ( ) ???"
+    }
+   ]
+  },
+  {
+   "input": " \n﻿ ",
+   "normalize": true,
+   "normalized": "",
+   "parts": []
+  },
+  {
+   "input": " \n﻿ ",
+   "normalize": false,
+   "normalized": " \n﻿ ",
+   "parts": [
+    {
+     "match": false,
+     "text": " \n﻿ "
+    }
+   ]
+  },
+  {
+   "input": "é and 😀; another sentence.",
+   "normalize": true,
+   "normalized": "é and 😀; another sentence.",
+   "parts": [
+    {
+     "match": false,
+     "text": "é and 😀"
+    },
+    {
+     "match": true,
+     "text": "; "
+    },
+    {
+     "match": false,
+     "text": "another sentence"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  },
+  {
+   "input": "é and 😀; another sentence.",
+   "normalize": false,
+   "normalized": "é and 😀; another sentence.",
+   "parts": [
+    {
+     "match": false,
+     "text": "é and 😀"
+    },
+    {
+     "match": true,
+     "text": "; "
+    },
+    {
+     "match": false,
+     "text": "another sentence"
+    },
+    {
+     "match": true,
+     "text": "."
+    }
+   ]
+  }
+ ],
+ "ipa": [
+  {
+   "input": "kəkˈoːɹoʊ kəkˈɔːɹəʊ",
+   "american": true,
+   "output": "kˈoʊkəɹoʊ kˈəʊkəɹəʊ"
+  },
+  {
+   "input": "kəkˈoːɹoʊ kəkˈɔːɹəʊ",
+   "american": false,
+   "output": "kˈoʊkəɹoʊ kˈəʊkəɹəʊ"
+  },
+  {
+   "input": "r x ɬ ʲ",
+   "american": true,
+   "output": "ɹ k l j"
+  },
+  {
+   "input": "r x ɬ ʲ",
+   "american": false,
+   "output": "ɹ k l j"
+  },
+  {
+   "input": "ahˈʌndɹɪd ɹhˈʌndɹɪd ːhˈʌndɹɪd",
+   "american": true,
+   "output": "a hˈʌndɹɪd ɹ hˈʌndɹɪd ː hˈʌndɹɪd"
+  },
+  {
+   "input": "ahˈʌndɹɪd ɹhˈʌndɹɪd ːhˈʌndɹɪd",
+   "american": false,
+   "output": "a hˈʌndɹɪd ɹ hˈʌndɹɪd ː hˈʌndɹɪd"
+  },
+  {
+   "input": "word z, word z. word z!",
+   "american": true,
+   "output": "woɹdz, woɹdz. woɹdz!"
+  },
+  {
+   "input": "word z, word z. word z!",
+   "american": false,
+   "output": "woɹdz, woɹdz. woɹdz!"
+  },
+  {
+   "input": "z word z",
+   "american": true,
+   "output": "z woɹdz"
+  },
+  {
+   "input": "z word z",
+   "american": false,
+   "output": "z woɹdz"
+  },
+  {
+   "input": "word z\n",
+   "american": true,
+   "output": "woɹd z"
+  },
+  {
+   "input": "word z\n",
+   "american": false,
+   "output": "woɹd z"
+  },
+  {
+   "input": "word z ",
+   "american": true,
+   "output": "woɹd z"
+  },
+  {
+   "input": "word z ",
+   "american": false,
+   "output": "woɹd z"
+  },
+  {
+   "input": "nˈaɪnti nˈaɪntiː",
+   "american": true,
+   "output": "nˈaɪndi nˈaɪntiː"
+  },
+  {
+   "input": "nˈaɪnti nˈaɪntiː",
+   "american": false,
+   "output": "nˈaɪnti nˈaɪntiː"
+  },
+  {
+   "input": "  r\n",
+   "american": true,
+   "output": "ɹ"
+  },
+  {
+   "input": "  r\n",
+   "american": false,
+   "output": "ɹ"
+  },
+  {
+   "input": "ɪnðə bɪɡˈɪnɪŋ",
+   "american": true,
+   "output": "ɪnðə bɪɡˈɪnɪŋ"
+  },
+  {
+   "input": "ɪnðə bɪɡˈɪnɪŋ",
+   "american": false,
+   "output": "ɪnðə bɪɡˈɪnɪŋ"
+  },
+  {
+   "input": "😀 é",
+   "american": true,
+   "output": "😀 é"
+  },
+  {
+   "input": "😀 é",
+   "american": false,
+   "output": "😀 é"
+  }
+ ]
+}

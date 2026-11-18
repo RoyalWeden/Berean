@@ -1,9 +1,10 @@
 import Foundation
 import libespeak_ng
+import BereanText
 
 // Each mode runs in its own process: eSpeak's translator/resource state is global.
 guard (3...4).contains(CommandLine.arguments.count) else {
-    fatalError("Usage: Probe compile|dictionary|phonemize <temporary-data-root> [en-us|en]")
+    fatalError("Usage: Probe compile|dictionary|phonemize|kokoro <temporary-data-root> [en-us|en]")
 }
 let mode = CommandLine.arguments[1]
 let voice = CommandLine.arguments.count == 4 ? CommandLine.arguments[3] : "en-us"
@@ -31,9 +32,14 @@ if mode == "compile" {
     exit(0)
 }
 
-// Retrieval mode never plays audio. This probe calls only TextToPhonemes, not synthesis.
-let sampleRate = espeak_Initialize(AUDIO_OUTPUT_RETRIEVAL, 0, destination.path, espeakINITIALIZE_DONT_EXIT)
-guard sampleRate > 0, espeak_SetVoiceByName(voice) == EE_OK else {
+// The original wrapper obtains IPA from synthesis tracing. Direct TextToPhonemes
+// differs in paragraph stress. Synchronous mode never opens audio output; the
+// callback discards internal eSpeak PCM, which is not a Kokoro playback backend.
+let sampleRate = espeak_Initialize(AUDIO_OUTPUT_SYNCHRONOUS, 0, destination.path, espeakINITIALIZE_DONT_EXIT)
+// The shared English dictionary is compiled against the base English phoneme
+// table, as upstream's default CLI does, rather than the American voice overlay.
+let initializationVoice = mode == "dictionary" ? "en" : voice
+guard sampleRate > 0, espeak_SetVoiceByName(initializationVoice) == EE_OK else {
     fatalError("English phonemizer initialization failed")
 }
 defer { espeak_Terminate() }
@@ -43,18 +49,36 @@ if mode == "dictionary" {
     let result = espeak_ng_CompileDictionary(resources.appendingPathComponent("dictsource").path + "/",
                                             "en", stdout, 0, &context)
     guard result == ENS_OK else { fatalError("English dictionary compilation failed: \(result)") }
-} else if mode == "phonemize" {
+} else if mode == "phonemize" || mode == "kokoro" {
     let samples = try JSONDecoder().decode([String].self, from: FileHandle.standardInput.readDataToEndOfFile())
-    let results = samples.map { sample in
-        sample.withCString { start -> [String] in
-            var pointer: UnsafeRawPointer? = UnsafeRawPointer(start)
-            var clauses: [String] = []
-            while pointer != nil {
-                guard let result = espeak_TextToPhonemes(&pointer, 1, 2) else { break }
-                clauses.append(String(cString: result))
-            }
-            return clauses
+    espeak_SetSynthCallback { _, _, _ in 0 }
+    func phonemize(_ sample: String) -> [String] {
+        guard let trace = tmpfile() else { fatalError("Cannot create temporary phoneme trace") }
+        defer { espeak_SetPhonemeTrace(0, nil); fclose(trace) }
+        espeak_SetPhonemeTrace(Int32(espeakPHONEMES_IPA), trace)
+        let status = sample.withCString { text in
+            espeak_Synth(text, sample.utf8.count + 1, 0, POS_CHARACTER, 0, UInt32(espeakCHARS_UTF8), nil, nil)
         }
+        guard status == EE_OK, espeak_Synchronize() == EE_OK else { fatalError("Phoneme trace failed") }
+        fflush(trace)
+        fseek(trace, 0, SEEK_END)
+        let count = ftell(trace)
+        guard count >= 0, count < 10_000_000 else { fatalError("Invalid phoneme trace size") }
+        rewind(trace)
+        var bytes = [UInt8](repeating: 0, count: Int(count))
+        let read = bytes.withUnsafeMutableBytes { fread($0.baseAddress, 1, $0.count, trace) }
+        guard read == bytes.count else { fatalError("Incomplete phoneme trace") }
+        return String(decoding: bytes, as: UTF8.self).components(separatedBy: "\n").filter { !$0.isEmpty }
     }
-    FileHandle.standardOutput.write(try JSONEncoder().encode(results))
+    if mode == "phonemize" {
+        FileHandle.standardOutput.write(try JSONEncoder().encode(samples.map(phonemize)))
+    } else {
+        let results = samples.map { sample in
+            let ipa = KokoroEnglish.parts(sample).map { part in
+                part.isPunctuation ? part.text : phonemize(part.text).joined(separator: " ")
+            }.joined()
+            return KokoroEnglish.postprocess(ipa, american: voice == "en-us")
+        }
+        FileHandle.standardOutput.write(try JSONEncoder().encode(results))
+    }
 } else { fatalError("Unknown mode: \(mode)") }

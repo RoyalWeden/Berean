@@ -443,3 +443,6 @@ Native speech prototype18Nov: compile phoneme/intonation/dictionary resources fr
 
 
 18Nov note title presentation: permit up to5 wrapped visible title lines while retaining single-line stored metadata. Collapse pasted/input line breaks to spaces, keep daily titles read-only, and keep Return/Next advancing to body.
+
+
+18Nov Kokoro compatibility: preserve original phonemizer resource data and synthesis-trace IPA semantics rather than assuming current upstream tables or directTextToPhonemes are identical. Expanded cases proved vowel/stress differences. Keep engine/resources in opt-in probe pending packaging/integrity/G2P licensing gate; only UI-free KokoroEnglish preprocessing enters shared app code. Never patch pronunciation ad hoc to hide backend drift.

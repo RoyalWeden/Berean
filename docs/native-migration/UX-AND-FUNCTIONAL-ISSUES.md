@@ -168,3 +168,6 @@ Palette stale cache suppressed GalleryQA07/01 despite correct FTS results. Curre
 
 
 18Nov note-title truncation: GoSubmitFollowupQA was truncated in phone editor. Now full2line title displays; Mac multiline paste preserves single-line metadata and Return enters body on both platforms. More than5lines/accessibility/software-keyboard/IME remain manual acceptance.
+
+
+18Nov owner report OPEN: occasional Scripture scroll stutter, brief chapter-loading spinner, bottom pull not working when chapter is shorter than viewport, and top-pull feel. Investigate current reader lifecycle/cache/metadata and geometry at coincident edges; alwaysBounceVertical is already enabled. Preserve selection and deliberate-edge guards. Speech compatibility expanded to exact original phoneme output; audible backend still absent.

@@ -1771,3 +1771,6 @@ ReadAloud development18Nov: added reproducible silent native phonemizer comparis
 
 
 18Nov: Notes editor titles now wrap on Mac/iPhone instead of truncating a modest title. Stored titles remain single-line; Return advances to the body. Both builds and actual editing-flow checks pass.
+
+
+18Nov: added native Kokoro English normalization/segments/IPA cleanup with original-oracle fixtures. Full184sharedtests and both builds pass. Expanded silent Mac/iPhone probe matches52raw+52complete cases using original resources and trace API; playback remains unfinished.

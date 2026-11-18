@@ -17,11 +17,13 @@ import { buildNoteMarkdownGolden } from './noteMarkdown'
 import { buildVerseTagsGolden } from './verseTags'
 import { buildSpeechChunksGolden } from './speechChunks'
 import { buildSpeechPreparationGolden } from './speechPreparation'
+import { buildKokoroEnglishGolden } from './kokoroEnglish'
 import { dirname } from 'node:path'
 
 mkdirSync(GOLDEN_DIR, { recursive: true })
 writeFileSync(join(GOLDEN_DIR, 'speech-chunks.json'), serializeGolden(buildSpeechChunksGolden()))
 writeFileSync(join(GOLDEN_DIR, 'speech-preparation.json'), serializeGolden(buildSpeechPreparationGolden()))
+writeFileSync(join(GOLDEN_DIR, 'kokoro-english.json'), serializeGolden(await buildKokoroEnglishGolden()))
 for (const f of buildGoldenCorpus()) {
   const text = serializeGolden(f)
   writeFileSync(join(GOLDEN_DIR, `${f.name}.json`), text)

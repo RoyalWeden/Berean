@@ -1,15 +1,31 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { gunzipSync } from 'node:zlib'
 import assert from 'node:assert/strict'
 import { phonemize } from 'phonemizer'
 
 const directory = dirname(fileURLToPath(import.meta.url))
-const simulator = process.argv[2] === '--simulator' ? process.argv[3] : undefined
-if (process.argv.length > 2 && (!simulator || !/^[0-9a-f-]{36}$/i.test(simulator) || process.argv.length !== 4)) {
-  throw new Error('Usage: node check.mjs [--simulator <booted-simulator-UUID>]')
+// Compare the full pipeline to the exact original implementation. This test-only
+// extraction injects the installed phonemizer and never loads the ONNX model.
+const source = readFileSync(join(directory, '../../../node_modules/kokoro-js/dist/kokoro.js'), 'utf8')
+const start = source.indexOf('function o('), end = source.indexOf('function p(', start)
+if (start < 0 || end < 0 || !source.slice(start, end).includes('async function m(')) {
+  throw new Error('Original Kokoro English oracle boundaries changed')
+}
+const originalKokoro = new Function('l', source.slice(start, end) + ';return m;')(phonemize)
+let simulator, compiledResources = false
+const args = process.argv.slice(2)
+while (args.length) {
+  const option = args.shift()
+  if (option === '--simulator' && /^[0-9a-f-]{36}$/i.test(args[0] ?? '')) simulator = args.shift()
+  else if (option === '--compiled-resources') compiledResources = true
+  else {
+    console.error('Usage: node check.mjs [--simulator <booted-simulator-UUID>] [--compiled-resources]')
+    process.exit(2)
+  }
 }
 const scratch = mkdtempSync(join(tmpdir(), 'berean-phonemizer-check-'))
 function run(command, args, input) {
@@ -18,6 +34,28 @@ function run(command, args, input) {
     throw new Error(`${command} failed (${result.status ?? result.signal}):\n${result.stderr}\n${result.stdout}`)
   }
   return result.stdout
+}
+
+function originalResources(destination) {
+  // Research only: recover the exact original English data from its installed
+  // Emscripten bundle. Do not replace original voice data with newly compiled
+  // upstream tables and assume that matching the first few phrases is enough.
+  const source = readFileSync(join(directory, '../../../node_modules/phonemizer/dist/phonemizer.js'), 'utf8')
+  const payload = source.match(/"(H4sI[A-Za-z0-9+/=]+)"/)
+  const descriptor = source.match(/\{files:\[.*?\],remote_package_size:\d+\}/)
+  assert.ok(payload && descriptor, 'Original phonemizer resource format changed')
+  const root = '/usr/share/espeak-ng-data'
+  const manifest = new Function('e', 'C', 'a', `return (${descriptor[0]});`)(root, `${root}/lang`, `${root}/voices`)
+  const data = gunzipSync(Buffer.from(payload[1], 'base64'))
+  assert.equal(data.length, manifest.remote_package_size)
+  for (const file of manifest.files) {
+    assert.ok(file.filename.startsWith(`${root}/`) && !file.filename.split('/').includes('..'))
+    assert.ok(Number.isInteger(file.start) && Number.isInteger(file.end)
+      && file.start >= 0 && file.end >= file.start && file.end <= data.length)
+    const path = join(destination, 'espeak-ng-data', file.filename.slice(root.length + 1))
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, data.subarray(file.start, file.end))
+  }
 }
 // Synthetic/public text only. No library, credentials, model weights or voice pack are read.
 const samples = [
@@ -37,6 +75,16 @@ const samples = [
   'Alpha and Omega; the beginning and the ending.',
   'A question? An answer! A pause… another clause.',
   '  leading and doubled  spaces  ',
+  'Dr. Smith met Mr. Jones.',
+  'etc. then etc. Then ETC. next',
+  'In 1905 and 2026, at 1:05 and 12:00.',
+  '$1.01 and £2.50; 10-20 and 3.14.',
+  '$3 MILLION and £4 HUNDRED',
+  '(First) [second] {third}; “fourth”.',
+  'one\n   \ntwo',
+  'yeah, Yeah; yea YEAH!',
+  'one   two   three',
+  'word z\n',
 ]
 try {
   const build = ['build', '-c', 'release', '--package-path', directory, '--scratch-path', join(scratch, 'build')]
@@ -51,15 +99,43 @@ try {
     ? run('xcrun', ['simctl', 'spawn', simulator, executable, ...args], input)
     : run(executable, args, input)
   const data = join(scratch, 'data')
-  invoke(['compile', data])
-  invoke(['dictionary', data])
+  if (compiledResources) {
+    invoke(['compile', data])
+    invoke(['dictionary', data])
+  } else {
+    originalResources(data)
+  }
+  const differences = []
+  let rawDifferences = 0, preparedDifferences = 0
   for (const voice of ['en-us', 'en']) {
     const actual = JSON.parse(invoke(['phonemize', data, voice], JSON.stringify(samples)))
     for (let i = 0; i < samples.length; i++) {
-      assert.deepEqual(actual[i], await phonemize(samples[i], voice), `${voice}: ${samples[i]}`)
+      try {
+        assert.deepEqual(actual[i], await phonemize(samples[i], voice), `${voice}: ${samples[i]}`)
+      } catch (error) {
+        rawDifferences++
+        differences.push(error.message)
+      }
+    }
+    const prepared = JSON.parse(invoke(['kokoro', data, voice], JSON.stringify(samples)))
+    for (let i = 0; i < samples.length; i++) {
+      try {
+        assert.equal(prepared[i], await originalKokoro(samples[i], voice === 'en-us' ? 'a' : 'b'),
+          `Kokoro ${voice}: ${samples[i]}`)
+      } catch (error) {
+        preparedDifferences++
+        differences.push(error.message)
+      }
     }
   }
-  console.log(`${simulator ? 'iOS Simulator' : 'Mac'} US/British phonemes match original phonemizer for ${samples.length * 2} cases. No audio synthesized.`)
+  assert.equal(differences.length, 0,
+    `${rawDifferences} raw / ${preparedDifferences} complete Kokoro mismatches:\n${differences.join('\n\n')}`)
+  console.log(`${simulator ? 'iOS Simulator' : 'Mac'}: ${samples.length * 2} raw and ${samples.length * 2} complete Kokoro English cases match the original. No audio played or Kokoro model loaded.`)
+} catch (error) {
+  // Emscripten's uncaught-error handler otherwise prints its entire minified
+  // module (including embedded resources) before the useful comparison failure.
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exitCode = 1
 } finally {
   rmSync(scratch, { recursive: true, force: true })
 }
