@@ -1103,3 +1103,6 @@ Daily-folder date discovery now includes a month grid with existing-note dots, m
 
 ### 2026-11-18 incremental evidence — M05 groundwork
 Kokoro neural latency chunking and UTF16 verse/word alignment metadata now have native service parity against48TypeScript oracle cases.177sharedRelease tests and both app builds pass. Speech preparation, model/voice/cache integration, synthesis, streaming playback and native controls remain unfinished; M05 audio parity is not achieved.
+
+### 2026-11-18 incremental evidence — M05 preparation
+Spoken-only numeral/abbreviation/pronunciation/punctuation and tagged/plain replacement/UTF16 word-slot alignment now native, checked against original generated fixtures. Original plain speech-text/offset inconsistency fixed.179sharedtests,104originalTTS tests and both native builds pass. Native ONNX/phonemization/asset/audio integration and listening/device acceptance remain open; ReadAloud playback parity is not claimed.

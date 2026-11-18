@@ -2,7 +2,7 @@
  "format": 1,
  "sources": {
   "src/lib/tts/kokoro/kokoroChunking.ts": "4999f324bd437a8bd0c01eec5c5eb199ca7ff256ce952d4f6c7267396a619e7a",
-  "src/lib/tts/extractSpokenText.ts": "8b5302e0cc0ef51fae1e617b42f9873cc523d283647500474e785801a0eb8435"
+  "src/lib/tts/extractSpokenText.ts": "0fd84208c497e1db0472acf50462a58c0e8be3320d27a3938614771de157f36d"
  },
  "cases": [
   {

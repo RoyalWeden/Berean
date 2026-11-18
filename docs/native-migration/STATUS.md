@@ -179,3 +179,6 @@ Fresh-edge intent and release hysteresis implemented for both native readers, de
 
 ### 2026-11-18 — Read Aloud foundation
 Shared Kokoro latency/alignment planner now matches48 original TypeScript oracle cases.177sharedRelease tests/51suites pass; TypeScript/scopedlint/drift guard and both native builds pass. This is preparation for M05: no native synthesis/voice loading/playback is delivered, Apple voices excluded. See HANDOFF for next pipeline/engine tasks.
+
+### 2026-11-18 — Spoken preparation parity
+Native spoken-only preparation/word alignment implemented and checked against282number/518token/36verse oracle cases. Original plain fallback corrected to return prepared speech with matching spaces/offsets.179sharedRelease tests,104originalTTS tests, both native builds, speech drift/typecheck/explicit scopedlint pass. M05 synthesis/playback stillunfinished; existing legacy iPhone native ONNX bridge located for reuse.

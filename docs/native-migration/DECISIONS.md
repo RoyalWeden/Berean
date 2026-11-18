@@ -426,3 +426,6 @@ Record eligible top/bottom edges when direct dragging starts. Do not turn a chap
 
 ### 2026-11-18 — Neural ReadAloud uses its original latency policy
 Keep Kokoro’s12/40-word startup/streaming policy separate from WebSpeech’s cutoff-oriented chunks. Preserve UTF16 positions and blank/multi-word slots so replacements do not shift word highlighting. Plan chunks from already-prepared speech tokens; do not change theological/display substitutions in the chunker. Validate against generated original TypeScript fixtures; no Apple speech fallback. This foundation is not a playback engine.
+
+### 2026-11-18 — Prepared speech owns its alignment string
+Return prepared speech text, preserving spaces used by word offsets, rather than a raw collapsed text string that disagrees with prepared tokens. Apply display/text and Strong’s rules before spoken-only preparation. Preserve blank suppressed-the slots and multi-word replacements as one reader word slot. Correct the original plain path as the oracle; this changes speech cache content hashes, not user IDs/schema/sync. Reuse original native ONNX inference work; no Apple speech fallback or unverified replacement model.

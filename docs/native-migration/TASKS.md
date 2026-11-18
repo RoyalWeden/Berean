@@ -245,3 +245,5 @@ See [Native implementation backlog](IMPLEMENTATION-BACKLOG.md) for source refere
 ### M05 resume — 2026-11-18
 - Completed foundation only: KokoroChunks neural latency/alignment policy,48original-oracle cases and native conformance. Full177sharedtests and both app builds pass. M05 remainsTODO overall.
 - Next: original buildSpokenWords/textPrep parity including WordReplacer+Strong’s/the suppression and spoken-only pronunciation/number/abbreviation handling; then voice/model/cache contracts, native inference and streamed audio/word alignment/cancel/skip/settings. No Apple voices. Do not present chunk planning as audible ReadAloud.
+
+M05 continuation18Nov: speech preparation/SpokenText service completed with original oracle conformance (179sharedtests/104originalTTS tests, both apps build). Remaining engine can reuse legacy BereanVoicePackPlugin’s native ONNX inference core; first establish original-compatible phonemization/tokenization/style vectors and fp32 asset manifest/download, then audio streaming/word timing/cancel/skip/UI. Do not mark playback complete. See HANDOFF for exact files/results.
