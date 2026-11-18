@@ -152,3 +152,5 @@ Verified iPhone Verse Notes creation/return, date-aware daily reuse, empty-folde
 
 ### 2026-11-18 — Notes follow-up verification
 Daily-folder calendar markers/date reuse verified on both platforms. Mac Checklist/Table available directly; preexisting formatting/typing Undo coalescing fixed and live checklist Undo/Redo/follow-on typing tested. iPhone blank large-title area reproduced on tab/folder return, replaced with explicit fixed accessible heading; verified Notes and DailyNotes after return. Tiny widths, DynamicType and VoiceOver remain unverified. Continue broader formatting/IME Undo checks.
+
+Chapter gesture follow-up: deterministic fresh-edge/hysteresis regression and builds pass. iPhone13→12 end and12→13 start work. Repeated activation at a later13end viewport not established: inspect real scroll begin offset versus2pt edge tolerance and dock/contentInset settling. Do not silently lower arm threshold before measuring. Cue rendering/haptic timing, Mac physical trackpad stillpending.

@@ -173,3 +173,6 @@ Final Compare removal-guard rebuild passed on both Mac and iOS (/tmp/berean-comp
 
 ### 2026-11-18 — Notes follow-up
 Daily-folder month grid/marked days and direct Mac Checklist/Table actions implemented. Mac new-day creation/reuse and iPhone marked-date reuse checked; counts stable. Mac formatting Undo now preserves immediately preceding typing; Undo/Redo and later typing separation checked. Explicit iPhone large heading fixes blank reserved navigation title area. Both native targets build (final logs in HANDOFF). Kokoro synthesis, chapter gestures and measured tab switching still open.
+
+### 2026-11-18 — Chapter pull guard
+Fresh-edge intent and release hysteresis implemented for both native readers, deterministic shared-code regressions and both builds pass. iPhone Mark13→12 end and12→13 start checked. Activation from a later Mark13end viewport was not established; settled edge/dock-inset sensitivity, intermediate feedback, real trackpad and physical phone remain open.

@@ -6,6 +6,7 @@ private final class ChapterPullScrollView: NSScrollView {
     var reader: ChapterTextView.Coordinator?
     private var travel: CGFloat = 0
     private var pull: ChapterPullCue?
+    private var pullIntent = ChapterPullIntent(armDistance: 112, disarmDistance: 92)
     private var keyboardMonitor: Any?
 
     override func viewDidMoveToWindow() {
@@ -43,19 +44,27 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        if event.phase.contains(.cancelled) || event.phase.contains(.began) {
+        if event.phase.contains(.cancelled) {
+            pullIntent.cancel()
+            travel = 0
+            publish(nil)
+        }
+        if event.phase.contains(.began) {
+            let bounds = contentView.bounds
+            let top = documentView?.frame.minY ?? 0
+            let bottom = max(top, (documentView?.frame.maxY ?? 0) - bounds.height)
+            pullIntent.begin(atTop: bounds.minY <= top + 2, atBottom: bounds.minY >= bottom - 2)
             travel = 0
             publish(nil)
         }
 
         if event.phase.contains(.ended) {
-            let requested = pull
+            let direction = pullIntent.finish()
             travel = 0
             publish(nil)
             super.scrollWheel(with: event)
-            if let requested, requested.ready, let parent = reader?.parent,
-               parent.canPullChapter(requested.direction) {
-                parent.onChapterPullCommit(requested.direction)
+            if let direction, let parent = reader?.parent, parent.canPullChapter(direction) {
+                parent.onChapterPullCommit(direction)
             }
             return
         }
@@ -74,11 +83,16 @@ private final class ChapterPullScrollView: NSScrollView {
                 if (travel > 0) != (delta > 0) { travel = 0 }
                 travel += delta
                 let distance = abs(travel)
-                publish(distance >= 18 ? ChapterPullCue(direction: direction, ready: distance >= 112) : nil)
+                publish(pullIntent.update(direction: direction, distance: distance, allowed: true))
             } else {
                 travel = 0
+                _ = pullIntent.update(direction: direction, distance: 0, allowed: false)
                 publish(nil)
             }
+        } else if event.phase.contains(.changed) {
+            pullIntent.cancel()
+            travel = 0
+            publish(nil)
         }
 
         super.scrollWheel(with: event)

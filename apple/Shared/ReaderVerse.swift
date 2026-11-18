@@ -74,6 +74,46 @@ struct ChapterPullCue: Equatable {
     let ready: Bool
 }
 
+/// A deliberate fresh pull at a chapter edge, with hysteresis around release.
+/// Arriving at the edge during an ordinary scroll never arms navigation.
+struct ChapterPullIntent {
+    let armDistance: CGFloat
+    let disarmDistance: CGFloat
+    private var edges = Set<Int>()
+    private var armed: Int?
+
+    init(armDistance: CGFloat, disarmDistance: CGFloat) {
+        self.armDistance = armDistance
+        self.disarmDistance = min(disarmDistance, armDistance)
+    }
+
+    mutating func begin(atTop: Bool, atBottom: Bool) {
+        edges = Set((atTop ? [-1] : []) + (atBottom ? [1] : []))
+        armed = nil
+    }
+
+    mutating func update(direction: Int, distance: CGFloat, allowed: Bool) -> ChapterPullCue? {
+        guard allowed, edges.contains(direction), distance >= 18 else {
+            armed = nil
+            return nil
+        }
+        let ready = distance >= (armed == direction ? disarmDistance : armDistance)
+        armed = ready ? direction : nil
+        return ChapterPullCue(direction: direction, ready: ready)
+    }
+
+    mutating func finish() -> Int? {
+        let direction = armed
+        cancel()
+        return direction
+    }
+
+    mutating func cancel() {
+        edges = []
+        armed = nil
+    }
+}
+
 /// Keeps the native selection endpoints on readable text while preserving a continuous drag across verses.
 func readerTextSelection(_ range: NSRange, in storage: NSAttributedString, excluding marker: NSAttributedString.Key) -> NSRange {
     guard range.location != NSNotFound, range.length > 0, NSMaxRange(range) <= storage.length else { return range }

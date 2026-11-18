@@ -420,3 +420,6 @@ For native character selection and saved highlights, derive each fill from the c
 Keep daily discovery inside the DailyNotes folder, with month navigation and day-presence markers, while reusing the existing daily identity/open path. The calendar month is presentation-local; no new persisted/sync fields. Keep standalone Calendar available for timeline/sunrise features. Expose Checklist/Table as direct Mac toolbar actions alongside broader menus. Treat every explicit Mac formatting edit as separate from native typing, using the same validated inverse registration already used for completion.
 
 NotesHome uses an explicit accessible large iPhone heading and inline empty navigation title because persistent search above its independent scrolling body can leave UIKit’s large-title area blank after tab/editor transitions. This heading is fixed; do not claim native collapsing behavior.
+
+### 2026-11-18 — Chapter turns require a fresh edge gesture
+Record eligible top/bottom edges when direct dragging starts. Do not turn a chapter merely because a long ordinary scroll arrives at its boundary. Use separate arm/disarm distances so ready feedback tolerates small retreats but users can retract before release. Keep momentum, cancelled/selection-blocked gestures and unavailable destinations ineligible. Physical sensitivity remains a runtime acceptance item.

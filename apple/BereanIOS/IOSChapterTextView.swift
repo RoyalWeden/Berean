@@ -515,7 +515,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         private var chromeHidden = false
 
         private var chapterPull: ChapterPullCue?
-        private let chapterPullThreshold: CGFloat = 68
+        private var chapterPullIntent = ChapterPullIntent(armDistance: 68, disarmDistance: 52)
 
         private func publishChapterPull(_ pull: ChapterPullCue?) {
             guard pull != chapterPull else { return }
@@ -531,7 +531,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             guard scrollView.isDragging,
                   let view = scrollView as? UITextView, view.selectedRange.length == 0,
                   parent.selectedVerses.isEmpty else {
-                if scrollView.isDragging { publishChapterPull(nil) }
+                if scrollView.isDragging {
+                    chapterPullIntent.cancel()
+                    publishChapterPull(nil)
+                }
                 return
             }
             let inset = scrollView.adjustedContentInset
@@ -540,25 +543,27 @@ struct IOSChapterTextView: UIViewRepresentable {
             let offset = scrollView.contentOffset.y
             let direction = offset < top ? -1 : 1
             let distance = direction < 0 ? top - offset : offset - bottom
-            guard distance >= 18, parent.canPullChapter(direction) else {
-                publishChapterPull(nil)
-                return
-            }
-            publishChapterPull(ChapterPullCue(direction: direction, ready: distance >= chapterPullThreshold))
+            publishChapterPull(chapterPullIntent.update(direction: direction, distance: distance,
+                                                       allowed: parent.canPullChapter(direction)))
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
             publishChapterPull(nil)
+            let top = -scrollView.adjustedContentInset.top
+            let bottom = max(top, scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - scrollView.bounds.height)
+            chapterPullIntent.begin(atTop: scrollView.contentOffset.y <= top + 2,
+                                    atBottom: scrollView.contentOffset.y >= bottom - 2)
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-            let requested = chapterPull
+            let direction = chapterPullIntent.finish()
             publishChapterPull(nil)
-            guard let requested, requested.ready, parent.canPullChapter(requested.direction) else { return }
-            parent.onChapterPullCommit(requested.direction)
+            guard let direction, parent.canPullChapter(direction) else { return }
+            parent.onChapterPullCommit(direction)
         }
 
         func resetScrollChrome() {
+            chapterPullIntent.cancel()
             lastScrollY = 0
             scrollTravel = 0
             chromeHidden = false

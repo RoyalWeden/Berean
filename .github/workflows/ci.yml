@@ -95,6 +95,8 @@ jobs:
         run: |
           xcrun swiftc apple/Shared/ReaderVerse.swift scripts/native/reader-backgrounds/main.swift -o /tmp/berean-reader-backgrounds
           /tmp/berean-reader-backgrounds
+          xcrun swiftc apple/Shared/ReaderVerse.swift scripts/native/chapter-pull/main.swift -o /tmp/berean-chapter-pull
+          /tmp/berean-chapter-pull
 
       - name: BereanKit conformance tests on an iOS Simulator (platform SQLite)
         run: npm run native:test:ios
