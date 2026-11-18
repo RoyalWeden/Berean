@@ -2689,30 +2689,11 @@ extension ButtonStyle where Self == InteractivePlainButtonStyle {
 }
 
 extension View {
-    /// Pointing-hand cursor on the Mac for controls that keep their native look (menus, pickers, toggles, toolbar and
-    /// bordered buttons). Plain buttons use `.buttonStyle(.interactivePlain)` instead. Applied to a container it covers
-    /// every control inside, so keep text fields out of such containers.
-    @ViewBuilder func clickableCursor(_ enabled: Bool = true) -> some View {
-        #if os(macOS)
-        modifier(ClickableCursorModifier(requested: enabled))
-        #else
-        self
-        #endif
-    }
+    /// Compatibility for existing control call sites: AppKit/SwiftUI owns the
+    /// cursor. Never impose a link cursor on buttons, containers or whitespace.
+    /// Actual inline links and native text/dividers retain their local policy.
+    func clickableCursor(_ enabled: Bool = true) -> some View { self }
 }
-
-#if os(macOS)
-private struct ClickableCursorModifier: ViewModifier {
-    let requested: Bool
-    @Environment(\.isEnabled) private var isEnabled
-
-    func body(content: Content) -> some View {
-        content
-            .pointerStyle(requested && isEnabled ? .link : .default)
-            .background { ClickableCursorRegion(enabled: requested && isEnabled) }
-    }
-}
-#endif
 
 struct VerseActionsMenu<Actions: View>: View {
     let label: String

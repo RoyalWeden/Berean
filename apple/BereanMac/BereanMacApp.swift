@@ -6,9 +6,8 @@ struct BereanMacApp: App {
     @State private var app = AppModel()
 
     init() {
-        ClickableCursor.install()
         #if DEBUG
-        ClickableCursorDebug.dumpToolbar()
+        NativeCursorDiagnostics.installIfRequested()
         #endif
     }
 
