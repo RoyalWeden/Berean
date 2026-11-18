@@ -43,8 +43,10 @@ struct MacRootView: View {
                             .pointerStyle(.default)
                             .accessibilityHidden(true)
                         CommandPalette(newTab: app.commandPaletteCreatesTab,
+                                       location: app.commandPaletteLocationRequest,
                                        resultsHeight: min(390, max(100, geometry.size.height - 156)),
                                        close: { app.commandPaletteShown = false })
+                            .id(app.commandPaletteLocationRequest?.id)
                             .frame(maxWidth: 680)
                             .padding(.horizontal, 20)
                             .padding(.top, 24)

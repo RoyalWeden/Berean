@@ -106,10 +106,77 @@ final class AppModel {
     var archivedGroups: [ArchivedGroup] = []
     var books: [String: [BookRow]] = [:]
     var libraryError: String?
-    var commandPaletteShown = false
+    var commandPaletteShown = false {
+        didSet {
+            #if os(macOS)
+            if !commandPaletteShown { cancelPaletteKeyboardCapture() }
+            #endif
+        }
+    }
     #if os(macOS)
     var commandPaletteCreatesTab = false
     var commandPaletteActionsRequest = 0
+    @ObservationIgnored private var paletteKeyMonitor: Any?
+    @ObservationIgnored private weak var paletteKeyWindow: NSWindow?
+    private enum PalettePendingInput {
+        case key(NSEvent)
+        case paste(String)
+    }
+    @ObservationIgnored private var palettePendingKeys: [PalettePendingInput] = []
+
+    /// Keep fast typing with the location request while its overlay mounts.
+    /// Events are replayed through AppKit only after the real query editor owns
+    /// focus. No key can fall through into the previous reader or Notes editor.
+    private func beginPaletteKeyboardCapture() {
+        cancelPaletteKeyboardCapture()
+        guard let window = NSApp.keyWindow else { return }
+        paletteKeyWindow = window
+        window.makeFirstResponder(nil)
+        paletteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let captured = MainActor.assumeIsolated {
+                guard let self, self.commandPaletteShown, event.window === self.paletteKeyWindow else { return false }
+                if event.modifierFlags.contains(.command) {
+                    let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+                    // Location/app commands remain live; text-editing shortcuts
+                    // belong to the pending query, including immediate paste.
+                    guard ["a", "v", "x", "c", "z"].contains(key) else { return false }
+                    if key == "v", let text = NSPasteboard.general.string(forType: .string) {
+                        // Paste uses the clipboard at the user's keypress,
+                        // even if a clipboard manager changes it before mount.
+                        self.palettePendingKeys.append(.paste(text))
+                        return true
+                    }
+                }
+                self.palettePendingKeys.append(.key(event))
+                return true
+            }
+            return captured ? nil : event
+        }
+    }
+
+    private func cancelPaletteKeyboardCapture() {
+        if let monitor = paletteKeyMonitor { NSEvent.removeMonitor(monitor) }
+        paletteKeyMonitor = nil
+        paletteKeyWindow = nil
+        palettePendingKeys.removeAll()
+    }
+
+    func paletteQueryEditorReady(_ field: NSTextField, request: UUID?) {
+        guard commandPaletteShown, commandPaletteLocationRequest?.id == request,
+              let window = field.window, window === paletteKeyWindow,
+              let editor = field.currentEditor() as? NSTextView, window.firstResponder === editor else { return }
+        let keys = palettePendingKeys
+        cancelPaletteKeyboardCapture()
+        for input in keys {
+            guard commandPaletteShown, commandPaletteLocationRequest?.id == request,
+                  field.window === window, window.firstResponder === field.currentEditor() else { break }
+            switch input {
+            case .key(let event): NSApp.sendEvent(event)
+            case .paste(let text): editor.insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
+            }
+        }
+    }
+
     struct LocationRequest: Equatable {
         let text: String
         let id = UUID()
@@ -138,12 +205,15 @@ final class AppModel {
         commandPaletteCreatesTab = false
         commandPaletteLocationRequest = LocationRequest(text: text)
         commandPaletteShown = true
+        beginPaletteKeyboardCapture()
     }
 
     func showCommandPalette(newTab: Bool = false) {
+        let mountsField = !commandPaletteShown || commandPaletteLocationRequest != nil
         commandPaletteCreatesTab = newTab
         commandPaletteLocationRequest = nil
         commandPaletteShown = true
+        if mountsField { beginPaletteKeyboardCapture() }
     }
     #endif
     /// Bumped by View ▸ Toggle Sidebar (the window's split view observes it).

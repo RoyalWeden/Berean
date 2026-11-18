@@ -245,6 +245,125 @@ struct StudyLexiconContent: View {
 }
 
 #if os(macOS)
+/// An app-owned field editor can apply a location selection when it actually
+/// becomes first responder, rather than guessing when SwiftUI has mounted it.
+private struct PaletteQueryField: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var focused: Bool
+    let selectionRequest: UUID?
+    let placeholder: String
+    let submit: (Bool) -> Void
+    let move: (Int) -> Void
+    let cancel: () -> Void
+    let ready: (NSTextField) -> Void
+
+    final class Field: NSTextField {
+        var attached: (() -> Void)?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window != nil { attached?() }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeNSView(context: Context) -> Field {
+        let field = Field()
+        field.isEditable = true
+        field.isSelectable = true
+        field.isBezeled = false
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = .systemFont(ofSize: 18)
+        field.cell?.usesSingleLineMode = true
+        field.lineBreakMode = .byClipping
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.stringValue = text
+        field.placeholderString = placeholder
+        field.delegate = context.coordinator
+        field.attached = { [weak field, weak coordinator = context.coordinator] in
+            guard let field else { return }
+            coordinator?.focus(field)
+        }
+        return field
+    }
+
+    func updateNSView(_ field: Field, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.parent = self
+        field.placeholderString = placeholder
+        field.setAccessibilityLabel(placeholder)
+        if field.stringValue != text { field.stringValue = text }
+        coordinator.updateFocus(field)
+    }
+
+    @MainActor final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: PaletteQueryField
+        private var selectedRequest: UUID?
+        private var wantedFocus = false
+        private var focusQueued = false
+        init(_ parent: PaletteQueryField) { self.parent = parent }
+
+        func updateFocus(_ field: Field) {
+            let requested = parent.focused
+            if requested && !wantedFocus { focus(field) }
+            else { applySelection(field) }
+            wantedFocus = requested
+        }
+
+        func focus(_ field: Field) {
+            guard field.window != nil, !focusQueued else { return }
+            focusQueued = true
+            // Complete SwiftUI's attachment transaction before claiming the
+            // field editor. This is a lifecycle pass, not a timed retry.
+            DispatchQueue.main.async { [weak self, weak field] in
+                guard let self else { return }
+                self.focusQueued = false
+                guard let field, let window = field.window else { return }
+                window.makeFirstResponder(field)
+                self.applySelection(field)
+                self.parent.ready(field)
+            }
+        }
+
+        private func applySelection(_ field: NSTextField) {
+            guard let request = parent.selectionRequest, selectedRequest != request,
+                  let editor = field.currentEditor() as? NSTextView else { return }
+            editor.setSelectedRange(NSRange(location: 0, length: (field.stringValue as NSString).length))
+            selectedRequest = request
+        }
+
+        func controlTextDidBeginEditing(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            applySelection(field)
+            DispatchQueue.main.async { [weak self] in self?.parent.focused = true }
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            // Never apply a delayed initial selection over real user input.
+            selectedRequest = parent.selectionRequest
+            parent.text = field.stringValue
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            DispatchQueue.main.async { [weak self] in self?.parent.focused = false }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy command: Selector) -> Bool {
+            switch command {
+            case #selector(NSResponder.moveDown(_:)): parent.move(1)
+            case #selector(NSResponder.moveUp(_:)): parent.move(-1)
+            case #selector(NSResponder.insertNewline(_:)):
+                parent.submit(NSApp.currentEvent?.modifierFlags.contains(.shift) == true)
+            case #selector(NSResponder.cancelOperation(_:)): parent.cancel()
+            default: return false
+            }
+            return true
+        }
+    }
+}
+
 /// The Mac palette uses the same results for routine navigation and explicit New Tab.
 struct CommandPalette: View {
     @Environment(AppModel.self) private var app
@@ -252,13 +371,20 @@ struct CommandPalette: View {
     let resultsHeight: CGFloat
     let close: () -> Void
     @State private var text = ""
-    @State private var textSelection: TextSelection?
     @State private var resultSelection: (query: String, id: Item.ID)?
     @State private var strongsPreview: (id: String, text: String)?
     @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @State private var noteResults: (query: String, hits: [Note], excerpts: [String: String])?
     @State private var actionsShown = false
     @FocusState private var focused: Bool
+
+    init(newTab: Bool, location: AppModel.LocationRequest?, resultsHeight: CGFloat, close: @escaping () -> Void) {
+        self.newTab = newTab
+        self.resultsHeight = resultsHeight
+        self.close = close
+        let initial = location?.text ?? ""
+        _text = State(initialValue: initial)
+    }
 
     struct Item: Identifiable {
         let id: String
@@ -471,6 +597,7 @@ struct CommandPalette: View {
     }
 
     var body: some View {
+        let locationRequestID = app.commandPaletteLocationRequest?.id
         let query = trimmed
         // Match submit(): a stale cache must not suppress current-query notes.
         let hits = noteResults?.query == query ? noteResults?.hits ?? [] : noteHits(for: query)
@@ -481,18 +608,17 @@ struct CommandPalette: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-                    TextField(newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words", text: $text, selection: $textSelection)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 18))
-                    .focused($focused)
-                    .onSubmit { submit(inNewTab: newTab) }
-                    .onKeyPress(.return, phases: .down) { press in
-                        guard press.modifiers.contains(.shift) else { return .ignored }
-                        submit(inNewTab: true)
-                        return .handled
-                    }
-                    .onKeyPress(.downArrow) { moveSelection(1, in: list, query: query, proxy: proxy); return .handled }
-                    .onKeyPress(.upArrow) { moveSelection(-1, in: list, query: query, proxy: proxy); return .handled }
+                    PaletteQueryField(text: $text,
+                                      focused: Binding(get: { focused && !actionsShown }, set: { focused = $0 }),
+                                      selectionRequest: locationRequestID,
+                                      placeholder: newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words",
+                                      submit: { submit(inNewTab: newTab || $0) },
+                                      move: { moveSelection($0, in: list, query: query, proxy: proxy) },
+                                      cancel: {
+                                          if actionsShown { actionsShown = false; focused = true }
+                                          else { close() }
+                                      },
+                                      ready: { app.paletteQueryEditorReady($0, request: locationRequestID) })
                 }
                 .padding(.horizontal, 20)
                 .frame(height: 58)
@@ -601,7 +727,6 @@ struct CommandPalette: View {
         }
         .clipShape(.rect(cornerRadius: 20))
         .modifier(CommandPaletteSurface())
-        .defaultFocus($focused, true, priority: .userInitiated)
         .onAppear { focused = true }
         .accessibilityElement(children: .contain)
         .onExitCommand {
@@ -618,23 +743,9 @@ struct CommandPalette: View {
             if !actionsShown { focused = true }
         }
         .onChange(of: selected?.id) { actionsShown = false }
-        .task(id: app.commandPaletteLocationRequest) {
-            let location = app.commandPaletteLocationRequest
-            if let location {
-                textSelection = nil
-                text = location.text
-                resultSelection = nil
-                actionsShown = false
-            }
-            await Task.yield()
-            guard !Task.isCancelled else { return }
-            focused = true
-            guard let location, !location.text.isEmpty else { return }
-            // The field editor attaches on the next AppKit update after SwiftUI requests focus.
-            try? await Task.sleep(for: .milliseconds(30))
-            guard !Task.isCancelled, text == location.text else { return }
-            textSelection = TextSelection(range: text.startIndex..<text.endIndex)
-        }
+        // The location request owns this palette's identity. Its text and
+        // native selection exist before the field is mounted/focused, so a
+        // later timed selection cannot append to or overwrite the user's input.
         .task(id: StrongsId.normalize(query)) {
             guard let id = StrongsId.normalize(query) else {
                 strongsPreview = nil
