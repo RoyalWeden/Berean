@@ -265,3 +265,6 @@ M05 phonemizer checkpoint18Nov: official pinned resources compile; native raw IP
 - [x] Reproduce and fix Mac palette full-title missing hits with current-query rendering fallback; rapid replacement/no-match/Return checked.
 - [x] Apply same current-query fallback to iPhone Go; full-title replacement/tap-to-open checked.
 - [ ] Broader IME/paste/metadata-change and CmdL note discovery matrix; note-title wrapping and measured reader/chrome latency remain.
+
+
+18Nov: wrapping note titles implemented; iPhone full title and both-platform Return-to-body verified, Mac multiline paste normalized without changing title. Software keyboard/DynamicType/IME/Undo matrix remains.

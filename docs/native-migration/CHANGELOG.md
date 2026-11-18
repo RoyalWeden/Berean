@@ -1768,3 +1768,6 @@ CI44287280869 on69abe784: legacy SUCCESS, native iOSconformance inprogress at la
 ReadAloud development18Nov: added reproducible silent native phonemizer comparison harness for Mac/iPhone simulator; no new playback controls or downloaded model.
 
 18Nov: fixed missing exact-title Notes results during rapid floating-search/Go query changes. Both native apps fall back to current-query note lookup rather than hiding matches behind an outdated cache.
+
+
+18Nov: Notes editor titles now wrap on Mac/iPhone instead of truncating a modest title. Stored titles remain single-line; Return advances to the body. Both builds and actual editing-flow checks pass.

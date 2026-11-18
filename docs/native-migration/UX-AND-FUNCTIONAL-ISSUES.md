@@ -165,3 +165,6 @@ Phone selection recheck18Nov: final Mark12:37–39 renders one faint-filled roun
 
 ### 2026-11-18 — Exact note title lookup repaired
 Palette stale cache suppressed GalleryQA07/01 despite correct FTS results. Current-query fallback now renders correct title after rapid typing/replacement, removes old hits on no-match, and Return opens correct note (Mac verified). iPhone Go replacement and note opening also passed. onChange alone was insufficient; fallback is essential. Native DB helper/FTS unchanged. Full query/IME/metadata-refresh matrix remains open.
+
+
+18Nov note-title truncation: GoSubmitFollowupQA was truncated in phone editor. Now full2line title displays; Mac multiline paste preserves single-line metadata and Return enters body on both platforms. More than5lines/accessibility/software-keyboard/IME remain manual acceptance.

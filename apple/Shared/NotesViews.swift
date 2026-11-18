@@ -675,9 +675,16 @@ struct NoteDetailView: View {
                             Text(daily).font(.largeTitle.bold()).textSelection(.enabled)
                                 .accessibilityAddTraits(.isHeader)
                         } else {
-                            TextField("Untitled", text: $title).font(.largeTitle.bold()).textFieldStyle(.plain)
+                            TextField("Untitled", text: Binding(get: { title }, set: { value in
+                                // Wrap visually, while keeping the existing single-line title format.
+                                title = value.split(whereSeparator: \.isNewline).joined(separator: " ")
+                            }), axis: .vertical)
+                                .font(.largeTitle.bold()).textFieldStyle(.plain)
+                                .lineLimit(1...5)
                                 .focused($focus, equals: .title)
+                                .submitLabel(.next)
                                 .onSubmit { focus = .body }
+                                .onKeyPress(.return) { focus = .body; return .handled }
                                 .onChange(of: title) { scheduleSave() }
                         }
                     }

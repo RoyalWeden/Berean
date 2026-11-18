@@ -193,3 +193,6 @@ Native Scripture now persists bounded validated local per-edition viewport check
 ReadAloud native research18Nov: official eSpeak resource compilation resolved; US/British raw IPA32case comparison passes Mac and iPhone simulator probe. No app dependency or audible engine shipped. iPhone final UI showed one grouped outline for Mark12:37–39; an earlier inconsistent number-tap sequence remains to reproduce.
 
 18Nov note discovery: Mac floating search and iPhone Go now show current-query note matches despite stale cache. Actual rapid replacement and opening passed both platforms; both final builds pass. FTS/helper/schema unchanged. See HANDOFF for QA signing/container distinction and remaining matrices.
+
+
+18Nov Notes polish: shared editor title wraps (1…5lines), verified full iPhone title and both-platform Return-to-body. Both builds pass. Daily identity and stored title format preserved.

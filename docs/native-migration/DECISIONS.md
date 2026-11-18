@@ -440,3 +440,6 @@ Store native reader geometry under local-only nativeReaderPositions, separate fr
 Native speech prototype18Nov: compile phoneme/intonation/dictionary resources from the exact pinned engine revision. Voice initialization precedes dictionary compilation. Keep this opt-in probe separate from app dependencies until resource packaging/license and complete Kokoro token/audio compatibility are established. Test Mac and simulator against the original phonemizer, without synthesis or user library access.
 
 18Nov current-query Notes results: cached synchronous lookup may enrich previews, but a mismatched cache cannot suppress current-query content rows. Render bounded fresh hits as fallback, matching submit behavior; use text-change lifecycle for synchronous cache refresh. Preserve FTS semantics. Keep QA signing/container configuration consistent and inspect open DB path when fixtures unexpectedly differ.
+
+
+18Nov note title presentation: permit up to5 wrapped visible title lines while retaining single-line stored metadata. Collapse pasted/input line breaks to spaces, keep daily titles read-only, and keep Return/Next advancing to body.
