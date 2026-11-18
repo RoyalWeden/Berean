@@ -177,3 +177,6 @@ iPhone short-page pulls now use passive raw touch travel; deliberate chapter tur
 
 ### 2026-11-18 — Prepared chapter-turn checkpoint
 Added16chapter read-only preparation cache, shared in-flight loads, actual-neighbor prefetch, outgoing viewport capture and atomic destination rows/annotations/selection for explicit turns. Both native builds pass; Mac history/selection and iPhone short-page cycle checked. Removed iPhone empty system glass circle when chrome tucks. Other navigation paths can still show loading; global frame pacing remains open. See latest HANDOFF for scope, exact evidence and queued CI status.
+
+### 2026-11-18 — Compare follow-up from reader regression pass
+Mac toolbar Compare on/off and chapter-next rendered correctly. Existing persisted LXX New Testament column remains recoverable as unavailable (Choose Passage/Remove), rather than being deleted. One CUA ⌥⌘C attempt did not toggle Compare despite visible help; ⌥⌘→ worked in same pass. Reproduce with/without native text focus and inspect responder/menu conflicts; do not claim fixed from this single observation. Latest fixture Mac13single, iPhonePsalm119mid.

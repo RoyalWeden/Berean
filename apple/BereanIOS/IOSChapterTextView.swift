@@ -449,10 +449,11 @@ struct IOSChapterTextView: UIViewRepresentable {
         func readingAnchor(in view: UITextView) -> ReadingAnchor? {
             let top = view.contentOffset.y + view.adjustedContentInset.top
             guard top > view.textContainerInset.top,
-                  let position = view.closestPosition(to: CGPoint(x: view.bounds.midX, y: top)),
-                  let verse = verseRanges.first(where: {
-                      NSLocationInRange(view.offset(from: view.beginningOfDocument, to: position), $0.value)
-                  })?.key,
+                  let position = view.closestPosition(to: CGPoint(x: view.bounds.midX, y: top)) else { return nil }
+            // UIKit position conversion is independent of the candidate verse.
+            // Do it once per viewport capture, rather than once per dictionary entry.
+            let offset = view.offset(from: view.beginningOfDocument, to: position)
+            guard let verse = verseRanges.first(where: { NSLocationInRange(offset, $0.value) })?.key,
                   let start = verseRanges[verse]?.location,
                   let marker = view.position(from: view.beginningOfDocument, offset: start) else { return nil }
             let markerY = view.caretRect(for: marker).minY
