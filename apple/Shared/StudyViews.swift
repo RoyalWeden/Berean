@@ -1288,7 +1288,7 @@ struct CrossRefsView: View {
 
     @ViewBuilder private func verseSection(_ number: Int, groups: [ReferenceGroup]) -> some View {
         let count = groups.reduce(0) { $0 + $1.rows.count }
-        let displayed = PsalmSuperscription.readerVerseNum(number, bookId: bookId, chapter: chapter, textId: textId)
+        let displayed = PsalmSuperscription.readerVerseLabel(number, bookId: bookId, chapter: chapter, textId: textId)
         if count == 0 {
             LabeledContent("Verse \(displayed)",
                            value: groups.contains(where: \.unavailable) ? "Unavailable" : "No cross references")

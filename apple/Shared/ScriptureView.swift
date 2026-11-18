@@ -354,7 +354,7 @@ private struct SharedVerseSelection: Transferable {
             let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: textId,
                                          replacerEnabled: replacerEnabled, rules: WordReplacer.defaultRules, hideSuppliedWords: hideSuppliedWords)
             let title = textId == "lxx" ? row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? "" : ""
-            return "\(row.readerVerseNum) \(title)\(text)"
+            return "\(row.readerVerseLabel) \(title)\(text)"
         }).joined(separator: "\n")
     }
 
@@ -979,7 +979,7 @@ struct ScriptureView: View {
     /// "John 3:16", "John 3:16-18", "John 3:16-18, 21"
     func selectionLabel(_ st: BibleState) -> String {
         guard !selection.isEmpty else { return "" }
-        let displayed = Set(selection.map { PsalmSuperscription.readerVerseNum($0, bookId: st.bookId, chapter: st.chapter, textId: st.translation) })
+        let displayed = Set(selection.flatMap { PsalmSuperscription.readerVerseNumbers($0, bookId: st.bookId, chapter: st.chapter, textId: st.translation) })
         let runs = consecutiveVerseRuns(displayed).map { run in
             run.lowerBound == run.upperBound ? "\(run.lowerBound)" : "\(run.lowerBound)-\(run.upperBound)"
         }
@@ -1449,8 +1449,7 @@ struct ScriptureView: View {
                     }
                 }
                 .navigationTitle(item.notesSelection.isEmpty
-                    ? Reference.bookChapterVerseLabel(item.row.bookId, chapter: item.row.chapter, verse: item.row.readerVerseNum,
-                                                      hermas: HermasText(textId: st.translation))
+                    ? item.row.readerReferenceLabel(textId: st.translation)
                     : "Verse Notes")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { tappedVerse = nil } } }
@@ -1829,7 +1828,7 @@ struct ScriptureView: View {
     /// The iPhone verse sheet's actions below the highlight palette.
     @ViewBuilder func verseActions(_ v: ChapterVerseRow, _ st: BibleState,
                                     perform: @escaping (@escaping () -> Void) -> Void = { $0() }) -> some View {
-        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.readerVerseNum, hermas: HermasText(textId: st.translation))
+        let label = v.readerReferenceLabel(textId: st.translation)
         ShareLink(item: verseWithReference(v, st)) {
             Label("Share Verse…", systemImage: "square.and.arrow.up")
         }
@@ -1914,8 +1913,7 @@ struct ScriptureView: View {
     }
 
     private func verseWithReference(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
-        let label = Reference.bookChapterVerseLabel(verse.bookId, chapter: verse.chapter,
-                                                    verse: verse.readerVerseNum, hermas: HermasText(textId: state.translation))
+        let label = verse.readerReferenceLabel(textId: state.translation)
         let suffix = state.translation == "lxx" ? " LXX" : ""
         return "\(label)\(suffix) \(clipboardVerseText(verse, state))"
     }
@@ -2127,6 +2125,7 @@ extension ScriptureView {
             var rendered = ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                        tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
             rendered.displayVerse = v.displayVerseNum
+            rendered.displayVerseEnd = v.displayVerseEndNum
             if v.verseNum > 0, let verseCitations, verseCitations.key == chapterKey(st),
                let links = verseCitations.links[v.verseNum], !links.isEmpty {
                 rendered.citationCount = links.count
@@ -2368,7 +2367,7 @@ extension ScriptureView {
     func verseNSMenu(_ n: Int, _ st: BibleState) -> NSMenu {
         let m = NSMenu()
         guard let v = verses.first(where: { $0.verseNum == n }) else { return m }
-        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.readerVerseNum, hermas: HermasText(textId: st.translation))
+        let label = v.readerReferenceLabel(textId: st.translation)
         let header = NSMenuItem(title: label, action: nil, keyEquivalent: ""); header.isEnabled = false
         m.addItem(header)
         if selection.count > 1, selection.contains(n) {
@@ -2632,11 +2631,14 @@ func consecutiveVerseRuns(_ verses: Set<Int>) -> [ClosedRange<Int>] {
     return runs
 }
 
-// A missing layout range breaks the outline. A rendered blank verse can bridge a run,
+// A missing actual row’s layout range breaks the outline; a gap in stored IDs does not.
+// A rendered blank verse can bridge a run,
 // but it should not extend the frame past the first or last visible line.
-func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [NSRange] {
+func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange], orderedVerses: [Int]? = nil) -> [NSRange] {
     let available = Set(selection.filter { ranges[$0] != nil })
-    return consecutiveVerseRuns(available).compactMap { run in
+    let runs = orderedVerses.map { readerSelectionRuns(available, in: $0, available: Set(ranges.keys)) }
+        ?? consecutiveVerseRuns(available).map { Array($0) }
+    return runs.compactMap { run in
         let visible = run.compactMap { verse -> NSRange? in
             guard let range = ranges[verse], range.length > 1 else { return nil }
             return NSRange(location: range.location, length: range.length - 1)
@@ -2647,16 +2649,18 @@ func selectedVerseRanges(_ selection: Set<Int>, in ranges: [Int: NSRange]) -> [N
 }
 
 /// Try the selected run first, then the newly selected endpoint if the run cannot fit.
-func selectionRevealRanges(_ selection: Set<Int>, previous: Set<Int>, focus: Int? = nil, in ranges: [Int: NSRange]) -> [NSRange] {
+func selectionRevealRanges(_ selection: Set<Int>, previous: Set<Int>, focus: Int? = nil, in ranges: [Int: NSRange], orderedVerses: [Int]? = nil) -> [NSRange] {
     let visible = Set(selection.filter { (ranges[$0]?.length ?? 0) > 1 })
     let additions = visible.subtracting(previous)
     guard let first = additions.min(), let last = additions.max() else { return [] }
     let endpoint = focus.flatMap { additions.contains($0) ? $0 : nil }
         ?? (first < (previous.min() ?? first) ? first : last)
     guard let focused = ranges[endpoint] else { return [] }
-    guard let run = consecutiveVerseRuns(visible).first(where: { $0.contains(endpoint) }),
-          run.lowerBound != run.upperBound,
-          let head = ranges[run.lowerBound], let tail = ranges[run.upperBound] else { return [focused] }
+    let runs = orderedVerses.map { readerSelectionRuns(visible, in: $0, available: Set(ranges.keys)) }
+        ?? consecutiveVerseRuns(visible).map { Array($0) }
+    guard let run = runs.first(where: { $0.contains(endpoint) }),
+          let firstVerse = run.first, let lastVerse = run.last, firstVerse != lastVerse,
+          let head = ranges[firstVerse], let tail = ranges[lastVerse] else { return [focused] }
     return [NSUnionRange(head, tail), focused]
 }
 

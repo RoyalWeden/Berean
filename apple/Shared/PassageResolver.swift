@@ -40,16 +40,21 @@ struct ResolvedPassage: Equatable {
         func number(_ stored: Int) -> Int {
             PsalmSuperscription.readerVerseNum(stored, bookId: bookId, chapter: chapter, textId: textId)
         }
-        let start = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse.map(number), hermas: HermasText(textId: textId))
-        if let first = verseGroups.first {
-            let base = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: number(first.lowerBound), hermas: HermasText(textId: textId))
-            let suffix = first.lowerBound == first.upperBound ? "" : "–\(number(first.upperBound))"
-            return ([base + suffix] + verseGroups.dropFirst().map {
-                $0.lowerBound == $0.upperBound ? String(number($0.lowerBound)) : "\(number($0.lowerBound))–\(number($0.upperBound))"
-            }).joined(separator: ", ")
+        func end(_ stored: Int) -> Int {
+            PsalmSuperscription.readerVerseNumbers(stored, bookId: bookId, chapter: chapter, textId: textId).upperBound
         }
-        guard let verse, let endVerse, endVerse > verse else { return start }
-        return "\(start)–\(number(endVerse))"
+        func run(_ first: Int, _ last: Int, full: Bool) -> String {
+            let base = full ? Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: first, hermas: HermasText(textId: textId)) : String(first)
+            return last > first ? "\(base)–\(last)" : base
+        }
+        if !verseGroups.isEmpty {
+            let displayed = Set(verseGroups.flatMap { number($0.lowerBound)...end($0.upperBound) })
+            return consecutiveVerseRuns(displayed).enumerated().map { index, group in
+                run(group.lowerBound, group.upperBound, full: index == 0)
+            }.joined(separator: ", ")
+        }
+        guard let verse else { return Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: nil, hermas: HermasText(textId: textId)) }
+        return run(number(verse), end(endVerse ?? verse), full: true)
     }
 
     /// Human-entered references use reader numbering; persisted links stay raw.
@@ -70,6 +75,12 @@ struct ResolvedPassage: Equatable {
         return !state.compareMode && state.translation == textId && state.bookId == bookId
             && state.chapter == chapter && state.verse == verse && state.endVerse == endVerse
             && (tab.state["nativeSelectedVerses"] ?? .null) == savedSelection
+    }
+}
+
+extension ChapterVerseRow {
+    func readerReferenceLabel(textId: String) -> String {
+        ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verseNum).label
     }
 }
 

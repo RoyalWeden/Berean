@@ -59,3 +59,14 @@ expect(intent.rejectsNativeSelection(at: 9.4), "A slower deliberate tap still be
 expect(!intent.rejectsNativeSelection(at: 9.5), "The native long-press threshold remains available")
 expect(intent.finish(point: origin, time: 9.4, hasNativeSelection: false)?.verse == 7, "Do not require unusually fast finger release")
 print("Reader tap intent passed: rapid accumulation, deselection, word double-tap, long-press, scroll, handles, markers, cancellation")
+
+// A combined source record must not split a visually adjacent selection.
+let displayedOrder = [1, 2, 3, 4, 6, 7]
+let availableRows = Set(displayedOrder)
+expect(readerSelectionRuns([4, 6], in: displayedOrder, available: availableRows) == [[4, 6]], "Adjacent combined4–5 +6 share one outline")
+expect(readerSelectionRuns([4, 7], in: displayedOrder, available: availableRows) == [[4], [7]], "An unselected visible row breaks the outline")
+expect(readerSelectionRuns([4, 5, 6], in: [4, 5, 6], available: [4, 6]) == [[4], [6]], "An actual row with missing layout must still break the outline")
+expect(readerSelectionRuns([4, 5, 6], in: [4, 5, 6], available: [4, 5, 6]) == [[4, 5, 6]], "Available selected rows can bridge a group")
+expect(readerSelectionRuns([99], in: displayedOrder, available: availableRows).isEmpty, "Stale absent IDs must not create outlines")
+expect(readerSelectionRuns([], in: displayedOrder, available: availableRows).isEmpty, "Empty selection has no groups")
+print("Reader selection adjacency passed: combined rows, visible gaps, missing layout, blank bridges, absent IDs")

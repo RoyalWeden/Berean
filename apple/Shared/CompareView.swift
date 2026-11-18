@@ -1054,16 +1054,16 @@ struct CompareView: View {
         Button {
             openReader(row, in: column)
         } label: {
-            Text("\(row.readerVerseNum)")
+            Text(row.readerVerseLabel)
                 .font(.caption.monospacedDigit().weight(.semibold))
                 .foregroundStyle(Color.accentColor)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Open verse \(row.readerVerseNum) in Reader")
+        .accessibilityLabel("Open verse \(row.readerVerseLabel) in Reader")
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .help("Open verse \(row.readerVerseNum) in Reader")
+        .help("Open verse \(row.readerVerseLabel) in Reader")
     }
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
         let reference = comparisonVerseReference(row, column: column)
@@ -1102,8 +1102,7 @@ struct CompareView: View {
         }
         Divider()
         Button("Add Note", systemImage: "square.and.pencil") {
-            let title = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.readerVerseNum,
-                                                        hermas: HermasText(textId: column.text))
+            let title = row.readerReferenceLabel(textId: column.text)
             app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: column.text, title: title)
         }
         Button("Verse Notes", systemImage: "note.text") {
@@ -1124,8 +1123,7 @@ struct CompareView: View {
     }
 
     private func comparisonVerseReference(_ row: ChapterVerseRow, column: CompareColumn) -> String {
-        let label = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.readerVerseNum,
-                                                    hermas: HermasText(textId: column.text))
+        let label = row.readerReferenceLabel(textId: column.text)
         return referenceForCopy(label, textId: column.text)
     }
 
@@ -1224,7 +1222,7 @@ struct CompareView: View {
         if let row = rows[verse]?[column.id] {
             VStack(alignment: .leading, spacing: 3) {
                 if row.readerVerseNum != PsalmSuperscription.readerVerseNum(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation) || row.chapter != ChapterMap.mapChapter(state.bookId, state.chapter, from: state.translation, to: text) {
-                    Text("\(row.chapter):\(row.readerVerseNum)")
+                    Text("\(row.chapter):\(row.readerVerseLabel)")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -1311,14 +1309,14 @@ struct CompareView: View {
         Button {
             toggleVerse(verse, in: state)
         } label: {
-            Text("\(PsalmSuperscription.readerVerseNum(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
+            Text("\(PsalmSuperscription.readerVerseLabel(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
                 .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Verse \(PsalmSuperscription.readerVerseNum(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
+        .accessibilityLabel("Verse \(PsalmSuperscription.readerVerseLabel(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 

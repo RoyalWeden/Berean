@@ -19,13 +19,31 @@ public enum PsalmSuperscription {
 
     public static func storedVerseNum(_ displayed: Int, bookId: String, chapter: Int, textId: String) -> Int {
         guard textId == "lxx", bookId == "PSA", displayed > 0 else { return displayed }
+        // The bundled Brenton record115:4 contains both verses4–5. Human
+        // input for either verse reaches that record; saved raw links are untouched.
+        if chapter == 115, displayed == 5 { return 4 }
         return displayed + (PsalmTitleData.brentonVerseCount[chapter] ?? 0)
+    }
+
+    /// A combined source record covers a range, without inventing annotation identities.
+    public static func readerVerseNumbers(_ stored: Int, bookId: String, chapter: Int, textId: String) -> ClosedRange<Int> {
+        let first = readerVerseNum(stored, bookId: bookId, chapter: chapter, textId: textId)
+        if textId == "lxx", bookId == "PSA", chapter == 115, stored == 4 { return 4...5 }
+        return first...first
+    }
+
+    public static func readerVerseLabel(_ stored: Int, bookId: String, chapter: Int, textId: String) -> String {
+        let range = readerVerseNumbers(stored, bookId: bookId, chapter: chapter, textId: textId)
+        return range.lowerBound == range.upperBound ? String(range.lowerBound) : "\(range.lowerBound)–\(range.upperBound)"
     }
 
     /// Exact bundled correspondences win for combined/split Psalms. For the
     /// remaining Psalms, align body numbers while preserving storage numbering.
     public static func verseCounterpart(_ bookId: String, chapter: Int, verse: Int, from: String, to: String) -> (chapter: Int, verse: Int)? {
-        if let exact = ChapterMap.verseCounterpart(bookId, chapter: chapter, verse: verse, from: from, to: to) { return exact }
+        if let exact = ChapterMap.verseCounterpart(bookId, chapter: chapter, verse: verse, from: from, to: to) {
+            if bookId == "PSA", to == "lxx", exact.chapter == 115, exact.verse == 5 { return (115, 4) }
+            return exact
+        }
         guard bookId == "PSA", (ChapterMap.isLxx(from) && ChapterMap.isKjv(to)) ||
                 (ChapterMap.isKjv(from) && ChapterMap.isLxx(to)) else { return nil }
         // These chapters need the exact runs above; do not invent a match for
@@ -56,6 +74,12 @@ public enum PsalmSuperscription {
             out[i].title = joinTitle(title, out[i].title)
             return out
         case "lxx":
+            if chapter == 115, !out.contains(where: { $0.verseNum == 5 }),
+               let combined = out.firstIndex(where: { $0.verseNum == 4 }),
+               out[combined].text.contains("I will take the cup of salvation"),
+               out[combined].text.contains("I will pay my vows") {
+                out[combined].displayVerseEndNum = 5
+            }
             if let count = PsalmTitleData.brentonVerseCount[chapter], count > 0 {
                 // Match the body-first Brenton presentation used by Bible Hub and
                 // BiblIndex, while keeping every annotation/link on its stored ID.
@@ -69,9 +93,9 @@ public enum PsalmSuperscription {
                 for index in out.indices { out[index].displayVerseNum = out[index].verseNum - count }
                 return out
             }
-            guard let prefix = PsalmTitleData.brentonPrefix[chapter], let i = out.firstIndex(where: { $0.verseNum == 1 }) else { return rows }
+            guard let prefix = PsalmTitleData.brentonPrefix[chapter], let i = out.firstIndex(where: { $0.verseNum == 1 }) else { return out }
             let trimmed = trimPrefix(out[i].text, prefix: prefix)
-            guard trimmed != out[i].text else { return rows }
+            guard trimmed != out[i].text else { return out }
             out[i].text = trimmed
             if let tagged = out[i].textTagged, let body = taggedBody(tagged, title: prefix) { out[i].textTagged = body }
             out[i].title = joinTitle(prefix, out[i].title)

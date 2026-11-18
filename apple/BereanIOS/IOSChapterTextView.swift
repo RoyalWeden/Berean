@@ -251,7 +251,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
                       coordinator.parent.passageId == currentPassage, coordinator.parent.scrollTarget == nil,
                       coordinator.parent.selectedVerses == selectedVerses else { return }
-                let ranges = selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: coordinator.verseRanges)
+                let ranges = selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: coordinator.verseRanges, orderedVerses: coordinator.parent.verses.map(\.verse))
                 for range in ranges {
                     coordinator.layoutThroughEnd(of: range, in: view)
                     guard let lines = coordinator.renderedLineBounds(of: range, in: view) else { continue }
@@ -400,7 +400,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let parent = reader?.parent
             outlineMotion.update(active: window != nil && parent?.animateOutline == true && parent?.selectedVerses.isEmpty == false) { [weak self] in
                 guard let self, let reader else { return }
-                for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges) {
+                for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges, orderedVerses: reader.parent.verses.map(\.verse)) {
                     layoutManager.invalidateDisplay(forCharacterRange: range)
                 }
             }
@@ -435,7 +435,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             UIColor.tintColor.withAlphaComponent(ReaderFloatingControls.fillOpacity).setFill()
             let textView = view
             let phase = MainActor.assumeIsolated { textView?.outlineMotion.phase ?? 0 }
-            for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges) {
+            for range in selectedVerseRanges(reader.parent.selectedVerses, in: reader.verseRanges, orderedVerses: reader.parent.verses.map(\.verse)) {
                 let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
                 guard glyphs.length > 0, NSIntersectionRange(glyphs, glyphsToShow).length > 0 else { continue }
                 let first = lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
@@ -786,7 +786,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                         .link: URL(string: "berean-verse:\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }
                     let markerStart = out.length
-                    out.append(NSAttributedString(string: "\t\(verse.readerVerse)\t", attributes: number))
+                    out.append(NSAttributedString(string: "\t\(verse.readerVerseLabel)\t", attributes: number))
                     markerRanges[verse.verse] = NSRange(location: markerStart, length: out.length - markerStart)
                 }
                 let bodyStart = out.length
@@ -874,7 +874,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             switch url.scheme {
             case "berean-verse":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
-                let number = parent.verses.first { $0.verse == verse }?.readerVerse ?? verse
+                let number = parent.verses.first { $0.verse == verse }?.readerVerseLabel ?? String(verse)
                 let title = parent.selectedVerses.contains(verse) ? "Deselect Verse \(number)" : "Select Verse \(number)"
                 return UIAction(title: title) { [weak self, weak textView] _ in
                     guard let textView else { return }
@@ -885,7 +885,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 return UIAction { [weak self] _ in self?.parent.onNotes(verse) }
             case "berean-verse-citations":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse-citations:".count)) else { return nil }
-                let number = parent.verses.first { $0.verse == verse }?.readerVerse ?? verse
+                let number = parent.verses.first { $0.verse == verse }?.readerVerseLabel ?? String(verse)
                 return UIAction(title: "Note Cross References for Verse \(number)") { [weak self] _ in
                     self?.parent.onCitations(verse)
                 }
@@ -1000,9 +1000,9 @@ struct IOSChapterTextView: UIViewRepresentable {
             let text = plainText(portions)
             let copy = UIAction(title: "Copy Text", image: UIImage(systemName: "doc.on.doc")) { _ in Clipboard.copy(text) }
             let reference = parent.reference(first.0.verse, last.0.verse)
-            let displayedNumbers = Dictionary(uniqueKeysWithValues: parent.verses.map { ($0.verse, $0.readerVerse) })
+            let displayedNumbers = Dictionary(uniqueKeysWithValues: parent.verses.map { ($0.verse, $0.readerVerseLabel) })
             let copyWithReference = UIAction(title: "Copy with Reference", image: UIImage(systemName: "number")) { _ in
-                let lines = portions.map { "\(displayedNumbers[$0.0.verse] ?? $0.0.verse) \($0.1.trimmingCharacters(in: .whitespacesAndNewlines))" }
+                let lines = portions.map { "\(displayedNumbers[$0.0.verse] ?? String($0.0.verse)) \($0.1.trimmingCharacters(in: .whitespacesAndNewlines))" }
                 Clipboard.copy(([reference] + lines).joined(separator: "\n"))
             }
             let highlight = UIMenu(title: "Highlight Selection", image: UIImage(systemName: "highlighter"),

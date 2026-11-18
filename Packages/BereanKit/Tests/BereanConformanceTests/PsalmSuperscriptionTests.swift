@@ -59,7 +59,7 @@ import BereanBible
         for chapter in 1...151 {
             for readerVerse in 1...30 {
                 let stored = PsalmSuperscription.storedVerseNum(readerVerse, bookId: "PSA", chapter: chapter, textId: "lxx")
-                #expect(PsalmSuperscription.readerVerseNum(stored, bookId: "PSA", chapter: chapter, textId: "lxx") == readerVerse)
+                #expect(PsalmSuperscription.readerVerseNumbers(stored, bookId: "PSA", chapter: chapter, textId: "lxx").contains(readerVerse))
             }
         }
         #expect(PsalmSuperscription.storedVerseNum(1, bookId: "PSA", chapter: 3, textId: "lxx") == 2)
@@ -85,5 +85,60 @@ import BereanBible
         let rows = [row(1, "Blessed is the man")]
         #expect(PsalmSuperscription.apply(rows, textId: "kjva", bookId: "PSA", chapter: 1) == rows)
         #expect(PsalmSuperscription.apply(rows, textId: "kjva", bookId: "GEN", chapter: 3) == rows)
+    }
+}
+
+
+/// Exercise the actual bundled Psalter, not only synthetic title-row examples.
+@Suite("Brenton reader Psalter", .enabled(if: dataFile("lxx_brenton") != nil))
+struct BrentonReaderPsalterTests {
+    @Test func everyPsalmPreservesWordsAndStoredIdentities() async {
+        let bible = BibleService(resolvePath: { dataFile($0 == "lxx" ? "lxx_brenton" : $0) })
+        let chapters = await bible.chapterNumbers("PSA", textId: "lxx")
+        #expect(chapters == Array(1...151))
+        func words(_ text: String) -> [String] {
+            text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        }
+        for chapter in chapters {
+            let raw = await bible.queryChapter("PSA", chapter, textId: "lxx")
+            let displayed = PsalmSuperscription.apply(raw, textId: "lxx", bookId: "PSA", chapter: chapter)
+            #expect(!displayed.isEmpty, "Psalm \(chapter)")
+            #expect(displayed.flatMap(\.readerVerseNumbers) == Array(1...(displayed.last?.readerVerseNumbers.upperBound ?? 1)), "Psalm \(chapter) reader numbers")
+            #expect(Set(displayed.map(\.verseNum)).isSubset(of: Set(raw.map(\.verseNum))), "Psalm \(chapter) stored identities")
+            for row in displayed {
+                #expect(row.readerVerseNumbers == PsalmSuperscription.readerVerseNumbers(row.verseNum, bookId: "PSA", chapter: chapter, textId: "lxx"),
+                        "Psalm \(chapter) row/reference numbering must agree; update compatibility mapping when a corpus changes")
+            }
+            let originalWords = words(raw.map(\.text).joined(separator: " "))
+            let renderedWords = words(displayed.flatMap { [$0.title ?? "", $0.text] }.joined(separator: " "))
+            #expect(renderedWords == originalWords, "Psalm \(chapter) must retain every title and body word in order")
+            #expect(PsalmSuperscription.apply(displayed, textId: "lxx", bookId: "PSA", chapter: chapter) == displayed)
+        }
+    }
+
+    /// Online Brenton uses KJV chapter headings plus LXX numbers in parentheses
+    /// after Psalm9. LXX50 is https://biblehub.com/sep/psalms/51.htm.
+    @Test func onlineBrentonOpeningReferences() async throws {
+        let bible = BibleService(resolvePath: { dataFile($0 == "lxx" ? "lxx_brenton" : $0) })
+        for (chapter, opening) in [(3, "O Lord, why are they that afflict me multiplied?"),
+                                   (50, "Have mercy upon me, O God, according to thy great mercy;")] {
+            let raw = await bible.queryChapter("PSA", chapter, textId: "lxx")
+            let first = try #require(PsalmSuperscription.apply(raw, textId: "lxx", bookId: "PSA", chapter: chapter).first)
+            #expect(first.readerVerseNum == 1)
+            #expect(first.title?.isEmpty == false)
+            #expect(first.text.hasPrefix(opening))
+        }
+    }
+}
+
+
+@Suite("Combined Brenton record compatibility") struct CombinedBrentonRecordTests {
+    @Test func verseFiveResolvesToCombinedRecordWithoutRenumberingVerseSix() {
+        #expect(PsalmSuperscription.storedVerseNum(5, bookId: "PSA", chapter: 115, textId: "lxx") == 4)
+        #expect(PsalmSuperscription.readerVerseLabel(4, bookId: "PSA", chapter: 115, textId: "lxx") == "4–5")
+        #expect(PsalmSuperscription.readerVerseLabel(6, bookId: "PSA", chapter: 115, textId: "lxx") == "6")
+        let mapped = PsalmSuperscription.verseCounterpart("PSA", chapter: 116, verse: 14, from: "kjva", to: "lxx")
+        #expect(mapped?.chapter == 115 && mapped?.verse == 4)
+        #expect(PsalmSuperscription.storedVerseNum(5, bookId: "PSA", chapter: 115, textId: "kjva") == 5)
     }
 }

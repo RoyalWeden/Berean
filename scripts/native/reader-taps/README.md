@@ -12,3 +12,6 @@ same-verse word double-taps, long-press, movement/scroll cancellation, existing 
 selection handles, marker-to-body transitions and whitespace. They exercise the same
 pure intent state used by the iPhone passive touch observer. They do not replace
 simulator/device interaction checks for UIKit gesture ordering or native edit menus.
+
+Also covers visual selection adjacency across combined records with gaps in stored IDs,
+while retaining breaks for unselected rows and actual rows lacking layout.

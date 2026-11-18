@@ -80,6 +80,23 @@ class ReaderTextLayoutManager: NSLayoutManager {
     }
 }
 
+/// Visual adjacency follows the rendered rows, not arithmetic on persisted IDs.
+/// An actual row without a layout range still breaks a group.
+func readerSelectionRuns(_ selection: Set<Int>, in orderedVerses: [Int], available: Set<Int>) -> [[Int]] {
+    var runs: [[Int]] = []
+    var current: [Int] = []
+    for verse in orderedVerses {
+        if selection.contains(verse), available.contains(verse) {
+            current.append(verse)
+        } else if !current.isEmpty {
+            runs.append(current)
+            current = []
+        }
+    }
+    if !current.isEmpty { runs.append(current) }
+    return runs
+}
+
 /// Distinguish deliberate verse taps from native word selection without making
 /// our tap recognizer compete with UITextView's private gesture dependencies.
 struct ReaderBodyTapIntent {
@@ -244,11 +261,16 @@ struct ReaderVerse: Equatable {
     var citationPreview: String?
     var tags: [(name: String, color: String?, slot: Int?)] = []
     var displayVerse: Int?
+    var displayVerseEnd: Int?
     var readerVerse: Int { displayVerse ?? verse }
+    var readerVerseLabel: String {
+        if let end = displayVerseEnd, end > readerVerse { return "\(readerVerse)–\(end)" }
+        return String(readerVerse)
+    }
     static func == (a: ReaderVerse, b: ReaderVerse) -> Bool {
         a.verse == b.verse && a.title == b.title && a.words == b.words && a.marks == b.marks && a.tint == b.tint && a.noteCount == b.noteCount
             && a.citationCount == b.citationCount && a.citationPreview == b.citationPreview
-            && a.tags.elementsEqual(b.tags, by: ==) && a.displayVerse == b.displayVerse
+            && a.tags.elementsEqual(b.tags, by: ==) && a.displayVerse == b.displayVerse && a.displayVerseEnd == b.displayVerseEnd
     }
     /// The verse as displayed (words joined by spaces), the text copy uses.
     var displayText: String { words.map(\.text).joined(separator: " ") }

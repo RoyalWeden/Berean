@@ -317,7 +317,7 @@ struct ChapterTextView: NSViewRepresentable {
                 guard let scroll, let c, c.lastPassage == destination,
                       c.parent.passageId == destination, c.parent.scrollTarget == nil,
                       c.parent.selectedVerses == selectedVerses else { return }
-                for range in selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: c.verseRanges) {
+                for range in selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: c.verseRanges, orderedVerses: c.parent.verses.map(\.verse)) {
                     if c.revealSelectedRange(range, in: scroll) { break }
                 }
             }
@@ -564,13 +564,13 @@ struct ChapterTextView: NSViewRepresentable {
                         .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
                         .foregroundColor: markerColor(v.verse, p),
                         .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
-                        .toolTip: "Verse \(v.readerVerse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
+                        .toolTip: "Verse \(v.readerVerseLabel) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                     ]
                     // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
                     let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
                     let markerStart = out.length
                     out.append(NSAttributedString(string: "\t", attributes: gutterTab))
-                    out.append(NSAttributedString(string: "\(v.readerVerse)", attributes: numAttrs))
+                    out.append(NSAttributedString(string: "\(v.readerVerseLabel)", attributes: numAttrs))
                     out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                     markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
                 }
@@ -706,7 +706,7 @@ struct ChapterTextView: NSViewRepresentable {
             let clip = scroll.contentView
             let top = clip.bounds.minY + textView.visibleTitleBarClearance
             let bottom = clip.bounds.maxY - parent.actionClearance
-            return selectionRevealRanges(parent.selectedVerses, previous: [], focus: parent.selectionFocus, in: verseRanges)
+            return selectionRevealRanges(parent.selectedVerses, previous: [], focus: parent.selectionFocus, in: verseRanges, orderedVerses: parent.verses.map(\.verse))
                 .filter { range in
                     guard let lines = selectionLines(range, in: clip) else { return false }
                     return lines.lowerBound >= top && lines.upperBound <= bottom
@@ -868,7 +868,7 @@ final class ReaderTextView: NSTextView {
         NSColor.controlAccentColor.withAlphaComponent(ReaderFloatingControls.outlineOpacity).setStroke()
         NSColor.controlAccentColor.withAlphaComponent(ReaderFloatingControls.fillOpacity).setFill()
         let origin = textContainerOrigin
-        for range in selectedVerseRanges(c.parent.selectedVerses, in: c.verseRanges) {
+        for range in selectedVerseRanges(c.parent.selectedVerses, in: c.verseRanges, orderedVerses: c.parent.verses.map(\.verse)) {
             let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
             guard glyphs.length > 0 else { continue }
             let first = layout.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
