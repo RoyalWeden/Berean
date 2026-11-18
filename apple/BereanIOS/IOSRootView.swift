@@ -49,6 +49,7 @@ struct IOSRootView: View {
     }
     @State private var pendingStudyDestination: (tabID: String, action: () -> Void)?
     @State private var showTabs = false
+    @State private var tabSheetDetent = PresentationDetent.large
     @State private var showGo = false
     @State private var explicitNewTab = false
     @State private var showSettings = false
@@ -144,7 +145,7 @@ struct IOSRootView: View {
                 pendingNewTab = true
                 showTabs = false
             })
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium, .large], selection: $tabSheetDetent)
         }
         .sheet(isPresented: $showArchive) {
             NavigationStack {
@@ -219,7 +220,7 @@ struct IOSRootView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 8) {
-            Button { showTabs = true } label: { bottomItem(symbol: "square.on.square", badge: app.tabCount(app.currentSessionId)) }
+            Button { tabSheetDetent = .large; showTabs = true } label: { bottomItem(symbol: "square.on.square", badge: app.tabCount(app.currentSessionId)) }
                 .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
             Button { openGo() } label: { bottomItem(symbol: "magnifyingglass", prominent: true) }
                 .accessibilityLabel("Go to a passage or search")
@@ -506,11 +507,6 @@ struct TabCardsSheet: View {
                 if !isSelecting {
                     workspaceSwitcher
                 }
-                if !isSelecting, !hasQuery, !isFiltering {
-                    workspaceActions
-                    WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
-                                        onOpen: { dismiss() })
-                }
                 Section {
                     let pinned = visibleTabs.filter(\.isPinned), others = visibleTabs.filter { !$0.isPinned }
                     if layout == "grid" {
@@ -533,6 +529,13 @@ struct TabCardsSheet: View {
                     }
                 }
                 if !isSelecting { WorkspaceTabResults(matches: otherMatches, onOpen: { dismiss() }) }
+                // The overview opens to the tabs the user already has. Creation
+                // and cleanup stay available after the working set.
+                if !isSelecting, !hasQuery, !isFiltering {
+                    workspaceActions
+                    WorkspaceTabResults(title: "Recent Tabs", matches: Array(app.recentWorkspaceTabs.prefix(3)),
+                                        onOpen: { dismiss() })
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: eligible) { _, eligible in selectedTabIDs.formIntersection(eligible) }
