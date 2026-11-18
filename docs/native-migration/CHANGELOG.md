@@ -1804,3 +1804,11 @@ Keep iPhone verse-number taps and rapid taps across different verse bodies in wh
 
 ### 2026-11-18 — Reader release and sidebar restoration
 Reuse unchanged Scripture Notes/citation, tag and highlight groups by their own revisions. Fix iPhone chapter-pull momentum scrolling the incoming chapter: wait until tracking/dragging ends, stop residual scrolling, then navigate. Restore shown-sidebar Mac navigation placement at user request. Pin rests in close-button slot and moves left only on hover. Clean app builds and targeted Mac/simulator interactions pass; no production/schema/sync/identity changes.
+
+### 2026-11-18 — Reader changes pending final verification
+- LXX sidebar badge joins pin hover behavior: idle-right, slide left for close; stable title width.
+- Mac View commands register Compare/Study shortcuts reliably; toolbar shares guarded setters.
+- Slow Mac chapter pulls accumulate travel without disappearing on zero-delta packets; whole-verse selection permits pulls on both platforms. Physical trackpad smoothness still unverified.
+- Per latest user clarification, Brenton Psalm titles belong to first displayed body verse1, with unchanged raw reference/storage IDs. Native marker, passage-entry, selection-label, copy-number and Compare mapping consistency work in progress; verify latest builds/tests and real UI before calling complete.
+
+Latest verification: full Swift suite192tests/55suites PASS; focused Psalm suite8 PASS; slow-pull harness PASS. Both final ancillary-label builds PASS (/tmp/berean-psalm-label-consistency-{mac,ios}.log). Mac/simulator reader UI checks described in HANDOFF. Scope is body-first Brenton presentation with unchanged storage IDs, plus LXXbadge/native-menu/pull refinements; generic splits/cursor replacement and notes-generated reference-link semantics audit remain open.

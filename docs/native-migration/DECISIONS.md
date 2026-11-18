@@ -469,3 +469,6 @@ Use documented dynamic UIGestureRecognizer failure priority for rapid different-
 
 ### 2026-11-18 — Reader release and sidebar restoration
 A passive touch observer can receive release while UIScrollView still tracks. Runtime proved an explicit incoming START was later overwritten by outgoing deceleration; one queue turn alone also failed. Use public tracking/dragging flags with a weak, passage/token-guarded release gate, then stopScrollingAndZooming before navigation. Preserve ordinary scrolling momentum. Restore shown-sidebar .automatic toolbar placement at the user’s direction; retain grouped controls and stable accessibility IDs. Keep pin/title layout stable while the pin moves into the adjacent hover slot.
+
+### 2026-11-18 — Body-first Brenton Psalm display, raw identity preserved
+User clarified title + first body belong to verse1, following Bible Hub/BiblIndex Brenton presentation. Supersedes the short-lived separately numbered-title decision. Fold title rows only with a complete first body, number bodies from1, preserve source IDs and annotation offsets. Human reference entry converts to source IDs; persisted native links retain legacy semantics. Exact split/combined Psalm correspondence runs remain authoritative. LXX chapter numbers remain LXX.

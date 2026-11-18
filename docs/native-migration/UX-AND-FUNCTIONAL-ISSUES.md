@@ -197,3 +197,8 @@ Targeted fix: rapid adjacent iPhone verse-body taps no longer become UIKit word 
 
 ### 2026-11-18 — Reader release and sidebar restoration
 Fixed reproduced short-page pull arrival regression: outgoing momentum no longer scrolls incoming chapter away from its intended edge after release. Final simulator117→116END→117START→118START passes. Restored Mac Sidebar/Back/Forward to sidebar title area at user request; hide/show/history checks pass. Pin idle-right/hover-left implementation builds, idle-right screenshot verified; physical hover and narrow-window layout still need verification. General scrolling FPS and cold-cache flash are not declared universally fixed.
+
+### 2026-11-18 — latest reader requests
+Psalm numbering must use body-first Brenton rendering (title belongs to body1), superseding separately numbered titles. Check input/labels/copy/Compare/flip against both Psalm3 and two-title Psalm50 while retaining raw annotation identities. LXX badge hover implemented; physical motion check outstanding. Mac slow-pull packet regression covered; actual trackpad/FPS remains unverified. Cursor and arbitrary tab splitting audits exist, implementation pending.
+
+Latest verification: full Swift suite192tests/55suites PASS; focused Psalm suite8 PASS; slow-pull harness PASS. Both final ancillary-label builds PASS (/tmp/berean-psalm-label-consistency-{mac,ios}.log). Mac/simulator reader UI checks described in HANDOFF. Scope is body-first Brenton presentation with unchanged storage IDs, plus LXXbadge/native-menu/pull refinements; generic splits/cursor replacement and notes-generated reference-link semantics audit remain open.

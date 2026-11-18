@@ -294,3 +294,12 @@ Reader selection: VERIFIED targeted simulator rapid adjacent body taps, rapid nu
 
 ### 2026-11-18 — Reader release and sidebar restoration
 VERIFIED targeted: independent Notes/tag/highlight live invalidation on Mac; final clean iPhone117→116END→117START→118START pull cycle; Mac sidebar placement, hide/show and Back/Forward selection restoration. IMPLEMENTED_UNVERIFIED: pin slide on physical hover (idle trailing position verified). TODO physical pull/selection timing, narrow toolbar/hover, cold fast-submit and frame pacing. M05 Kokoro and broader parity backlog remain active.
+
+### 2026-11-18 next verification queue
+- Verify latest body-first Psalm numbering in both builds and actual Mac/iPhone: title+body1, next2, Psalm50 two-title collapse, typed references/ranges, copy/action label, flip, Compare alignment; ensure raw IDs/old links stay stable. Supersedes numbered-title task.
+- Finish LXXbadge hover-motion check (idle-right verified); retained pin behavior.
+- Physical slow Mac pulls/FPS audit remains open; no universal choppiness fix claimed.
+- Implement per-edition Compare selection + whole-block lifted drag, then generic pane architecture per TAB-SPLIT-DESIGN.md.
+- Implement scoped native cursor ownership per CURSOR-AUDIT-2026-11-18.md; global overrides still present.
+
+Body-first reader/picker/action-label/Compare mapping implementation now verified:192Swift tests, both apps build, actualMacPS3/PS50+Compare/flip and iPhonePS3selection. Ancillary export/study-label additions compile on both. Remaining: new notes/Markdown link-numbering vs legacy-link identity audit; intermittent CmdL prefilling/select-all focus race; iPhone first body-tap and multi-selection walkthrough. Physical Mac trackpad, cursor replacement, arbitrary tabsplit and Compareselection/drag remain queued.

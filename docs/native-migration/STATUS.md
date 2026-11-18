@@ -222,3 +222,8 @@ iPhone rapid cross-verse body taps now arbitrate against native word double-tap;
 
 ### 2026-11-18 — Reader release and sidebar restoration
 Both apps build after independent annotation revision reuse. Final-source simulator short-page backward/forward pulls now arrive at the correct edge after UIKit releases tracking; Mac sidebar navigation restored to its original sidebar placement and history/selection cycle checked. Pin resting at the far right verified; physical hover animation remains open. See latest HANDOFF for exact logs, synthetic cleanup and runner-capacity CI failures.
+
+### 2026-11-18 checkpoint
+Published68f70642 CI passed native+legacy. Current uncommitted reader/menu/pull/LXXbadge/Brenton body-first numbering changes are undergoing final builds/tests; see HANDOFF latest override and /tmp/berean-body-first-psalms-* logs. Earlier separately numbered title UI is superseded by user's explicit request. Generic all-tab splitting and native cursor-policy replacement remain audit/design only. No merges or production data changes.
+
+Latest verification: full Swift suite192tests/55suites PASS; focused Psalm suite8 PASS; slow-pull harness PASS. Both final ancillary-label builds PASS (/tmp/berean-psalm-label-consistency-{mac,ios}.log). Mac/simulator reader UI checks described in HANDOFF. Scope is body-first Brenton presentation with unchanged storage IDs, plus LXXbadge/native-menu/pull refinements; generic splits/cursor replacement and notes-generated reference-link semantics audit remain open.

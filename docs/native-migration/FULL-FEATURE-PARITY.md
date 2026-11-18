@@ -1143,3 +1143,8 @@ iPhone Scripture selection: targeted final-source simulator verification of rapi
 
 ### 2026-11-18 — Reader release and sidebar restoration
 Reader responsiveness: independent annotation groups reuse unchanged query results; Mac live note/tag/highlight add/remove checked. iPhone short-page chapter pulls now retain intended START/END arrivals after native release, verified in a clean build. Mac sidebar navigation restored and tested through hide/show and history/selection roundtrip. Pin trailing rest position checked; physical hover, accessibility timing, frame pacing and cold-submit parity remain open.
+
+### 2026-11-18 reader presentation clarification
+Brenton Psalm title + first body now target a single displayed verse1, consistent with Bible Hub/BiblIndex body-first presentation; raw edition IDs remain unchanged for legacy notes/highlights/links. Current final verification pending (HANDOFF). LXX badge hover follows pin pattern. Full generic split/tab composition and Compare per-edition selection are still gaps, not completed parity.
+
+Latest verification: full Swift suite192tests/55suites PASS; focused Psalm suite8 PASS; slow-pull harness PASS. Both final ancillary-label builds PASS (/tmp/berean-psalm-label-consistency-{mac,ios}.log). Mac/simulator reader UI checks described in HANDOFF. Scope is body-first Brenton presentation with unchanged storage IDs, plus LXXbadge/native-menu/pull refinements; generic splits/cursor replacement and notes-generated reference-link semantics audit remain open.
