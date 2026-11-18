@@ -80,11 +80,11 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .wikiLink(let completion, let title):
                     guard !editor.hasMarkedText(),
                           let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), title: title) else { return }
-                    editor.replaceWikiLink(edit.range, with: edit.replacement, select: edit.selection)
+                    editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection)
                 case .referenceBlock(let completion, let replacement):
                     guard !editor.hasMarkedText(),
                           let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), replacement: replacement) else { return }
-                    editor.replaceWikiLink(edit.range, with: edit.replacement, select: edit.selection, actionName: "Insert Reference Block")
+                    editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection, actionName: "Insert Reference Block")
                 case .highlight(let color): editor.setHighlight(color)
                 case .removeHighlight:
                     if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
@@ -442,15 +442,12 @@ final class NoteTextView: NSTextView {
     }
 
     func replace(_ r: NSRange, with s: String, select: NSRange) {
-        guard shouldChangeText(in: r, replacementString: s) else { return }
-        textStorage?.replaceCharacters(in: r, with: s)
-        didChangeText()
-        setSelectedRange(select)
+        replaceSource(r, with: s, select: select, actionName: "Format Note")
     }
 
-    /// Completion is a separate undo action, rather than another native typing insertion.
-    /// Register the inverse explicitly so later typing cannot extend the completion's undo range.
-    func replaceWikiLink(_ range: NSRange, with replacement: String, select selection: NSRange, actionName: String = "Insert Note Link") {
+    /// Formatting/completion is a separate undo action from native typing.
+    /// Register the inverse explicitly so later typing cannot extend its undo range.
+    func replaceSource(_ range: NSRange, with replacement: String, select selection: NSRange, actionName: String = "Insert Note Link") {
         let source = string as NSString
         guard let storage = textStorage,
               range.location != NSNotFound, range.location >= 0, range.length >= 0, range.location <= source.length,
@@ -475,7 +472,7 @@ final class NoteTextView: NSTextView {
         if registrationEnabled { manager?.enableUndoRegistration() }
         guard allowed else { return }
         manager?.registerUndo(withTarget: self) { editor in
-            editor.replaceWikiLink(inserted, with: previousText, select: previousSelection, actionName: actionName)
+            editor.replaceSource(inserted, with: previousText, select: previousSelection, actionName: actionName)
         }
         manager?.setActionName(actionName)
         breakUndoCoalescing()

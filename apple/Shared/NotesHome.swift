@@ -134,6 +134,15 @@ struct NotesHomeView: View {
     var body: some View {
         let request = searchRequest
         VStack(spacing: 0) {
+            #if os(iOS)
+            // Search stays above the independently scrolling folder/list body.
+            // A native large navigation title can reserve an empty title area in
+            // this layout after returning from the editor or a different tab.
+            Text(Self.title(location, folders))
+                .font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12)
+            #endif
             if location != "trash" {
                 searchField
                 Divider()
@@ -145,9 +154,11 @@ struct NotesHomeView: View {
                 else { folderView }
             }
         }
-        .navigationTitle(Self.title(location, folders))
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        #else
+        .navigationTitle(Self.title(location, folders))
         #endif
         .toolbar {
             #if os(iOS)
@@ -790,11 +801,14 @@ struct NotesHomeView: View {
                         .font(.callout).foregroundStyle(.secondary)
                         .padding(.vertical, 8)
                     if location == "sys:daily" {
-                        Button("Browse by Date", systemImage: "calendar") {
-                            newDailyDate = DailyNotePreferences.today()
-                            choosingDailyDate = true
-                        }
-                        .buttonStyle(.bordered).padding(.bottom, 12)
+                        DailyNotesMonth(noteDates: Set(notes.filter { $0.type == "daily" || $0.type == "journal" }
+                            .compactMap { NotesService.dailyDateKey($0.title) }), chooseDate: { month in
+                                newDailyDate = month
+                                choosingDailyDate = true
+                            }, openDay: { day in
+                                app.openDailyNote(DailyNoteDay.dateKey(day), fromCalendar: tabId)
+                            })
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if !subs.isEmpty {
                         collapsibleSectionHeading("Folders", id: "subfolders", count: subs.count)
@@ -812,6 +826,10 @@ struct NotesHomeView: View {
                     if loadedNotes && visibleCount == 0 && hasFilters {
                         ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
                             .frame(maxWidth: .infinity, minHeight: subs.isEmpty ? max(0, geometry.size.height - 36 - (location == "sys:daily" ? 56 : 0)) : 220)
+                    } else if loadedNotes && visibleCount == 0 && location == "sys:daily" {
+                        Text("Choose a day to start a daily note.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
                     } else if loadedNotes && visibleCount == 0 {
                         ContentUnavailableView {
                             Label("No notes here", systemImage: "note.text")

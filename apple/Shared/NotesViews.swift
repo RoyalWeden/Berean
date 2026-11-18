@@ -817,6 +817,16 @@ struct NoteDetailView: View {
                     }
                     .menuIndicator(.hidden)
                     .help("Format selected note text")
+                    #if os(macOS)
+                    Button("Checklist", systemImage: "checklist") {
+                        formatRequest = NoteFormatRequest(action: .list(.checklist))
+                    }
+                    .labelStyle(.iconOnly).help("Make a checklist")
+                    Button("Insert Table", systemImage: "tablecells") {
+                        formatRequest = NoteFormatRequest(action: .insertTable)
+                    }
+                    .labelStyle(.iconOnly).help("Insert a table")
+                    #endif
                     Menu {
                         Button("Scripture Reference…", systemImage: "book") { insertingReference = true }
                         Button("Link…", systemImage: "link") {
