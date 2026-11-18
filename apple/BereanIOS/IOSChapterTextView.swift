@@ -586,6 +586,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         private var chapterPullActive = false
         private var chapterPullOrigin: CGPoint?
+        private var pendingChapterPullCommit: UUID?
 
         func beginChapterPull(_ scrollView: UIScrollView, at point: CGPoint) {
             cancelChapterPull()
@@ -621,10 +622,39 @@ struct IOSChapterTextView: UIViewRepresentable {
             let direction = chapterPullIntent.finish()
             publishChapterPull(nil)
             guard let direction, parent.canPullChapter(direction) else { return }
+            let passage = parent.passageId
+            let commit = UUID()
+            pendingChapterPullCommit = commit
+            // The passive observer receives touch-up before UIScrollView ends
+            // tracking. Replacing its document here lets the outgoing drag's
+            // momentum scroll the new chapter, even after its position restores.
+            DispatchQueue.main.async { [weak self, weak scrollView] in
+                guard let self, let scrollView else { return }
+                self.commitChapterPullWhenReleased(direction, passage: passage, commit: commit, in: scrollView)
+            }
+        }
+
+        private func commitChapterPullWhenReleased(_ direction: Int, passage: String, commit: UUID,
+                                                  in scrollView: UIScrollView) {
+            guard pendingChapterPullCommit == commit, passageId == passage,
+                  parent.passageId == passage, parent.canPullChapter(direction) else { return }
+            // One main-queue turn isn't sufficient on every release: UIKit may
+            // still be tracking and start deceleration after that turn. Wait for
+            // its public interaction flags; a new touch/passage cancels the token.
+            if scrollView.isTracking || scrollView.isDragging {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16)) { [weak self, weak scrollView] in
+                    guard let self, let scrollView else { return }
+                    self.commitChapterPullWhenReleased(direction, passage: passage, commit: commit, in: scrollView)
+                }
+                return
+            }
+            pendingChapterPullCommit = nil
+            scrollView.stopScrollingAndZooming()
             parent.onChapterPullCommit(direction)
         }
 
         func cancelChapterPull() {
+            pendingChapterPullCommit = nil
             chapterPullActive = false
             chapterPullOrigin = nil
             chapterPullIntent.cancel()
@@ -645,6 +675,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         func resetScrollChrome() {
+            pendingChapterPullCommit = nil
             pendingReaderTap = nil
             previousVerseTap = nil
             pendingTapTimestamp = 0
