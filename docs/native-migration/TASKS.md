@@ -257,3 +257,6 @@ Mac tooltip-induced full reader rebuild removed; native-helper regression/build 
 - [x] Check actual Mac/iPhone simulator relaunch at deep viewport and Mac switch-away/back.
 - [ ] Broaden explicit jump/selection/end/width/font/LXX return matrix across relaunch; other tab-type viewport persistence and measured toolbar latency remain open.
 - [ ] Continue Kokoro native phoneme resource compilation and original fp32 inference/playback; no native audio claimed.
+
+
+M05 phonemizer checkpoint18Nov: official pinned resources compile; native raw IPA32cases per platform match original on Mac/iPhone simulator. Opt-in scripts/native/phonemizer-probe preserves reproduction. Still need resource/license integration decision, kokoro-js normalization/token IDs, original fp32 inference/style, streaming/cancel and listening; do not mark playback complete.

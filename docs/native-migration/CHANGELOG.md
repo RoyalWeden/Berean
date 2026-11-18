@@ -1763,3 +1763,6 @@ CI44287280869 on69abe784: legacy SUCCESS, native iOSconformance inprogress at la
 - Both apps restore local per-chapter/edition reading positions after relaunch and checkpoint settled scrolling.
 - Explicit passage jumps clear only the destination's old viewport; bounded local records preserve legacy tab sync behavior.
 -182 shared and17 original persistence tests pass; Mac/iPhone simulator relaunch checked, both apps build.
+
+
+ReadAloud development18Nov: added reproducible silent native phonemizer comparison harness for Mac/iPhone simulator; no new playback controls or downloaded model.

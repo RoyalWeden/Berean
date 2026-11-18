@@ -159,3 +159,6 @@ Chapter gesture follow-up: deterministic fresh-edge/hysteresis regression and bu
 
 ### 2026-11-18 — Relaunch loses native Scripture position
 Resolved underlying memory-only storage with local bounded validated viewport checkpoints. MacQA and iPhone27 simulator deep position restored after relaunch. Mac switch-away/back also retained position. Do not equate this with measured instant switching throughout the app; other tab types, explicit jump/end/resize/LXX matrices remain open.
+
+
+Phone selection recheck18Nov: final Mark12:37–39 renders one faint-filled rounded dashed group and floating action bar with text below; persisted verse/endVerse37/39 confirmed. An earlier number tap appeared to replace prior selection; repeat clean number-only and body/number mixed sequences before closing touch consistency.

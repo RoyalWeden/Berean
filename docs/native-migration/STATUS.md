@@ -188,3 +188,6 @@ Late Mac Strong’s tooltips update in-place rather than replacing the chapter. 
 
 ### 2026-11-18 — Reading position survives relaunch
 Native Scripture now persists bounded validated local per-edition viewport checkpoints. Mac QA and iPhone27 simulator both restored a deep viewport after process relaunch; Mac tab switch also checked.182 shared tests,17 original persistence tests, oracle/lint/typecheck and both builds pass. CI at747aafe0 success for both jobs; newer checkpoint commit requires its own CI. Other tab types, full history/flip matrix and physical-device timing remain open. See latest HANDOFF.
+
+
+ReadAloud native research18Nov: official eSpeak resource compilation resolved; US/British raw IPA32case comparison passes Mac and iPhone simulator probe. No app dependency or audible engine shipped. iPhone final UI showed one grouped outline for Mark12:37–39; an earlier inconsistent number-tap sequence remains to reproduce.

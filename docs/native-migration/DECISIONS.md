@@ -435,3 +435,6 @@ Keep asynchronous Strong’s tooltip values out of the reader’s content/style 
 
 ### 2026-11-18 — Reading geometry is bounded local presentation
 Store native reader geometry under local-only nativeReaderPositions, separate from legacy numeric scrollPosition and synced passage destination. Use explicit recency because canonical JSON reorders keys. Validate finite geometry and cap records to24 per tab. Keep edition-return navigation hints memory-only. Checkpoint settled scrolling plus lifecycle and clear only the requested edition on deliberate passage jumps.
+
+
+Native speech prototype18Nov: compile phoneme/intonation/dictionary resources from the exact pinned engine revision. Voice initialization precedes dictionary compilation. Keep this opt-in probe separate from app dependencies until resource packaging/license and complete Kokoro token/audio compatibility are established. Test Mac and simulator against the original phonemizer, without synthesis or user library access.

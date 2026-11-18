@@ -1109,3 +1109,6 @@ Spoken-only numeral/abbreviation/pronunciation/punctuation and tagged/plain repl
 
 ### 2026-11-18 — Native Scripture viewport persistence
 Implemented local bounded chapter/edition position persistence, including end/verse-relative/selection geometry; original allowlists agree. Actual MacQA and iPhone27 simulator deep relaunch restoration verified. Full cross-tab-type/history/edition/resize/device matrix remains partial. ReadAloud inference/playback remains unfinished.
+
+
+M05 partial18Nov: reproducible native phonemizer now matches original raw US/British IPA for32cases on each platform. Kokoro normalization/tokenizer, synthesis/playback/cancellation and listening still open; no app dependency added.
