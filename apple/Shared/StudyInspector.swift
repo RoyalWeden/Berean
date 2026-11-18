@@ -737,7 +737,7 @@ struct SelectedVersesStrongsView: View {
                     .font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
                 ForEach(rows, id: \.verse) { row in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: row.verse) + (textId == "lxx" ? " LXX" : ""))
+                        Text(ResolvedPassage(textId: textId, bookId: bookId, chapter: chapter, verse: row.verse).label + (textId == "lxx" ? " LXX" : ""))
                             .font(.footnote.weight(.semibold))
                         Text(attributed(row.tokens)).font(.body).lineSpacing(4)
                             .environment(\.openURL, OpenURLAction { url in

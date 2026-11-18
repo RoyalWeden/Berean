@@ -779,7 +779,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                         .link: URL(string: "berean-verse:\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }
                     let markerStart = out.length
-                    out.append(NSAttributedString(string: "\t\(verse.verse)\t", attributes: number))
+                    out.append(NSAttributedString(string: "\t\(verse.readerVerse)\t", attributes: number))
                     markerRanges[verse.verse] = NSRange(location: markerStart, length: out.length - markerStart)
                 }
                 let bodyStart = out.length

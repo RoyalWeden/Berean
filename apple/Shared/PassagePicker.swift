@@ -287,7 +287,7 @@ struct PassagePicker: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 44, maximum: 52), spacing: 6)], spacing: 6) {
                         ForEach(1...grid.count, id: \.self) { v in
                             Button {
-                                pick(ResolvedPassage(textId: text, bookId: grid.book.id, chapter: grid.chapter, verse: v))
+                                pick(ResolvedPassage(textId: text, bookId: grid.book.id, chapter: grid.chapter, verse: v).convertingReaderNumbersToStored)
                             } label: {
                                 Text("\(v)").monospacedDigit()
                                     .frame(maxWidth: .infinity).frame(height: 44)
@@ -375,7 +375,8 @@ struct PassagePicker: View {
                 onPreview(passage)
                 let t = text
                 Task {
-                    let count = await app.bible.queryChapter(book.id, chapter, textId: t).count
+                    let raw = await app.bible.queryChapter(book.id, chapter, textId: t)
+                    let count = PsalmSuperscription.apply(raw, textId: t, bookId: book.id, chapter: chapter).count
                     if count > 1 { verseGrid = (book, chapter, count) } else { pick(passage) }
                 }
             } else {

@@ -1288,8 +1288,9 @@ struct CrossRefsView: View {
 
     @ViewBuilder private func verseSection(_ number: Int, groups: [ReferenceGroup]) -> some View {
         let count = groups.reduce(0) { $0 + $1.rows.count }
+        let displayed = PsalmSuperscription.readerVerseNum(number, bookId: bookId, chapter: chapter, textId: textId)
         if count == 0 {
-            LabeledContent("Verse \(number)",
+            LabeledContent("Verse \(displayed)",
                            value: groups.contains(where: \.unavailable) ? "Unavailable" : "No cross references")
         } else {
             let expanded = expandedVerses.contains(number)
@@ -1301,7 +1302,7 @@ struct CrossRefsView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
-                    Text(number == 0 ? "Chapter" : "Verse \(number)").font(.subheadline.weight(.semibold))
+                    Text(number == 0 ? "Chapter" : "Verse \(displayed)").font(.subheadline.weight(.semibold))
                     Spacer(minLength: 0)
                     Text(count, format: .number)
                         .font(.caption.monospacedDigit())
@@ -1610,7 +1611,7 @@ struct SearchResultsView: View {
                     ForEach(rows, id: \.self) { r in
                         Button { app.openScripture(bookId: r.bookId, chapter: r.chapter, verse: r.verseNum, textId: textId) } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(Reference.bookChapterVerseLabel(r.bookId, chapter: r.chapter, verse: r.verseNum)).font(.subheadline.weight(.semibold))
+                                Text(ResolvedPassage(textId: textId, bookId: r.bookId, chapter: r.chapter, verse: r.verseNum).label).font(.subheadline.weight(.semibold))
                                 Text(VerseDisplay.text(r.text, tagged: r.textTagged, textId: textId, replacerEnabled: true, rules: WordReplacer.defaultRules))
                                     .font(.callout).foregroundStyle(.secondary).lineLimit(3)
                             }
@@ -1677,7 +1678,7 @@ struct TagResultsView: View {
                         ForEach(Array(m.verses.enumerated()), id: \.offset) { _, v in
                             Button { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verse, textId: edition, reuseTab: true) } label: {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verse, hermas: HermasText(textId: edition))).font(.headline)
+                                    Text(ResolvedPassage(textId: edition, bookId: v.bookId, chapter: v.chapter, verse: v.verse).label).font(.headline)
                                     Text(texts["\(v.bookId).\(v.chapter).\(v.verse)"] ?? "").foregroundStyle(.secondary).lineLimit(3)
                                 }
                             }.buttonStyle(.interactivePlain)

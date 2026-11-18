@@ -259,7 +259,7 @@ extension AppModel {
         if let previous = position?.returnEdition, previous.book == fallback.book, previous.text == fallback.text {
             target = previous
         } else if let verse = position?.verse,
-                  let mapped = ChapterMap.verseCounterpart(source.book, chapter: source.chapter, verse: verse,
+                  let mapped = PsalmSuperscription.verseCounterpart(source.book, chapter: source.chapter, verse: verse,
                                                            from: source.text, to: fallback.text) {
             target = ChapterEdition(book: fallback.book, chapter: mapped.chapter, text: fallback.text)
         }
@@ -310,7 +310,7 @@ extension AppModel {
             }
             var verse = saved.verse
             if let number = verse,
-               let mapped = ChapterMap.verseCounterpart(edition.book, chapter: transition.source.chapter, verse: number,
+               let mapped = PsalmSuperscription.verseCounterpart(edition.book, chapter: transition.source.chapter, verse: number,
                                                         from: transition.source.text, to: edition.text) {
                 verse = mapped.chapter == edition.chapter ? mapped.verse : nil
             }
@@ -353,7 +353,8 @@ private struct SharedVerseSelection: Transferable {
         ([reference] + rows.map { row in
             let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: textId,
                                          replacerEnabled: replacerEnabled, rules: WordReplacer.defaultRules, hideSuppliedWords: hideSuppliedWords)
-            return "\(row.verseNum) \(text)"
+            let title = textId == "lxx" ? row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? "" : ""
+            return "\(row.readerVerseNum) \(title)\(text)"
         }).joined(separator: "\n")
     }
 
@@ -386,7 +387,8 @@ private struct SharedScriptureChapter: Transferable {
     func formattedText() async throws -> String {
         let rows = await bible.queryChapter(bookId, chapter, textId: textId)
         guard !rows.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
-        let visibleRows = rows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: textId) }
+        let prepared = PsalmSuperscription.apply(rows, textId: textId, bookId: bookId, chapter: chapter)
+        let visibleRows = prepared.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: textId) }
         return SharedVerseSelection(reference: reference, rows: visibleRows, textId: textId,
                                     replacerEnabled: replacerEnabled,
                                     hideSuppliedWords: hiddenAnnotations.contains(AnnotationFilters.kjvaSuppliedWords)).formattedText
@@ -896,15 +898,23 @@ struct ScriptureView: View {
     private func applyPassageSelection(_ state: BibleState, onlyIfChanged: Bool = false, restoringReader: Bool = false) {
         let next = passageSelection(state)
         if onlyIfChanged && next == selection { return }
-        selectedVerse = state.verse
-        anchor = state.verse
+        let focus = state.verse.map { stored in
+            verses.first(where: { $0.verseNum == stored })?.verseNum ?? next.min() ?? stored
+        }
+        selectedVerse = focus
+        anchor = focus
         let saved = app.savedScripturePosition(tabId: tabId, edition: ChapterEdition(state))
-        scrollTarget = restoringReader && saved?.selectedVerses == next ? nil : state.verse
+        scrollTarget = restoringReader && saved?.selectedVerses == next ? nil : focus
         selection = next
     }
 
     private func passageSelection(_ state: BibleState) -> Set<Int> {
-        guard let first = state.verse else { return [] }
+        guard let storedFirst = state.verse else { return [] }
+        // Older links can address a title-only storage row. It now belongs to
+        // the first displayed verse, while body-row identities remain intact.
+        let firstBody = verses.first
+        let foldedTitle = firstBody?.displayVerseNum == 1 && storedFirst < (firstBody?.verseNum ?? storedFirst)
+        let first = foldedTitle ? firstBody!.verseNum : storedFirst
         let last = max(first, state.endVerse ?? first)
         let chapterVerses = Set(verses.map(\.verseNum))
         let restored = (app.findTab(tabId).map { ResolvedPassage.savedVerses(in: $0.state, reader: state) } ?? [])
@@ -969,7 +979,8 @@ struct ScriptureView: View {
     /// "John 3:16", "John 3:16-18", "John 3:16-18, 21"
     func selectionLabel(_ st: BibleState) -> String {
         guard !selection.isEmpty else { return "" }
-        let runs = consecutiveVerseRuns(selection).map { run in
+        let displayed = Set(selection.map { PsalmSuperscription.readerVerseNum($0, bookId: st.bookId, chapter: st.chapter, textId: st.translation) })
+        let runs = consecutiveVerseRuns(displayed).map { run in
             run.lowerBound == run.upperBound ? "\(run.lowerBound)" : "\(run.lowerBound)-\(run.upperBound)"
         }
         return "\(referenceChapterLabel(st)):\(runs.joined(separator: ", "))"
@@ -1377,8 +1388,9 @@ struct ScriptureView: View {
             findRequest: findRequest,
             reference: { first, last in
                 let suffix = st.translation == "lxx" ? " LXX" : ""
-                let label = Reference.bookChapterVerseLabel(st.bookId, chapter: st.chapter, verse: first, hermas: HermasText(textId: st.translation))
-                return label + (first == last ? "" : "-\(last)") + suffix
+                let label = ResolvedPassage(textId: st.translation, bookId: st.bookId, chapter: st.chapter,
+                                            verse: first, endVerse: first == last ? nil : last).label
+                return label + suffix
             },
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
@@ -1437,7 +1449,7 @@ struct ScriptureView: View {
                     }
                 }
                 .navigationTitle(item.notesSelection.isEmpty
-                    ? Reference.bookChapterVerseLabel(item.row.bookId, chapter: item.row.chapter, verse: item.row.verseNum,
+                    ? Reference.bookChapterVerseLabel(item.row.bookId, chapter: item.row.chapter, verse: item.row.readerVerseNum,
                                                       hermas: HermasText(textId: st.translation))
                     : "Verse Notes")
                 .navigationBarTitleDisplayMode(.inline)
@@ -1619,7 +1631,7 @@ struct ScriptureView: View {
     private func flipEdition(_ state: BibleState, to target: ChapterEdition) {
         let source = ChapterEdition(state)
         let preferred = selection.count == 1 ? selection.first.flatMap { verse in
-            ChapterMap.verseCounterpart(source.book, chapter: source.chapter, verse: verse,
+            PsalmSuperscription.verseCounterpart(source.book, chapter: source.chapter, verse: verse,
                                         from: source.text, to: target.text) == nil ? nil : verse
         } : nil
         app.switchChapterEdition(in: tabId, from: source, to: target, position: positionReader.capture(preferred))
@@ -1817,7 +1829,7 @@ struct ScriptureView: View {
     /// The iPhone verse sheet's actions below the highlight palette.
     @ViewBuilder func verseActions(_ v: ChapterVerseRow, _ st: BibleState,
                                     perform: @escaping (@escaping () -> Void) -> Void = { $0() }) -> some View {
-        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum, hermas: HermasText(textId: st.translation))
+        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.readerVerseNum, hermas: HermasText(textId: st.translation))
         ShareLink(item: verseWithReference(v, st)) {
             Label("Share Verse…", systemImage: "square.and.arrow.up")
         }
@@ -1903,7 +1915,7 @@ struct ScriptureView: View {
 
     private func verseWithReference(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
         let label = Reference.bookChapterVerseLabel(verse.bookId, chapter: verse.chapter,
-                                                    verse: verse.verseNum, hermas: HermasText(textId: state.translation))
+                                                    verse: verse.readerVerseNum, hermas: HermasText(textId: state.translation))
         let suffix = state.translation == "lxx" ? " LXX" : ""
         return "\(label)\(suffix) \(clipboardVerseText(verse, state))"
     }
@@ -2114,6 +2126,7 @@ extension ScriptureView {
             let whole = highlights[v.verseNum]?.last { $0.startChar == nil && $0.startWord == nil }
             var rendered = ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                        tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
+            rendered.displayVerse = v.displayVerseNum
             if v.verseNum > 0, let verseCitations, verseCitations.key == chapterKey(st),
                let links = verseCitations.links[v.verseNum], !links.isEmpty {
                 rendered.citationCount = links.count
@@ -2355,7 +2368,7 @@ extension ScriptureView {
     func verseNSMenu(_ n: Int, _ st: BibleState) -> NSMenu {
         let m = NSMenu()
         guard let v = verses.first(where: { $0.verseNum == n }) else { return m }
-        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.verseNum, hermas: HermasText(textId: st.translation))
+        let label = Reference.bookChapterVerseLabel(v.bookId, chapter: v.chapter, verse: v.readerVerseNum, hermas: HermasText(textId: st.translation))
         let header = NSMenuItem(title: label, action: nil, keyEquivalent: ""); header.isEnabled = false
         m.addItem(header)
         if selection.count > 1, selection.contains(n) {

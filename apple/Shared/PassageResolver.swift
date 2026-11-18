@@ -37,16 +37,31 @@ struct ResolvedPassage: Equatable {
     var label: String {
         // A whole chapter reads as the reader titles it ("Psalm 3", not "Psalms 3").
         if verse == nil, verseGroups.isEmpty { return Reference.readerChapterLabel(bookId, chapter, textId: textId) }
-        let start = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse, hermas: HermasText(textId: textId))
+        func number(_ stored: Int) -> Int {
+            PsalmSuperscription.readerVerseNum(stored, bookId: bookId, chapter: chapter, textId: textId)
+        }
+        let start = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: verse.map(number), hermas: HermasText(textId: textId))
         if let first = verseGroups.first {
-            let base = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: first.lowerBound, hermas: HermasText(textId: textId))
-            let suffix = first.lowerBound == first.upperBound ? "" : "–\(first.upperBound)"
+            let base = Reference.bookChapterVerseLabel(bookId, chapter: chapter, verse: number(first.lowerBound), hermas: HermasText(textId: textId))
+            let suffix = first.lowerBound == first.upperBound ? "" : "–\(number(first.upperBound))"
             return ([base + suffix] + verseGroups.dropFirst().map {
-                $0.lowerBound == $0.upperBound ? String($0.lowerBound) : "\($0.lowerBound)–\($0.upperBound)"
+                $0.lowerBound == $0.upperBound ? String(number($0.lowerBound)) : "\(number($0.lowerBound))–\(number($0.upperBound))"
             }).joined(separator: ", ")
         }
         guard let verse, let endVerse, endVerse > verse else { return start }
-        return "\(start)–\(endVerse)"
+        return "\(start)–\(number(endVerse))"
+    }
+
+    /// Human-entered references use reader numbering; persisted links stay raw.
+    var convertingReaderNumbersToStored: Self {
+        var result = self
+        func stored(_ displayed: Int) -> Int {
+            PsalmSuperscription.storedVerseNum(displayed, bookId: bookId, chapter: chapter, textId: textId)
+        }
+        result.verse = verse.map(stored)
+        result.endVerse = endVerse.map(stored)
+        result.verseGroups = verseGroups.map { stored($0.lowerBound)...stored($0.upperBound) }
+        return result
     }
 
     func isShown(in tab: Tab) -> Bool {
@@ -185,7 +200,7 @@ extension AppModel {
             }
             return ResolvedPassage(textId: textFor(ref.bookId, forced: requestedText ?? (ref.forcedTranslation == "LXX" ? "lxx" : nil)),
                                    bookId: ref.bookId, chapter: ref.chapter, verse: groups.first?.lowerBound ?? ref.verse,
-                                   endVerse: groups.isEmpty ? ref.endVerse : nil, verseGroups: groups)
+                                   endVerse: groups.isEmpty ? ref.endVerse : nil, verseGroups: groups).convertingReaderNumbersToStored
         }
         // "<book>" or "<book> N" where the book name matches a catalog entry.
         let lower = q.lowercased()

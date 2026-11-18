@@ -1394,7 +1394,7 @@ final class AppModel {
             let label = verseRef.flatMap { r -> String? in
                 let p = r.split(separator: ".").map(String.init)
                 guard p.count == 3, let c = Int(p[1]), let v = Int(p[2]) else { return nil }
-                return Reference.bookChapterVerseLabel(p[0], chapter: c, verse: v)
+                return ResolvedPassage(textId: textId, bookId: p[0], chapter: c, verse: v).label
             }
             let n = try notes.create(.init(type: verseRef == nil ? "general" : "verse", title: title ?? label ?? "", content: content, verseRef: verseRef, textId: textId)).note
             if openEditor { openNote(n.id) }

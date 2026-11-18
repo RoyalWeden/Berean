@@ -564,13 +564,13 @@ struct ChapterTextView: NSViewRepresentable {
                         .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
                         .foregroundColor: markerColor(v.verse, p),
                         .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
-                        .toolTip: "Verse \(v.verse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
+                        .toolTip: "Verse \(v.readerVerse) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                     ]
                     // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
                     let gutterTab = numAttrs.merging([.font: NSFont.systemFont(ofSize: CGFloat(size))]) { $1 }
                     let markerStart = out.length
                     out.append(NSAttributedString(string: "\t", attributes: gutterTab))
-                    out.append(NSAttributedString(string: "\(v.verse)", attributes: numAttrs))
+                    out.append(NSAttributedString(string: "\(v.readerVerse)", attributes: numAttrs))
                     out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                     markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
                 }

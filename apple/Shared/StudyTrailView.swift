@@ -218,7 +218,10 @@ private func trailReference(_ book: String?, chapter: Int?, verse: Int?, endVers
                             edition: String? = nil) -> String? {
     guard let book, let chapter else { return nil }
     if verse == nil, let edition { return Reference.readerChapterLabel(book, chapter, textId: edition) }
-    let first = Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse, hermas: edition.map(HermasText.init(textId:)) ?? .robertsDonaldson)
+    if let edition {
+        return ResolvedPassage(textId: edition, bookId: book, chapter: chapter, verse: verse, endVerse: endVerse).label
+    }
+    let first = Reference.bookChapterVerseLabel(book, chapter: chapter, verse: verse)
     if let verse, let endVerse, endVerse > verse { return "\(first)–\(endVerse)" }
     return first
 }
@@ -729,8 +732,8 @@ private struct StudyTrailStopsView: View {
 
     private func originLabel(_ stop: StudyTrailService.Stop, verse: Int?) -> String {
         guard let verse else { return stopLabel(stop) }
-        return Reference.bookChapterVerseLabel(stop.bookId, chapter: stop.chapter, verse: verse,
-                                               hermas: HermasText(textId: stop.translation ?? app.defaultText))
+        return ResolvedPassage(textId: stop.translation ?? app.defaultText, bookId: stop.bookId,
+                               chapter: stop.chapter, verse: verse).label
     }
 
     private func connectionRow(_ connection: StudyTrailService.Connection, showOrigin: Bool = true) -> some View {

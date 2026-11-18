@@ -759,7 +759,7 @@ struct CompareView: View {
         }
         guard syncScrolling, drivesScrollSync(column.id), let top = visibleIndependentRows[column.id]?.min() else { return }
         for destination in columns where destination.id != column.id && destination.book == column.book {
-            guard let mapped = ChapterMap.synchronizedVerse(column.book, chapter: column.chapter, verse: top,
+            guard let mapped = PsalmSuperscription.synchronizedVerse(column.book, chapter: column.chapter, verse: top,
                                                              from: column.text, destinationChapter: destination.chapter,
                                                              to: destination.text),
                   let match = correspondingVerse(mapped, in: destination) else { continue }
@@ -983,7 +983,7 @@ struct CompareView: View {
     }
 
     private func mappedVerse(_ verse: Int, in column: CompareColumn, source: BibleState) -> Int? {
-        guard let mapped = ChapterMap.verseCounterpart(source.bookId, chapter: source.chapter, verse: verse,
+        guard let mapped = PsalmSuperscription.verseCounterpart(source.bookId, chapter: source.chapter, verse: verse,
                                                        from: source.translation, to: column.text) else { return verse }
         return mapped.chapter == column.chapter ? mapped.verse : nil
     }
@@ -1054,16 +1054,16 @@ struct CompareView: View {
         Button {
             openReader(row, in: column)
         } label: {
-            Text("\(row.verseNum)")
+            Text("\(row.readerVerseNum)")
                 .font(.caption.monospacedDigit().weight(.semibold))
                 .foregroundStyle(Color.accentColor)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Open verse \(row.verseNum) in Reader")
+        .accessibilityLabel("Open verse \(row.readerVerseNum) in Reader")
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .help("Open verse \(row.verseNum) in Reader")
+        .help("Open verse \(row.readerVerseNum) in Reader")
     }
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
         let reference = comparisonVerseReference(row, column: column)
@@ -1102,7 +1102,7 @@ struct CompareView: View {
         }
         Divider()
         Button("Add Note", systemImage: "square.and.pencil") {
-            let title = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
+            let title = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.readerVerseNum,
                                                         hermas: HermasText(textId: column.text))
             app.newNote(verseRef: "\(row.bookId).\(row.chapter).\(row.verseNum)", textId: column.text, title: title)
         }
@@ -1124,7 +1124,7 @@ struct CompareView: View {
     }
 
     private func comparisonVerseReference(_ row: ChapterVerseRow, column: CompareColumn) -> String {
-        let label = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.verseNum,
+        let label = Reference.bookChapterVerseLabel(row.bookId, chapter: row.chapter, verse: row.readerVerseNum,
                                                     hermas: HermasText(textId: column.text))
         return referenceForCopy(label, textId: column.text)
     }
@@ -1223,8 +1223,8 @@ struct CompareView: View {
         let text = column.text
         if let row = rows[verse]?[column.id] {
             VStack(alignment: .leading, spacing: 3) {
-                if row.verseNum != verse || row.chapter != ChapterMap.mapChapter(state.bookId, state.chapter, from: state.translation, to: text) {
-                    Text("\(row.chapter):\(row.verseNum)")
+                if row.readerVerseNum != PsalmSuperscription.readerVerseNum(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation) || row.chapter != ChapterMap.mapChapter(state.bookId, state.chapter, from: state.translation, to: text) {
+                    Text("\(row.chapter):\(row.readerVerseNum)")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -1311,14 +1311,14 @@ struct CompareView: View {
         Button {
             toggleVerse(verse, in: state)
         } label: {
-            Text("\(verse)")
+            Text("\(PsalmSuperscription.readerVerseNum(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
                 .font(.system(.caption, design: .rounded).weight(.semibold))
                 .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Verse \(verse)")
+        .accessibilityLabel("Verse \(PsalmSuperscription.readerVerseNum(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -1398,12 +1398,12 @@ struct CompareView: View {
                     ? independent[column.id] ?? []
                     : await comparisonChapter(book: st.bookId, chapter: chapter, edition: edition)
                 for row in chapterRows {
-                    if let mapped = ChapterMap.verseCounterpart(st.bookId, chapter: chapter, verse: row.verseNum,
+                    if let mapped = PsalmSuperscription.verseCounterpart(st.bookId, chapter: chapter, verse: row.verseNum,
                                                                 from: edition, to: st.translation) {
                         if mapped.chapter == st.chapter { out[mapped.verse, default: [:]][column.id] = row }
                     } else if chapter == column.chapter,
                               allowsSameNumberAlignment(from: edition, to: st),
-                              ChapterMap.verseCounterpart(st.bookId, chapter: st.chapter, verse: row.verseNum,
+                              PsalmSuperscription.verseCounterpart(st.bookId, chapter: st.chapter, verse: row.verseNum,
                                                           from: st.translation, to: edition) == nil {
                         out[row.verseNum, default: [:]][column.id] = row
                     }

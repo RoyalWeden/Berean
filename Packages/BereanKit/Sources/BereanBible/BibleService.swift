@@ -10,6 +10,9 @@ public struct BookRow: Equatable, Sendable {
 public struct ChapterVerseRow: Equatable, Sendable {
     public var bookId: String, chapter: Int, verseNum: Int, text: String
     public var textTagged: String?, title: String?
+    /// Reader numbering may omit separately stored Psalm titles. Storage identities never change.
+    public var displayVerseNum: Int?
+    public var readerVerseNum: Int { displayVerseNum ?? verseNum }
     /// Which optional columns the text database has (they appear in TypeScript rows even when NULL).
     public var hasTaggedColumn = false, hasTitleColumn = false
     public init(bookId: String, chapter: Int, verseNum: Int, text: String, textTagged: String?, title: String?,

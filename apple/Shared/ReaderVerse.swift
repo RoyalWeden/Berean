@@ -178,10 +178,12 @@ struct ReaderVerse: Equatable {
     var citationCount = 0
     var citationPreview: String?
     var tags: [(name: String, color: String?, slot: Int?)] = []
+    var displayVerse: Int?
+    var readerVerse: Int { displayVerse ?? verse }
     static func == (a: ReaderVerse, b: ReaderVerse) -> Bool {
         a.verse == b.verse && a.title == b.title && a.words == b.words && a.marks == b.marks && a.tint == b.tint && a.noteCount == b.noteCount
             && a.citationCount == b.citationCount && a.citationPreview == b.citationPreview
-            && a.tags.elementsEqual(b.tags, by: ==)
+            && a.tags.elementsEqual(b.tags, by: ==) && a.displayVerse == b.displayVerse
     }
     /// The verse as displayed (words joined by spaces), the text copy uses.
     var displayText: String { words.map(\.text).joined(separator: " ") }
