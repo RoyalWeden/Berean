@@ -812,6 +812,10 @@ final class AppModel {
     @ObservationIgnored var lexiconOccurrenceOptions: [String: [String: LexiconEntryView.OccurrenceOptions]] = [:]
     @ObservationIgnored var lexiconOccurrenceReturns: [String: [String: LexiconEntryView.OccurrenceKey]] = [:]
     @ObservationIgnored var historyReturnRows: [String: String] = [:]
+    // Bounded read-only chapter preparation shared by readers and adjacent-page prefetch.
+    @ObservationIgnored var readerChapterCache: [ChapterEdition: [ChapterVerseRow]] = [:]
+    @ObservationIgnored var readerChapterOrder: [ChapterEdition] = []
+    @ObservationIgnored var readerChapterLoads: [ChapterEdition: Task<[ChapterVerseRow], Never>] = [:]
     @ObservationIgnored var scriptureReadingPositions: [String: [String: ScriptureReadingPosition]] = [:]
     var scriptureJumpRequest: (tabID: String, chapter: ChapterEdition, revision: UUID)?
     @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition, position: ScriptureReadingPosition?)] = [:]
