@@ -92,12 +92,29 @@ struct StudyInspector: View {
             #if os(macOS)
             macPaneHeader(panel, tabs: tabs, secondary: secondary)
             #else
-            Picker("Study pane", selection: Binding(get: { panel }, set: { focusTool($0) })) {
-                ForEach(tabs) { Text($0.title).tag($0) }
+            HStack(spacing: 8) {
+                Picker("Study pane", selection: Binding(get: { panel }, set: { focusTool($0) })) {
+                    ForEach(tabs) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Button {
+                    guard app.activeTab?.id == tabId else { return }
+                    app.update(tabId, recordHistory: false) { $0.state["rightPanelOpen"] = .bool(false) }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(.quaternary, in: .circle)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.circle)
+                }
+                .buttonStyle(.interactivePlain)
+                .accessibilityLabel("Close Study Panel")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
             #endif
             Divider()
             panelContent(panel, st: reader, lexiconKey: lexiconKey)
