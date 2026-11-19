@@ -600,3 +600,7 @@ One consistent personal-study entry replaces separate notes/tag/citation decorat
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Restore native reader position on actual attachment/layout readiness, not a guessed single run-loop dispatch. Latest pending intent replaces earlier queued action, stale passage/target guards remain, zero-size captures rejected. Avoid observable app writes at momentum handoff. Keep Notes primary and metadata secondary; consolidate scope/sort into search menu, preserve choices. Physical smoothness is not proved by CUA wheel events.

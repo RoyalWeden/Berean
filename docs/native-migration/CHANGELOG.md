@@ -1985,3 +1985,7 @@ Personal note references now share the quiet study dot instead of trailing arrow
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Study Notes options moved into search with flat choices; Notes section now first. Added hover fills on initial study controls. Mac restore/jump waits for attached sized native viewport, preventing verified tab-return jumps; normal release saves use idle checkpoint. Both apps build;255tests pass; Mac/iPhone interactions verified. No data schema/identity/sync changes.

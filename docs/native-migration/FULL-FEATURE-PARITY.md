@@ -1270,3 +1270,7 @@ Native My Notes parity gains ordinary-note per-verse indicator index without alt
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Notes scope/sort functionality preserved in simpler inline search menu; Notes-first display and personal annotations retained. Verified native saved-position lifecycle fix, independent of persistence format. Remaining automatic verse/Strong’s tracking/settings, Markdown/table/share/history, RTL and substring/lexicon highlight parity stays OPEN. Full255tests/both builds pass; rendered feature parity is limited to the named UI checks.

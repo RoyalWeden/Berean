@@ -224,8 +224,9 @@ struct BereanSidebar: View {
                 } label: {
                     Label("Tab Filters", systemImage: "line.3.horizontal.decrease")
                         .labelStyle(.iconOnly)
-                        .frame(width: 22, height: 22)
+                        .frame(width: 28, height: 28)
                         .contentShape(.rect)
+                        .optionHover(active: tabTypeFilter != nil || repeatedTitlesOnly)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)

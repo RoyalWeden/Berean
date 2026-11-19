@@ -1941,33 +1941,17 @@ struct VerseNotesView: View {
                                 .labelStyle(.iconOnly)
                                 .frame(width: 44, height: 44)
                                 .contentShape(.rect)
+                                .optionHover()
                         }
                         .buttonStyle(.interactivePlain)
                         .help(showingChapter ? "Show selected verse notes" : "Show chapter notes")
                     }
-                    studyNotesMenu
                 }
                 .padding(.horizontal, 12)
                 studyNotesSearch
             }
             List {
                 let results = displayedNotes
-                if allowsChapterScope, !allNotesScope {
-                    StudyPassageTags(bookId: bookId, chapter: chapter, textId: textId, verse: scopedVerse, selectedVerses: scopedSelection)
-                }
-                if !allNotesScope, loadedScope == loadKey, hasNoteCrossReferences, let showNoteCrossReferences {
-                    Section("From My Notes") {
-                        Button {
-                            showNoteCrossReferences(scopedVerse, scopedSelection)
-                        } label: {
-                            Label("Related Passages", systemImage: "arrow.triangle.branch")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.interactivePlain)
-                        .accessibilityHint("Show verse connections and mentions from your notes")
-                    }
-                }
                 Section {
                     if allNotesScope, loadedScope == loadKey, notes.count > 500 {
                         Text("Showing the 500 most recently edited notes")
@@ -2014,6 +1998,22 @@ struct VerseNotesView: View {
                 } header: {
                     if allowsChapterScope, !allNotesScope { Text("Notes") }
                 }
+                if allowsChapterScope, !allNotesScope {
+                    StudyPassageTags(bookId: bookId, chapter: chapter, textId: textId, verse: scopedVerse, selectedVerses: scopedSelection)
+                }
+                if !allNotesScope, loadedScope == loadKey, hasNoteCrossReferences, let showNoteCrossReferences {
+                    Section("From My Notes") {
+                        Button {
+                            showNoteCrossReferences(scopedVerse, scopedSelection)
+                        } label: {
+                            Label("Related Passages", systemImage: "arrow.triangle.branch")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .accessibilityHint("Show verse connections and mentions from your notes")
+                    }
+                }
             }
         }
         .onChange(of: scopeKey) { chapterScope = nil }
@@ -2053,6 +2053,7 @@ struct VerseNotesView: View {
                     .contentShape(.rect)
                     .buttonStyle(.interactivePlain)
             }
+            studyNotesMenu
         }
         .font(.subheadline)
         .padding(.horizontal, 10)
@@ -2064,22 +2065,28 @@ struct VerseNotesView: View {
 
     private var studyNotesMenu: some View {
         Menu {
-            Section("Scope") {
-                Picker("Scope", selection: $allNotesScope) {
-                    Text("Current Passage").tag(false)
-                    Text("All Notes").tag(true)
-                }
+            Picker("Show Notes", selection: $allNotesScope) {
+                Text("Current Passage").tag(false)
+                Text("All Notes").tag(true)
             }
-            Section("Sort") {
-                Picker("Sort", selection: $studySort) {
-                    ForEach(StudySort.allCases, id: \.self) { option in Text(option.label).tag(option) }
-                }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            Divider()
+            Picker("Sort Notes", selection: $studySort) {
+                ForEach(StudySort.allCases, id: \.self) { option in Text(option.label).tag(option) }
             }
+            .pickerStyle(.inline)
+            .labelsHidden()
         } label: {
             Label("Notes Options", systemImage: "line.3.horizontal.decrease")
                 .labelStyle(.iconOnly)
+                #if os(iOS)
                 .frame(width: 44, height: 44)
+                #else
+                .frame(width: 28, height: 28)
+                #endif
                 .contentShape(.rect)
+                .optionHover(active: allNotesScope || studySort != .verse)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)

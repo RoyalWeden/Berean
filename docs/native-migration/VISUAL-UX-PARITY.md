@@ -165,3 +165,7 @@ Trailing personal citation arrows removed; quiet personal study dot/Chapter stud
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Notes-first panel and search-inline filter now checked on both platforms; flat scope/sort choices omit redundant labels. Initial hover controls use existing optionHover; inline Text links and comprehensive physical hover matrix remain open. Reader tab return stable at exact tested offset with layout-ready restore. AllNotes row preview still exposes raw wiki syntax, confirmed and queued; do not claim universal Markdown hiding.

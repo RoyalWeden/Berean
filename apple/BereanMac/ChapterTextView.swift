@@ -11,6 +11,27 @@ private final class ChapterPullScrollView: NSScrollView {
     private var keyboardMonitor: Any?
     private var positionCheckpoint: Timer?
     private var checkpointDue: TimeInterval = 0
+    private var pendingViewportAction: (() -> Void)?
+
+    // SwiftUI may queue a restore before this native view has a window or size.
+    // Consume the latest action only once its actual viewport exists.
+    func enqueueViewportAction(_ action: @escaping () -> Void) {
+        pendingViewportAction = action
+        applyViewportActionIfReady()
+    }
+
+    private func applyViewportActionIfReady() {
+        guard window != nil, contentView.bounds.width > 0, contentView.bounds.height > 0,
+              let documentView, documentView.frame.width > 0,
+              let action = pendingViewportAction else { return }
+        pendingViewportAction = nil
+        action()
+    }
+
+    override func layout() {
+        super.layout()
+        applyViewportActionIfReady()
+    }
 
     override func reflectScrolledClipView(_ clipView: NSClipView) {
         super.reflectScrolledClipView(clipView)
@@ -40,6 +61,7 @@ private final class ChapterPullScrollView: NSScrollView {
         super.viewDidMoveToWindow()
         stopKeyboardMonitor()
         guard window != nil else { return }
+        applyViewportActionIfReady()
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, let window, event.window === window, window.isKeyWindow,
                   window.attachedSheet == nil else { return event }
@@ -58,6 +80,8 @@ private final class ChapterPullScrollView: NSScrollView {
         }
     }
 
+    func cancelViewportAction() { pendingViewportAction = nil }
+
     private func publish(_ cue: ChapterPullCue?) {
         guard cue != pull else { return }
         pull = cue
@@ -67,6 +91,7 @@ private final class ChapterPullScrollView: NSScrollView {
     override func setFrameSize(_ newSize: NSSize) {
         let ranges = frame.size != newSize ? reader?.visibleSelectedRanges(in: self) ?? [] : []
         super.setFrameSize(newSize)
+        applyViewportActionIfReady()
         for range in ranges {
             if reader?.revealSelectedRange(range, in: self) == true { break }
         }
@@ -98,8 +123,12 @@ private final class ChapterPullScrollView: NSScrollView {
             travel.reset()
             publish(nil)
             super.scrollWheel(with: event)
-            if let reader, let position = reader.readingPosition(in: self) { reader.parent.savePosition(position) }
             if let direction, let parent = reader?.parent, parent.canPullChapter(direction) {
+                // Chapter navigation must capture the outgoing page now. A
+                // normal finger release instead uses the idle checkpoint:
+                // saving through AppModel here rebuilds the reader just as
+                // AppKit hands the gesture over to momentum scrolling.
+                if let reader, let position = reader.readingPosition(in: self) { parent.savePosition(position) }
                 ignoresPullMomentum = true
                 parent.onChapterPullCommit(direction)
             }
@@ -122,9 +151,6 @@ private final class ChapterPullScrollView: NSScrollView {
         }
 
         super.scrollWheel(with: event)
-        if event.momentumPhase.contains(.ended), let reader, let position = reader.readingPosition(in: self) {
-            reader.parent.savePosition(position)
-        }
     }
 }
 
@@ -226,6 +252,7 @@ struct ChapterTextView: NSViewRepresentable {
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         (scroll as? ChapterPullScrollView)?.stopKeyboardMonitor()
+        (scroll as? ChapterPullScrollView)?.cancelViewportAction()
         guard let position = coordinator.readingPosition(in: scroll) else { return }
         coordinator.parent.savePosition(position)
     }
@@ -332,20 +359,24 @@ struct ChapterTextView: NSViewRepresentable {
         }
         if passageChanged, scrollTarget == nil {
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
-                guard let tv, let scroll, let c, c.lastPassage == passageId,
+                guard let tv, let scroll = scroll as? ChapterPullScrollView, let c, c.lastPassage == passageId,
                       c.parent?.scrollTarget == nil, let position = c.parent?.restorePosition(),
                       let container = tv.textContainer else { return }
-                tv.layoutManager?.ensureLayout(for: container)
-                let clip = scroll.contentView
-                var bounds = clip.bounds
-                let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
-                    .flatMap { tv.firstVerseLineTop(in: $0) }
-                    .map { tv.convert(NSPoint(x: 0, y: $0), to: clip).y - tv.visibleTitleBarClearance - 12 } : nil
-                bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? (clip.documentRect.minY + position.offset)
-                clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
-                scroll.reflectScrolledClipView(clip)
-                c.editionArrival = position.returnEdition.map {
-                    ScriptureEditionArrival(edition: $0, offset: max(0, clip.bounds.minY - clip.documentRect.minY))
+                scroll.enqueueViewportAction { [weak scroll, weak tv, weak c] in
+                    guard let scroll, let tv, let c, c.lastPassage == passageId,
+                          c.parent?.scrollTarget == nil else { return }
+                    tv.layoutManager?.ensureLayout(for: container)
+                    let clip = scroll.contentView
+                    var bounds = clip.bounds
+                    let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
+                        .flatMap { tv.firstVerseLineTop(in: $0) }
+                        .map { tv.convert(NSPoint(x: 0, y: $0), to: clip).y - tv.visibleTitleBarClearance - 12 } : nil
+                    bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? (clip.documentRect.minY + position.offset)
+                    clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
+                    scroll.reflectScrolledClipView(clip)
+                    c.editionArrival = position.returnEdition.map {
+                        ScriptureEditionArrival(edition: $0, offset: max(0, clip.bounds.minY - clip.documentRect.minY))
+                    }
                 }
             }
         }
@@ -356,30 +387,35 @@ struct ChapterTextView: NSViewRepresentable {
             c.scrolledTo = request
             let destination = passageId
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
-                guard let tv, let scroll, let c,
+                guard let tv, let scroll = scroll as? ChapterPullScrollView, let c,
                       c.parent.passageId == destination, c.parent.scrollTarget == target,
                       c.scrolledTo == request, c.parent.selectedVerses.max() == request.lastSelectedVerse,
                       let range = c.verseRanges[target], let container = tv.textContainer else { return }
-                scroll.layoutSubtreeIfNeeded()
-                tv.layoutManager?.ensureLayout(for: container)
-                if let firstLine = tv.firstVerseLineTop(in: range) {
-                    let clip = scroll.contentView
-                    let top = tv.convert(NSPoint(x: 0, y: firstLine), to: clip).y
-                    var proposed = clip.bounds
-                    let titleBarClearance = tv.visibleTitleBarClearance
-                    // Opening the first verse keeps the chapter header and top inset in view.
-                    proposed.origin.y = target == c.parent.verses.first?.verse ? clip.documentRect.minY : top - titleBarClearance - 12
-                    if let lastVerse = request.lastSelectedVerse,
-                       lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
-                       let bottom = tv.lastVerseLineBottom(in: lastRange) {
-                        let lastLine = tv.convert(NSPoint(x: 0, y: bottom), to: clip).y + ReaderFloatingControls.readingGap
-                        let readingHeight = proposed.height - c.parent.actionClearance
-                        if lastLine - top <= readingHeight - titleBarClearance {
-                            proposed.origin.y = max(proposed.origin.y, lastLine - readingHeight)
+                scroll.enqueueViewportAction { [weak scroll, weak tv, weak c] in
+                    guard let scroll, let tv, let c, c.parent.passageId == destination,
+                          c.parent.scrollTarget == target, c.scrolledTo == request,
+                          c.parent.selectedVerses.max() == request.lastSelectedVerse else { return }
+                    scroll.layoutSubtreeIfNeeded()
+                    tv.layoutManager?.ensureLayout(for: container)
+                    if let firstLine = tv.firstVerseLineTop(in: range) {
+                        let clip = scroll.contentView
+                        let top = tv.convert(NSPoint(x: 0, y: firstLine), to: clip).y
+                        var proposed = clip.bounds
+                        let titleBarClearance = tv.visibleTitleBarClearance
+                        // Opening the first verse keeps the chapter header and top inset in view.
+                        proposed.origin.y = target == c.parent.verses.first?.verse ? clip.documentRect.minY : top - titleBarClearance - 12
+                        if let lastVerse = request.lastSelectedVerse,
+                           lastVerse >= target, let lastRange = c.verseRanges[lastVerse],
+                           let bottom = tv.lastVerseLineBottom(in: lastRange) {
+                            let lastLine = tv.convert(NSPoint(x: 0, y: bottom), to: clip).y + ReaderFloatingControls.readingGap
+                            let readingHeight = proposed.height - c.parent.actionClearance
+                            if lastLine - top <= readingHeight - titleBarClearance {
+                                proposed.origin.y = max(proposed.origin.y, lastLine - readingHeight)
+                            }
                         }
+                        clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
+                        scroll.reflectScrolledClipView(clip)
                     }
-                    clip.scroll(to: clip.constrainBoundsRect(proposed).origin)
-                    scroll.reflectScrolledClipView(clip)
                 }
             }
         }
@@ -819,9 +855,10 @@ struct ChapterTextView: NSViewRepresentable {
             return top <= bottom ? top...bottom : nil
         }
 
-        func readingPosition(in scroll: NSScrollView, preferred: Int? = nil) -> ScriptureReadingPosition? {
+        @MainActor func readingPosition(in scroll: NSScrollView, preferred: Int? = nil) -> ScriptureReadingPosition? {
             guard let parent, lastPassage == parent.passageId, let view = textView else { return nil }
             let clip = scroll.contentView
+            guard clip.bounds.width > 0, clip.bounds.height > 0, view.frame.width > 0 else { return nil }
             let offset = max(0, clip.bounds.minY - clip.documentRect.minY)
             let visiblePreferred = preferred.flatMap { verse -> Int? in
                 guard let range = verseRanges[verse], let first = view.firstVerseLineTop(in: range) else { return nil }

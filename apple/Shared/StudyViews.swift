@@ -308,7 +308,7 @@ struct LexiconEntryView: View {
                                     Spacer()
                                     copyEntryButton(e)
                                         .labelStyle(.iconOnly)
-                                        .buttonStyle(.interactivePlain)
+                                        .buttonStyle(OptionButtonStyle())
                                     entryGuideButton
                                         .buttonStyle(.interactivePlain)
                                     entryNavigation
@@ -980,6 +980,7 @@ struct LexiconEntryView: View {
                 .font(.body)
                 .frame(width: entryControlHeight, height: entryControlHeight)
                 .contentShape(.rect)
+                .optionHover()
                 .popover(isPresented: $showsEntryGuide, content: entryGuide)
         }
         .help("How to read a lexicon entry")
@@ -1018,6 +1019,7 @@ struct LexiconEntryView: View {
             Image(systemName: symbol)
                 .frame(width: entryControlHeight, height: entryControlHeight)
                 .contentShape(.rect)
+                .optionHover()
         }
         .buttonStyle(.interactivePlain)
         .disabled(destination == nil)
@@ -1178,6 +1180,7 @@ struct CrossRefsView: View {
                             .labelStyle(.iconOnly)
                             .frame(minWidth: controlHeight, minHeight: controlHeight)
                             .contentShape(.rect)
+                            .optionHover()
                     }
                     .buttonStyle(.interactivePlain)
                     .help(label)
@@ -1198,6 +1201,7 @@ struct CrossRefsView: View {
                         .padding(.horizontal, 8)
                         .frame(minHeight: controlHeight)
                         .contentShape(.rect)
+                        .optionHover()
                 }
                 .menuStyle(.borderlessButton).clickableCursor()
                 .fixedSize()

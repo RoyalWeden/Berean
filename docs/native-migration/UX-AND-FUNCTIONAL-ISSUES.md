@@ -326,3 +326,7 @@ SHARED-UX-ANNOTATIONS: unified personal reference dots and contextual Related Pa
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+MAC-UX-VIEWPORT (P1): saved reader restore ran detached0×0 and clamped correct offset into wrong viewport; FIXED in final source, exact0.2734573119188504 Notes/Search return and fresh17jump verified, trace retained/removed from source. MAC-UX-RELEASE (P2): normal release model saves removed, physical smoothness still OPEN. Notes filter placement/redundant labels fixed and both-platform scope checks pass; initial hover controls implemented, full audit OPEN. Notes previews raw Markdown confirmed OPEN in FOLLOWUP-2026-11-19.md.

@@ -805,3 +805,7 @@ New ordinary-note reference UI matrix passed on Mac/iPhone with existing notes, 
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Use only isolated Mac profile (QA-PROFILES.md). Viewport regression test: settle midchapter, record scrollbar/pixel offset, switch Notes/Search and return; compare exact position, not an early animation sample or a different active tab. New-tab jump and close tested. Zero-size trace diagnosis and final proof in READER-VIEWPORT-RESTORATION.md. Temporary trace removed. Notes menu/scope verified Mac/iPhone. Profile13notes/38IDs and iPhone17notes/47IDs/tags intact. Final255-test/build logs in HANDOFF.

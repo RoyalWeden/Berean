@@ -389,3 +389,7 @@ Unified personal references now implemented: ordinary-note verse index, one marg
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Notes search-inline options, flat menu and Notes-first hierarchy implemented; key study/filter/ellipsis/compact Lexicon controls gain hover feedback. Mac zero-size restoration bug fixed and exact Notes/Search tab return verified. Release eager saves removed, but physical trackpad feel unverified. Final255tests/both builds and Mac/iPhone checks pass. Remaining full user queue in FOLLOWUP-2026-11-19.md.

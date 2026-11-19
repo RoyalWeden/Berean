@@ -428,3 +428,7 @@ Personal-reference unified entry implemented, with ordinary-note marker coverage
 ## 2026-11-19 — Automation QA isolation
 
 Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+DONE bounded: Notes search-inline filter/flat menu/Notes-first hierarchy; initial hover surfaces; separate QA library/preferences; real detached0×0viewport restore fix. NEXT: raw Markdown in NoteRowView previews and active editor, context table operations, anchored share menus, history polish, auto verse/Strong’s parity/settings/tracking, inline Strong’s hover, BDB RTL selection, match styling. Physical scrolling and broad UI matrix remain open; splits/Kokoro untouched.

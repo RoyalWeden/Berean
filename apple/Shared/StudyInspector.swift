@@ -195,6 +195,8 @@ struct StudyInspector: View {
         } label: {
             Label(secondary ? "Second Pane Actions" : "Study Pane Actions", systemImage: "ellipsis.circle")
                 .labelStyle(.iconOnly)
+                .frame(width: 28, height: 28)
+                .optionHover()
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().clickableCursor()
     }
@@ -250,6 +252,8 @@ struct StudyLexiconContent: View {
                         app.update(tabId, recordHistory: false) { $0.state.remove(lexiconKey) }
                     } label: {
                         Label("Selected Verses", systemImage: "chevron.backward").font(.callout)
+                            .padding(.horizontal, 6).padding(.vertical, 4)
+                            .optionHover()
                     }
                     .buttonStyle(.interactivePlain)
                     .frame(maxWidth: .infinity, alignment: .leading)
