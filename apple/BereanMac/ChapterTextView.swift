@@ -12,20 +12,52 @@ private final class ChapterPullScrollView: NSScrollView {
     private var positionCheckpoint: Timer?
     private var checkpointDue: TimeInterval = 0
     private var pendingViewportAction: (() -> Void)?
+    private var viewportSettle: Timer?
+    private var applyingViewport = false
+    private var appliedViewportGeometry: ViewportGeometry?
+
+    private struct ViewportGeometry: Equatable {
+        let clipSize: NSSize
+        let documentFrame: NSRect
+        let textInset: NSSize?
+    }
+
+    private var viewportGeometry: ViewportGeometry? {
+        guard let documentView else { return nil }
+        return ViewportGeometry(clipSize: contentView.bounds.size, documentFrame: documentView.frame,
+                                textInset: (documentView as? NSTextView)?.textContainerInset)
+    }
+
+    var isRestoringViewport: Bool { pendingViewportAction != nil }
 
     // SwiftUI may queue a restore before this native view has a window or size.
-    // Consume the latest action only once its actual viewport exists.
+    // Apply the latest intent once its actual viewport exists, then retain it
+    // only through the initial native layout burst.
     func enqueueViewportAction(_ action: @escaping () -> Void) {
         pendingViewportAction = action
+        appliedViewportGeometry = nil
         applyViewportActionIfReady()
     }
 
     private func applyViewportActionIfReady() {
-        guard window != nil, contentView.bounds.width > 0, contentView.bounds.height > 0,
+        guard !applyingViewport, window != nil,
+              contentView.bounds.width > 0, contentView.bounds.height > 0,
               let documentView, documentView.frame.width > 0,
+              let geometry = viewportGeometry, geometry != appliedViewportGeometry,
               let action = pendingViewportAction else { return }
-        pendingViewportAction = nil
+        applyingViewport = true
         action()
+        applyingViewport = false
+        appliedViewportGeometry = viewportGeometry
+        // A native inspector can resize through several widths after attachment.
+        // Apply immediately, then retain this one intent through that layout burst.
+        // Any new scroll/input owns the viewport and cancels it immediately.
+        viewportSettle?.invalidate()
+        let timer = Timer(timeInterval: 0.5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cancelViewportAction() }
+        }
+        viewportSettle = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     override func layout() {
@@ -36,6 +68,8 @@ private final class ChapterPullScrollView: NSScrollView {
     override func reflectScrolledClipView(_ clipView: NSClipView) {
         super.reflectScrolledClipView(clipView)
         guard reader != nil else { return }
+        if !applyingViewport, let event = NSApp.currentEvent, event.window === window,
+           event.type == .leftMouseDragged { cancelViewportAction() }
         checkpointDue = ProcessInfo.processInfo.systemUptime + 0.35
         // Scroll reflection can run at the display refresh rate. Keep one idle
         // timer instead of allocating/cancelling a Swift task for every frame.
@@ -49,6 +83,7 @@ private final class ChapterPullScrollView: NSScrollView {
                 self.positionCheckpoint = nil
                 let remaining = self.checkpointDue - ProcessInfo.processInfo.systemUptime
                 if remaining > 0.001 { self.scheduleCheckpoint(after: remaining); return }
+                if self.isRestoringViewport { self.scheduleCheckpoint(after: 0.35); return }
                 guard let reader = self.reader, let position = reader.readingPosition(in: self) else { return }
                 reader.parent.savePosition(position)
             }
@@ -62,9 +97,11 @@ private final class ChapterPullScrollView: NSScrollView {
         stopKeyboardMonitor()
         guard window != nil else { return }
         applyViewportActionIfReady()
-        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
             guard let self, let window, event.window === window, window.isKeyWindow,
                   window.attachedSheet == nil else { return event }
+            self.cancelViewportAction()
+            guard event.type == .keyDown else { return event }
             let responder = window.firstResponder
             let editing = responder is NSTextView && responder !== reader?.textView
             return reader?.parent?.onFindKey(event, editing) == true ? nil : event
@@ -80,7 +117,12 @@ private final class ChapterPullScrollView: NSScrollView {
         }
     }
 
-    func cancelViewportAction() { pendingViewportAction = nil }
+    func cancelViewportAction() {
+        viewportSettle?.invalidate()
+        viewportSettle = nil
+        pendingViewportAction = nil
+        appliedViewportGeometry = nil
+    }
 
     private func publish(_ cue: ChapterPullCue?) {
         guard cue != pull else { return }
@@ -98,6 +140,7 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        cancelViewportAction()
         if ignoresPullMomentum, !event.momentumPhase.isEmpty {
             if event.momentumPhase.contains(.ended) { ignoresPullMomentum = false }
             return
@@ -251,9 +294,11 @@ struct ChapterTextView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        let restoring = (scroll as? ChapterPullScrollView)?.isRestoringViewport == true
         (scroll as? ChapterPullScrollView)?.stopKeyboardMonitor()
         (scroll as? ChapterPullScrollView)?.cancelViewportAction()
-        guard let position = coordinator.readingPosition(in: scroll) else { return }
+        // Do not replace the saved intent with a transient, partially laid-out capture.
+        guard !restoring, let position = coordinator.readingPosition(in: scroll) else { return }
         coordinator.parent.savePosition(position)
     }
 
@@ -1005,6 +1050,7 @@ final class ReaderTextView: NSTextView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        (enclosingScrollView as? ChapterPullScrollView)?.cancelViewportAction()
         window?.makeFirstResponder(self)
         // A single click on a link (verse number, Strong's number, tag chip) acts like a button; anything else is text
         // selection. (The built-in link handling did not fire for these custom-scheme links inside SwiftUI.)
@@ -1264,6 +1310,3 @@ final class ClosureMenuItem: NSMenuItem {
     required init(coder: NSCoder) { fatalError() }
     @objc private func run() { handler() }
 }
-
-
-
