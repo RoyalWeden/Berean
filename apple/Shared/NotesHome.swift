@@ -1158,7 +1158,7 @@ struct NotesHomeView: View {
             }
         }
         .padding(16)
-        .frame(width: 320, height: 360, alignment: .topLeading)
+        .frame(width: 320, height: 240, alignment: .topLeading)
     }
 
     private func openNoteFromList(_ note: Note, searchPosition: SearchPosition?, newTab: Bool = false) {
@@ -1175,10 +1175,15 @@ struct NotesHomeView: View {
         Button("Open in New Tab", systemImage: "plus.square.on.square") {
             openNoteFromList(n, searchPosition: searchPosition, newTab: true)
         }
-        ShareLink(item: n.content.isEmpty ? n.displayTitle : "\(n.displayTitle)\n\n\(n.content)", subject: Text(n.displayTitle)) {
-            Label("Share…", systemImage: "square.and.arrow.up")
+        Menu {
+            ShareLink(item: n.content.isEmpty ? n.displayTitle : "\(n.displayTitle)\n\n\(n.content)", subject: Text(n.displayTitle)) {
+                Label("Share…", systemImage: "square.and.arrow.up")
+            }
+            Button("Print…", systemImage: "printer") { printNote(title: Self.rowTitle(n), body: n.content) }
+            Button("Export as Markdown…", systemImage: "arrow.down.document") { app.exportNote(n.id) }
+        } label: {
+            Label("Share", systemImage: "square.and.arrow.up")
         }
-        Button("Print…", systemImage: "printer") { printNote(title: Self.rowTitle(n), body: n.content) }
         Divider()
         Button(n.pinned ? "Unpin" : "Pin") { try? app.notes?.setPinned(n.id, !n.pinned) }
         if NotesService.systemFolder(n) == nil || n.folderId != nil {
@@ -1192,7 +1197,6 @@ struct NotesHomeView: View {
             ForEach(Self.statuses, id: \.id) { s in Button(s.label) { _ = try? app.notes?.update(n.id, .init(status: .some(s.id))) } }
         }
         Button("Duplicate") { _ = try? app.notes?.create(.init(type: n.type, title: n.title + " copy", content: n.content, verseRef: n.verseRef, color: n.color, tags: n.tags, folderId: n.folderId)) }
-        Button("Export as Markdown…") { app.exportNote(n.id) }
         Divider()
         Button("Move to Trash", role: .destructive) { requestTrash([n]) }
     }
