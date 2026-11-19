@@ -713,3 +713,10 @@ For Cmd+L, test both same- and different-type destinations with existing exact m
 Optimized Xcode simulator package tests require ENABLE_TESTABILITY=YES for @testable imports; SwiftPM test defaults do not establish that Xcode Release setting. Keep it test-only. Fixed historical-date UI fixtures should control Date without replacing the real async rendering timers.
 
 Before any CUA action after getApp rebinding or agent UI handoff, verify the visible library/workspace fixture. Two running native Dev instances share the same bundle ID, and the tool may resolve the regular Dev process despite a QA bundle path. Do not use or terminate the regular Dev process to work around this. Retain precise known QA IDs/counts as supporting read-only evidence, and leave multi-instance targeting unverified if the API cannot distinguish it.
+
+
+## 2026-11-19 — source resolution and QA identity notes
+
+A build observation timeout is not a failed build. In this round both Xcode package scans were confirmed live and sampled inside Git refresh reads of offloaded source files. Stop only identified build-owned Git children after that diagnosis; observe the original Xcode handles to terminal state. Invocation-only `GIT_OPTIONAL_LOCKS=0`, `GIT_CONFIG_COUNT=2`, `GIT_CONFIG_KEY_0=core.trustctime`, `GIT_CONFIG_VALUE_0=false`, `GIT_CONFIG_KEY_1=core.checkStat`, `GIT_CONFIG_VALUE_1=minimal` avoided repeated ctime refresh without persistent config changes. Do not reset usage/caches, delete locks, pin cloud directories, or stop unrelated Dev processes.
+
+Fresh LaunchServices QA launch now uses the sandbox container's BereanNativeQA store, whereas earlier direct launches used the noncontainer QA path. Verify exact process args, AX QA identifier and read-only store/fixture identity before interacting. Record hashes AND timestamps for all fixture notes, restore the original tab/passage and compare tab counts. Never assume a previous QA baseline applies to another path. CUA AX can take20–40s; after a timed-out runtime rebind and inspect current state before repeating actions. No UI automation outside CUA.

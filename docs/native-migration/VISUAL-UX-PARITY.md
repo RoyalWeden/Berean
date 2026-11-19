@@ -75,3 +75,8 @@ Status keys: ✅ parity (or better) · 🟡 partial · ❌ missing · ➕ native
 | Lexicon and Compare | Full Lexicon navigation floats over its entry, Compare uses a window toolbar on Mac, and inspector entry actions are inline. | Check enabled and disabled neighbors, long labels, and pointer feedback. Reserve floating glass for controls that sit above scrolling content. |
 | Sidebar and Search | Sidebar row selection, close affordances, workspace switching, and Search result overflow use several SwiftUI styles. | Compare hover, keyboard focus, disabled actions, and selected states across sidebar rows and Search results. Check the filter popover at minimum window size. |
 | Notes editor | Format and Share are native window-toolbar menus. Note rows have separate inline and context actions. | Check consistent menu icons and contrast in a narrow window, then verify rich editing commands alongside keyboard shortcuts. |
+
+
+## 2026-11-19 — Psalm opening and numbering metadata
+
+One verse1 marker now begins the muted italic title/body group in both native readers. Multiple title rows stay together, body alignment no longer depends on leading title tabs, and title/body use a single verse paragraph. Selection outlines include both. Short secondary summaries replace long LXX notices; native popovers reveal detail without adding toolbar buttons or persistent banners. Mac and iPhoneSimulator standard layouts and title/group selection checked; iPhone word handles retained. Do not claim the full font/Dynamic Type/VoiceOver or physical cursor/scroll matrix. The Mac sidepanel also exposed repeatedVerse1 cross-reference groups; source identity correction is next, not solved by the visual change.
