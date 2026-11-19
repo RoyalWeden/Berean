@@ -1022,10 +1022,10 @@ struct ScriptureSearchView: View {
             .filter { $0.count >= 2 && StrongsId.normalize($0) == nil }
         for w in words {
             var from = s.startIndex
-            while let r = s.range(of: w, options: .caseInsensitive, range: from..<s.endIndex) {
-                let before = r.lowerBound == s.startIndex ? nil : s[s.index(before: r.lowerBound)]
-                let after = r.upperBound == s.endIndex ? nil : s[r.upperBound]
-                if !(before?.isLetter ?? false), !(after?.isLetter ?? false) { mark(r, in: &a) }
+            while from < s.endIndex,
+                  let r = s.range(of: w, options: [.caseInsensitive, .diacriticInsensitive], range: from..<s.endIndex) {
+                // Search can match part of a word; paint that exact displayed span too.
+                mark(r, in: &a)
                 from = r.upperBound
             }
         }

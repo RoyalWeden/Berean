@@ -216,20 +216,6 @@ struct LexiconEntryView: View {
         }
     }
 
-    private func bdbText(_ text: String) -> Text {
-        var out = AttributedString()
-        for token in BdbNotes.tokens(text) {
-            switch token {
-            case .text(let t): out += AttributedString(t)
-            case .number(let n):
-                var a = AttributedString(n); a.foregroundColor = .secondary; out += a
-            case .abbr(let expanded, _):
-                var a = AttributedString(expanded); a.font = .body.italic(); a.foregroundColor = Color.accentColor.opacity(0.85); out += a
-            }
-        }
-        return Text(markFind(out))
-    }
-
     /// Definition / derivation text with Strong's cross-references as links (⌘-click opens a new tab on the Mac).
     private func linkedText(_ text: String, lang: Character) -> Text {
         var out = AttributedString()
@@ -329,7 +315,7 @@ struct LexiconEntryView: View {
                         if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }.id(FindSection.derivation) }
                         if !e.extendedDef.isEmpty, !compact {
                             if e.strongsNum.hasPrefix("H") {
-                                section("BDB Notes") { bdbText(replaced(e.extendedDef)).textSelection(.enabled) }.id(FindSection.extended)
+                                section("BDB Notes") { BdbSelectableText(text: replaced(e.extendedDef), findQuery: findShown ? findQuery : "") }.id(FindSection.extended)
                             } else {
                                 section("Extended") { Text(markFind(AttributedString(replaced(e.extendedDef)))).textSelection(.enabled) }.id(FindSection.extended)
                             }
@@ -1082,6 +1068,7 @@ struct LexiconEntryView: View {
             if preview.matches.contains(index) {
                 text.font = .callout.bold()
                 text.foregroundColor = .primary
+                text.backgroundColor = Color.yellow.opacity(0.30)
             }
             out += text
         }
