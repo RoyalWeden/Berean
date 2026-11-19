@@ -1185,3 +1185,11 @@ Commits: faf8589d location focus/input;3c38eb5c native cursor ownership;819f9954
 ## 2026-11-19 — Scripture presentation parity increment
 
 Source739c5e41: native Mac/iPhone superscription + first body share a numbered verse group, iPhone title/body tapping selects it, adjacent group outlines and native word selection verified. Edition numbering differences are quiet metadata with on-demand explanations. See ONLINE-BRENTON.md for independent witnesses,4–5 normalization and edition boundary caveats. Both app builds and197 shared tests pass; font/accessibility variants remain open. This is not full Compare parity: per-column selection and lifted dragging remain undone. Cross-reference canonical source identity is still a confirmed correctness gap despite improved display metadata.
+
+
+## 2026-11-19 — native references, toolbar responsiveness and Strong’s continuity
+
+- 42d34bbe: additive native cross-reference APIs map verified stored LXX rows to canonical sources; correct chapter grouping and combined-record aggregation. Legacy service entry points/goldens remain intact. Classic/TSKe selected and chapter UI checked on both apps; structural unverified alignments remain open.
+- fce2b88e: native navigation ControlGroup replaces fixed-size HStack; measured Mac toolbar CPU loop resolved while retaining sidebar titlebar placement. Baseline99.5% CPU/AX20–40s → idle0–3.3%/AX0.1–0.4s. This supersedes prior automation-latency diagnosis; broader physical interaction checks remain.
+- 3bbecdea: native readers retain the visible body line when Strong’s toggles, preferring a visible selected verse and excluding inline metadata from anchor offsets. Mac selected/unselected and iPhone mid-chapter on/off verified; physical phone and full edge/width matrix pending.
+- Validation: full202 shared tests; final6 focused cross-reference checks include all151 Psalms source bounds. Fresh reader intent/reflow harness passes Unicode/metadata mapping and prior tap/adjacency checks. Both final native builds pass. See current HANDOFF for exact logs, QA restoration and remaining tasks; source corpus/production/sync/identities unchanged.

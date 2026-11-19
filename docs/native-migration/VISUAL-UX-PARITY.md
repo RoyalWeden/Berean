@@ -80,3 +80,11 @@ Status keys: ✅ parity (or better) · 🟡 partial · ❌ missing · ➕ native
 ## 2026-11-19 — Psalm opening and numbering metadata
 
 One verse1 marker now begins the muted italic title/body group in both native readers. Multiple title rows stay together, body alignment no longer depends on leading title tabs, and title/body use a single verse paragraph. Selection outlines include both. Short secondary summaries replace long LXX notices; native popovers reveal detail without adding toolbar buttons or persistent banners. Mac and iPhoneSimulator standard layouts and title/group selection checked; iPhone word handles retained. Do not claim the full font/Dynamic Type/VoiceOver or physical cursor/scroll matrix. The Mac sidepanel also exposed repeatedVerse1 cross-reference groups; source identity correction is next, not solved by the visual change.
+
+
+## 2026-11-19 — native references, toolbar responsiveness and Strong’s continuity
+
+- 42d34bbe: additive native cross-reference APIs map verified stored LXX rows to canonical sources; correct chapter grouping and combined-record aggregation. Legacy service entry points/goldens remain intact. Classic/TSKe selected and chapter UI checked on both apps; structural unverified alignments remain open.
+- fce2b88e: native navigation ControlGroup replaces fixed-size HStack; measured Mac toolbar CPU loop resolved while retaining sidebar titlebar placement. Baseline99.5% CPU/AX20–40s → idle0–3.3%/AX0.1–0.4s. This supersedes prior automation-latency diagnosis; broader physical interaction checks remain.
+- 3bbecdea: native readers retain the visible body line when Strong’s toggles, preferring a visible selected verse and excluding inline metadata from anchor offsets. Mac selected/unselected and iPhone mid-chapter on/off verified; physical phone and full edge/width matrix pending.
+- Validation: full202 shared tests; final6 focused cross-reference checks include all151 Psalms source bounds. Fresh reader intent/reflow harness passes Unicode/metadata mapping and prior tap/adjacency checks. Both final native builds pass. See current HANDOFF for exact logs, QA restoration and remaining tasks; source corpus/production/sync/identities unchanged.

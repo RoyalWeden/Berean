@@ -36,4 +36,4 @@ The reader shows concise secondary metadata, such as “KJV Psalm 51” or “KJ
 
 The complete bundled-Psalter test checks all 151 chapters for word order, lossless title folding, stored identities, presentation/reference coherence, and idempotence. The online witness test samples the independently checked boundaries above; it is not a word-for-word comparison of all 151 chapters against a live website. App builds and interactive checks for the new title/metadata presentation must be recorded in HANDOFF before claiming delivery.
 
-Still open: legacy raw-link versus newly typed display-reference compatibility, combined-record cross-reference aggregation, and the larger per-column Compare selection/dragging redesign.
+Native combined-record cross-reference aggregation is implemented in42d34bbe and verified against both reference sources. Still open: legacy raw-link versus newly typed display-reference compatibility, unverified structural-book alignments, and the larger per-column Compare selection/dragging redesign.
