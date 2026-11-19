@@ -140,17 +140,54 @@ public enum NoteInlineFormat {
         let current = coverage(spans, kind: kind, selection: selection)
         let edit: Edit
         if !current.isEmpty {
-            // Partial removal needs to split the enclosing mark. Keep the source
-            // intact until that operation can preserve every neighbouring style.
             guard current.count == selection.length,
-                  spans.contains(where: { $0.kind == kind && $0.range == selection }),
-                  selection.location >= opening.utf16.count,
-                  closing.utf16.count <= text.length - selection.upperBound,
-                  text.substring(with: NSRange(location: selection.location - opening.utf16.count, length: opening.utf16.count)) == opening,
-                  text.substring(with: NSRange(location: selection.upperBound, length: closing.utf16.count)) == closing else { return nil }
-            let start = selection.location - opening.utf16.count
-            edit = Edit(range: NSRange(location: start, length: opening.utf16.count + selection.length + closing.utf16.count),
-                        replacement: text.substring(with: selection), selection: NSRange(location: start, length: selection.length))
+                  let run = spans.first(where: { $0.kind == kind && $0.range.location <= selection.location && $0.range.upperBound >= selection.upperBound }) else { return nil }
+            let hidden = spans.filter { $0.kind == .hidden }.reduce(into: IndexSet()) { $0.insert(integersIn: $1.range.location..<$1.range.upperBound) }
+            // Foundation divides an enclosing style at links, code and changes
+            // in nested emphasis. Join its fragments only across hidden syntax.
+            var body = run.range, expanded = true
+            while expanded {
+                expanded = false
+                for fragment in spans where fragment.kind == kind {
+                    let gap: NSRange
+                    if fragment.range.upperBound <= body.location { gap = NSRange(location: fragment.range.upperBound, length: body.location - fragment.range.upperBound) }
+                    else if body.upperBound <= fragment.range.location { gap = NSRange(location: body.upperBound, length: fragment.range.location - body.upperBound) }
+                    else { gap = NSRange(location: body.location, length: 0) }
+                    guard gap.length == 0 || hidden.contains(integersIn: gap.location..<gap.upperBound) else { continue }
+                    let joined = NSUnionRange(body, fragment.range)
+                    if joined != body { body = joined; expanded = true }
+                }
+            }
+            let alternatives: [(String, String)] = kind == .bold ? [("**", "**"), ("__", "__")]
+                : kind == .italic ? [("*", "*"), ("_", "_")] : [(opening, closing)]
+            var outer: NSRange?, inner: NSRange?
+            for (left, right) in alternatives {
+                if body == selection, body.location >= left.utf16.count, right.utf16.count <= text.length - body.upperBound,
+                   text.substring(with: NSRange(location: body.location - left.utf16.count, length: left.utf16.count)) == left,
+                   text.substring(with: NSRange(location: body.upperBound, length: right.utf16.count)) == right {
+                    outer = NSRange(location: body.location - left.utf16.count, length: left.utf16.count + body.length + right.utf16.count)
+                    inner = body
+                    break
+                }
+                var start = body.location, end = body.upperBound
+                while start > 0, hidden.contains(start - 1) { start -= 1 }
+                while end < text.length, hidden.contains(end) { end += 1 }
+                let prefix = text.range(of: left, range: NSRange(location: start, length: body.location - start))
+                let suffix = text.range(of: right, options: .backwards, range: NSRange(location: body.upperBound, length: end - body.upperBound))
+                if prefix.location != NSNotFound, suffix.location != NSNotFound {
+                    outer = NSRange(location: prefix.location, length: suffix.upperBound - prefix.location)
+                    inner = NSRange(location: prefix.upperBound, length: suffix.location - prefix.upperBound)
+                    break
+                }
+            }
+            guard let outer, let inner else { return nil }
+            let left = styledSegment(text.substring(with: NSRange(location: inner.location, length: selection.location - inner.location)),
+                                     opening: opening, closing: closing)
+            let right = styledSegment(text.substring(with: NSRange(location: selection.upperBound, length: inner.upperBound - selection.upperBound)),
+                                      opening: opening, closing: closing)
+            edit = Edit(range: outer,
+                        replacement: left + text.substring(with: selection) + right,
+                        selection: NSRange(location: outer.location + left.utf16.count, length: selection.length))
         } else {
             edit = Edit(range: selection, replacement: opening + text.substring(with: selection) + closing,
                         selection: NSRange(location: selection.location + opening.utf16.count, length: selection.length))
@@ -160,16 +197,57 @@ public enum NoteInlineFormat {
         guard MarkdownLiveSpans.plainText(result) == MarkdownLiveSpans.plainText(text as String) else { return nil }
         let resultingMark = coverage(next, kind: kind, selection: edit.selection)
         guard current.isEmpty ? resultingMark.count == selection.length : resultingMark.isEmpty else { return nil }
-        // Preserve overlapping styles, including partial ones and named colors.
-        for other in styleKinds(spans) where other != kind {
-            guard coverage(spans, kind: other, selection: selection).isSubset(of: coverage(next, kind: other, selection: edit.selection)) else { return nil }
+        // Compare marks by visible character position, not raw source position:
+        // splitting an outer mark inserts hidden delimiters around its neighbours.
+        // This protects styles and link/code identities outside the selection too.
+        func hiddenCharacters(_ spans: [MarkdownLiveSpans.Span]) -> IndexSet {
+            spans.filter { $0.kind == .hidden }.reduce(into: IndexSet()) { $0.insert(integersIn: $1.range.location..<$1.range.upperBound) }
+        }
+        let hiddenBefore = hiddenCharacters(spans), hiddenAfter = hiddenCharacters(next)
+        let resultText = result as NSString
+        let visibleBefore = (0..<text.length).filter { !hiddenBefore.contains($0) }
+        let visibleAfter = (0..<resultText.length).filter { !hiddenAfter.contains($0) }
+        guard visibleBefore.map({ text.character(at: $0) }) == visibleAfter.map({ resultText.character(at: $0) }) else { return nil }
+        func visibleCoverage(_ spans: [MarkdownLiveSpans.Span], kind: MarkdownLiveSpans.Kind, positions: [Int], source: NSString) -> IndexSet {
+            let raw = spans.filter { $0.kind == kind }.reduce(into: IndexSet()) { $0.insert(integersIn: $1.range.location..<$1.range.upperBound) }
+            return IndexSet(positions.indices.filter {
+                raw.contains(positions[$0]) && (!isStyle(kind) || !isWhitespace(source.character(at: positions[$0])))
+            })
+        }
+        let selectedVisible = IndexSet(visibleBefore.indices.filter {
+            NSLocationInRange(visibleBefore[$0], selection) && !isWhitespace(text.character(at: visibleBefore[$0]))
+        })
+        for other in semanticKinds(spans + next) {
+            let old = visibleCoverage(spans, kind: other, positions: visibleBefore, source: text)
+            let new = visibleCoverage(next, kind: other, positions: visibleAfter, source: resultText)
+            let expected = other == kind ? (current.isEmpty ? old.union(selectedVisible) : old.subtracting(selectedVisible)) : old
+            guard new == expected else { return nil }
         }
         return edit
     }
 
-    private static func styleKinds(_ spans: [MarkdownLiveSpans.Span]) -> [MarkdownLiveSpans.Kind] {
+    /// Keep separating whitespace outside the new marks so splitting a styled
+    /// passage does not expose empty or whitespace-only Markdown delimiters.
+    private static func styledSegment(_ source: String, opening: String, closing: String) -> String {
+        let text = source as NSString
+        guard let body = trimmed(NSRange(location: 0, length: text.length), in: text) else { return source }
+        return text.substring(to: body.location) + opening + text.substring(with: body) + closing + text.substring(from: body.upperBound)
+    }
+
+    private static func isWhitespace(_ character: unichar) -> Bool {
+        UnicodeScalar(character).map { CharacterSet.whitespacesAndNewlines.contains($0) } ?? false
+    }
+
+    private static func semanticKinds(_ spans: [MarkdownLiveSpans.Span]) -> [MarkdownLiveSpans.Kind] {
         var kinds: [MarkdownLiveSpans.Kind] = []
-        for span in spans where isStyle(span.kind) && !kinds.contains(span.kind) { kinds.append(span.kind) }
+        for span in spans {
+            let semantic: Bool
+            switch span.kind {
+            case .code, .link, .wikilink, .image: semantic = true
+            default: semantic = isStyle(span.kind)
+            }
+            if semantic && !kinds.contains(span.kind) { kinds.append(span.kind) }
+        }
         return kinds
     }
 

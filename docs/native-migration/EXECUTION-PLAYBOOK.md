@@ -777,3 +777,7 @@ For reliable touch-only fixture input, open a known plain-text test file in Text
 ## Combined-style interaction check — 2026-11-19
 
 Use a synthetic table, select only the visible word, add Bold then Italic, remove Bold, Undo, then remove Italic. Read-only source must show triple-star, single-star, then double-star respectively, with the same word still selected. Run on both apps; do not confuse raw AX style serialization with saved Markdown. Partial removal within a larger marked run and selection containing hidden syntax are separate unfinished cases. Restore original notes/reader and compare original hashes/timestamps. Legacy table-link probe instructions and exact collision fixtures are in NOTE-TABLE-LINK-COMPATIBILITY.md.
+
+## Partial-style check — 2026-11-19
+
+Synthetic fixture `/tmp/berean-iphone-partial-style.txt`: a table with `***Alpha Bravo Charlie***`. Select only Bravo, toggle Bold then Italic, expect `***Alpha** Bravo **Charlie***` then `***Alpha*** Bravo ***Charlie***`; Alpha/Charlie retain both styles. Undo and Redo must restore exact source and selection. Test with toolbar touches on iPhone and keyboard/menu on Mac; raw AX Markdown does not encode every font style reliably, so verify saved source read-only. Global validator also checks neighbouring links/code; package tests cover hidden-syntax fragment joining and Unicode/edge/intraword selections. Original note hashes/timestamps and active tabs must match baselines after recoverably trashing only the synthetic fixture.

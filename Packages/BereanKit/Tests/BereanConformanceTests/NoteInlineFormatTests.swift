@@ -118,7 +118,62 @@ struct NoteInlineFormatTests {
         #expect(underlined == "**<u>α😀 Prayer</u> last**")
         #expect((underlined as NSString).substring(with: selection) == "α😀 Prayer")
         #expect(try applying(underlined, selection: selection, open: "<u>", close: "</u>").0 == source)
-        #expect(NoteInlineFormat.edit(in: source as NSString, selection: (source as NSString).range(of: "Prayer"), opening: "**", closing: "**") == nil)
+        let (split, _) = try applying(source, selection: (source as NSString).range(of: "Prayer"))
+        #expect(split == "**α😀** Prayer **last**")
+    }
+
+    @Test func removingPartOfAStyleKeepsBothNeighboursAndOtherStyles() throws {
+        for marked in ["**Alpha Bravo Charlie**", "***Alpha Bravo Charlie***", "<u>**Alpha Bravo Charlie**</u>", "<mark class=\"hl-blue\">**Alpha Bravo Charlie**</mark>"] {
+            for source in [marked, "| \(marked) | other |\n| --- | --- |\n| a | b |"] {
+                let (result, selected) = try applying(source, selection: (source as NSString).range(of: "Bravo"))
+                #expect((result as NSString).substring(with: selected) == "Bravo")
+                #expect(MarkdownLiveSpans.plainText(result) == MarkdownLiveSpans.plainText(source))
+                let spans = MarkdownLiveSpans.spans(result)
+                #expect(!spans.contains { $0.kind == .bold && NSIntersectionRange($0.range, selected).length > 0 })
+                for neighbour in ["Alpha", "Charlie"] {
+                    let range = (result as NSString).range(of: neighbour)
+                    #expect(spans.contains { $0.kind == .bold && NSIntersectionRange($0.range, range).length == range.length })
+                }
+                for kind in [MarkdownLiveSpans.Kind.italic, .underline, .highlight("blue")] where MarkdownLiveSpans.spans(source).contains(where: { $0.kind == kind }) {
+                    #expect(spans.contains { $0.kind == kind && NSIntersectionRange($0.range, selected).length == selected.length })
+                }
+            }
+        }
+    }
+
+    @Test func partialStyleRemovalAtEdgesAndInsideWordsKeepsValidMarkup() throws {
+        for (open, close) in [("**", "**"), ("*", "*"), ("<u>", "</u>"), ("~~", "~~")] {
+            for selected in ["Alpha", "Bravo", "Charlie", "Alpha Bravo", "Bravo Charlie"] {
+                let source = open + "Alpha Bravo Charlie" + close
+                let (result, range) = try applying(source, selection: (source as NSString).range(of: selected), open: open, close: close)
+                #expect(MarkdownLiveSpans.plainText(result) == "Alpha Bravo Charlie")
+                #expect((result as NSString).substring(with: range) == selected)
+            }
+        }
+        for source in ["**AlphaBravoCharlie**", "__AlphaBravoCharlie__"] {
+            let (result, _) = try applying(source, selection: (source as NSString).range(of: "Bravo"))
+            #expect(result == "**Alpha**Bravo**Charlie**")
+        }
+    }
+
+    @Test func sequentialPartialRemovalKeepsBothNeighbouringCombinedStyles() throws {
+        let source = "***Alpha Bravo Charlie***"
+        let (noBold, selected) = try applying(source, selection: (source as NSString).range(of: "Bravo"))
+        let (plainMiddle, nextSelection) = try applying(noBold, selection: selected, open: "*", close: "*")
+        #expect(plainMiddle == "***Alpha*** Bravo ***Charlie***")
+        #expect((plainMiddle as NSString).substring(with: nextSelection) == "Bravo")
+        #expect(MarkdownLiveSpans.plainText(plainMiddle) == "Alpha Bravo Charlie")
+    }
+
+    @Test func splittingAroundNestedLinksAndCodePreservesTheirIdentities() throws {
+        let source = "**[Alpha](https://example.com/path) Bravo `Charlie`**"
+        let (result, selected) = try applying(source, selection: (source as NSString).range(of: "Bravo"))
+        #expect(MarkdownLiveSpans.plainText(result) == MarkdownLiveSpans.plainText(source))
+        #expect((result as NSString).substring(with: selected) == "Bravo")
+        #expect(result.contains("[Alpha](https://example.com/path)"))
+        #expect(result.contains("`Charlie`"))
+        #expect(MarkdownLiveSpans.spans(result).contains { $0.kind == .link("https://example.com/path") })
+        #expect(MarkdownLiveSpans.spans(result).contains { $0.kind == .code })
     }
 
     @Test func combinedStyleEditsLeaveCodeAndLinkDestinationsIntact() throws {

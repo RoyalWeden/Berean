@@ -572,3 +572,7 @@ Use the existing explicit source replacement for every programmatic format edit,
 ## 2026-11-19 — Semantic style toggles and ambiguous legacy table links
 
 Use renderer semantic ranges rather than adjacent punctuation to decide whether a visible styled selection already has a mark. Validate resulting plain text and preservation of overlapping style coverage before accepting a combined edit. Do not silently normalize table wiki targets: actual legacy serializer output collides for Title and a distinct Title ending in one backslash. Keep raw link identities unchanged until context-aware resolution/ambiguity handling is implemented; evidence is in NOTE-TABLE-LINK-COMPATIBILITY.md.
+
+## 2026-11-19 — Validate partial styling across the whole note
+
+Joining Foundation's style fragments only across hidden source syntax recovers enclosing marks without crossing unstyled visible text. Validate candidates using unhidden characters and global visible-position semantic coverage, including link/wiki/code/image identities, so splitting a mark cannot alter neighbouring styles. Ignore whitespace-only style changes around split delimiters; retain source whitespace verbatim. Native Undo/Redo restores exact source/selection rather than depending on a second toggle to reconstruct identical syntax. Whole-source mixed edits remain a separate unfinished operation.
