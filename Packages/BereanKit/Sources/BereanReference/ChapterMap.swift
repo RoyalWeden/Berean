@@ -123,6 +123,44 @@ public enum ChapterMap {
         return sourceCanonical == destinationCanonical ? verse : nil
     }
 
+    /// Reader metadata is deliberately separate from the legacy explanatory copy.
+    /// Keep the passage quiet; the full explanation is available on demand.
+    public static func readerNumberingSummary(_ bookId: String, _ chapter: Int, textId: String) -> String? {
+        guard readerNumberingNote(bookId, chapter, textId: textId) != nil else { return nil }
+        let book = bookId.uppercased()
+        let kjv = mapChapter(book, chapter, from: textId, to: "kjva")
+        switch book {
+        case "PSA":
+            switch chapter {
+            case 9: return "KJV Psalms 9–10"
+            case 113: return "KJV Psalms 114–115"
+            case 114: return "KJV Psalm 116:1–9"
+            case 115: return "KJV Psalm 116:10–19"
+            case 146: return "KJV Psalm 147:1–11"
+            case 147: return "KJV Psalm 147:12–20"
+            case 151: return "Additional Psalm"
+            default: return "KJV Psalm \(kjv)"
+            }
+        case "JER": return "KJV Jeremiah \(kjv)"
+        case "JOL":
+            if chapter == 2 { return "KJV Joel 2:1–27" }
+            return chapter == 3 ? "KJV Joel 2:28–32" : "KJV Joel \(kjv)"
+        case "MAL": return "KJV Malachi 3–4"
+        case "JON": return "Different chapter boundary"
+        default: return "About this edition"
+        }
+    }
+
+    public static func readerNumberingNote(_ bookId: String, _ chapter: Int, textId: String) -> String? {
+        if isLxx(textId), bookId.uppercased() == "JOL", chapter == 2 {
+            return "This Septuagint chapter contains KJV Joel 2:1–27. The remaining verses, KJV Joel 2:28–32, form Joel 3 in this edition."
+        }
+        if isLxx(textId), bookId.uppercased() == "JON", [1, 2].contains(chapter) {
+            return "KJV Jonah 1:17 is Jonah 2:1 in this Septuagint edition. The prayer that begins at KJV Jonah 2:1 begins here at Jonah 2:2."
+        }
+        return versificationNote(bookId, chapter, textId: textId)
+    }
+
     /// `versificationNote` — the explanatory note for an LXX chapter whose numbering differs.
     public static func versificationNote(_ bookId: String, _ chapter: Int, textId: String) -> String? {
         let book = bookId.uppercased()

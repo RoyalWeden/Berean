@@ -43,6 +43,7 @@ struct IOSChapterTextView: UIViewRepresentable {
 
     var passageId: String
     var header: String?
+    var headerDetail: String?
     var chapterTags: [(name: String, color: String?, slot: Int?)]
     var verses: [ReaderVerse]
     var style: ReaderStyle
@@ -61,6 +62,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
+    var onNumberingInfo: () -> Void = {}
     var onCitations: (Int) -> Void
     var onVerseTap: (Int) -> Void
     var onTextSelection: () -> Void = {}
@@ -736,6 +738,7 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         fileprivate var bodyRanges: [Int: NSRange] = [:]
+        private var psalmTitleRanges: [Int: NSRange] = [:]
 
         init(_ parent: IOSChapterTextView) { self.parent = parent }
 
@@ -743,6 +746,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let out = NSMutableAttributedString()
             verseRanges.removeAll(keepingCapacity: true)
             bodyRanges.removeAll(keepingCapacity: true)
+            psalmTitleRanges.removeAll(keepingCapacity: true)
             markerRanges.removeAll(keepingCapacity: true)
             let size = CGFloat(parent.style.fontSize)
             let regular = font(size)
@@ -757,9 +761,16 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
             let base: [NSAttributedString.Key: Any] = [.font: regular, .foregroundColor: UIColor.label, .paragraphStyle: paragraph]
             if let header = parent.header {
-                out.append(NSAttributedString(string: header + "\n", attributes: [
-                    .font: UIFont.preferredFont(forTextStyle: .callout), .foregroundColor: UIColor.secondaryLabel, Self.skip: true,
-                ]))
+                let headerParagraph = NSMutableParagraphStyle()
+                headerParagraph.firstLineHeadIndent = paragraph.headIndent
+                headerParagraph.headIndent = paragraph.headIndent
+                headerParagraph.paragraphSpacing = size * 0.55
+                var attributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.preferredFont(forTextStyle: .caption1), .foregroundColor: UIColor.secondaryLabel,
+                    .paragraphStyle: headerParagraph, Self.skip: true,
+                ]
+                if parent.headerDetail != nil { attributes[.link] = URL(string: "berean-numbering:info")! }
+                out.append(NSAttributedString(string: header + "  ⓘ\n", attributes: attributes))
             }
             if !parent.chapterTags.isEmpty {
                 appendTags(parent.chapterTags, verse: nil, to: out, base: base, dark: dark)
@@ -767,27 +778,37 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
             for verse in parent.verses {
                 let start = out.length
-                if let title = verse.title, !title.isEmpty {
+                let numberedTitle = verse.numberBeforeTitle && verse.title?.isEmpty == false && parent.style.showVerseNumbers
+                let titleParagraph = (paragraph.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+                titleParagraph.firstLineHeadIndent = numberedTitle ? 0 : paragraph.headIndent
+                titleParagraph.headIndent = paragraph.headIndent
+                if !numberedTitle { titleParagraph.tabStops = [] }
+                titleParagraph.paragraphSpacing = numberedTitle ? paragraph.paragraphSpacing : size * 0.3
+                let titleFont = italic.withSize(size * (verse.numberBeforeTitle ? 0.92 : 0.85))
+                let titleAttributes = base.merging([
+                    .font: titleFont, .foregroundColor: UIColor.secondaryLabel, .paragraphStyle: titleParagraph, Self.skip: true,
+                ]) { _, new in new }
+                if let title = verse.title, !title.isEmpty, !numberedTitle {
                     // Titles (Psalm superscriptions, section headings) align with the verse text column, not the gutter.
-                    let titleParagraph = (paragraph.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
-                    titleParagraph.firstLineHeadIndent = paragraph.headIndent
-                    titleParagraph.headIndent = paragraph.headIndent
-                    titleParagraph.tabStops = []
-                    titleParagraph.paragraphSpacing = size * 0.35
-                    let titleFont = italic.withSize(size * 0.85)
-                    out.append(NSAttributedString(string: title + "\n", attributes: base.merging([
-                        .font: titleFont, .foregroundColor: UIColor.secondaryLabel, .paragraphStyle: titleParagraph, Self.skip: true,
-                    ]) { _, new in new }))
+                    let titleStart = out.length
+                    out.append(NSAttributedString(string: title + "\n", attributes: titleAttributes))
+                    if verse.numberBeforeTitle { psalmTitleRanges[verse.verse] = NSRange(location: titleStart, length: out.length - titleStart - 1) }
                 }
                 if parent.style.showVerseNumbers {
                     let number = base.merging([
                         .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: .semibold),
                         .foregroundColor: markerColor(verse.verse),
+                        .paragraphStyle: numberedTitle ? titleParagraph : paragraph,
                         .link: URL(string: "berean-verse:\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }
                     let markerStart = out.length
                     out.append(NSAttributedString(string: "\t\(verse.readerVerseLabel)\t", attributes: number))
                     markerRanges[verse.verse] = NSRange(location: markerStart, length: out.length - markerStart)
+                }
+                if numberedTitle, let title = verse.title {
+                    let titleStart = out.length
+                    out.append(NSAttributedString(string: title.replacingOccurrences(of: "\n", with: " ") + "\u{2028}", attributes: titleAttributes))
+                    psalmTitleRanges[verse.verse] = NSRange(location: titleStart, length: out.length - titleStart - 1)
                 }
                 let bodyStart = out.length
                 let tint = verse.tint.map { UIColor(Color.highlight($0)).withAlphaComponent(0.25) }
@@ -872,6 +893,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         func textView(_ textView: UITextView, primaryActionFor textItem: UITextItem, defaultAction: UIAction) -> UIAction? {
             guard case let .link(url) = textItem.content else { return defaultAction }
             switch url.scheme {
+            case "berean-numbering":
+                return UIAction(title: "About Septuagint Numbering") { [weak self] _ in self?.parent.onNumberingInfo() }
             case "berean-verse":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
                 let number = parent.verses.first { $0.verse == verse }?.readerVerseLabel ?? String(verse)
@@ -1098,7 +1121,9 @@ struct IOSChapterTextView: UIViewRepresentable {
             }
             if let verse = verseInGutter(point, in: view) { return .verse(verse, marker: true) }
             if let character {
-                return bodyRanges.first { NSLocationInRange(character, $0.value) }.map { .verse($0.key, marker: false) }
+                let verse = bodyRanges.first { NSLocationInRange(character, $0.value) }?.key
+                    ?? psalmTitleRanges.first { NSLocationInRange(character, $0.value) }?.key
+                return verse.map { .verse($0, marker: false) }
             }
 
             // Keep navigation in the outer margin. Wider reading layouts leave less margin for this gesture.

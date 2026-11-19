@@ -550,6 +550,7 @@ struct ScriptureView: View {
     @AppStorage("crossrefSource") private var crossRefSource = "tske"
     private var highlights: [Int: [Highlight]] { presentation?.highlights ?? [:] }
     @State private var pickerShown = false
+    @State private var numberingExplanation: String?
     #if os(macOS)
     private enum VersePopover { case highlight, export }
     @State private var versePopover: VersePopover?
@@ -670,6 +671,7 @@ struct ScriptureView: View {
         }
         #endif
         .toolbar { toolbar(st) }
+        .onChange(of: chapterKey(st)) { numberingExplanation = nil }
         .onDisappear { chapterStepTask?.cancel() }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, !st.compareMode, let position = positionReader.capture(nil) else { return }
@@ -1371,7 +1373,8 @@ struct ScriptureView: View {
         style.fontSize = baseSize * scriptureTypeScale
         return IOSChapterTextView(
             passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
-            header: ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation),
+            header: ChapterMap.readerNumberingSummary(st.bookId, st.chapter, textId: st.translation),
+            headerDetail: ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation),
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) },
             verses: rv,
             style: style,
@@ -1395,6 +1398,7 @@ struct ScriptureView: View {
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
+            onNumberingInfo: { numberingExplanation = ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation) },
             onCitations: { verse in
                 crossRefSource = "notes"
                 openInspector("crossrefs", verse: verse)
@@ -1527,6 +1531,7 @@ struct ScriptureView: View {
             ControlGroup { passageControls(st) }
                 .controlGroupStyle(.navigation)
                 .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
+                .popover(isPresented: numberingInfoPresented, arrowEdge: .bottom) { numberingInfoPanel }
             #else
             HStack(spacing: 4) { passageControls(st) }
                 .buttonStyle(.interactivePlain)
@@ -1537,6 +1542,9 @@ struct ScriptureView: View {
                 .offset(y: app.readerChromeHidden ? -12 : 0)
                 .allowsHitTesting(!app.readerChromeHidden)
                 .accessibilityHidden(app.readerChromeHidden)
+                .popover(isPresented: numberingInfoPresented, arrowEdge: .top) {
+                    numberingInfoPanel.presentationCompactAdaptation(.popover)
+                }
                 .sheet(isPresented: $pickerShown) {
                     NavigationStack {
                         picker(st, compact: true)
@@ -1625,6 +1633,23 @@ struct ScriptureView: View {
             .help("Tag, copy, or share the chapter")
         }
         #endif
+    }
+
+    private var numberingInfoPresented: Binding<Bool> {
+        Binding(get: { numberingExplanation != nil }, set: { if !$0 { numberingExplanation = nil } })
+    }
+
+    private var numberingInfoPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Septuagint Numbering").font(.headline)
+            Text(numberingExplanation ?? "").font(.body).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Done") { numberingExplanation = nil }
+            }
+        }
+        .padding(20)
+        .frame(width: 320)
     }
 
     private func flipEdition(_ state: BibleState, to target: ChapterEdition) {
@@ -2126,6 +2151,7 @@ extension ScriptureView {
                                        tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
             rendered.displayVerse = v.displayVerseNum
             rendered.displayVerseEnd = v.displayVerseEndNum
+            rendered.numberBeforeTitle = st.bookId == "PSA"
             if v.verseNum > 0, let verseCitations, verseCitations.key == chapterKey(st),
                let links = verseCitations.links[v.verseNum], !links.isEmpty {
                 rendered.citationCount = links.count
@@ -2249,7 +2275,7 @@ extension ScriptureView {
 
     private func handleChapterFindKey(_ event: NSEvent, editing: Bool) -> Bool {
         guard app.activeTab?.id == tabId, !app.commandPaletteShown, !pickerShown,
-              !displayOptionsShown, versePopover == nil else { return false }
+              !displayOptionsShown, numberingExplanation == nil, versePopover == nil else { return false }
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let key = event.charactersIgnoringModifiers?.lowercased()
         if mods == [.command], key == "f", !editing || chapterFindFocused {
@@ -2295,11 +2321,13 @@ extension ScriptureView {
     /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
     func macReader(_ st: BibleState, actionClearance: CGFloat, titleBarClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
-        let header = ChapterMap.versificationNote(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
+        let header = ChapterMap.readerNumberingSummary(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
         let suffix = st.translation == "lxx" ? " LXX" : ""
         return ChapterTextView(
             passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
-            header: header, chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
+            header: header,
+            headerDetail: ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation),
+            chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
             style: readerStyle(st),
             selectedVerses: selection, selectionFocus: selectedVerse, scrollTarget: scrollTarget,
             actionClearance: actionClearance,
@@ -2323,6 +2351,7 @@ extension ScriptureView {
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
+            onNumberingInfo: { numberingExplanation = ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation) },
             onCitations: { verse in
                 crossRefSource = "notes"
                 openInspector("crossrefs", verse: verse)

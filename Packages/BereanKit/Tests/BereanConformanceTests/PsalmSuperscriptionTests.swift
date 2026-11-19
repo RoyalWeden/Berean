@@ -1,5 +1,6 @@
 import Testing
 import BereanBible
+import BereanReference
 
 @Suite("Psalm superscriptions") struct PsalmSuperscriptionTests {
     func row(_ v: Int, _ text: String, tagged: String? = nil) -> ChapterVerseRow {
@@ -129,6 +130,35 @@ struct BrentonReaderPsalterTests {
             #expect(first.text.hasPrefix(opening))
         }
     }
+
+    /// Independently checked online Brenton witnesses, including joins/splits.
+    /// Source URLs and editorial differences: docs/native-migration/ONLINE-BRENTON.md.
+    /// These are offline assertions against the real corpus, never network tests.
+    @Test func onlineWitnessesRetainEditionBoundaries() async throws {
+        let bible = BibleService(resolvePath: { dataFile($0 == "lxx" ? "lxx_brenton" : $0) })
+        let witnesses = [
+            (3, 2, 1, 3, 1, "O Lord, why are they that afflict me multiplied?"),
+            (9, 2, 1, 9, 1, "I will give thanks to thee, O Lord, with my whole heart;"),
+            (9, 22, 21, 10, 1, "Why standest thou afar off, O Lord?"),
+            (50, 3, 1, 51, 1, "Have mercy upon me, O God, according to thy great mercy;"),
+            (113, 9, 9, 115, 1, "Not to us, O Lord, not to us,"),
+            (114, 1, 1, 116, 1, "I am well pleased, because the Lord will hearken"),
+            (115, 1, 1, 116, 10, "I believed, wherefore I have spoken:"),
+            (115, 4, 4, 116, 13, "I will take the cup of salvation,"),
+            (115, 6, 6, 116, 15, "Precious in the sight of the Lord"),
+            (146, 1, 1, 147, 1, "Praise ye the Lord:"),
+            (147, 1, 1, 147, 12, "Praise the Lord, O Jerusalem;")
+        ]
+        for (chapter, stored, displayed, canonicalChapter, canonicalVerse, opening) in witnesses {
+            let raw = await bible.queryChapter("PSA", chapter, textId: "lxx")
+            let rows = PsalmSuperscription.apply(raw, textId: "lxx", bookId: "PSA", chapter: chapter)
+            let row = try #require(rows.first { $0.verseNum == stored })
+            #expect(row.readerVerseNum == displayed, "LXX Psalm \(chapter):\(displayed)")
+            #expect(row.text.hasPrefix(opening), "LXX Psalm \(chapter):\(displayed) must retain the online witness's body")
+            let canonical = PsalmSuperscription.verseCounterpart("PSA", chapter: chapter, verse: stored, from: "lxx", to: "kjva")
+            #expect(canonical?.chapter == canonicalChapter && canonical?.verse == canonicalVerse)
+        }
+    }
 }
 
 
@@ -140,5 +170,27 @@ struct BrentonReaderPsalterTests {
         let mapped = PsalmSuperscription.verseCounterpart("PSA", chapter: 116, verse: 14, from: "kjva", to: "lxx")
         #expect(mapped?.chapter == 115 && mapped?.verse == 4)
         #expect(PsalmSuperscription.storedVerseNum(5, bookId: "PSA", chapter: 115, textId: "kjva") == 5)
+    }
+}
+
+@Suite("Quiet reader numbering metadata") struct ReaderNumberingMetadataTests {
+    @Test func conciseLabelsKeepSplitAndCombinedChaptersExplicit() {
+        for (book, chapter, summary) in [
+            ("PSA", 9, "KJV Psalms 9–10"), ("PSA", 50, "KJV Psalm 51"),
+            ("PSA", 113, "KJV Psalms 114–115"), ("PSA", 114, "KJV Psalm 116:1–9"),
+            ("PSA", 115, "KJV Psalm 116:10–19"), ("PSA", 146, "KJV Psalm 147:1–11"),
+            ("PSA", 147, "KJV Psalm 147:12–20"), ("PSA", 151, "Additional Psalm"),
+            ("JER", 33, "KJV Jeremiah 26"), ("JOL", 2, "KJV Joel 2:1–27"), ("JOL", 3, "KJV Joel 2:28–32"),
+            ("MAL", 3, "KJV Malachi 3–4"), ("JON", 2, "Different chapter boundary"),
+            ("ESG", 1, "About this edition")
+        ] {
+            #expect(ChapterMap.readerNumberingSummary(book, chapter, textId: "lxx") == summary)
+            #expect(ChapterMap.readerNumberingNote(book, chapter, textId: "lxx")?.isEmpty == false)
+            #expect(ChapterMap.readerNumberingSummary(book, chapter, textId: "kjva") == nil)
+        }
+        #expect(ChapterMap.readerNumberingSummary("PSA", 3, textId: "lxx") == nil)
+        #expect(ChapterMap.readerNumberingSummary("GEN", 1, textId: "lxx") == nil)
+        #expect(ChapterMap.readerNumberingSummary("JON", 3, textId: "lxx") == nil)
+        #expect(ChapterMap.readerNumberingSummary("psa", 50, textId: "LXX") == "KJV Psalm 51")
     }
 }

@@ -135,6 +135,7 @@ private final class ChapterPullScrollView: NSScrollView {
 struct ChapterTextView: NSViewRepresentable {
     var passageId = ""                       // text|book|chapter — scroll position is kept only within one passage
     var header: [String] = []                       // versification note, etc.
+    var headerDetail: String?
     var chapterTags: [(name: String, color: String?, slot: Int?)] = []
     var verses: [ReaderVerse]
     var style: ReaderStyle
@@ -158,6 +159,7 @@ struct ChapterTextView: NSViewRepresentable {
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
+    var onNumberingInfo: () -> Void = {}
     var onCitations: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
     var onVerseClick: (Int, Bool) -> Void
@@ -542,7 +544,12 @@ struct ChapterTextView: NSViewRepresentable {
 
             let headPara = NSMutableParagraphStyle(); headPara.paragraphSpacing = 10; headPara.headIndent = gutterWidth; headPara.firstLineHeadIndent = gutterWidth
             for h in p.header {
-                out.append(NSAttributedString(string: h + "\n", attributes: [.font: NSFont.preferredFont(forTextStyle: .callout), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: headPara, Self.skipKey: true]))
+                var attributes: [NSAttributedString.Key: Any] = [.font: NSFont.preferredFont(forTextStyle: .caption1), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: headPara, Self.skipKey: true]
+                if let detail = p.headerDetail {
+                    attributes[.link] = URL(string: "berean-numbering:info")!
+                    attributes[.toolTip] = detail
+                }
+                out.append(NSAttributedString(string: h + "  ⓘ\n", attributes: attributes))
             }
             if !p.chapterTags.isEmpty {
                 let line = NSMutableAttributedString()
@@ -554,16 +561,22 @@ struct ChapterTextView: NSViewRepresentable {
 
             for v in p.verses {
                 let start = out.length
-                if let title = v.title, !title.isEmpty {
-                    let prefix = p.style.showVerseNumbers ? "\t\t" : ""
-                    out.append(NSAttributedString(string: prefix + title + "\n", attributes: base.merging([.font: font(size * 0.85, italic: true), .foregroundColor: NSColor.secondaryLabelColor, Self.skipKey: true]) { $1 }))
+                let numberedTitle = v.numberBeforeTitle && v.title?.isEmpty == false && p.style.showVerseNumbers
+                let titlePara = (para.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+                titlePara.firstLineHeadIndent = numberedTitle ? 0 : gutterWidth
+                titlePara.headIndent = gutterWidth
+                if !numberedTitle { titlePara.tabStops = [] }
+                titlePara.paragraphSpacing = numberedTitle ? para.paragraphSpacing : size * 0.3
+                let titleAttributes = base.merging([.font: font(size * (v.numberBeforeTitle ? 0.92 : 0.85), italic: true), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: titlePara, Self.skipKey: true]) { $1 }
+                if let title = v.title, !title.isEmpty, !numberedTitle {
+                    out.append(NSAttributedString(string: title + "\n", attributes: titleAttributes))
                 }
                 if p.style.showVerseNumbers {
                     // Gutter: right-aligned verse number (a link → verse actions), note dot.
                     let numAttrs: [NSAttributedString.Key: Any] = [
                         .font: NSFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.62), weight: .semibold),
                         .foregroundColor: markerColor(v.verse, p),
-                        .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: para, Self.skipKey: true,
+                        .link: URL(string: "berean-verse:\(v.verse)")!, .paragraphStyle: numberedTitle ? titlePara : para, Self.skipKey: true,
                         .toolTip: "Verse \(v.readerVerseLabel) — click to select (⇧-click for a range); right-click for highlight, tag, note, copy…",
                     ]
                     // The whole gutter (both tabs and the number) is the verse-number target, so single digits are easy to hit.
@@ -573,6 +586,11 @@ struct ChapterTextView: NSViewRepresentable {
                     out.append(NSAttributedString(string: "\(v.readerVerseLabel)", attributes: numAttrs))
                     out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                     markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
+                }
+                if numberedTitle, let title = v.title {
+                    // A line break, not a new paragraph: title + body form one
+                    // verse, with no paragraph gap or second gutter to select.
+                    out.append(NSAttributedString(string: title.replacingOccurrences(of: "\n", with: " ") + "\u{2028}", attributes: titleAttributes))
                 }
                 let textStart = out.length
                 verseTextStarts[v.verse] = textStart
@@ -655,6 +673,8 @@ struct ChapterTextView: NSViewRepresentable {
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
             guard let url = link as? URL ?? (link as? String).flatMap(URL.init(string:)) else { return false }
             switch url.scheme {
+            case "berean-numbering":
+                parent.onNumberingInfo()
             case "berean-verse":
                 if let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) {
                     textView.window?.makeFirstResponder(textView)

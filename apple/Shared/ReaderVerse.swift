@@ -262,6 +262,8 @@ struct ReaderVerse: Equatable {
     var tags: [(name: String, color: String?, slot: Int?)] = []
     var displayVerse: Int?
     var displayVerseEnd: Int?
+    /// A Psalm superscription belongs to the same verse as its opening body line.
+    var numberBeforeTitle = false
     var readerVerse: Int { displayVerse ?? verse }
     var readerVerseLabel: String {
         if let end = displayVerseEnd, end > readerVerse { return "\(readerVerse)–\(end)" }
@@ -271,6 +273,7 @@ struct ReaderVerse: Equatable {
         a.verse == b.verse && a.title == b.title && a.words == b.words && a.marks == b.marks && a.tint == b.tint && a.noteCount == b.noteCount
             && a.citationCount == b.citationCount && a.citationPreview == b.citationPreview
             && a.tags.elementsEqual(b.tags, by: ==) && a.displayVerse == b.displayVerse && a.displayVerseEnd == b.displayVerseEnd
+            && a.numberBeforeTitle == b.numberBeforeTitle
     }
     /// The verse as displayed (words joined by spaces), the text copy uses.
     var displayText: String { words.map(\.text).joined(separator: " ") }
