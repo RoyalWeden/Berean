@@ -7,7 +7,7 @@ import BereanWorkspace
 struct PaneLayoutTests {
     private let viewport = PaneLayout.Size(width: 1_600, height: 1_000)
     private let minimum = PaneLayout.Size(width: 200, height: 160)
-    private var minimums: [String: PaneLayout.Size] { ["a": minimum, "b": minimum, "c": minimum] }
+    private var minimums: [String: PaneLayout.Size] { ["one": minimum, "two": minimum, "three": minimum] }
     private let live: Set<String> = ["one", "two", "three"]
 
     private func single() throws -> PaneLayout { try PaneLayout(root: .leaf(id: "a", tabID: "one")) }
@@ -75,7 +75,7 @@ struct PaneLayoutTests {
         }
         #expect(throws: PaneLayout.Failure.insufficientSpace) { try pair().applying(.resize(splitID: "ab", fraction: 0.01), liveTabIDs: live, in: viewport, minimums: minimums) }
         #expect(throws: PaneLayout.Failure.staleTab) { try pair().applying(.focus(paneID: "a"), liveTabIDs: ["one"], in: viewport, minimums: minimums) }
-        #expect(throws: PaneLayout.Failure.missingMinimum) { try pair().frames(in: viewport, minimums: ["a": minimum]) }
+        #expect(throws: PaneLayout.Failure.missingMinimum) { try pair().frames(in: viewport, minimums: ["one": minimum]) }
         #expect(throws: PaneLayout.Failure.invalidSize) { try pair().frames(in: .init(width: .infinity, height: 1_000), minimums: minimums) }
     }
 
@@ -135,5 +135,71 @@ struct PaneLayoutTests {
         let original = history.current
         #expect(throws: PaneLayout.Failure.missingPane) { try history.perform(.move(paneID: "a", splitID: "x", beside: "gone", edge: .left), liveTabIDs: live, in: viewport, minimums: minimums) }
         #expect(history.current == original && history.undoCount == 0)
+    }
+
+    @Test func selectingChangesOnlyFocusedDocumentAndReusesVisibleTabs() throws {
+        let original = try pair()
+        let selected = try original.selecting(tabID: "three", emptyPaneID: "unused", liveTabIDs: live, in: viewport, minimums: minimums)
+        #expect(selected.panes.map(\.id) == ["a", "b"])
+        #expect(selected.panes.map(\.tabID) == ["one", "three"])
+        #expect(selected.focusedPaneID == "b")
+        let focusedExisting = try selected.selecting(tabID: "one", emptyPaneID: "unused", liveTabIDs: live, in: viewport, minimums: minimums)
+        #expect(focusedExisting.root == selected.root && focusedExisting.focusedPaneID == "a")
+        #expect(throws: PaneLayout.Failure.duplicateTab) { try original.applying(.replace(paneID: "a", tabID: "two"), liveTabIDs: live, in: viewport, minimums: minimums) }
+        #expect(throws: PaneLayout.Failure.staleTab) { try selected.selecting(tabID: "gone", emptyPaneID: "unused", liveTabIDs: live, in: viewport, minimums: minimums) }
+        var largerDocument = minimums
+        largerDocument["three"] = .init(width: 1_000, height: 160)
+        #expect(throws: PaneLayout.Failure.insufficientSpace) { try original.selecting(tabID: "three", emptyPaneID: "unused", liveTabIDs: live, in: viewport, minimums: largerDocument) }
+    }
+
+    @Test func selectionCanRestoreAnEmptyLayoutWithoutAllocatingADocument() throws {
+        let empty = try PaneLayout()
+        #expect(try empty.commandTarget(windowID: "window", workspaceID: "workspace", liveTabIDs: live) == nil)
+        let opened = try empty.selecting(tabID: "one", emptyPaneID: "a", liveTabIDs: live, in: viewport, minimums: minimums)
+        #expect(opened == (try single()))
+        #expect(throws: PaneLayout.Failure.missingMinimum) { try empty.selecting(tabID: "one", emptyPaneID: "unmeasured", liveTabIDs: live, in: viewport, minimums: [:]) }
+    }
+
+    @Test func commandTargetsRejectChangedFocusDocumentAndWindowScope() throws {
+        let start = try pair()
+        let target = try #require(try start.commandTarget(windowID: "window", workspaceID: "workspace", liveTabIDs: live))
+        #expect(target.paneID == "b" && target.tabID == "two")
+        #expect(start.accepts(target, windowID: "window", workspaceID: "workspace", liveTabIDs: live))
+        #expect(!start.accepts(target, windowID: "other", workspaceID: "workspace", liveTabIDs: live))
+        #expect(!start.accepts(target, windowID: "window", workspaceID: "other", liveTabIDs: live))
+        let background = try start.applying(.focus(paneID: "a"), liveTabIDs: live, in: viewport, minimums: minimums)
+        #expect(!background.accepts(target, windowID: "window", workspaceID: "workspace", liveTabIDs: live))
+        #expect(background.accepts(target, windowID: "window", workspaceID: "workspace", liveTabIDs: live, requiringFocus: false))
+        let replaced = try start.selecting(tabID: "three", emptyPaneID: "unused", liveTabIDs: live, in: viewport, minimums: minimums)
+        #expect(!replaced.accepts(target, windowID: "window", workspaceID: "workspace", liveTabIDs: live, requiringFocus: false))
+        #expect(!start.accepts(target, windowID: "window", workspaceID: "workspace", liveTabIDs: ["one"], requiringFocus: false))
+        #expect(throws: PaneLayout.Failure.invalidIdentity) { try start.commandTarget(windowID: "", workspaceID: "workspace", liveTabIDs: live) }
+    }
+
+    @Test func replacementParticipatesInLayoutUndoWithoutChangingSiblings() throws {
+        var history = PaneLayoutHistory(try pair())
+        let original = history.current
+        try history.perform(.replace(paneID: "b", tabID: "three"), liveTabIDs: live, in: viewport, minimums: minimums)
+        let replaced = history.current
+        #expect(try history.undo(liveTabIDs: live, in: viewport, minimums: minimums))
+        #expect(history.current == original)
+        #expect(try history.redo(liveTabIDs: live, in: viewport, minimums: minimums))
+        #expect(history.current == replaced && history.current.panes.first?.tabID == "one")
+    }
+
+    @Test func compactFocusProjectsOnePaneWithoutDiscardingTheSplit() throws {
+        var history = PaneLayoutHistory(try pair())
+        let tree = history.current.root
+        let phone = PaneLayout.Size(width: 390, height: 700)
+        #expect(throws: PaneLayout.Failure.insufficientSpace) { try history.current.frames(in: phone, minimums: minimums) }
+        let frames = try history.current.frames(in: phone, minimums: minimums, presentation: .focused)
+        #expect(frames.count == 1 && frames[0].paneID == "b" && frames[0].size == phone)
+        try history.select(tabID: "one", emptyPaneID: "unused", liveTabIDs: live, in: phone, minimums: minimums, presentation: .focused)
+        #expect(history.current.root == tree && history.current.focusedPaneID == "a" && history.undoCount == 0)
+        try history.select(tabID: "three", emptyPaneID: "unused", liveTabIDs: live, in: phone, minimums: minimums, presentation: .focused)
+        #expect(history.current.panes.map(\.tabID) == ["three", "two"])
+        #expect(try history.undo(liveTabIDs: live, in: phone, minimums: minimums, presentation: .focused))
+        #expect(history.current.root == tree)
+        #expect(try history.current.frames(in: viewport, minimums: minimums).count == 2)
     }
 }

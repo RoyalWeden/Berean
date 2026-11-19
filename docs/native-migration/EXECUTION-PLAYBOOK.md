@@ -789,3 +789,7 @@ Start from PaneLayout/PaneLayoutHistory/PaneTabDragPayload tests and TAB-SPLIT-D
 ## Mac content-host checkpoint — 2026-11-19
 
 Initial explicit-tabID extraction is implemented and live checked for Scripture/Notes/Calendar/History/Tags/Lexicon/Search. Root still hosts one active tab. Next audit global-active consumers and create focused pane context, separate focused toolbar/inspector/title ownership, and coordinate note first-responder/save before permitting background hosts. Do not turn on a split just because two views render. Keep same-note/different-tab editors refused/coordinated and test all placeholder families. Full evidence and exact original-tab baseline are in HANDOFF.
+
+## Pane focus/compact API — 2026-11-19
+
+Use PaneLayoutHistory.select for sidebar/Go document selection; visible documents focus without layout undo, other documents replace only the focused leaf. Pass minimums keyed by TAB ID, recomputed from current document types. Capture commandTarget using per-window ID and live session/workspace ID; revalidate accepts before command execution and retain separate async intent revisions. Background viewport saves may explicitly require no focus but must retain the same visible pane/tab. Compact presentation uses .focused throughout model selection/history/frames and retains the full tree. No application bridge exists yet; see TAB-SPLIT-DESIGN for the next per-window coordinator/FocusedSceneValue and toolbar/editor prerequisites.

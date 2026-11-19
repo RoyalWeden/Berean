@@ -584,3 +584,7 @@ Begin all-tab splits with a process-local pure value tree and separate layout hi
 ## 2026-11-19 — Explicit content identity before split focus
 
 Extract a MacTabContentHost(tabID:) and retain only one visible host while validating existing behavior. Rendering must resolve the supplied document rather than silently using a global active tab. Keep the outgoing-inspector guard and view IDs unchanged. This alone does not make hosted commands safe in background panes: resolve focused toolbar/inspector/navigation/save ownership and same-note coordination before enabling multi-host UI.
+
+## 2026-11-19 — Document constraints and focus scope before UI routing
+
+Keep sidebar selection separate from tab creation: focus an existing visible tab, otherwise replace the focused leaf's document while preserving pane/sibling IDs. Key minimum sizes by tab identity to validate the new document, and recompute after type conversions. Compact focused presentation projects one leaf without discarding the tiled tree. Scoped command targets check current window/workspace/pane/tab/focus, but do not replace operation-specific revisions/cancellation or grant permissions. Wire a per-window coordinator before enabling multi-pane UI.

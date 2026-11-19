@@ -5,6 +5,7 @@ import Foundation
 public struct PaneLayout: Equatable, Sendable {
     public enum Axis: Equatable, Sendable { case horizontal, vertical }
     public enum Edge: CaseIterable, Equatable, Sendable { case left, right, top, bottom }
+    public enum Presentation: Sendable { case tiled, focused }
     public indirect enum Node: Equatable, Sendable {
         case leaf(id: String, tabID: String)
         case split(id: String, axis: Axis, fraction: Double, first: Node, second: Node)
@@ -28,6 +29,7 @@ public struct PaneLayout: Equatable, Sendable {
         case remove(paneID: String)
         case resize(splitID: String, fraction: Double)
         case focus(paneID: String)
+        case replace(paneID: String, tabID: String)
     }
     public enum Failure: Error, Equatable {
         case invalidIdentity, duplicateIdentity, duplicateTab, invalidFraction, tooDeep
@@ -50,7 +52,7 @@ public struct PaneLayout: Equatable, Sendable {
     /// Return a fully validated candidate. Callers may use it for a preview, then
     /// revalidate against CURRENT live tabs/geometry at drop before committing.
     public func applying(_ edit: Edit, liveTabIDs: Set<String>, in viewport: Size,
-                         minimums: [String: Size], divider: Double = 8) throws -> PaneLayout {
+                         minimums: [String: Size], divider: Double = 8, presentation: Presentation = .tiled) throws -> PaneLayout {
         try validate(liveTabIDs: liveTabIDs)
         var next = self
         switch edit {
@@ -77,10 +79,50 @@ public struct PaneLayout: Equatable, Sendable {
         case let .focus(paneID):
             guard panes.contains(where: { $0.id == paneID }) else { throw Failure.missingPane }
             next.focusedPaneID = paneID
+        case let .replace(paneID, tabID):
+            guard liveTabIDs.contains(tabID) else { throw Failure.staleTab }
+            guard panes.contains(where: { $0.id == paneID }) else { throw Failure.missingPane }
+            guard !panes.contains(where: { $0.id != paneID && $0.tabID == tabID }) else { throw Failure.duplicateTab }
+            next.root = root?.replacing(paneID, tabID: tabID)
         }
         try next.validate(liveTabIDs: liveTabIDs)
-        _ = try next.frames(in: viewport, minimums: minimums, divider: divider)
+        _ = try next.frames(in: viewport, minimums: minimums, divider: divider, presentation: presentation)
         return next
+    }
+
+    /// Sidebar/Go selection uses an existing document, never creates a tab or
+    /// changes a sibling. A tab already on screen only receives focus.
+    public func selecting(tabID: String, emptyPaneID: String, liveTabIDs: Set<String>, in viewport: Size,
+                          minimums: [String: Size], divider: Double = 8, presentation: Presentation = .tiled) throws -> PaneLayout {
+        if let visible = panes.first(where: { $0.tabID == tabID }) {
+            return try applying(.focus(paneID: visible.id), liveTabIDs: liveTabIDs, in: viewport, minimums: minimums, divider: divider, presentation: presentation)
+        }
+        if let focusedPaneID {
+            return try applying(.replace(paneID: focusedPaneID, tabID: tabID), liveTabIDs: liveTabIDs, in: viewport, minimums: minimums, divider: divider, presentation: presentation)
+        }
+        guard liveTabIDs.contains(tabID) else { throw Failure.staleTab }
+        let next = try PaneLayout(root: .leaf(id: emptyPaneID, tabID: tabID))
+        _ = try next.frames(in: viewport, minimums: minimums, divider: divider, presentation: presentation)
+        return next
+    }
+
+    /// Capture at invocation and revalidate after async work. This identifies a
+    /// document/focus scope, not a navigation revision or permission grant.
+    public func commandTarget(windowID: String, workspaceID: String, liveTabIDs: Set<String>) throws -> PaneCommandTarget? {
+        try validate(liveTabIDs: liveTabIDs)
+        guard !windowID.isEmpty, !workspaceID.isEmpty else { throw Failure.invalidIdentity }
+        guard let pane = panes.first(where: { $0.id == focusedPaneID }) else { return nil }
+        return PaneCommandTarget(windowID: windowID, workspaceID: workspaceID, paneID: pane.id, tabID: pane.tabID)
+    }
+
+    /// Background viewport updates may target their own visible document, while
+    /// keyboard/menu actions require the captured pane still to have focus.
+    public func accepts(_ target: PaneCommandTarget, windowID: String, workspaceID: String,
+                        liveTabIDs: Set<String>, requiringFocus: Bool = true) -> Bool {
+        target.windowID == windowID && target.workspaceID == workspaceID
+            && liveTabIDs.contains(target.tabID)
+            && panes.contains(where: { $0.id == target.paneID && $0.tabID == target.tabID })
+            && (!requiringFocus || focusedPaneID == target.paneID)
     }
 
     /// Prune views whose tabs were closed/archived elsewhere; never deletes tabs.
@@ -120,15 +162,17 @@ public struct PaneLayout: Equatable, Sendable {
     }
 
     /// Origin is top-left on both platforms. Fractions divide usable space after
-    /// the divider. Every leaf needs an explicit minimum; no clipped fallback.
-    public func frames(in viewport: Size, minimums: [String: Size], divider: Double = 8) throws -> [Frame] {
+    /// the divider. Minimums are keyed by TAB identity, so replacing a pane must
+    /// satisfy the new document's minimum instead of reusing the old one's size.
+    /// Focused presentation projects one leaf without changing the stored tree.
+    public func frames(in viewport: Size, minimums: [String: Size], divider: Double = 8, presentation: Presentation = .tiled) throws -> [Frame] {
         guard viewport.valid, divider.isFinite, divider >= 0 else { throw Failure.invalidSize }
         var result: [Frame] = []
         func walk(_ node: Node, x: Double, y: Double, size: Size) throws {
             guard size.valid else { throw Failure.insufficientSpace }
             switch node {
             case let .leaf(id, tabID):
-                guard let minimum = minimums[id] else { throw Failure.missingMinimum }
+                guard let minimum = minimums[tabID] else { throw Failure.missingMinimum }
                 guard minimum.valid else { throw Failure.invalidSize }
                 guard size.width >= minimum.width, size.height >= minimum.height else { throw Failure.insufficientSpace }
                 result.append(Frame(paneID: id, tabID: tabID, x: x, y: y, size: size))
@@ -144,7 +188,11 @@ public struct PaneLayout: Equatable, Sendable {
                 }
             }
         }
-        if let root { try walk(root, x: 0, y: 0, size: viewport) }
+        if presentation == .focused {
+            if let pane = panes.first(where: { $0.id == focusedPaneID }) {
+                try walk(.leaf(id: pane.id, tabID: pane.tabID), x: 0, y: 0, size: viewport)
+            }
+        } else if let root { try walk(root, x: 0, y: 0, size: viewport) }
         return result
     }
 }
@@ -185,6 +233,20 @@ private extension PaneLayout.Node {
         if id == target { found = true; return .split(id: id, axis: axis, fraction: fraction, first: first, second: second) }
         return .split(id: id, axis: axis, fraction: old, first: first.resizing(target, fraction: fraction, found: &found), second: second.resizing(target, fraction: fraction, found: &found))
     }
+    func replacing(_ target: String, tabID: String) -> Self {
+        switch self {
+        case let .leaf(id, old): return .leaf(id: id, tabID: id == target ? tabID : old)
+        case let .split(id, axis, fraction, first, second):
+            return .split(id: id, axis: axis, fraction: fraction, first: first.replacing(target, tabID: tabID), second: second.replacing(target, tabID: tabID))
+        }
+    }
+}
+
+public struct PaneCommandTarget: Equatable, Sendable {
+    public let windowID: String
+    public let workspaceID: String
+    public let paneID: String
+    public let tabID: String
 }
 
 /// Separate from document UndoManager. A rejected edit/restore leaves all stacks
@@ -196,23 +258,31 @@ public struct PaneLayoutHistory: Sendable {
     private var past: [PaneLayout] = [], future: [PaneLayout] = []
     private let capacity: Int
     public init(_ layout: PaneLayout, capacity: Int = 100) { current = layout; self.capacity = max(1, min(capacity, 1_000)) }
-    public mutating func perform(_ edit: PaneLayout.Edit, liveTabIDs: Set<String>, in viewport: PaneLayout.Size, minimums: [String: PaneLayout.Size], divider: Double = 8) throws {
-        let next = try current.applying(edit, liveTabIDs: liveTabIDs, in: viewport, minimums: minimums, divider: divider)
+    public mutating func perform(_ edit: PaneLayout.Edit, liveTabIDs: Set<String>, in viewport: PaneLayout.Size, minimums: [String: PaneLayout.Size], divider: Double = 8, presentation: PaneLayout.Presentation = .tiled) throws {
+        let next = try current.applying(edit, liveTabIDs: liveTabIDs, in: viewport, minimums: minimums, divider: divider, presentation: presentation)
+        commit(next, recordingUndo: next.root != current.root)
+    }
+    public mutating func select(tabID: String, emptyPaneID: String, liveTabIDs: Set<String>, in viewport: PaneLayout.Size,
+                                minimums: [String: PaneLayout.Size], divider: Double = 8, presentation: PaneLayout.Presentation = .tiled) throws {
+        let next = try current.selecting(tabID: tabID, emptyPaneID: emptyPaneID, liveTabIDs: liveTabIDs, in: viewport, minimums: minimums, divider: divider, presentation: presentation)
+        commit(next, recordingUndo: next.root != current.root)
+    }
+    private mutating func commit(_ next: PaneLayout, recordingUndo: Bool) {
         guard next != current else { return }
-        if case .focus = edit { current = next; return }
+        guard recordingUndo else { current = next; return }
         past.append(current); if past.count > capacity { past.removeFirst() }
         current = next; future.removeAll(); refreshCounts()
     }
-    @discardableResult public mutating func undo(liveTabIDs: Set<String>, in viewport: PaneLayout.Size, minimums: [String: PaneLayout.Size], divider: Double = 8) throws -> Bool {
+    @discardableResult public mutating func undo(liveTabIDs: Set<String>, in viewport: PaneLayout.Size, minimums: [String: PaneLayout.Size], divider: Double = 8, presentation: PaneLayout.Presentation = .tiled) throws -> Bool {
         guard let previous = past.last else { return false }
         try previous.validate(liveTabIDs: liveTabIDs)
-        _ = try previous.frames(in: viewport, minimums: minimums, divider: divider)
+        _ = try previous.frames(in: viewport, minimums: minimums, divider: divider, presentation: presentation)
         future.append(current); current = past.removeLast(); refreshCounts(); return true
     }
-    @discardableResult public mutating func redo(liveTabIDs: Set<String>, in viewport: PaneLayout.Size, minimums: [String: PaneLayout.Size], divider: Double = 8) throws -> Bool {
+    @discardableResult public mutating func redo(liveTabIDs: Set<String>, in viewport: PaneLayout.Size, minimums: [String: PaneLayout.Size], divider: Double = 8, presentation: PaneLayout.Presentation = .tiled) throws -> Bool {
         guard let next = future.last else { return false }
         try next.validate(liveTabIDs: liveTabIDs)
-        _ = try next.frames(in: viewport, minimums: minimums, divider: divider)
+        _ = try next.frames(in: viewport, minimums: minimums, divider: divider, presentation: presentation)
         past.append(current); current = future.removeLast(); refreshCounts(); return true
     }
     private mutating func refreshCounts() { undoCount = past.count; redoCount = future.count }
