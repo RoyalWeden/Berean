@@ -109,11 +109,27 @@ private struct CompareSelectionBounds: PreferenceKey {
     }
 }
 
-private struct CompareSelectedPassage: Equatable {
+struct CompareSelectedPassage: Equatable {
     let column: Int
     let destination: String
     let edition: ChapterEdition
     var scope: String { "\(column)|\(destination)|\(edition.key)" }
+}
+
+/// One local snapshot per open tab. Match the incoming reader intent too, so
+/// an explicit new verse command cannot restore an unrelated old selection.
+private struct CompareReaderSelectionIntent: Equatable {
+    let edition: ChapterEdition
+    let verse: Int?
+    let selection: Set<Int>
+}
+
+struct CompareSelectionSnapshot {
+    let passage: String
+    let readerVerse: Int?
+    let readerSelection: Set<Int>
+    let target: CompareSelectedPassage?
+    let selection: ReaderVerseSelection
 }
 
 struct CompareView: View {
@@ -289,6 +305,21 @@ struct CompareView: View {
                         #endif
                 }
             }
+        }
+        .onChange(of: CompareReaderSelectionIntent(edition: ChapterEdition(st), verse: st.verse, selection: selectedVerses(in: st))) { _, _ in
+            guard loadedPassage == passage else { return }
+            compareSelection = ReaderVerseSelection()
+            selectedPassage = nil
+            seedComparisonSelection(st, columns: cols)
+            rememberComparisonSelection()
+        }
+        .onChange(of: app.scriptureJumpRequest?.revision) {
+            guard let jump = app.scriptureJumpRequest, jump.tabID == tabId,
+                  jump.chapter == ChapterEdition(st), loadedPassage == passage else { return }
+            compareSelection = ReaderVerseSelection()
+            selectedPassage = nil
+            seedComparisonSelection(st, columns: cols)
+            rememberComparisonSelection()
         }
         .onChange(of: passage) {
             compareSelection = ReaderVerseSelection()
@@ -501,7 +532,10 @@ struct CompareView: View {
     private func selectedVerses(in state: BibleState) -> Set<Int> {
         var reader = state
         reader.compareMode = false
-        return Set(app.readerSelectedVerses(in: tabId, state: reader))
+        let selected = Set(app.readerSelectedVerses(in: tabId, state: reader))
+        // Explicit location commands may retain an older empty native array.
+        // Clear Selection clears verse itself, so this cannot resurrect it.
+        return selected.isEmpty ? state.verse.map { [$0] } ?? [] : selected
     }
 
     private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
@@ -662,6 +696,10 @@ struct CompareView: View {
                     comparisonGrid(state, columns)
                 }
             }
+            .onChange(of: app.scriptureJumpRequest?.revision) {
+                guard isCurrentCompareJump(state), let verse = state.verse else { return }
+                proxy.scrollTo(verse, anchor: .top)
+            }
             .onChange(of: state.verse, initial: true) { previous, current in
                 if let restored = pendingAlignedVerse {
                     pendingAlignedVerse = nil
@@ -735,6 +773,12 @@ struct CompareView: View {
                         }
                         .contentMargins(.bottom, comparisonActionClearance, for: .scrollContent)
                         .scrollPosition(id: independentPosition(for: column, passage: passage), anchor: .top)
+                        .onChange(of: app.scriptureJumpRequest?.revision) {
+                            guard isCurrentCompareJump(state), column.follows(state), let verse = state.verse,
+                                  let mapped = mappedVerse(verse, in: column, source: state),
+                                  let target = correspondingVerse(mapped, in: column) else { return }
+                            proxy.scrollTo(target, anchor: .top)
+                        }
                         .onScrollPhaseChange { _, phase in
                             switch phase {
                             case .interacting:
@@ -852,6 +896,10 @@ struct CompareView: View {
                 }
             }) {
                 independentComparison(columns, passage: passage)
+            }
+            .onChange(of: app.scriptureJumpRequest?.revision) {
+                guard isCurrentCompareJump(state), let target = stackedSelectionTarget(in: columns, state: state) else { return }
+                proxy.scrollTo(target, anchor: .top)
             }
             .onScrollPhaseChange { old, new in
                 guard old != .idle, new == .idle, app.activeTab?.id == tabId, loadedPassage == passage else { return }
@@ -1387,6 +1435,7 @@ struct CompareView: View {
         #if os(macOS)
         selectionHasKeyboardFocus = true
         #endif
+        rememberComparisonSelection()
     }
 
     private var comparisonActionClearance: CGFloat {
@@ -1455,9 +1504,25 @@ struct CompareView: View {
             reader.verse = nil
             reader.endVerse = nil
             tab.state = reader.merged(into: tab.state)
-            tab.state["nativeSelectedVerses"] = .array([])
+            tab.state.remove("nativeSelectedVerses")
             tab.state.remove("endChapter")
         }
+        rememberComparisonSelection()
+    }
+
+    private func isCurrentCompareJump(_ state: BibleState) -> Bool {
+        guard let jump = app.scriptureJumpRequest else { return false }
+        return jump.tabID == tabId && jump.chapter == ChapterEdition(state)
+            && loadedPassage == passageKey(state, columns)
+    }
+
+    private func rememberComparisonSelection() {
+        let source = state
+        let passage = passageKey(source, columns)
+        guard source.compareMode, loadedPassage == passage else { return }
+        app.compareSelections[tabId] = CompareSelectionSnapshot(passage: passage, readerVerse: source.verse,
+                                                               readerSelection: selectedVerses(in: source),
+                                                               target: selectedPassage, selection: compareSelection)
     }
 
     private func comparisonActionRow(compact: Bool) -> some View {
@@ -1673,7 +1738,31 @@ struct CompareView: View {
         independentRows = independent
         eligibleComparisonEditions = Set(eligible)
         loadedPassage = passage
-        if selectedPassage == nil, let column = cols.first(where: { $0.text == st.translation && $0.book == st.bookId && $0.chapter == st.chapter }) {
+        // The same chapter can receive a new verse command during its fetch.
+        // Read the current selection intent instead of the task's old capture.
+        let arrival = state
+        guard passageKey(arrival, columns) == passage else { return }
+        var restoredSelection = false
+        if let saved = app.compareSelections[tabId], saved.passage == passage,
+           saved.readerVerse == arrival.verse, saved.readerSelection == selectedVerses(in: arrival) {
+            if let target = saved.target,
+               let column = cols.first(where: { $0.id == target.column && $0.historyKey == target.destination }) {
+                let available = selectionRows(in: column, chapter: target.edition.chapter)
+                selectedPassage = target
+                compareSelection.restore(saved.selection, scope: target.scope, ordered: available.map(\.verseNum))
+                restoredSelection = true
+            } else if saved.target == nil {
+                compareSelection = ReaderVerseSelection()
+                selectedPassage = nil
+                restoredSelection = true
+            }
+        }
+        if !restoredSelection, selectedPassage == nil { seedComparisonSelection(arrival, columns: cols) }
+        rememberComparisonSelection()
+    }
+
+    private func seedComparisonSelection(_ st: BibleState, columns cols: [CompareColumn]) {
+        if let column = cols.first(where: { $0.text == st.translation && $0.book == st.bookId && $0.chapter == st.chapter }) {
             let available = selectionRows(in: column, chapter: st.chapter)
             let selected = selectedVerses(in: st).intersection(available.map(\.verseNum))
             if !selected.isEmpty {

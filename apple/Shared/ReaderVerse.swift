@@ -137,6 +137,11 @@ struct ReaderVerseSelection {
         anchor = self.focus
     }
 
+    mutating func restore(_ saved: Self, scope: String, ordered: [Int]) {
+        replace(scope: scope, verses: saved.verses, focus: saved.focus, ordered: ordered)
+        anchor = saved.anchor.flatMap { ordered.contains($0) ? $0 : nil } ?? focus
+    }
+
     mutating func toggle(_ verse: Int, scope: String, ordered: [Int], extend: Bool) {
         guard let target = ordered.firstIndex(of: verse) else { return }
         if self.scope != scope { self = Self(); self.scope = scope }

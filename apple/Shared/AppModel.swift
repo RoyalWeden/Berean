@@ -659,6 +659,7 @@ final class AppModel {
     func close(_ tabId: String) {
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
+        compareSelections.removeValue(forKey: tabId)
         studyVerseFocus.removeValue(forKey: tabId)
         dailyTimelinePositions.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
@@ -869,9 +870,11 @@ final class AppModel {
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
     @ObservationIgnored var compareScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var compareColumnScrollVerses: [String: [String: Int]] = [:]
+    @ObservationIgnored var compareSelections: [String: CompareSelectionSnapshot] = [:]
 
     /// Explicit verse commands jump to the requested selection. Ordinary Compare visits restore scrolling.
     func prepareCompareJump(in tabId: String, edition: ChapterEdition) {
+        compareSelections.removeValue(forKey: tabId)
         let prefix = edition.key + "|"
         compareScrollOffsets[tabId] = compareScrollOffsets[tabId]?.filter {
             !$0.key.hasPrefix("aligned|" + prefix) && !$0.key.hasPrefix("stacked|" + prefix)
@@ -1625,7 +1628,7 @@ final class AppModel {
             }
             openTab(.bible, in: .scripture, title: title, state: state)
         }
-        if verse != nil, let tab = activeTab, tab.tabType == .bible, passage.isShown(in: tab) {
+        if verse != nil, let tab = activeTab, tab.tabType == .bible, passage.isShown(in: tab, allowCompare: true) {
             requestScriptureJump(in: tab.id, to: ChapterEdition(st))
         }
     }

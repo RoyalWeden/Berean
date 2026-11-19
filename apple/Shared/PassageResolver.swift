@@ -69,10 +69,14 @@ struct ResolvedPassage: Equatable {
         return result
     }
 
-    func isShown(in tab: Tab) -> Bool {
+    /// Ordinary Go reuse excludes Compare. An explicit verse-jump request can
+    /// match its anchor location without changing those tab-reuse semantics.
+    func isShown(in tab: Tab) -> Bool { isShown(in: tab, allowCompare: false) }
+
+    func isShown(in tab: Tab, allowCompare: Bool) -> Bool {
         guard tab.tabType == .bible, tab.state["endChapter"]?.numberValue == nil else { return false }
         let state = BibleState(tab.state)
-        return !state.compareMode && state.translation == textId && state.bookId == bookId
+        return (!state.compareMode || allowCompare) && state.translation == textId && state.bookId == bookId
             && state.chapter == chapter && state.verse == verse && state.endVerse == endVerse
             && (tab.state["nativeSelectedVerses"] ?? .null) == savedSelection
     }
