@@ -381,3 +381,7 @@ Added focused-document replacement, visible-tab reuse, scoped/stale command-targ
 ## 2026-11-19 — Reader annotation workflow
 
 Calmer reader annotations implemented and live-checked on Mac/iPhone: neutral verse study dots, chapter-tag count, Tags/Chapter Tags/Notes sections; Compare tag rows removed. Both builds pass; no package changes since253-test checkpoint. Personal-note citation markers and accessibility/width matrices remain open. See READER-ANNOTATION-DESIGN.md and HANDOFF.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+Unified personal references now implemented: ordinary-note verse index, one margin marker, Related Passages→My Notes scoped routing, chapter study entry and Compare reference-only markers.254tests and both builds pass; Mac/iPhone UI routes verified. Current shared Mac QA is used concurrently; preserve newer note/tab changes and isolate subsequent tests. New user queue: FOLLOWUP-2026-11-19.md.

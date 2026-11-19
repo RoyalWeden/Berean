@@ -1857,10 +1857,12 @@ struct VerseNotesView: View {
     var selectedVerses: Set<Int> = []
     var allowsChapterScope = false
     var editInSheet: ((String) -> Void)?
+    var showNoteCrossReferences: ((Int?, Set<Int>) -> Void)?
     @State private var notes: [Note] = []
     @State private var loadedScope: String?
     @State private var chapterScope: String?
     @State private var allNotesScope = false
+    @State private var hasNoteCrossReferences = false
     @State private var studyQuery = ""
     @AppStorage("studyNotesSort") private var studySort = StudySort.verse
 
@@ -1953,6 +1955,19 @@ struct VerseNotesView: View {
                 if allowsChapterScope, !allNotesScope {
                     StudyPassageTags(bookId: bookId, chapter: chapter, textId: textId, verse: scopedVerse, selectedVerses: scopedSelection)
                 }
+                if !allNotesScope, loadedScope == loadKey, hasNoteCrossReferences, let showNoteCrossReferences {
+                    Section("From My Notes") {
+                        Button {
+                            showNoteCrossReferences(scopedVerse, scopedSelection)
+                        } label: {
+                            Label("Related Passages", systemImage: "arrow.triangle.branch")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .accessibilityHint("Show verse connections and mentions from your notes")
+                    }
+                }
                 Section {
                     if allNotesScope, loadedScope == loadKey, notes.count > 500 {
                         Text("Showing the 500 most recently edited notes")
@@ -2003,6 +2018,7 @@ struct VerseNotesView: View {
         }
         .onChange(of: scopeKey) { chapterScope = nil }
         .task(id: loadKey) {
+            hasNoteCrossReferences = false
             if allNotesScope {
                 notes = (try? app.notes?.all(limit: 501)) ?? []
             } else if !scopedSelection.isEmpty {
@@ -2011,6 +2027,11 @@ struct VerseNotesView: View {
                 notes = (try? app.notes?.coveringVerse(bookId, chapter, verse, textId: textId)) ?? []
             } else {
                 notes = (try? app.notes?.attachedNotes(bookId, chapter, textId: textId)) ?? []
+            }
+            if !allNotesScope, showNoteCrossReferences != nil {
+                let selected = scopedSelection.isEmpty ? Set(scopedVerse.map { [$0] } ?? []) : scopedSelection
+                let references = try? app.notes?.crossReferences(bookId: bookId, chapter: chapter, textId: textId, selected: selected)
+                hasNoteCrossReferences = references?.byVerse.values.contains { !$0.isEmpty } == true || references?.indirect.isEmpty == false
             }
             loadedScope = loadKey
         }

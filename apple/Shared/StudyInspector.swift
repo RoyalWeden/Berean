@@ -52,6 +52,7 @@ struct StudyInspector: View {
     @Environment(AppModel.self) private var app
     let tabId: String
     var performCrossReferenceDestination: ((@escaping () -> Void) -> Void)?
+    @AppStorage("crossrefSource") private var crossRefSource = "tske"
 
     #if os(macOS)
     @State private var dragToken = UUID()
@@ -217,7 +218,13 @@ struct StudyInspector: View {
         if panel == .notes {
             VerseNotesView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
                            textId: st.translation, selectedVerses: Set(app.studySelectedVerses(in: tabId, state: st)),
-                           allowsChapterScope: true)
+                           allowsChapterScope: true,
+                           showNoteCrossReferences: { verse, selected in
+                               guard app.findTab(tabId) != nil else { return }
+                               app.focusStudyVerse(verse, in: tabId, selectedVerses: selected.sorted())
+                               crossRefSource = "notes"
+                               focusTool(.crossrefs)
+                           })
         } else if panel == .crossrefs {
             CrossRefsView(bookId: st.bookId, chapter: st.chapter, verse: app.studyVerse(in: tabId, state: st),
                           textId: st.translation, selectedVerses: app.studySelectedVerses(in: tabId, state: st),

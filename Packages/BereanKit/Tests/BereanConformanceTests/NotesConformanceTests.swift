@@ -117,10 +117,38 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(links.contains { $0.bookId == "ROM" && $0.chapter == 8 && $0.verse == 28 && $0.note.id == "reverse" })
         #expect(links.contains { $0.bookId == "ROM" && $0.chapter == 5 && $0.verse == 8 })
         #expect(scoped.indirect.map(\.id) == ["general"])
+        #expect(scoped.indirectByVerse.keys.sorted() == [17])
+        #expect(scoped.indirectByVerse[17]?.map(\.id) == ["general"])
 
         let chapter = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva")
         #expect(Set(chapter.indirect.map(\.id)) == ["general", "other"])
+        #expect(chapter.indirectByVerse.keys.sorted() == [17, 18])
+        #expect(chapter.indirectByVerse[18]?.map(\.id) == ["other"])
         #expect(chapter.byVerse[16]?.contains { $0.bookId == "JHN" && $0.verse == 16 && $0.endVerse == nil } == false)
+    }
+
+    @Test func ordinaryNoteIndicatorsRespectRangesChapterScopeAndTrash() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        _ = try notes.create(.init(id: "range", title: "Study", content: "John 3:16–18; John 3:17."))
+        _ = try notes.create(.init(id: "chapter", title: "Chapter overview", content: "John 3"))
+        _ = try notes.create(.init(id: "title-only", title: "John 3", content: "A title is not a body citation"))
+        _ = try notes.create(.init(id: "attached", type: "verse", content: "John 3:17", verseRef: "ROM.8.1"))
+        _ = try notes.create(.init(id: "deleted", content: "John 3:17"))
+        try notes.delete("deleted")
+
+        let whole = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva")
+        #expect(whole.indirectByVerse.keys.sorted() == [0, 16, 17, 18])
+        #expect(whole.indirectByVerse[0]?.map(\.id) == ["chapter"])
+        #expect(whole.indirectByVerse[17]?.map(\.id) == ["range"])
+        #expect(whole.byVerse[17]?.contains { $0.note.id == "attached" } == true)
+
+        let selected = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17, 19])
+        #expect(selected.indirectByVerse.keys.sorted() == [17, 19])
+        #expect(Set(selected.indirectByVerse[17]?.map(\.id) ?? []) == ["chapter", "range"])
+        #expect(selected.indirectByVerse[19]?.map(\.id) == ["chapter"])
+        #expect(Set(selected.indirect.map(\.id)) == ["chapter", "range"])
     }
 
     @Test func wholeChapterCitationsUseAliasesAndExcludeVerseOnlyAndTrashedNotes() throws {

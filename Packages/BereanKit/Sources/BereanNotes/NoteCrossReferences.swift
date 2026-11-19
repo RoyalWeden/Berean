@@ -19,6 +19,10 @@ public struct NoteCrossReferences: Sendable {
     /// Verse zero is the chapter itself.
     public let byVerse: [Int: [Link]]
     public let indirect: [Note]
+    /// Ordinary notes mentioning each verse; zero is a whole-chapter mention.
+    /// Preserve `indirect` for the legacy source while exposing exact indicator
+    /// locations without repeating the search once per rendered verse.
+    public let indirectByVerse: [Int: [Note]]
 }
 
 extension NotesService {
@@ -56,6 +60,7 @@ extension NotesService {
         var links: [Int: [NoteCrossReferences.Link]] = [:]
         var seen: [Int: Set<String>] = [:]
         var indirect: [Note] = []
+        var indirectByVerse: [Int: [Note]] = [:]
 
         func numbers(_ first: Int?, _ last: Int?) -> [Int] {
             guard let first else { return selected.isEmpty ? [0] : [] }
@@ -101,6 +106,7 @@ extension NotesService {
             guard !matching.isEmpty else { continue }
             guard let attachment = note.verseRef else {
                 indirect.append(note)
+                for verse in matching.sorted() { indirectByVerse[verse, default: []].append(note) }
                 continue
             }
             let sources = attachment.split(separator: ",").compactMap { Reference.parseNoteAttachment(String($0)) }
@@ -113,6 +119,6 @@ extension NotesService {
             }
         }
 
-        return .init(byVerse: links, indirect: indirect)
+        return .init(byVerse: links, indirect: indirect, indirectByVerse: indirectByVerse)
     }
 }

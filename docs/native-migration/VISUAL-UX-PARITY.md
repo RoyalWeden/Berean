@@ -157,3 +157,7 @@ Added focused-document replacement, visible-tab reuse, scoped/stale command-targ
 ## 2026-11-19 — Reader annotation workflow
 
 Reading-first annotation pass: quiet neutral margin dots for personal notes/tags, neutral chapter-tag summary, grouped contextual tag/note details, no per-verse Compare tag rows. Mac screenshot/AX and iPhone real touch verified; copy and range selection retained. Still audit marker hit areas/accessibility, hidden numbers, large type, long labels, dark/contrast and personal note citations. See READER-ANNOTATION-DESIGN.md.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+Trailing personal citation arrows removed; quiet personal study dot/Chapter study entry now leads to clearly separated attached Notes and Related Passages. Ordinary-note list uses plain Notes Mentioning This Passage heading. Real Mac/iPhone route checks pass. Latest requested Notes/filter/hover/editor/share/history/RTL/highlight polish is queued in FOLLOWUP-2026-11-19.md; not yet claimed complete.

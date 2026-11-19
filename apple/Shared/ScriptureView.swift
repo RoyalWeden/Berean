@@ -116,6 +116,7 @@ struct ScriptureChapterPresentation {
     let noteCounts: [Int: Int]
     let chapterCitations: [Note]
     let verseCitations: [Int: [NoteCrossReferences.Link]]
+    let indirectMentions: [Int: [Note]]
     let verseTags: [Int: [TagLite]]
     let chapterTags: [TagLite]
     let highlights: [Int: [Highlight]]
@@ -188,16 +189,19 @@ extension AppModel {
         let noteCounts: [Int: Int]
         let chapterCitations: [Note]
         let verseCitations: [Int: [NoteCrossReferences.Link]]
+        let indirectMentions: [Int: [Note]]
         if let cached, cached.notesRevision == notesRevision {
             noteCounts = cached.noteCounts
             chapterCitations = cached.chapterCitations
             verseCitations = cached.verseCitations
+            indirectMentions = cached.indirectMentions
         } else {
             noteCounts = (try? notes?.coveringVerseCounts(edition.book, edition.chapter,
                 verses: Set(rows.map(\.verseNum)), textId: edition.text)) ?? [:]
             chapterCitations = (try? notes?.notesCitingChapter(edition.book, edition.chapter, textId: edition.text)) ?? []
-            verseCitations = (try? notes?.crossReferences(bookId: edition.book, chapter: edition.chapter,
-                textId: edition.text))?.byVerse ?? [:]
+            let references = try? notes?.crossReferences(bookId: edition.book, chapter: edition.chapter, textId: edition.text)
+            verseCitations = references?.byVerse ?? [:]
+            indirectMentions = references?.indirectByVerse ?? [:]
         }
         let chapterVerseTags: [Int: [TagLite]]
         let chapterTags: [TagLite]
@@ -217,7 +221,7 @@ extension AppModel {
         }
         let presentation = ScriptureChapterPresentation(rows: rows,
             notesRevision: notesRevision, tagsRevision: tagsRevision, highlightsRevision: highlightsRevision,
-            noteCounts: noteCounts, chapterCitations: chapterCitations, verseCitations: verseCitations,
+            noteCounts: noteCounts, chapterCitations: chapterCitations, verseCitations: verseCitations, indirectMentions: indirectMentions,
             verseTags: chapterVerseTags, chapterTags: chapterTags, highlights: chapterHighlights)
         readerPresentations[edition] = presentation
         return presentation
@@ -541,8 +545,11 @@ struct ScriptureView: View {
         nonmutating set { storedAnchor = newValue }
     }
     private var noteCounts: [Int: Int] { presentation?.noteCounts ?? [:] }
-    private var chapterCitations: (key: String, notes: [Note])? {
-        presentation.map { (chapterKey(state), $0.chapterCitations) }
+    private var chapterStudyLabel: String? {
+        guard let presentation else { return nil }
+        if !presentation.chapterCitations.isEmpty || presentation.verseCitations[0]?.isEmpty == false
+            || presentation.indirectMentions[0]?.isEmpty == false { return "Chapter study" }
+        return presentation.chapterTags.isEmpty ? nil : "Chapter tags · \(presentation.chapterTags.count)"
     }
     private var verseCitations: (key: String, links: [Int: [NoteCrossReferences.Link]])? {
         presentation.map { (chapterKey(state), $0.verseCitations) }
@@ -733,10 +740,6 @@ struct ScriptureView: View {
         let actionAlignment: Alignment = .bottom
         #endif
         VStack(spacing: 0) {
-            if loadedChapter == chapter, !verses.isEmpty,
-               let chapterCitations, chapterCitations.key == chapter, !chapterCitations.notes.isEmpty {
-                chapterCitationMenu(chapterCitations.notes)
-            }
             Group {
                 if loadedChapter != chapter {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -847,25 +850,6 @@ struct ScriptureView: View {
                 applyPassageSelection(destination, restoringReader: !isVerseJump)
             }
         }
-    }
-
-    private func chapterCitationMenu(_ notes: [Note]) -> some View {
-        Menu {
-            ForEach(notes) { note in
-                Button(note.title.isEmpty ? "Untitled" : note.title, systemImage: "note.text") {
-                    app.openNote(note.id, fromList: tabId)
-                }
-            }
-        } label: {
-            Label(notes.count == 1 ? "1 note cites this chapter" : "\(notes.count) notes cite this chapter",
-                  systemImage: "link")
-                .font(.caption)
-        }
-        .menuStyle(.borderlessButton)
-        .clickableCursor()
-        .fixedSize()
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
     }
 
     private func unavailablePassage(_ st: BibleState) -> some View {
@@ -1376,6 +1360,7 @@ struct ScriptureView: View {
             header: ChapterMap.readerNumberingSummary(st.bookId, st.chapter, textId: st.translation),
             headerDetail: ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation),
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) },
+            chapterStudyLabel: chapterStudyLabel,
             verses: rv,
             style: style,
             baseFontSize: baseSize,
@@ -2167,6 +2152,7 @@ extension ScriptureView {
                 }.joined(separator: "\n")
                 #endif
             }
+            rendered.citationCount += presentation?.indirectMentions[v.verseNum]?.count ?? 0
             return rendered
         }
     }
@@ -2331,6 +2317,7 @@ extension ScriptureView {
             header: header,
             headerDetail: ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation),
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
+            chapterStudyLabel: chapterStudyLabel,
             style: readerStyle(st),
             selectedVerses: selection, selectionFocus: selectedVerse, scrollTarget: scrollTarget,
             actionClearance: actionClearance,

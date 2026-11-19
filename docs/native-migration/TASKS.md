@@ -420,3 +420,7 @@ Added focused-document replacement, visible-tab reuse, scoped/stale command-targ
 ## 2026-11-19 — Reader annotation workflow
 
 Implemented first reading-first annotation pass (neutral notes/tags dots and contextual details). Next: unify personal note citations without hiding distinct destinations; verify hidden numbers, Dynamic Type, VoiceOver, long/many tags, mixed/range remove, dark/contrast and all Compare modes. General tab split command/window bridge remains unfinished; keep scope ephemeral until persistence gate.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+Personal-reference unified entry implemented, with ordinary-note marker coverage and explicit related-passages destination. Next: full FOLLOWUP-2026-11-19.md queue, prioritizing Notes panel/search/filter simplification, visible hover controls, isolated Mac QA and release-scroll investigation. Physical/width/RTL/large-type/all-annotation combinations and general splits remain open.

@@ -592,3 +592,7 @@ Keep sidebar selection separate from tab creation: focus an existing visible tab
 ## 2026-11-19 — Reader annotation workflow
 
 User accepts workflow changes to protect reading. Tag labels are organizational metadata shown in the study tool, not inline commentary. One neutral personal-study marker represents attached notes/tags; built-in cross refs stay contextual rather than marking nearly every verse. Personal-note citations remain distinct until a unified destination chooser preserves their meaning and direct access. No storage migration.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+One consistent personal-study entry replaces separate notes/tag/citation decorations. Attached Notes and related passages remain explicit separate destinations. Ordinary-note body references earn verse indicators; whole-chapter mentions do not mark every verse. Reference grammar/candidate limits/edition behavior unchanged. Preserve concurrent QA user edits; subsequent Mac UI tests need isolated library and preferences.

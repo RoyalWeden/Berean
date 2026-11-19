@@ -199,6 +199,7 @@ struct CompareView: View {
 
     @State private var chapterTags: [TagChapter: [Int: [TagLite]]] = [:]
     @State private var chapterNoteCounts: [EditionChapter: [Int: Int]] = [:]
+    @State private var chapterPersonalLinks: [EditionChapter: Set<Int>] = [:]
     @State private var chapterHighlights: [EditionChapter: [Int: [Highlight]]] = [:]
     @State private var loadedPassage: String?
     @State private var eligibleComparisonEditions = Set<String>()
@@ -399,9 +400,16 @@ struct CompareView: View {
             })
         }
         .task(id: "\(loadedPassage ?? "")|\(app.notesRevision)") {
-            chapterNoteCounts = Dictionary(uniqueKeysWithValues: displayedVersesByChapter(cols).map { key, verses in
+            let displayed = displayedVersesByChapter(cols)
+            chapterNoteCounts = Dictionary(uniqueKeysWithValues: displayed.map { key, verses in
                 let counts = (try? app.notes?.coveringVerseCounts(key.book, key.chapter, verses: verses, textId: key.text)) ?? [:]
                 return (key, counts)
+            })
+            chapterPersonalLinks = Dictionary(uniqueKeysWithValues: displayed.keys.map { key in
+                let references = try? app.notes?.crossReferences(bookId: key.book, chapter: key.chapter, textId: key.text)
+                let linked = references?.byVerse.filter { !$0.value.isEmpty }.keys.map { $0 } ?? []
+                let mentioned = references?.indirectByVerse.keys.map { $0 } ?? []
+                return (key, Set(linked + mentioned))
             })
         }
         .task(id: "\(loadedPassage ?? "")|\(app.tagsRevision)") {
@@ -1356,11 +1364,12 @@ struct CompareView: View {
     @ViewBuilder private func comparisonVerseControls(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
         let count = chapterNoteCounts[EditionChapter(row, text: column.text)]?[row.verseNum] ?? 0
         let tags = chapterTags[TagChapter(row)]?[row.verseNum] ?? []
-        if count > 0 || !tags.isEmpty {
+        let hasLinks = chapterPersonalLinks[EditionChapter(row, text: column.text)]?.contains(row.verseNum) == true
+        if count > 0 || !tags.isEmpty || hasLinks {
             Button {
                 openReader(row, in: column, inspector: "notes")
             } label: {
-                Label("Notes and Tags", systemImage: "circle.fill")
+                Label("Study Details", systemImage: "circle.fill")
                     .labelStyle(.iconOnly)
                     .font(.system(size: 5))
                     .foregroundStyle(.secondary)
@@ -1368,8 +1377,8 @@ struct CompareView: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.interactivePlain)
-            .accessibilityLabel("Notes and tags for \(comparisonVerseReference(row, column: column))")
-            .help("View notes and tags")
+            .accessibilityLabel("Study details for \(comparisonVerseReference(row, column: column))")
+            .help("View notes, tags and related passages")
         }
         #if os(iOS)
         VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {
@@ -1840,6 +1849,7 @@ struct CompareView: View {
         guard !Task.isCancelled else { return }
         chapterHighlights = [:]
         chapterNoteCounts = [:]
+        chapterPersonalLinks = [:]
         chapterTags = [:]
         rows = out
         independentRows = independent

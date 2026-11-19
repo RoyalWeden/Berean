@@ -1262,3 +1262,7 @@ Added focused-document replacement, visible-tab reuse, scoped/stale command-targ
 ## 2026-11-19 — Reader annotation workflow
 
 Intentional visual departure from Electron: tags/note counts moved outside running Scripture into contextual study details. Tag search/add/member-removal implementations remain accessible there, and Compare opens the exact edition’s notes. Built-in Cross Refs unchanged; personal citation ↗ marker still needs calm unified treatment. Rendered acceptance and unverified cases in READER-ANNOTATION-DESIGN.md; no native-feature-complete claim.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+Native My Notes parity gains ordinary-note per-verse indicator index without altering the legacy indirect list/parser; preserves outgoing linked passages and range/chapter scope through contextual study route. Full auto verse/Strong’s settings/tracking audit still required by latest steering. All254tests/both builds pass; see reference-design evidence and FOLLOWUP-2026-11-19.md.

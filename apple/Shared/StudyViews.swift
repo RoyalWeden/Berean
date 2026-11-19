@@ -1228,7 +1228,7 @@ struct CrossRefsView: View {
                             groupedReferenceRows(groups)
                         }
                         if !indirectNotes.isEmpty {
-                            referenceHeading("Indirect Mentions")
+                            referenceHeading("Notes Mentioning This Passage")
                             ForEach(indirectNotes) { note in
                                 Button {
                                     openSourceNote(note.id)

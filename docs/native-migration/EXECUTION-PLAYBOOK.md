@@ -797,3 +797,7 @@ Use PaneLayoutHistory.select for sidebar/Go document selection; visible document
 ## 2026-11-19 — Reader annotation workflow
 
 For reader annotation changes, exercise a tagged verse plus chapter tags; dot→study details, chapter caption→chapter scope, picker Cancel, range selection and copy with no metadata. Check Compare column edition. iPhone touch verified John7:2 tagged verse→Notes→dismiss→tap3→group2–3→Back originalPsalm3LXX. Read-only baselines verify note content/timestamps, exact tab IDs and tag rows. No annotation writes needed for this visual check; do not claim removal/search execution. Current final build logs /tmp/berean-study-tags-final-{mac,ios}.log.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+New ordinary-note reference UI matrix passed on Mac/iPhone with existing notes, no annotation edits. Mac sourceNote→Back restored17; Strong’sON/OFF retained17 viewport; Compare reference-only dots verified. All iPhone baselines intact. Shared Mac baseline became stale during concurrent interaction; never restore/delete the changed note/new tabs. Use a distinct debug QA profile/library/preferences and separate app path next. Full254-test and build logs in HANDOFF. Queue FOLLOWUP-2026-11-19.md.

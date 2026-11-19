@@ -1977,3 +1977,7 @@ Added focused-document replacement, visible-tab reuse, scoped/stale command-targ
 ## 2026-11-19 — Reader annotation workflow
 
 Readers no longer place colored verse-tag labels or note counts in running Scripture. Quiet study dots open Notes/Tags; chapter tags use a count caption. Compare removes tag rows and uses its exact-column study dot. Study Notes now groups Tags, Chapter Tags and Notes. Existing data and operations retained. Real Mac/iPhone checks and both builds pass; details/limits in READER-ANNOTATION-DESIGN.md.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+Personal note references now share the quiet study dot instead of trailing arrows. Ordinary notes mentioning a verse also produce the dot; Related Passages opens My Notes with the correct scope. Chapter references use Chapter study instead of a separate citation row. Compare supports reference-only dots.254tests/both builds and Mac/iPhone navigation verified; no data migration.

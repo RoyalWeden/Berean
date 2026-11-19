@@ -318,3 +318,7 @@ Added focused-document replacement, visible-tab reuse, scoped/stale command-targ
 ## 2026-11-19 — Reader annotation workflow
 
 SHARED-UX-ANNOTATIONS (P2, both): inline tags disrupted reading. First pass implemented: notes/tags margin dot, chapter summary and contextual grouped details; Compare tag rows removed. Mac/iPhone interactions verified, both builds pass. IN PROGRESS until hidden-number/accessibility/large-type/dark/many-tag and citation-unification acceptance complete. Actual tag search/removal submissions not part of this pass. No data migration.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+SHARED-UX-ANNOTATIONS: unified personal reference dots and contextual Related Passages route implemented, including ordinary-note ranges, while attached Notes stay distinct.254tests/both builds and Mac/iPhone route checks pass. New issues (scope/sort/filter placement/hover, release-scroll, hidden Markdown/context table menu, share anchor, history polish, auto-ref parity, BDB selection, substring highlighting) remain OPEN in FOLLOWUP-2026-11-19.md. Shared Mac QA concurrent edits require isolation before further tests.
