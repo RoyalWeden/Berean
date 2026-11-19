@@ -211,6 +211,11 @@ struct RichNoteEditor: NSViewRepresentable {
                 storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
             }
             (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
+            // Null glyphs still participate in TextKit background geometry.
+            // Highlight only visible text, not hidden delimiters or destinations.
+            for range in hidden.rangeView {
+                storage.removeAttribute(.backgroundColor, range: NSRange(range))
+            }
             storage.endEditing()
             if let lm = tv.layoutManager { lm.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil); lm.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil) }
             tv.typingAttributes = [.font: body, .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
