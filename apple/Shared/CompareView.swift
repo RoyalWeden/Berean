@@ -706,6 +706,20 @@ struct CompareView: View {
                 guard isCurrentCompareJump(state), let verse = state.verse else { return }
                 proxy.scrollTo(verse, anchor: .top)
             }
+            .onChange(of: state.showStrongs) { _, enabled in
+                // A fixed pixel offset points at a different verse after inline
+                // numbers add lines. Capture the old visible row before layout.
+                guard let verse = alignedReflowVerse(),
+                      (app.compareScrollOffsets[tabId]?[key] ?? 0) > 1 else { return }
+                let jumpRevision = app.scriptureJumpRequest?.revision
+                Task { @MainActor in
+                    await Task.yield()
+                    guard self.state.compareMode, app.scriptureJumpRequest?.revision == jumpRevision,
+                          app.activeTab?.id == tabId, self.state.showStrongs == enabled,
+                          loadedPassage == passageKey(state, self.columns) else { return }
+                    proxy.scrollTo(verse, anchor: .top)
+                }
+            }
             .onChange(of: state.verse, initial: true) { previous, current in
                 if let restored = pendingAlignedVerse {
                     pendingAlignedVerse = nil
@@ -718,6 +732,17 @@ struct CompareView: View {
                 }
             }
         }
+    }
+
+    private func alignedReflowVerse() -> Int? {
+        if let target = selectedPassage, let focus = compareSelection.focus,
+           let row = rows.keys.sorted().first(where: { key in
+               guard let row = rows[key]?[target.column] else { return false }
+               return row.bookId == target.edition.book && row.chapter == target.edition.chapter && row.verseNum == focus
+           }), visibleAlignedVerses.contains(row) {
+            return row
+        }
+        return visibleAlignedVerses.min()
     }
 
     private func restoredCompareScroll<Content: View>(key: String, preferringVerse: Bool = false,
@@ -784,6 +809,17 @@ struct CompareView: View {
                                   let mapped = mappedVerse(verse, in: column, source: state),
                                   let target = correspondingVerse(mapped, in: column) else { return }
                             proxy.scrollTo(target, anchor: .top)
+                        }
+                        .onChange(of: state.showStrongs) { _, enabled in
+                            guard let verse = independentVisibleVerses[column.id] ?? visibleIndependentRows[column.id]?.min() else { return }
+                            let jumpRevision = app.scriptureJumpRequest?.revision
+                            Task { @MainActor in
+                                await Task.yield()
+                                guard self.state.compareMode, app.scriptureJumpRequest?.revision == jumpRevision,
+                                      app.activeTab?.id == tabId, self.state.showStrongs == enabled,
+                                      loadedPassage == passage else { return }
+                                proxy.scrollTo(verse, anchor: .top)
+                            }
                         }
                         .onScrollPhaseChange { _, phase in
                             switch phase {
@@ -907,6 +943,21 @@ struct CompareView: View {
             .onChange(of: app.scriptureJumpRequest?.revision) {
                 guard isCurrentCompareJump(state), let target = stackedSelectionTarget(in: columns, state: state) else { return }
                 proxy.scrollTo(target, anchor: .top)
+            }
+            .onChange(of: state.showStrongs) { _, enabled in
+                let target = columns.compactMap { column -> StackedVerseTarget? in
+                    guard let verse = visibleStackedVerses[column.id]?.min() else { return nil }
+                    return StackedVerseTarget(columnID: column.id, verse: verse)
+                }.first
+                guard let target, (app.compareScrollOffsets[tabId]?["stacked|" + passage] ?? 0) > 1 else { return }
+                let jumpRevision = app.scriptureJumpRequest?.revision
+                Task { @MainActor in
+                    await Task.yield()
+                    guard self.state.compareMode, app.scriptureJumpRequest?.revision == jumpRevision,
+                          app.activeTab?.id == tabId, self.state.showStrongs == enabled,
+                          loadedPassage == passage else { return }
+                    proxy.scrollTo(target, anchor: .top)
+                }
             }
             .onScrollPhaseChange { old, new in
                 guard old != .idle, new == .idle, app.activeTab?.id == tabId, loadedPassage == passage else { return }
