@@ -1369,13 +1369,13 @@ struct CrossRefsView: View {
                 let groupsForVerse: [ReferenceGroup]
                 let unavailable: Bool
                 if classic {
-                    let data = await app.crossrefs.forVerse(bookId, chapter, selected, textId: textId)
+                    let data = await app.crossrefs.forReaderVerse(bookId, chapter, selected, textId: textId)
                     groupsForVerse = data.refs.isEmpty ? [] : [
                         ReferenceGroup(verse: selected, heading: nil, rows: data.refs.map(ReferenceRow.init))
                     ]
                     unavailable = data.error
                 } else {
-                    let data = await app.crossrefs.tskeForVerse(bookId, chapter, selected, textId: textId)
+                    let data = await app.crossrefs.tskeForReaderVerse(bookId, chapter, selected, textId: textId)
                     groupsForVerse = tskeGroups(data.groups, verse: selected)
                     unavailable = data.error
                 }
@@ -1388,10 +1388,14 @@ struct CrossRefsView: View {
             }
             result = (selectedGroups, targets.count == 1 && hadError)
         } else if classic {
-            let data = await app.crossrefs.forChapter(bookId, chapter, textId: textId)
+            let reader = await app.readerChapter(.init(book: bookId, chapter: chapter, text: textId))
+            guard !Task.isCancelled else { return }
+            let data = await app.crossrefs.forReaderChapter(bookId, chapter, verseNumbers: reader.rows.map(\.verseNum), textId: textId)
             result = (data.verseRefs.map { ReferenceGroup(verse: $0.verseNum, heading: nil, rows: $0.refs.map(ReferenceRow.init)) }, data.error)
         } else {
-            let data = await app.crossrefs.tskeForChapter(bookId, chapter, textId: textId)
+            let reader = await app.readerChapter(.init(book: bookId, chapter: chapter, text: textId))
+            guard !Task.isCancelled else { return }
+            let data = await app.crossrefs.tskeForReaderChapter(bookId, chapter, verseNumbers: reader.rows.map(\.verseNum), textId: textId)
             result = (data.verseRefs.flatMap { tskeGroups($0.groups, verse: $0.verseNum) }, data.error)
         }
         guard !Task.isCancelled else { return }
