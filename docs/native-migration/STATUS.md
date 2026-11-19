@@ -397,3 +397,9 @@ Notes search-inline options, flat menu and Notes-first hierarchy implemented; ke
 ### 2026-11-19 Notes preview/table follow-up
 
 Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.
+
+### 2026-11-19 sharing, BDB and navigation increment
+
+Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel verified); ordinary editor/list/bulk note sharing uses readable text, explicit Markdown copy/export retained. Version history spacing/preview polished (Mac preview verified). Native BDB selectable prose uses an explicit English paragraph base; Mac mixed Hebrew/English logical copy and iPhone word handles verified. Search substring marks and Lexicon bold+faint match backgrounds verified. Found/fixed iPhone New Tab sheet intent loss: explicit H1 created a separate tab, ordinary Go reused G5463; cleanup restored exact47IDs. Final builds pass; detailed limits/paths in HANDOFF and SHARING-AUDIT.md. New Compare→Reader viewport shift is OPEN; no all-scroll/no-Markdown/all-share/all-parity completion claim.
+
+Final validation for this increment:255tests (4core Swift Testing+251conformance/64suites),127.356s conformance, PASS; bothSDK27.2 builds PASS. Source commits d143a8b4,2db51379,3022880e. Published preceding0c78c205 CI44633851335 succeeded; recheck new head after push.

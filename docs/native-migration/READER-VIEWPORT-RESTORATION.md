@@ -23,3 +23,7 @@ Normal touch-release and momentum-end events also stop synchronously saving thro
 - All13copied note hashes/timestamps,38original active tab IDs and tag rows match the isolated baseline. Human-used QA library never restored or edited by these checks.
 
 Build logs `/tmp/berean-study-filter-final-{mac,ios}.log` PASS. Full255tests=4core+251conformance/64suites PASS,133.637s conformance, `/tmp/berean-study-filter-final-full-suite.log`. Package tests verify models/compatibility; the actual view lifecycle proof is the Mac UI/trace evidence above. Hardware scrolling, resizing during restore, rapid multi-window/edition/pull races and all tab-type combinations remain open.
+
+## New separate reproduction — 2026-11-19
+
+After Mac temporary Search ever→CmdL G26→close current temporary tab (auto-selects existing Exodus32 Compare)→Genesis1 reader, settled scrollbar changed from0.2734573119188504 to0.3753169907016061. Same narrow900pt window/profile; subsequent Note→Reader and app relaunch retained new value. No reader/Compare edits in this increment. Investigate transition geometry/anchor capture; do not call original zero-size gate a universal fix. Current isolated fixture intentionally retains observed state; original note/tag/active-tab invariants remain intact.

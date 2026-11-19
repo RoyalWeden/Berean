@@ -608,3 +608,7 @@ Restore native reader position on actual attachment/layout readiness, not a gues
 ### 2026-11-19 — table commands follow retained selection
 
 Use the native editor’s retained selection, not first-responder identity, for table context: opening a toolbar menu legitimately takes focus. Coalesce context publication outside representable updates, publish only changes, and keep existing mutation guards/undo records. Reuse semantic preview conversion before truncation; never rewrite saved note source to hide syntax.
+
+### 2026-11-19 — stable share anchors, readable sharing and typed sheet intent
+
+A transient menu item cannot own a persistent system-share anchor: keep the native source view behind its toolbar Menu and present after menu dismissal. Ordinary Share sends readable note text; source/identity-preserving Markdown belongs to explicitly named export/copy actions. BDB dictionary paragraphs have an English base direction with natural Hebrew runs, represented in native text attributes rather than copied direction-control characters. Present iPhone Go using an identifiable request carrying the immutable new-tab intent: separate presentation/mode state reproduced stale mode capture in real UI.

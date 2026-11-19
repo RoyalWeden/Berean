@@ -813,3 +813,7 @@ Use only isolated Mac profile (QA-PROFILES.md). Viewport regression test: settle
 ### Notes context verification checkpoint (2026-11-19)
 
 Use isolated Mac profile only. Context Table QA fixture ab468514-f24a-41d8-bf6b-d5fc176d2918 is recoverably trashed; do not restore it over human data. Mac table add-row/add-column/two-Undo/prose-context passed. iPhone readable study preview passed, contextual editor menu runtime remains next. Simulator current container97AA7CDA-A08F-4457-BA49-9DE41351682D (rediscover before read). Final13/17original-note hashes/timestamps,38/47active IDs and all tags unchanged. Builds in /tmp/berean-context-table-{mac,ios}.log. Physical scroll, sharing, version-history, RTL and match styling remain open.
+
+### 2026-11-19 next resumption evidence
+
+Continue from sharing/BDB/intent increment at end of HANDOFF. Do not redo completed fixtures or touch human-used QA. New priority reproduction: isolated Mac Compare intermediary→Reader changed0.2734573119188504→0.3753169907016061; later Note returns stable at new value. Prior zero-size restore fix remains, but this separate path is not solved. iPhone New Tab/ordinary Go alternation verified for Lexicon only; expand destination-type matrix. Current iPhone containerDC341112-61E7-465B-BC81-A37791F587B5/PID77177 must be rediscovered after install. All original13/17notes,38/47active IDs and tags unchanged. SHARING-AUDIT.md holds remaining source-anchor matrix.
