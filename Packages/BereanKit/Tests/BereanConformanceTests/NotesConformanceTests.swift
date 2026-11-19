@@ -151,6 +151,34 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(Set(selected.indirect.map(\.id)) == ["chapter", "range"])
     }
 
+    @Test func ordinaryCitationsIncludeAliasesAndAreNotLimitedToSearchPageSize() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        _ = try notes.create(.init(id: "alias", content: "Jn 3:16–18."))
+        _ = try notes.create(.init(id: "chapter-alias", content: "Jn 3"))
+        _ = try notes.create(.init(id: "different-chapter", content: "John 30:17"))
+        for index in 0..<90 {
+            _ = try notes.create(.init(id: "ordinary-\(index)", content: "John 3:17"))
+        }
+        let all = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva")
+        #expect(all.indirect.count == 92)
+        #expect(all.indirectByVerse[17]?.count == 91)
+        #expect(all.indirectByVerse[16]?.map(\.id) == ["alias"])
+        #expect(all.indirectByVerse[18]?.map(\.id) == ["alias"])
+        #expect(all.indirectByVerse[0]?.map(\.id) == ["chapter-alias"])
+        #expect(!all.indirect.contains { $0.id == "different-chapter" })
+
+        _ = try notes.update("alias", .init(content: "Jn 4:1"))
+        try notes.delete("ordinary-0")
+        let edited = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17])
+        #expect(edited.indirect.count == 90) // 89 verse notes + the whole-chapter mention.
+        #expect(!edited.indirect.contains { $0.id == "alias" || $0.id == "ordinary-0" })
+        #expect(try notes.crossReferences(bookId: "JHN", chapter: 4, textId: "kjva").indirect.map(\.id) == ["alias"])
+        _ = try notes.restore("ordinary-0")
+        #expect(try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17]).indirect.count == 91)
+    }
+
     @Test func wholeChapterCitationsUseAliasesAndExcludeVerseOnlyAndTrashedNotes() throws {
         let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
         try Migrator.migrate(db)

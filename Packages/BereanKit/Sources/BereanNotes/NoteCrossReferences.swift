@@ -30,7 +30,7 @@ extension NotesService {
     /// and abbreviated book names are left to the reference parser.
     public func notesCitingChapter(_ bookId: String, _ chapter: Int, textId: String) throws -> [Note] {
         let hermas = HermasText(textId: textId)
-        return try verseCitationCandidates(bookId, chapter).filter { note in
+        return try citationCandidates(bookId, chapter).filter { note in
             guard let attachment = note.verseRef,
                   attachment.split(separator: ",").contains(where: { Reference.parseNoteAttachment(String($0))?.verse != nil })
             else { return false }
@@ -39,14 +39,14 @@ extension NotesService {
         }
     }
 
-    private func verseCitationCandidates(_ bookId: String, _ chapter: Int) throws -> [Note] {
+    private func citationCandidates(_ bookId: String, _ chapter: Int) throws -> [Note] {
         let number = Int(Reference.displayChapter(bookId, Double(chapter)))
         return try db.query("""
             SELECT n.* FROM notes_fts
             JOIN notes n ON n.rowid = notes_fts.rowid
-            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL AND n.verse_ref IS NOT NULL
+            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
             ORDER BY n.updated_at DESC, n.id
-            """, [.text(Self.ftsQuery(String(number), phrase: false))]).map(Self.note)
+            """, [.text(Self.ftsQuery(String(number), phrase: true))]).map(Self.note)
     }
 
     /// Read-only counterpart of the legacy My Notes cross-reference source.
@@ -54,9 +54,11 @@ extension NotesService {
         let attached = try attachedNotes(bookId, chapter, textId: textId)
         let attachedIDs = Set(attached.map(\.id))
         let hermas = HermasText(textId: textId)
-        let chapterLabel = Reference.bookChapterVerseLabel(bookId, chapter: chapter, hermas: hermas)
-        let candidates = try verseCitationCandidates(bookId, chapter)
-            + search(chapterLabel + ":", limit: 80).filter { $0.verseRef == nil }
+        // Canonical-name search misses ordinary notes using aliases (Jn, Exod,
+        // etc.) and a UI search limit silently drops older citations. The chapter
+        // number is only an indexed candidate filter; the real parser below owns
+        // the book, verse/range and edition semantics for every note type.
+        let candidates = try citationCandidates(bookId, chapter)
         var links: [Int: [NoteCrossReferences.Link]] = [:]
         var seen: [Int: Set<String>] = [:]
         var indirect: [Note] = []
