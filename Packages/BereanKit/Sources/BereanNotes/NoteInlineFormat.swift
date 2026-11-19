@@ -165,8 +165,28 @@ public enum NoteInlineFormat {
         var edits: [Edit] = []
         for run in selectedRuns {
             guard removing || run.color != desiredColor else { continue }
-            let selected = NSIntersectionRange(run.inner, selection)
+            var selected = NSIntersectionRange(run.inner, selection)
             guard selected.length > 0 else { continue }
+            let crossesProtectedRun = spans.contains { span in
+                guard NSIntersectionRange(span.range, selected).length > 0 else { return false }
+                switch span.kind {
+                case .bold, .italic, .underline, .strike, .code, .link, .wikilink, .image: return true
+                default: return false
+                }
+            }
+            if crossesProtectedRun {
+                var remainingVisible = IndexSet(integersIn: run.inner.location..<run.inner.upperBound)
+                for span in spans where span.kind == .hidden {
+                    remainingVisible.remove(integersIn: span.range.location..<span.range.upperBound)
+                }
+                remainingVisible.remove(integersIn: selected.location..<selected.upperBound)
+                // Splitting through a code/link/style delimiter can put a new
+                // highlight tag inside literal syntax. Whole visible runs can
+                // safely include their hidden delimiters; partial ones wait for
+                // the structural rich-mark edit path.
+                guard remainingVisible.isEmpty else { continue }
+                selected = run.inner
+            }
             let before = text.substring(with: NSRange(location: run.inner.location, length: selected.location - run.inner.location))
             let after = text.substring(with: NSRange(location: selected.upperBound, length: run.inner.upperBound - selected.upperBound))
             let body = text.substring(with: selected)

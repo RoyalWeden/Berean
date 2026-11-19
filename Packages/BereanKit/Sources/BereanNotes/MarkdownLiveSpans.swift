@@ -211,22 +211,141 @@ public enum MarkdownLiveSpans {
         return spans
     }
 
-    /// Inline spans of one line, earlier patterns taking precedence over overlapping later ones.
+    /// Common emphasis comes from Foundation's Markdown source positions, so
+    /// delimiter runs can combine styles without changing text-storage indices.
+    /// Berean's extended marks remain source-preserving overlays.
     static func inlineSpans(_ line: NSString, _ range: NSRange) -> [Span] {
+        let common = commonEmphasis(line, range)
         var claimed = IndexSet()
+        var accepted: [NSRange] = []
         var out: [Span] = []
         for (re, make) in inline {
             for m in re.matches(in: line as String, range: range) {
                 let mr = m.range
-                guard !claimed.intersects(integersIn: mr.location..<NSMaxRange(mr)) else { continue }
                 let made = make(m, line)
-                // A code span claims its whole range; other patterns claim only their markup so nesting works (**bold *it***).
-                if case .code = made[1].kind { claimed.insert(integersIn: mr.location..<NSMaxRange(mr)) }
-                else { for sp in made where sp.kind == .hidden { claimed.insert(integersIn: sp.range.location..<NSMaxRange(sp.range)) } }
+                if let common, made.contains(where: { $0.kind == .bold || $0.kind == .italic }) {
+                    // Preserve the native editor's existing punctuation-only
+                    // marks (e.g. A**\\|**B), which CommonMark leaves literal.
+                    // Parsed delimiter runs and literal code still take priority.
+                    if made.filter({ $0.kind == .hidden }).contains(where: { marker in
+                        common.hidden.contains { NSIntersectionRange($0.range, marker.range).length > 0 }
+                    }) || common.code.contains(where: { NSIntersectionRange($0, mr).length > 0 }) { continue }
+                }
+                let isCode = made.contains { $0.kind == .code }
+                if isCode {
+                    if let common, let body = made.first(where: { $0.kind == .code })?.range,
+                       !common.code.contains(where: { NSIntersectionRange($0, body).length > 0 }) { continue }
+                    guard !claimed.intersects(integersIn: mr.location..<mr.upperBound) else { continue }
+                } else {
+                    // An outer mark may enclose an already parsed code/link or
+                    // another style; only reusing its delimiters is forbidden.
+                    guard !made.filter({ $0.kind == .hidden }).contains(where: {
+                        claimed.intersects(integersIn: $0.range.location..<$0.range.upperBound)
+                    }) else { continue }
+                    guard accepted.allSatisfy({ old in
+                        NSIntersectionRange(old, mr).length == 0 || NSIntersectionRange(old, mr) == old || NSIntersectionRange(old, mr) == mr
+                    }) else { continue }
+                }
+                if isCode { claimed.insert(integersIn: mr.location..<mr.upperBound) }
+                else {
+                    for sp in made where sp.kind == .hidden { claimed.insert(integersIn: sp.range.location..<sp.range.upperBound) }
+                }
+                accepted.append(mr)
                 out += made
             }
         }
+        if let common { out += common.styles + common.hidden }
         return out
+    }
+
+    private struct CommonEmphasis {
+        let styles: [Span]
+        let hidden: [Span]
+        let code: [NSRange]
+    }
+
+    /// Bounded, process-local memoization keeps unchanged note lines out of
+    /// Foundation's parser during typing. Values use local UTF-16 offsets.
+    private final class CommonEmphasisCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [String: CommonEmphasis] = [:]
+        private var order: [String] = []
+        private var units = 0
+
+        func value(for source: String) -> CommonEmphasis? {
+            lock.lock(); defer { lock.unlock() }
+            return values[source]
+        }
+
+        func insert(_ value: CommonEmphasis, for source: String) {
+            let size = source.utf16.count
+            guard size <= 4_096 else { return }
+            lock.lock(); defer { lock.unlock() }
+            guard values[source] == nil else { return }
+            while order.count >= 512 || units + size > 65_536 {
+                let oldest = order.removeFirst()
+                units -= oldest.utf16.count
+                values.removeValue(forKey: oldest)
+            }
+            values[source] = value
+            order.append(source)
+            units += size
+        }
+    }
+
+    private static let commonEmphasisCache = CommonEmphasisCache()
+
+    private static func commonEmphasis(_ line: NSString, _ range: NSRange) -> CommonEmphasis? {
+        let source = line.substring(with: range)
+        guard source.contains("*") || source.contains("_") || source.contains("`") else { return nil }
+        let local: CommonEmphasis
+        if let cached = commonEmphasisCache.value(for: source) { local = cached }
+        else {
+            guard let parsed = parseCommonEmphasis(source) else { return nil }
+            commonEmphasisCache.insert(parsed, for: source)
+            local = parsed
+        }
+        func shifted(_ value: NSRange) -> NSRange { NSRange(location: range.location + value.location, length: value.length) }
+        return CommonEmphasis(styles: local.styles.map { Span(shifted($0.range), $0.kind) },
+                              hidden: local.hidden.map { Span(shifted($0.range), .hidden) },
+                              code: local.code.map(shifted))
+    }
+
+    private static func parseCommonEmphasis(_ source: String) -> CommonEmphasis? {
+        guard let parsed = try? AttributedString(markdown: source, options: .init(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace, appliesSourcePositionAttributes: true)) else { return nil }
+        let line = source as NSString
+        let range = NSRange(location: 0, length: line.length)
+        var represented = IndexSet(), styles: [Span] = [], code: [NSRange] = []
+        for run in parsed.runs {
+            guard let position = run.markdownSourcePosition,
+                  let indices = Range(position, in: source) else { continue }
+            let local = NSRange(indices, in: source)
+            guard local.location >= 0, local.upperBound <= (source as NSString).length else { continue }
+            represented.insert(integersIn: local.location..<local.upperBound)
+            let absolute = NSRange(location: range.location + local.location, length: local.length)
+            if let intent = run.inlinePresentationIntent {
+                if intent.contains(.code) { code.append(absolute) }
+                if intent.contains(.stronglyEmphasized) { styles.append(Span(absolute, .bold)) }
+                if intent.contains(.emphasized) { styles.append(Span(absolute, .italic)) }
+            }
+        }
+        // Don't treat emphasis-like characters inside URLs/wiki destinations as
+        // visible syntax. Those fields keep the existing Berean link identities.
+        var metadata = IndexSet()
+        for (regex, make) in inline.dropFirst().prefix(4) {
+            for match in regex.matches(in: line as String, range: range) {
+                for span in make(match, line) where span.kind == .hidden {
+                    metadata.insert(integersIn: span.range.location..<span.range.upperBound)
+                }
+            }
+        }
+        var hidden = IndexSet()
+        for (offset, character) in source.utf16.enumerated() where character == 42 || character == 95 {
+            let absolute = range.location + offset
+            if !represented.contains(offset), !metadata.contains(absolute) { hidden.insert(absolute) }
+        }
+        return CommonEmphasis(styles: styles, hidden: hidden.rangeView.map { Span(NSRange($0), .hidden) }, code: code)
     }
 
     /// The text a reader sees: hidden markup removed, bullets as "•", task boxes as ☐/☑, callout markers as their label.
