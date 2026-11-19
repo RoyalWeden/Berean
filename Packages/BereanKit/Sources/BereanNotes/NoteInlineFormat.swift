@@ -65,7 +65,7 @@ public enum NoteInlineFormat {
             if let row = table.first(where: { $0.range.location == line.location }) {
                 if !row.rule {
                     for cell in MarkdownLiveSpans.tableCells(in: text, range: row.range) {
-                        for range in editableParts(NSIntersectionRange(cell, selection), excluding: protected, in: text) {
+                        for range in editableParts(cellSelection(cell, selection: selection, in: text), excluding: protected, in: text) {
                             parts.append(wrapped(in: text, selection: range, opening: opening, closing: closing))
                         }
                     }
@@ -89,6 +89,177 @@ public enum NoteInlineFormat {
         }
         return Edit(range: range, replacement: replacement as String,
                     selection: NSRange(location: range.location, length: replacement.length))
+    }
+
+    public enum HighlightAction {
+        case toggle
+        case color(String)
+        case remove
+    }
+
+    /// Highlight visible text, leaving structural Markdown and existing inline
+    /// code/links/other marks intact. A color is applied idempotently; Toggle
+    /// removes an entirely yellow selection or applies yellow to mixed text.
+    public static func highlightEdit(in text: NSString, selection: NSRange, action: HighlightAction) -> Edit? {
+        guard selection.location >= 0, selection.length >= 0,
+              selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+        if case .color(let color) = action {
+            guard !color.isEmpty, color.utf8.allSatisfy({ (97...122).contains($0) }) else { return nil }
+        }
+        let spans = MarkdownLiveSpans.spans(text as String)
+        let runs = spans.compactMap { span -> HighlightRun? in
+            guard case .highlight(let color) = span.kind else { return nil }
+            let opening = color.map { "<mark class=\"hl-\($0)\">" } ?? "=="
+            let closing = color == nil ? "==" : "</mark>"
+            let start = span.range.location - opening.utf16.count
+            let length = opening.utf16.count + span.range.length + closing.utf16.count
+            guard start >= 0, length <= text.length - start,
+                  text.substring(with: NSRange(location: start, length: opening.utf16.count)) == opening,
+                  text.substring(with: NSRange(location: span.range.upperBound, length: closing.utf16.count)) == closing else { return nil }
+            return HighlightRun(outer: NSRange(location: start, length: length), inner: span.range, color: color)
+        }
+        if selection.length == 0 {
+            if let run = runs.first(where: { NSLocationInRange(selection.location, $0.inner) }) {
+                if case .color = action { return nil }
+                return Edit(range: run.outer, replacement: text.substring(with: run.inner),
+                            selection: NSRange(location: run.outer.location + selection.location - run.inner.location, length: 0))
+            }
+            if spans.contains(where: { span in
+                guard NSLocationInRange(selection.location, span.range) else { return false }
+                switch span.kind {
+                case .hidden, .bold, .italic, .underline, .strike, .code, .codeBlock, .link, .wikilink, .image: return true
+                default: return false
+                }
+            }) { return nil }
+            if case .toggle = action {
+                return edit(in: text, selection: selection, opening: "==", closing: "==")
+            }
+            return nil
+        }
+        let scopes = contentRanges(in: text, selection: selection)
+        let protected = spans.compactMap { span -> NSRange? in
+            switch span.kind {
+            case .hidden:
+                // A table escape belongs to its pipe, not to the structural
+                // markup excluded from a newly highlighted cell.
+                if span.range.length == 1, text.character(at: span.range.location) == 92,
+                   span.range.upperBound < text.length, text.character(at: span.range.upperBound) == 124 { return nil }
+                return span.range
+            case .bold, .italic, .underline, .strike, .code, .codeBlock,
+                 .link, .wikilink, .image, .bullet, .task, .calloutLabel, .rule, .structure:
+                return span.range
+            default: return nil
+            }
+        }
+        let plain = scopes.flatMap { editableParts($0, excluding: protected + runs.map(\.outer), in: text) }
+        let selectedRuns = runs.filter { run in scopes.contains { NSIntersectionRange($0, run.inner).length > 0 } }
+        let removing: Bool
+        let desiredColor: String?
+        switch action {
+        case .remove: removing = true; desiredColor = nil
+        case .color(let color): removing = false; desiredColor = color
+        case .toggle:
+            removing = plain.isEmpty && !selectedRuns.isEmpty && selectedRuns.allSatisfy { $0.color == nil }
+            desiredColor = nil
+        }
+        var edits: [Edit] = []
+        for run in selectedRuns {
+            guard removing || run.color != desiredColor else { continue }
+            let selected = NSIntersectionRange(run.inner, selection)
+            guard selected.length > 0 else { continue }
+            let before = text.substring(with: NSRange(location: run.inner.location, length: selected.location - run.inner.location))
+            let after = text.substring(with: NSRange(location: selected.upperBound, length: run.inner.upperBound - selected.upperBound))
+            let body = text.substring(with: selected)
+            let left = highlighted(before, color: run.color)
+            let middle = removing ? (source: body, body: NSRange(location: 0, length: selected.length)) : highlighted(body, color: desiredColor)
+            let right = highlighted(after, color: run.color)
+            let replacement = left.source + middle.source + right.source
+            guard replacement != text.substring(with: run.outer) else { continue }
+            edits.append(Edit(range: run.outer, replacement: replacement,
+                              selection: NSRange(location: run.outer.location + left.source.utf16.count + middle.body.location,
+                                                 length: middle.body.length)))
+        }
+        if !removing {
+            for range in plain {
+                let rendered = highlighted(text.substring(with: range), color: desiredColor)
+                edits.append(Edit(range: range, replacement: rendered.source,
+                                  selection: NSRange(location: range.location + rendered.body.location, length: rendered.body.length)))
+            }
+        }
+        guard !edits.isEmpty else { return nil }
+        let range = edits.reduce(selection) { NSUnionRange($0, $1.range) }
+        let replacement = NSMutableString(string: text.substring(with: range))
+        for edit in edits.sorted(by: { $0.range.location > $1.range.location }) {
+            replacement.replaceCharacters(in: NSRange(location: edit.range.location - range.location, length: edit.range.length), with: edit.replacement)
+        }
+        func mapped(_ index: Int, end: Bool) -> Int {
+            var delta = 0
+            for edit in edits.sorted(by: { $0.range.location < $1.range.location }) {
+                if index < edit.range.location { break }
+                if index <= edit.range.upperBound {
+                    return delta + (end ? edit.selection.upperBound : edit.selection.location)
+                }
+                delta += edit.replacement.utf16.count - edit.range.length
+            }
+            return index + delta
+        }
+        let start = mapped(selection.location, end: false)
+        let end = mapped(selection.upperBound, end: true)
+        return Edit(range: range, replacement: replacement as String,
+                    selection: NSRange(location: start, length: max(0, end - start)))
+    }
+
+    private struct HighlightRun {
+        let outer: NSRange
+        let inner: NSRange
+        let color: String?
+    }
+
+    private static func highlighted(_ source: String, color: String?) -> (source: String, body: NSRange) {
+        let text = source as NSString
+        guard let body = trimmed(NSRange(location: 0, length: text.length), in: text) else {
+            return (source, NSRange(location: 0, length: text.length))
+        }
+        let opening = color.map { "<mark class=\"hl-\($0)\">" } ?? "=="
+        let closing = color == nil ? "==" : "</mark>"
+        let leading = text.substring(to: body.location)
+        let trailing = text.substring(from: body.upperBound)
+        return (leading + opening + text.substring(with: body) + closing + trailing,
+                NSRange(location: leading.utf16.count + opening.utf16.count, length: body.length))
+    }
+
+    private static func contentRanges(in text: NSString, selection: NSRange) -> [NSRange] {
+        let table = tableLines(in: text)
+        var result: [NSRange] = [], position = selection.location
+        while position < selection.upperBound {
+            var lineEnd = 0, contentEnd = 0
+            text.getLineStart(nil, end: &lineEnd, contentsEnd: &contentEnd, for: NSRange(location: position, length: 0))
+            let line = text.lineRange(for: NSRange(location: position, length: 0))
+            if let row = table.first(where: { $0.range.location == line.location }) {
+                if !row.rule {
+                    result += MarkdownLiveSpans.tableCells(in: text, range: row.range).map { cellSelection($0, selection: selection, in: text) }.filter { $0.length > 0 }
+                }
+            } else if contentEnd > position {
+                result.append(NSIntersectionRange(NSRange(location: position, length: contentEnd - position), selection))
+            }
+            guard lineEnd > position else { break }
+            position = lineEnd
+        }
+        return result
+    }
+
+    private static func cellSelection(_ cell: NSRange, selection: NSRange, in text: NSString) -> NSRange {
+        let overlap = NSIntersectionRange(cell, selection)
+        guard overlap.length > 0 else { return overlap }
+        func escapedPipe(at pipe: Int) -> Bool {
+            guard pipe < cell.upperBound, text.character(at: pipe) == 124 else { return false }
+            var start = pipe
+            while start > cell.location, text.character(at: start - 1) == 92 { start -= 1 }
+            return (pipe - start) % 2 == 1
+        }
+        let start = escapedPipe(at: overlap.location) ? overlap.location - 1 : overlap.location
+        let end = escapedPipe(at: overlap.upperBound) ? overlap.upperBound + 1 : overlap.upperBound
+        return NSRange(location: start, length: end - start)
     }
 
     private static func editableParts(_ range: NSRange, excluding protected: [NSRange], in text: NSString) -> [NSRange] {

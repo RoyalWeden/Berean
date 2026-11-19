@@ -26,6 +26,15 @@ struct NoteInlineFormatTests {
         #expect(try applying(table, selection: partial, open: "<u>", close: "</u>").0.hasSuffix("| Pr<u>ayer</u> | <u>Romans</u> 8:1 |"))
     }
 
+    @Test func partialEscapedPipeStaysInsideItsCell() throws {
+        let source = "| A\\|B | Other |\n| --- | --- |\n| C | D |"
+        let pipe = (source as NSString).range(of: "\\|").location + 1
+        let formatted = try applying(source, selection: NSRange(location: pipe, length: 1)).0
+        #expect(formatted.contains("**\\|**"))
+        #expect(MarkdownLiveSpans.spans(formatted).filter { $0.kind == .tableHeader }.count == 1)
+        #expect(MarkdownLiveSpans.plainText(formatted) == MarkdownLiveSpans.plainText(source))
+    }
+
     @Test func mixedCellsBecomeUniformAndStaySelectedForToggle() throws {
         let mixed = table.replacingOccurrences(of: "Topic", with: "**Topic**")
             .replacingOccurrences(of: "Verse", with: "**Verse**")

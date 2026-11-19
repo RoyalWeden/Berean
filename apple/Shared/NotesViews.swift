@@ -120,66 +120,17 @@ func noteInlineCodeEdit(in text: NSString, selection: NSRange)
             NSRange(location: selection.location + delimiter.utf16.count, length: selection.length + 2 * pad.utf16.count))
 }
 
-private let noteHighlightPattern = try! NSRegularExpression(
-    pattern: #"<mark class="hl-[a-z]+">(.+?)</mark>|==(?=\S)(.+?)(?<=\S)=="#
-)
-
 func noteHighlightEdit(in text: NSString, selection: NSRange, color: String?)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
-    guard selection.location <= text.length,
-          selection.length <= text.length - selection.location else { return nil }
-    let line = text.lineRange(for: NSRange(location: selection.location, length: 0))
-    let selectedText = text.substring(with: selection)
-    guard NSMaxRange(selection) <= NSMaxRange(line),
-          selectedText.rangeOfCharacter(from: .newlines) == nil else { return nil }
-    if color != nil, selectedText.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
-
-    var range = selection
-    var content = selectedText
-    // The selection may include the hidden delimiters when made with a keyboard.
-    for match in noteHighlightPattern.matches(in: text as String, range: line) {
-        if selection.length == 0, selection.location > match.range.location,
-           selection.location < NSMaxRange(match.range) { return nil }
-        guard NSIntersectionRange(match.range, selection).length > 0 else { continue }
-        let coloredContent = match.range(at: 1)
-        let inner = coloredContent.location == NSNotFound ? match.range(at: 2) : coloredContent
-        guard NSIntersectionRange(inner, selection) == inner,
-              NSIntersectionRange(match.range, selection) == selection else { return nil }
-        if color == nil, coloredContent.location == NSNotFound {
-            return (match.range, text.substring(with: inner), NSRange(location: match.range.location, length: inner.length))
-        }
-        range = match.range
-        content = text.substring(with: inner)
-    }
-
-    if color == nil, range == selection, content == selectedText {
-        return noteFormatEdit(in: text, selection: selection, opening: "==", closing: "==")
-    }
-    if color == nil, content.trimmingCharacters(in: .whitespaces) != content { return nil }
-    let opening = color.map { "<mark class=\"hl-\($0)\">" } ?? "=="
-    let closing = color == nil ? "==" : "</mark>"
-    let replacement = opening + content + closing
-    guard replacement != text.substring(with: range) else { return nil }
-    return (range, replacement, NSRange(location: range.location + opening.utf16.count, length: content.utf16.count))
+    let action = color.map(NoteInlineFormat.HighlightAction.color) ?? .toggle
+    guard let edit = NoteInlineFormat.highlightEdit(in: text, selection: selection, action: action) else { return nil }
+    return (edit.range, edit.replacement, edit.selection)
 }
 
 func noteRemoveHighlightEdit(in text: NSString, selection: NSRange)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
-    guard selection.location <= text.length,
-          selection.length <= text.length - selection.location else { return nil }
-    let line = text.lineRange(for: NSRange(location: selection.location, length: 0))
-    for match in noteHighlightPattern.matches(in: text as String, range: line) {
-        let inner = match.range(at: 1).location == NSNotFound ? match.range(at: 2) : match.range(at: 1)
-        if selection.length == 0, NSLocationInRange(selection.location, inner) {
-            let caret = match.range.location + selection.location - inner.location
-            return (match.range, text.substring(with: inner), NSRange(location: caret, length: 0))
-        }
-        if NSIntersectionRange(inner, selection) == inner,
-           NSIntersectionRange(match.range, selection) == selection {
-            return (match.range, text.substring(with: inner), NSRange(location: match.range.location, length: inner.length))
-        }
-    }
-    return nil
+    guard let edit = NoteInlineFormat.highlightEdit(in: text, selection: selection, action: .remove) else { return nil }
+    return (edit.range, edit.replacement, edit.selection)
 }
 
 func noteHeadingEdit(in text: NSString, selection: NSRange, level: Int)
