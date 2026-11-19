@@ -85,6 +85,7 @@ struct SettingsView: View {
                 }
             }
             Toggle("Detect Scripture References", isOn: $app.noteVerseRefsEnabled)
+            Toggle("Detect Strong’s References", isOn: $app.noteLexiconRefsEnabled)
             Toggle("Suggest Scripture Blocks", isOn: $app.noteVerseBlockSuggest)
             Toggle("Suggest Strong’s Blocks", isOn: $app.noteStrongsBlockSuggest)
             Toggle("Check Spelling", isOn: $app.noteSpellCheck)

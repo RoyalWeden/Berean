@@ -987,6 +987,7 @@ struct NoteDetailView: View {
     @ViewBuilder private var noteEditor: some View {
         #if os(macOS)
         RichNoteEditor(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
+                       detectStrongsReferences: app.noteLexiconRefsEnabled,
                        spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                        onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                        onReferenceCompletion: receiveReferenceCompletion,
@@ -995,6 +996,7 @@ struct NoteDetailView: View {
             .focused($focus, equals: .body)
         #else
         RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
+                       detectStrongsReferences: app.noteLexiconRefsEnabled,
                           spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                           onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                           onReferenceCompletion: receiveReferenceCompletion,

@@ -13,6 +13,7 @@ struct RichNoteEditor: NSViewRepresentable {
     var fontSize: CGFloat = NSFont.systemFontSize
     var fontFamily = "system"
     var detectVerseReferences = true
+    var detectStrongsReferences = true
     var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
     var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
@@ -64,6 +65,7 @@ struct RichNoteEditor: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         let c = context.coordinator
         let styleChanged = c.parent.detectVerseReferences != detectVerseReferences
+            || c.parent.detectStrongsReferences != detectStrongsReferences
             || c.parent.fontFamily != fontFamily || c.parent.fontSize != fontSize
         let spellingSettingChanged = c.parent.spellCheck != spellCheck
         let previousRequest = c.parent.formatRequest
@@ -207,10 +209,12 @@ struct RichNoteEditor: NSViewRepresentable {
                 }
             }
             // Link explicit Strong's IDs without changing the saved dictionary/prose source.
-            for ref in NoteStrongsLinks.spans(in: text, markdownSpans: spans) where NSMaxRange(ref.range) <= storage.length {
-                guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)),
-                      let url = URL(string: "berean-native-dev://lexicon/" + ref.number) else { continue }
-                storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
+            if parent.detectStrongsReferences {
+                for ref in NoteStrongsLinks.spans(in: text, markdownSpans: spans) where NSMaxRange(ref.range) <= storage.length {
+                    guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)),
+                          let url = URL(string: "berean-native-dev://lexicon/" + ref.number) else { continue }
+                    storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
+                }
             }
             (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
             // Null glyphs still participate in TextKit background geometry.

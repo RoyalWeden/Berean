@@ -271,6 +271,7 @@ final class AppModel {
     var notesFontFamily = "system" { didSet { saveSetting("notesFontFamily", .string(JSString(notesFontFamily))) } }
     var scriptureFontFamily = "system" { didSet { saveSetting("scriptureFontFamily", .string(JSString(scriptureFontFamily))) } }
     var noteVerseRefsEnabled = true { didSet { saveSetting("noteVerseRefsEnabled", .bool(noteVerseRefsEnabled)) } }
+    var noteLexiconRefsEnabled = true { didSet { saveSetting("noteLexiconRefsEnabled", .bool(noteLexiconRefsEnabled)) } }
     var noteStrongsBlockSuggest = true { didSet { saveSetting("noteStrongsBlockSuggest", .bool(noteStrongsBlockSuggest)) } }
     var noteVerseBlockSuggest = true { didSet { saveSetting("noteVerseBlockSuggest", .bool(noteVerseBlockSuggest)) } }
     var autoCopyOnHighlight = false { didSet { saveSetting("autoCopyOnHighlight", .bool(autoCopyOnHighlight)) } }
@@ -359,6 +360,7 @@ final class AppModel {
         if let v = all["notesFontFamily"]?.stringValue?.string, !v.isEmpty { notesFontFamily = v }
         if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }
         if let v = all["noteVerseRefsEnabled"]?.boolValue { noteVerseRefsEnabled = v }
+        if let v = all["noteLexiconRefsEnabled"]?.boolValue { noteLexiconRefsEnabled = v }
         if let v = all["noteStrongsBlockSuggest"]?.boolValue { noteStrongsBlockSuggest = v }
         if let v = all["noteVerseBlockSuggest"]?.boolValue { noteVerseBlockSuggest = v }
         if let v = all["autoCopyOnHighlight"]?.boolValue { autoCopyOnHighlight = v }
