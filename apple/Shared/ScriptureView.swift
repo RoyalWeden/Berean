@@ -338,7 +338,7 @@ struct ChapterTagTarget: Identifiable {
     var ranges: [TagRange] { [TagRange(bookId: bookId, chapter: Double(chapter), whole: true)] }
 }
 
-private struct SharedVerseSelection: Transferable {
+struct SharedVerseSelection: Transferable {
     let reference: String
     let rows: [ChapterVerseRow]
     let textId: String
@@ -2038,7 +2038,9 @@ struct VerseRowView: View {
     var attributed: AttributedString {
         var out = AttributedString()
         if let title = row.title, !title.isEmpty {
-            var t = AttributedString(title + "\n"); t.font = .callout.italic(); t.foregroundColor = .secondary
+            var t = AttributedString(title.replacingOccurrences(of: "\n", with: " ") + "\n")
+            t.font = ScriptureFont.font(family, size: fontSize * 0.92).italic()
+            t.foregroundColor = .secondary
             out = t + out
         }
         let rules = replacer ? WordReplacer.defaultRules : []
@@ -2602,7 +2604,7 @@ struct ScriptureScrollTarget: Equatable {
     let revision: UUID?
 }
 
-private struct VerseActionMenuChrome: ViewModifier {
+struct VerseActionMenuChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
             .menuStyle(.borderlessButton).clickableCursor()
@@ -2613,7 +2615,7 @@ private struct VerseActionMenuChrome: ViewModifier {
     }
 }
 
-private struct VerseActionButtonStyle: ButtonStyle {
+struct VerseActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .modifier(VerseActionControlAppearance())
@@ -2621,7 +2623,7 @@ private struct VerseActionButtonStyle: ButtonStyle {
     }
 }
 
-private struct VerseActionControlAppearance: ViewModifier {
+struct VerseActionControlAppearance: ViewModifier {
     var width = ReaderFloatingControls.actionWidth
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false

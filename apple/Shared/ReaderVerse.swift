@@ -122,6 +122,51 @@ func readerBodyOffset(in text: NSAttributedString, range: NSRange, index: Int) -
     return offset
 }
 
+/// Compare selection is local to a column/passage, never translated through
+/// the anchor tab's edition. Shift ranges follow actual displayed row order.
+struct ReaderVerseSelection {
+    private(set) var scope: String?
+    private(set) var verses: Set<Int> = []
+    private(set) var anchor: Int?
+    private(set) var focus: Int?
+
+    mutating func replace(scope: String, verses: Set<Int>, focus: Int?, ordered: [Int]) {
+        self.scope = scope
+        self.verses = verses.intersection(ordered)
+        self.focus = focus.flatMap { self.verses.contains($0) ? $0 : nil } ?? ordered.first(where: self.verses.contains)
+        anchor = self.focus
+    }
+
+    mutating func toggle(_ verse: Int, scope: String, ordered: [Int], extend: Bool) {
+        guard let target = ordered.firstIndex(of: verse) else { return }
+        if self.scope != scope { self = Self(); self.scope = scope }
+        verses.formIntersection(ordered)
+        if extend, let anchor, let start = ordered.firstIndex(of: anchor) {
+            verses = Set(ordered[min(start, target)...max(start, target)])
+            focus = verse
+        } else {
+            if verses.contains(verse) { verses.remove(verse) } else { verses.insert(verse) }
+            focus = verses.contains(verse) ? verse : ordered.first(where: verses.contains)
+            anchor = focus
+        }
+    }
+}
+
+/// Stacked Compare interleaves editions. Never draw one selection outline
+/// through an intervening verse from another column, even for adjacent IDs.
+func readerJoinedSelectionRectangles(_ rectangles: [CGRect], obstacles: [CGRect]) -> [CGRect] {
+    var joined: [CGRect] = []
+    for rect in rectangles.sorted(by: { $0.minY < $1.minY }) where !rect.isEmpty {
+        guard let previous = joined.last else { joined.append(rect); continue }
+        let left = max(previous.minX, rect.minX), right = min(previous.maxX, rect.maxX)
+        let gap = CGRect(x: left, y: previous.maxY, width: max(0, right - left), height: max(0, rect.minY - previous.maxY))
+        if right > left, !obstacles.contains(where: { !$0.intersection(gap).isEmpty }) {
+            joined[joined.count - 1] = previous.union(rect)
+        } else { joined.append(rect) }
+    }
+    return joined
+}
+
 /// Visual adjacency follows the rendered rows, not arithmetic on persisted IDs.
 /// An actual row without a layout range still breaks a group.
 func readerSelectionRuns(_ selection: Set<Int>, in orderedVerses: [Int], available: Set<Int>) -> [[Int]] {

@@ -95,6 +95,27 @@ struct CompareColumn: Identifiable {
     }
 }
 
+private struct CompareSelectionCell: Hashable {
+    let column: Int
+    let book: String
+    let chapter: Int
+    let verse: Int
+}
+
+private struct CompareSelectionBounds: PreferenceKey {
+    static var defaultValue: [CompareSelectionCell: [Anchor<CGRect>]] { [:] }
+    static func reduce(value: inout [CompareSelectionCell: [Anchor<CGRect>]], nextValue: () -> [CompareSelectionCell: [Anchor<CGRect>]]) {
+        value.merge(nextValue(), uniquingKeysWith: +)
+    }
+}
+
+private struct CompareSelectedPassage: Equatable {
+    let column: Int
+    let destination: String
+    let edition: ChapterEdition
+    var scope: String { "\(column)|\(destination)|\(edition.key)" }
+}
+
 struct CompareView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
@@ -166,8 +187,13 @@ struct CompareView: View {
     @State private var loadedPassage: String?
     @State private var eligibleComparisonEditions = Set<String>()
     @State private var compareWidth: CGFloat = 0
-    @State private var localVerseSelection: Int?
-    @State private var selectionAnchor: (edition: ChapterEdition, verse: Int)?
+    @State private var compareSelection = ReaderVerseSelection()
+    @State private var selectedPassage: CompareSelectedPassage?
+    @State private var copiedSelection = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #if os(macOS)
+    @FocusState private var selectionHasKeyboardFocus: Bool
+    #endif
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
     @State private var independentVisibleVerses: [Int: Int] = [:]
@@ -249,7 +275,24 @@ struct CompareView: View {
             chapterNumbers = numbers
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compareWidth = $0 }
+        .overlayPreferenceValue(CompareSelectionBounds.self) { bounds in
+            selectionOutlines(bounds)
+        }
+        .overlay(alignment: .bottom) {
+            if !comparisonSelectedRows.isEmpty {
+                GeometryReader { geometry in
+                    comparisonSelectionBar
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, geometry.safeAreaInsets.bottom)
+                        #if os(iOS)
+                        .padding(.bottom, ReaderFloatingControls.bottomPadding * 2)
+                        #endif
+                }
+            }
+        }
         .onChange(of: passage) {
+            compareSelection = ReaderVerseSelection()
+            selectedPassage = nil
             independentVisibleVerses = [:]
             visibleStackedVerses = [:]
             scrollingColumn = nil
@@ -284,6 +327,12 @@ struct CompareView: View {
         #if os(macOS)
         .toolbar {
             ToolbarItem { manageTranslations(st, cols) }
+        }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($selectionHasKeyboardFocus)
+        .onCopyCommand {
+            comparisonShare.map { [NSItemProvider(object: $0.formattedText as NSString)] } ?? []
         }
         #endif
         .sheet(item: $editingColumn) { column in
@@ -404,6 +453,10 @@ struct CompareView: View {
     }
 
     private func exitCompareKeepingColumns(_ source: BibleState, columns: [CompareColumn]) {
+        if !comparisonSelectedRows.isEmpty {
+            openComparisonSelection()
+            return
+        }
         if let column = columns.first(where: { $0.text == source.translation && $0.follows(source) }),
            let reading = readingAnchor(in: column, source: source), reading.chapter == source.chapter {
             let edition = ChapterEdition(source)
@@ -446,22 +499,18 @@ struct CompareView: View {
     }
 
     private func selectedVerses(in state: BibleState) -> Set<Int> {
-        guard let first = state.verse else { return [] }
         var reader = state
         reader.compareMode = false
-        let saved = app.readerSelectedVerses(in: tabId, state: reader)
-        return saved.isEmpty ? [first] : Set(saved)
+        return Set(app.readerSelectedVerses(in: tabId, state: reader))
     }
 
     private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
         let available = availableColumnIDs
-        let selected = selectedVerses(in: st)
         #if os(macOS)
-        let space = compareWidth - 48 - 18 * CGFloat(cols.count - 1) - (showVerseNumbers ? 50 : 0)
+        let space = compareWidth - 48 - 18 * CGFloat(cols.count - 1)
         #endif
         return LazyVStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 18) {
-                if showVerseNumbers { Color.clear.frame(width: controlSize, height: 1) }
                 ForEach(cols) { c in
                     HStack {
                         alignedColumnHeading(c, available: available.contains(c.id))
@@ -482,10 +531,6 @@ struct CompareView: View {
             Divider()
             ForEach(rows.keys.sorted(), id: \.self) { v in
                 HStack(alignment: .firstTextBaseline, spacing: 18) {
-                    if showVerseNumbers {
-                        verseButton(v, state: st, selected: selected.contains(v))
-                            .frame(width: controlSize)
-                    }
                     ForEach(cols) { c in
                         comparisonText(v, text: c, state: st)
                             #if os(macOS)
@@ -508,7 +553,6 @@ struct CompareView: View {
 
     private func stackedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
         let available = availableColumnIDs
-        let selected = selectedVerses(in: state)
         return LazyVStack(alignment: .leading, spacing: 14) {
             // Headers share one container: as siblings their column ids (0, 1, …) collided with the verse rows'
             // `.id(verse)` and verse 1 vanished, leaving a gap under the headers.
@@ -524,7 +568,6 @@ struct CompareView: View {
             ForEach(rows.keys.sorted(), id: \.self) { verse in
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
-                    if showVerseNumbers { verseButton(verse, state: state, selected: selected.contains(verse)) }
                     ForEach(columns.filter { available.contains($0.id) }) { text in
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 4) {
@@ -626,9 +669,7 @@ struct CompareView: View {
                     return
                 }
                 if previous == current, app.compareScrollOffsets[tabId]?[key] != nil { return }
-                let selectedHere = localVerseSelection != nil && localVerseSelection == state.verse
-                localVerseSelection = nil
-                if !selectedHere, let verse = current {
+                if let verse = current {
                     proxy.scrollTo(verse, anchor: .top)
                 }
             }
@@ -639,6 +680,7 @@ struct CompareView: View {
                                                       initialJump: (() -> Void)? = nil,
                                                       @ViewBuilder content: () -> Content) -> some View {
         ScrollView(content: content)
+            .contentMargins(.bottom, comparisonActionClearance, for: .scrollContent)
             .scrollPosition($sharedScrollPosition)
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 max(0, geometry.contentOffset.y + geometry.contentInsets.top)
@@ -691,6 +733,7 @@ struct CompareView: View {
                             .scrollTargetLayout()
                             .padding(compact ? 8 : 16)
                         }
+                        .contentMargins(.bottom, comparisonActionClearance, for: .scrollContent)
                         .scrollPosition(id: independentPosition(for: column, passage: passage), anchor: .top)
                         .onScrollPhaseChange { _, phase in
                             switch phase {
@@ -991,11 +1034,11 @@ struct CompareView: View {
     @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false,
                                                 stackedPassage: String? = nil, independentPassage: String? = nil) -> some View {
         if let verses = independentRows[column.id], !verses.isEmpty {
-            let selected = Set(selectedRows(in: column, source: state).map(\.verseNum))
+            let selected = selectionNumbers(in: column)
             ForEach(verses, id: \.verseNum) { row in
                 let isSelected = selected.contains(row.verseNum)
                 let content = independentVerseRow(row, column: column, compact: compact, selected: isSelected)
-                    .background(Color.accentColor.opacity(isSelected ? 0.08 : 0), in: .rect(cornerRadius: 6))
+
                 if let stackedPassage {
                     content
                         .id(StackedVerseTarget(columnID: column.id, verse: row.verseNum))
@@ -1052,18 +1095,18 @@ struct CompareView: View {
 
     private func independentVerseButton(_ row: ChapterVerseRow, column: CompareColumn, selected: Bool) -> some View {
         Button {
-            openReader(row, in: column)
+            selectComparisonVerse(row, column: column)
         } label: {
-            Text(row.readerVerseLabel)
+            Text(row.chapter == column.chapter ? row.readerVerseLabel : "\(row.chapter):\(row.readerVerseLabel)")
                 .font(.caption.monospacedDigit().weight(.semibold))
                 .foregroundStyle(Color.accentColor)
                 .frame(minWidth: controlSize, minHeight: controlSize)
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Open verse \(row.readerVerseLabel) in Reader")
+        .accessibilityLabel("Select verse \(row.readerVerseLabel), \(textInfo(column.text).name)")
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .help("Open verse \(row.readerVerseLabel) in Reader")
+        .help("Select verse \(row.readerVerseLabel) · \(textInfo(column.text).short)")
     }
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
         let reference = comparisonVerseReference(row, column: column)
@@ -1156,6 +1199,9 @@ struct CompareView: View {
             }
             if showsControls { comparisonVerseControls(row, column: column) }
         }
+        .anchorPreference(key: CompareSelectionBounds.self, value: .bounds) { anchor in
+            [CompareSelectionCell(column: column.id, book: row.bookId, chapter: row.chapter, verse: row.verseNum): [anchor]]
+        }
     }
 
     @ViewBuilder private func comparisonVerseControls(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
@@ -1218,13 +1264,10 @@ struct CompareView: View {
     }
 
     @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState, showsControls: Bool = true) -> some View {
-        let text = column.text
         if let row = rows[verse]?[column.id] {
-            VStack(alignment: .leading, spacing: 3) {
-                if row.readerVerseNum != PsalmSuperscription.readerVerseNum(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation) || row.chapter != ChapterMap.mapChapter(state.bookId, state.chapter, from: state.translation, to: text) {
-                    Text("\(row.chapter):\(row.readerVerseLabel)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if showVerseNumbers {
+                    independentVerseButton(row, column: column, selected: selectionNumbers(in: column, chapter: row.chapter).contains(row.verseNum))
                 }
                 comparisonVerseBody(row, column: column, state: state, showsControls: showsControls)
             }
@@ -1305,54 +1348,254 @@ struct CompareView: View {
         .help("Column actions")
     }
 
-    private func verseButton(_ verse: Int, state: BibleState, selected: Bool) -> some View {
-        Button {
-            toggleVerse(verse, in: state)
-        } label: {
-            Text("\(PsalmSuperscription.readerVerseLabel(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                .frame(minWidth: controlSize, minHeight: controlSize)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.interactivePlain)
-        .accessibilityLabel("Verse \(PsalmSuperscription.readerVerseLabel(verse, bookId: state.bookId, chapter: state.chapter, textId: state.translation))")
-        .accessibilityAddTraits(selected ? .isSelected : [])
+    private var selectionColumn: CompareColumn? {
+        guard let target = selectedPassage else { return nil }
+        return columns.first { $0.id == target.column && $0.historyKey == target.destination }
     }
 
-    private func toggleVerse(_ verse: Int, in state: BibleState) {
-        let edition = ChapterEdition(state)
-        let previousAnchor = selectionAnchor.flatMap { $0.edition == edition ? $0.verse : nil }
-        var selection = selectedVerses(in: state)
+    private func selectionRows(in column: CompareColumn, chapter: Int) -> [ChapterVerseRow] {
+        let candidates = (independentRows[column.id] ?? []) + rows.keys.sorted().compactMap { rows[$0]?[column.id] }
+        var seen = Set<Int>()
+        return candidates.filter { $0.bookId == column.book && $0.chapter == chapter && seen.insert($0.verseNum).inserted }
+            .sorted { $0.verseNum < $1.verseNum }
+    }
+
+    private var comparisonSelectedRows: [ChapterVerseRow] {
+        guard let target = selectedPassage, let column = selectionColumn,
+              compareSelection.scope == target.scope else { return [] }
+        return selectionRows(in: column, chapter: target.edition.chapter).filter { compareSelection.verses.contains($0.verseNum) }
+    }
+
+    private func selectionNumbers(in column: CompareColumn, chapter: Int? = nil) -> Set<Int> {
+        guard let target = selectedPassage, column.id == target.column, column.historyKey == target.destination,
+              target.edition.chapter == (chapter ?? column.chapter) else { return [] }
+        return compareSelection.verses
+    }
+
+    private func selectComparisonVerse(_ row: ChapterVerseRow, column: CompareColumn) {
+        let target = CompareSelectedPassage(column: column.id, destination: column.historyKey,
+                                           edition: ChapterEdition(book: row.bookId, chapter: row.chapter, text: column.text))
         #if os(macOS)
         let extend = NSEvent.modifierFlags.contains(.shift)
         #else
         let extend = false
         #endif
-        if extend, let anchor = previousAnchor ?? state.verse {
-            let span = min(anchor, verse)...max(anchor, verse)
-            selection = Set(rows.keys.filter(span.contains))
-            selectionAnchor = (edition, anchor)
-        } else {
-            if selection.contains(verse) { selection.remove(verse) } else { selection.insert(verse) }
-            selectionAnchor = selection.contains(verse) ? (edition, verse) : selection.min().map { (edition, $0) }
-        }
+        compareSelection.toggle(row.verseNum, scope: target.scope,
+                                ordered: selectionRows(in: column, chapter: row.chapter).map(\.verseNum), extend: extend)
+        selectedPassage = target
+        copiedSelection = false
+        #if os(macOS)
+        selectionHasKeyboardFocus = true
+        #endif
+    }
 
-        let groups = consecutiveVerseRuns(selection)
+    private var comparisonActionClearance: CGFloat {
+        comparisonSelectedRows.isEmpty ? 0 : ReaderFloatingControls.selectionHeight + 12
+    }
+
+    private var comparisonSelectionLabel: String {
+        guard let target = selectedPassage else { return "" }
+        let numbers = Set(comparisonSelectedRows.flatMap {
+            PsalmSuperscription.readerVerseNumbers($0.verseNum, bookId: $0.bookId, chapter: $0.chapter, textId: target.edition.text)
+        })
+        let spans = consecutiveVerseRuns(numbers).map { $0.count == 1 ? "\($0.lowerBound)" : "\($0.lowerBound)-\($0.upperBound)" }
+        return "\(Reference.readerChapterLabel(target.edition.book, target.edition.chapter, textId: target.edition.text)):\(spans.joined(separator: ", "))"
+    }
+
+    private var comparisonShare: SharedVerseSelection? {
+        guard let target = selectedPassage, !comparisonSelectedRows.isEmpty else { return nil }
+        return SharedVerseSelection(reference: referenceForCopy(comparisonSelectionLabel, textId: target.edition.text),
+                                    rows: comparisonSelectedRows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: target.edition.text) },
+                                    textId: target.edition.text, replacerEnabled: app.wordReplacerEnabled,
+                                    hideSuppliedWords: hideSuppliedWords)
+    }
+
+    private var comparisonSelectionRange: TagRange? {
+        guard let target = selectedPassage, !comparisonSelectedRows.isEmpty else { return nil }
+        return TagRange(bookId: target.edition.book, chapter: Double(target.edition.chapter),
+                        spans: consecutiveVerseRuns(compareSelection.verses).map { (Double($0.lowerBound), Double($0.upperBound)) })
+    }
+
+    private func copyComparisonSelection() {
+        guard let share = comparisonShare else { return }
+        Clipboard.copy(share.formattedText)
+        copiedSelection = true
+        AccessibilityNotification.Announcement("Verses copied").post()
+    }
+
+    private func openComparisonSelection(inspector: String? = nil) {
+        guard let target = selectedPassage, !comparisonSelectedRows.isEmpty else { return }
+        let groups = consecutiveVerseRuns(compareSelection.verses)
         let contiguous = groups.count == 1 ? groups.first : nil
-        let focus = contiguous?.lowerBound ?? (selection.contains(verse) ? verse : selection.min())
-        let end = contiguous.flatMap { $0.count > 1 ? $0.upperBound : nil }
-        let passage = ResolvedPassage(textId: state.translation, bookId: state.bookId, chapter: state.chapter,
-                                      verse: focus, endVerse: end, verseGroups: groups.count > 1 ? groups : [])
-        if state.verse != focus { localVerseSelection = focus }
+        openReader(ResolvedPassage(textId: target.edition.text, bookId: target.edition.book, chapter: target.edition.chapter,
+                                   verse: contiguous?.lowerBound ?? compareSelection.focus ?? comparisonSelectedRows.first?.verseNum,
+                                   endVerse: contiguous.flatMap { $0.count > 1 ? $0.upperBound : nil },
+                                   verseGroups: groups.count > 1 ? groups : []), inspector: inspector)
+    }
+
+    private func noteForComparisonSelection() {
+        guard let target = selectedPassage else { return }
+        let refs = consecutiveVerseRuns(compareSelection.verses).map {
+            "\(target.edition.book).\(target.edition.chapter).\($0.lowerBound)" + ($0.count > 1 ? "-\($0.upperBound)" : "")
+        }.joined(separator: ",")
+        let links = comparisonSelectedRows.compactMap { row -> String? in
+            guard let url = DeepLink.nativeDevPassageURL(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                                       textId: target.edition.text) else { return nil }
+            return "[\(row.readerReferenceLabel(textId: target.edition.text))](\(url.absoluteString))"
+        }
+        app.newNote(verseRef: refs, textId: target.edition.text, title: comparisonSelectionLabel, content: links.joined(separator: "\n\n"))
+    }
+
+    private func clearComparisonSelection() {
+        compareSelection = ReaderVerseSelection()
+        selectedPassage = nil
+        copiedSelection = false
         app.update(tabId, recordHistory: false) { tab in
-            var target = BibleState(tab.state)
-            target.verse = focus
-            target.endVerse = end
-            tab.state = target.merged(into: tab.state)
-            tab.state["nativeSelectedVerses"] = passage.savedSelection
+            var reader = BibleState(tab.state)
+            reader.verse = nil
+            reader.endVerse = nil
+            tab.state = reader.merged(into: tab.state)
+            tab.state["nativeSelectedVerses"] = .array([])
             tab.state.remove("endChapter")
         }
+    }
+
+    private func comparisonActionRow(compact: Bool) -> some View {
+        HStack(spacing: ReaderFloatingControls.actionSpacing) {
+            Button(copiedSelection ? "Copied" : "Copy Verses", systemImage: copiedSelection ? "checkmark" : "doc.on.doc",
+                   action: copyComparisonSelection)
+                .buttonStyle(VerseActionButtonStyle())
+                .help("Copy selected verses with their edition reference")
+            Menu {
+                ForEach(highlightColors, id: \.self) { color in
+                    Button(color.capitalized, systemImage: "circle.fill") {
+                        guard let target = selectedPassage else { return }
+                        app.highlightVerses(comparisonSelectedRows, color: color, textID: target.edition.text,
+                                            copy: { copyComparisonSelection() })
+                    }
+                }
+                Button("Remove Highlights", systemImage: "eraser") {
+                    guard let target = selectedPassage else { return }
+                    for row in comparisonSelectedRows {
+                        try? app.highlights?.remove(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: target.edition.text)
+                    }
+                }
+            } label: {
+                Image(systemName: "highlighter").modifier(VerseActionControlAppearance()).accessibilityLabel("Highlight")
+            }
+            .modifier(VerseActionMenuChrome()).help("Highlight selected verses")
+            #if os(macOS)
+            if !compact {
+            Button("Tag Verses", systemImage: "tag") { tagComparisonSelection() }
+                .buttonStyle(VerseActionButtonStyle()).help("Tag selected verses")
+            Divider().frame(height: 16)
+            Button("Add Note", systemImage: "square.and.pencil", action: noteForComparisonSelection)
+                .buttonStyle(VerseActionButtonStyle()).help("Add a note for selected verses")
+            Button("Cross References", systemImage: "arrow.triangle.branch") { openComparisonSelection(inspector: "crossrefs") }
+                .buttonStyle(VerseActionButtonStyle()).help("Open cross references for this edition’s selection")
+            }
+            #endif
+            Menu {
+                if let target = selectedPassage {
+                    Button("Copy Reference", systemImage: "number") {
+                        Clipboard.copy(referenceForCopy(comparisonSelectionLabel, textId: target.edition.text))
+                    }
+                }
+                #if os(macOS)
+                if compact {
+                    Button("Tag Verses", systemImage: "tag") { tagComparisonSelection() }
+                    Button("Add Note", systemImage: "square.and.pencil", action: noteForComparisonSelection)
+                    Button("Cross References", systemImage: "arrow.triangle.branch") { openComparisonSelection(inspector: "crossrefs") }
+                }
+                #else
+                Button("Tag Verses", systemImage: "tag") { tagComparisonSelection() }
+                Button("Add Note", systemImage: "square.and.pencil", action: noteForComparisonSelection)
+                Button("Cross References", systemImage: "arrow.triangle.branch") { openComparisonSelection(inspector: "crossrefs") }
+                #endif
+                Button("Open in Reader", systemImage: "book.pages") { openComparisonSelection() }
+                if let share = comparisonShare {
+                    ShareLink(item: share, preview: SharePreview(share.reference)) { Label("Share Selected Verses", systemImage: "square.and.arrow.up") }
+                }
+            } label: {
+                Image(systemName: "ellipsis").modifier(VerseActionControlAppearance()).accessibilityLabel("More Verse Actions")
+            }
+            .modifier(VerseActionMenuChrome()).help("More verse actions")
+            Divider().frame(height: 16)
+            Button("Clear Selection", systemImage: "xmark", action: clearComparisonSelection)
+                .buttonStyle(VerseActionButtonStyle())
+                #if os(macOS)
+                .keyboardShortcut(.cancelAction)
+                #endif
+                .help("Clear verse selection")
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var comparisonSelectionBar: some View {
+        ViewThatFits(in: .horizontal) {
+            comparisonActionRow(compact: false)
+            comparisonActionRow(compact: true)
+        }
+        .padding(.horizontal, ReaderFloatingControls.surfaceHorizontalPadding)
+        .padding(.vertical, ReaderFloatingControls.surfacePadding)
+        #if os(macOS)
+        .glassEffectCompat()
+        #else
+        .tint(.primary)
+        .glassEffectCompat(interactive: true, backingOpacity: ReaderFloatingControls.dockBackingOpacity)
+        #endif
+        .padding(.horizontal, 8)
+        .padding(.bottom, ReaderFloatingControls.bottomPadding)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Selected \(comparisonSelectionLabel), \(selectedPassage.map { textInfo($0.edition.text).name } ?? "")")
+        .task(id: copiedSelection) {
+            guard copiedSelection else { return }
+            do { try await Task.sleep(for: .seconds(1)); copiedSelection = false } catch { }
+        }
+    }
+
+    private func tagComparisonSelection() {
+        guard let range = comparisonSelectionRange else { return }
+        tagging = VerseTagTarget(range: range, label: comparisonSelectionLabel)
+    }
+
+    private func selectionRectangles(_ bounds: [CompareSelectionCell: [Anchor<CGRect>]], geometry: GeometryProxy) -> [CGRect] {
+        guard let target = selectedPassage, let column = selectionColumn else { return [] }
+        let ordered = selectionRows(in: column, chapter: target.edition.chapter).map(\.verseNum)
+        let visible = bounds.filter { $0.key.column == target.column && $0.key.book == target.edition.book && $0.key.chapter == target.edition.chapter }
+        let available = Set(visible.keys.map(\.verse))
+        let obstacles = bounds.filter { $0.key.column != target.column }.values.flatMap { $0.map { geometry[$0] } }
+        return readerSelectionRuns(compareSelection.verses, in: ordered, available: available).flatMap { group in
+            let rectangles = group.flatMap { verse in
+                visible[CompareSelectionCell(column: target.column, book: target.edition.book, chapter: target.edition.chapter, verse: verse), default: []].map { geometry[$0] }
+            }
+            return readerJoinedSelectionRectangles(rectangles, obstacles: obstacles).map {
+                $0.insetBy(dx: -ReaderFloatingControls.outlinePadding, dy: -ReaderFloatingControls.outlinePadding)
+            }
+        }
+    }
+
+    private func selectionOutlines(_ bounds: [CompareSelectionCell: [Anchor<CGRect>]]) -> some View {
+        GeometryReader { geometry in
+            let rectangles = selectionRectangles(bounds, geometry: geometry)
+            TimelineView(.animation(minimumInterval: 1.0 / 15, paused: reduceMotion || rectangles.isEmpty)) { clock in
+                let phase = reduceMotion ? 0 : -clock.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 7)
+                ForEach(Array(rectangles.enumerated()), id: \.offset) { _, rect in
+                    RoundedRectangle(cornerRadius: ReaderFloatingControls.outlineRadius)
+                        .fill(Color.accentColor.opacity(ReaderFloatingControls.fillOpacity))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: ReaderFloatingControls.outlineRadius)
+                                .strokeBorder(Color.accentColor.opacity(ReaderFloatingControls.outlineOpacity),
+                                              style: StrokeStyle(lineWidth: 1, dash: [4, 3], dashPhase: phase))
+                        }
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                }
+            }
+        }
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func allowsSameNumberAlignment(from edition: String, to anchor: BibleState) -> Bool {
@@ -1430,6 +1673,15 @@ struct CompareView: View {
         independentRows = independent
         eligibleComparisonEditions = Set(eligible)
         loadedPassage = passage
+        if selectedPassage == nil, let column = cols.first(where: { $0.text == st.translation && $0.book == st.bookId && $0.chapter == st.chapter }) {
+            let available = selectionRows(in: column, chapter: st.chapter)
+            let selected = selectedVerses(in: st).intersection(available.map(\.verseNum))
+            if !selected.isEmpty {
+                let target = CompareSelectedPassage(column: column.id, destination: column.historyKey, edition: ChapterEdition(st))
+                selectedPassage = target
+                compareSelection.replace(scope: target.scope, verses: selected, focus: st.verse, ordered: available.map(\.verseNum))
+            }
+        }
     }
 
     private func setPinned(_ pinned: Bool, for column: CompareColumn) {
