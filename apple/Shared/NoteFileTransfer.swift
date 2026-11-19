@@ -111,3 +111,38 @@ enum NoteFileTransfer {
     }
     #endif
 }
+
+#if os(macOS)
+/// A stable toolbar anchor survives the transient menu item that asks to share.
+/// Keep this behind the enclosing Menu, rather than inside its disappearing content.
+struct NativeShareRequest: Equatable {
+    let id = UUID()
+    let text: String
+}
+
+struct NativeShareAnchor: NSViewRepresentable {
+    let request: NativeShareRequest?
+
+    final class Coordinator {
+        var requestID: UUID?
+        var picker: NSSharingServicePicker?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        guard let request, context.coordinator.requestID != request.id else { return }
+        let coordinator = context.coordinator
+        coordinator.requestID = request.id
+        // Wait until the menu has closed; its source toolbar view remains attached.
+        DispatchQueue.main.async { [weak view, weak coordinator] in
+            guard let view, let coordinator, view.window != nil,
+                  coordinator.requestID == request.id else { return }
+            let picker = NSSharingServicePicker(items: [request.text])
+            coordinator.picker = picker
+            picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+        }
+    }
+}
+#endif

@@ -999,7 +999,7 @@ struct NotesHomeView: View {
             } label: { Label("Move", systemImage: "folder") }
             .disabled(ids.isEmpty)
             let chosen = visible.filter { selectedNotes.contains($0.id) }
-            ShareLink(item: chosen.map { "# \(Self.rowTitle($0))\n\n\($0.content)" }.joined(separator: "\n\n---\n\n")) {
+            ShareLink(item: chosen.map { noteReadableShareText(title: Self.rowTitle($0), content: $0.content) }.joined(separator: "\n\n")) {
                 Label("Share", systemImage: "square.and.arrow.up")
             }
             .disabled(ids.isEmpty)
@@ -1176,7 +1176,7 @@ struct NotesHomeView: View {
             openNoteFromList(n, searchPosition: searchPosition, newTab: true)
         }
         Menu {
-            ShareLink(item: n.content.isEmpty ? n.displayTitle : "\(n.displayTitle)\n\n\(n.content)", subject: Text(n.displayTitle)) {
+            ShareLink(item: noteReadableShareText(title: n.displayTitle, content: n.content), subject: Text(n.displayTitle)) {
                 Label("Share…", systemImage: "square.and.arrow.up")
             }
             Button("Print…", systemImage: "printer") { printNote(title: Self.rowTitle(n), body: n.content) }

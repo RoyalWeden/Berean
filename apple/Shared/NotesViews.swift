@@ -23,6 +23,12 @@ struct NoteRowView: View {
     }
 }
 
+/// Sharing is a reader-facing action; source-preserving Markdown has explicit export/copy actions.
+func noteReadableShareText(title: String, content: String) -> String {
+    let body = noteExcerptText(content).trimmingCharacters(in: .whitespacesAndNewlines)
+    return body.isEmpty ? title : title + "\n\n" + body
+}
+
 func verseLabel(_ ref: String, _ textId: String) -> String { Reference.verseRefDisplay(ref, textId: textId, hermas: HermasText(textId: textId)) }
 
 extension Color {
@@ -572,6 +578,9 @@ struct NoteDetailView: View {
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
     @State private var showingHistory = false
+    #if os(macOS)
+    @State private var shareRequest: NativeShareRequest?
+    #endif
     @State private var confirmingTrash = false
     @State private var choosingNoteIcon = false
     @State private var noteIconInput = ""
@@ -830,11 +839,21 @@ struct NoteDetailView: View {
                         Button("Export as Markdown File…") { saveNow(); app.exportNote(noteId) }
                         Button("Copy as Markdown") { copyMarkdown() }
                         Button("Print…") { saveNow(); printNote(title: dailyHeader(note) ?? title, body: content) }
-                        ShareLink(item: NoteMarkdownFile.markdown(for: note)) { Text("Share…") }
+                        #if os(macOS)
+                        Button("Share…") {
+                            saveNow()
+                            shareRequest = NativeShareRequest(text: noteReadableShareText(title: dailyHeader(note) ?? (title.isEmpty ? "Untitled" : title), content: content))
+                        }
+                        #else
+                        ShareLink(item: noteReadableShareText(title: dailyHeader(note) ?? (title.isEmpty ? "Untitled" : title), content: content)) { Text("Share…") }
+                        #endif
                     } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                    #if os(macOS)
+                    .background { NativeShareAnchor(request: shareRequest) }
+                    #endif
                     .menuIndicator(.hidden)
                     .accessibilityLabel("Share note")
-                    .help("Export, copy or share this note as Markdown")
+                    .help("Share note text, print, or export Markdown")
                     Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
                     Button(role: .destructive) {
                         if app.confirmNoteDelete && !JSText.trim(content).isEmpty {
@@ -1097,7 +1116,7 @@ struct NoteDetailView: View {
                         .labelStyle(.iconOnly).buttonStyle(.interactivePlain)
                         .frame(minWidth: 44, minHeight: 44)
                     }
-                    Text(String(prepared.replacement.prefix(240)))
+                    Text(noteExcerptText(prepared.replacement).prefix(240))
                         .font(.callout).foregroundStyle(.secondary).lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -2143,7 +2162,7 @@ struct NoteVersionHistoryView: View {
             } message: { Text("The current text is saved as a version first, so you can undo this.") }
         }
         #if os(macOS)
-        .frame(minWidth: 640, minHeight: 440)
+        .frame(minWidth: 720, minHeight: 500)
         #endif
         .task { load() }
     }
@@ -2182,10 +2201,19 @@ struct NoteVersionHistoryView: View {
             List(selection: $selection) {
                 if versions.isEmpty { emptyHistoryMessage }
                 ForEach(versions) { version in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(versionDate(version))
-                        Text(Self.kindLabel(version.kind)).font(.caption).foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: version.kind == "manual" ? "bookmark" : "clock.arrow.circlepath")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 18)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(versionDate(version)).font(.subheadline.weight(.medium))
+                            Text(Self.kindLabel(version.kind)).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
                     .tag(version.id)
                 }
             }
@@ -2230,8 +2258,28 @@ struct NoteVersionHistoryView: View {
 
     @ViewBuilder private var preview: some View {
         if let selected {
-            ScrollView { MarkdownText(selected.content).textSelection(.enabled).padding(20) }
-                .id(selected.id)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(selected.title.isEmpty ? "Untitled" : selected.title)
+                            .font(.title2.weight(.semibold))
+                            .accessibilityAddTraits(.isHeader)
+                        Text(versionDate(selected) + " · " + Self.kindLabel(selected.kind))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        if selected.content == currentContent {
+                            Label("Matches current note", systemImage: "checkmark.circle")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Divider()
+                    MarkdownText(selected.content)
+                }
+                .textSelection(.enabled)
+                .frame(maxWidth: 720, alignment: .leading)
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .id(selected.id)
         } else {
             ContentUnavailableView("Select a version", systemImage: "clock.arrow.circlepath")
         }
@@ -2246,8 +2294,7 @@ struct NoteVersionHistoryView: View {
         } label: {
             Label("Save Version Now", systemImage: "plus.circle").frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderless)
-        .clickableCursor()
+        .buttonStyle(.bordered)
     }
 
     private func versionDate(_ version: NoteVersion) -> String {
