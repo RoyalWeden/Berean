@@ -1342,21 +1342,6 @@ struct CompareView: View {
                     .environment(\.openURL, strongsAction(for: row, textId: column.text))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contextMenu { comparisonVerseActions(row, column: column) }
-                if let tags = chapterTags[TagChapter(row)]?[row.verseNum], !tags.isEmpty {
-                    FlowLayout {
-                        ForEach(tags) { tag in
-                            Button {
-                                app.openSearch("#\(tag.name)", reuseTab: true)
-                            } label: {
-                                TagChip(name: tag.name, color: tag.color, slot: tag.colorSlot)
-                                    .padding(.vertical, 6)
-                                    .contentShape(.rect)
-                            }
-                            .buttonStyle(.interactivePlain)
-                            .accessibilityLabel("Search tag \(tag.name)")
-                        }
-                    }
-                }
             }
             if showsControls { comparisonVerseControls(row, column: column) }
         }
@@ -1369,19 +1354,22 @@ struct CompareView: View {
     }
 
     @ViewBuilder private func comparisonVerseControls(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
-        if let count = chapterNoteCounts[EditionChapter(row, text: column.text)]?[row.verseNum], count > 0 {
+        let count = chapterNoteCounts[EditionChapter(row, text: column.text)]?[row.verseNum] ?? 0
+        let tags = chapterTags[TagChapter(row)]?[row.verseNum] ?? []
+        if count > 0 || !tags.isEmpty {
             Button {
                 openReader(row, in: column, inspector: "notes")
             } label: {
-                Label("Notes (\(count))", systemImage: "note.text")
+                Label("Notes and Tags", systemImage: "circle.fill")
                     .labelStyle(.iconOnly)
-                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 5))
+                    .foregroundStyle(.secondary)
                     .frame(minWidth: controlSize, minHeight: controlSize)
                     .contentShape(.rect)
             }
             .buttonStyle(.interactivePlain)
-            .accessibilityLabel("\(count) \(count == 1 ? "note" : "notes") for \(comparisonVerseReference(row, column: column))")
-            .help("Open verse notes")
+            .accessibilityLabel("Notes and tags for \(comparisonVerseReference(row, column: column))")
+            .help("View notes and tags")
         }
         #if os(iOS)
         VerseActionsMenu(label: "Actions for \(comparisonVerseReference(row, column: column))") {

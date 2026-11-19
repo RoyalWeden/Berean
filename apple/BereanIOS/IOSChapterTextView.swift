@@ -62,6 +62,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
+    var onChapterNotes: () -> Void = {}
     var onNumberingInfo: () -> Void = {}
     var onCitations: (Int) -> Void
     var onVerseTap: (Int) -> Void
@@ -796,10 +797,14 @@ struct IOSChapterTextView: UIViewRepresentable {
             let paragraph = NSMutableParagraphStyle()
             paragraph.lineSpacing = parent.style.lineSpacing
             paragraph.paragraphSpacing = size * 0.55
+            let hasAnnotations = parent.verses.contains { $0.noteCount > 0 || !$0.tags.isEmpty }
             if parent.style.showVerseNumbers {
                 paragraph.tabStops = [NSTextTab(textAlignment: .right, location: size * 1.25),
                                       NSTextTab(textAlignment: .left, location: size * 1.8)]
                 paragraph.headIndent = size * 1.8
+            } else if hasAnnotations {
+                paragraph.tabStops = [NSTextTab(textAlignment: .left, location: size * 0.8)]
+                paragraph.headIndent = size * 0.8
             }
             let base: [NSAttributedString.Key: Any] = [.font: regular, .foregroundColor: UIColor.label, .paragraphStyle: paragraph]
             if let header = parent.header {
@@ -815,8 +820,15 @@ struct IOSChapterTextView: UIViewRepresentable {
                 out.append(NSAttributedString(string: header + "  ⓘ\n", attributes: attributes))
             }
             if !parent.chapterTags.isEmpty {
-                appendTags(parent.chapterTags, verse: nil, to: out, base: base, dark: dark)
-                out.append(NSAttributedString(string: "\n", attributes: [.paragraphStyle: paragraph, Self.skip: true]))
+                let headerParagraph = NSMutableParagraphStyle()
+                headerParagraph.firstLineHeadIndent = paragraph.headIndent
+                headerParagraph.headIndent = paragraph.headIndent
+                headerParagraph.paragraphSpacing = size * 0.55
+                out.append(NSAttributedString(string: "Chapter tags · \(parent.chapterTags.count)\n", attributes: [
+                    .font: UIFont.preferredFont(forTextStyle: .caption1), .foregroundColor: UIColor.secondaryLabel,
+                    .paragraphStyle: headerParagraph, Self.skip: true,
+                    .link: URL(string: "berean-chapter-study:tags")!,
+                ]))
             }
             for verse in parent.verses {
                 let start = out.length
@@ -836,6 +848,14 @@ struct IOSChapterTextView: UIViewRepresentable {
                     out.append(NSAttributedString(string: title + "\n", attributes: titleAttributes))
                     if verse.numberBeforeTitle { psalmTitleRanges[verse.verse] = NSRange(location: titleStart, length: out.length - titleStart - 1) }
                 }
+                if verse.noteCount > 0 || !verse.tags.isEmpty {
+                    out.append(NSAttributedString(string: "•", attributes: base.merging([
+                        .font: UIFont.systemFont(ofSize: max(12, size * 0.65)),
+                        .foregroundColor: UIColor.secondaryLabel,
+                        .paragraphStyle: numberedTitle ? titleParagraph : paragraph,
+                        .link: URL(string: "berean-verse-notes:\(verse.verse)")!, Self.skip: true,
+                    ]) { _, new in new }))
+                }
                 if parent.style.showVerseNumbers {
                     let number = base.merging([
                         .font: UIFont.monospacedDigitSystemFont(ofSize: max(13, size * 0.75), weight: .semibold),
@@ -846,6 +866,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                     let markerStart = out.length
                     out.append(NSAttributedString(string: "\t\(verse.readerVerseLabel)\t", attributes: number))
                     markerRanges[verse.verse] = NSRange(location: markerStart, length: out.length - markerStart)
+                } else if hasAnnotations {
+                    out.append(NSAttributedString(string: "\t", attributes: base.merging([Self.skip: true]) { _, new in new }))
                 }
                 if numberedTitle, let title = verse.title {
                     let titleStart = out.length
@@ -875,11 +897,6 @@ struct IOSChapterTextView: UIViewRepresentable {
                     }
                 }
                 bodyRanges[verse.verse] = NSRange(location: bodyStart, length: out.length - bodyStart)
-                if verse.noteCount > 0 {
-                    out.append(NSAttributedString(string: verse.noteCount > 1 ? "  ●\(verse.noteCount)" : "  ●",
-                        attributes: base.merging([.font: UIFont.systemFont(ofSize: max(8, size * 0.5)),
-                                                  .foregroundColor: UIColor.tintColor, .link: URL(string: "berean-verse-notes:\(verse.verse)")!, Self.skip: true]) { _, new in new }))
-                }
                 if verse.citationCount > 0 {
                     let marker = base.merging([
                         .font: UIFont.systemFont(ofSize: max(13, size * 0.72), weight: .semibold),
@@ -889,7 +906,6 @@ struct IOSChapterTextView: UIViewRepresentable {
                     ]) { _, new in new }
                     out.append(NSAttributedString(string: "  ↗", attributes: marker))
                 }
-                appendTags(verse.tags, verse: verse.verse, to: out, base: base, dark: dark)
                 out.append(NSAttributedString(string: "\n", attributes: base))
                 verseRanges[verse.verse] = NSRange(location: start, length: out.length - start)
             }
@@ -937,6 +953,8 @@ struct IOSChapterTextView: UIViewRepresentable {
             switch url.scheme {
             case "berean-numbering":
                 return UIAction(title: "About Septuagint Numbering") { [weak self] _ in self?.parent.onNumberingInfo() }
+            case "berean-chapter-study":
+                return UIAction(title: "Chapter Notes and Tags") { [weak self] _ in self?.parent.onChapterNotes() }
             case "berean-verse":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
                 let number = parent.verses.first { $0.verse == verse }?.readerVerseLabel ?? String(verse)
@@ -947,7 +965,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 }
             case "berean-verse-notes":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse-notes:".count)) else { return nil }
-                return UIAction { [weak self] _ in self?.parent.onNotes(verse) }
+                let number = parent.verses.first { $0.verse == verse }?.readerVerseLabel ?? String(verse)
+                return UIAction(title: "Notes and Tags for Verse \(number)") { [weak self] _ in self?.parent.onNotes(verse) }
             case "berean-verse-citations":
                 guard let verse = Int(url.absoluteString.dropFirst("berean-verse-citations:".count)) else { return nil }
                 let number = parent.verses.first { $0.verse == verse }?.readerVerseLabel ?? String(verse)

@@ -314,3 +314,7 @@ MacRootView now delegates its current single document to MacTabContentHost(tabID
 ## 2026-11-19 — Pane selection and compact command-scope model
 
 Added focused-document replacement, visible-tab reuse, scoped/stale command-target checks and compact focused projection retaining the full split tree.13focused model tests pass (including484family/edge cases); full253tests and both SDK27.2 builds pass (`/tmp/berean-pane-focus-*` logs). Minimums now key on TAB ID so replacements use their own document constraints. AppModel command routing, pane environment, compact picker and visible splits remain unimplemented; this is model groundwork only. HANDOFF/TAB-SPLIT-DESIGN record the exact next bridge and validation.
+
+## 2026-11-19 — Reader annotation workflow
+
+SHARED-UX-ANNOTATIONS (P2, both): inline tags disrupted reading. First pass implemented: notes/tags margin dot, chapter summary and contextual grouped details; Compare tag rows removed. Mac/iPhone interactions verified, both builds pass. IN PROGRESS until hidden-number/accessibility/large-type/dark/many-tag and citation-unification acceptance complete. Actual tag search/removal submissions not part of this pass. No data migration.

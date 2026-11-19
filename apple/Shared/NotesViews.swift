@@ -1950,47 +1950,54 @@ struct VerseNotesView: View {
             }
             List {
                 let results = displayedNotes
-                if allNotesScope, loadedScope == loadKey, notes.count > 500 {
-                    Text("Showing the 500 most recently edited notes")
-                        .font(.caption).foregroundStyle(.secondary)
+                if allowsChapterScope, !allNotesScope {
+                    StudyPassageTags(bookId: bookId, chapter: chapter, textId: textId, verse: scopedVerse, selectedVerses: scopedSelection)
                 }
-                ForEach(results) { note in
+                Section {
+                    if allNotesScope, loadedScope == loadKey, notes.count > 500 {
+                        Text("Showing the 500 most recently edited notes")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    ForEach(results) { note in
+                        Button {
+                            if let editInSheet {
+                                editInSheet(note.id)
+                                return
+                            }
+                            #if os(iOS)
+                            dismiss()
+                            #endif
+                            app.openNote(note.id)
+                        } label: {
+                            NoteRowView(note: note)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.interactivePlain)
+                    }
+                    if loadedScope == loadKey, results.isEmpty, !searchTerm.isEmpty {
+                        ContentUnavailableView.search(text: searchTerm)
+                    } else if loadedScope == loadKey, notes.isEmpty, allNotesScope || (scopedVerse == nil && scopedSelection.isEmpty) {
+                        ContentUnavailableView(allNotesScope ? "No notes" : "No chapter notes", systemImage: "note.text")
+                    }
                     Button {
+                        let ref = attachment
                         if let editInSheet {
-                            editInSheet(note.id)
+                            if let id = app.newNote(verseRef: ref, textId: textId, title: passageLabel, openEditor: false) {
+                                editInSheet(id)
+                            }
                             return
                         }
-                        #if os(iOS)
-                        dismiss()
-                        #endif
-                        app.openNote(note.id)
-                    } label: {
-                        NoteRowView(note: note)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(.rect)
-                    }
-                    .buttonStyle(.interactivePlain)
-                }
-                if loadedScope == loadKey, results.isEmpty, !searchTerm.isEmpty {
-                    ContentUnavailableView.search(text: searchTerm)
-                } else if loadedScope == loadKey, notes.isEmpty, allNotesScope || (scopedVerse == nil && scopedSelection.isEmpty) {
-                    ContentUnavailableView(allNotesScope ? "No notes" : "No chapter notes", systemImage: "note.text")
-                }
-                Button {
-                    let ref = attachment
-                    if let editInSheet {
-                        if let id = app.newNote(verseRef: ref, textId: textId, title: passageLabel, openEditor: false) {
-                            editInSheet(id)
+                        if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
+                            #if os(iOS)
+                            dismiss()
+                            #endif
                         }
-                        return
+                    } label: {
+                        Label("New Note for \(passageLabel)", systemImage: "plus")
                     }
-                    if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
-                        #if os(iOS)
-                        dismiss()
-                        #endif
-                    }
-                } label: {
-                    Label("New Note for \(passageLabel)", systemImage: "plus")
+                } header: {
+                    if allowsChapterScope, !allNotesScope { Text("Notes") }
                 }
             }
         }

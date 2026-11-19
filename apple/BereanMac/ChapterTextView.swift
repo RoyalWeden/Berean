@@ -129,7 +129,7 @@ private final class ChapterPullScrollView: NSScrollView {
 }
 
 /// The Mac Scripture reader: ONE TextKit text view for the whole chapter, so a selection can run across verses
-/// (VERSE rows as separate SwiftUI Texts could not). Verse numbers, Strong's numbers and tag chips are links with
+/// (VERSE rows as separate SwiftUI Texts could not). Verse numbers, Strong's numbers and study markers are links with
 /// a pointing-hand cursor and a hover tint; right-click gives the verse actions; ⌘C copies like the existing
 /// app (several verses → "Book c:v1-v2" + numbered lines; ⌘⇧C → plain text on one line).
 struct ChapterTextView: NSViewRepresentable {
@@ -159,6 +159,7 @@ struct ChapterTextView: NSViewRepresentable {
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
+    var onChapterNotes: () -> Void = {}
     var onNumberingInfo: () -> Void = {}
     var onCitations: (Int) -> Void
     /// A verse number was clicked (shift = extend the range from the last clicked verse).
@@ -539,9 +540,13 @@ struct ChapterTextView: NSViewRepresentable {
             let para = NSMutableParagraphStyle()
             para.lineSpacing = p.style.lineSpacing
             para.paragraphSpacing = size * 0.55
-            let gutterWidth: CGFloat = p.style.showVerseNumbers ? 34 : 0
+            let hasAnnotations = p.verses.contains { $0.noteCount > 0 || !$0.tags.isEmpty }
+            let gutterWidth: CGFloat = p.style.showVerseNumbers ? 34 : hasAnnotations ? 16 : 0
             if p.style.showVerseNumbers {
                 para.tabStops = [NSTextTab(textAlignment: .right, location: 26), NSTextTab(textAlignment: .left, location: gutterWidth)]
+                para.headIndent = gutterWidth
+            } else if hasAnnotations {
+                para.tabStops = [NSTextTab(textAlignment: .left, location: gutterWidth)]
                 para.headIndent = gutterWidth
             }
             let base: [NSAttributedString.Key: Any] = [.font: font(size), .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
@@ -556,11 +561,11 @@ struct ChapterTextView: NSViewRepresentable {
                 out.append(NSAttributedString(string: h + "  ⓘ\n", attributes: attributes))
             }
             if !p.chapterTags.isEmpty {
-                let line = NSMutableAttributedString()
-                for (i, t) in p.chapterTags.enumerated() { if i > 0 { line.append(NSAttributedString(string: "  ")) }; line.append(chip(t, verse: nil)) }
-                line.addAttributes([.paragraphStyle: headPara, Self.skipKey: true], range: NSRange(location: 0, length: line.length))
-                line.append(NSAttributedString(string: "\n", attributes: [.paragraphStyle: headPara]))
-                out.append(line)
+                out.append(NSAttributedString(string: "Chapter tags · \(p.chapterTags.count)\n", attributes: [
+                    .font: NSFont.preferredFont(forTextStyle: .caption1), .foregroundColor: NSColor.secondaryLabelColor,
+                    .paragraphStyle: headPara, Self.skipKey: true,
+                    .link: URL(string: "berean-chapter-study:tags")!, .toolTip: "View chapter tags in the Study panel",
+                ]))
             }
 
             for v in p.verses {
@@ -574,6 +579,17 @@ struct ChapterTextView: NSViewRepresentable {
                 let titleAttributes = base.merging([.font: font(size * (v.numberBeforeTitle ? 0.92 : 0.85), italic: true), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: titlePara, Self.skipKey: true]) { $1 }
                 if let title = v.title, !title.isEmpty, !numberedTitle {
                     out.append(NSAttributedString(string: title + "\n", attributes: titleAttributes))
+                }
+                // Personal study material belongs in the margin, not in the
+                // reading/copying run. Keep the number's separate click target.
+                if v.noteCount > 0 || !v.tags.isEmpty {
+                    out.append(NSAttributedString(string: "•", attributes: [
+                        .font: NSFont.systemFont(ofSize: max(10, size * 0.6)),
+                        .foregroundColor: NSColor.secondaryLabelColor,
+                        .paragraphStyle: numberedTitle ? titlePara : para, Self.skipKey: true,
+                        .link: URL(string: "berean-verse-notes:\(v.verse)")!,
+                        .toolTip: "Verse \(v.readerVerseLabel) — notes and tags",
+                    ]))
                 }
                 if p.style.showVerseNumbers {
                     // Gutter: right-aligned verse number (a link → verse actions), note dot.
@@ -590,6 +606,8 @@ struct ChapterTextView: NSViewRepresentable {
                     out.append(NSAttributedString(string: "\(v.readerVerseLabel)", attributes: numAttrs))
                     out.append(NSAttributedString(string: "\t", attributes: gutterTab))
                     markerRanges[v.verse] = NSRange(location: markerStart, length: out.length - markerStart)
+                } else if hasAnnotations {
+                    out.append(NSAttributedString(string: "\t", attributes: base.merging([Self.skipKey: true]) { $1 }))
                 }
                 if numberedTitle, let title = v.title {
                     // A line break, not a new paragraph: title + body form one
@@ -632,9 +650,6 @@ struct ChapterTextView: NSViewRepresentable {
                         }
                     }
                 }
-                if v.noteCount > 0 {
-                    out.append(NSAttributedString(string: v.noteCount > 1 ? "  ●\(v.noteCount)" : "  ●", attributes: [.font: NSFont.systemFont(ofSize: max(8, size * 0.5)), .foregroundColor: NSColor.controlAccentColor, .paragraphStyle: para, Self.skipKey: true, .link: URL(string: "berean-verse-notes:\(v.verse)")!, .toolTip: "Open notes for verse \(v.verse) (\(v.noteCount))"]))
-                }
                 if v.citationCount > 0 {
                     let sizeScale: CGFloat = v.citationCount >= 5 ? 0.72 : v.citationCount >= 2 ? 0.62 : 0.52
                     out.append(NSAttributedString(string: "  ↗", attributes: [
@@ -643,10 +658,6 @@ struct ChapterTextView: NSViewRepresentable {
                         .link: URL(string: "berean-verse-citations:\(v.verse)")!,
                         .toolTip: v.citationPreview ?? "Open note cross references",
                     ]))
-                }
-                if !v.tags.isEmpty {
-                    out.append(NSAttributedString(string: "  ", attributes: base.merging([Self.skipKey: true]) { $1 }))
-                    for (i, t) in v.tags.enumerated() { if i > 0 { out.append(NSAttributedString(string: " ", attributes: [Self.skipKey: true])) }; out.append(chip(t, verse: v.verse)) }
                 }
                 out.append(NSAttributedString(string: "\n", attributes: base))
                 let range = NSRange(location: start, length: out.length - start)
@@ -679,6 +690,8 @@ struct ChapterTextView: NSViewRepresentable {
             switch url.scheme {
             case "berean-numbering":
                 parent.onNumberingInfo()
+            case "berean-chapter-study":
+                parent.onChapterNotes()
             case "berean-verse":
                 if let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) {
                     textView.window?.makeFirstResponder(textView)

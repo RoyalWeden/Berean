@@ -793,3 +793,7 @@ Initial explicit-tabID extraction is implemented and live checked for Scripture/
 ## Pane focus/compact API — 2026-11-19
 
 Use PaneLayoutHistory.select for sidebar/Go document selection; visible documents focus without layout undo, other documents replace only the focused leaf. Pass minimums keyed by TAB ID, recomputed from current document types. Capture commandTarget using per-window ID and live session/workspace ID; revalidate accepts before command execution and retain separate async intent revisions. Background viewport saves may explicitly require no focus but must retain the same visible pane/tab. Compact presentation uses .focused throughout model selection/history/frames and retains the full tree. No application bridge exists yet; see TAB-SPLIT-DESIGN for the next per-window coordinator/FocusedSceneValue and toolbar/editor prerequisites.
+
+## 2026-11-19 — Reader annotation workflow
+
+For reader annotation changes, exercise a tagged verse plus chapter tags; dot→study details, chapter caption→chapter scope, picker Cancel, range selection and copy with no metadata. Check Compare column edition. iPhone touch verified John7:2 tagged verse→Notes→dismiss→tap3→group2–3→Back originalPsalm3LXX. Read-only baselines verify note content/timestamps, exact tab IDs and tag rows. No annotation writes needed for this visual check; do not claim removal/search execution. Current final build logs /tmp/berean-study-tags-final-{mac,ios}.log.

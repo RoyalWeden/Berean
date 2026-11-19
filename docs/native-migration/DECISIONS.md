@@ -588,3 +588,7 @@ Extract a MacTabContentHost(tabID:) and retain only one visible host while valid
 ## 2026-11-19 — Document constraints and focus scope before UI routing
 
 Keep sidebar selection separate from tab creation: focus an existing visible tab, otherwise replace the focused leaf's document while preserving pane/sibling IDs. Key minimum sizes by tab identity to validate the new document, and recompute after type conversions. Compact focused presentation projects one leaf without discarding the tiled tree. Scoped command targets check current window/workspace/pane/tab/focus, but do not replace operation-specific revisions/cancellation or grant permissions. Wire a per-window coordinator before enabling multi-pane UI.
+
+## 2026-11-19 — Reader annotation workflow
+
+User accepts workflow changes to protect reading. Tag labels are organizational metadata shown in the study tool, not inline commentary. One neutral personal-study marker represents attached notes/tags; built-in cross refs stay contextual rather than marking nearly every verse. Personal-note citations remain distinct until a unified destination chooser preserves their meaning and direct access. No storage migration.

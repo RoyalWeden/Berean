@@ -1398,6 +1398,7 @@ struct ScriptureView: View {
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
+            onChapterNotes: { openInspector("notes") },
             onNumberingInfo: { numberingExplanation = ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation) },
             onCitations: { verse in
                 crossRefSource = "notes"
@@ -2353,6 +2354,7 @@ extension ScriptureView {
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
+            onChapterNotes: { openInspector("notes") },
             onNumberingInfo: { numberingExplanation = ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation) },
             onCitations: { verse in
                 crossRefSource = "notes"
