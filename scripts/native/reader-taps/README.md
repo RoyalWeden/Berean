@@ -20,3 +20,9 @@ The same harness checks body-position anchors through Strong's on/off reflow:
 inline links and chips are excluded, visible words retain their UTF-16 offsets,
 and emoji/combining characters and malformed ranges are covered. This checks
 mapping correctness; native layout and viewport behavior require app interaction.
+
+Compare coverage: column/passage scope isolation (including duplicate editions),
+additive taps, Shift ranges across combined stored records, invalid-target and
+arrival filtering, and outline geometry that keeps stacked editions separate
+while joining adjacent side-by-side rows. These pure cases do not replace the
+layout, clipboard, focus and action-destination checks recorded in HANDOFF.
