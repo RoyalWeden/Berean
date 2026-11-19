@@ -1,0 +1,89 @@
+import Foundation
+import Testing
+import BereanNotes
+
+@Suite("native note inline formatting")
+struct NoteInlineFormatTests {
+    private let table = "| Topic | Verse |\n| :--- | ---: |\n| Prayer | Romans 8:1 |"
+
+    private func applying(_ source: String, selection: NSRange? = nil, open: String = "**", close: String = "**") throws -> (String, NSRange) {
+        let text = source as NSString
+        let edit = try #require(NoteInlineFormat.edit(in: text, selection: selection ?? NSRange(location: 0, length: text.length), opening: open, closing: close))
+        return (text.replacingCharacters(in: edit.range, with: edit.replacement), edit.selection)
+    }
+
+    @Test func wholeTablePreservesGridAndAlignment() throws {
+        let (formatted, selection) = try applying(table)
+        #expect(formatted == "| **Topic** | **Verse** |\n| :--- | ---: |\n| **Prayer** | **Romans 8:1** |")
+        #expect(MarkdownLiveSpans.spans(formatted).filter { $0.kind == .tableHeader }.count == 1)
+        #expect(try applying(formatted, selection: selection).0 == table)
+    }
+
+    @Test func rowAndCrossCellSelectionKeepDelimitersOutsideMarks() throws {
+        let row = (table as NSString).range(of: "| Prayer | Romans 8:1 |")
+        #expect(try applying(table, selection: row).0.hasSuffix("| **Prayer** | **Romans 8:1** |"))
+        let partial = (table as NSString).range(of: "ayer | Romans")
+        #expect(try applying(table, selection: partial, open: "<u>", close: "</u>").0.hasSuffix("| Pr<u>ayer</u> | <u>Romans</u> 8:1 |"))
+    }
+
+    @Test func mixedCellsBecomeUniformAndStaySelectedForToggle() throws {
+        let mixed = table.replacingOccurrences(of: "Topic", with: "**Topic**")
+            .replacingOccurrences(of: "Verse", with: "**Verse**")
+            .replacingOccurrences(of: "Prayer", with: "**Prayer**")
+        let (formatted, selection) = try applying(mixed)
+        #expect(formatted == "| **Topic** | **Verse** |\n| :--- | ---: |\n| **Prayer** | **Romans 8:1** |")
+        #expect(try applying(formatted, selection: selection).0 == table)
+    }
+
+    @Test func unicodeEscapesAndCodeCellSurvive() throws {
+        let source = "| α😀 | A\\|B |\n| --- | --- |\n| `a\\|b` | שלום |"
+        let (formatted, selection) = try applying(source, open: "<u>", close: "</u>")
+        #expect(formatted.contains("<u>α😀</u>"))
+        #expect(formatted.contains("<u>A\\|B</u>"))
+        #expect(MarkdownLiveSpans.plainText(formatted) == MarkdownLiveSpans.plainText(source))
+        #expect(MarkdownLiveSpans.spans(formatted).filter { $0.kind == .tableRow }.count == 2)
+        #expect(try applying(formatted, selection: selection, open: "<u>", close: "</u>").0 == source)
+    }
+
+    @Test func existingLinksAndOtherMarksKeepReadableTextAndDestinations() throws {
+        let source = "| *Topic* | [Verse](https://example.com/a) |\n| --- | --- |\n| Prayer and `code` | ==important== |"
+        let (formatted, selection) = try applying(source)
+        #expect(formatted.contains("*Topic*"))
+        #expect(formatted.contains("[Verse](https://example.com/a)"))
+        #expect(formatted.contains("**Prayer and** `code`"))
+        #expect(MarkdownLiveSpans.plainText(formatted) == MarkdownLiveSpans.plainText(source))
+        #expect(try applying(formatted, selection: selection).0 == source)
+    }
+
+    @Test func proseAndMultipleTablesRetainSourceOrderAndLineEndings() throws {
+        let source = "Before\r\n\r\n" + table.replacingOccurrences(of: "\n", with: "\r\n") + "\r\n\r\nBetween\r\n\r\n" + table + "\nAfter"
+        let (formatted, selection) = try applying(source)
+        #expect(formatted.hasPrefix("**Before**\r\n\r\n| **Topic**"))
+        #expect(formatted.contains("**Between**\r\n"))
+        #expect(formatted.hasSuffix("\n**After**"))
+        #expect(try applying(formatted, selection: selection).0 == source)
+    }
+
+    @Test func separatorAndEmptyCellsDoNotBreakTheTable() {
+        let rule = (table as NSString).range(of: "| :--- | ---: |")
+        #expect(NoteInlineFormat.edit(in: table as NSString, selection: rule, opening: "**", closing: "**") == nil)
+        let blank = "|  |  |\n| --- | --- |\n|  |  |" as NSString
+        #expect(NoteInlineFormat.edit(in: blank, selection: NSRange(location: 0, length: blank.length), opening: "**", closing: "**") == nil)
+        #expect(NoteInlineFormat.edit(in: table as NSString, selection: NSRange(location: 0, length: 0), opening: "**", closing: "**") == nil)
+    }
+
+    @Test func ordinaryTextAndTypingKeepExistingContract() throws {
+        let (formatted, selected) = try applying("α😀 text", selection: NSRange(location: 0, length: 3))
+        #expect(formatted == "**α😀** text")
+        #expect(selected == NSRange(location: 2, length: 3))
+        #expect(try applying(formatted, selection: selected).0 == "α😀 text")
+        #expect(try applying("ab", selection: NSRange(location: 1, length: 0)).1 == NSRange(location: 3, length: 0))
+    }
+
+    @Test func invalidRangesAndBlockWrappersAreRejected() {
+        for range in [NSRange(location: -1, length: 0), NSRange(location: 0, length: -1), NSRange(location: NSNotFound, length: 0), NSRange(location: 0, length: Int.max)] {
+            #expect(NoteInlineFormat.edit(in: table as NSString, selection: range, opening: "**", closing: "**") == nil)
+        }
+        #expect(NoteInlineFormat.edit(in: table as NSString, selection: NSRange(location: 0, length: 10), opening: "\n> ", closing: "") == nil)
+    }
+}
