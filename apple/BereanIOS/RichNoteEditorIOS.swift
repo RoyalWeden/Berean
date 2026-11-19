@@ -585,22 +585,19 @@ final class NoteUITextView: UITextView {
 
     private func applyFormatEdit(_ edit: (range: NSRange, replacement: String, selection: NSRange)?) {
         guard let edit else { return }
-        if edit.replacement.contains("---") {
-            replaceMarkdownLiterally(edit.range, with: edit.replacement, select: edit.selection)
-            return
-        }
-        guard let start = position(from: beginningOfDocument, offset: edit.range.location),
-              let end = position(from: start, offset: edit.range.length),
-              let range = textRange(from: start, to: end) else { return }
-        replace(range, withText: edit.replacement)
-        selectedRange = edit.selection
+        replaceMarkdownLiterally(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     /// UIKit can apply text substitutions even to programmatic replacements. Write
-    /// divider and table syntax directly so the Markdown delimiter remains ASCII.
+    /// source literally and record both selections so Undo/Redo restores the
+    /// formatting target as well as its text, independently of native typing.
     private func replaceMarkdownLiterally(_ range: NSRange, with replacement: String, select selection: NSRange) {
         let source = textStorage.string as NSString
-        guard range.upperBound <= source.length else { return }
+        guard range.location >= 0, range.length >= 0, range.location <= source.length,
+              range.length <= source.length - range.location else { return }
+        let resultingLength = source.length - range.length + replacement.utf16.count
+        guard selection.location >= 0, selection.length >= 0, selection.location <= resultingLength,
+              selection.length <= resultingLength - selection.location else { return }
         let previousText = source.substring(with: range)
         let previousSelection = selectedRange
         let inserted = NSRange(location: range.location, length: replacement.utf16.count)
