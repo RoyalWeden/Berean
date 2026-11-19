@@ -71,7 +71,7 @@ struct MacRootView: View {
 
     /// [sidebar] [‹] [›] — one group, the same order whether the sidebar is shown or hidden.
     @ViewBuilder var navGroup: some View {
-        HStack(spacing: 8) {
+        ControlGroup {
         Button { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } } label: {
             Label(columns == .detailOnly ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.left")
         }
@@ -80,8 +80,8 @@ struct MacRootView: View {
         .help(columns == .detailOnly ? "Show Sidebar (⌃⌘S)" : "Hide Sidebar (⌃⌘S)")
         historyButtons
         }
+        .controlGroupStyle(.navigation)
         .labelStyle(.iconOnly)
-        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder var historyButtons: some View {
