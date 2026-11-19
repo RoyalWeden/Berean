@@ -580,3 +580,7 @@ Joining Foundation's style fragments only across hidden source syntax recovers e
 ## 2026-11-19 — Keep pane composition separate from document identities
 
 Begin all-tab splits with a process-local pure value tree and separate layout history. Leaves refer to existing tab IDs; remove pane removes a view, not a tab. Reject duplicate live tab views, stale/foreign payloads and geometry below explicit per-leaf minima; revalidate at commit. Focus changes are not layout undo operations. Existing legacy panelLayout, workspace serializers and sync remain untouched until compatibility is proven. Host-level same-note/different-tab coordination and focused command routing are prerequisites for enabling UI.
+
+## 2026-11-19 — Explicit content identity before split focus
+
+Extract a MacTabContentHost(tabID:) and retain only one visible host while validating existing behavior. Rendering must resolve the supplied document rather than silently using a global active tab. Keep the outgoing-inspector guard and view IDs unchanged. This alone does not make hosted commands safe in background panes: resolve focused toolbar/inspector/navigation/save ownership and same-note coordination before enabling multi-host UI.

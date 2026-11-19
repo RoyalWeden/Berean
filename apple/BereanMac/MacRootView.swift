@@ -97,50 +97,7 @@ struct MacRootView: View {
 
     @ViewBuilder var detail: some View {
         if let tab = app.activeTab {
-            switch tab.tabType {
-            case .bible:
-                let st = BibleState(tab.state)
-                let layout = ScriptureLayout(rawValue: st.scriptureLayout) ?? .standard
-                ScriptureLayoutView(tabId: tab.id, layout: layout)
-                    .id(tab.id)
-                    .inspector(isPresented: Binding(get: { layout.usesInspector && st.rightPanelOpen }, set: { isPresented in
-                        // SwiftUI can dismiss an outgoing inspector when switching tabs.
-                        guard app.activeTab?.id == tab.id, layout.usesInspector else { return }
-                        app.update(tab.id, recordHistory: false) { tab in
-                            var reader = BibleState(tab.state)
-                            reader.rightPanelOpen = isPresented
-                            tab.state = reader.merged(into: tab.state)
-                        }
-                    })) {
-                        StudyInspector(tabId: tab.id).inspectorColumnWidth(min: 280, ideal: 340, max: 520)
-                    }
-                    .toolbar {
-                        ToolbarItem {
-                            Menu {
-                                Picker("Layout", selection: Binding(get: { layout }, set: { v in
-                                    app.update(tab.id) { t in var s = BibleState(t.state); s.scriptureLayout = v.rawValue; if v == .standard { s.rightPanelOpen = true }; t.state = s.merged(into: t.state) }
-                                })) { ForEach(ScriptureLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) } }
-                                    .pickerStyle(.inline)
-                            } label: { Label("Layout", systemImage: layout.symbol) }
-                            .menuIndicator(.hidden)
-                        }
-                    }
-            case .lexicon:
-                LexiconTabHost(tab: tab)
-            case .search:
-                SearchResultsView(tabId: tab.id).id(tab.id)
-            case .note:
-                if let id = tab.state["noteId"]?.stringValue?.string { NoteDetailView(noteId: id).id(tab.id + id) } else { NotesHomeView(tabId: tab.id).id(tab.id) }
-            case .calendar:
-                DailyNoteCalendar(tabId: tab.id).id(tab.id)
-            case .history:
-                HistoryView(tabId: tab.id).id(tab.id)
-            case .tags:
-                TagManagerView().id(tab.id)
-            default:
-                ContentUnavailableView(tab.title, systemImage: tab.symbol,
-                                       description: Text("This kind of tab arrives in a later native build. It stays saved with your workspace."))
-            }
+            MacTabContentHost(tabID: tab.id)
         } else {
             ContentUnavailableView {
                 Label("No tab open", systemImage: app.activeSpace.symbol)

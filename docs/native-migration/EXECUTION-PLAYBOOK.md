@@ -785,3 +785,7 @@ Synthetic fixture `/tmp/berean-iphone-partial-style.txt`: a table with `***Alpha
 ## Generic split implementation sequence — 2026-11-19
 
 Start from PaneLayout/PaneLayoutHistory/PaneTabDragPayload tests and TAB-SPLIT-DESIGN.md. Extract current single-tab rendering by explicit tabID before connecting previews; do not enable UI against global activeTab commands. Use candidate.applying plus current minimums/viewport/live tabs for preview and repeat validation at drop. On archive/close reconcile the tree first. Duplicate same-note editors across different tab IDs need a separate host policy. Keep the new tree in memory until legacy/new persistence contracts pass. For Compare Strong’s checks, record visible verse per pane independently, not equal scroll fractions after text reflow.
+
+## Mac content-host checkpoint — 2026-11-19
+
+Initial explicit-tabID extraction is implemented and live checked for Scripture/Notes/Calendar/History/Tags/Lexicon/Search. Root still hosts one active tab. Next audit global-active consumers and create focused pane context, separate focused toolbar/inspector/title ownership, and coordinate note first-responder/save before permitting background hosts. Do not turn on a split just because two views render. Keep same-note/different-tab editors refused/coordinated and test all placeholder families. Full evidence and exact original-tab baseline are in HANDOFF.
