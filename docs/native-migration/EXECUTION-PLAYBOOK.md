@@ -781,3 +781,7 @@ Use a synthetic table, select only the visible word, add Bold then Italic, remov
 ## Partial-style check — 2026-11-19
 
 Synthetic fixture `/tmp/berean-iphone-partial-style.txt`: a table with `***Alpha Bravo Charlie***`. Select only Bravo, toggle Bold then Italic, expect `***Alpha** Bravo **Charlie***` then `***Alpha*** Bravo ***Charlie***`; Alpha/Charlie retain both styles. Undo and Redo must restore exact source and selection. Test with toolbar touches on iPhone and keyboard/menu on Mac; raw AX Markdown does not encode every font style reliably, so verify saved source read-only. Global validator also checks neighbouring links/code; package tests cover hidden-syntax fragment joining and Unicode/edge/intraword selections. Original note hashes/timestamps and active tabs must match baselines after recoverably trashing only the synthetic fixture.
+
+## Generic split implementation sequence — 2026-11-19
+
+Start from PaneLayout/PaneLayoutHistory/PaneTabDragPayload tests and TAB-SPLIT-DESIGN.md. Extract current single-tab rendering by explicit tabID before connecting previews; do not enable UI against global activeTab commands. Use candidate.applying plus current minimums/viewport/live tabs for preview and repeat validation at drop. On archive/close reconcile the tree first. Duplicate same-note editors across different tab IDs need a separate host policy. Keep the new tree in memory until legacy/new persistence contracts pass. For Compare Strong’s checks, record visible verse per pane independently, not equal scroll fractions after text reflow.

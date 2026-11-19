@@ -576,3 +576,7 @@ Use renderer semantic ranges rather than adjacent punctuation to decide whether 
 ## 2026-11-19 — Validate partial styling across the whole note
 
 Joining Foundation's style fragments only across hidden source syntax recovers enclosing marks without crossing unstyled visible text. Validate candidates using unhidden characters and global visible-position semantic coverage, including link/wiki/code/image identities, so splitting a mark cannot alter neighbouring styles. Ignore whitespace-only style changes around split delimiters; retain source whitespace verbatim. Native Undo/Redo restores exact source/selection rather than depending on a second toggle to reconstruct identical syntax. Whole-source mixed edits remain a separate unfinished operation.
+
+## 2026-11-19 — Keep pane composition separate from document identities
+
+Begin all-tab splits with a process-local pure value tree and separate layout history. Leaves refer to existing tab IDs; remove pane removes a view, not a tab. Reject duplicate live tab views, stale/foreign payloads and geometry below explicit per-leaf minima; revalidate at commit. Focus changes are not layout undo operations. Existing legacy panelLayout, workspace serializers and sync remain untouched until compatibility is proven. Host-level same-note/different-tab coordination and focused command routing are prerequisites for enabling UI.

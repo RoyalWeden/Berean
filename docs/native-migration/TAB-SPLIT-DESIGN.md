@@ -1,6 +1,6 @@
 # Native tab-to-page split audit
 
-Checkpoint: 2026-11-18. Status: design/audit; not an implemented feature.
+Checkpoint: 2026-11-19. Status: pure pane model implemented/tested; user-facing split UI not implemented.
 User requirement: drag an existing sidebar tab onto a page, see a live split preview, then drop it into a real split. All tab types and combinations must work. This is a generic tab compositor, not another Scripture study-panel preset.
 
 ## What the current code actually does
@@ -66,4 +66,18 @@ For each ordered pair: left/right and top/bottom; then nested split, swap/move, 
 5. Nested trees, resize, pane movement, layout undo, restoration and compatibility gates.
 6. Fluid whole-block lift/drop animation, Reduced Motion/Transparency, screen reader descriptions and compact-device behavior.
 
-No gate above has passed yet. The audit establishes the required work and prevents shipping a Bible-only split as if it met the user's requested all-tab workflow.
+Gate1 now has a tested pure-model implementation in `Packages/BereanKit/Sources/BereanWorkspace/PaneLayout.swift`. Eight test cases include484 ordered family/edge combinations, nested movement/collapse, viewport minima, atomic failed edits/undo, stale/foreign/versioned payloads and depth/identity guards. This proves model operations only. Real drag content-type discrimination, current host permissions, same-note multi-editor prevention, live source deletion and old/new persistence compatibility have not passed. Gates2–6 remain unfinished; no visible split preview or split command has shipped.
+
+## Implementation checkpoint — 2026-11-19
+
+- `PaneLayout` owns only an optional value tree and focused leaf ID. Leaves reference existing tab IDs; neither tab data nor legacy workspace serializers are imported into layout operations.
+- `applying` returns a validated candidate for insert/move/remove/resize/focus. Validate current live tab IDs, every identity/fraction and all leaf minimum sizes. Preview must be pure; revalidate CURRENT tabs/minima/viewport when accepting a real drop. Allocate candidate pane/split IDs once per drag transaction, not per pointer frame.
+- `frames` uses top-left origins on both platforms and reserves divider width before applying the first child's fraction. Every leaf must have explicit positive minimum dimensions; missing/illegal/insufficient sizes fail. Do not squeeze a compact iPhone split through this geometry function; compact pane switching is still a required presentation decision.
+- `reconciling` prunes views for closed/archived tabs without deleting documents, collapses empty branches and chooses a surviving focus. Run this when live tabs change before preview/drop/commands; ordinary edits intentionally reject an already-stale tree.
+- `PaneLayoutHistory` provides layout-only undo/redo with current live-tab/geometry validation. Failed operations preserve both stacks; focus changes do not create undo entries or clear redo. This is not wired into any app UndoManager.
+- `PaneTabDragPayload` encodes version/window/workspace/tab identities and rejects unknown versions, foreign windows/workspaces and stale tabs. It is NOT registered as a drag type or connected to Sidebar. JSON decoding alone is not permission to accept arbitrary text/files.
+- No layout Codable/storage/sync changes. The first UI integration must stay process-local until the compatibility gate is proven. Same note via different tab IDs is NOT rejected by this ID-only model; the content host must coordinate/refuse duplicate editors before accepting a drop.
+
+## Next executable extraction
+
+Start `apple/BereanMac/MacRootView.swift` around detail: it still switches on `app.activeTab` and owns each tab's toolbar/Scripture inspector. Extract a MacTabContentHost with an explicit tabID lookup (`AppModel.findTab`) while retaining the current single-leaf presentation. Keep the inspector dismissal guard and tab-specific `.id` behavior. Audit every hosted view for hidden global-active dependencies before allowing a background leaf: NoteDetailView, TagManagerView, LexiconTabHost and commands/navigation need focused-pane context. AppModel's activeTab/history/Go/Find currently route globally; do not enable two live editors or stack multiple toolbars as an apparent split solution. Prove ordinary single-tab interactions for every family after extraction, then add read-only previews and focus routing as separate gates.
