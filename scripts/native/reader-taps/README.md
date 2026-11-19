@@ -26,3 +26,7 @@ additive taps, Shift ranges across combined stored records, invalid-target and
 arrival filtering, and outline geometry that keeps stacked editions separate
 while joining adjacent side-by-side rows. These pure cases do not replace the
 layout, clipboard, focus and action-destination checks recorded in HANDOFF.
+
+Retention cases also preserve the original Shift anchor after a tab return and
+filter rows/anchors no longer available. Cache routing and repeated location
+commands are covered by the native app interaction evidence in HANDOFF.
