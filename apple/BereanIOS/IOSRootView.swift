@@ -164,7 +164,7 @@ struct IOSRootView: View {
     private func goBackFromEdge() {
         guard app.canGoBack, !keyboardUp else { return }
         withAnimation(.snappy) { app.goBack() }
-        if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+        if UserLibrary.defaults.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
     }
@@ -239,7 +239,7 @@ struct IOSRootView: View {
                 let dx = value.translation.width, dy = value.translation.height
                 guard abs(dx) > 60, abs(dx) > abs(dy) * 1.5 else { return }
                 if withAnimation(.snappy, { app.stepTab(dx < 0 ? 1 : -1) }),
-                   UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+                   UserLibrary.defaults.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
             }
@@ -891,7 +891,7 @@ struct TabCardsSheet: View {
                 }
             } else {
                 Button {
-                    if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+                    if UserLibrary.defaults.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                     withAnimation(.snappy) { app.close(tab.id) }

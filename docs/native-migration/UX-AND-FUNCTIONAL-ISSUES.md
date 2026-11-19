@@ -322,3 +322,7 @@ SHARED-UX-ANNOTATIONS (P2, both): inline tags disrupted reading. First pass impl
 ## 2026-11-19 — Personal references and follow-up queue
 
 SHARED-UX-ANNOTATIONS: unified personal reference dots and contextual Related Passages route implemented, including ordinary-note ranges, while attached Notes stay distinct.254tests/both builds and Mac/iPhone route checks pass. New issues (scope/sort/filter placement/hover, release-scroll, hidden Markdown/context table menu, share anchor, history polish, auto-ref parity, BDB selection, substring highlighting) remain OPEN in FOLLOWUP-2026-11-19.md. Shared Mac QA concurrent edits require isolation before further tests.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

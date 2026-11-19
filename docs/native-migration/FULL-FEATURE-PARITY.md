@@ -1266,3 +1266,7 @@ Intentional visual departure from Electron: tags/note counts moved outside runni
 ## 2026-11-19 — Personal references and follow-up queue
 
 Native My Notes parity gains ordinary-note per-verse indicator index without altering the legacy indirect list/parser; preserves outgoing linked passages and range/chapter scope through contextual study route. Full auto verse/Strong’s settings/tracking audit still required by latest steering. All254tests/both builds pass; see reference-design evidence and FOLLOWUP-2026-11-19.md.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

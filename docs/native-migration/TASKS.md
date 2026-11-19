@@ -424,3 +424,7 @@ Implemented first reading-first annotation pass (neutral notes/tags dots and con
 ## 2026-11-19 — Personal references and follow-up queue
 
 Personal-reference unified entry implemented, with ordinary-note marker coverage and explicit related-passages destination. Next: full FOLLOWUP-2026-11-19.md queue, prioritizing Notes panel/search/filter simplification, visible hover controls, isolated Mac QA and release-scroll investigation. Physical/width/RTL/large-type/all-annotation combinations and general splits remain open.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

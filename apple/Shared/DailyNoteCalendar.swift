@@ -467,8 +467,8 @@ enum DailyNotePreferences {
         return DailyNoteDay.Location(latitude: latitude, longitude: longitude)
     }
 
-    static func today() -> Date {
-        let stored = UserDefaults.standard.string(forKey: locationKey) ?? ""
+    @MainActor static func today() -> Date {
+        let stored = UserLibrary.defaults.string(forKey: locationKey) ?? ""
         return DailyNoteDay.anchor(Date(), location: location(stored))
     }
 }

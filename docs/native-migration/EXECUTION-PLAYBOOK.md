@@ -801,3 +801,7 @@ For reader annotation changes, exercise a tagged verse plus chapter tags; dot→
 ## 2026-11-19 — Personal references and follow-up queue
 
 New ordinary-note reference UI matrix passed on Mac/iPhone with existing notes, no annotation edits. Mac sourceNote→Back restored17; Strong’sON/OFF retained17 viewport; Compare reference-only dots verified. All iPhone baselines intact. Shared Mac baseline became stale during concurrent interaction; never restore/delete the changed note/new tabs. Use a distinct debug QA profile/library/preferences and separate app path next. Full254-test and build logs in HANDOFF. Queue FOLLOWUP-2026-11-19.md.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

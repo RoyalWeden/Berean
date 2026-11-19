@@ -2100,7 +2100,7 @@ extension View {
 
 #if os(iOS)
 @MainActor func readerNavigationFeedback() {
-    guard UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true else { return }
+    guard UserLibrary.defaults.object(forKey: "berean.haptics.enabled") as? Bool ?? true else { return }
     UISelectionFeedbackGenerator().selectionChanged()
 }
 #endif

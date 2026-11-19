@@ -161,3 +161,7 @@ Reading-first annotation pass: quiet neutral margin dots for personal notes/tags
 ## 2026-11-19 — Personal references and follow-up queue
 
 Trailing personal citation arrows removed; quiet personal study dot/Chapter study entry now leads to clearly separated attached Notes and Related Passages. Ordinary-note list uses plain Notes Mentioning This Passage heading. Real Mac/iPhone route checks pass. Latest requested Notes/filter/hover/editor/share/history/RTL/highlight polish is queued in FOLLOWUP-2026-11-19.md; not yet claimed complete.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

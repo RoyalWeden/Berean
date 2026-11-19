@@ -1981,3 +1981,7 @@ Readers no longer place colored verse-tag labels or note counts in running Scrip
 ## 2026-11-19 — Personal references and follow-up queue
 
 Personal note references now share the quiet study dot instead of trailing arrows. Ordinary notes mentioning a verse also produce the dot; Related Passages opens My Notes with the correct scope. Chapter references use Chapter study instead of a separate citation row. Compare supports reference-only dots.254tests/both builds and Mac/iPhone navigation verified; no data migration.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

@@ -596,3 +596,7 @@ User accepts workflow changes to protect reading. Tag labels are organizational 
 ## 2026-11-19 — Personal references and follow-up queue
 
 One consistent personal-study entry replaces separate notes/tag/citation decorations. Attached Notes and related passages remain explicit separate destinations. Ordinary-note body references earn verse indicators; whole-chapter mentions do not mark every verse. Reference grammar/candidate limits/edition behavior unchanged. Preserve concurrent QA user edits; subsequent Mac UI tests need isolated library and preferences.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

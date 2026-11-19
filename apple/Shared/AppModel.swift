@@ -57,8 +57,28 @@ final class SingleInstanceLock {
 /// The native development library. It lives in this app's own container (bundle id com.berean.native.*),
 /// so it can never be a production or Capacitor/Electron Berean Dev database.
 enum UserLibrary {
+    private static let profile: DevelopmentLibraryProfile? = {
+        #if DEBUG && os(macOS)
+        guard Bundle.main.bundleIdentifier == "com.berean.native.mac.dev" else { return nil }
+        do { return try DevelopmentLibraryProfile.parse(arguments: ProcessInfo.processInfo.arguments) }
+        catch { fatalError("Invalid QA profile. Refusing to open another library: \(error)") }
+        #else
+        return nil
+        #endif
+    }()
+
+    /// @AppStorage and direct preference access must use the same isolated store.
+    @MainActor static let defaults: UserDefaults = {
+        guard let profile else { return .standard }
+        guard let suite = UserDefaults(suiteName: "com.berean.native.mac.dev." + profile.preferencesSuffix) else {
+            fatalError("Could not open isolated QA preferences")
+        }
+        return suite
+    }()
+
     static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        if let profile { return base.appendingPathComponent(profile.directoryName, isDirectory: true) }
         #if DEBUG && os(macOS)
         // Fixed, container-local scratch library for interactive QA while the regular Dev library is open.
         if ProcessInfo.processInfo.arguments.contains("--qa-library"),
@@ -83,16 +103,16 @@ final class AppModel {
     var activeSpace: SpaceId = .scripture {
         didSet { rememberWorkspaceSpace() }
     }
-    private var workspaceSpaces = UserDefaults.standard.dictionary(forKey: "nativeWorkspaceSpaces") as? [String: String] ?? [:]
+    private var workspaceSpaces = UserLibrary.defaults.dictionary(forKey: "nativeWorkspaceSpaces") as? [String: String] ?? [:]
 
     private func rememberWorkspaceSpace() {
         guard !currentSessionId.isEmpty, activeTab != nil,
               workspaceSpaces[currentSessionId] != activeSpace.rawValue else { return }
         workspaceSpaces[currentSessionId] = activeSpace.rawValue
-        UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
+        UserLibrary.defaults.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
     }
-    private(set) var recentTabIDs = Array((UserDefaults.standard.stringArray(forKey: "nativeRecentTabIDs") ?? []).prefix(20))
-    private var workspaceRecentTabIDs = UserDefaults.standard.dictionary(forKey: "nativeWorkspaceRecentTabIDs") as? [String: [String]] ?? [:]
+    private(set) var recentTabIDs = Array((UserLibrary.defaults.stringArray(forKey: "nativeRecentTabIDs") ?? []).prefix(20))
+    private var workspaceRecentTabIDs = UserLibrary.defaults.dictionary(forKey: "nativeWorkspaceRecentTabIDs") as? [String: [String]] ?? [:]
 
     /// Older installs have only the global recent list. Keep its entries until a workspace has
     /// enough locally recorded visits, and ignore references to tabs that have moved or closed.
@@ -299,7 +319,7 @@ final class AppModel {
             let h = TabPersistence.hydrate(sessions: rows.sessions, tabs: rows.tabs, groups: rows.groups, localState: local)
             if h.sessions.isEmpty { seedDefault() } else {
                 sessions = h.sessions; displayOrders = h.displayOrders; archivedGroups = h.archivedGroups; keys = h.keys
-                currentSessionId = UserDefaults.standard.string(forKey: "currentSessionId").flatMap { id in sessions.contains { $0.id == id } ? id : nil } ?? sessions[0].id
+                currentSessionId = UserLibrary.defaults.string(forKey: "currentSessionId").flatMap { id in sessions.contains { $0.id == id } ? id : nil } ?? sessions[0].id
                 if let space = workspaceSpaces[currentSessionId].flatMap(SpaceId.init(rawValue:)),
                    let id = activeTabId(in: space), tabs(in: space).contains(where: { $0.id == id }) {
                     activeSpace = space
@@ -367,7 +387,7 @@ final class AppModel {
 
     func saveNow() {
         guard let svc = sessionsService else { return }
-        UserDefaults.standard.set(currentSessionId, forKey: "currentSessionId")
+        UserLibrary.defaults.set(currentSessionId, forKey: "currentSessionId")
         let built = TabPersistence.buildSnapshot(sessions: sessions, displayOrders: displayOrders, archivedGroups: archivedGroups, previous: keys)
         keys = built.keys
         do {
@@ -441,8 +461,8 @@ final class AppModel {
         sessions.remove(at: i)
         workspaceSpaces.removeValue(forKey: id)
         workspaceRecentTabIDs.removeValue(forKey: id)
-        UserDefaults.standard.set(workspaceRecentTabIDs, forKey: "nativeWorkspaceRecentTabIDs")
-        UserDefaults.standard.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
+        UserLibrary.defaults.set(workspaceRecentTabIDs, forKey: "nativeWorkspaceRecentTabIDs")
+        UserLibrary.defaults.set(workspaceSpaces, forKey: "nativeWorkspaceSpaces")
         if currentSessionId == id {
             switchSession(sessions[0].id, rememberPrevious: false)
         }
@@ -598,11 +618,11 @@ final class AppModel {
         recentTabIDs.removeAll { $0 == id }
         recentTabIDs.insert(id, at: 0)
         if recentTabIDs.count > 20 { recentTabIDs.removeLast() }
-        UserDefaults.standard.set(recentTabIDs, forKey: "nativeRecentTabIDs")
+        UserLibrary.defaults.set(recentTabIDs, forKey: "nativeRecentTabIDs")
         let open = Set(session.allTabs.map(\.id))
         let previous = workspaceRecentTabIDs[currentSessionId, default: []]
         workspaceRecentTabIDs[currentSessionId] = Array(([id] + previous.filter { $0 != id && open.contains($0) }).prefix(10))
-        UserDefaults.standard.set(workspaceRecentTabIDs, forKey: "nativeWorkspaceRecentTabIDs")
+        UserLibrary.defaults.set(workspaceRecentTabIDs, forKey: "nativeWorkspaceRecentTabIDs")
     }
 
     func select(_ tabId: String, in space: SpaceId, rememberPrevious: Bool = true) {
@@ -1135,8 +1155,8 @@ final class AppModel {
     ]
 
     private var historySearchOptions: [String: String] {
-        get { UserDefaults.standard.dictionary(forKey: Self.searchHistoryOptionsKey) as? [String: String] ?? [:] }
-        set { UserDefaults.standard.set(newValue, forKey: Self.searchHistoryOptionsKey) }
+        get { UserLibrary.defaults.dictionary(forKey: Self.searchHistoryOptionsKey) as? [String: String] ?? [:] }
+        set { UserLibrary.defaults.set(newValue, forKey: Self.searchHistoryOptionsKey) }
     }
 
     private static func scriptureSearchState(_ state: JSObject) -> JSObject {
@@ -1191,7 +1211,7 @@ final class AppModel {
 
     func clearHistory() throws {
         try historyService?.clear()
-        UserDefaults.standard.removeObject(forKey: Self.searchHistoryOptionsKey)
+        UserLibrary.defaults.removeObject(forKey: Self.searchHistoryOptionsKey)
     }
 
     func recordTabReturn(to sourceTabID: String?, in workspaceID: String? = nil) {
@@ -1623,7 +1643,7 @@ final class AppModel {
             var state = st.object
             if !verseGroups.isEmpty { state["nativeSelectedVerses"] = passage.savedSelection }
             // New reader tabs start in the chosen default layout (original `defaultScriptureLayout`, Mac).
-            if let layout = UserDefaults.standard.string(forKey: "defaultScriptureLayout"), !layout.isEmpty {
+            if let layout = UserLibrary.defaults.string(forKey: "defaultScriptureLayout"), !layout.isEmpty {
                 state["scriptureLayout"] = .string(JSString(layout))
             }
             openTab(.bible, in: .scripture, title: title, state: state)

@@ -271,11 +271,11 @@ extension AppModel {
 
     private var archivePlacements: [String: ArchivePlacement] {
         get {
-            guard let data = UserDefaults.standard.data(forKey: "nativeArchivePlacements") else { return [:] }
+            guard let data = UserLibrary.defaults.data(forKey: "nativeArchivePlacements") else { return [:] }
             return (try? JSONDecoder().decode([String: ArchivePlacement].self, from: data)) ?? [:]
         }
         set {
-            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "nativeArchivePlacements")
+            UserLibrary.defaults.set(try? JSONEncoder().encode(newValue), forKey: "nativeArchivePlacements")
         }
     }
 

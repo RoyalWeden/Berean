@@ -385,3 +385,7 @@ Calmer reader annotations implemented and live-checked on Mac/iPhone: neutral ve
 ## 2026-11-19 — Personal references and follow-up queue
 
 Unified personal references now implemented: ordinary-note verse index, one margin marker, Related Passages→My Notes scoped routing, chapter study entry and Compare reference-only markers.254tests and both builds pass; Mac/iPhone UI routes verified. Current shared Mac QA is used concurrently; preserve newer note/tab changes and isolate subsequent tests. New user queue: FOLLOWUP-2026-11-19.md.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.

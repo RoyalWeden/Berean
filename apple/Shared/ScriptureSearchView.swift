@@ -1061,15 +1061,15 @@ struct ScriptureSearchView: View {
 }
 
 /// Recent search queries (per device, newest first) — the existing app's `recentSearchQueries` idea.
-enum SearchHistory {
+@MainActor enum SearchHistory {
     static let key = "nativeRecentSearches"
-    static var all: [String] { UserDefaults.standard.stringArray(forKey: key) ?? [] }
+    static var all: [String] { UserLibrary.defaults.stringArray(forKey: key) ?? [] }
     static func record(_ q: String) {
         var list = all.filter { $0.caseInsensitiveCompare(q) != .orderedSame }
         list.insert(q, at: 0)
-        UserDefaults.standard.set(Array(list.prefix(30)), forKey: key)
+        UserLibrary.defaults.set(Array(list.prefix(30)), forKey: key)
     }
-    static func clear() { UserDefaults.standard.removeObject(forKey: key) }
+    static func clear() { UserLibrary.defaults.removeObject(forKey: key) }
 }
 
 /// Book filter: type to add books (any text); chosen books show as removable chips.

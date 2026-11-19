@@ -632,7 +632,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             chapterPull = pull
             parent.onChapterPull(pull)
             if pull?.ready == true,
-               UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
+               UserLibrary.defaults.object(forKey: "berean.haptics.enabled") as? Bool ?? true {
                 selectionFeedback.selectionChanged()
             }
         }
@@ -1261,7 +1261,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             traceTap("toggle-\(verse)", in: view)
             view.selectedTextRange = nil
             parent.onVerseTap(verse)
-            if UserDefaults.standard.object(forKey: "berean.haptics.enabled") as? Bool ?? true { selectionFeedback.selectionChanged() }
+            if UserLibrary.defaults.object(forKey: "berean.haptics.enabled") as? Bool ?? true { selectionFeedback.selectionChanged() }
         }
 
         func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {

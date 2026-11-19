@@ -33,7 +33,7 @@ extension AppModel {
     static let recentKey = "nativeRecentPassages"
 
     var recentPassages: [RecentPassage] {
-        (UserDefaults.standard.data(forKey: Self.recentKey)).flatMap { try? JSONDecoder().decode([RecentPassage].self, from: $0) } ?? []
+        (UserLibrary.defaults.data(forKey: Self.recentKey)).flatMap { try? JSONDecoder().decode([RecentPassage].self, from: $0) } ?? []
     }
 
     /// Records a visited destination, newest first, with up to 40 entries.
@@ -41,7 +41,7 @@ extension AppModel {
         let destination = RecentPassage(textId: textId, bookId: bookId, chapter: chapter, verse: verse, endVerse: endVerse, verseGroups: verseGroups.isEmpty ? nil : verseGroups)
         var list = recentPassages.filter { $0 != destination }
         list.insert(destination, at: 0)
-        if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserDefaults.standard.set(data, forKey: Self.recentKey) }
+        if let data = try? JSONEncoder().encode(Array(list.prefix(40))) { UserLibrary.defaults.set(data, forKey: Self.recentKey) }
         let storedDestination = (try? JSONEncoder().encode(destination)).flatMap { String(data: $0, encoding: .utf8) }
         recordHistory(type: "bible", title: destination.label, bookId: bookId, chapter: chapter, verse: verse,
                       query: storedDestination)
