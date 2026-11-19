@@ -89,7 +89,7 @@ struct ReaderBodyReflowAnchor {
 }
 
 func readerBodyStorageIndex(in text: NSAttributedString, range: NSRange, offset: Int) -> Int? {
-    guard range.location != NSNotFound, range.location <= text.length,
+    guard range.location != NSNotFound, range.location >= 0, range.length >= 0, range.location <= text.length,
           range.length <= text.length - range.location, offset >= 0 else { return nil }
     var remaining = offset
     var result: Int?
@@ -105,11 +105,13 @@ func readerBodyStorageIndex(in text: NSAttributedString, range: NSRange, offset:
             stop.pointee = true
         } else { remaining -= run.length }
     }
-    return result ?? last
+    return result ?? last.map {
+        max(range.location, (text.string as NSString).rangeOfComposedCharacterSequence(at: $0).location)
+    }
 }
 
 func readerBodyOffset(in text: NSAttributedString, range: NSRange, index: Int) -> Int? {
-    guard range.location != NSNotFound, range.location <= text.length,
+    guard range.location != NSNotFound, range.location >= 0, range.length >= 0, range.location <= text.length,
           range.length <= text.length - range.location else { return nil }
     let end = min(max(index, range.location), NSMaxRange(range))
     var offset = 0

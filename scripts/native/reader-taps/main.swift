@@ -100,3 +100,9 @@ expect(readerBodyStorageIndex(in: body, range: NSRange(location: NSNotFound, len
 expect(readerBodyStorageIndex(in: body, range: plainRange, offset: -1) == nil, "Negative body offset rejected")
 expect(readerBodyStorageIndex(in: NSAttributedString(string: "H1", attributes: [skipped: true]), range: NSRange(location: 0, length: 2), offset: 0) == nil, "Metadata-only range has no body anchor")
 print("Reader reflow anchors passed: words, inline links, round trips, Unicode, gutter, invalid ranges")
+
+let ending = NSAttributedString(string: "Word 🌍")
+expect(readerBodyStorageIndex(in: ending, range: NSRange(location: 0, length: ending.length), offset: 999) == 5, "Clamped anchor stays at start of final emoji")
+expect(readerBodyStorageIndex(in: body, range: NSRange(location: -1, length: 1), offset: 0) == nil, "Negative range location rejected")
+expect(readerBodyOffset(in: body, range: NSRange(location: 0, length: -1), index: 0) == nil, "Negative range length rejected")
+print("Reader anchor boundary checks passed")
