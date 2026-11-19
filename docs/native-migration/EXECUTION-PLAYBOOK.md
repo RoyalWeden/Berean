@@ -809,3 +809,7 @@ Debug-only named QA library/preferences now implemented; regular behavior/identi
 ## 2026-11-19 — Study controls and viewport lifecycle
 
 Use only isolated Mac profile (QA-PROFILES.md). Viewport regression test: settle midchapter, record scrollbar/pixel offset, switch Notes/Search and return; compare exact position, not an early animation sample or a different active tab. New-tab jump and close tested. Zero-size trace diagnosis and final proof in READER-VIEWPORT-RESTORATION.md. Temporary trace removed. Notes menu/scope verified Mac/iPhone. Profile13notes/38IDs and iPhone17notes/47IDs/tags intact. Final255-test/build logs in HANDOFF.
+
+### Notes context verification checkpoint (2026-11-19)
+
+Use isolated Mac profile only. Context Table QA fixture ab468514-f24a-41d8-bf6b-d5fc176d2918 is recoverably trashed; do not restore it over human data. Mac table add-row/add-column/two-Undo/prose-context passed. iPhone readable study preview passed, contextual editor menu runtime remains next. Simulator current container97AA7CDA-A08F-4457-BA49-9DE41351682D (rediscover before read). Final13/17original-note hashes/timestamps,38/47active IDs and all tags unchanged. Builds in /tmp/berean-context-table-{mac,ios}.log. Physical scroll, sharing, version-history, RTL and match styling remain open.

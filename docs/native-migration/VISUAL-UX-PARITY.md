@@ -169,3 +169,7 @@ Debug-only named QA library/preferences now implemented; regular behavior/identi
 ## 2026-11-19 — Study controls and viewport lifecycle
 
 Notes-first panel and search-inline filter now checked on both platforms; flat scope/sort choices omit redundant labels. Initial hover controls use existing optionHover; inline Text links and comprehensive physical hover matrix remain open. Reader tab return stable at exact tested offset with layout-ready restore. AllNotes row preview still exposes raw wiki syntax, confirmed and queued; do not claim universal Markdown hiding.
+
+### 2026-11-19 Notes preview/table follow-up
+
+Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.

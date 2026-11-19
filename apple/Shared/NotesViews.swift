@@ -17,7 +17,7 @@ struct NoteRowView: View {
                 Text(Date(timeIntervalSince1970: Double(note.updatedAt) / 1000), format: .dateTime.month(.abbreviated).day()).font(.caption).foregroundStyle(.secondary)
             }
             if let ref = note.verseRef { Text(verseLabel(ref, note.textId)).font(.caption).foregroundStyle(.tint) }
-            if !note.content.isEmpty { Text(note.content.prefix(200)).font(.callout).foregroundStyle(.secondary).lineLimit(2) }
+            if !note.content.isEmpty { Text(noteExcerptText(note.content).prefix(200)).font(.callout).foregroundStyle(.secondary).lineLimit(2) }
         }
         .padding(.vertical, 2)
     }
@@ -271,7 +271,7 @@ func noteTableInsertion(in text: NSString, selection: NSRange)
             NSRange(location: offset + prefix.utf16.count + 2, length: 0))
 }
 
-private func noteTableContext(in text: NSString, selection: NSRange)
+func noteTableContext(in text: NSString, selection: NSRange)
     -> (block: [MarkdownLiveSpans.Span], row: Int)? {
     guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
     let selectedLine = text.lineRange(for: selection)
@@ -564,6 +564,7 @@ struct NoteDetailView: View {
     @State private var note: Note?
     @State private var title = ""
     @State private var formatRequest: NoteFormatRequest?
+    @State private var editingTable = false
     @State private var content = ""
     @State private var saveTask: Task<Void, Never>?
     @State private var snapshotTask: Task<Void, Never>?
@@ -704,26 +705,7 @@ struct NoteDetailView: View {
                                 }
                             }
                         }
-                        Menu("Table", systemImage: "tablecells") {
-                            Button("Insert Table", systemImage: "tablecells") {
-                                formatRequest = NoteFormatRequest(action: .insertTable)
-                            }
-                            Button("Add Row Below", systemImage: "rectangle.split.1x2") {
-                                formatRequest = NoteFormatRequest(action: .addTableRow)
-                            }
-                            Button("Add Column After", systemImage: "rectangle.split.2x1") {
-                                formatRequest = NoteFormatRequest(action: .addTableColumn)
-                            }
-                            Button("Delete Row", systemImage: "minus.rectangle") {
-                                formatRequest = NoteFormatRequest(action: .deleteTableRow)
-                            }
-                            Button("Delete Column", systemImage: "minus.rectangle.portrait") {
-                                formatRequest = NoteFormatRequest(action: .deleteTableColumn)
-                            }
-                            Button("Delete Table", systemImage: "trash", role: .destructive) {
-                                formatRequest = NoteFormatRequest(action: .deleteTable)
-                            }
-                        }
+                        tableMenu
                         formatButton("Bold", symbol: "bold", prefix: "**", suffix: "**")
                             .keyboardShortcut("b", modifiers: .command)
                         formatButton("Italic", symbol: "italic", prefix: "*", suffix: "*")
@@ -766,10 +748,9 @@ struct NoteDetailView: View {
                         formatRequest = NoteFormatRequest(action: .list(.checklist))
                     }
                     .labelStyle(.iconOnly).help("Make a checklist")
-                    Button("Insert Table", systemImage: "tablecells") {
-                        formatRequest = NoteFormatRequest(action: .insertTable)
-                    }
-                    .labelStyle(.iconOnly).help("Insert a table")
+                    tableMenu
+                        .labelStyle(.iconOnly)
+                        .help(editingTable ? "Edit table rows and columns" : "Insert a table")
                     #endif
                     Menu {
                         Button("Scripture Reference…", systemImage: "book") { insertingReference = true }
@@ -955,12 +936,42 @@ struct NoteDetailView: View {
         }
     }
 
+    /// Keep the toolbar and Format menu in sync with the editor's actual selection.
+    private var tableMenu: some View {
+        Menu {
+            if editingTable {
+                Button("Add Row Below", systemImage: "rectangle.split.1x2") {
+                    formatRequest = NoteFormatRequest(action: .addTableRow)
+                }
+                Button("Add Column After", systemImage: "rectangle.split.2x1") {
+                    formatRequest = NoteFormatRequest(action: .addTableColumn)
+                }
+                Divider()
+                Button("Delete Row", systemImage: "minus.rectangle") {
+                    formatRequest = NoteFormatRequest(action: .deleteTableRow)
+                }
+                Button("Delete Column", systemImage: "minus.rectangle.portrait") {
+                    formatRequest = NoteFormatRequest(action: .deleteTableColumn)
+                }
+                Button("Delete Table", systemImage: "trash", role: .destructive) {
+                    formatRequest = NoteFormatRequest(action: .deleteTable)
+                }
+            } else {
+                Button("Insert Table", systemImage: "tablecells") {
+                    formatRequest = NoteFormatRequest(action: .insertTable)
+                }
+            }
+        } label: { Label("Table", systemImage: "tablecells") }
+        .menuIndicator(.hidden)
+    }
+
     @ViewBuilder private var noteEditor: some View {
         #if os(macOS)
         RichNoteEditor(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
                        spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                        onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                        onReferenceCompletion: receiveReferenceCompletion,
+                       onTableContext: { editingTable = $0 },
                        onWikiLinkCommand: handleCompletionCommand, onLink: openLink)
             .focused($focus, equals: .body)
         #else
@@ -968,6 +979,7 @@ struct NoteDetailView: View {
                           spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                           onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                           onReferenceCompletion: receiveReferenceCompletion,
+                       onTableContext: { editingTable = $0 },
                           onWikiLinkCommand: handleCompletionCommand,
                           onInsertLink: { showLinkPrompt(selection: $0) }, onLink: openLink)
             .focused($focus, equals: .body)

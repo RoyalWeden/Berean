@@ -604,3 +604,7 @@ Debug-only named QA library/preferences now implemented; regular behavior/identi
 ## 2026-11-19 — Study controls and viewport lifecycle
 
 Restore native reader position on actual attachment/layout readiness, not a guessed single run-loop dispatch. Latest pending intent replaces earlier queued action, stale passage/target guards remain, zero-size captures rejected. Avoid observable app writes at momentum handoff. Keep Notes primary and metadata secondary; consolidate scope/sort into search menu, preserve choices. Physical smoothness is not proved by CUA wheel events.
+
+### 2026-11-19 — table commands follow retained selection
+
+Use the native editor’s retained selection, not first-responder identity, for table context: opening a toolbar menu legitimately takes focus. Coalesce context publication outside representable updates, publish only changes, and keep existing mutation guards/undo records. Reuse semantic preview conversion before truncation; never rewrite saved note source to hide syntax.

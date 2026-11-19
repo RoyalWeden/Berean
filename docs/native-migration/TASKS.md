@@ -432,3 +432,7 @@ Debug-only named QA library/preferences now implemented; regular behavior/identi
 ## 2026-11-19 — Study controls and viewport lifecycle
 
 DONE bounded: Notes search-inline filter/flat menu/Notes-first hierarchy; initial hover surfaces; separate QA library/preferences; real detached0×0viewport restore fix. NEXT: raw Markdown in NoteRowView previews and active editor, context table operations, anchored share menus, history polish, auto verse/Strong’s parity/settings/tracking, inline Strong’s hover, BDB RTL selection, match styling. Physical scrolling and broad UI matrix remain open; splits/Kokoro untouched.
+
+### 2026-11-19 Notes preview/table follow-up
+
+Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.

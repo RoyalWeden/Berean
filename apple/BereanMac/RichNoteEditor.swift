@@ -18,6 +18,7 @@ struct RichNoteEditor: NSViewRepresentable {
     var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
     var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
     var onReferenceCompletion: (NoteReferenceCompletion?) -> Void = { _ in }
+    var onTableContext: (Bool) -> Void = { _ in }
     var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
 
@@ -124,6 +125,7 @@ struct RichNoteEditor: NSViewRepresentable {
         private var wikiLinkQueryPending = false
         private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
         private var publishedReferenceCompletion: NoteReferenceCompletion?
+        private var publishedTableContext = false
 
         init(_ p: RichNoteEditor) { parent = p }
 
@@ -292,6 +294,15 @@ struct RichNoteEditor: NSViewRepresentable {
                     let y = scroll.isFlipped ? rect.minY - scroll.bounds.minY : scroll.bounds.maxY - rect.maxY
                     self.parent.onWikiLinkAnchor(CGRect(x: rect.minX - scroll.bounds.minX, y: y,
                                                        width: rect.width, height: rect.height))
+                }
+                // Preserve table context when the toolbar takes focus; formatting uses
+                // the native editor's retained selection, not the current first responder.
+                let inTable = self.textView.map { editor in
+                    noteTableContext(in: (editor.string) as NSString, selection: editor.selectedRange()) != nil
+                } ?? false
+                if inTable != self.publishedTableContext {
+                    self.publishedTableContext = inTable
+                    self.parent.onTableContext(inTable)
                 }
                 if query != self.publishedWikiLinkQuery {
                     self.publishedWikiLinkQuery = query

@@ -1274,3 +1274,7 @@ Debug-only named QA library/preferences now implemented; regular behavior/identi
 ## 2026-11-19 — Study controls and viewport lifecycle
 
 Notes scope/sort functionality preserved in simpler inline search menu; Notes-first display and personal annotations retained. Verified native saved-position lifecycle fix, independent of persistence format. Remaining automatic verse/Strong’s tracking/settings, Markdown/table/share/history, RTL and substring/lexicon highlight parity stays OPEN. Full255tests/both builds pass; rendered feature parity is limited to the named UI checks.
+
+### 2026-11-19 Notes preview/table follow-up
+
+Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.

@@ -15,6 +15,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
     var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
     var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
     var onReferenceCompletion: (NoteReferenceCompletion?) -> Void = { _ in }
+    var onTableContext: (Bool) -> Void = { _ in }
     var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onInsertLink: (NSRange) -> Void = { _ in }
     var onLink: (URL) -> Void = { _ in }
@@ -106,6 +107,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         private var wikiLinkQueryScheduled = false
         private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
         private var publishedReferenceCompletion: NoteReferenceCompletion?
+        private var publishedTableContext = false
         private var publishedWikiLinkAnchor: CGRect?
 
         /// Read the final UIKit selection after styling and SwiftUI updates settle.
@@ -134,6 +136,15 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     }
                 } else {
                     self.publishedWikiLinkAnchor = nil
+                }
+                // Preserve table context when the toolbar takes focus; formatting uses
+                // the native editor's retained selection, not the current first responder.
+                let inTable = self.textView.map { editor in
+                    noteTableContext(in: (editor.text ?? "") as NSString, selection: editor.selectedRange) != nil
+                } ?? false
+                if inTable != self.publishedTableContext {
+                    self.publishedTableContext = inTable
+                    self.parent.onTableContext(inTable)
                 }
                 if query != self.publishedWikiLinkQuery {
                     self.publishedWikiLinkQuery = query

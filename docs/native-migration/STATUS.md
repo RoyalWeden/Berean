@@ -393,3 +393,7 @@ Debug-only named QA library/preferences now implemented; regular behavior/identi
 ## 2026-11-19 — Study controls and viewport lifecycle
 
 Notes search-inline options, flat menu and Notes-first hierarchy implemented; key study/filter/ellipsis/compact Lexicon controls gain hover feedback. Mac zero-size restoration bug fixed and exact Notes/Search tab return verified. Release eager saves removed, but physical trackpad feel unverified. Final255tests/both builds and Mac/iPhone checks pass. Remaining full user queue in FOLLOWUP-2026-11-19.md.
+
+### 2026-11-19 Notes preview/table follow-up
+
+Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.

@@ -330,3 +330,7 @@ Debug-only named QA library/preferences now implemented; regular behavior/identi
 ## 2026-11-19 — Study controls and viewport lifecycle
 
 MAC-UX-VIEWPORT (P1): saved reader restore ran detached0×0 and clamped correct offset into wrong viewport; FIXED in final source, exact0.2734573119188504 Notes/Search return and fresh17jump verified, trace retained/removed from source. MAC-UX-RELEASE (P2): normal release model saves removed, physical smoothness still OPEN. Notes filter placement/redundant labels fixed and both-platform scope checks pass; initial hover controls implemented, full audit OPEN. Notes previews raw Markdown confirmed OPEN in FOLLOWUP-2026-11-19.md.
+
+### 2026-11-19 Notes preview/table follow-up
+
+Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.
