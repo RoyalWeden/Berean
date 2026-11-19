@@ -27,3 +27,9 @@ Build logs `/tmp/berean-study-filter-final-{mac,ios}.log` PASS. Full255tests=4co
 ## New separate reproduction — 2026-11-19
 
 After Mac temporary Search ever→CmdL G26→close current temporary tab (auto-selects existing Exodus32 Compare)→Genesis1 reader, settled scrollbar changed from0.2734573119188504 to0.3753169907016061. Same narrow900pt window/profile; subsequent Note→Reader and app relaunch retained new value. No reader/Compare edits in this increment. Investigate transition geometry/anchor capture; do not call original zero-size gate a universal fix. Current isolated fixture intentionally retains observed state; original note/tag/active-tab invariants remain intact.
+
+## Follow-up fixed and verified — 2026-11-19
+
+Trace proved restore888 at temporary320pt was correct, but later320→756→416pt inspector layout moved the capture to1323. Disabling the tab-change transaction did not solve the native sequence and was reverted. Commit8f680362 retains the latest immediately applied saved/explicit intent across changed viewport/document geometry, releases after0.5s layout quiet, cancels on wheel/key/mouse/scrollbar input and avoids persisting transient restore captures. It does not wait0.5s before displaying the position.
+
+Trace offset710 remained710 across320/756/416; repeated UI Compare returns exact0.3000845308537616. Immediate scroll produced0.5418427726120034 and remained; final no-trace build/relaunch/Compare return/ChapterActions open+cancel retain this exact value. Layout-only evidence /private/tmp/berean-codex-qa/viewport-followup.jsonl. No diagnostic source/flags retained. Physical momentum pacing, user resizing, slow delayed layout beyond quiet window and command races remain open; do not claim all viewport cases complete.

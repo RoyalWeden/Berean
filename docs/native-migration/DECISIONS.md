@@ -612,3 +612,7 @@ Use the native editor’s retained selection, not first-responder identity, for 
 ### 2026-11-19 — stable share anchors, readable sharing and typed sheet intent
 
 A transient menu item cannot own a persistent system-share anchor: keep the native source view behind its toolbar Menu and present after menu dismissal. Ordinary Share sends readable note text; source/identity-preserving Markdown belongs to explicitly named export/copy actions. BDB dictionary paragraphs have an English base direction with natural Hebrew runs, represented in native text attributes rather than copied direction-control characters. Present iPhone Go using an identifiable request carrying the immutable new-tab intent: separate presentation/mode state reproduced stale mode capture in real UI.
+
+### 2026-11-19 — native layout bursts and reference presentation
+
+Restoring once after attachment is insufficient when a native inspector subsequently reflows the reader through multiple widths. Apply immediately and retain one guarded geometry-sensitive intent through the initial quiet window, yielding to actual input. Avoid persisting temporary geometry during restore. Native animations outside that initial restoration remain intact. Automatic Strong’s detection uses the legacy shared preference key and changes styling, not source or explicit links. Personal reference candidates use indexed chapter tokens plus the real parser, not a canonical-name UI search or arbitrary search-page cap; do not silently discard older/abbreviated citations for speed.
