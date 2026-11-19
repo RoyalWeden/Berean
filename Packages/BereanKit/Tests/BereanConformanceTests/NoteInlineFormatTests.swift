@@ -89,6 +89,48 @@ struct NoteInlineFormatTests {
         #expect(try applying("ab", selection: NSRange(location: 1, length: 0)).1 == NSRange(location: 3, length: 0))
     }
 
+    @Test func visibleStyledTextCanGainAnotherStyleWithoutLosingTheFirst() throws {
+        for base in ["**Prayer**", "<u>Prayer</u>", "==Prayer==", "<mark class=\"hl-blue\">Prayer</mark>"] {
+            for wrapped in [base, "| Topic | Verse |\n| --- | --- |\n| \(base) | Romans 8:1 |"] {
+                let range = (wrapped as NSString).range(of: "Prayer")
+                let (italic, selected) = try applying(wrapped, selection: range, open: "*", close: "*")
+                #expect(MarkdownLiveSpans.spans(italic).contains { $0.kind == .italic && $0.range == selected })
+                #expect(try applying(italic, selection: selected, open: "*", close: "*").0 == wrapped)
+                #expect(MarkdownLiveSpans.plainText(italic) == MarkdownLiveSpans.plainText(wrapped))
+            }
+        }
+    }
+
+    @Test func boldAndItalicToggleIndependentlyAtSharedBoundaries() throws {
+        for source in ["***Prayer***", "| ***Prayer*** | Other |\n| --- | --- |\n| a | b |"] {
+            let selected = (source as NSString).range(of: "Prayer")
+            let italicOnly = try applying(source, selection: selected).0
+            #expect(italicOnly == source.replacingOccurrences(of: "***Prayer***", with: "*Prayer*"))
+            let boldOnly = try applying(source, selection: selected, open: "*", close: "*").0
+            #expect(boldOnly == source.replacingOccurrences(of: "***Prayer***", with: "**Prayer**"))
+        }
+    }
+
+    @Test func partialNewStyleRetainsItsEnclosingStyleAndUnicodeSelection() throws {
+        let source = "**α😀 Prayer last**"
+        let range = (source as NSString).range(of: "α😀 Prayer")
+        let (underlined, selection) = try applying(source, selection: range, open: "<u>", close: "</u>")
+        #expect(underlined == "**<u>α😀 Prayer</u> last**")
+        #expect((underlined as NSString).substring(with: selection) == "α😀 Prayer")
+        #expect(try applying(underlined, selection: selection, open: "<u>", close: "</u>").0 == source)
+        #expect(NoteInlineFormat.edit(in: source as NSString, selection: (source as NSString).range(of: "Prayer"), opening: "**", closing: "**") == nil)
+    }
+
+    @Test func combinedStyleEditsLeaveCodeAndLinkDestinationsIntact() throws {
+        let source = "**[Prayer](https://example.com/Prayer)** and **`Prayer`**"
+        let range = (source as NSString).range(of: "Prayer")
+        let (italic, selection) = try applying(source, selection: range, open: "*", close: "*")
+        #expect(italic.contains("https://example.com/Prayer"))
+        #expect(try applying(italic, selection: selection, open: "*", close: "*").0 == source)
+        let code = (source as NSString).range(of: "Prayer", options: .backwards)
+        #expect(NoteInlineFormat.edit(in: source as NSString, selection: code, opening: "*", closing: "*") == nil)
+    }
+
     @Test func invalidRangesAndBlockWrappersAreRejected() {
         for range in [NSRange(location: -1, length: 0), NSRange(location: 0, length: -1), NSRange(location: NSNotFound, length: 0), NSRange(location: 0, length: Int.max)] {
             #expect(NoteInlineFormat.edit(in: table as NSString, selection: range, opening: "**", closing: "**") == nil)

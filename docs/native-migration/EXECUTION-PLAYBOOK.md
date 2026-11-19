@@ -773,3 +773,7 @@ Existing strong/emphasis combinations now use Foundation source positions while 
 ## iPhone Notes interaction regression — 2026-11-19
 
 For reliable touch-only fixture input, open a known plain-text test file in TextEdit, select/copy, DeviceHub Edit→Send Clipboard (Capture KeyboardOFF), then paste through the iPhone body menu. Avoid further text-entry commands before Paste. Double-click the desired word and use the on-screen format/Undo/Redo controls; verify the selection remains around that word after Redo and another toggle restores exact full source via read-only DB. Separate settled screenshots avoid transient remote frames. Original-note hashes/timestamps and tab counts must match the baseline; trash only the new synthetic note via UI and restore the original reader. Never infer cross-cell/combined/color passes from a single-word test.
+
+## Combined-style interaction check — 2026-11-19
+
+Use a synthetic table, select only the visible word, add Bold then Italic, remove Bold, Undo, then remove Italic. Read-only source must show triple-star, single-star, then double-star respectively, with the same word still selected. Run on both apps; do not confuse raw AX style serialization with saved Markdown. Partial removal within a larger marked run and selection containing hidden syntax are separate unfinished cases. Restore original notes/reader and compare original hashes/timestamps. Legacy table-link probe instructions and exact collision fixtures are in NOTE-TABLE-LINK-COMPATIBILITY.md.

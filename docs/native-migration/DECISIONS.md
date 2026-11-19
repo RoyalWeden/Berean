@@ -568,3 +568,7 @@ Existing strong/emphasis combinations now use Foundation source positions while 
 ## 2026-11-19 — Own iPhone formatting selections in undo
 
 Use the existing explicit source replacement for every programmatic format edit, not only edits containing table dividers. UIKit native replace preserved characters on Undo/Redo but collapsed the Redo selection in the touch test, so another action targeted a caret. Register inverse source and before/after ranges consistently, validate them before mutation, and keep ordinary native typing separate. This does not implement nested style editing or claim IME/coalescing parity.
+
+## 2026-11-19 — Semantic style toggles and ambiguous legacy table links
+
+Use renderer semantic ranges rather than adjacent punctuation to decide whether a visible styled selection already has a mark. Validate resulting plain text and preservation of overlapping style coverage before accepting a combined edit. Do not silently normalize table wiki targets: actual legacy serializer output collides for Title and a distinct Title ending in one backslash. Keep raw link identities unchanged until context-aware resolution/ambiguity handling is implemented; evidence is in NOTE-TABLE-LINK-COMPATIBILITY.md.

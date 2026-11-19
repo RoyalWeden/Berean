@@ -13,6 +13,14 @@ public enum NoteInlineFormat {
               selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
         let table = tableLines(in: text)
         let spans = MarkdownLiveSpans.spans(text as String)
+        // A visible selection inside an existing style must be edited by its
+        // semantic mark, not by adjacent punctuation: '*' beside bold text is
+        // part of '**', not evidence that Italic is already enabled.
+        if selection.length > 0, let kind = styleKind(opening),
+           spans.contains(where: { isStyle($0.kind) && NSIntersectionRange($0.range, selection).length > 0 }),
+           !spans.contains(where: { $0.kind == .hidden && NSIntersectionRange($0.range, selection).length > 0 }) {
+            return styledTextEdit(in: text, selection: selection, opening: opening, closing: closing, kind: kind, spans: spans)
+        }
         // Existing inline constructs keep their own source and rendering. The
         // live renderer gives these runs precedence over an enclosing new mark.
         let protected = spans.compactMap { span -> NSRange? in
@@ -95,6 +103,74 @@ public enum NoteInlineFormat {
         case toggle
         case color(String)
         case remove
+    }
+
+    private static func styleKind(_ opening: String) -> MarkdownLiveSpans.Kind? {
+        switch opening {
+        case "**", "__": return .bold
+        case "*", "_": return .italic
+        case "<u>": return .underline
+        case "~~": return .strike
+        default: return nil
+        }
+    }
+
+    private static func isStyle(_ kind: MarkdownLiveSpans.Kind) -> Bool {
+        switch kind {
+        case .bold, .italic, .underline, .strike, .highlight: return true
+        default: return false
+        }
+    }
+
+    private static func styledTextEdit(in text: NSString, selection: NSRange, opening: String, closing: String,
+                                       kind: MarkdownLiveSpans.Kind, spans: [MarkdownLiveSpans.Span]) -> Edit? {
+        guard !spans.contains(where: {
+            ($0.kind == .code || $0.kind == .codeBlock) && NSIntersectionRange($0.range, selection).length > 0
+        }) else { return nil }
+        func coverage(_ spans: [MarkdownLiveSpans.Span], kind: MarkdownLiveSpans.Kind, selection: NSRange) -> IndexSet {
+            var result = IndexSet()
+            for span in spans where span.kind == kind {
+                let overlap = NSIntersectionRange(span.range, selection)
+                if overlap.length > 0 {
+                    result.insert(integersIn: (overlap.location - selection.location)..<(overlap.upperBound - selection.location))
+                }
+            }
+            return result
+        }
+        let current = coverage(spans, kind: kind, selection: selection)
+        let edit: Edit
+        if !current.isEmpty {
+            // Partial removal needs to split the enclosing mark. Keep the source
+            // intact until that operation can preserve every neighbouring style.
+            guard current.count == selection.length,
+                  spans.contains(where: { $0.kind == kind && $0.range == selection }),
+                  selection.location >= opening.utf16.count,
+                  closing.utf16.count <= text.length - selection.upperBound,
+                  text.substring(with: NSRange(location: selection.location - opening.utf16.count, length: opening.utf16.count)) == opening,
+                  text.substring(with: NSRange(location: selection.upperBound, length: closing.utf16.count)) == closing else { return nil }
+            let start = selection.location - opening.utf16.count
+            edit = Edit(range: NSRange(location: start, length: opening.utf16.count + selection.length + closing.utf16.count),
+                        replacement: text.substring(with: selection), selection: NSRange(location: start, length: selection.length))
+        } else {
+            edit = Edit(range: selection, replacement: opening + text.substring(with: selection) + closing,
+                        selection: NSRange(location: selection.location + opening.utf16.count, length: selection.length))
+        }
+        let result = text.replacingCharacters(in: edit.range, with: edit.replacement)
+        let next = MarkdownLiveSpans.spans(result)
+        guard MarkdownLiveSpans.plainText(result) == MarkdownLiveSpans.plainText(text as String) else { return nil }
+        let resultingMark = coverage(next, kind: kind, selection: edit.selection)
+        guard current.isEmpty ? resultingMark.count == selection.length : resultingMark.isEmpty else { return nil }
+        // Preserve overlapping styles, including partial ones and named colors.
+        for other in styleKinds(spans) where other != kind {
+            guard coverage(spans, kind: other, selection: selection).isSubset(of: coverage(next, kind: other, selection: edit.selection)) else { return nil }
+        }
+        return edit
+    }
+
+    private static func styleKinds(_ spans: [MarkdownLiveSpans.Span]) -> [MarkdownLiveSpans.Kind] {
+        var kinds: [MarkdownLiveSpans.Kind] = []
+        for span in spans where isStyle(span.kind) && !kinds.contains(span.kind) { kinds.append(span.kind) }
+        return kinds
     }
 
     /// Highlight visible text, leaving structural Markdown and existing inline
