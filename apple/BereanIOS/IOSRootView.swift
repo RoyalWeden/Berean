@@ -50,8 +50,11 @@ struct IOSRootView: View {
     @State private var pendingStudyDestination: (tabID: String, action: () -> Void)?
     @State private var showTabs = false
     @State private var tabSheetDetent = PresentationDetent.large
-    @State private var showGo = false
-    @State private var explicitNewTab = false
+    private struct GoRequest: Identifiable {
+        let id = UUID()
+        let newTab: Bool
+    }
+    @State private var goRequest: GoRequest?
     @State private var showSettings = false
     @State private var keyboardUp = false
     @State private var showScriptureDisplay = false
@@ -157,7 +160,9 @@ struct IOSRootView: View {
                     }
             }
         }
-        .sheet(isPresented: $showGo) { GoSheet(newTab: explicitNewTab, close: { showGo = false }).presentationDetents([.large]) }
+        .sheet(item: $goRequest) { request in
+            GoSheet(newTab: request.newTab, close: { goRequest = nil }).presentationDetents([.large])
+        }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
     }
 
@@ -170,8 +175,9 @@ struct IOSRootView: View {
     }
 
     private func openGo(newTab: Bool = false) {
-        explicitNewTab = newTab
-        showGo = true
+        // Presentation and destination intent travel together. Separate state
+        // variables can leave a newly presented sheet with the previous mode.
+        goRequest = GoRequest(newTab: newTab)
     }
 
     private var visibleArchiveUndo: ReaderArchiveUndo? {
