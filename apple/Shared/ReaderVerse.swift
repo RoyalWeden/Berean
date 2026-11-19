@@ -80,6 +80,46 @@ class ReaderTextLayoutManager: NSLayoutManager {
     }
 }
 
+/// Reflow anchors count only body UTF-16 units. Inline Strong's links and
+/// annotation chips can change length without changing the word being read.
+struct ReaderBodyReflowAnchor {
+    let verse: Int
+    let bodyOffset: Int
+    let offsetFromTop: CGFloat
+}
+
+func readerBodyStorageIndex(in text: NSAttributedString, range: NSRange, offset: Int) -> Int? {
+    guard range.location != NSNotFound, range.location <= text.length,
+          range.length <= text.length - range.location, offset >= 0 else { return nil }
+    var remaining = offset
+    var result: Int?
+    var last: Int?
+    text.enumerateAttribute(NSAttributedString.Key("bereanSkip"), in: range) { skipped, run, stop in
+        guard skipped == nil, run.length > 0 else { return }
+        last = NSMaxRange(run) - 1
+        if remaining < run.length {
+            // TextKit may return a UTF-16 position inside an emoji or combining
+            // sequence. Anchor its first character rather than a surrogate.
+            let index = run.location + remaining
+            result = max(run.location, (text.string as NSString).rangeOfComposedCharacterSequence(at: index).location)
+            stop.pointee = true
+        } else { remaining -= run.length }
+    }
+    return result ?? last
+}
+
+func readerBodyOffset(in text: NSAttributedString, range: NSRange, index: Int) -> Int? {
+    guard range.location != NSNotFound, range.location <= text.length,
+          range.length <= text.length - range.location else { return nil }
+    let end = min(max(index, range.location), NSMaxRange(range))
+    var offset = 0
+    text.enumerateAttribute(NSAttributedString.Key("bereanSkip"),
+                            in: NSRange(location: range.location, length: end - range.location)) { skipped, run, _ in
+        if skipped == nil { offset += run.length }
+    }
+    return offset
+}
+
 /// Visual adjacency follows the rendered rows, not arithmetic on persisted IDs.
 /// An actual row without a layout range still breaks a group.
 func readerSelectionRuns(_ selection: Set<Int>, in orderedVerses: [Int], available: Set<Int>) -> [[Int]] {

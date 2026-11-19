@@ -262,6 +262,8 @@ struct ChapterTextView: NSViewRepresentable {
             let keepScroll = c.lastPassage == passageId
             let origin = previousBounds.origin
             let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
+            let strongsChanged = keepScroll && c.lastKey?.style.showStrongs != style.showStrongs
+            let bodyAnchor = strongsChanged ? c.bodyReflowAnchor(in: tv) : nil
             let sel = tv.selectedRanges
             let previousText = tv.string
             c.clearFindHighlight()
@@ -278,7 +280,9 @@ struct ChapterTextView: NSViewRepresentable {
                 let kept = previousText.utf16.elementsEqual(tv.string.utf16) ? sel : []
                 tv.selectedRanges = kept.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : kept
                 var proposed = previousBounds
-                if wasAtEnd, let container = tv.textContainer {
+                if let bodyAnchor, let y = c.bodyReflowTop(bodyAnchor, in: tv) {
+                    proposed.origin.y = y
+                } else if wasAtEnd, let container = tv.textContainer {
                     tv.layoutManager?.ensureLayout(for: container)
                     proposed.origin.y = clip.documentRect.maxY
                 } else if let readingAnchor, let range = c.verseRanges[readingAnchor.verse], let container = tv.textContainer {
@@ -718,6 +722,57 @@ struct ChapterTextView: NSViewRepresentable {
                   let verse = verse(at: layout.characterIndexForGlyph(at: glyph)),
                   let range = verseRanges[verse], let marker = view.firstRect(forVerseRange: range) else { return nil }
             return (verse, marker.minY - localTop)
+        }
+
+        /// Keep the same body word on screen when Strong's adds/removes lines.
+        /// Prefer a visible focused verse; otherwise follow the viewport center.
+        func bodyReflowAnchor(in view: ReaderTextView) -> ReaderBodyReflowAnchor? {
+            guard let clip = view.enclosingScrollView?.contentView,
+                  clip.bounds.minY > clip.documentRect.minY + 1,
+                  let storage = view.textStorage, let layout = view.layoutManager,
+                  let container = view.textContainer, layout.numberOfGlyphs > 0 else { return nil }
+            let top = view.convert(clip.bounds.origin, from: clip).y
+            let readableTop = top + view.visibleTitleBarClearance
+            let bottom = top + clip.bounds.height - parent.actionClearance
+            guard bottom > readableTop else { return nil }
+            var index: Int?
+            if let focus = parent.selectionFocus, parent.selectedVerses.contains(focus),
+               let range = verseRanges[focus], let first = view.firstVerseLineTop(in: range),
+               first >= readableTop, first < bottom {
+                index = verseTextStarts[focus]
+            }
+            if index == nil {
+                let point = CGPoint(x: container.size.width * 0.5,
+                                    y: readableTop + (bottom - readableTop) * 0.45 - view.textContainerOrigin.y)
+                let glyph = layout.glyphIndex(for: point, in: container)
+                guard glyph < layout.numberOfGlyphs else { return nil }
+                index = layout.characterIndexForGlyph(at: glyph)
+            }
+            guard let index, let verse = verse(at: index), let range = bodyRange(verse),
+                  let offset = readerBodyOffset(in: storage, range: range, index: index),
+                  let bodyIndex = readerBodyStorageIndex(in: storage, range: range, offset: offset),
+                  let y = bodyLineTop(bodyIndex, in: view) else { return nil }
+            return ReaderBodyReflowAnchor(verse: verse, bodyOffset: offset, offsetFromTop: y - top)
+        }
+
+        private func bodyRange(_ verse: Int) -> NSRange? {
+            guard let start = verseTextStarts[verse], let range = verseRanges[verse], NSMaxRange(range) > start else { return nil }
+            return NSRange(location: start, length: NSMaxRange(range) - start - 1)
+        }
+
+        private func bodyLineTop(_ index: Int, in view: ReaderTextView) -> CGFloat? {
+            guard let layout = view.layoutManager, let container = view.textContainer else { return nil }
+            layout.ensureLayout(for: container)
+            let glyph = layout.glyphIndexForCharacter(at: index)
+            guard glyph < layout.numberOfGlyphs else { return nil }
+            return layout.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil).minY + view.textContainerOrigin.y
+        }
+
+        func bodyReflowTop(_ anchor: ReaderBodyReflowAnchor, in view: ReaderTextView) -> CGFloat? {
+            guard let storage = view.textStorage, let range = bodyRange(anchor.verse),
+                  let index = readerBodyStorageIndex(in: storage, range: range, offset: anchor.bodyOffset),
+                  let y = bodyLineTop(index, in: view), let clip = view.enclosingScrollView?.contentView else { return nil }
+            return view.convert(NSPoint(x: 0, y: y), to: clip).y - anchor.offsetFromTop
         }
 
         func visibleSelectedRanges(in scroll: NSScrollView) -> [NSRange] {

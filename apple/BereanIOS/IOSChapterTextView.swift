@@ -204,6 +204,8 @@ struct IOSChapterTextView: UIViewRepresentable {
             let previousBottom = view.contentSize.height + inset.bottom - view.bounds.height
             let wasAtEnd = samePassage && previousBottom > -inset.top + 1 && previousOffset.y >= previousBottom - 1
             let readingAnchor = samePassage && !wasAtEnd ? coordinator.readingAnchor(in: view) : nil
+            let strongsChanged = samePassage && coordinator.key?.style.showStrongs != style.showStrongs
+            let bodyAnchor = strongsChanged ? coordinator.bodyReflowAnchor(in: view) : nil
             if view.textContainerInset.left != style.width.phoneInset {
                 view.textContainerInset.left = style.width.phoneInset
                 view.textContainerInset.right = style.width.phoneInset
@@ -218,7 +220,9 @@ struct IOSChapterTextView: UIViewRepresentable {
                 } else {
                     view.selectedRange = NSRange(location: 0, length: 0)
                 }
-                if wasAtEnd {
+                if let bodyAnchor {
+                    coordinator.restoreBodyReflowAnchor(bodyAnchor, in: view, fallback: previousOffset)
+                } else if wasAtEnd {
                     coordinator.layoutThroughEnd(of: NSRange(location: 0, length: view.textStorage.length), in: view)
                     view.layoutIfNeeded()
                     let inset = view.adjustedContentInset
@@ -474,6 +478,44 @@ struct IOSChapterTextView: UIViewRepresentable {
             let markerY = view.caretRect(for: marker).minY
             guard markerY.isFinite else { return nil }
             return ReadingAnchor(verse: verse, offsetFromTop: markerY - top)
+        }
+
+        func bodyReflowAnchor(in view: UITextView) -> ReaderBodyReflowAnchor? {
+            let top = view.contentOffset.y + view.adjustedContentInset.top
+            let bottom = view.bounds.maxY - view.adjustedContentInset.bottom
+            guard top > 1, bottom > top else { return nil }
+            var index: Int?
+            if let focus = parent.selectionFocus, parent.selectedVerses.contains(focus),
+               let range = bodyRanges[focus],
+               let position = view.position(from: view.beginningOfDocument, offset: range.location) {
+                let y = view.caretRect(for: position).minY
+                if y >= top, y < bottom { index = range.location }
+            }
+            if index == nil, let position = view.closestPosition(to: CGPoint(x: view.bounds.midX, y: top + (bottom - top) * 0.45)) {
+                index = view.offset(from: view.beginningOfDocument, to: position)
+            }
+            guard let index, let verse = verseRanges.first(where: { NSLocationInRange(index, $0.value) })?.key,
+                  let range = bodyRanges[verse],
+                  let offset = readerBodyOffset(in: view.textStorage, range: range, index: index),
+                  let bodyIndex = readerBodyStorageIndex(in: view.textStorage, range: range, offset: offset),
+                  let position = view.position(from: view.beginningOfDocument, offset: bodyIndex) else { return nil }
+            let y = view.caretRect(for: position).minY
+            guard y.isFinite else { return nil }
+            return ReaderBodyReflowAnchor(verse: verse, bodyOffset: offset, offsetFromTop: y - top)
+        }
+
+        func restoreBodyReflowAnchor(_ anchor: ReaderBodyReflowAnchor, in view: UITextView, fallback: CGPoint) {
+            guard let range = bodyRanges[anchor.verse],
+                  let index = readerBodyStorageIndex(in: view.textStorage, range: range, offset: anchor.bodyOffset),
+                  let position = view.position(from: view.beginningOfDocument, offset: index) else {
+                view.setContentOffset(fallback, animated: false)
+                return
+            }
+            layoutChapter(in: view)
+            let inset = view.adjustedContentInset
+            let y = view.caretRect(for: position).minY - anchor.offsetFromTop - inset.top
+            let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+            view.setContentOffset(CGPoint(x: fallback.x, y: y.isFinite ? min(max(y, -inset.top), bottom) : fallback.y), animated: false)
         }
 
         func readingPosition(in view: UITextView, preferred: Int? = nil) -> ScriptureReadingPosition? {

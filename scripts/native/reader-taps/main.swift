@@ -70,3 +70,33 @@ expect(readerSelectionRuns([4, 5, 6], in: [4, 5, 6], available: [4, 5, 6]) == [[
 expect(readerSelectionRuns([99], in: displayedOrder, available: availableRows).isEmpty, "Stale absent IDs must not create outlines")
 expect(readerSelectionRuns([], in: displayedOrder, available: availableRows).isEmpty, "Empty selection has no groups")
 print("Reader selection adjacency passed: combined rows, visible gaps, missing layout, blank bridges, absent IDs")
+
+// Inline metadata must not move a reading anchor to another body word.
+let skipped = NSAttributedString.Key("bereanSkip")
+let body = NSMutableAttributedString(string: "In the beginning 🌍 was e\u{301}ternity")
+let expanded = NSMutableAttributedString(string: "In the beginning 🌍 was e\u{301}ternity")
+let insertion = (expanded.string as NSString).range(of: "beginning").location
+expanded.insert(NSAttributedString(string: "H7225 ", attributes: [skipped: true]), at: insertion)
+expanded.append(NSAttributedString(string: "  ●2", attributes: [skipped: true]))
+let plainRange = NSRange(location: 0, length: body.length)
+let expandedRange = NSRange(location: 0, length: expanded.length)
+for word in ["In", "the", "beginning", "🌍", "was", "e\u{301}ternity"] {
+    let original = (body.string as NSString).range(of: word).location
+    let offset = readerBodyOffset(in: body, range: plainRange, index: original)!
+    let restored = readerBodyStorageIndex(in: expanded, range: expandedRange, offset: offset)!
+    expect(restored == (expanded.string as NSString).range(of: word).location, "Strong's-on anchor follows \(word)")
+    let roundTrip = readerBodyOffset(in: expanded, range: expandedRange, index: restored)!
+    expect(readerBodyStorageIndex(in: body, range: plainRange, offset: roundTrip) == original, "Strong's-off anchor follows \(word)")
+}
+expect(readerBodyStorageIndex(in: expanded, range: expandedRange, offset: insertion) == insertion + 6, "Skipped link boundary resolves to following body word")
+let emoji = (body.string as NSString).range(of: "🌍").location
+expect(readerBodyStorageIndex(in: body, range: plainRange, offset: emoji + 1) == emoji, "Never anchor inside surrogate pair")
+let accent = (body.string as NSString).range(of: "e\u{301}ternity").location
+expect(readerBodyStorageIndex(in: body, range: plainRange, offset: accent + 1) == accent, "Never anchor inside combining character")
+let gutter = NSMutableAttributedString(string: "1\t", attributes: [skipped: true])
+gutter.append(body)
+expect(readerBodyStorageIndex(in: gutter, range: NSRange(location: 2, length: body.length), offset: 0) == 2, "Body subrange excludes verse gutter")
+expect(readerBodyStorageIndex(in: body, range: NSRange(location: NSNotFound, length: 1), offset: 0) == nil, "Invalid layout range rejected")
+expect(readerBodyStorageIndex(in: body, range: plainRange, offset: -1) == nil, "Negative body offset rejected")
+expect(readerBodyStorageIndex(in: NSAttributedString(string: "H1", attributes: [skipped: true]), range: NSRange(location: 0, length: 2), offset: 0) == nil, "Metadata-only range has no body anchor")
+print("Reader reflow anchors passed: words, inline links, round trips, Unicode, gutter, invalid ranges")
