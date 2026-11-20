@@ -863,3 +863,8 @@ Owner explicitly requires durable notes for Codex, Claude Code and any successor
 ## 2026-11-19 — Clipboard and final build evidence
 
 Use SIMULATOR-CLIPBOARD-QA for exact paste through DeviceHub Send Clipboard; captured CmdV can otherwise use a stale simulator clipboard. Open an already-created temporary TextEdit fixture to avoid default iCloud autosave/naming. Verify exact DB source, original records/IDs/tags, recoverable UUID cleanup and restored settings. No shell GUI events/clipboard automation. Temporary isolated derived data was used after a confirmed offloaded12GiB compilation index blocked an obsolete provisional build; final290tests/Mac+iOSbuilds passed before that provisional process was cancelled. Do not label it success or restart live jobs solely for a timeout. Details SCRIPTURE-BLOCKS-2026-11-19.
+
+
+## 2026-11-20 — Attachment/editor lifecycle QA
+
+Use NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md for the latest tested source/data preservation and cleanup packet. Check native reader labels separately from raw stored attachment keys; legacy golden output intentionally stays raw. Verify focus teardown by trashing an owned actively edited note and using the returned dock without relaunch. Preserve original notes/tags/tab IDs and restore original pane width/scroll. Unit ordering checks do not replace software-keyboard/physical-device/multi-editor UI checks. Continue updating HANDOFF/CURRENT-STATE during work.

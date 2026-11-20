@@ -1,33 +1,29 @@
 # Current native migration checkpoint
 
-Snapshot **2026-11-20T07:12:57+00:00**, Codex. Read HANDOFF first. This is not a worker lock; verify live Git/GitHub/process/app/library before acting and preserve newer edits.
+Snapshot **2026-11-20T07:31:09.976275+00:00**, Codex. Read HANDOFF first; verify live state and preserve newer edits. Broad goal **ACTIVE**.
 
-## Source, review and verification
+## Source and review
 
-- Checkout /Users/roywe/Documents/ChatGPT/Berean/repo, branch native/reader-notes.
-- Latest implemented source **7e8142f94febbb35a609d2398dba9b8f0795fb76**: verified automatic Scripture-block presentation on both native editors and categorized iPhone Settings. A later documentation-only head can follow it.
-- Draft PR24, base native/m6-navigation, last verified OPEN/draft. Last remote observation was cf0c6438 before this source/doc publication. **Verify actual remote head and its own checks**; if source7e8142f9 is already published, resume app work rather than repeating publication.
-- Prior exact cf0c6438 CI44686490619 SUCCESS; source1f4e7361 CI44683148736 SUCCESS. Continuity-only9fb67f8b run44685554261 was CANCELLED, not green. None proves new-source CI.
-- New source local validation **290tests PASS** (4core+286conformance/68suites), both final development builds PASS; actual Mac+iPhone Simulator interactions and source/data checks passed. See [SCRIPTURE-BLOCKS-2026-11-19](SCRIPTURE-BLOCKS-2026-11-19.md) for logs, limits and cleanup. New publication-head CI must be rechecked.
-- Pushgithub in this clone; origin is the owner's local repository. Owner-only merge22→23 after correct retarget/checks→draft24. No merge/retarget/ready/force action.
-- All shipping-code WIP was committed as7e8142f9. Documentation may still be dirty until its own checkpoint commit; inspect actual status. Historical prototype is superseded, never copy it over live code.
+- Checkout /Users/roywe/Documents/ChatGPT/Berean/repo, branch native/reader-notes; latest implemented source **334eafbb** (LXX attachment labels and iPhone editor teardown), following7e8142f9 Scripture blocks/Settings and published doc9a210789.
+- Source334eafbb is locally committed; publication/doc head may follow. Verify actual remote/head checks before claiming published or green. Last remotePR24 head9a210789 OPEN/DRAFT/base native/m6-navigation. Pushgithub only; origin is owner's local repo.
+- Owner-only22→23 after correct retarget/checks→draft24. No merge/retarget/ready/force.
+- Prior9a210789 CI44693533700 still live at latest poll: legacy job success; native Mac shared/AppKit regressions success; iOS platform-conformance step running. Do not restart on observation timeout. Priorcf0c6438/1f4e7361 CI success;9fb67f8b cancelled. None proves new source CI.
 
-## Safe runtime and data
+## Completed validation and data
 
-- Mac only /private/tmp/berean-codex-controls-qa/BereanMac.app --qa-library --qa-profile codex-controls-20261119, development IDcom.berean.native.mac.dev. Final build installed; diagnosticsOFF; test Settings window closed by verified isolated lifecycle.
-- Mac Genesis1KJVA, selected1, Notes inspectorGenesis1:1, sidebar239/rightdivider1148, scrollbar **0.5782918149466192** explicitly restored after final relaunch. Preserve newer live state, not this snapshot. Several app copies share a bundle ID; verify exact path/arguments/PID before stopping/replacing.
-- iPhone only simulatorD0CC2F4C-AC47-4648-AC5C-0DC128CFCE7D / com.berean.native.ios.dev. Last container **D979C134-F582-414A-AED5-EF5D1B25D673**, PID36782. Re-query after every install; path file /private/tmp/berean-note-keyboard-ios-container.txt. Final Psalm3LXX, no selection, Strong’s/CompareOFF, sheets closed, Capture KeyboardOFF/ZoomToFit.
-- Both format settings restoredOFF/default90%; Mac reference detection restoredfalse, iPhone defaulttrue preserved. Source703chars exact after Undo/Redo and Trash.
-- Owned Mac notecf45c4a8-6e0a-4ee7-954a-e3df7a0a89d3 and iPhone notef1fe721c-0d9b-478b-9979-741946f9a26b recoverablyTRASHED; extra tabs closed. All19Mac/24iPhone prior note-row hashes/timestamps (including prior owned Trash),37/47exact active IDs and all3tag tables unchanged. Original16/17notes are included.
-- TextEdit helper closed, prior reference fixture window/selection restored; auto-saved synthetic helper moved out of iCloud to /private/tmp/Bible Verses and Commentary.txt, exact fixture intact. Known original non-sensitive clipboard restored to host/selected simulator; no global sharing preference changed. [Clipboard QA](SIMULATOR-CLIPBOARD-QA.md) prevents repeating this trap.
-- Owner-requested Ollama models/app cleanup is separate: models deleted/app/settings in recoverableTrash; only negligible admin-owned dangling shortcut remains. See [OLLAMA-REMOVAL](OLLAMA-REMOVAL-2026-11-19.md). No need to retry privilege/password bypass.
+- **296shared tests PASS** (4core+292conformance/70suites), both native development builds PASS, actual Mac+iPhone note attachment/link checks and iPhone edited-note Trash/dock recovery without restart PASS. [Exact evidence and limitations](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md).
+- All20Mac/25iPhone prior note rows/timestamps, all3tag tables and exact37/47active tabIDs unchanged. Owned fixtures2ed8f256-5c50-4aa6-8bd4-e5297c28ca3e /007f9551-d946-4896-923e-a9767aa4dfcd recoverablytrashed; extra test tabsclosed. Original16/17notes included. RawPSA.3.2 IDs unchanged despite displayed3:1.
+- Mac only /private/tmp/berean-codex-controls-qa/BereanMac.app --qa-library --qa-profile codex-controls-20261119 (com.berean.native.mac.dev). Final Genesis1KJVA/selected1/Notes1:1/sidebar239/rightdivider1148/scroll0.5782918149466192 restored. Exact path/arguments/PID required before lifecycle; other app copies share bundleID.
+- iPhone only D0CC2F4C-AC47-4648-AC5C-0DC128CFCE7D /com.berean.native.ios.dev, last PID40249. Current container in /private/tmp/berean-note-keyboard-ios-container.txt; re-query after installs. Final Psalm3LXX/no selection/Strong'sCompareOFF/no sheets/dock visible/CaptureKeyboardOFF/ZoomToFit.
+- Preferences untouched this batch; previous formatfalse/default90%, Macdetectrefsfalse/iPhonedefaulttrue. No clipboard operations or TextEdit changes this batch. Prior helper/clipboard lessons [here](SIMULATOR-CLIPBOARD-QA.md).
+- Full tests /private/tmp/berean-label-focus-full-tests.log, targeted /private/tmp/berean-label-focus-tests.log, builds /private/tmp/berean-label-focus-{mac,ios}-build.log. Established cache /private/tmp/berean-scripture-block-final-dd and swift cache /private/tmp/berean-study-block-tests. No build/test process pending; all CUA phases summarized.
+- Owner removed final Ollama shortcut; verified absent file/symlink. Cleanup complete; do not retry admin actions. [Record](OLLAMA-REMOVAL-2026-11-19.md).
 
 ## Next executable work
 
-1. Verify current source/doc publication and exact-head CI; re-poll confirmed live jobs rather than restarting on timeout. No native GUI work is currently pending; all CUA phases received completion summaries.
-2. **Fix LXX note attachment presentation**: rawPSA.3.2 displaysPsalms3:2LXX despite reader/title3:1. Use reader mapping for display, keep raw IDs/golden Reference unchanged. Add range/combined/whole/multi-attachment tests and actual note-link UI checks.
-3. **Fix iPhone dock after editor removal**: trashing an editing note left keyboardUp true/no dock. Begin/end notifications have no dismantle cleanup; audit ownership/order across trash/navigation/tab switching and hardware/software keyboards. QA relaunch is not a fix.
-4. Reproduce Mac Notes-return/relaunch viewport/right-divider drift with real trace; separately observed Settings Back/Done worked, so don't call the fast-batch flip a proved productbug.
-5. Continue Word Replacer persisted/custom/per-rule revision handling, remaining hover/cursor controls, all-tab history/scroll, live generic splits, rich/read-only Notes/sharing/backlink grammar and Kokoro. No Apple voices. Follow [TASKS](TASKS.md), [FOLLOWUP](FOLLOWUP-2026-11-19.md), [parity](FULL-FEATURE-PARITY.md), [principles](OWNER-PRINCIPLES.md) and [map](DOCUMENTATION-MAP.md).
+1. Publish source/doc normally if not already done; verify exact-head PR/draft/base and CI. Re-poll confirmed live jobs; no reset/restart on timeout.
+2. Reproduce/trace Mac study-panel right-divider drift on return from a tab whose inspector is closed. This test returned1168 instead of1148; UI restored. Relaunch this time preserved exact scroll. Do not conflate partial observations with a universal viewport fix.
+3. Extend iPhone keyboard UI matrix: software keyboard, two focused editors/rapid tab switches, multiple scenes/physicalphone. Dock Trash hardware/accessory path is verified; ordering unit tests cover obsolete teardown.
+4. Continue WordReplacer persisted/custom/per-rule revisions, rich/read-only Notes/reference grammar/tracking, general pane splits/history/cursor, Kokoro. No Apple voices. Use [TASKS](TASKS.md), [FOLLOWUP](FOLLOWUP-2026-11-19.md), [parity](FULL-FEATURE-PARITY.md), [principles](OWNER-PRINCIPLES.md), [map](DOCUMENTATION-MAP.md).
 
-Maintain notes continuously. Broad goal remains **ACTIVE**; tests, a source/doc commit or this batch do not complete the migration. Previous working notes were [archived](CHECKPOINT-HISTORY-2026-11-20.md), not erased.
+Maintain continuous notes during work and before handover. Previous checkpoint preserved in CHECKPOINT-HISTORY-2026-11-20.md. Tests and this batch do not complete the migration.

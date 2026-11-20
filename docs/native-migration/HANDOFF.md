@@ -17,13 +17,13 @@ The former mixed current-summary block has been [archived verbatim](CHECKPOINT-H
 <!-- AI CONTINUITY END -->
 
 <!-- BEGIN CURRENT CHECKPOINT -->
-- **Active objective:** substantial native Mac+iPhone migration, legacy functional/data compatibility, polished native UX; goalACTIVE.
-- **Latest source:** 7e8142f94febbb35a609d2398dba9b8f0795fb76, automatic verified Scripture blocks on both editors and six-category iPhone Settings. Verify publication/head checks in [CURRENT-STATE](CURRENT-STATE.md).
-- **Evidence:** new16meaningfultests; full290PASS; final Mac+iOS builds PASS; actual Mac/Simulator source-preserving cards, duplicate/rejection/table/Undo/settings/navigation checks. [Detailed proof and limits](SCRIPTURE-BLOCKS-2026-11-19.md).
-- **Cleanup/runtime:** owned notes recoverablytrashed/extra tabs closed, all19/24prior note-row hashes and37/47exact active IDs/alltags preserved; original16/17notes included. Mac Genesis1selected1/Notes1:1/sidebar239/rightdivider1148/scroll0.5782918149466192; iPhonePsalm3LXX/no selection/CaptureOFF. Both format prefs restoredOFF. Fresh paths and helper/clipboard cleanup in CURRENT-STATE.
-- **Next:** LXX note-attachment display mapping; iPhone dock after editor removal; Mac return/relaunch viewport trace; then larger WordReplacer/history/split/richNotes/cursor/Kokoro backlog. No Apple voices. Old prototype is superseded.
-- **Review/data guards:** owner-only22→23 after correct retarget/checks→draft24; no merge/retarget/ready/force. Pushgithub, never local-origin in this clone. Preserve production/sync/identities/legacy and newer edits.
-- **Continuous notes:** every AI maintains CURRENT-STATE, HANDOFF and relevant queue/evidence/decisions throughout work and before limits/handover. Start with [AI-CONTINUITY](AI-CONTINUITY.md), [OWNER-PRINCIPLES](OWNER-PRINCIPLES.md), [DOCUMENTATION-MAP](DOCUMENTATION-MAP.md). No CUA phase is pending.
+- **Active objective:** substantial native Mac+iPhone migration with original functional/data compatibility and polished native UX; goalACTIVE.
+- **Latest source:**334eafbb, native LXX note labels match reader numbers without changing storage; iPhone focused-editor teardown restores dock after Trash. Prior7e8142f9 Scripture blocks/Settings retained. Publication/headCI in [CURRENT-STATE](CURRENT-STATE.md).
+- **Evidence:**296shared tests PASS, both development builds PASS, actual Mac+iPhone label/link checks and edited-note Trash/dock recovery without relaunch. [Details/limits](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md). Physical/software-keyboard/multi-editor UI matrix remainsopen.
+- **Data/runtime:** all20/25prior note rows,37/47exact activeIDs and alltags unchanged; owned fixtures recoverablytrashed/extra tabsclosed. Mac Genesis1selected1/Notes/sidebar239/rightdivider1148/scroll0.5782918149466192; iPhonePsalm3LXX/no selection/dock visible/CaptureOFF. No CUA phase pending.
+- **Next:** verify publication and exact-head CI; trace Mac right-divider/viewport drift; extend keyboard matrix; continue WordReplacer/history/splits/richNotes/cursor/Kokoro. No Apple voices.
+- **Review/data guards:** owner-only22→23 after correct retarget/checks→draft24; pushgithub, never local-origin. No merge/retarget/ready/force, production/sync/identity rewrites or newer-edit loss.
+- **Continuity:** continuously maintain CURRENT-STATE/HANDOFF and task evidence/queue/decisions. Start with [AI-CONTINUITY](AI-CONTINUITY.md), [OWNER-PRINCIPLES](OWNER-PRINCIPLES.md), [DOCUMENTATION-MAP](DOCUMENTATION-MAP.md). Owner completed final Ollama shortcut removal; verified absent.
 <!-- END CURRENT CHECKPOINT -->
 
 ## Historical implementation log — dated evidence, not current state
@@ -2780,3 +2780,8 @@ Source7e8142f9 implements canonical-verified source-preserving cards in both nat
 All owned fixtures are recoverablytrashed; extra tabs closed; all19Mac/24iPhone existing note rows,37/47activeIDs/alltags unchanged. Original reading/UI/settings restored. TextEdit's synthetic autosaved helper moved out of iCloud to temporary storage and closed; original fixture window/clipboard restored. Read [SIMULATOR-CLIPBOARD-QA](SIMULATOR-CLIPBOARD-QA.md) before clipboard testing. No current CUA phase remains.
 
 Next concrete fixes: LXX attachment label raw2 vsreader1, dock stuck after iPhone editor removal, Mac Notes-return/relaunch viewport drift. These were reproduced/queued, not fixed by this batch. Current source/doc/CI publication must be verified from Git/GitHub; older green runs are not new-source proof. Broad goalACTIVE. Previous working CURRENT-STATE was [archived](CHECKPOINT-HISTORY-2026-11-20.md).
+
+
+## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
+
+Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.

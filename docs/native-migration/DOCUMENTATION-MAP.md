@@ -69,3 +69,8 @@ When adding a new focused document, link it here and in the relevant HANDOFF/TAS
 
 - [Verified Scripture blocks](SCRIPTURE-BLOCKS-2026-11-19.md): source7e8142f9, tests/builds, actual Mac/Simulator evidence, owned cleanup and precise remaining scope.
 - [Working checkpoint archive](CHECKPOINT-HISTORY-2026-11-20.md): historical implementation/interruption notes; CURRENT-STATE supersedes its temporary labels.
+
+
+## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
+
+Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
