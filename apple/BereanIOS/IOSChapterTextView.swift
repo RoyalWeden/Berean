@@ -821,16 +821,19 @@ struct IOSChapterTextView: UIViewRepresentable {
                 if parent.headerDetail != nil { attributes[.link] = URL(string: "berean-numbering:info")! }
                 out.append(NSAttributedString(string: header + "  ⓘ\n", attributes: attributes))
             }
-            if let label = parent.chapterStudyLabel {
+            if parent.chapterStudyLabel != nil {
                 let headerParagraph = NSMutableParagraphStyle()
                 headerParagraph.firstLineHeadIndent = paragraph.headIndent
                 headerParagraph.headIndent = paragraph.headIndent
                 headerParagraph.paragraphSpacing = size * 0.55
-                out.append(NSAttributedString(string: label + "\n", attributes: [
-                    .font: UIFont.preferredFont(forTextStyle: .caption1), .foregroundColor: UIColor.secondaryLabel,
-                    .paragraphStyle: headerParagraph, Self.skip: true,
-                    .link: URL(string: "berean-chapter-study:tags")!,
-                ]))
+                let attachment = NSTextAttachment()
+                attachment.image = UIImage(systemName: "note.text", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15))?
+                    .withTintColor(.secondaryLabel, renderingMode: .alwaysOriginal)
+                let marker = NSMutableAttributedString(attachment: attachment)
+                marker.append(NSAttributedString(string: "\n"))
+                marker.addAttributes([.paragraphStyle: headerParagraph, Self.skip: true,
+                    .link: URL(string: "berean-chapter-study:tags")!], range: NSRange(location: 0, length: marker.length))
+                out.append(marker)
             }
             for verse in parent.verses {
                 let start = out.length
@@ -851,12 +854,16 @@ struct IOSChapterTextView: UIViewRepresentable {
                     if verse.numberBeforeTitle { psalmTitleRanges[verse.verse] = NSRange(location: titleStart, length: out.length - titleStart - 1) }
                 }
                 if verse.noteCount > 0 || !verse.tags.isEmpty || verse.citationCount > 0 {
-                    out.append(NSAttributedString(string: "•", attributes: base.merging([
-                        .font: UIFont.systemFont(ofSize: max(12, size * 0.65)),
-                        .foregroundColor: UIColor.secondaryLabel,
+                    let attachment = NSTextAttachment()
+                    attachment.image = UIImage(systemName: verse.studySymbol,
+                        withConfiguration: UIImage.SymbolConfiguration(pointSize: max(12, size * 0.65)))?
+                        .withTintColor(.secondaryLabel, renderingMode: .alwaysOriginal)
+                    let marker = NSMutableAttributedString(attachment: attachment)
+                    marker.addAttributes(base.merging([
                         .paragraphStyle: numberedTitle ? titleParagraph : paragraph,
-                        .link: URL(string: "berean-verse-notes:\(verse.verse)")!, Self.skip: true,
-                    ]) { _, new in new }))
+                        .link: URL(string: "\(verse.citationCount > 0 && verse.noteCount == 0 && verse.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(verse.verse)")!, Self.skip: true,
+                    ]) { _, new in new }, range: NSRange(location: 0, length: marker.length))
+                    out.append(marker)
                 }
                 if parent.style.showVerseNumbers {
                     let number = base.merging([

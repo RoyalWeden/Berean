@@ -1238,10 +1238,10 @@ struct CrossRefsView: View {
                         .padding(.horizontal, 8)
                         .frame(minHeight: controlHeight)
                         .contentShape(.rect)
-                        .optionHover()
                 }
                 .menuStyle(.borderlessButton).clickableCursor()
                 .fixedSize()
+                .optionHover()
                 .menuIndicator(.hidden)
                 #if os(iOS)
                 .hoverEffect(.highlight)

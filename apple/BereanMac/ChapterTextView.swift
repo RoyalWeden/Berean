@@ -333,6 +333,7 @@ struct ChapterTextView: NSViewRepresentable {
         let previousSelection = c.renderedSelection
         let revealSelection = !passageChanged && !selectedVerses.subtracting(previousSelection).isEmpty
         if key != c.lastKey || passageChanged {
+            tv.dismissStudyPreview()
             let keepScroll = c.lastPassage == passageId
             let origin = previousBounds.origin
             let readingAnchor = keepScroll ? c.readingAnchor(at: origin.y, in: tv) : nil
@@ -643,11 +644,16 @@ struct ChapterTextView: NSViewRepresentable {
                 out.append(NSAttributedString(string: h + "  ⓘ\n", attributes: attributes))
             }
             if let label = p.chapterStudyLabel {
-                out.append(NSAttributedString(string: label + "\n", attributes: [
-                    .font: NSFont.preferredFont(forTextStyle: .caption1), .foregroundColor: NSColor.secondaryLabelColor,
-                    .paragraphStyle: headPara, Self.skipKey: true,
-                    .link: URL(string: "berean-chapter-study:tags")!, .toolTip: "View chapter study details",
-                ]))
+                let attachment = NSTextAttachment()
+                attachment.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: label)?
+                    .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
+                let marker = NSMutableAttributedString(attachment: attachment)
+                marker.append(NSAttributedString(string: "\n"))
+                marker.addAttributes([.paragraphStyle: headPara, Self.skipKey: true,
+                    .foregroundColor: NSColor.secondaryLabelColor,
+                    .link: URL(string: "berean-chapter-study:tags")!, .toolTip: label],
+                    range: NSRange(location: 0, length: marker.length))
+                out.append(marker)
             }
 
             for v in p.verses {
@@ -665,13 +671,16 @@ struct ChapterTextView: NSViewRepresentable {
                 // Personal study material belongs in the margin, not in the
                 // reading/copying run. Keep the number's separate click target.
                 if v.noteCount > 0 || !v.tags.isEmpty || v.citationCount > 0 {
-                    out.append(NSAttributedString(string: "•", attributes: [
-                        .font: NSFont.systemFont(ofSize: max(10, size * 0.6)),
+                    let attachment = NSTextAttachment()
+                    attachment.image = NSImage(systemSymbolName: v.studySymbol, accessibilityDescription: v.studySummary)?
+                        .withSymbolConfiguration(.init(pointSize: max(10, size * 0.65), weight: .medium))
+                    let marker = NSMutableAttributedString(attachment: attachment)
+                    marker.addAttributes([
                         .foregroundColor: NSColor.secondaryLabelColor,
                         .paragraphStyle: numberedTitle ? titlePara : para, Self.skipKey: true,
-                        .link: URL(string: "berean-verse-notes:\(v.verse)")!,
-                        .toolTip: "Verse \(v.readerVerseLabel) — notes, tags and related passages",
-                    ]))
+                        .link: URL(string: "\(v.citationCount > 0 && v.noteCount == 0 && v.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(v.verse)")!,
+                    ], range: NSRange(location: 0, length: marker.length))
+                    out.append(marker)
                 }
                 if p.style.showVerseNumbers {
                     // Gutter: right-aligned verse number (a link → verse actions), note dot.
@@ -990,6 +999,53 @@ final class ReaderTextView: NSTextView {
     }
 
     private var hovered: NSRange?
+    private var studyPreviewTask: Task<Void, Never>?
+    private var studyPreview: NSPopover?
+
+    func dismissStudyPreview() {
+        studyPreviewTask?.cancel()
+        studyPreviewTask = nil
+        studyPreview?.close()
+        studyPreview = nil
+    }
+
+    private func prepareStudyPreview(at index: Int?, range: NSRange?) {
+        dismissStudyPreview()
+        guard let index, let range, let storage = textStorage, index < storage.length,
+              let url = storage.attribute(.link, at: index, effectiveRange: nil) as? URL,
+              ["berean-verse-notes", "berean-verse-citations"].contains(url.scheme ?? ""),
+              let number = Int(url.absoluteString.dropFirst((url.scheme?.count ?? 0) + 1)),
+              let verse = coordinator?.parent.verses.first(where: { $0.verse == number }) else { return }
+        studyPreviewTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(450)) } catch { return }
+            guard let self, !Task.isCancelled, self.hovered == range,
+                  self.window?.isKeyWindow == true, let layout = self.layoutManager, let container = self.textContainer else { return }
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            var anchor = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            anchor.origin.x += self.textContainerOrigin.x
+            anchor.origin.y += self.textContainerOrigin.y
+            let popover = NSPopover()
+            popover.behavior = .transient
+            popover.animates = false
+            popover.contentViewController = NSHostingController(rootView:
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Verse \(verse.readerVerseLabel)", systemImage: verse.studySymbol)
+                        .font(.headline)
+                    Text(verse.studySummary).font(.callout).foregroundStyle(.secondary)
+                    if let preview = verse.citationPreview, !preview.isEmpty {
+                        Divider()
+                        Text(preview).font(.callout).lineSpacing(5)
+                    }
+                    Text("Click the marker to open study details")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(width: 290, alignment: .leading)
+                .padding(16)
+            )
+            self.studyPreview = popover
+            popover.show(relativeTo: anchor, of: self, preferredEdge: .maxX)
+        }
+    }
     private var tracking: NSTrackingArea?
 
     var readerWidth = ScriptureWidth.normal {
@@ -1054,6 +1110,7 @@ final class ReaderTextView: NSTextView {
         window?.makeFirstResponder(self)
         // A single click on a link (verse number, Strong's number, tag chip) acts like a button; anything else is text
         // selection. (The built-in link handling did not fire for these custom-scheme links inside SwiftUI.)
+        dismissStudyPreview()
         if event.clickCount == 1, let c = coordinator, let ts = textStorage {
             if let i = charIndex(at: event, includeVerseGutter: true),
                let url = ts.attribute(.link, at: i, effectiveRange: nil) as? URL,
@@ -1184,6 +1241,7 @@ final class ReaderTextView: NSTextView {
             }
         }
         if newRange != hovered {
+            prepareStudyPreview(at: index, range: newRange)
             if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
             if let n = newRange { lm.addTemporaryAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.14), forCharacterRange: n) }
             hovered = newRange
@@ -1195,6 +1253,7 @@ final class ReaderTextView: NSTextView {
     }
 
     private func clearLinkHover() {
+        dismissStudyPreview()
         if let h = hovered, let ts = textStorage, NSMaxRange(h) <= ts.length { layoutManager?.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
         hovered = nil
     }

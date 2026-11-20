@@ -87,6 +87,34 @@ import BereanReference
         #expect(PsalmSuperscription.apply(rows, textId: "kjva", bookId: "PSA", chapter: 1) == rows)
         #expect(PsalmSuperscription.apply(rows, textId: "kjva", bookId: "GEN", chapter: 3) == rows)
     }
+    @Test func referenceBlockUsesDisplayedPsalmNumbersAndKeepsTitleWithBody() throws {
+        let rows = [row(1, "A Psalm of David"), row(2, "O Lord"), row(3, "Many say")]
+        let first = try #require(PsalmSuperscription.readerSelection([1], rows: rows, textId: "lxx", bookId: "PSA", chapter: 3))
+        #expect(first.count == 1)
+        #expect(first.first?.verseNum == 2)
+        #expect(first.first?.title == "A Psalm of David")
+        #expect(first.first?.text == "O Lord")
+        let all = try #require(PsalmSuperscription.readerSelection([1, 2], rows: rows, textId: "lxx", bookId: "PSA", chapter: 3))
+        #expect(all.map(\.readerVerseNum) == [1, 2])
+        #expect(PsalmSuperscription.readerSelection([1, 3], rows: rows, textId: "lxx", bookId: "PSA", chapter: 3) == nil)
+    }
+    @Test func combinedRecordMustBeClaimedInFull() throws {
+        let rows = [ChapterVerseRow(bookId: "PSA", chapter: 115, verseNum: 4,
+            text: "I will take the cup of salvation. I will pay my vows.", textTagged: nil, title: nil)]
+        let full = try #require(PsalmSuperscription.readerSelection([4, 5], rows: rows, textId: "lxx", bookId: "PSA", chapter: 115))
+        #expect(full.count == 1)
+        #expect(full.first?.readerVerseLabel == "4–5")
+        #expect(PsalmSuperscription.readerSelection([5], rows: rows, textId: "lxx", bookId: "PSA", chapter: 115) == nil)
+        #expect(PsalmSuperscription.readerSelection([4], rows: rows, textId: "lxx", bookId: "PSA", chapter: 115) == nil)
+    }
+    @Test func referenceSelectionPreservesOrdinaryBooksAndRejectsMissingVerses() {
+        let rows = [row(1, "First"), row(2, "Second"), row(3, "Third")]
+        #expect(PsalmSuperscription.readerSelection([1, 3], rows: rows, textId: "kjva", bookId: "GEN", chapter: 3)?.map(\.text) == ["First", "Third"])
+        #expect(PsalmSuperscription.readerSelection([], rows: rows, textId: "kjva", bookId: "GEN", chapter: 3) == nil)
+        #expect(PsalmSuperscription.readerSelection([0], rows: rows, textId: "kjva", bookId: "GEN", chapter: 3) == nil)
+        #expect(PsalmSuperscription.readerSelection([4], rows: rows, textId: "kjva", bookId: "GEN", chapter: 3) == nil)
+    }
+
 }
 
 
@@ -193,4 +221,5 @@ struct BrentonReaderPsalterTests {
         #expect(ChapterMap.readerNumberingSummary("JON", 3, textId: "lxx") == nil)
         #expect(ChapterMap.readerNumberingSummary("psa", 50, textId: "LXX") == "KJV Psalm 51")
     }
+
 }

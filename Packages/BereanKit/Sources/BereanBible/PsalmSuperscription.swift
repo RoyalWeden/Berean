@@ -105,6 +105,25 @@ public enum PsalmSuperscription {
         }
     }
 
+    /// Select displayed verse numbers from a complete raw chapter, with titles folded
+    /// exactly as in the reader. Never return an incomplete or partly claimed record.
+    public static func readerSelection(_ selected: Set<Int>, rows: [ChapterVerseRow],
+                                       textId: String, bookId: String, chapter: Int) -> [ChapterVerseRow]? {
+        guard !selected.isEmpty, selected.allSatisfy({ $0 > 0 }) else { return nil }
+        let prepared = apply(rows, textId: textId, bookId: bookId, chapter: chapter)
+        var covered = Set<Int>()
+        var result: [ChapterVerseRow] = []
+        for row in prepared {
+            let numbers = Set(row.readerVerseNum...(row.displayVerseEndNum ?? row.readerVerseNum))
+            guard !numbers.isDisjoint(with: selected) else { continue }
+            // A bundled combined record cannot truthfully be copied as half its text.
+            guard numbers.isSubset(of: selected) else { return nil }
+            covered.formUnion(numbers)
+            result.append(row)
+        }
+        return covered == selected ? result : nil
+    }
+
     private static func joinTitle(_ superscription: String, _ existing: String?) -> String {
         guard let existing, !existing.isEmpty else { return superscription }
         return existing + "\n" + superscription

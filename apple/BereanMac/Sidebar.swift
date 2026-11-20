@@ -226,9 +226,9 @@ struct BereanSidebar: View {
                         .labelStyle(.iconOnly)
                         .frame(width: 28, height: 28)
                         .contentShape(.rect)
-                        .optionHover(active: tabTypeFilter != nil || repeatedTitlesOnly)
                 }
                 .menuStyle(.borderlessButton)
+                .optionHover(active: tabTypeFilter != nil || repeatedTitlesOnly)
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .help("Filter by tab type or repeated title")

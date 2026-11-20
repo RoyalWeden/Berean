@@ -1,5 +1,6 @@
 import SwiftUI
 import BereanCore
+import BereanBible
 import BereanNotes
 import BereanReference
 import BereanText
@@ -1069,13 +1070,14 @@ struct NoteDetailView: View {
                 numbers.formUnion(start...end)
             }
             let chapter = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
-            let rows = chapter.filter { numbers.contains($0.verseNum) }
-            // Do not offer a partial block under a reference claiming unavailable verses.
-            guard !rows.isEmpty, rows.count == numbers.count else { return }
-            let lines = rows.map {
-                let text = VerseDisplay.text($0.text, tagged: $0.textTagged, textId: passage.textId,
+            guard let rows = PsalmSuperscription.readerSelection(numbers, rows: chapter,
+                textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter) else { return }
+            let lines = rows.map { row in
+                let body = VerseDisplay.text(row.text, tagged: row.textTagged, textId: passage.textId,
                                              replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
-                return rows.count == 1 ? text : "\($0.verseNum) \(text)"
+                let title = passage.textId == "lxx" ? row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? "" : ""
+                let text = title + body
+                return rows.count == 1 ? text : "\(row.readerVerseLabel) \(text)"
             }
             let reference = source + (passage.textId == "lxx" && parsed.forcedTranslation != "LXX" ? " LXX" : "")
             replacement = rows.count == 1 ? reference + " " + lines[0] : reference + "\n" + lines.joined(separator: "\n")
@@ -2146,9 +2148,9 @@ struct VerseNotesView: View {
                 .frame(width: 28, height: 28)
                 #endif
                 .contentShape(.rect)
-                .optionHover(active: allNotesScope || studySort != .verse)
         }
         .menuStyle(.borderlessButton)
+        .optionHover(active: allNotesScope || studySort != .verse)
         .menuIndicator(.hidden)
         .fixedSize()
         .clickableCursor()

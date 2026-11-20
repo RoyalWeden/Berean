@@ -555,7 +555,7 @@ struct ScriptureView: View {
     private var chapterStudyLabel: String? {
         guard let presentation else { return nil }
         if !presentation.chapterCitations.isEmpty || presentation.verseCitations[0]?.isEmpty == false
-            || presentation.indirectMentions[0]?.isEmpty == false { return "Chapter study" }
+            || presentation.indirectMentions[0]?.isEmpty == false { return "Chapter notes and related passages" }
         return presentation.chapterTags.isEmpty ? nil : "Chapter tags · \(presentation.chapterTags.count)"
     }
     private var verseCitations: (key: String, links: [Int: [NoteCrossReferences.Link]])? {

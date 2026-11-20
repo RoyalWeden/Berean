@@ -351,6 +351,17 @@ struct ReaderVerse: Equatable {
     var noteCount = 0
     var citationCount = 0
     var citationPreview: String?
+    /// One quiet margin target; the symbol identifies its primary study material.
+    var studySymbol: String {
+        citationCount > 0 ? "arrow.triangle.branch" : noteCount > 0 ? "note.text" : "tag"
+    }
+    var studySummary: String {
+        var parts: [String] = []
+        if noteCount > 0 { parts.append("\(noteCount) \(noteCount == 1 ? "note" : "notes")") }
+        if citationCount > 0 { parts.append("\(citationCount) related \(citationCount == 1 ? "passage" : "passages")") }
+        if !tags.isEmpty { parts.append(tags.map { "#" + $0.name }.joined(separator: ", ")) }
+        return parts.joined(separator: " · ")
+    }
     var tags: [(name: String, color: String?, slot: Int?)] = []
     var displayVerse: Int?
     var displayVerseEnd: Int?
