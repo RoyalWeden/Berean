@@ -81,7 +81,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U14 | Study Trail | implemented | 🟡 | 🟡 | P1 | List, branch map, search, ordering, recording, tag assignment, and sticky notes use legacy rows. Merge/split, draggable map layout and full graph controls remain open. |
 | U15 | Tasks panel and first steps | implemented (Mac only) | ❌ | — | P3 | Tasks panel not ported |
 | U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |
-| U17 | PDFs | partial | ❌ | ❌ | P2 | PDFs not ported |
+| U17 | PDFs | partial | 🟡 | 🟡 | P2 | Library + PDFKit reader with highlights, notes, bookmarks, outline, find, page restore and missing-file re-attach (2026-11-20). Share Extension intake, experimental gate and bookmark labels open. |
 | U18 | Berean Chat (notes-style chat) | implemented | ❌ | ❌ | P3 | Berean Chat not ported |
 | M01 | YouTube browsing and playback | implemented | ❌ | ❌ | P2 | YouTube not ported |
 | M02 | Picture-in-Picture | partial | ❌ | ❌ | P3 |  |
