@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("berean.haptics.enabled") private var hapticsEnabled = true
     @AppStorage("berean.notes.autoEmDash") private var autoEmDash = true
     @AppStorage("defaultScriptureLayout") private var defaultLayout = "standard"
+    @State private var shortcutQuery = ""
 
     var body: some View {
         #if os(macOS)
@@ -104,9 +105,42 @@ struct SettingsView: View {
         } header: { Text("Notes") }
     }
 
-    private var shortcutsSection: some View {
+    private var matchingShortcuts: [(String, String)] {
+        let terms = shortcutQuery.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !terms.isEmpty else { return Self.shortcuts }
+        return Self.shortcuts.filter { keys, title in
+            let readable = keys.replacingOccurrences(of: "⌘", with: " command cmd ")
+                .replacingOccurrences(of: "⌥", with: " option alt ")
+                .replacingOccurrences(of: "⌃", with: " control ctrl ")
+                .replacingOccurrences(of: "⇧", with: " shift ")
+            let searchable = title + " " + keys + " " + readable
+            return terms.allSatisfy { searchable.localizedStandardContains($0) }
+        }
+    }
+
+    @ViewBuilder private var shortcutsSection: some View {
+        Section {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search shortcuts", text: $shortcutQuery)
+                    .textFieldStyle(.plain)
+                    .autocorrectionDisabled()
+                if !shortcutQuery.isEmpty {
+                    Button("Clear Search", systemImage: "xmark.circle.fill") { shortcutQuery = "" }
+                        .labelStyle(.iconOnly).buttonStyle(.interactivePlain)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .contain)
+        }
         Section("Keyboard Shortcuts") {
-            ForEach(Self.shortcuts, id: \.0) { k, v in LabeledContent(v) { Text(k).font(.body.monospaced()).foregroundStyle(.secondary) } }
+            if matchingShortcuts.isEmpty {
+                ContentUnavailableView.search(text: shortcutQuery)
+            } else {
+                ForEach(matchingShortcuts, id: \.0) { keys, title in
+                    LabeledContent(title) { Text(keys).font(.body.monospaced()).foregroundStyle(.secondary) }
+                }
+            }
         }
     }
 
@@ -240,11 +274,11 @@ struct WorkspacesSettingsSection: View {
 
 extension SettingsView {
     static let shortcuts: [(String, String)] = [
-        ("⌘T / ⌘K", "New tab · search Berean"), ("⌘L", "Go to location"), ("⌘W", "Close tab"), ("⌘[  ⌘]", "Back · Forward"),
+        ("⌘T", "New tab"), ("⌘K", "Search Berean"), ("⌘L", "Change current tab"), ("⌘W", "Close tab"), ("⌘[  ⌘]", "Back · Forward"),
         ("⌥⌘←  ⌥⌘→", "Previous · next chapter"), ("⌘F  ⌘G", "Find in chapter · next match"), ("⌘C  ⇧⌘C", "Copy with reference · plain text"),
         ("⌥⌘C", "Compare texts"), ("⌥⌘I", "Study panel"), ("⇧⌘N", "New note"), ("⇧⌘D", "Today's note"), ("⌘Y", "History"),
         ("⇧⌘0", "New workspace"), ("⌃⌘S", "Show / hide sidebar"), ("⌘1 … ⌘5", "Spaces"), ("⌃Tab", "Next tab"),
-        ("⌘B  ⌘I  ⌘U", "Bold · italic · underline (notes)"), ("⌥⇧⌘C", "Copy note text without formatting"), ("⇧⌘M", "Show Markdown source"),
+        ("⌘B  ⌘I  ⌘U", "Bold · italic · underline (notes)"), ("⌥⇧⌘C", "Copy note text without formatting"),
     ]
 }
 
