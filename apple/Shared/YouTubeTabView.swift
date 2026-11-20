@@ -35,6 +35,7 @@ struct YouTubeTabView: View {
     @State private var showingHome = true
     @State private var lastSaved: String?
     @State private var transcriptShown = false
+    @State private var playbackMs: Int?
 
     /// electron/ipc/youtube.ts CHANNELS (hard-coded allow-list in the original).
     static let channels = ["@matthewforyeshua", "@andrewrepent", "@SpiritofTruth.Remnant", "@matthew953", "@antonio-praiseyah3137",
@@ -136,7 +137,15 @@ struct YouTubeTabView: View {
                     Button("Transcript", systemImage: "text.quote") { transcriptShown = true }
                         .help("Show the transcript; click a line to jump there")
                         .popover(isPresented: $transcriptShown) {
-                            TranscriptList(segments: segments) { ms in Task { await seek(ms) } }
+                            TranscriptList(segments: segments, currentMs: playbackMs) { ms in Task { await seek(ms) } }
+                                .task {
+                                    // Follow playback while the transcript is open.
+                                    while !Task.isCancelled {
+                                        let t = (try? await page.callJavaScript("var v=document.querySelector('video');return v?v.currentTime:null;")) as? Double
+                                        playbackMs = t.map { Int($0 * 1000) }
+                                        try? await Task.sleep(for: .milliseconds(500))
+                                    }
+                                }
                                 .frame(minWidth: 340, idealWidth: 380, minHeight: 420)
                                 .presentationDetents([.medium, .large])
                         }
@@ -222,21 +231,37 @@ struct YouTubeTabView: View {
 /// Searchable transcript lines with timestamps (original TranscriptViewer); a tap seeks the video.
 struct TranscriptList: View {
     let segments: [TranscriptService.Segment]
+    var currentMs: Int? = nil
     let seek: (Int) -> Void
     @State private var query = ""
     private var shown: [TranscriptService.Segment] {
         query.isEmpty ? segments : segments.filter { $0.text.localizedCaseInsensitiveContains(query) }
     }
+    /// The segment being spoken: the last one starting at or before the playback time.
+    private var currentStart: Int? {
+        guard let currentMs else { return nil }
+        return segments.last { $0.startMs <= currentMs }?.startMs
+    }
     var body: some View {
         NavigationStack {
-            List(shown, id: \.startMs) { seg in
-                Button { seek(seg.startMs) } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(TranscriptService.clock(seg.startMs)).font(.caption.monospacedDigit()).foregroundStyle(.tint)
-                        Text(seg.text).foregroundStyle(.primary)
+            ScrollViewReader { proxy in
+                List(shown, id: \.startMs) { seg in
+                    let current = seg.startMs == currentStart
+                    Button { seek(seg.startMs) } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(TranscriptService.clock(seg.startMs)).font(.caption.monospacedDigit()).foregroundStyle(.tint)
+                            Text(seg.text).foregroundStyle(.primary).fontWeight(current ? .semibold : .regular)
+                        }
                     }
+                    .buttonStyle(.interactivePlain)
+                    .listRowBackground(current ? Color.accentColor.opacity(0.14) : nil)
+                    .accessibilityAddTraits(current ? .isSelected : [])
+                    .id(seg.startMs)
                 }
-                .buttonStyle(.interactivePlain)
+                .onChange(of: currentStart) { _, start in
+                    guard query.isEmpty, let start else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(start, anchor: .center) }
+                }
             }
             .overlay { if shown.isEmpty { ContentUnavailableView.search(text: query) } }
             .searchable(text: $query, prompt: "Search transcript")

@@ -2870,3 +2870,8 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - All QA fixtures were removed from the sim library afterwards (counts 0/0/0).
 - Checks: `swift test -c release` 319 pass; Mac + iOS builds exit 0.
 - Next: transcript data arrives only with the sync/data-pack workstream (don't fetch on clients); move transcript search off the main thread before real packs (SQLiteConnection thread-safety must be checked first); live current-line highlight in the transcript list.
+
+### 2026-11-20 — Claude Code: transcript follow-ups done
+- Transcript search moved off the main thread (`TranscriptSearcher` actor, own read-only connection, 180 ms debounce; tested while the main connection writes).
+- Transcript list highlights and follows the spoken line (verified on sim). All QA fixtures removed.
+- Remaining transcript gap: data only (sync/data-pack workstream).
