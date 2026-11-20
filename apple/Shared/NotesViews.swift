@@ -30,7 +30,7 @@ func noteReadableShareText(title: String, content: String) -> String {
     return body.isEmpty ? title : title + "\n\n" + body
 }
 
-func verseLabel(_ ref: String, _ textId: String) -> String { Reference.verseRefDisplay(ref, textId: textId, hermas: HermasText(textId: textId)) }
+func verseLabel(_ ref: String, _ textId: String) -> String { NoteAttachmentLabel.display(ref, textId: textId) }
 
 extension Color {
     static func noteColor(_ name: String) -> Color {

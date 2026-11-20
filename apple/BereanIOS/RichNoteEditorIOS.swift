@@ -105,10 +105,35 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         coordinator.scheduleWikiLinkQuery()
     }
 
+    static func dismantleUIView(_ textView: NoteUITextView, coordinator: Coordinator) {
+        // UIKit does not guarantee didEndEditing when SwiftUI removes a focused
+        // editor (for example, Trash). Finish this owner's signal after teardown.
+        textView.delegate = nil
+        textView.resignFirstResponder()
+        coordinator.finishEditingSession(deferred: true)
+        coordinator.textView = nil
+        textView.coordinator = nil
+    }
+
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate, @preconcurrency NSLayoutManagerDelegate {
         var parent: RichNoteEditorIOS
         weak var textView: NoteUITextView?
         var editing = false
+        private let focusOwner = UUID()
+        private var hasEditingSession = false
+
+        func finishEditingSession(deferred: Bool = false) {
+            guard hasEditingSession else { return }
+            hasEditingSession = false
+            let activity = NoteEditorActivity(owner: focusOwner, isEditing: false)
+            if deferred {
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .bereanNoteEditing, object: activity)
+                }
+            } else {
+                NotificationCenter.default.post(name: .bereanNoteEditing, object: activity)
+            }
+        }
         private var wikiLinkQueryScheduled = false
         private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
         private var publishedReferenceCompletion: NoteReferenceCompletion?
@@ -462,13 +487,17 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
-            NotificationCenter.default.post(name: .bereanNoteEditing, object: true)
+            if !hasEditingSession {
+                hasEditingSession = true
+                NotificationCenter.default.post(name: .bereanNoteEditing,
+                    object: NoteEditorActivity(owner: focusOwner, isEditing: true))
+            }
             updateTableNavigation()
             scheduleWikiLinkQuery()
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
-            NotificationCenter.default.post(name: .bereanNoteEditing, object: false)
+            finishEditingSession()
             scheduleWikiLinkQuery()
         }
 
@@ -742,6 +771,6 @@ final class NoteUITextView: UITextView {
 
 
 extension Notification.Name {
-    /// Posted with `true` / `false` when the note editor starts / stops editing (the root view hides the dock meanwhile).
+    /// Owner-scoped NoteEditorActivity; obsolete teardown must not clear a newer editor.
     static let bereanNoteEditing = Notification.Name("bereanNoteEditing")
 }

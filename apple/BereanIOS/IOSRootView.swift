@@ -4,6 +4,7 @@ import BereanCore
 import BereanWorkspace
 import BereanReference
 import BereanText
+import BereanNotes
 
 private struct HistoryEdgeSwipe: UIGestureRecognizerRepresentable {
     let enabled: Bool
@@ -57,6 +58,7 @@ struct IOSRootView: View {
     @State private var goRequest: GoRequest?
     @State private var showSettings = false
     @State private var keyboardUp = false
+    @State private var noteEditingFocus = NoteEditingFocus()
     @State private var showScriptureDisplay = false
     @State private var chapterTagTarget: ChapterTagTarget?
     @State private var findRequest = 0
@@ -100,7 +102,8 @@ struct IOSRootView: View {
                     if up != keyboardUp { withAnimation(.snappy(duration: 0.2)) { keyboardUp = up } }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .bereanNoteEditing)) { note in
-                    let up = note.object as? Bool ?? false
+                    guard let activity = note.object as? NoteEditorActivity,
+                          let up = noteEditingFocus.receive(activity) else { return }
                     if up != keyboardUp { withAnimation(.snappy(duration: 0.2)) { keyboardUp = up } }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
