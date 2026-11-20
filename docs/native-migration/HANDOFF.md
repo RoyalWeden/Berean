@@ -2853,3 +2853,11 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Useful tool: `scratchpad/axcaret.swift` pattern — set `AXSelectedTextRange` on the QA app's text view by PID (no clicks) to drive caret-dependent UI.
 - Checks: `swift test -c release` 318 pass; Mac + iOS builds exit 0.
 - Next: (1) a single always-mounted YouTube WebView layer in the root (tab only positions it) → true auto-PiP and no PiP loss on tab switch; (2) iPhone image paste check on sim (`simctl pbcopy` is text-only — use Insert → Image… with a photo in the sim library); (3) Read Aloud remains in Codex's queue.
+
+### 2026-11-20 — Claude Code: later round
+
+- Always-mounted YouTube player layer (iPhone) tried and reverted: WebKit still ended PiP on tab switch and never auto-started it (details + a WebKit SIGTRAP finding in YOUTUBE-TAB-2026-11-20.md). Auto-PiP remains a known gap; per-tab page store stays.
+- iPhone Go: typing filters the Open shortcuts into a **Commands** section; Berean Chat shortcut. (Fix: my earlier iPhone chat command was in the Mac-only `CommandPalette`.) Verified on sim.
+- iPhone notes: Insert → Image → **Photo Library…** (PHPicker) / **Choose File…**. Verified on sim end to end (stored as inline data image).
+- Checks: `swift test -c release` 318 pass; Mac + iOS builds exit 0.
+- Next: Read Aloud stays with Codex (Kokoro; never Apple voices). Candidates: Mac Go palette parity review against the iPhone Commands list; YouTube transcripts read-only view (M04) once the transcript DB contract is checked (fetching is dev-only in the original).
