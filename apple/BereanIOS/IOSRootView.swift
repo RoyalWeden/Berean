@@ -126,6 +126,10 @@ struct IOSRootView: View {
             alternateEdition = target
         }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
+        .sheet(isPresented: Binding(get: { app.idiomDraft != nil }, set: { if !$0 { app.idiomDraft = nil } })) {
+            NewIdiomSheet(term: app.idiomDraft?.term ?? "", meaning: app.idiomDraft?.meaning ?? "")
+                .presentationDetents([.medium])
+        }
         .fullScreenCover(isPresented: Binding(get: { app.onboardingShown }, set: { if !$0 { app.completeOnboarding() } })) {
             OnboardingView()
         }

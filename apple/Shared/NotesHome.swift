@@ -179,6 +179,7 @@ struct NotesHomeView: View {
                     Button("Today's Note", systemImage: "sun.max") { app.openTodayDailyNote() }
                     Button("Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) }
                     Button("New Folder", systemImage: "folder.badge.plus") { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) }
+                    Button("New Idiom…", systemImage: "character.book.closed") { app.idiomDraft = ("", "") }
                     Divider()
                     Button("Import Markdown…") { app.importMarkdownFiles() }
                 } label: { Label("More", systemImage: "ellipsis") }
@@ -202,6 +203,7 @@ struct NotesHomeView: View {
                 }
                 Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
                     .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
+                    .contextMenu { Button("New Idiom…", systemImage: "character.book.closed") { app.idiomDraft = ("", "") } }
             }
             #endif
         }

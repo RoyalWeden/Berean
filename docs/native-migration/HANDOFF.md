@@ -2820,3 +2820,7 @@ While testing the image resize menu, my QA app's window had not opened yet, and 
 ### 2026-11-20 — Claude Code: e-Sword import (N15)
 
 Native Mac port of the e-Sword importer with review sheet; output checked against the original TypeScript run under node. Details: [ESWORD-IMPORT-2026-11-20](ESWORD-IMPORT-2026-11-20.md). Mac verified with click-free automation (see the incident rule above).
+
+### 2026-11-20 — Claude Code: idioms (N13); BibleGateway importer deliberately deferred
+
+Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer (N14) was **not** ported: it signs into biblegateway.com with the owner's credentials and scrapes annotations (outward-facing, account-related) — needs the owner's decision first. S15 parity row corrected (iPhone Find in Chapter exists).

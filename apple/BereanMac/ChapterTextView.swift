@@ -234,6 +234,8 @@ struct ChapterTextView: NSViewRepresentable {
     var onStudyPreview: @MainActor (Int) async -> [ReaderStudyPreview] = { _ in [] }
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
+    var onIdiom: (String) -> Void = { _ in }
+    var onNewIdiom: (String) -> Void = { _ in }
     var onNotes: (Int) -> Void
     var onChapterNotes: () -> Void = {}
     var onNumberingInfo: () -> Void = {}
@@ -719,6 +721,10 @@ struct ChapterTextView: NSViewRepresentable {
                     if i > 0 {
                         var a = base
                         if let m = v.marks.last(where: { $0.start <= pos && pos < $0.end }) { a[.backgroundColor] = NSColor(Color.highlight(m.color)).withAlphaComponent(0.35) }
+                        if let idiom = v.idioms.first(where: { $0.start <= pos && pos < $0.end }), let url = URL(string: "berean-idiom:\(idiom.id)") {
+                            a[.underlineStyle] = NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue
+                            a[.underlineColor] = NSColor.systemPurple; a[.link] = url
+                        }
                         out.append(NSAttributedString(string: " ", attributes: a)); pos += 1
                     }
                     let units = Array(w.text.utf16)
@@ -731,7 +737,19 @@ struct ChapterTextView: NSViewRepresentable {
                         if w.italic { a[.font] = font(size, italic: true) }
                         if w.red && p.style.redLetters { a[.foregroundColor] = NSColor.systemRed }
                         if let hit { a[.backgroundColor] = NSColor(Color.highlight(hit.color)).withAlphaComponent(0.35) }
+                        let chunkStart = out.length
                         out.append(NSAttributedString(string: String(decoding: units[k..<j], as: UTF16.self), attributes: a))
+                        // Idiom terms: dotted underline, meaning as tooltip, click opens the idiom note.
+                        let plain = NSRange(location: pos + k, length: j - k)
+                        for idiom in v.idioms {
+                            let hit = NSIntersectionRange(plain, NSRange(location: idiom.start, length: idiom.end - idiom.start))
+                            guard hit.length > 0, let url = URL(string: "berean-idiom:\(idiom.id)") else { continue }
+                            out.addAttributes([
+                                .underlineStyle: NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue,
+                                .underlineColor: NSColor.systemPurple, .link: url,
+                                .toolTip: idiom.meaning.isEmpty ? "Idiom — click to open" : idiom.meaning,
+                            ], range: NSRange(location: chunkStart + hit.location - plain.location, length: hit.length))
+                        }
                         k = j
                     }
                     pos += units.count
@@ -792,6 +810,8 @@ struct ChapterTextView: NSViewRepresentable {
                 if let verse = Int(url.absoluteString.dropFirst("berean-verse-citations:".count)) { parent.onCitations(verse) }
             case "strongs":
                 parent.onStrongs(String(url.absoluteString.dropFirst("strongs:".count)), verse(at: charIndex))
+            case "berean-idiom":
+                parent.onIdiom(String(url.absoluteString.dropFirst("berean-idiom:".count)))
             case "berean-tag":
                 let s = url.absoluteString.dropFirst("berean-tag:".count)
                 let parts = s.split(separator: "?v=", maxSplits: 1).map(String.init)
@@ -1351,6 +1371,11 @@ final class ReaderTextView: NSTextView {
                 let search = ClosureMenuItem("Search for “\(shown)”") { c.parent.onSearchSelection(words) }
                 search.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
                 menu.insertItem(search, at: 0)
+                if words.count <= 40 {
+                    let idiom = ClosureMenuItem("New Idiom “\(shown)”…") { c.parent.onNewIdiom(words) }
+                    idiom.image = NSImage(systemSymbolName: "character.book.closed", accessibilityDescription: nil)
+                    menu.insertItem(idiom, at: 1)
+                }
                 if !c.parent.bookName.isEmpty {
                     let inBook = ClosureMenuItem("Search for “\(shown)” in \(c.parent.bookName)") { c.parent.onBookSearch(words) }
                     inBook.image = NSImage(systemSymbolName: "text.magnifyingglass", accessibilityDescription: nil)

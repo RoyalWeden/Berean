@@ -347,6 +347,9 @@ struct ReaderVerse: Equatable {
     var title: String?
     var words: [Word]
     var marks: [Mark] = []
+    /// Idiom terms found in the shown words (display offsets, like `marks`): dotted underline + link to the idiom note.
+    struct IdiomSpan: Equatable { var start: Int; var end: Int; var id: String; var meaning: String }
+    var idioms: [IdiomSpan] = []
     var tint: String?          // whole-verse highlight colour
     var noteCount = 0
     var citationCount = 0

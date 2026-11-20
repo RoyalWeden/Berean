@@ -677,6 +677,7 @@ struct NoteDetailView: View {
                                 .onChange(of: title) { scheduleSave() }
                         }
                     }
+                    if note.type == "idiom" { IdiomHeader(note: note) }
                     if let ref = note.verseRef {
                         let attachments = ref.split(separator: ",").compactMap { part -> ResolvedPassage? in
                             guard let link = Reference.parseNoteAttachment(String(part)) else { return nil }

@@ -245,7 +245,7 @@ final class AppModel {
     /// One-line result shown in an alert after a user action (export/import outcome, errors).
     var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.
-    var notesRevision = 0
+    var notesRevision = 0 { didSet { refreshIdiomsIfNeeded() } }
     @ObservationIgnored private var strongsNotesIndex: (revision: Int, task: Task<NoteStrongsIndex, Never>)?
 
     /// One off-main parse per note revision, shared by the full entry and study inspector.
@@ -291,6 +291,19 @@ final class AppModel {
     var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
     var hermasEdition = HermasText.taylor { didSet { saveSetting("hermasTranslation", .string(JSString(hermasEdition.rawValue))) } }
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
+    /// Original `idiomHighlightEnabled` (default on): underline idiom terms in Scripture.
+    var idiomHighlightEnabled = true { didSet { saveSetting("idiomHighlightEnabled", .bool(idiomHighlightEnabled)) } }
+    private(set) var idioms: [Idiom] = []
+    private(set) var idiomMatcher = Idioms.Matcher([])
+    private var idiomsRevisionLoaded = -1
+
+    /// Reloads idiom notes when notes changed (cheap: one indexed query).
+    func refreshIdiomsIfNeeded() {
+        guard idiomsRevisionLoaded != notesRevision, let db = database?.connection else { return }
+        idiomsRevisionLoaded = notesRevision
+        let next = (try? Idioms.list(db: db)) ?? []
+        if next != idioms { idioms = next; idiomMatcher = Idioms.Matcher(next) }
+    }
     /// Persisted per-rule switches (`wordReplacerRules`, the original apps' array). Unknown fields survive.
     var wordReplacerRuleSet = WordReplacerRuleSet(stored: nil) {
         didSet { if wordReplacerRuleSet != oldValue { saveSetting("wordReplacerRules", wordReplacerRuleSet.stored) } }
@@ -327,7 +340,7 @@ final class AppModel {
     private var keys = TabPersistence.OrderKeyMaps()
     private var saveTask: Task<Void, Never>?
 
-    init() { openLibrary(); loadBookCatalog(); evaluateOnboarding() }
+    init() { openLibrary(); loadBookCatalog(); evaluateOnboarding(); refreshIdiomsIfNeeded() }
 
     // MARK: onboarding (the original's per-device `onboardingCompleted` gate)
 
@@ -434,6 +447,7 @@ final class AppModel {
         if let v = all["defaultText"]?.stringValue?.string { defaultText = v }
         if let v = all["hermasTranslation"]?.stringValue?.string, let edition = HermasText(rawValue: v) { hermasEdition = edition }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
+        if let v = all["idiomHighlightEnabled"]?.boolValue { idiomHighlightEnabled = v }
         wordReplacerRuleSet = WordReplacerRuleSet(stored: all["wordReplacerRules"])
         if let v = all["theme"]?.stringValue?.string { theme = v }
         if let v = all["notesFontFamily"]?.stringValue?.string, !v.isEmpty { notesFontFamily = v }
@@ -1601,6 +1615,20 @@ final class AppModel {
             if openEditor { openNote(n.id) }
             return n.id
         } catch { libraryError = "Could not create the note: \(error)"; return nil }
+    }
+
+    /// New idiom note, as the original (title = term, `idiom_term` lowercased, meaning).
+    var idiomDraft: (term: String, meaning: String)?
+
+    @discardableResult
+    func createIdiom(term: String, meaning: String) -> String? {
+        let t = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, let notes else { return nil }
+        guard let n = try? notes.create(.init(type: "idiom", title: t, content: "", idiomTerm: t.lowercased(),
+                                              idiomMeaning: meaning.trimmingCharacters(in: .whitespacesAndNewlines))).note else { return nil }
+        notesRevision += 1
+        openNote(n.id)
+        return n.id
     }
 
     func reopenComparison(bookId: String, chapter: Int, verse: Int?, destination: CompareHistoryDestination?) {

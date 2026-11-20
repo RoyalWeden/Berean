@@ -2219,9 +2219,20 @@ extension ScriptureView {
                 words = plain.split(separator: " ", omittingEmptySubsequences: false).map { .init(text: String($0), italic: false, red: false, strongs: []) }
             }
             let marks = displayedHighlightRanges(highlights[v.verseNum] ?? [], words: words.map(\.text), original: original.text)
+            // Mac only, as the original (the iPhone reader uses body taps for verse selection).
+            #if os(macOS)
+            let idiomsOn = app.idiomHighlightEnabled
+            #else
+            let idiomsOn = false
+            #endif
+            let idiomSpans: [ReaderVerse.IdiomSpan] = idiomsOn
+                ? app.idiomMatcher.matches(in: words.map(\.text).joined(separator: " ")).map {
+                    .init(start: $0.range.location, end: NSMaxRange($0.range), id: $0.idiomId, meaning: $0.meaning) }
+                : []
             let whole = highlights[v.verseNum]?.last { $0.startChar == nil && $0.startWord == nil }
             var rendered = ReaderVerse(verse: v.verseNum, title: v.title, words: words, marks: marks, tint: whole?.color, noteCount: noteCounts[v.verseNum] ?? 0,
                                        tags: (verseTags[v.verseNum] ?? []).map { ($0.name, $0.color, $0.colorSlot) })
+            rendered.idioms = idiomSpans
             rendered.displayVerse = v.displayVerseNum
             rendered.displayVerseEnd = v.displayVerseEndNum
             rendered.numberBeforeTitle = st.bookId == "PSA"
@@ -2463,6 +2474,8 @@ extension ScriptureView {
             onStudyPreview: studyPreviewItems,
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
+            onIdiom: { app.openNote($0) },
+            onNewIdiom: { app.idiomDraft = ($0, "") },
             onNotes: { openInspector("notes", verse: $0) },
             onChapterNotes: openChapterStudy,
             onNumberingInfo: { numberingExplanation = ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation) },

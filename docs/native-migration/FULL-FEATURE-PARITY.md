@@ -56,7 +56,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
 | N11 | Folders, trash, pin, status, icons, board, list views | implemented | 🟡 | 🟡 | P2 | Notes supports folder navigation, List/Gallery, sort/group, bulk selection/share, pin/trash/restore and scoped search. Gallery opening and return passed on Mac and iPhone simulator. Layout and All Notes location survived relaunch on both platforms. Collapsible sections and hidden-selection counts are implemented and runtime checked on Mac and simulator. Board and broader accessibility QA remain. |
 | N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have month and week grids, direct month/year navigation, and a scrollable daily-note timeline with previews and calendar return. Date-to-note navigation uses the legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
-| N13 | Idiom / reference-book editor | implemented, niche | ❌ | ❌ | P3 | Idiom editor not ported |
+| N13 | Idiom / reference-book editor | implemented, niche | 🟡 | 🟡 | P3 | Idiom notes with header editor; Mac reader underline + click (2026-11-20, IDIOMS-2026-11-20.md); PDF export and hover popover open |
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
 | N15 | e-Sword import | implemented (Mac only) | ✅ | — | P3 | File → Import from e-Sword… with review (2026-11-20, ESWORD-IMPORT-2026-11-20.md) |
 | H01 | Storage | implemented | ✅ | ✅ | — | Highlights service golden-verified |
