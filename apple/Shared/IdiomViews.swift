@@ -1,5 +1,6 @@
 import SwiftUI
 import BereanNotes
+import BereanReference
 
 /// The idiom fields of an idiom note (original IdiomHeader): term, meaning, aliases and automatic
 /// variants. Every change saves through NotesService and refreshes the reader's idiom matcher.
@@ -116,5 +117,63 @@ struct NewIdiomSheet: View {
         #if os(macOS)
         .frame(width: 420, height: 260)
         #endif
+    }
+}
+
+/// Idioms reference book (original idiomsExport.ts, "grouped" organization): every idiom note,
+/// alphabetical under letter headings — title-cased term in red, aliases, meaning, explanation,
+/// related idioms (linked when in the book) and Scripture references — printed / saved as PDF.
+enum IdiomReferenceBook {
+    static func esc(_ s: String) -> String {
+        s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    static func slug(_ term: String) -> String {
+        "idiom-" + term.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
+    static func html(_ notes: [Note], hermas: HermasText) -> String {
+        struct Entry { var term: String; var meaning: String; var aliases: [String]; var explanation: String; var compare: [String]; var verses: [String] }
+        let entries: [Entry] = notes.filter { $0.type == "idiom" }.compactMap { n in
+            let term = (n.idiomTerm ?? n.title).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !term.isEmpty else { return nil }
+            let d = n.idiomData
+            let explanation = d?["explanation"]?.stringValue?.string ?? ""
+            let compare = d?["compare"]?.arrayValue?.compactMap { $0.stringValue?.string } ?? []
+            let examples = d?["examples"]?.arrayValue?.compactMap { $0.stringValue?.string } ?? []
+            var verses = d?["verses"]?.arrayValue?.compactMap { $0.stringValue?.string } ?? []
+            let refText = (examples + [explanation, n.content]).joined(separator: "\n")
+            for ref in NoteVerseRefs.linkSpans(content: refText, hermas: hermas) where !verses.contains(ref.reference) { verses.append(ref.reference) }
+            let body = explanation.isEmpty ? MarkdownLiveSpans.plainText(n.content).trimmingCharacters(in: .whitespacesAndNewlines) : explanation
+            return Entry(term: term, meaning: n.idiomMeaning ?? "", aliases: n.idiomAliases ?? [], explanation: body, compare: compare, verses: verses)
+        }.sorted { $0.term.localizedCaseInsensitiveCompare($1.term) == .orderedAscending }
+        let anchors = Dictionary(entries.flatMap { e in ([e.term] + e.aliases).map { ($0.lowercased(), slug(e.term)) } }, uniquingKeysWith: { a, _ in a })
+        var out = """
+        <html><head><meta charset="utf-8"><style>
+        body { font-family: Georgia, serif; font-size: 13px; color: #222; }
+        h1 { font-size: 22px; margin: 0 0 4px; } .sub { color: #888; margin-bottom: 18px; }
+        h2 { font-size: 15px; color: #c0392b; border-bottom: 1px solid #e3e3e3; margin: 18px 0 8px; }
+        .e { margin: 0 0 14px; } .t { font-size: 15px; font-weight: bold; color: #c0392b; }
+        .a { color: #888; font-size: 11.5px; } .m { font-style: italic; font-size: 14px; margin: 2px 0; }
+        .l { color: #888; font-size: 11.5px; }
+        </style></head><body><h1>Idioms</h1><div class="sub">\(entries.count) entr\(entries.count == 1 ? "y" : "ies")</div>
+        """
+        var letter = ""
+        for e in entries {
+            let first = e.term.first(where: \.isLetter).map { String($0).uppercased() } ?? "#"
+            if first != letter { letter = first; out += "<h2>\(esc(letter))</h2>" }
+            out += "<div class=\"e\"><a name=\"\(slug(e.term))\"></a><div class=\"t\">\(esc(e.term.capitalized))</div>"
+            if !e.aliases.isEmpty { out += "<div class=\"a\">Also: \(e.aliases.map(esc).joined(separator: ", "))</div>" }
+            if !e.meaning.isEmpty { out += "<div class=\"m\">\(esc(e.meaning))</div>" }
+            if !e.explanation.isEmpty { out += "<div>\(esc(e.explanation).replacingOccurrences(of: "\n", with: "<br>"))</div>" }
+            if !e.compare.isEmpty {
+                let refs = e.compare.map { c in anchors[c.lowercased()].map { "<a href=\"#\($0)\">\(esc(c))</a>" } ?? esc(c) }
+                out += "<div class=\"l\">Compare to: \(refs.joined(separator: ", "))</div>"
+            }
+            if !e.verses.isEmpty { out += "<div class=\"l\">References: \(e.verses.map(esc).joined(separator: "; "))</div>" }
+            out += "</div>"
+        }
+        return out + "</body></html>"
     }
 }

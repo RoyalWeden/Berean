@@ -180,6 +180,7 @@ struct NotesHomeView: View {
                     Button("Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) }
                     Button("New Folder", systemImage: "folder.badge.plus") { folderName = ""; newFolderParent = .some(isUserFolder ? location : nil) }
                     Button("New Idiom…", systemImage: "character.book.closed") { app.idiomDraft = ("", "") }
+                    Button("Export Idioms…", systemImage: "printer") { app.exportIdioms() }
                     Divider()
                     Button("Import Markdown…") { app.importMarkdownFiles() }
                 } label: { Label("More", systemImage: "ellipsis") }

@@ -54,6 +54,7 @@ struct BereanMacApp: App {
                 Button("Import from e-Sword…") { app.eSwordImportShown = true }
                 Divider()
                 Button("New Idiom…") { app.idiomDraft = ("", "") }
+                Button("Export Idioms as PDF…") { app.exportIdioms() }
                 Button("Export Note as Markdown…") { app.exportActiveNote() }.keyboardShortcut("e", modifiers: [.command, .shift])
                     .disabled(app.activeNoteId == nil)
             }

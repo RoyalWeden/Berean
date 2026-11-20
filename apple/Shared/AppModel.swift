@@ -1631,6 +1631,15 @@ final class AppModel {
         return n.id
     }
 
+    /// Prints (or saves as PDF) every idiom note as a reference book, as the original's idiom export.
+    func exportIdioms() {
+        guard let db = database?.connection, let notes else { return }
+        let ids = ((try? db.query("SELECT id FROM notes WHERE type = 'idiom' AND deleted_at IS NULL")) ?? []).compactMap { $0["id"]?.string }
+        let all = ids.compactMap { try? notes.one($0) }
+        guard !all.isEmpty else { userMessage = "There are no idiom notes to export yet."; return }
+        printMarkup(title: "Idioms", markup: IdiomReferenceBook.html(all, hermas: hermasEdition))
+    }
+
     func reopenComparison(bookId: String, chapter: Int, verse: Int?, destination: CompareHistoryDestination?) {
         var reader = BibleState(bookId: bookId, chapter: chapter)
         reader.translation = destination?.passage.textId ?? defaultText

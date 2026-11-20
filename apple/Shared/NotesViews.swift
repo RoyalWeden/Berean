@@ -519,7 +519,11 @@ func noteBlockReturnEdit(in text: NSString, selection: NSRange)
 
 /// Presents the system print preview for the same Markdown structure used by Notes previews.
 @MainActor func printNote(title: String, body: String) {
-    let markup = NotePrintMarkup.document(title: title, body: body)
+    printMarkup(title: title, markup: NotePrintMarkup.document(title: title, body: body), fallback: body)
+}
+
+/// Prints a prepared HTML document (notes, idiom reference book) through the platform print panel.
+@MainActor func printMarkup(title: String, markup: String, fallback body: String = "") {
     // Let the originating menu dismiss before the system presents its print panel.
     DispatchQueue.main.async {
         #if os(macOS)
