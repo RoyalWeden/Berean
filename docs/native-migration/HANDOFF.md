@@ -2897,3 +2897,9 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Follow-ups (language switch, compare the first two, more, limits, LXX, try again), 2–4 passage comparison, collections scope — all tested and verified on the iPhone sim. Bug fixed: field lost focus after an answer.
 - Checks: `swift test -c release` 331 pass; Mac + iOS builds exit 0.
 - Next for Ask Berean: Ask options screen (collections setting, original `aiLookupCollections`), word tables ("every Strong's number in those verses" — needs tagged-verse rendering), "any in Proverbs?" book-scoped occurrences.
+
+### 2026-11-20 — Claude Code: Ask Berean round 4
+- Added "any in Proverbs?" (book-scoped occurrences) and word tables (direct + follow-up), both tested and verified on the iPhone sim.
+- Checks: `swift test -c release` 333 pass; Mac + iOS builds exit 0.
+- Ask Berean model-free remaining: "check that number", "same restriction", Ask options screen (collections setting). Everything else in G01 is in.
+- Remaining parity work outside Ask Berean is owner-gated (sync, vault, BibleGateway, Share/Widget targets, model-backed modes) or Codex's (Read Aloud).
