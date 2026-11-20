@@ -1,5 +1,9 @@
 import SwiftUI
 import BereanNotes
+import BereanReference
+#if os(iOS)
+import UIKit
+#endif
 
 /// Berean Chat (notes side of the original Messages-style chat): conversations plus the reserved
 /// Unfiled stream, pins, folders, replies, edit/delete. AI requests and replies already stored in a
@@ -150,8 +154,12 @@ struct ChatView: View {
 /// One conversation (or All Messages across conversations) with a composer.
 struct ChatThreadView: View {
     @Environment(AppModel.self) private var app
+    #if os(macOS)
+    @Environment(\.dismissWindow) private var dismissWindow
+    #endif
     let chatId: String?
     @State private var items: [ChatsService.StreamItem] = []
+    @State private var scrollTarget: ChatsService.MessageAddress?
     @State private var title = "All Messages"
     @SceneStorage private var draft: String
     @State private var replyTo: ChatsService.StreamItem?
@@ -163,7 +171,11 @@ struct ChatThreadView: View {
     @State private var search = ""
     @State private var showingSearch = false
     @FocusState private var searchFocused: Bool
+    #if os(iOS)
+    @State private var composerFocused = false
+    #else
     @FocusState private var composerFocused: Bool
+    #endif
 
     init(chatId: String?) {
         self.chatId = chatId
@@ -172,32 +184,38 @@ struct ChatThreadView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 16) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        VStack(alignment: .leading, spacing: 16) {
                             if index == 0 || !Calendar.current.isDate(Date(timeIntervalSince1970: item.message.time / 1000),
                                                                       inSameDayAs: Date(timeIntervalSince1970: items[index - 1].message.time / 1000)) {
                                 Text(Date(timeIntervalSince1970: item.message.time / 1000).formatted(date: .complete, time: .omitted))
                                     .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity).padding(.top, 8)
                             }
-                            bubble(item.chat, item.message).id(item.id)
+                            bubble(item.chat, item.message)
                         }
-                    }
-                    .padding(16)
-                    .frame(maxWidth: 760).frame(maxWidth: .infinity)
-                }
-                .overlay {
-                    if items.isEmpty {
-                        ContentUnavailableView(search.isEmpty ? "No Messages" : "No Results", systemImage: "bubble.left.and.text.bubble.right",
-                                               description: Text(search.isEmpty ? "Keep quick thoughts, references and questions together." : "Try another word."))
+                        .id(item.id)
                     }
                 }
-                .onChange(of: items.last?.id) { _, id in
-                    if let id { withAnimation(.smooth) { proxy.scrollTo(id, anchor: .bottom) } }
+                .scrollTargetLayout()
+                .padding(16)
+                .frame(maxWidth: 760).frame(maxWidth: .infinity)
+            }
+            // A bound target survives the first lazy layout after the asynchronous load.
+            // An imperative scrollTo can run before the message has a laid-out frame.
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .scrollPosition(id: $scrollTarget, anchor: .bottom)
+            .overlay {
+                if items.isEmpty {
+                    ContentUnavailableView(search.isEmpty ? "No Messages" : "No Results", systemImage: "bubble.left.and.text.bubble.right",
+                                           description: Text(search.isEmpty ? "Keep quick thoughts, references and questions together." : "Try another word."))
                 }
-                .onAppear { if let id = items.last?.id { proxy.scrollTo(id, anchor: .bottom) } }
+            }
+            .onChange(of: items.last?.id) { previous, id in
+                if previous == nil { scrollTarget = id }
+                else { withAnimation(.smooth) { scrollTarget = id } }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -273,8 +291,9 @@ struct ChatThreadView: View {
                     Button("Save") { saveEdit(chat) }.buttonStyle(.borderedProminent)
                 }.controlSize(.small)
             } else {
-                MarkdownText(m.content.isEmpty ? m.preview : m.content, expands: false)
+                MarkdownText(ChatReferenceLinks.markdown(m.content.isEmpty ? m.preview : m.content, hermas: app.hermasEdition), expands: false)
                     .font(.body).textSelection(.enabled)
+                    .environment(\.openURL, messageLinkAction)
                     .padding(.horizontal, 16).padding(.vertical, 12)
                     .foregroundStyle(.primary)
                     .background(mine ? Color.accentColor.opacity(0.13) : Color.secondary.opacity(0.09), in: .rect(cornerRadius: 22))
@@ -287,10 +306,8 @@ struct ChatThreadView: View {
                     ForEach(Array(shown.enumerated()), id: \.offset) { _, r in
                         if let book = r["bookId"]?.stringValue?.string, let ch = r["chapter"]?.numberValue, let v = r["verse"]?.numberValue {
                             Button {
-                                app.openScripture(bookId: book, chapter: Int(ch), verse: Int(v), textId: r["textId"]?.stringValue?.string, reuseTab: false)
-                                #if os(iOS)
-                                app.chatShown = false   // the passage opens behind the full-screen chat
-                                #endif
+                                app.openBereanLink(.verse(bookId: book, chapter: Int(ch), verse: Int(v), textId: r["textId"]?.stringValue?.string))
+                                revealMainDocument()
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("\(r["bookName"]?.stringValue?.string ?? book) \(Int(ch)):\(Int(v))").font(.caption.weight(.semibold)).foregroundStyle(.tint)
@@ -354,11 +371,9 @@ struct ChatThreadView: View {
                 .foregroundStyle(.secondary)
             }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("Message", text: $draft, axis: .vertical)
-                    .textFieldStyle(.plain).lineLimit(1...8).focused($composerFocused)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
+                composerInput
+                    .padding(.horizontal, 12)
                     .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 20))
-                    .onSubmit(send)
                 Button("Send", systemImage: "arrow.up.circle.fill") { send() }
                     .labelStyle(.iconOnly).font(.system(size: 30)).buttonStyle(.plain).foregroundStyle(.tint)
                     .frame(width: 44, height: 44).contentShape(.circle)
@@ -368,6 +383,53 @@ struct ChatThreadView: View {
         }
         .padding(12)
         .modifier(ChatComposerSurface())
+    }
+
+    @ViewBuilder private var composerInput: some View {
+        #if os(iOS)
+        ChatMessageEditor(text: $draft, focused: $composerFocused)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .topLeading) {
+                if draft.isEmpty {
+                    Text("Message").foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5).padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
+            }
+            .font(.body)
+        #else
+        TextField("Message", text: $draft, axis: .vertical)
+            .textFieldStyle(.plain).lineLimit(1...8).focused($composerFocused)
+            .padding(.vertical, 8)
+            .onSubmit(send)
+        #endif
+    }
+
+    private var messageLinkAction: OpenURLAction {
+        OpenURLAction { url in
+            if let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition) {
+                app.openBereanLink(route)
+                if case .chat = route { return .handled }
+                revealMainDocument()
+                return .handled
+            }
+            if let video = YouTubeLink.parse(url.absoluteString) {
+                app.openYouTubeVideo(video.videoId, startMs: video.startMs)
+                revealMainDocument()
+                return .handled
+            }
+            // Match the original Chat renderer's external-link policy. Custom
+            // and file schemes do not leave Chat through the system opener.
+            return ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") ? .systemAction : .discarded
+        }
+    }
+
+    private func revealMainDocument() {
+        #if os(macOS)
+        dismissWindow(id: "chat")
+        #else
+        app.chatShown = false
+        #endif
     }
 
     private func send() {
@@ -410,3 +472,59 @@ private struct ChatComposerSurface: ViewModifier {
         }
     }
 }
+
+#if os(iOS)
+/// A compact native message input. Smart punctuation must not rewrite Markdown
+/// table separators or code while the user is composing a message.
+private struct ChatMessageEditor: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var focused: Bool
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.delegate = context.coordinator
+        view.backgroundColor = .clear
+        view.font = .preferredFont(forTextStyle: .body)
+        view.adjustsFontForContentSizeCategory = true
+        view.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        view.smartQuotesType = .no
+        view.smartDashesType = .no
+        view.accessibilityLabel = "Message"
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        context.coordinator.parent = self
+        if view.text != text {
+            view.text = text
+            view.invalidateIntrinsicContentSize()
+        }
+        if focused, !view.isFirstResponder { view.becomeFirstResponder() }
+        else if !focused, view.isFirstResponder { view.resignFirstResponder() }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width.isFinite, width > 0 else { return nil }
+        let line = uiView.font?.lineHeight ?? 20
+        let height = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: width, height: min(line * 8 + 16, max(line + 16, height)))
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ChatMessageEditor
+        init(_ parent: ChatMessageEditor) { self.parent = parent }
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+            textView.invalidateIntrinsicContentSize()
+        }
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            if !parent.focused { parent.focused = true }
+        }
+        func textViewDidEndEditing(_ textView: UITextView) {
+            if parent.focused { parent.focused = false }
+        }
+    }
+}
+#endif

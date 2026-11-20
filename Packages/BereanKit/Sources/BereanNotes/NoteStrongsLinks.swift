@@ -22,6 +22,20 @@ public enum NoteStrongsLinks {
     public static func spans(in text: String, markdownSpans: [MarkdownLiveSpans.Span]? = nil) -> [(range: NSRange, number: String)] {
         let source = text as NSString
         let full = NSRange(location: 0, length: source.length)
+        let excluded = protectedRanges(in: text, markdownSpans: markdownSpans)
+        return candidates.matches(in: text, range: full).compactMap { match in
+            guard !isEscaped(at: match.range.location, in: source),
+                  !excluded.contains(where: { NSIntersectionRange($0, match.range).length > 0 }),
+                  let number = StrongsId.parse(source.substring(with: match.range)).first?.id else { return nil }
+            return (match.range, number)
+        }
+    }
+
+    /// Shared read-only scope for automatic links. It excludes code, existing
+    /// destinations, images, comments, URLs and incomplete Markdown constructs.
+    static func protectedRanges(in text: String, markdownSpans: [MarkdownLiveSpans.Span]? = nil) -> [NSRange] {
+        let source = text as NSString
+        let full = NSRange(location: 0, length: source.length)
         var excluded = (markdownSpans ?? MarkdownLiveSpans.spans(text)).compactMap { span -> NSRange? in
             switch span.kind {
             case .code, .codeBlock, .structure, .wikilink, .link, .image: return span.range
@@ -64,12 +78,7 @@ public enum NoteStrongsLinks {
             offset = max(offset, end)
         }
 
-        return candidates.matches(in: text, range: full).compactMap { match in
-            guard !isEscaped(at: match.range.location, in: source),
-                  !excluded.contains(where: { NSIntersectionRange($0, match.range).length > 0 }),
-                  let number = StrongsId.parse(source.substring(with: match.range)).first?.id else { return nil }
-            return (match.range, number)
-        }
+        return excluded
     }
 
     /// Lexicon identities cited by a note, independent of automatic link styling settings.
