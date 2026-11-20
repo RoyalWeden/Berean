@@ -14,6 +14,7 @@ private final class ChapterPullScrollView: NSScrollView {
     private var pendingViewportAction: (() -> Void)?
     private var viewportSettle: Timer?
     private var applyingViewport = false
+    private var studyPreviewOrigin: NSPoint?
     private var appliedViewportGeometry: ViewportGeometry?
 
     private struct ViewportGeometry: Equatable {
@@ -68,6 +69,10 @@ private final class ChapterPullScrollView: NSScrollView {
     override func reflectScrolledClipView(_ clipView: NSClipView) {
         super.reflectScrolledClipView(clipView)
         guard reader != nil else { return }
+        if studyPreviewOrigin != clipView.bounds.origin {
+            studyPreviewOrigin = clipView.bounds.origin
+            reader?.textView?.dismissStudyPreview()
+        }
         if !applyingViewport, let event = NSApp.currentEvent, event.window === window,
            event.type == .leftMouseDragged { cancelViewportAction() }
         checkpointDue = ProcessInfo.processInfo.systemUptime + 0.35
@@ -207,7 +212,7 @@ struct ChapterTextView: NSViewRepresentable {
     var headerDetail: String?
     var chapterTags: [(name: String, color: String?, slot: Int?)] = []
     var verses: [ReaderVerse]
-    var chapterStudyLabel: String?
+    var chapterStudy: ReaderChapterStudy?
     var style: ReaderStyle
     var selectedVerses: Set<Int> = []
     var selectionFocus: Int?
@@ -226,6 +231,7 @@ struct ChapterTextView: NSViewRepresentable {
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
     var strongsTooltips: [String: String] = [:]
+    var onStudyPreview: @MainActor (Int) async -> [ReaderStudyPreview] = { _ in [] }
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
     var onNotes: (Int) -> Void
@@ -316,7 +322,7 @@ struct ChapterTextView: NSViewRepresentable {
         tv.updateOutlineMotion()
         let clip = scroll.contentView
         let passageChanged = c.lastPassage != passageId
-        let key = Key(header: header, chapterTags: chapterTags.map(\.name), chapterStudyLabel: chapterStudyLabel, verses: verses, style: style)
+        let key = Key(header: header, chapterTags: chapterTags.map(\.name), chapterStudy: chapterStudy, verses: verses, style: style)
         let insetChanged = scroll.contentInsets.bottom != actionClearance
         let wasAtEnd = !passageChanged && (insetChanged || key != c.lastKey) && Self.isAtChapterEnd(clip)
         if insetChanged {
@@ -468,7 +474,7 @@ struct ChapterTextView: NSViewRepresentable {
     }
 
     struct Key: Equatable {
-        var header: [String]; var chapterTags: [String]; var chapterStudyLabel: String?; var verses: [ReaderVerse]; var style: ReaderStyle
+        var header: [String]; var chapterTags: [String]; var chapterStudy: ReaderChapterStudy?; var verses: [ReaderVerse]; var style: ReaderStyle
     }
 
     // MARK: - Coordinator: builds the text, routes clicks, copies
@@ -623,7 +629,7 @@ struct ChapterTextView: NSViewRepresentable {
             let para = NSMutableParagraphStyle()
             para.lineSpacing = p.style.lineSpacing
             para.paragraphSpacing = size * 0.55
-            let hasAnnotations = p.verses.contains { $0.noteCount > 0 || !$0.tags.isEmpty || $0.citationCount > 0 }
+            let hasAnnotations = p.verses.contains { $0.noteCount > 0 || !$0.tags.isEmpty || $0.citationCount > 0 || $0.mentionCount > 0 }
             let gutterWidth: CGFloat = p.style.showVerseNumbers ? 34 : hasAnnotations ? 16 : 0
             if p.style.showVerseNumbers {
                 para.tabStops = [NSTextTab(textAlignment: .right, location: 26), NSTextTab(textAlignment: .left, location: gutterWidth)]
@@ -643,15 +649,15 @@ struct ChapterTextView: NSViewRepresentable {
                 }
                 out.append(NSAttributedString(string: h + "  ⓘ\n", attributes: attributes))
             }
-            if let label = p.chapterStudyLabel {
+            if let study = p.chapterStudy {
                 let attachment = NSTextAttachment()
-                attachment.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: label)?
+                attachment.image = NSImage(systemSymbolName: study.symbol, accessibilityDescription: study.summary)?
                     .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
                 let marker = NSMutableAttributedString(attachment: attachment)
                 marker.append(NSAttributedString(string: "\n"))
                 marker.addAttributes([.paragraphStyle: headPara, Self.skipKey: true,
                     .foregroundColor: NSColor.secondaryLabelColor,
-                    .link: URL(string: "berean-chapter-study:tags")!, .toolTip: label],
+                    .link: URL(string: "berean-chapter-study:tags")!, .toolTip: study.summary],
                     range: NSRange(location: 0, length: marker.length))
                 out.append(marker)
             }
@@ -670,7 +676,7 @@ struct ChapterTextView: NSViewRepresentable {
                 }
                 // Personal study material belongs in the margin, not in the
                 // reading/copying run. Keep the number's separate click target.
-                if v.noteCount > 0 || !v.tags.isEmpty || v.citationCount > 0 {
+                if v.noteCount > 0 || !v.tags.isEmpty || v.citationCount > 0 || v.mentionCount > 0 {
                     let attachment = NSTextAttachment()
                     attachment.image = NSImage(systemSymbolName: v.studySymbol, accessibilityDescription: v.studySummary)?
                         .withSymbolConfiguration(.init(pointSize: max(10, size * 0.65), weight: .medium))
@@ -678,7 +684,7 @@ struct ChapterTextView: NSViewRepresentable {
                     marker.addAttributes([
                         .foregroundColor: NSColor.secondaryLabelColor,
                         .paragraphStyle: numberedTitle ? titlePara : para, Self.skipKey: true,
-                        .link: URL(string: "\(v.citationCount > 0 && v.noteCount == 0 && v.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(v.verse)")!,
+                        .link: URL(string: "\((v.citationCount > 0 || v.mentionCount > 0) && v.noteCount == 0 && v.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(v.verse)")!,
                     ], range: NSRange(location: 0, length: marker.length))
                     out.append(marker)
                 }
@@ -996,6 +1002,7 @@ final class ReaderTextView: NSTextView {
         super.viewDidMoveToWindow()
         updateReadingInset(for: frame.width)
         updateOutlineMotion()
+        if window == nil { dismissStudyPreview() }
     }
 
     private var hovered: NSRange?
@@ -1009,41 +1016,65 @@ final class ReaderTextView: NSTextView {
         studyPreview = nil
     }
 
-    private func prepareStudyPreview(at index: Int?, range: NSRange?) {
+    private var qaStudyPreviewEnabled: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return Bundle.main.bundleIdentifier == "com.berean.native.mac.dev"
+            && arguments.contains("--qa-library") && arguments.contains("--qa-study-preview")
+        #else
+        return false
+        #endif
+    }
+
+    private func prepareStudyPreview(at index: Int?, range: NSRange?, allowInactive: Bool = false, delayed: Bool = true) {
         dismissStudyPreview()
         guard let index, let range, let storage = textStorage, index < storage.length,
               let url = storage.attribute(.link, at: index, effectiveRange: nil) as? URL,
               ["berean-verse-notes", "berean-verse-citations"].contains(url.scheme ?? ""),
               let number = Int(url.absoluteString.dropFirst((url.scheme?.count ?? 0) + 1)),
-              let verse = coordinator?.parent.verses.first(where: { $0.verse == number }) else { return }
+              let parent = coordinator?.parent,
+              let verse = parent.verses.first(where: { $0.verse == number }) else { return }
+        let load = parent.onStudyPreview
         studyPreviewTask = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .milliseconds(450)) } catch { return }
-            guard let self, !Task.isCancelled, self.hovered == range,
-                  self.window?.isKeyWindow == true, let layout = self.layoutManager, let container = self.textContainer else { return }
-            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-            var anchor = layout.boundingRect(forGlyphRange: glyphs, in: container)
-            anchor.origin.x += self.textContainerOrigin.x
-            anchor.origin.y += self.textContainerOrigin.y
+            if delayed {
+                do { try await Task.sleep(for: .milliseconds(450)) } catch { return }
+            }
+            guard let self, !Task.isCancelled, self.hovered == range else { return }
+            let items = await load(number)
+            guard !Task.isCancelled, self.hovered == range, let window = self.window,
+                  allowInactive || window.isKeyWindow, let host = window.contentView else { return }
+            // NSTextInputClient gives the actual rendered first-line rectangle in
+            // screen space, including scrolling/insets. Converting through the
+            // window avoids manually mixing flipped TextKit/container coordinates.
+            let screenAnchor = self.firstRect(forCharacterRange: range, actualRange: nil)
+            guard !screenAnchor.isEmpty else { return }
+            let windowAnchor = window.convertFromScreen(screenAnchor)
+            let textAnchor = self.convert(windowAnchor, from: nil)
+            guard self.visibleRect.intersects(textAnchor) else { return }
+            let anchor = host.convert(windowAnchor, from: nil)
             let popover = NSPopover()
             popover.behavior = .transient
             popover.animates = false
-            popover.contentViewController = NSHostingController(rootView:
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Verse \(verse.readerVerseLabel)", systemImage: verse.studySymbol)
-                        .font(.headline)
-                    Text(verse.studySummary).font(.callout).foregroundStyle(.secondary)
-                    if let preview = verse.citationPreview, !preview.isEmpty {
-                        Divider()
-                        Text(preview).font(.callout).lineSpacing(5)
-                    }
-                    Text("Click the marker to open study details")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .frame(width: 290, alignment: .leading)
-                .padding(16)
-            )
+            // Resolve content before showing, so the card does not change height
+            // and shift its arrow after the user has already started reading it.
+            popover.contentViewController = NSHostingController(rootView: ReaderStudyHoverCard(verse: verse, items: items))
             self.studyPreview = popover
-            popover.show(relativeTo: anchor, of: self, preferredEdge: .maxX)
+            popover.show(relativeTo: anchor, of: host, preferredEdge: .maxX)
+            #if DEBUG
+            if self.qaStudyPreviewEnabled {
+                DispatchQueue.main.async { [weak self, weak popover] in
+                    guard let self, let popover, self.studyPreview === popover,
+                          let frame = popover.contentViewController?.view.window?.frame else { return }
+                    func rect(_ r: NSRect) -> [CGFloat] { [r.minX, r.minY, r.width, r.height] }
+                    let roundTrip = window.convertToScreen(host.convert(anchor, to: nil))
+                    let payload: [String: Any] = ["verse": number, "screenAnchor": rect(screenAnchor),
+                        "roundTripAnchor": rect(roundTrip), "popoverFrame": rect(frame), "windowIsKey": window.isKeyWindow]
+                    if let data = try? JSONSerialization.data(withJSONObject: payload, options: .sortedKeys) {
+                        try? data.write(to: UserLibrary.directory.appendingPathComponent("study-preview-geometry.json"), options: .atomic)
+                    }
+                }
+            }
+            #endif
         }
     }
     private var tracking: NSTrackingArea?
@@ -1108,6 +1139,21 @@ final class ReaderTextView: NSTextView {
     override func mouseDown(with event: NSEvent) {
         (enclosingScrollView as? ChapterPullScrollView)?.cancelViewportAction()
         window?.makeFirstResponder(self)
+        #if DEBUG
+        // CUA has no hover operation. This opt-in QA-only entry exercises the
+        // same preview and anchor through a real Option-click, without claiming
+        // that it verifies continuous physical hovering.
+        if qaStudyPreviewEnabled, event.modifierFlags.contains(.option),
+           let index = charIndex(at: event), let storage = textStorage {
+            var range = NSRange()
+            if let url = storage.attribute(.link, at: index, effectiveRange: &range) as? URL,
+               ["berean-verse-notes", "berean-verse-citations"].contains(url.scheme ?? "") {
+                hovered = range
+                prepareStudyPreview(at: index, range: range, allowInactive: true, delayed: false)
+                return
+            }
+        }
+        #endif
         // A single click on a link (verse number, Strong's number, tag chip) acts like a button; anything else is text
         // selection. (The built-in link handling did not fire for these custom-scheme links inside SwiftUI.)
         dismissStudyPreview()
@@ -1384,4 +1430,34 @@ final class ClosureMenuItem: NSMenuItem {
     }
     required init(coder: NSCoder) { fatalError() }
     @objc private func run() { handler() }
+}
+
+private struct ReaderStudyHoverCard: View {
+    let verse: ReaderVerse
+    let items: [ReaderStudyPreview]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Verse \(verse.readerVerseLabel)", systemImage: verse.studySymbol).font(.headline)
+            Text(verse.studySummary).font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !items.isEmpty {
+                Divider()
+                ForEach(items) { item in
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(item.reference).font(.subheadline.weight(.semibold))
+                        Text(item.text).font(.callout).lineLimit(5)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(item.noteTitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else if let preview = verse.citationPreview, !preview.isEmpty {
+                Text(preview).font(.callout).lineSpacing(5)
+            }
+            Text("Click the marker to open study details").font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(width: 330, alignment: .leading)
+        .padding(16)
+    }
 }

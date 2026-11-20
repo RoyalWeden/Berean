@@ -552,11 +552,30 @@ struct ScriptureView: View {
         nonmutating set { storedAnchor = newValue }
     }
     private var noteCounts: [Int: Int] { presentation?.noteCounts ?? [:] }
-    private var chapterStudyLabel: String? {
+    private var chapterStudy: ReaderChapterStudy? {
         guard let presentation else { return nil }
-        if !presentation.chapterCitations.isEmpty || presentation.verseCitations[0]?.isEmpty == false
-            || presentation.indirectMentions[0]?.isEmpty == false { return "Chapter notes and related passages" }
-        return presentation.chapterTags.isEmpty ? nil : "Chapter tags · \(presentation.chapterTags.count)"
+        let relatedNotes = Set(presentation.chapterCitations.map(\.id)
+            + (presentation.verseCitations[0] ?? []).map { $0.note.id }
+            + (presentation.indirectMentions[0] ?? []).map(\.id))
+        let tags = presentation.chapterTags.map { "#" + $0.name }
+        guard !relatedNotes.isEmpty || !tags.isEmpty else { return nil }
+        var details: [String] = []
+        if !relatedNotes.isEmpty {
+            details.append("\(relatedNotes.count) \(relatedNotes.count == 1 ? "related note" : "related notes")")
+        }
+        if !tags.isEmpty { details.append("Chapter tags: " + tags.joined(separator: ", ")) }
+        return ReaderChapterStudy(symbol: relatedNotes.isEmpty ? "tag" : "arrow.triangle.branch",
+                                  summary: details.joined(separator: " · "),
+                                  opensCrossReferences: !relatedNotes.isEmpty && tags.isEmpty)
+    }
+
+    private func openChapterStudy() {
+        if chapterStudy?.opensCrossReferences == true {
+            crossRefSource = "notes"
+            openInspector("crossrefs")
+        } else {
+            openInspector("notes")
+        }
     }
     private var verseCitations: (key: String, links: [Int: [NoteCrossReferences.Link]])? {
         presentation.map { (chapterKey(state), $0.verseCitations) }
@@ -1385,7 +1404,7 @@ struct ScriptureView: View {
             header: ChapterMap.readerNumberingSummary(st.bookId, st.chapter, textId: st.translation),
             headerDetail: ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation),
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) },
-            chapterStudyLabel: chapterStudyLabel,
+            chapterStudy: chapterStudy,
             verses: rv,
             style: style,
             baseFontSize: baseSize,
@@ -1408,7 +1427,7 @@ struct ScriptureView: View {
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
-            onChapterNotes: { openInspector("notes") },
+            onChapterNotes: openChapterStudy,
             onNumberingInfo: { numberingExplanation = ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation) },
             onCitations: { verse in
                 crossRefSource = "notes"
@@ -2215,7 +2234,7 @@ extension ScriptureView {
                 }.joined(separator: "\n")
                 #endif
             }
-            rendered.citationCount += presentation?.indirectMentions[v.verseNum]?.count ?? 0
+            rendered.mentionCount = presentation?.indirectMentions[v.verseNum]?.count ?? 0
             return rendered
         }
     }
@@ -2370,6 +2389,43 @@ extension ScriptureView {
         return true
     }
 
+    /// Resolve the passages actually written in the attached verse note. Load
+    /// lazily for the hover card rather than querying every marker while reading.
+    @MainActor private func studyPreviewItems(_ verse: Int) async -> [ReaderStudyPreview] {
+        let links = Array((verseCitations?.links[verse] ?? []).prefix(3))
+        let replaceWords = app.wordReplacerEnabled
+        var previews: [ReaderStudyPreview] = []
+        for (index, link) in links.enumerated() {
+            guard !Task.isCancelled else { return [] }
+            // Citation text is human input; ResolvedPassage stores raw annotation
+            // identities. Convert exactly once for the displayed label.
+            let passage = ResolvedPassage(textId: link.textId, bookId: link.bookId, chapter: link.chapter,
+                                          verse: link.verse, endVerse: link.endVerse).convertingReaderNumbersToStored
+            let reference = passage.label + (link.textId == "lxx" ? " LXX" : "")
+            let raw = await app.bible.queryChapter(link.bookId, link.chapter, textId: link.textId)
+            guard !Task.isCancelled else { return [] }
+            let rows: [ChapterVerseRow]
+            if let first = link.verse, first > 0, first <= 999 {
+                let last = min(999, max(first, link.endVerse ?? first))
+                rows = PsalmSuperscription.readerSelection(Set(first...last), rows: raw,
+                    textId: link.textId, bookId: link.bookId, chapter: link.chapter) ?? []
+            } else {
+                rows = Array(PsalmSuperscription.apply(raw, textId: link.textId,
+                    bookId: link.bookId, chapter: link.chapter).prefix(3))
+            }
+            let text = rows.map { row in
+                let title = row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? ""
+                let body = VerseDisplay.text(row.text, tagged: row.textTagged, textId: link.textId,
+                    replacerEnabled: replaceWords, rules: WordReplacer.defaultRules)
+                return (rows.count > 1 ? row.readerVerseLabel + " " : "") + title + body
+            }.joined(separator: "\n")
+            previews.append(ReaderStudyPreview(id: "\(link.note.id)|\(index)|\(reference)", reference: reference,
+                noteTitle: link.note.title.isEmpty ? "Untitled" : link.note.title,
+                text: text.isEmpty ? "Passage unavailable" : text))
+        }
+        return previews
+    }
+
     /// The continuous TextKit reader (cross-verse selection, clickable verse numbers / Strong's / tags).
     func macReader(_ st: BibleState, actionClearance: CGFloat, titleBarClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
@@ -2380,7 +2436,7 @@ extension ScriptureView {
             header: header,
             headerDetail: ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation),
             chapterTags: chapterTags.map { ($0.name, $0.color, $0.colorSlot) }, verses: rv,
-            chapterStudyLabel: chapterStudyLabel,
+            chapterStudy: chapterStudy,
             style: readerStyle(st),
             selectedVerses: selection, selectionFocus: selectedVerse, scrollTarget: scrollTarget,
             actionClearance: actionClearance,
@@ -2401,10 +2457,11 @@ extension ScriptureView {
             verseMenu: { verseNSMenu($0, st) },
             tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
             strongsTooltips: st.showStrongs ? strongsTooltips : [:],
+            onStudyPreview: studyPreviewItems,
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
-            onChapterNotes: { openInspector("notes") },
+            onChapterNotes: openChapterStudy,
             onNumberingInfo: { numberingExplanation = ChapterMap.readerNumberingNote(st.bookId, st.chapter, textId: st.translation) },
             onCitations: { verse in
                 crossRefSource = "notes"

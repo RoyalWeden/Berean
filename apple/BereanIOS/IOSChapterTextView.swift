@@ -45,7 +45,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     var header: String?
     var headerDetail: String?
     var chapterTags: [(name: String, color: String?, slot: Int?)]
-    var chapterStudyLabel: String?
+    var chapterStudy: ReaderChapterStudy?
     var verses: [ReaderVerse]
     var style: ReaderStyle
     var baseFontSize: Double
@@ -176,7 +176,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 view?.findInteraction?.presentFindNavigator(showingReplace: false)
             }
         }
-        let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) }, chapterStudyLabel: chapterStudyLabel,
+        let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) }, chapterStudy: chapterStudy,
                       verses: verses, style: style, dark: colorScheme == .dark)
         view.updateOutlineMotion()
         let samePassage = coordinator.passageId == passageId
@@ -331,7 +331,7 @@ struct IOSChapterTextView: UIViewRepresentable {
     struct Key: Equatable {
         let header: String?
         let tags: [TagKey]
-        let chapterStudyLabel: String?
+        let chapterStudy: ReaderChapterStudy?
         let verses: [ReaderVerse]
         let style: ReaderStyle
         let dark: Bool
@@ -799,7 +799,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let paragraph = NSMutableParagraphStyle()
             paragraph.lineSpacing = parent.style.lineSpacing
             paragraph.paragraphSpacing = size * 0.55
-            let hasAnnotations = parent.verses.contains { $0.noteCount > 0 || !$0.tags.isEmpty || $0.citationCount > 0 }
+            let hasAnnotations = parent.verses.contains { $0.noteCount > 0 || !$0.tags.isEmpty || $0.citationCount > 0 || $0.mentionCount > 0 }
             if parent.style.showVerseNumbers {
                 paragraph.tabStops = [NSTextTab(textAlignment: .right, location: size * 1.25),
                                       NSTextTab(textAlignment: .left, location: size * 1.8)]
@@ -821,13 +821,13 @@ struct IOSChapterTextView: UIViewRepresentable {
                 if parent.headerDetail != nil { attributes[.link] = URL(string: "berean-numbering:info")! }
                 out.append(NSAttributedString(string: header + "  ⓘ\n", attributes: attributes))
             }
-            if parent.chapterStudyLabel != nil {
+            if let study = parent.chapterStudy {
                 let headerParagraph = NSMutableParagraphStyle()
                 headerParagraph.firstLineHeadIndent = paragraph.headIndent
                 headerParagraph.headIndent = paragraph.headIndent
                 headerParagraph.paragraphSpacing = size * 0.55
                 let attachment = NSTextAttachment()
-                attachment.image = UIImage(systemName: "note.text", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15))?
+                attachment.image = UIImage(systemName: study.symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 15))?
                     .withTintColor(.secondaryLabel, renderingMode: .alwaysOriginal)
                 let marker = NSMutableAttributedString(attachment: attachment)
                 marker.append(NSAttributedString(string: "\n"))
@@ -853,7 +853,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                     out.append(NSAttributedString(string: title + "\n", attributes: titleAttributes))
                     if verse.numberBeforeTitle { psalmTitleRanges[verse.verse] = NSRange(location: titleStart, length: out.length - titleStart - 1) }
                 }
-                if verse.noteCount > 0 || !verse.tags.isEmpty || verse.citationCount > 0 {
+                if verse.noteCount > 0 || !verse.tags.isEmpty || verse.citationCount > 0 || verse.mentionCount > 0 {
                     let attachment = NSTextAttachment()
                     attachment.image = UIImage(systemName: verse.studySymbol,
                         withConfiguration: UIImage.SymbolConfiguration(pointSize: max(12, size * 0.65)))?
@@ -861,7 +861,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                     let marker = NSMutableAttributedString(attachment: attachment)
                     marker.addAttributes(base.merging([
                         .paragraphStyle: numberedTitle ? titleParagraph : paragraph,
-                        .link: URL(string: "\(verse.citationCount > 0 && verse.noteCount == 0 && verse.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(verse.verse)")!, Self.skip: true,
+                        .link: URL(string: "\((verse.citationCount > 0 || verse.mentionCount > 0) && verse.noteCount == 0 && verse.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }, range: NSRange(location: 0, length: marker.length))
                     out.append(marker)
                 }

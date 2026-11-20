@@ -350,15 +350,17 @@ struct ReaderVerse: Equatable {
     var tint: String?          // whole-verse highlight colour
     var noteCount = 0
     var citationCount = 0
+    var mentionCount = 0
     var citationPreview: String?
     /// One quiet margin target; the symbol identifies its primary study material.
     var studySymbol: String {
-        citationCount > 0 ? "arrow.triangle.branch" : noteCount > 0 ? "note.text" : "tag"
+        citationCount > 0 || mentionCount > 0 ? "arrow.triangle.branch" : noteCount > 0 ? "note.text" : "tag"
     }
     var studySummary: String {
         var parts: [String] = []
         if noteCount > 0 { parts.append("\(noteCount) \(noteCount == 1 ? "note" : "notes")") }
         if citationCount > 0 { parts.append("\(citationCount) related \(citationCount == 1 ? "passage" : "passages")") }
+        if mentionCount > 0 { parts.append("Mentioned in \(mentionCount) \(mentionCount == 1 ? "note" : "notes")") }
         if !tags.isEmpty { parts.append(tags.map { "#" + $0.name }.joined(separator: ", ")) }
         return parts.joined(separator: " · ")
     }
@@ -374,7 +376,7 @@ struct ReaderVerse: Equatable {
     }
     static func == (a: ReaderVerse, b: ReaderVerse) -> Bool {
         a.verse == b.verse && a.title == b.title && a.words == b.words && a.marks == b.marks && a.tint == b.tint && a.noteCount == b.noteCount
-            && a.citationCount == b.citationCount && a.citationPreview == b.citationPreview
+            && a.citationCount == b.citationCount && a.mentionCount == b.mentionCount && a.citationPreview == b.citationPreview
             && a.tags.elementsEqual(b.tags, by: ==) && a.displayVerse == b.displayVerse && a.displayVerseEnd == b.displayVerseEnd
             && a.numberBeforeTitle == b.numberBeforeTitle
     }
@@ -422,4 +424,19 @@ enum ScriptureWidth: String, CaseIterable {
         case .narrow: 32
         }
     }
+}
+
+/// Chapter study is not necessarily an attached note: tags and mentions have
+/// their own symbol and destination rather than implying a nonexistent note.
+struct ReaderChapterStudy: Equatable, Sendable {
+    let symbol: String
+    let summary: String
+    let opensCrossReferences: Bool
+}
+
+struct ReaderStudyPreview: Identifiable, Sendable {
+    let id: String
+    let reference: String
+    let noteTitle: String
+    let text: String
 }
