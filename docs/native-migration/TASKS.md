@@ -444,3 +444,11 @@ Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel 
 ### 2026-11-19 reader layout and reference tracking
 
 8f680362 fixes repeated Compare→Reader width-reflow shifts by retaining the immediate restoration intent through initial layout changes, yielding to input. Final no-trace UI roundtrips retain0.5418427726120034; physical smoothness/full races still open.03697661 restores original Strong’s detection preference on both apps; Mac explicit-link independence and iPhone OFF persistence/ON restoration verified. c8fbfe2e removes canonical-name/80-result loss of ordinary-note citations; real Jn3:17 MyNotes UI and90+note/edit/Trash/restore tests pass. Full256tests/both builds pass, original13/17notes/38/47IDs/tags unchanged. HANDOFF and NOTES-REFERENCE-PARITY.md provide precise remaining matrices; broader goal remains active.
+
+## 2026-11-19 — Personal Strong’s reference continuation
+
+| ID | Task | Status | Evidence / remaining gate |
+| --- | --- | --- | --- |
+| NOTES-STRONGS-BACKLINKS | Show source-derived My Notes in full/compact Lexicon | IMPLEMENTED_UNVERIFIED | Source + normalized/explicit-ID/index tests; Mac and iPhone full-entry open/return proven. Compact inspector, all history/forward/source closure and large-library/race matrix still open. No arbitrary verse associations. |
+| IOS-MORE-GROUPING | Keep reader More and app Settings discoverable | IMPLEMENTED_UNVERIFIED | Scripture menu Settings and Reading Options touch verified; remaining submenu/all-mode destination matrix open. |
+| IOS-TAB-READABLE-PREVIEW | Render readable note tab excerpts, refreshing with edits | IMPLEMENTED_UNVERIFIED | Existing wiki title displays without valid delimiters. Long/formatted/table/malformed-source preview matrix open. |

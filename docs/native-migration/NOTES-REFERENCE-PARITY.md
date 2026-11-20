@@ -11,7 +11,7 @@ Keep this audit separate from a blanket “all parity complete” claim. Source 
 | Block expansion suggestions | noteVerseBlockSuggest/noteStrongsBlockSuggest independent toggles | Existing guarded NoteReferenceCompletion and prepared block insertion, independent of auto-link flags. Suggestion excerpt now readable | Full typed range/alias/markup/table/Undo/settings interaction matrix |
 | Personal outgoing/reverse passage links | notesCrossRefs.ts + crossRefIndex.ts | Existing direct/reverse/whole-chapter/range/edition APIs retained | Full library, aliases, old imported attachments, all19texts and multi-note dedup |
 | Ordinary-note mentions | Legacy My Notes canonical-name search has80 cap; global reciprocal index documents alias-search failure | NOW indexed exact chapter-number candidates across all live note types; parser owns actual book/range/edition validation. No80 cap. Actual Mac Jn3:17 ordinary note appears via verse dot→Related Passages→My Notes even with Scripture auto-links OFF | Large-library parsing latency; wider grammar/edition matrix. Do not reinstate a page cap for performance |
-| Strong’s backlink tracking | Chapter cross-reference index extracts Scripture references, not bare Strong’s IDs | Auto-link presentation works; no new bare-Strong’s→arbitrary-verse associations added | Design and implement My Notes/backlinks in Lexicon for notes mentioning its Strong’s ID, explicit/wiki/block variants, settings semantics and test data |
+| Strong’s backlink tracking | Chapter cross-reference index extracts Scripture references, not bare Strong’s IDs | Shared full/compact Lexicon now exposes collapsed My Notes with normalized bare and explicit lexicon destinations; native blocks included by their source, wiki titles excluded. Mac normalized/explicit/edit invalidation and iPhone existing-note/top-Back verified. No arbitrary verse associations | Compact inspector, all grammar/link forms, large-library/race/source-closure/forward matrix |
 
 ## Regression coverage
 
@@ -20,3 +20,7 @@ NotesConformanceTests ordinaryCitationsIncludeAliasesAndAreNotLimitedToSearchPag
 ## Important boundaries
 
 Detection toggles change automatic styling/navigation, not saved text or the existence of user references. Explicit links remain links. Suggestion settings are separate. Existing native chapter/range/edition parser behavior is retained; this increment does not claim every legacy reference grammar, superscription, imported attachment or Strong’s backlink workflow is finished. Candidate lookup uses the parsed display chapter number as an indexed token, then validates through the real parser. Profile copies only were used for UI writes.
+
+## Strong’s index validation
+
+New NoteStrongsIndex tests exceed the default 200-note page, deduplicate repeated mentions, distinguish H43/H430/G430, retain source, and refresh after edit/Trash/restore. Explicit code/image/comment/wiki/URL exclusions are covered. One off-main ephemeral index per app note revision, no saved identity change. Full 258 tests pass; latest HANDOFF names logs, exact safe fixtures and the initial HTML-comment and note-Back bugs found and corrected. Detection OFF does not erase relationships. Imported Markdown reference-style destinations and unusual embed/HTML grammars still require a broader rendering/link compatibility audit.
