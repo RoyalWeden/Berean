@@ -10,18 +10,39 @@ struct MacRootView: View {
     @Environment(AppModel.self) private var app
     @State private var columns: NavigationSplitViewVisibility = .all
     @State private var showsArchive = false
+    @State private var inspectorWidth: CGFloat = 340
     private let paletteDimOpacity = 0.12
 
     var body: some View {
         @Bindable var app = app
         NavigationSplitView(columnVisibility: $columns) {
             BereanSidebar(browseArchive: { showsArchive = true })
-                .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
+                .frame(minWidth: MacLayoutLimits.sidebarMinimum)
+                .navigationSplitViewColumnWidth(min: MacLayoutLimits.sidebarMinimum, ideal: 260, max: 360)
                 // Browser-style: [sidebar] [‹] [›] together in the sidebar's title bar (Yab / Safari / Arc).
                 .toolbar(removing: .sidebarToggle)
                 .toolbar { ToolbarItemGroup(placement: .automatic) { if columns != .detailOnly { navGroup } } }
         } detail: {
             detail
+                // The window owns one inspector. Switching document identities must not
+                // destroy/recreate a presented native inspector for each reader host.
+                .inspector(isPresented: inspectorBinding) {
+                    if let tab = app.activeTab, tab.tabType == .bible {
+                        StudyInspector(tabId: tab.id)
+                            .frame(minWidth: MacLayoutLimits.studyPanelMinimum)
+                            .inspectorColumnWidth(min: MacLayoutLimits.studyPanelMinimum, ideal: max(MacLayoutLimits.studyPanelMinimum, inspectorWidth), max: 520)
+                            .background {
+                                InspectorWidthReader { width in
+                                    guard width >= MacLayoutLimits.studyPanelMinimum, width <= 520, abs(width - inspectorWidth) > 0.5 else { return }
+                                    inspectorWidth = width
+                                }
+                            }
+                    }
+                }
+                .transaction(value: app.activeTab?.id) { transaction in
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
                 .toolbar {
                     // With the sidebar hidden the same buttons sit right after the sidebar button.
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
@@ -69,7 +90,31 @@ struct MacRootView: View {
         return .hidden
     }
 
-    /// [sidebar] [‹] [›] — one group, the same order whether the sidebar is shown or hidden.
+    private var inspectorBinding: Binding<Bool> {
+        // Capture this render's target so a late native dismissal cannot change
+        // the newly selected tab's saved open/closed state.
+        let target = app.activeTab
+        return Binding(get: {
+            guard let target, target.tabType == .bible,
+                  app.activeTab?.id == target.id else { return false }
+            let state = BibleState(target.state)
+            let layout = ScriptureLayout(rawValue: state.scriptureLayout) ?? .standard
+            return layout.usesInspector && state.rightPanelOpen
+        }, set: { presented in
+            guard let target, target.tabType == .bible,
+                  app.activeTab?.id == target.id else { return }
+            let state = BibleState(target.state)
+            let layout = ScriptureLayout(rawValue: state.scriptureLayout) ?? .standard
+            guard layout.usesInspector else { return }
+            app.update(target.id, recordHistory: false) { tab in
+                var reader = BibleState(tab.state)
+                reader.rightPanelOpen = presented
+                tab.state = reader.merged(into: tab.state)
+            }
+        })
+    }
+
+    /// [sidebar] [‹] [›] stay together in the sidebar title bar.
     @ViewBuilder var navGroup: some View {
         ControlGroup {
         Button { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } } label: {
@@ -211,3 +256,71 @@ private final class PassThroughTintView: NSView {
 }
 
 
+
+/// Measure the native inspector pane, including its host insets. Measuring the
+/// SwiftUI content and feeding that smaller width back as the ideal would shrink
+/// the pane repeatedly. This probe uses only public NSView/NSSplitView geometry.
+private struct InspectorWidthReader: NSViewRepresentable {
+    let changed: (CGFloat) -> Void
+    func makeNSView(context: Context) -> Probe { Probe() }
+    func updateNSView(_ view: Probe, context: Context) { view.changed = changed; view.scheduleReport() }
+    static func dismantleNSView(_ view: Probe, coordinator: Void) { view.stop() }
+
+    final class Probe: NSView {
+        var changed: (CGFloat) -> Void = { _ in }
+        private var queued = false
+        private var lastWidth: CGFloat?
+        private var settle: Timer?
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            stop()
+            guard window != nil else { return }
+            NotificationCenter.default.addObserver(self, selector: #selector(splitResized(_:)),
+                name: NSSplitView.didResizeSubviewsNotification, object: nil)
+            scheduleReport()
+        }
+        override func layout() { super.layout(); scheduleReport() }
+        @objc private func splitResized(_ notification: Notification) {
+            guard let split = notification.object as? NSSplitView, isDescendant(of: split) else { return }
+            scheduleReport()
+        }
+        func stop() {
+            settle?.invalidate()
+            settle = nil
+            NotificationCenter.default.removeObserver(self, name: NSSplitView.didResizeSubviewsNotification, object: nil)
+        }
+        func scheduleReport() {
+            guard !queued else { return }
+            queued = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.queued = false
+                guard self.window != nil else { return }
+                var child: NSView = self
+                while let parent = child.superview {
+                    if let split = parent as? NSSplitView, split.isVertical,
+                       split.subviews.last === child {
+                        let width = child.frame.width
+                        guard width > 0, self.lastWidth != width else { return }
+                        self.lastWidth = width
+                        self.settle?.invalidate()
+                        // Opening/closing uses intermediate native widths. Remember
+                        // only a settled pane, without changing its live animation target.
+                        let timer = Timer(timeInterval: 0.25, repeats: false) { [weak self] _ in
+                            MainActor.assumeIsolated {
+                                guard let self, self.window != nil, self.lastWidth == width else { return }
+                                self.changed(width)
+                                self.settle = nil
+                            }
+                        }
+                        self.settle = timer
+                        RunLoop.main.add(timer, forMode: .common)
+                        return
+                    }
+                    child = parent
+                }
+            }
+        }
+    }
+}

@@ -16,17 +16,6 @@ struct MacTabContentHost: View {
                 let layout = ScriptureLayout(rawValue: st.scriptureLayout) ?? .standard
                 ScriptureLayoutView(tabId: tab.id, layout: layout)
                     .id(tab.id)
-                    .inspector(isPresented: Binding(get: { layout.usesInspector && st.rightPanelOpen }, set: { isPresented in
-                        // SwiftUI can dismiss an outgoing inspector when switching tabs.
-                        guard app.activeTab?.id == tab.id, layout.usesInspector else { return }
-                        app.update(tab.id, recordHistory: false) { tab in
-                            var reader = BibleState(tab.state)
-                            reader.rightPanelOpen = isPresented
-                            tab.state = reader.merged(into: tab.state)
-                        }
-                    })) {
-                        StudyInspector(tabId: tab.id).inspectorColumnWidth(min: 280, ideal: 340, max: 520)
-                    }
                     .toolbar {
                         ToolbarItem {
                             Menu {

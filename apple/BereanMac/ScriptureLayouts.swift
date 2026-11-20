@@ -59,6 +59,13 @@ enum ScriptureLayout: String, CaseIterable, Identifiable {
     var usesInspector: Bool { self == .standard }
 }
 
+/// Enough room for navigation controls and study tools at the narrowest supported widths.
+enum MacLayoutLimits {
+    static let sidebarMinimum: CGFloat = 240
+    static let studyPanelMinimum: CGFloat = 320
+    static let windowMinimum: CGFloat = 1000
+}
+
 enum StudyPanelKind { case tabbed, notes, lexicon, crossrefs }
 
 struct StudyPanel: View {
@@ -86,7 +93,7 @@ struct StudyPanel: View {
                           sourceTabID: tabId)
             }
         }
-        .frame(minWidth: 220, minHeight: 160)
+        .frame(minWidth: MacLayoutLimits.studyPanelMinimum, minHeight: 160)
         .background(.background.secondary)
     }
 }
