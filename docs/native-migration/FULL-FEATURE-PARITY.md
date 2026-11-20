@@ -84,7 +84,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U15 | Tasks panel and first steps | implemented (Mac only) | 🟡 | 🟡 | P3 | Getting Started checklist with original completedStepIds + native detection, on both platforms (2026-11-20) |
 | U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |
 | U17 | PDFs | partial | 🟡 | 🟡 | P2 | Library + PDFKit reader with highlights, notes, bookmarks, outline, find, page restore and missing-file re-attach (2026-11-20). Share Extension intake, experimental gate and bookmark labels open. |
-| U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Conversations/Unfiled/pins/folders/replies/edit/delete; rich bubbles, glass composer, local drafts, search/destinations and scoped message identities. Bounded Mac+iPhone checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md; full references/failure/accessibility matrix remains open. Model-free Ask saves into Chat. |
+| U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Conversations/Unfiled/pins/folders/replies/edit/delete; rich bubbles, glass composer, local drafts, search/destinations and scoped message identities. Bounded Mac+iPhone checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md; automatic/explicit reference routing and long/table content checked; failure/accessibility matrix remains open. Model-free Ask saves into Chat. |
 | M01 | YouTube browsing and playback | implemented | 🟡 | 🟡 | P2 | WebKit tab: channel list, browse/watch, sign-in persists, timestamp links (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no scraped feed/transcripts |
 | M02 | Picture-in-Picture | implemented | 🟡 | 🟡 | P3 | Manual PiP button + ⇧⌘P; pages persist across tab switches; auto-PiP on tab switch not achieved (YOUTUBE-TAB-2026-11-20.md) |
 | M03 | Video-linked notes and timestamps | implemented | 🟡 | 🟡 | P3 | Insert timestamp link into an open note; YouTube links in notes open the YouTube tab at that moment (2026-11-20) |
@@ -708,8 +708,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/ailookup/*`, `src/mobile/chat/*`, `ios/App/BereanWidget/BereanChatWidget.swift`, `src/platform/services/aiChatsService.ts`, `docs/berean-chat.md`.
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Berean Chat not ported
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — conversations, Unfiled, pins/folders/replies/edit/delete, rich message rendering, search, per-conversation drafts and internal reference navigation implemented. Bounded Mac+iPhone interaction checks pass; failure/accessibility, original find/widget/standalone combinations remain open.
+- **Native files:** `apple/Shared/ChatViews.swift`, `BereanNotes/ChatsService.swift`, `BereanNotes/ChatReferenceLinks.swift`. See [actual checks and limits](PRESENTER-MESSAGES-POLISH-2026-11-20.md).
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### M01 YouTube browsing and playback

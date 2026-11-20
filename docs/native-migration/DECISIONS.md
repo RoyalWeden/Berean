@@ -678,3 +678,12 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - iPhone underlap extends only the native scroll surface by measured safe insets. Floating controls retain their safe outer layout; direct ignoresSafeArea attempts placed hidden-dock actions below the home indicator and were rejected.
 - Inspector width uses a one-shot public NSSplitView restoration after actual visible geometry, yielding to resize input. Three older SwiftUI-only attempts failed and remain rejected. Manual/constrained matrix is open.
 - No production/sync/schema/raw identity changes. Review/merge guards remain. [Evidence and remaining gates](PRESENTER-MESSAGES-POLISH-2026-11-20.md).
+
+
+### ADR-0017 — Ephemeral Chat reference links and native multiline composition
+
+- Date/author:2026-11-20, Codex. Status: ACCEPTED (engineering, reversible).
+- Restore original Chat auto-reference behavior through an ephemeral Markdown rendering copy. Reuse existing note reference recognition and Strong’s exclusions, protect code/existing links/images/URLs, preserve visible Unicode characters and raw stored source. Chat does not become personal-note citation-index content. Internal navigation uses ordinary reuse and reveals the main document.
+- Use composite message addresses in a declarative scroll layout, with a bottom anchor only for the initial offset. Do not force every subsequent size change to the end of the conversation.
+- iPhone composition uses a bounded native UITextView with ordinary state/delegate focus and smart quotes/dashes disabled. Return inserts a line break; explicit Send/Command-Return send. A SwiftUI FocusState binding directly on the UIKit wrapper and unbounded TextEditor layout were rejected by actual UI checks. Source formats and identities remain compatible.
+- Evidence and remaining gates: [Presenter/Messages polish](PRESENTER-MESSAGES-POLISH-2026-11-20.md). No broader feature-parity completion claim.

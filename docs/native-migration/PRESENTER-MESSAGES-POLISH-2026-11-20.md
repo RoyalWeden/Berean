@@ -59,3 +59,23 @@ The fresh constrained window grew during its first native inspector presentation
 ## Next quality gates
 
 Physical iPhone and software-keyboard behavior; landscape/rotation, Dynamic Type, VoiceOver and Reduce Transparency; Compare underlap; rapid picker/text transitions; long/wide rich messages; send/edit failure injection; complete Presenter zoom shortcuts and chapter/focus/scale combinations; inspector constrained/manual resize matrix. Explicit internal links and automatic Scripture/Strong's references in Messages also need an interaction audit. Broader PDFs/Ask/YouTube/read-aloud/splits parity remains in TASKS. No Apple voices, production-data changes or owner-only merge actions are authorized by this polish pass.
+
+
+## Messages reference and composition follow-up — 15:25 Pacific
+
+Plain Scripture and Strong’s references now become native internal links in the rendered message. Existing explicit links keep their destinations; code, image sources, comments, URLs and unfinished Markdown constructs are excluded. Generated links are an ephemeral rendering copy: saved source, personal-note citation indexing and raw message IDs are unchanged. Clicking a reference reveals the main document and uses ordinary destination navigation/reuse. AI verse buttons use the same behavior.
+
+Messages uses composite stable targets in a declarative scroll layout, with a bottom anchor for the initial offset only. This fixes the actual iPhone reopening case where the latest message was below the viewport without forcing subsequent viewport size changes to jump to the bottom.
+
+The iPhone composer is a compact native multiline text view that grows to eight lines. Return inserts a line break; Send and Command-Return send. Smart quotes and dashes are disabled so Markdown tables and code are preserved. Mac retains its existing text-field interaction.
+
+Verification:
+
+- **344 shared tests pass:**340 Swift Testing /89 suites plus4 core XCTest. Five new reference tests cover UTF-16 ranges, repeated references, explicit editions, canonical Strong’s IDs, protected Markdown, idempotence, table structure and nonbreaking spaces. Existing eight Strong’s tests pass unchanged. `/private/tmp/berean-chat-reference-full-tests.log`.
+- Actual Mac: plain Scripture/Strong’s and explicit Scripture links open correctly, close Chat and show the main document. Back returns the selected verse. A longer message renders heading, bold, real table, list and code; search finds table text; close/reopen shows its ending fully above the composer.
+- Actual iPhone: plain Scripture/Strong’s links open correctly and dismiss Chat. Initial opening shows the latest message; touch drag reaches older messages. The final native input accepts multiple lines, grows and scrolls within its limit, sends with Command-Return, shrinks after send, and retains an unsent two-line draft across conversation-list navigation. Search finds the formatted message. Heading, bold, table and code render correctly. Read-only source inspection confirms the literal `| --- | --- |` separator and complete final paragraph were saved.
+- Rejected experiments are recorded in OWNER-UX: TextField Return submitted/dismissed; an unconstrained TextEditor expanded excessively; smart punctuation invalidated a table; a FocusState binding was unsuitable for the UIKit input. These versions are not delivered behavior.
+- Final iPhone build `/private/tmp/berean-chat-native-final-ios-build.log` passes. Final Mac build `/private/tmp/berean-chat-native-final-mac-build.log` passes. No further shared parser logic changed after the full test run.
+- Both apps restored to original reading tabs; iPhone Capture Keyboard OFF, no sheets/draft. All original notes/tags/folders and exact37/47 active tab IDs match the baselines. Local Chat fixtures remain: Mac Unfiled3, iPhone Unfiled6 plus4 in the owned conversation; no Chat Trash exists.
+
+Remaining: physical phone/software keyboard, Dynamic Type/VoiceOver/Reduce Transparency, iPad/rotation, external-link handoff, AI verse-button runtime and save/edit failure injection. Shorthand “Jude5” is not recognized by the existing note auto-link parser; typed navigation separately supports it. No legacy golden parser was changed. Broad Presenter zoom/focus and inspector first-presentation/resize gates remain open.

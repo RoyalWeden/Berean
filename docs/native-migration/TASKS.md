@@ -123,7 +123,7 @@ One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (1
 | U15 | Tasks panel | implemented | M | TODO | TODO | — | — | audit 03 §U (U15) | — | — |
 | U16 | Tags and tag graph | implemented | M P | TODO | TODO | — | — | audit 03 §U (U16) | — | — |
 | U17 | PDFs | partial | M P | TODO | TODO | — | — | audit 03 §U (U17) | — | — |
-| U18 | Berean Chat | implemented | M P | TODO | TODO | — | — | audit 03 §U (U18) | — | — |
+| U18 | Berean Chat | implemented | M P | IN_PROGRESS | IN_PROGRESS | ChatViews.swift / ChatsService / ChatReferenceLinks | 344 shared tests + bounded Mac/iPhone UI; see focused Nov20 evidence | audit 03 §U (U18) | Failure/accessibility/find/widget/full combinations | draft24 |
 | M01 | YouTube browsing and playback | implemented | M P | TODO | TODO | — | — | audit 03 §M (M01) | — | — |
 | M02 | Picture-in-Picture | partial | M P | TODO | TODO | — | — | audit 03 §M (M02) | — | — |
 | M03 | Video-linked notes, timestamps | implemented | M P | TODO | TODO | — | — | audit 03 §M (M03) | — | — |
@@ -512,7 +512,7 @@ Read [implementation and exact gates](PRESENTER-MESSAGES-POLISH-2026-11-20.md) a
 | ID | Status | Delivered / next acceptance gate |
 | --- | --- | --- |
 | PRESENTER-SNAPSHOT | IMPLEMENTED, bounded UI verified | Rendered Scripture/note/lexicon snapshots, real pause/resume, reader filters, rich notes and native grouped controls. Complete chapter/focus/scale and keyboard-zoom matrices. |
-| CHAT-POLISH | IMPLEMENTED, bounded Mac+iPhone UI verified | Rich content-sized bubbles, glass composer, drafts, two kinds of search, explicit All Messages destination, safe edit/reply addresses and error retention. Next: explicit internal links/automatic references, long/table content, failure injection and accessibility. |
+| CHAT-POLISH | IMPLEMENTED, bounded Mac+iPhone UI verified | Rich content-sized bubbles, glass composer, drafts, two kinds of search, explicit All Messages destination, safe edit/reply addresses and error retention. 1ec16c13 adds verified internal links/automatic references, long/table content, iPhone multiline composing and initial message position. Next: failure injection, accessibility, physical/software keyboard and full original find/widget matrix. |
 | AUXILIARY-COMMAND-SCOPE | IMPLEMENTED, bounded Mac UI verified | One saveItem Close command; main⌘W closes tab, Presenter/Chat⌘W close only their window. Complete all focused editor/menu/shortcut combinations and⇧⌘W. |
 | IOS-PICKER-ALL-TEXTS | IMPLEMENTED, bounded UI verified | Full-height text search including Other writings, direct single-book chapters, keyboard dismissal, stale preview guard. Rapid typing/text changes, keyboard and accessibility matrices remain. |
 | IOS-READER-UNDERLAP | IMPLEMENTED, bounded UI verified | Scripture beneath chrome/full bottom; selected actions safe with dock shown/hidden. Compare, landscape/rotation, large type and physical phone remain. |
