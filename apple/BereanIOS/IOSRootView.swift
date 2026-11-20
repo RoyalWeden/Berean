@@ -408,6 +408,7 @@ struct IOSRootView: View {
                 Menu("Study Tools", systemImage: "books.vertical") {
                     Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
+                    Button("Tags", systemImage: "tag") { app.openTags() }
                 }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }

@@ -2796,3 +2796,7 @@ Published334eafbb/4e6c49fa retained. QA trace proves hidden inspector width capt
 Codex was live in its own checkout (`/Users/roywe/Documents/ChatGPT/Berean/repo`, dirty `MacRootView.swift` + `CURRENT-STATE.md`, width-drift investigation, QA app `/private/tmp/berean-codex-controls-qa`). Claude worked from `/Users/roywe/Berean-native` on non-overlapping files only and did **not** touch CURRENT-STATE/MacRootView, Codex's QA app/profile or its simulator D0CC…. Claude's iPhone QA used iPhone 18 Pro Max E8B01B22-30D0-4184-9D0D-B0A394817943 (fresh Dev container, disposable).
 
 Delivered: persisted per-rule Word Replacer switches through every consumer — details, file list and limits in [WORD-REPLACER-RULES-2026-11-20](WORD-REPLACER-RULES-2026-11-20.md). 301 tests + both builds PASS; iPhone toggle→reader→persist→relaunch→Turn All On verified. Mac switch interaction UNVERIFIED (built only). Codex: when you next update CURRENT-STATE, fold in this line; no action required otherwise.
+
+### 2026-11-20 — Claude Code: Tag Graph
+
+Delivered U16 tag graph (service + layout port + Canvas UI + inspector) on both apps; 304 tests + both builds PASS; iPhone and Mac UI exercised on Claude-owned fixtures only. Details/limits: [TAG-GRAPH-2026-11-20](TAG-GRAPH-2026-11-20.md). Claude's Mac QA copy: `/private/tmp/berean-claude-qa/BereanMac.app --qa-library --qa-profile claude-20261120` (stopped after use). Next Claude picks: PDFs (U17, ❌ both) or remaining Kokoro/YouTube gaps — check with Codex's queue first.

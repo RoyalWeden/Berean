@@ -273,6 +273,7 @@ final class AppModel {
     private(set) var settingsService: SettingsService?
     private(set) var workspaces: WorkspacesService?
     private(set) var verseTags: VerseTagsService?
+    private(set) var tagGraph: TagGraphService?
     var showStudyTrail = false
     var studyTrailRecording: StudyTrailRecording?
     private(set) var studyTrailService: StudyTrailService?
@@ -347,6 +348,10 @@ final class AppModel {
             historyService = HistoryService(db: db.connection)
             studyTrailService = StudyTrailService(db: db.connection)
             verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
+            if let verseTags {
+                tagGraph = TagGraphService(db: db.connection, tags: verseTags,
+                                           onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
+            }
             loadSettings()
             highlights = HighlightsService(db: db.connection, onChange: { [weak self] _, _, _, _ in Task { @MainActor in self?.highlightsRevision += 1 } })
             let rows = try svc.allRows()

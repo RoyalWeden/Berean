@@ -80,7 +80,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U13 | Onboarding and hints | partial | ❌ | ❌ | P3 | Onboarding not ported |
 | U14 | Study Trail | implemented | 🟡 | 🟡 | P1 | List, branch map, search, ordering, recording, tag assignment, and sticky notes use legacy rows. Merge/split, draggable map layout and full graph controls remain open. |
 | U15 | Tasks panel and first steps | implemented (Mac only) | ❌ | — | P3 | Tasks panel not ported |
-| U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search. Missing tag manager / tag graph |
+| U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |
 | U17 | PDFs | partial | ❌ | ❌ | P2 | PDFs not ported |
 | U18 | Berean Chat (notes-style chat) | implemented | ❌ | ❌ | P3 | Berean Chat not ported |
 | M01 | YouTube browsing and playback | implemented | ❌ | ❌ | P2 | YouTube not ported |
@@ -688,8 +688,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/platform/services/{verseTagsService,tagGraphService}.ts`, `electron/ipc/{verseTags,tagGraph}.ts`, `src/components/tags/*`, `src/lib/{tagPalette,verseTagRanges,verseTagSearch,tagRefScan}.ts`, `src/mobile/study/TagPickerSheet.tsx`. 3. members expanded to `verse_tag_verse` index (rebuilt on sync a
 - **Known original defects:** —
-- **Native Mac / iPhone:** 🟡 / 🟡 — Verse tags (golden), chips, picker, #tag search. Missing tag manager / tag graph
-- **Native files:** VerseTagsService.swift, VerseTagViews.swift
+- **Native Mac / iPhone:** 🟡 / 🟡 — Verse tags (golden), chips, picker, #tag search, Tag Manager, and Tag Graph (see [TAG-GRAPH-2026-11-20](TAG-GRAPH-2026-11-20.md)).
+- **Native files:** VerseTagsService.swift, TagGraphService.swift, TagForceLayout.swift, VerseTagViews.swift, TagManagerView.swift, TagGraphView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### U17 PDFs
