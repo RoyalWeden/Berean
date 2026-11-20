@@ -92,7 +92,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | M07 | Word-follow highlighting | implemented (estimated, not forced alignment) | ❌ | ❌ | P3 |  |
 | M08 | Voice downloads and caching | implemented | ❌ | ❌ | P3 |  |
 | M09 | Sleep timer (iPhone) | undocumented | — | ❌ | P3 |  |
-| G01 | Direct references and Strong's without a model | implemented (statuses: SPEC "Complete") | 🟡 | 🟡 | P2 | Model-free Ask Berean: word studies, Strong's, references, labelled keyword fallback, Strong's comparison, KJV/LXX parallel, exclusions (2026-11-20, ASK-BEREAN-MODEL-FREE-2026-11-20.md); no follow-ups yet |
+| G01 | Direct references and Strong's without a model | implemented (statuses: SPEC "Complete") | 🟡 | 🟡 | P2 | Model-free Ask Berean: word studies, Strong's, references, labelled keyword fallback, Strong's comparison, KJV/LXX parallel, exclusions, follow-ups (2026-11-20, ASK-BEREAN-MODEL-FREE-2026-11-20.md) |
 | G02 | Local model runtime (Ollama), model picker, downloads | partial | ❌ | ❌ | P3 |  |
 | G03 | Ask Berean modes (Commentary ON/OFF), prose stripping, premise check | implemented (ON partial) | ❌ | ❌ | P3 |  |
 | G04 | Deep Search, escalation, cancel and time budgets | implemented (Mac), partial (budgets) | ❌ | — | P3 |  |

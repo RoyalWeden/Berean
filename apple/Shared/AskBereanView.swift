@@ -16,6 +16,9 @@ struct AskBereanView: View {
     @State private var asking = false
     @State private var asked = ""
     @State private var savedChatId: String?
+    /// The conversation so far (follow-ups resolve against it) and the last "Interpreted as …".
+    @State private var convo = AskFollowUp.State()
+    @State private var interpreted: String?
     @FocusState private var focused: Bool
 
     struct Verse: Identifiable, Hashable {
@@ -36,7 +39,7 @@ struct AskBereanView: View {
         NavigationStack {
             List {
                 Section {
-                    TextField("Ask about a verse, a word, or a topic", text: $question)
+                    TextField(asked.isEmpty ? "Ask about a verse, a word, or a topic" : "Ask a follow-up — “now only Greek”, “five more”", text: $question)
                         .focused($focused)
                         .submitLabel(.search)
                         .onSubmit { Task { await ask() } }
@@ -46,6 +49,14 @@ struct AskBereanView: View {
                     Text("Try: John 3:16 · H2617 · compare H2617 and H7356 · word study on grace · How does Isaiah 7:14 read in the LXX? · verses on the Sabbath, not from Exodus")
                 }
                 if asking { ProgressView() }
+                if !asked.isEmpty, !asking {
+                    Section {
+                        Label(asked, systemImage: "questionmark.bubble").font(.headline)
+                        if let interpreted {
+                            Label("Interpreted as: \(interpreted)", systemImage: "arrow.turn.down.right").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 if let answer {
                     results(answer)
                     Section {
@@ -153,12 +164,21 @@ struct AskBereanView: View {
     private func finish(_ action: @escaping () -> Void) { dismiss(); DispatchQueue.main.async(execute: action) }
 
     private func ask() async {
-        let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return }
+        let raw = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return }
         asking = true
-        asked = q
+        asked = raw
+        question = ""   // ready for a follow-up
         savedChatId = nil
-        defer { asking = false }
+        // A follow-up ("now only Greek", "five more", "compare the first two") becomes a full request.
+        let followUp = AskFollowUp.resolve(raw, state: convo)
+        interpreted = followUp?.reason
+        let q = followUp?.question ?? raw
+        defer {
+            asking = false
+            remember(raw: raw, effective: q, isFollowUp: followUp != nil)
+            focused = true   // ready for the follow-up
+        }
         // 0. Two or more Strong's numbers: their entries side by side (original lexical comparison).
         let ids = ModelFreeAsk.strongsIds(q)
         if ids.count >= 2 {
@@ -224,11 +244,34 @@ struct AskBereanView: View {
         for r in rows {
             let v = Verse(textId: "kjva", bookId: r.bookId, chapter: r.chapter, verse: r.verseNum, text: r.text)
             if excluded.bookIds.contains(r.bookId) || ModelFreeAsk.mentionsExcluded(r.text, terms: excluded.terms) { continue }
+            if followUp?.excludeRefs.contains(v.label) == true { continue }   // "more": not the ones already shown
             guard seen.insert(v.id).inserted else { continue }
             verses.append(v)
-            if verses.count >= 12 { break }
+            if verses.count >= (followUp?.limit ?? 12) { break }
         }
         answer = .keyword(words, verses)
+    }
+
+    /// Updates the conversation state from the answer just shown (original stateFromTurns, natively).
+    private func remember(raw: String, effective: String, isFollowUp: Bool) {
+        if !isFollowUp { convo.topicQuestion = effective }
+        if let study = ModelFreeAsk.wordStudy(effective) { convo.term = study.word; convo.lang = study.lang }
+        switch answer {
+        case .strongs(let e, let verses, let alternatives):
+            convo.strongs = [e.strongsNum] + alternatives.map(\.strongsNum) + convo.strongs.filter { $0 != e.strongsNum }
+            convo.refs = verses.map(\.label)
+        case .compare(let entries):
+            convo.strongs = entries.map(\.strongsNum)
+        case .passage(_, let verses):
+            convo.refs = verses.map(\.label)
+            if !isFollowUp { convo.refs = [effective] + convo.refs.filter { $0 != effective } }
+        case .parallel(let title, _, _):
+            convo.refs = [title]
+        case .keyword(_, let verses):
+            // "more" keeps excluding everything shown so far in this thread of the topic.
+            convo.refs = (isFollowUp ? convo.refs : []) + verses.map(\.label)
+        default: break
+        }
     }
 
     /// Writes the exchange into Berean Chat in the original message shape (a new conversation).
