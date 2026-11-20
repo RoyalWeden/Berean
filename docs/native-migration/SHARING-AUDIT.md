@@ -14,8 +14,8 @@ Ordinary Notes sharing now uses readable title/body through noteExcerptText, on 
 | iPhone Notes editor | ShareLink readable text | Actual activity sheet/source positioning and cancellation |
 | Notes single-row context menu | ShareLink inside nested Menu | Native context-menu anchoring; row may need stable parent anchor |
 | Notes bulk selection | ShareLink | Both platform source anchor, multi-note text boundaries |
-| Scripture chapter | Async SharedScriptureChapter via ShareLink in menu | Stable toolbar anchor and asynchronous stale-target handling |
-| Scripture selected verses | SharedVerseSelection via ShareLink | Reader action menu/sheet anchor; preserve actual selected edition/ranges |
+| Scripture chapter | Mac now prepares in stable toolbar owner with generation/cancellation/tab/edition/options guards, then NativeShareAnchor | Actual Genesis1 anchored open/cancel twice passed; async race/overflow/multiple-window matrix and iPhone activity presentation still open |
+| Scripture selected verses | SharedVerseSelection via ShareLink | Mac existing picker visibly anchors beside floating action bar, cancelled unchanged; full ranges/editions/iPhone matrix remains |
 | Scripture iPhone verse sheet | ShareLink plain verse | Activity presentation/cancellation |
 | Search result context menu | ShareLink reference + displayed text | Source row anchor and Word Replacer consistency |
 | Compare selection | SharedVerseSelection ShareLink | Actual selected column/edition anchor and cancellation |

@@ -452,3 +452,15 @@ Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel 
 | NOTES-STRONGS-BACKLINKS | Show source-derived My Notes in full/compact Lexicon | IMPLEMENTED_UNVERIFIED | Source + normalized/explicit-ID/index tests; Mac and iPhone full-entry open/return proven. Compact inspector, all history/forward/source closure and large-library/race matrix still open. No arbitrary verse associations. |
 | IOS-MORE-GROUPING | Keep reader More and app Settings discoverable | IMPLEMENTED_UNVERIFIED | Scripture menu Settings and Reading Options touch verified; remaining submenu/all-mode destination matrix open. |
 | IOS-TAB-READABLE-PREVIEW | Render readable note tab excerpts, refreshing with edits | IMPLEMENTED_UNVERIFIED | Existing wiki title displays without valid delimiters. Long/formatted/table/malformed-source preview matrix open. |
+
+## 2026-11-19 — Latest owner UI follow-through
+
+| ID | Work | Status | Evidence / remaining gate |
+| --- | --- | --- | --- |
+| SEARCH-INLINE-OPTIONS | Trailing scope/filter and grouped options | IMPLEMENTED_UNVERIFIED | Mac layout/Exact phrase/reset proven; iPhone keyboard/DynamicType/all scopes open |
+| SETTINGS-SHORTCUT-SEARCH | Search actions and modifier names | IMPLEMENTED_UNVERIFIED | Mac three queries/no-results/clear proven; iPhone touch matrix open |
+| STUDY-NOTES-GROUPS | Quiet groups and compact desktop chapter control | IMPLEMENTED_UNVERIFIED | Mac scope toggles/iPhone chapter sheet shown; creation/mutations/alternate layouts open |
+| COMPARE-BODY-TAP | iPhone verse text selects like its number | IMPLEMENTED_UNVERIFIED | Both Psalm3 editions and number-clear proven; Strong’s/long-press/all layouts open |
+| WINDOW-STUDY-INSPECTOR | Stable native host, widths and minimum content frames | IMPLEMENTED_UNVERIFIED | Notes return exact settled values; restored panel containment shown. First constrained Compare reflow/all states/physical drag/overflow open |
+| DIVIDER-CURSOR-OWNERSHIP | Yield overlapping arrow/I-beam regions | IMPLEMENTED_UNVERIFIED | Local source ownership/build checked; sustained hardware hover and every divider open |
+| MAC-CHAPTER-SHARE-ANCHOR | Stable toolbar owner/async stale guards | IMPLEMENTED_UNVERIFIED | Actual open/cancel/reopen anchored; async race/window/overflow matrix open |
