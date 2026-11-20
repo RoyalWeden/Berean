@@ -62,3 +62,5 @@
 The root [CLAUDE.md](../../CLAUDE.md) retains legacy Electron/Capacitor compatibility/setup information and now routes native work to HANDOFF. Root [AGENTS.md](../../AGENTS.md) makes the same continuity requirement discoverable to other agents. Follow applicable higher-priority/current environment instructions.
 
 When adding a new focused document, link it here and in the relevant HANDOFF/TASKS entry. Keep this map task-oriented and the current checkpoint concise.
+
+- [Ollama cleanup](OLLAMA-REMOVAL-2026-11-19.md): owner-requested local model/app removal, recoverable paths, remaining admin shortcut and interrupted native work.

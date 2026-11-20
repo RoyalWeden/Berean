@@ -17,7 +17,7 @@ Snapshot: **2026-11-20T06:04:39+00:00**. Last writer: Codex. This is a checkpoin
 | Shared tests | Last full274 =4core+270conformance/66suites, `/tmp/berean-study-block-full-tests.log`. Shared package unchanged in1f4e7361; do not call this a new preview interaction test |
 | Push destination in this checkout | `github` → RoyalWeden/Berean. `origin` is the owner’s local repository; do not push to it |
 | Review guard | Owner-only #22→#23 after correct retarget/checks→#24. No merge/retarget/ready action authorized by broad continuation |
-| Documentation work | This continuity/preview documentation checkpoint follows the published source commit. A documentation-only Git HEAD can be newer while source remains1f4e7361. No shipping-code WIP is left in this snapshot; the preserved Scripture draft is uncompiled documentation. Always inspect actual dirty files/head and exact-head CI |
+| Documentation work | This continuity/preview documentation checkpoint follows the published source commit. A documentation-only Git HEAD can be newer while source remains1f4e7361. At the published source/docs checkpoint there was no shipping-code WIP. Subsequent active local WIP is listed below; inspect it before editing. Always inspect actual dirty files/head and exact-head CI |
 
 #22 and#23 were verified OPEN, bases main and native/m7-export respectively. These are dated observations: recheck if the owner has advanced them. Do not reset or blindly pull over other AI/owner work.
 
@@ -46,3 +46,9 @@ CUA has no hover operation. DEBUG development QA Option-click (`--qa-library --q
 5. Continue broader all-tab history/scroll/restoration, native scrolling/pull feel, generic split hosts/routing/persistence, rich Notes/read-only/history/sharing parity and Kokoro. No Apple voices. Use [TASKS](TASKS.md), [FOLLOWUP](FOLLOWUP-2026-11-19.md), [audit](AUDIT-2026-11-14.md) and [DOCUMENTATION-MAP](DOCUMENTATION-MAP.md); do not lose older unfinished owner requests.
 
 The broad migration goal remains **ACTIVE**. A new feature batch, green PR, documentation update or exhausted usage is not completion. Keep current notes updated as work proceeds.
+
+## Active interruption — Ollama cleanup request
+
+The owner asked to remove unused Ollama models/application from this Mac to recover disk space. Read-only inventory and careful removal are the active task; preserve Berean source/data and do not treat its optional AI integration as authorization to remove other AI tools/models. Native work just resumed: uncommitted `Packages/BereanKit/Sources/BereanNotes/NoteScriptureBlocks.swift` is Codex-owned candidate/ratio implementation copied from the preserved draft, now with Hermas and reference-space handling. It is not compiled/tested/wired yet. Do not discard it or claim delivered formatting. Resume canonical verification/settings/both editor integration after cleanup.
+
+Cleanup complete except the administrator-owned dangling shortcut; see [OLLAMA-REMOVAL-2026-11-19](OLLAMA-REMOVAL-2026-11-19.md) for exact paths/evidence. No running Ollama or usable CLI remains. Resume native app work; this environment task does not complete the migration.
