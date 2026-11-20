@@ -427,3 +427,7 @@ Source bbca520f fixes stale recognizer source identity after reorder, finishes t
 ## 2026-11-19 — Table-safe Notes and minimal iPhone keyboard controls
 
 713bd02e protects real note tables from paragraph/list/callout/nested-table edits and disables corresponding native controls.1b9a4074 groups the iPhone accessory into6prose/5table controls, keeps formatting in a native menu, provides contextual table operations/live cell navigation, direct keyboard dismissal, Undo/Redo availability and haptics preference support. Both final builds and265tests pass. Actual Mac shortcut/table/prose/Undo and iPhone row/column/format/Undo/Redo/navigation/heading checks passed. Original16Mac/17iPhone notes,37/47IDs/tags unchanged; disposable notes trashed/tabs closed. See HANDOFF/NOTES-KEYBOARD-AND-TABLES.md for exact scopes and open device/rich-edit matrices. d6422697 adds opt-in raw Compare diagnostics; direct pixels supersede the earlier missing-number preview interpretation. Latest owner marker/hover/replacer/auto-block requests remain OPEN in FOLLOWUP.
+
+## 2026-11-19 — Study markers and automatic dictionary blocks
+
+Native study/Notes checkpoint567b9861/52516683/66d37947: automatic dictionary cards on both editors, table-safe expansion, fixed LXX Psalm note expansion, clearer study markers/chapter icon, filter hover ownership and searchable Settings rule browser. Full274tests/both builds pass; actual Mac and simulator checks/cleanup in HANDOFF. Canonical Scripture cards, full custom/per-rule replacement and physical hover remain open.

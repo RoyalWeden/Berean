@@ -482,3 +482,7 @@ Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel 
 - Implemented/tested: shared table protection, minimal native iPhone keyboard groups, contextual table actions, live disabled cell navigation, exact source/Undo/Redo.265tests/both builds pass; both disposable fixtures cleaned.
 - Open: physical phone/iPad/compact320/landscape/DynamicType/VoiceOver/IME/full multicell/color/typing matrices and remaining rich editor parity.
 - Latest owner queue OPEN: clear categorical verse indicators with hover previews; remove Chapter study; full word replacer in Settings; working hover feedback on tab-type/Notes/cross-ref filters; actual legacy auto verse/Strong’s blocks. See FOLLOWUP.
+
+## 2026-11-19 — Study markers and automatic dictionary blocks
+
+DONE targeted: source-preserving dictionary cards (both), table-safe block expansion, LXX Psalm note expansion, chapter symbol, category markers/preview source, searchable rule browser. OPEN first: canonical-verified Scripture cards + legacy settings; full persisted/per-rule Word Replacer across all consumers; physical filter/marker hover, accessibility and read-only rich-note presentation. Preserve broader history/scroll/splits/Kokoro queue.
