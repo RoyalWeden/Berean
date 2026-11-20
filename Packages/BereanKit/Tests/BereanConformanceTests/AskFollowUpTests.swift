@@ -34,4 +34,13 @@ import Testing
         #expect(AskFollowUp.resolve("what about in the Greek?", state: study)?.inBook == nil)   // a language switch, not a book
         #expect(AskFollowUp.resolve("any in Proverbs?", state: .init())?.occurrencesOf == nil)
     }
+
+    @Test func wordTables() {
+        let shown = AskFollowUp.State(topicQuestion: "Sabbath rest", refs: ["Leviticus 26:35", "Luke 23:56", "Leviticus 25:4", "Exodus 20:8"])
+        #expect(AskFollowUp.resolve("show every Strong's number for those verses", state: shown)?.wordTable == ["Leviticus 26:35", "Luke 23:56", "Leviticus 25:4"])
+        #expect(AskFollowUp.resolve("word by word for these", state: shown)?.wordTable?.count == 3)
+        #expect(ModelFreeAsk.wordTableRequest("every word and Strong's number in John 3:16") != nil)
+        #expect(ModelFreeAsk.wordTableRequest("John 3:16") == nil)
+        #expect(ModelFreeAsk.wordTableRequest("every word matters") == nil)
+    }
 }

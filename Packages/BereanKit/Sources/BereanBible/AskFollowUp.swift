@@ -23,9 +23,11 @@ public enum AskFollowUp {
         /// "any in Proverbs?": the last Strong's number, occurrences in this book (phrase to resolve).
         public var occurrencesOf: String?
         public var inBook: String?
+        /// "every Strong's number in those verses": the passages to show word by word.
+        public var wordTable: [String]?
     }
 
-    static let followUp = try! NSRegularExpression(pattern: #"^(?:(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:greek|hebrew)\s+(?:equivalent|counterpart|one)|is it|was it|some|and|now|any|anything|ok(?:ay)?|also|then|what about|how about|same|more|show|give|just|only|try|compare|contrast|switch|no,|actually|i meant)\b|\b(?:that|those|these|them|it|more|the same|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b"#, options: .caseInsensitive)
+    static let followUp = try! NSRegularExpression(pattern: #"^(?:(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:greek|hebrew)\s+(?:equivalent|counterpart|one)|is it|was it|some|and|now|any|anything|ok(?:ay)?|also|then|what about|how about|same|more|show|give|just|only|try|compare|contrast|switch|no,|actually|i meant)\b|\b(?:that|those|these|them|it|more|word by word|the same|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b"#, options: .caseInsensitive)
     static let ordinals: [String: Int] = ["first": 0, "second": 1, "third": 2, "fourth": 3, "fifth": 4, "last": -1]
     static let numberWords: [String: Int] = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10]
 
@@ -62,6 +64,11 @@ public enum AskFollowUp {
             if let term = state.term {
                 return Resolved(question: "\(term) in \(lang)", reason: "The \(lang.capitalized) word for “\(term)”")
             }
+        }
+        // "show every Strong's number for those verses" — word table for the refs just shown.
+        if match(#"\b(strong'?s|every word|each word|word by word)\b"#, q) != nil, match(#"\b(those|these|them|that|it)\b"#, q) != nil, !state.refs.isEmpty {
+            let refs = Array(state.refs.prefix(3))
+            return Resolved(question: "every word and Strong's number in \(refs.joined(separator: "; "))", reason: "Word by word for \(refs.joined(separator: "; "))", wordTable: refs)
         }
         // "any in Proverbs?", "is it in Job?" — the word just studied, in one book.
         if let m = match(#"^(?:any|anything|some|is it|was it|and|what about|how about)\b.*?\bin\s+(?:the\s+)?((?:[1-3]\s?)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)\s*\??$"#, q),

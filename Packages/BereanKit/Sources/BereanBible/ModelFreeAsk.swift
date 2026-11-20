@@ -201,4 +201,10 @@ public enum ModelFreeAsk {
         (try? NSRegularExpression(pattern: pattern, options: .caseInsensitive))?
             .firstMatch(in: text, range: NSRange(location: 0, length: (text as NSString).length)) != nil
     }
+
+    /// "every word and Strong's number in John 3:16", "word by word John 1:1": the passage part.
+    public static func wordTableRequest(_ question: String) -> String? {
+        guard match(#"\b(every word|each word|word by word|word table|strong'?s numbers? (?:in|for|of))\b"#, question) else { return nil }
+        return referenceCandidates(question).isEmpty ? nil : question
+    }
 }

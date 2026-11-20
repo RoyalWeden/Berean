@@ -32,6 +32,7 @@ struct AskBereanView: View {
         case compare([LexiconEntry])
         case parallel(String, kjv: [Verse], lxx: [Verse])
         case passages([(title: String, verses: [Verse])])
+        case wordTable([(title: String, words: [(word: String, ids: [String], gloss: String)])])
         case keyword([String], [Verse])
         case nothing
     }
@@ -132,6 +133,26 @@ struct AskBereanView: View {
             verseSection("\(title) · Brenton LXX", lxx)
         case .passages(let groups):
             ForEach(Array(groups.enumerated()), id: \.offset) { _, g in verseSection(g.title, g.verses) }
+        case .wordTable(let tables):
+            ForEach(Array(tables.enumerated()), id: \.offset) { _, t in
+                Section(t.title) {
+                    ForEach(Array(t.words.enumerated()), id: \.offset) { _, w in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(w.word).frame(minWidth: 90, alignment: .leading)
+                            Spacer(minLength: 8)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                ForEach(w.ids, id: \.self) { id in
+                                    Button { finish { app.openLexicon(id, reuseTab: true) } } label: {
+                                        Text(id).font(.caption.monospaced().weight(.semibold))
+                                    }
+                                    .buttonStyle(.interactivePlain).foregroundStyle(.tint)
+                                }
+                                if !w.gloss.isEmpty { Text(w.gloss).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                            }
+                        }
+                    }
+                }
+            }
         case .keyword(let words, let verses):
             if verses.isEmpty {
                 Section { Text("No verses matched “\(words.joined(separator: " "))”.").foregroundStyle(.secondary) }
@@ -181,6 +202,34 @@ struct AskBereanView: View {
             asking = false
             remember(raw: raw, effective: q, isFollowUp: followUp != nil)
             focused = true   // ready for the follow-up
+        }
+        // Word by word with Strong's numbers (follow-up on the verses shown, or asked directly).
+        let tableRefs: [String]? = followUp?.wordTable ?? (ModelFreeAsk.wordTableRequest(q) != nil
+            ? ModelFreeAsk.referenceGroups(q).compactMap { $0.lazy.first { app.resolvePassage($0) != nil } } : nil)
+        if let tableRefs, !tableRefs.isEmpty {
+            var tables: [(title: String, words: [(word: String, ids: [String], gloss: String)])] = []
+            var glosses: [String: String] = [:]
+            var budget = 3   // verses, as the original's word tables
+            for ref in tableRefs {
+                let plain = ref.components(separatedBy: " · ").first ?? ref
+                guard budget > 0, let p = app.resolvePassage(plain) else { continue }
+                let rows = await app.bible.queryChapter(p.bookId, p.chapter, textId: "kjva")
+                let from = p.verse ?? 1, to = min(p.endVerse ?? p.verse ?? from, from + budget - 1)
+                for row in rows where row.verseNum >= from && row.verseNum <= to {
+                    budget -= 1
+                    var words: [(word: String, ids: [String], gloss: String)] = []
+                    for token in TaggedText.parse(row.textTagged ?? row.text) {
+                        let ids: [String]
+                        switch token.strongs { case .one(let id)?: ids = [id]; case .many(let many)?: ids = many; case nil: ids = [] }
+                        guard !token.word.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)).isEmpty else { continue }
+                        // The transliteration reads better than the first KJV-usage item ("X exceeding" for G2316).
+                        for id in ids where glosses[id] == nil { glosses[id] = await app.lexicon.entry(id)?.transliteration ?? "" }
+                        words.append((token.word, ids, ids.compactMap { glosses[$0] }.filter { !$0.isEmpty }.joined(separator: " · ")))
+                    }
+                    tables.append(("\(Reference.bookName(p.bookId)) \(p.chapter):\(row.verseNum)", words))
+                }
+            }
+            if !tables.isEmpty { answer = .wordTable(tables); return }
         }
         // Follow-up "any in Proverbs?": the last Strong's number's occurrences in that book.
         if let id = followUp?.occurrencesOf, let phrase = followUp?.inBook,
@@ -299,6 +348,8 @@ struct AskBereanView: View {
             convo.refs = [title]
         case .passages(let groups):
             convo.refs = groups.map(\.title)
+        case .wordTable(let tables):
+            convo.strongs = tables.flatMap { $0.words.flatMap(\.ids) }
         case .keyword(_, let verses):
             // "more" keeps excluding everything shown so far in this thread of the topic.
             convo.refs = (isFollowUp ? convo.refs : []) + verses.map(\.label)
@@ -338,6 +389,9 @@ struct AskBereanView: View {
         case .passage(let title, let verses):
             f["results"] = results(verses, source: "named"); f["visibleCount"] = .number(Double(verses.count))
             f["summary"] = .string(JSString(title))
+        case .wordTable(let tables):
+            f["results"] = .array([]); f["visibleCount"] = .number(0)
+            f["summary"] = .string(JSString(tables.map { t in t.title + ": " + t.words.map { w in w.ids.isEmpty ? w.word : "\(w.word) (\(w.ids.joined(separator: "/")))" }.joined(separator: " ") }.joined(separator: "\n")))
         case .passages(let groups):
             let all = groups.flatMap(\.verses)
             f["results"] = results(all, source: "named"); f["visibleCount"] = .number(Double(all.count))
