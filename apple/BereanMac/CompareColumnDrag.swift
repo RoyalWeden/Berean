@@ -95,10 +95,14 @@ import AppKit
         trace("snapshot", ["frame": NSStringFromRect(frame), "capture": NSStringFromRect(capture),
                            "pointer": NSStringFromPoint(event.locationInWindow),
                            "translation": NSStringFromPoint(translation), "scale": scale,
+                           "flipped": renderHost.isFlipped, "fragments": fragments.map(NSStringFromRect),
                            "background": String(describing: window.backgroundColor)])
         #if DEBUG
         if tracing, let png = bitmap.representation(using: .png, properties: [:]) {
             try? png.write(to: UserLibrary.directory.appendingPathComponent("compare-column-drag.png"), options: .atomic)
+            if let unmasked = pixels.representation(using: .png, properties: [:]) {
+                try? unmasked.write(to: UserLibrary.directory.appendingPathComponent("compare-column-drag-unmasked.png"), options: .atomic)
+            }
         }
         #endif
         didEnd = ended
