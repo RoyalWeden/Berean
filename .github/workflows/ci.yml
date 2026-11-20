@@ -81,6 +81,12 @@ jobs:
           if [[ "$(basename "$XC")" == Xcode_27* || "$(basename "$XC")" == Xcode_2[89]* ]]; then echo "mac=yes" >> "$GITHUB_OUTPUT"; else echo "mac=no" >> "$GITHUB_OUTPUT"; echo "::notice::No Xcode 27 on this image — BereanMac (macOS 27) build skipped in CI; verified locally before merge."; fi
 
       # The Bible-service conformance tests read the bundled text databases (read-only).
+      - name: Check native split divider geometry
+        shell: bash
+        run: |
+          swiftc -parse-as-library apple/BereanMac/NativeDividerCursorRegions.swift scripts/native-checks/DividerGeometry.swift -o "$RUNNER_TEMP/berean-divider-geometry"
+          "$RUNNER_TEMP/berean-divider-geometry"
+
       - name: Download Bible/lexicon databases
         shell: bash
         env:
