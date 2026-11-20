@@ -29,7 +29,7 @@ struct StudyPassageTags: View {
 
     var body: some View {
         Group {
-            Section("Tags") {
+            StudyPanelSection("Tags") {
                 if loadedKey == loadKey, !passageTags.isEmpty {
                     tagChips(passageTags, chapterOnly: false)
                 }
@@ -39,7 +39,7 @@ struct StudyPassageTags: View {
                 .buttonStyle(.interactivePlain)
             }
             if loadedKey == loadKey, !chapterTags.isEmpty {
-                Section("Chapter Tags") { tagChips(chapterTags, chapterOnly: true) }
+                StudyPanelSection("Chapter Tags") { tagChips(chapterTags, chapterOnly: true) }
             }
         }
         .task(id: loadKey) {
@@ -90,5 +90,28 @@ struct StudyPassageTags: View {
                 }
             }
         }
+    }
+}
+
+/// Quiet grouping for the narrow study inspector, without List's dense divider grid.
+struct StudyPanelSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 8, content: content)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

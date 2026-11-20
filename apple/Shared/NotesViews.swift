@@ -1959,6 +1959,14 @@ struct VerseNotesView: View {
         }
     }
 
+    private var panelControlSize: CGFloat {
+        #if os(macOS)
+        28
+        #else
+        44
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if allowsChapterScope {
@@ -1972,7 +1980,7 @@ struct VerseNotesView: View {
                             Label(showingChapter ? "Show Selected Verse Notes" : "Show Chapter Notes",
                                   systemImage: showingChapter ? "list.number" : "list.bullet")
                                 .labelStyle(.iconOnly)
-                                .frame(width: 44, height: 44)
+                                .frame(width: panelControlSize, height: panelControlSize)
                                 .contentShape(.rect)
                                 .optionHover()
                         }
@@ -1983,70 +1991,65 @@ struct VerseNotesView: View {
                 .padding(.horizontal, 12)
                 studyNotesSearch
             }
-            List {
-                let results = displayedNotes
-                Section {
-                    if allNotesScope, loadedScope == loadKey, notes.count > 500 {
-                        Text("Showing the 500 most recently edited notes")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    ForEach(results) { note in
-                        Button {
-                            if let editInSheet {
-                                editInSheet(note.id)
-                                return
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    StudyPanelSection("Notes") {
+                        let results = displayedNotes
+                        if allNotesScope, loadedScope == loadKey, notes.count > 500 {
+                            Text("Showing the 500 most recently edited notes")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        ForEach(results) { note in
+                            Button {
+                                if let editInSheet {
+                                    editInSheet(note.id)
+                                    return
+                                }
+                                let source = app.activeTab?.id
+                                app.openNote(note.id, fromList: source)
+                                #if os(iOS)
+                                dismiss()
+                                #endif
+                            } label: {
+                                NoteRowView(note: note)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(.rect)
                             }
-                            #if os(iOS)
-                            dismiss()
-                            #endif
-                            app.openNote(note.id)
-                        } label: {
-                            NoteRowView(note: note)
+                            .buttonStyle(OptionButtonStyle())
+                        }
+                        if loadedScope == loadKey, results.isEmpty {
+                            Text(searchTerm.isEmpty ? (allNotesScope ? "No notes yet." : "No notes for this passage.") : "No matching notes.")
+                                .font(.callout).foregroundStyle(.secondary)
+                        }
+                        Button(action: createPassageNote) {
+                            Label("New Note", systemImage: "square.and.pencil")
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(minHeight: panelControlSize)
                                 .contentShape(.rect)
                         }
-                        .buttonStyle(.interactivePlain)
+                        .buttonStyle(OptionButtonStyle())
+                        .accessibilityLabel("New Note for \(passageLabel)")
+                        .help("New note for \(passageLabel)")
                     }
-                    if loadedScope == loadKey, results.isEmpty, !searchTerm.isEmpty {
-                        ContentUnavailableView.search(text: searchTerm)
-                    } else if loadedScope == loadKey, notes.isEmpty, allNotesScope || (scopedVerse == nil && scopedSelection.isEmpty) {
-                        ContentUnavailableView(allNotesScope ? "No notes" : "No chapter notes", systemImage: "note.text")
+                    if allowsChapterScope, !allNotesScope {
+                        StudyPassageTags(bookId: bookId, chapter: chapter, textId: textId, verse: scopedVerse, selectedVerses: scopedSelection)
                     }
-                    Button {
-                        let ref = attachment
-                        if let editInSheet {
-                            if let id = app.newNote(verseRef: ref, textId: textId, title: passageLabel, openEditor: false) {
-                                editInSheet(id)
+                    if !allNotesScope, loadedScope == loadKey, hasNoteCrossReferences, let showNoteCrossReferences {
+                        StudyPanelSection("Connections") {
+                            Button {
+                                showNoteCrossReferences(scopedVerse, scopedSelection)
+                            } label: {
+                                Label("Related Passages", systemImage: "arrow.triangle.branch")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .frame(minHeight: panelControlSize)
+                                    .contentShape(.rect)
                             }
-                            return
+                            .buttonStyle(OptionButtonStyle())
+                            .accessibilityHint("Show verse connections and mentions from your notes")
                         }
-                        if app.newNote(verseRef: ref, textId: textId, title: passageLabel) != nil {
-                            #if os(iOS)
-                            dismiss()
-                            #endif
-                        }
-                    } label: {
-                        Label("New Note for \(passageLabel)", systemImage: "plus")
-                    }
-                } header: {
-                    if allowsChapterScope, !allNotesScope { Text("Notes") }
-                }
-                if allowsChapterScope, !allNotesScope {
-                    StudyPassageTags(bookId: bookId, chapter: chapter, textId: textId, verse: scopedVerse, selectedVerses: scopedSelection)
-                }
-                if !allNotesScope, loadedScope == loadKey, hasNoteCrossReferences, let showNoteCrossReferences {
-                    Section("From My Notes") {
-                        Button {
-                            showNoteCrossReferences(scopedVerse, scopedSelection)
-                        } label: {
-                            Label("Related Passages", systemImage: "arrow.triangle.branch")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.interactivePlain)
-                        .accessibilityHint("Show verse connections and mentions from your notes")
                     }
                 }
+                .padding(12)
             }
         }
         .onChange(of: scopeKey) { chapterScope = nil }
@@ -2068,6 +2071,16 @@ struct VerseNotesView: View {
             }
             loadedScope = loadKey
         }
+    }
+
+    private func createPassageNote() {
+        let source = app.activeTab?.id
+        guard let id = app.newNote(verseRef: attachment, textId: textId, title: passageLabel, openEditor: false) else { return }
+        if let editInSheet { editInSheet(id); return }
+        app.openNote(id, fromList: source)
+        #if os(iOS)
+        dismiss()
+        #endif
     }
 
     private var studyNotesSearch: some View {
