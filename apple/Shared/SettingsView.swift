@@ -93,6 +93,8 @@ struct SettingsView: View {
                 }
             }
             #if os(macOS)
+            Toggle("Underline Idioms in Scripture", isOn: $app.idiomHighlightEnabled)
+                .help("Terms from your idiom notes get a dotted underline; hover for the meaning, click to open the note")
             Picker("Layout for new Scripture tabs", selection: $defaultLayout) {
                 ForEach(ScriptureLayout.allCases) { Text($0.title).tag($0.rawValue) }
             }
