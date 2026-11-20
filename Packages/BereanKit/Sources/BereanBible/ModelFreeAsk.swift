@@ -52,4 +52,90 @@ public enum ModelFreeAsk {
         let glossed = entries.filter { wholeWord($0.gloss) }
         return (glossed.isEmpty ? entries : glossed).max { $0.occurrences < $1.occurrences }
     }
+
+    // MARK: Exclusions (original lib/research/exclusions.ts)
+
+    public struct Exclusions: Equatable, Sendable {
+        public var remainder: String
+        public var terms: [String]
+        public var bookIds: [String]
+    }
+
+    static let asksForVerses = try! NSRegularExpression(pattern: #"\b(?:verses?|passages?|scriptures?|find|show|list)\b"#, options: .caseInsensitive)
+    static let clause = try! NSRegularExpression(pattern: #"[,;]?\s*\b(?:but\s+not|and\s+not|not\s+including|excluding|except\s+for|other\s+than|leaving\s+out|leave\s+out)\s+([^,.;?!]+)"#, options: .caseInsensitive)
+    static let bookClause = try! NSRegularExpression(pattern: #"[,;]?\s*\b(?:(?:but|and)\s+)?not\s+(?:from|in)\s+((?:the\s+book\s+of\s+)?[^,.;?!]+)"#, options: .caseInsensitive)
+    static let filler: Set<String> = ["the", "a", "an", "of", "to", "from", "in", "about", "on", "book", "any", "those", "that", "mention", "mentioning", "verses", "passages"]
+
+    public static func exclusions(_ question: String, resolveBook: (String) -> String?) -> Exclusions {
+        let none = Exclusions(remainder: question, terms: [], bookIds: [])
+        let ns = question as NSString
+        let all = NSRange(location: 0, length: ns.length)
+        func removing(_ m: NSTextCheckingResult) -> String {
+            ns.replacingCharacters(in: m.range, with: "").trimmingCharacters(in: .whitespaces)
+        }
+        if let m = bookClause.firstMatch(in: question, range: all), let book = resolveBook(ns.substring(with: m.range(at: 1))) {
+            return Exclusions(remainder: removing(m), terms: [], bookIds: [book])
+        }
+        guard asksForVerses.firstMatch(in: question, range: all) != nil, let m = clause.firstMatch(in: question, range: all) else { return none }
+        let phrase = ns.substring(with: m.range(at: 1))
+        if let book = resolveBook(phrase) { return Exclusions(remainder: removing(m), terms: [], bookIds: [book]) }
+        let terms = words(phrase).filter { $0.count > 2 && !filler.contains($0) }
+        return terms.isEmpty ? none : Exclusions(remainder: removing(m), terms: terms, bookIds: [])
+    }
+
+    static func words(_ text: String) -> [String] {
+        text.lowercased().split(whereSeparator: { !$0.isLetter && $0 != "'" }).map(String.init)
+    }
+
+    /// Whole word, tolerant of a plural either side ("rulers" also excludes "ruler").
+    public static func mentionsExcluded(_ text: String, terms: [String]) -> Bool {
+        let w = Set(words(text))
+        return terms.contains { t in w.contains(t) || w.contains(t + "s") || (t.hasSuffix("s") && w.contains(String(t.dropLast()))) }
+    }
+
+    // MARK: Strong's comparison and translation parallels (original compareIntent / lexicalIntent)
+
+    /// Every Strong's id written in the question, in order, without repeats ("H2617 and h7356").
+    public static func strongsIds(_ question: String) -> [String] {
+        let re = try! NSRegularExpression(pattern: #"\b([HhGg])0*(\d{1,5})([a-z]?)\b"#)
+        var out: [String] = []
+        let ns = question as NSString
+        for m in re.matches(in: question, range: NSRange(location: 0, length: ns.length)) {
+            let id = ns.substring(with: m.range(at: 1)).uppercased() + ns.substring(with: m.range(at: 2)) + ns.substring(with: m.range(at: 3))
+            if !out.contains(id) { out.append(id) }
+        }
+        return out
+    }
+
+    static let lxx = try! NSRegularExpression(pattern: #"\b(septuagint|lxx|brenton)\b"#, options: .caseInsensitive)
+    static let compareWord = try! NSRegularExpression(pattern: #"\b(compare|comparison|compared|contrast|versus|vs\.?|side[\s-]+by[\s-]+side|alongside)\b"#, options: .caseInsensitive)
+    static let kjv = try! NSRegularExpression(pattern: #"\b(kjv|king\s+james)\b"#, options: .caseInsensitive)
+    static let read = try! NSRegularExpression(pattern: #"\bhow\s+(?:does|do|did|is|was)\b[^?]*\b(?:read|say|render|translate|translated|rendered|worded)\b"#, options: .caseInsensitive)
+
+    /// One reference read in the KJV and Brenton's LXX ("How does Isaiah 7:14 read in the Septuagint?").
+    public static func asksTranslationParallel(_ question: String) -> Bool {
+        let r = NSRange(location: 0, length: (question as NSString).length)
+        guard lxx.firstMatch(in: question, range: r) != nil else { return false }
+        return compareWord.firstMatch(in: question, range: r) != nil || kjv.firstMatch(in: question, range: r) != nil
+            || read.firstMatch(in: question, range: r) != nil
+    }
+
+    /// Reference candidates inside a sentence, longest first: for each chapter(:verse) number, the
+    /// one to three words before it ("How does Isaiah 7:14 read" → "does Isaiah 7:14", "Isaiah 7:14").
+    /// The caller keeps the first that resolves to a real passage.
+    public static func referenceCandidates(_ question: String) -> [String] {
+        let re = try! NSRegularExpression(pattern: #"\d{1,3}(?::\d{1,3}(?:\s?[-–]\s?\d{1,3})?)?"#)
+        let ns = question as NSString
+        var out: [String] = []
+        for m in re.matches(in: question, range: NSRange(location: 0, length: ns.length)) {
+            let before = ns.substring(to: m.range.location).trimmingCharacters(in: .whitespaces)
+            let words = before.split(separator: " ").map(String.init)
+            guard let last = words.last, last.first?.isLetter == true else { continue }
+            let number = ns.substring(with: m.range)
+            for k in stride(from: min(3, words.count), through: 1, by: -1) {
+                out.append((words.suffix(k) + [number]).joined(separator: " "))
+            }
+        }
+        return out
+    }
 }

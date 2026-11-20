@@ -22,6 +22,8 @@ struct AskBereanView: View {
     enum Answer {
         case strongs(LexiconEntry, [Verse], alternatives: [LexiconEntry])
         case passage(String, [Verse])
+        case compare([LexiconEntry])
+        case parallel(String, kjv: [Verse], lxx: [Verse])
         case keyword([String], [Verse])
         case nothing
     }
@@ -37,7 +39,7 @@ struct AskBereanView: View {
                     Button("Ask", systemImage: "sparkle.magnifyingglass") { Task { await ask() } }
                         .disabled(question.trimmingCharacters(in: .whitespaces).isEmpty || asking)
                 } footer: {
-                    Text("Try: John 3:16 · H2617 · word study on grace · shalom in Hebrew · Sabbath rest")
+                    Text("Try: John 3:16 · H2617 · compare H2617 and H7356 · word study on grace · How does Isaiah 7:14 read in the LXX? · verses on the Sabbath, not from Exodus")
                 }
                 if asking { ProgressView() }
                 if let answer { results(answer) }
@@ -84,6 +86,25 @@ struct AskBereanView: View {
             verseSection("Where it appears", verses)
         case .passage(let title, let verses):
             verseSection(title, verses)
+        case .compare(let entries):
+            ForEach(entries, id: \.strongsNum) { e in
+                Section("Strong's \(e.strongsNum)") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(e.lemma).font(.title3)
+                            Text(e.transliteration).italic().foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(e.occurrences)×").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                        if !e.gloss.isEmpty { Text(e.gloss).font(.headline) }
+                        if !e.definition.isEmpty { Text(e.definition).font(.callout).lineLimit(5) }
+                    }
+                    Button("Open Lexicon Entry", systemImage: "character.book.closed") { finish { app.openLexicon(e.strongsNum, reuseTab: true) } }
+                }
+            }
+        case .parallel(let title, let kjv, let lxx):
+            verseSection("\(title) · KJV", kjv)
+            verseSection("\(title) · Brenton LXX", lxx)
         case .keyword(let words, let verses):
             if verses.isEmpty {
                 Section { Text("No verses matched “\(words.joined(separator: " "))”.").foregroundStyle(.secondary) }
@@ -123,6 +144,29 @@ struct AskBereanView: View {
         guard !q.isEmpty else { return }
         asking = true
         defer { asking = false }
+        // 0. Two or more Strong's numbers: their entries side by side (original lexical comparison).
+        let ids = ModelFreeAsk.strongsIds(q)
+        if ids.count >= 2 {
+            var entries: [LexiconEntry] = []
+            for id in ids.prefix(4) { if let e = await app.lexicon.entry(id) { entries.append(e) } }
+            if entries.count >= 2 { answer = .compare(entries); return }
+        }
+        // 0b. One passage in the KJV and Brenton's LXX (original translation parallel).
+        if ModelFreeAsk.asksTranslationParallel(q),
+           let p = ModelFreeAsk.referenceCandidates(q).lazy.compactMap({ app.resolvePassage($0) }).first {
+            func verses(_ textId: String) async -> [Verse] {
+                let rows = await app.bible.queryChapter(p.bookId, p.chapter, textId: textId)
+                let from = p.verse ?? 1, to = p.endVerse ?? p.verse ?? Int.max
+                return rows.filter { $0.verseNum >= from && $0.verseNum <= to }.prefix(30)
+                    .map { Verse(textId: textId, bookId: p.bookId, chapter: p.chapter, verse: $0.verseNum, text: $0.text) }
+            }
+            let kjv = await verses("kjva"), lxx = await verses("lxx")
+            if !kjv.isEmpty || !lxx.isEmpty {
+                let range = p.verse.map { v in p.endVerse.map { "\(v)–\($0)" } ?? "\(v)" }
+                answer = .parallel("\(Reference.bookName(p.bookId)) \(p.chapter)" + (range.map { ":\($0)" } ?? ""), kjv: kjv, lxx: lxx)
+                return
+            }
+        }
         // 1. Strong's id or a word study.
         if let id = StrongsId.normalize(q), let entry = await app.lexicon.entry(id) {
             answer = .strongs(entry, await occurrences(id), alternatives: []); return
@@ -151,7 +195,12 @@ struct AskBereanView: View {
             }
         }
         // 3. Keyword search (KJV): all words, then any, then shortened stems.
-        let words = ModelFreeAsk.keywords(q)
+        // "…but not human rulers", "…, not from Romans": removed from the search, applied as a filter.
+        let excluded = ModelFreeAsk.exclusions(q) { phrase in
+            let name = phrase.replacingOccurrences(of: #"^(?:the\s+book\s+of\s+)"#, with: "", options: [.regularExpression, .caseInsensitive])
+            return app.resolvePassage("\(name) 1")?.bookId
+        }
+        let words = ModelFreeAsk.keywords(excluded.remainder)
         guard !words.isEmpty else { answer = .nothing; return }
         var rows = await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .all)
         if rows.count < 3 { rows += await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .any) }
@@ -159,6 +208,7 @@ struct AskBereanView: View {
         var seen = Set<String>(), verses: [Verse] = []
         for r in rows {
             let v = Verse(textId: "kjva", bookId: r.bookId, chapter: r.chapter, verse: r.verseNum, text: r.text)
+            if excluded.bookIds.contains(r.bookId) || ModelFreeAsk.mentionsExcluded(r.text, terms: excluded.terms) { continue }
             guard seen.insert(v.id).inserted else { continue }
             verses.append(v)
             if verses.count >= 12 { break }
