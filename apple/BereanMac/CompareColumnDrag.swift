@@ -19,7 +19,7 @@ import AppKit
     }
     func unregister(_ view: NSView) { regions.removeValue(forKey: ObjectIdentifier(view)) }
 
-    func begin(payload: String, event: NSEvent, translation: NSPoint, began: () -> Void, ended: @escaping () -> Void) -> Bool {
+    func begin(event: NSEvent, translation: NSPoint, began: (String) -> Void, ended: @escaping () -> Void) -> Bool {
         trace("requested")
         guard session == nil else { trace("busy"); return false }
         guard let canvas, let window = canvas.window, let content = window.contentView else { trace("no-canvas"); return false }
@@ -27,15 +27,25 @@ import AppKit
                           "canvas": NSStringFromRect(canvas.bounds), "regions": regions.count])
         guard event.window === window, event.type == .leftMouseDragged else { trace("wrong-event"); return false }
         regions = regions.filter { $0.value.view != nil }
-        var column: NSRect?
-        for region in regions.values where region.payload == payload {
+        var columns: [String: [NSRect]] = [:]
+        for region in regions.values {
             guard let view = region.view, view.window === window else { continue }
-            let bounds = view.convert(view.bounds, to: canvas)
-            column = column.map { $0.union(bounds) } ?? bounds
+            let bounds = view.convert(view.bounds, to: canvas).intersection(canvas.bounds)
+            if !bounds.isNull, bounds.width > 1, bounds.height > 1 {
+                columns[region.payload, default: []].append(bounds)
+            }
         }
-        guard let column else { trace("no-regions"); return false }
-        let visible = column.intersection(canvas.bounds)
-        guard !visible.isNull, visible.width > 1, visible.height > 1 else { trace("no-visible-region", ["column": NSStringFromRect(column)]); return false }
+        let pickup = NSPoint(x: event.locationInWindow.x - translation.x, y: event.locationInWindow.y - translation.y)
+        let point = canvas.convert(pickup, from: nil)
+        let sources = columns.compactMap { payload, fragments -> (String, [NSRect])? in
+            guard fragments.contains(where: { $0.contains(point) }) else { return nil }
+            return (payload, fragments)
+        }
+        // Representable gestures can share one hosting view. Resolve the live
+        // source from geometry, not whichever column's recognizer runs first.
+        guard sources.count == 1 else { trace("no-unique-source", ["pickup": NSStringFromPoint(pickup), "count": sources.count]); return false }
+        let (payload, fragments) = sources[0]
+        let visible = fragments.dropFirst().reduce(fragments[0]) { $0.union($1) }
         let renderHost = content.superview ?? content
         let capture = canvas.convert(visible, to: renderHost).intersection(renderHost.bounds)
         let scale = window.backingScaleFactor
@@ -61,6 +71,17 @@ import AppKit
             background.withAlphaComponent(1).setFill()
             let bounds = NSRect(origin: .zero, size: capture.size)
             bounds.fill()
+            // Stacked aligned passages interleave editions vertically. Capture
+            // only this source's actual fragments, never the intervening text
+            // belonging to another edition inside their combined bounding box.
+            let mask = NSBezierPath()
+            for fragment in fragments {
+                let rect = canvas.convert(fragment, to: renderHost).intersection(capture)
+                guard !rect.isNull, !rect.isEmpty else { continue }
+                let y = renderHost.isFlipped ? capture.maxY - rect.maxY : rect.minY - capture.minY
+                mask.appendRect(NSRect(x: rect.minX - capture.minX, y: y, width: rect.width, height: rect.height))
+            }
+            mask.addClip()
             pixels.draw(in: bounds)
         }
         NSGraphicsContext.restoreGraphicsState()
@@ -86,7 +107,7 @@ import AppKit
         session = drag
         drag.draggingFormation = .none
         drag.animatesToStartingPositionsOnCancelOrFail = true
-        began()
+        began(payload)
         return true
     }
 
@@ -156,8 +177,7 @@ struct CompareDragRegion: NSViewRepresentable {
 /// click and text-selection behavior. No window-wide mouse monitor or cursor warp.
 struct CompareColumnPan: NSGestureRecognizerRepresentable {
     let controller: CompareColumnDragController
-    let payload: String
-    let began: () -> Void
+    let began: (String) -> Void
     let ended: () -> Void
     final class Coordinator: NSObject, NSGestureRecognizerDelegate {
         func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer,
@@ -172,8 +192,13 @@ struct CompareColumnPan: NSGestureRecognizerRepresentable {
         return recognizer
     }
     func updateNSGestureRecognizer(_ recognizer: ColumnLiftRecognizer, context: Context) {
-        recognizer.lift = { event, translation in
-            controller.begin(payload: payload, event: event, translation: translation, began: began, ended: ended)
+        recognizer.lift = { [weak recognizer] event, translation in
+            controller.begin(event: event, translation: translation, began: began, ended: {
+                // AppKit's dragging session consumes mouse-up. Explicitly finish
+                // the recognizer, otherwise its next drag remains in .began.
+                recognizer?.completeNativeDrag()
+                ended()
+            })
         }
     }
     // Begin the AppKit session inside mouseDragged, before mouse-up. SwiftUI's
@@ -200,8 +225,14 @@ struct CompareColumnPan: NSGestureRecognizerRepresentable {
             }
         }
         override func mouseUp(with event: NSEvent) {
+            guard start != nil || lifted else { return }
             state = lifted ? .ended : .failed
             start = nil
+        }
+        func completeNativeDrag() {
+            start = nil
+            lifted = false
+            if state == .began || state == .changed { state = .ended }
         }
         override func reset() {
             super.reset()

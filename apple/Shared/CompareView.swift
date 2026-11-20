@@ -614,6 +614,9 @@ struct CompareView: View {
                         alignedColumnHeading(text, available: available.contains(text.id))
                         columnActions(text, columns: columns)
                     }
+                    #if os(macOS)
+                    .modifier(columnDragBehavior(text, dimsSource: false))
+                    #endif
                 }
             }
             .id("compare-headers")
@@ -631,8 +634,11 @@ struct CompareView: View {
                                     comparisonVerseControls(row, column: text)
                                 }
                             }
-                            comparisonText(verse, text: text, state: state, showsControls: false)
+                            comparisonText(verse, text: text, state: state, showsControls: false, dimsDragSource: false)
                         }
+                        #if os(macOS)
+                        .modifier(columnDragBehavior(text))
+                        #endif
                     }
                 }
                 .id(verse)
@@ -1049,7 +1055,9 @@ struct CompareView: View {
         CompareColumnDragModifier(controller: nativeColumnDrag, payload: columnDragPayload(column),
                                   lifted: dimsSource && liftedColumn == column.id,
                                   targeted: liftedColumn != nil && liftedColumn != column.id && columnDropTarget == column.id,
-                                  began: { liftedColumn = column.id },
+                                  began: { payload in
+                                      liftedColumn = columns.first(where: { columnDragPayload($0) == payload })?.id
+                                  },
                                   ended: { liftedColumn = nil; columnDropTarget = nil },
                                   targeting: { targeted in
                                       if targeted, liftedColumn != nil { columnDropTarget = column.id }
@@ -1294,7 +1302,7 @@ struct CompareView: View {
         return referenceForCopy(label, textId: column.text)
     }
 
-    private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState, showsControls: Bool = true) -> some View {
+    private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState, showsControls: Bool = true, dimsDragSource: Bool = true) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             VStack(alignment: .leading, spacing: 4) {
                 VerseRowView(row: row.hidingTextAnnotations(hiddenAnnotations, textId: column.text), textId: column.text, showStrongs: state.showStrongs,
@@ -1314,7 +1322,7 @@ struct CompareView: View {
             if showsControls { comparisonVerseControls(row, column: column) }
         }
         #if os(macOS)
-        .modifier(columnDragBehavior(column))
+        .modifier(columnDragBehavior(column, dimsSource: dimsDragSource))
         #endif
         .anchorPreference(key: CompareSelectionBounds.self, value: .bounds) { anchor in
             [CompareSelectionCell(column: column.id, book: row.bookId, chapter: row.chapter, verse: row.verseNum): [anchor]]
@@ -1384,13 +1392,13 @@ struct CompareView: View {
                          verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
     }
 
-    @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState, showsControls: Bool = true) -> some View {
+    @ViewBuilder private func comparisonText(_ verse: Int, text column: CompareColumn, state: BibleState, showsControls: Bool = true, dimsDragSource: Bool = true) -> some View {
         if let row = rows[verse]?[column.id] {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if showVerseNumbers {
                     independentVerseButton(row, column: column, selected: selectionNumbers(in: column, chapter: row.chapter).contains(row.verseNum))
                 }
-                comparisonVerseBody(row, column: column, state: state, showsControls: showsControls)
+                comparisonVerseBody(row, column: column, state: state, showsControls: showsControls, dimsDragSource: dimsDragSource)
             }
         } else {
             Text("—").foregroundStyle(.tertiary)
@@ -2051,7 +2059,7 @@ private struct CompareColumnDragModifier: ViewModifier {
     let payload: String
     let lifted: Bool
     let targeted: Bool
-    let began: () -> Void
+    let began: (String) -> Void
     let ended: () -> Void
     let targeting: (Bool) -> Void
     let receive: ([String]) -> Bool
@@ -2062,7 +2070,7 @@ private struct CompareColumnDragModifier: ViewModifier {
             .background(targeted ? Color.accentColor.opacity(0.08) : .clear, in: .rect(cornerRadius: 9))
             .contentShape(.interaction, .rect)
             .background { CompareDragRegion(controller: controller, payload: payload) }
-            .gesture(CompareColumnPan(controller: controller, payload: payload, began: began, ended: ended))
+            .gesture(CompareColumnPan(controller: controller, began: began, ended: ended))
             .dropDestination(for: String.self) { items, _ in _ = receive(items) }
             .dropConfiguration { _ in
                 DropConfiguration(operation: controller.activePayload != nil && controller.activePayload != payload ? .move : .forbidden)
