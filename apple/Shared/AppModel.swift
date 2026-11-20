@@ -347,6 +347,15 @@ final class AppModel {
     func completeOnboarding() {
         try? settingsService?.set("onboardingCompleted", .bool(true))
         onboardingShown = false
+        // The starter tab was seeded before the choice; give it the chosen text if still untouched.
+        let tabs = session.allTabs
+        if tabs.count == 1, let tab = tabs.first, tab.tabType == .bible {
+            var st = BibleState(tab.state)
+            if st.bookId == "GEN", st.chapter == 1, st.translation != defaultText {
+                st.translation = defaultText
+                update(tab.id, recordHistory: false) { $0.state = st.merged(into: $0.state) }
+            }
+        }
     }
 
     func replayOnboarding() { onboardingShown = true }
