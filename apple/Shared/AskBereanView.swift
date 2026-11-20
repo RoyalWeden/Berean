@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import BereanBible
 import BereanReference
 import BereanText
@@ -52,6 +53,7 @@ struct AskBereanView: View {
                 }
                 if asking { ProgressView() }
                 if !asked.isEmpty, !asking {
+                    TipView(AskFollowUpTip()).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
                     Section {
                         Label(asked, systemImage: "questionmark.bubble").font(.headline)
                         if let interpreted {

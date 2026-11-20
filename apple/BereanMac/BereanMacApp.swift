@@ -6,6 +6,7 @@ struct BereanMacApp: App {
     @State private var app = AppModel()
 
     init() {
+        BereanTips.configure()
         #if DEBUG
         NativeCursorDiagnostics.installIfRequested()
         #endif

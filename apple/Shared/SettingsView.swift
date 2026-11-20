@@ -197,6 +197,10 @@ struct SettingsView: View {
             LabeledContent("Texts", value: "\(availableTexts.count) installed")
             Button("Replay Getting Started") { app.replayOnboarding() }
             Button("Getting Started Checklist…") { app.gettingStartedShown = true }
+            Button("Reset Hints") {
+                BereanTips.reset()
+                app.userMessage = "Hints will show again the next time Berean opens."
+            }
         }
         Section("Library") {
             LabeledContent("Location", value: UserLibrary.directory.path).textSelection(.enabled)

@@ -249,6 +249,7 @@ struct IOSRootView: View {
             Button { tabSheetDetent = .large; showTabs = true } label: { bottomItem(symbol: "square.on.square", badge: app.tabCount(app.currentSessionId)) }
                 .accessibilityLabel("Tabs and workspaces, \(app.tabCount(app.currentSessionId)) open")
             Button { openGo() } label: { bottomItem(symbol: "magnifyingglass", prominent: true) }
+                .popoverTip(GoTip(), arrowEdge: .bottom)
                 .accessibilityLabel("Go to a passage or search")
             menu
         }

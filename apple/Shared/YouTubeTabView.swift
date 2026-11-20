@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import WebKit
 import BereanCore
 import BereanWorkspace
@@ -151,8 +152,9 @@ struct YouTubeTabView: View {
                         }
                 }
                 if Self.videoId(from: page.url) != nil {
-                    Button("Picture in Picture", systemImage: "pip.enter") { Task { await togglePiP() } }
+                    Button("Picture in Picture", systemImage: "pip.enter") { PiPTip().invalidate(reason: .actionPerformed); Task { await togglePiP() } }
                         .help("Picture in Picture (⇧⌘P)")
+                        .popoverTip(PiPTip())
                 }
                 if Self.videoId(from: page.url) != nil {
                     Menu("Timestamp", systemImage: "link.badge.plus") {

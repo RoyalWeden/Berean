@@ -3,6 +3,7 @@ import CoreSpotlight
 
 @main
 struct BereanIOSApp: App {
+    init() { BereanTips.configure() }
     @State private var app = AppModel()
 
     var body: some Scene {
