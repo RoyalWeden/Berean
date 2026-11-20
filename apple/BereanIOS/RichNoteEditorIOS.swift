@@ -160,46 +160,117 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         }
         private var proseItems: [UIBarButtonItem] = []
         private var cellItems: [UIBarButtonItem] = []
-        private weak var previousCellItem: UIBarButtonItem?
-        private weak var nextCellItem: UIBarButtonItem?
+        private weak var undoItem: UIBarButtonItem?
+        private weak var redoItem: UIBarButtonItem?
         private var showingCellNavigation = false
 
-        /// Format bar docked above the keyboard (original iPhone note editor): bold, italic, highlight, heading, list,
-        /// checklist, quote, link, and a key to hide the keyboard.
+        /// Keep the keyboard accessory spacious; text styles live in a native
+        /// menu and the table button follows the editor's retained selection.
         @MainActor func formatBar() -> UIToolbar {
             let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
-            func item(_ symbol: String, _ label: String, _ run: @escaping (NoteUITextView) -> Void) -> UIBarButtonItem {
-                let action = UIAction(title: label, image: UIImage(systemName: symbol)) { [weak self] _ in
-                    guard let tv = self?.textView else { return }
+            bar.autoresizingMask = [.flexibleWidth]
+            func action(_ symbol: String, _ label: String, attributes: UIMenuElement.Attributes = [],
+                        _ run: @escaping (NoteUITextView) -> Void) -> UIAction {
+                UIAction(title: label, image: UIImage(systemName: symbol), attributes: attributes) { [weak self] _ in
+                    guard let self, let tv = self.textView else { return }
                     run(tv)
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    readerNavigationFeedback()
+                    self.updateTableNavigation()
                 }
-                let b = UIBarButtonItem(primaryAction: action)
-                b.accessibilityLabel = label
-                return b
             }
-            let flex = UIBarButtonItem.flexibleSpace()
-            let formatting = [
-                item("arrow.uturn.backward", "Undo") { $0.undoManager?.undo() }, flex,
-                item("arrow.uturn.forward", "Redo") { $0.undoManager?.redo() }, flex,
-                item("bold", "Bold") { $0.wrap("**", "**") }, flex,
-                item("italic", "Italic") { $0.wrap("*", "*") }, flex,
-                item("highlighter", "Highlight") { $0.setHighlight(nil) }, flex,
-                item("textformat.size", "Heading") { $0.setHeading(2) }, flex,
-                item("list.bullet", "Bulleted List") { $0.setList(.bullet) }, flex,
-                item("checklist", "Checklist") { $0.setList(.checklist) }, flex,
-            ]
+            func item(_ symbol: String, _ label: String, _ run: @escaping (NoteUITextView) -> Void) -> UIBarButtonItem {
+                let button = UIBarButtonItem(primaryAction: action(symbol, label, run))
+                button.accessibilityLabel = label
+                return button
+            }
+            func menuItem(_ symbol: String, _ label: String, menu: UIMenu) -> UIBarButtonItem {
+                let button = UIBarButtonItem(image: UIImage(systemName: symbol), primaryAction: nil, menu: menu)
+                button.accessibilityLabel = label
+                return button
+            }
+            func formattingMenu(inTable: Bool) -> UIMenu {
+                let colors = (highlightColors + ["orange"]).map { color in
+                    action("highlighter", color.capitalized) { $0.setHighlight(color) }
+                }
+                let highlight = UIMenu(title: "Highlight", image: UIImage(systemName: "highlighter"), children: [
+                    action("highlighter", "Default") { $0.setHighlight(nil) }
+                ] + colors + [action("eraser", "Remove Highlight") { $0.removeHighlight() }])
+                var groups: [UIMenuElement] = [UIMenu(options: .displayInline, children: [
+                    action("bold", "Bold") { $0.wrap("**", "**") },
+                    action("italic", "Italic") { $0.wrap("*", "*") },
+                    action("underline", "Underline") { $0.wrap("<u>", "</u>") },
+                    action("strikethrough", "Strikethrough") { $0.wrap("~~", "~~") },
+                    highlight,
+                    action("chevron.left.forwardslash.chevron.right", "Inline Code") { $0.toggleInlineCode() }
+                ])]
+                if !inTable {
+                    let headings = [action("text.alignleft", "Body") { $0.setHeading(0) }]
+                        + (1...3).map { level in action("textformat.size", "Heading \(level)") { $0.setHeading(level) } }
+                    let lists = NoteListStyle.allCases.map { style in
+                        action(style.symbol, style.title) { $0.setList(style) }
+                    }
+                    groups.append(UIMenu(options: .displayInline, children: [
+                        UIMenu(title: "Paragraph Style", image: UIImage(systemName: "textformat.size"), children: headings),
+                        UIMenu(title: "Lists", image: UIImage(systemName: "list.bullet"), children: lists),
+                        action("text.quote", "Quote") { $0.wrap("\n> ", "") }
+                    ]))
+                }
+                groups.append(UIMenu(options: .displayInline, children: [
+                    action("link", "Insert Link…") { [weak self] in self?.parent.onInsertLink($0.selectedRange) }
+                ]))
+                return UIMenu(children: groups)
+            }
+            func grouped(_ groups: [[UIBarButtonItem]]) -> [UIBarButtonItem] {
+                // Adjacent items share UIKit's native glass. Separate related
+                // groups rather than spending a whole glass capsule per icon.
+                groups.enumerated().flatMap { index, buttons in
+                    index == 0 ? buttons : [.flexibleSpace()] + buttons
+                }
+            }
+            let undo = item("arrow.uturn.backward", "Undo") { $0.undoManager?.undo() }
+            let redo = item("arrow.uturn.forward", "Redo") { $0.undoManager?.redo() }
+            undoItem = undo
+            redoItem = redo
             let dismiss = item("keyboard.chevron.compact.down", "Hide Keyboard") { $0.resignFirstResponder() }
-            proseItems = formatting + [
-                item("text.quote", "Quote") { $0.wrap("\n> ", "") }, flex,
-                item("link", "Insert Link") { [weak self] in self?.parent.onInsertLink($0.selectedRange) }, flex,
-                dismiss,
-            ]
-            let next = item("chevron.forward", "Next Cell") { $0.moveTableCell(from: $0.selectedRange, backwards: false) }
-            let previous = item("chevron.backward", "Previous Cell") { $0.moveTableCell(from: $0.selectedRange, backwards: true) }
-            previousCellItem = previous
-            nextCellItem = next
-            cellItems = formatting + [previous, flex, next, flex, dismiss]
+            proseItems = grouped([
+                [undo, redo],
+                [menuItem("textformat", "Formatting", menu: formattingMenu(inTable: false)),
+                 item("tablecells", "Insert Table") { $0.insertTable() },
+                 item("checklist", "Checklist") { $0.setList(.checklist) }],
+                [dismiss]
+            ])
+            let navigation = UIDeferredMenuElement.uncached { [weak self] completion in
+                guard let self, let tv = self.textView else { completion([]); return }
+                let actions = [true, false].map { backwards in
+                    UIAction(title: backwards ? "Previous Cell" : "Next Cell",
+                             image: UIImage(systemName: backwards ? "chevron.backward" : "chevron.forward"),
+                             attributes: tv.tableCellDestination(backwards: backwards) == nil ? .disabled : []) { [weak self] _ in
+                        guard let self, let editor = self.textView else { return }
+                        editor.moveTableCell(from: editor.selectedRange, backwards: backwards)
+                        readerNavigationFeedback()
+                        self.updateTableNavigation()
+                    }
+                }
+                completion([UIMenu(options: .displayInline, children: actions)])
+            }
+            let table = UIMenu(children: [
+                navigation,
+                UIMenu(options: .displayInline, children: [
+                    action("rectangle.split.1x2", "Add Row Below") { $0.addTableRow() },
+                    action("rectangle.split.2x1", "Add Column After") { $0.addTableColumn() }
+                ]),
+                UIMenu(options: .displayInline, children: [
+                    action("minus.rectangle", "Delete Row", attributes: .destructive) { $0.deleteTablePart(columnOnly: false) },
+                    action("minus.rectangle.portrait", "Delete Column", attributes: .destructive) { $0.deleteTablePart(columnOnly: true) },
+                    action("trash", "Delete Table", attributes: .destructive) { $0.deleteTable() }
+                ])
+            ])
+            cellItems = grouped([
+                [undo, redo],
+                [menuItem("textformat", "Formatting", menu: formattingMenu(inTable: true)),
+                 menuItem("tablecells", "Table Options", menu: table)],
+                [dismiss]
+            ])
             bar.items = proseItems
             bar.sizeToFit()
             return bar
@@ -207,17 +278,29 @@ struct RichNoteEditorIOS: UIViewRepresentable {
 
         private func updateTableNavigation() {
             guard let tv = textView, let bar = tv.inputAccessoryView as? UIToolbar else { return }
-            let previous = tv.tableCellDestination(backwards: true) != nil
-            let next = tv.tableCellDestination(backwards: false) != nil
-            let showCells = previous || next
+            undoItem?.isEnabled = tv.undoManager?.canUndo == true
+            redoItem?.isEnabled = tv.undoManager?.canRedo == true
+            let showCells = noteTableContext(in: (tv.text ?? "") as NSString, selection: tv.selectedRange) != nil
             if showCells != showingCellNavigation {
                 showingCellNavigation = showCells
                 bar.setItems(showCells ? cellItems : proseItems, animated: false)
             }
-            if showCells {
-                previousCellItem?.isEnabled = previous
-                nextCellItem?.isEnabled = next
+            #if DEBUG && targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--qa-note-keyboard-trace") {
+                let text = (tv.text ?? "") as NSString
+                let selection = tv.selectedRange
+                let valid = selection.location <= text.length && selection.length <= text.length - selection.location
+                let line = valid ? text.lineRange(for: selection) : NSRange(location: 0, length: 0)
+                let row: [String: Any] = ["selection": NSStringFromRange(selection), "line": NSStringFromRange(line),
+                    "lineFirstCharacter": line.length > 0 ? Int(text.character(at: line.location)) : -1,
+                    "inTable": showCells, "items": bar.items?.map { $0.accessibilityLabel ?? "space" } ?? [],
+                    "barWidth": bar.bounds.width, "editorWidth": tv.bounds.width, "windowWidth": tv.window?.bounds.width ?? 0,
+                    "isFirstResponder": tv.isFirstResponder]
+                if let data = try? JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]) {
+                    try? data.write(to: UserLibrary.directory.appendingPathComponent("note-keyboard-context.json"), options: .atomic)
+                }
             }
+            #endif
         }
         var hidden = IndexSet()
         var substitutions: [Int: (len: Int, glyph: String)] = [:]
