@@ -33,8 +33,12 @@ struct MacRootView: View {
                             .frame(minWidth: MacLayoutLimits.studyPanelMinimum)
                             .inspectorColumnWidth(min: MacLayoutLimits.studyPanelMinimum, ideal: max(MacLayoutLimits.studyPanelMinimum, inspectorWidth), max: 520)
                             .background {
-                                InspectorWidthReader { width in
-                                    guard width >= MacLayoutLimits.studyPanelMinimum, width <= 520, abs(width - inspectorWidth) > 0.5 else { return }
+                                InspectorWidthReader(isPresented: inspectorBinding.wrappedValue,
+                                                     preferredWidth: inspectorWidth,
+                                                     isCurrent: { app.activeTab?.id == tab.id && inspectorBinding.wrappedValue }) { width in
+                                    guard app.activeTab?.id == tab.id, inspectorBinding.wrappedValue,
+                                          width >= MacLayoutLimits.studyPanelMinimum, width <= 520,
+                                          abs(width - inspectorWidth) > 0.5 else { return }
                                     inspectorWidth = width
                                 }
                             }
@@ -271,9 +275,14 @@ private final class PassThroughTintView: NSView {
 /// SwiftUI content and feeding that smaller width back as the ideal would shrink
 /// the pane repeatedly. This probe uses only public NSView/NSSplitView geometry.
 private struct InspectorWidthReader: NSViewRepresentable {
+    let isPresented: Bool
+    let preferredWidth: CGFloat
+    let isCurrent: () -> Bool
     let changed: (CGFloat) -> Void
     func makeNSView(context: Context) -> Probe { Probe() }
-    func updateNSView(_ view: Probe, context: Context) { view.changed = changed; view.scheduleReport() }
+    func updateNSView(_ view: Probe, context: Context) {
+        view.configure(isPresented: isPresented, preferredWidth: preferredWidth, isCurrent: isCurrent, changed: changed)
+    }
     static func dismantleNSView(_ view: Probe, coordinator: Void) { view.stop() }
 
     final class Probe: NSView {
@@ -281,11 +290,32 @@ private struct InspectorWidthReader: NSViewRepresentable {
         private var queued = false
         private var lastWidth: CGFloat?
         private var settle: Timer?
+        private var isPresented = false
+        private var preferredWidth: CGFloat = 340
+        private var pendingRestoreWidth: CGFloat?
+        private var isCurrent: () -> Bool = { false }
+
+        func configure(isPresented: Bool, preferredWidth: CGFloat, isCurrent: @escaping () -> Bool,
+                       changed: @escaping (CGFloat) -> Void) {
+            self.isCurrent = isCurrent
+            self.changed = changed
+            self.preferredWidth = preferredWidth
+            if isPresented && !self.isPresented { pendingRestoreWidth = preferredWidth }
+            if !isPresented {
+                pendingRestoreWidth = nil
+                settle?.invalidate()
+                settle = nil
+            }
+            self.isPresented = isPresented
+            scheduleReport()
+        }
+
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             stop()
             guard window != nil else { return }
+            if isPresented { pendingRestoreWidth = preferredWidth }
             NotificationCenter.default.addObserver(self, selector: #selector(splitResized(_:)),
                 name: NSSplitView.didResizeSubviewsNotification, object: nil)
             scheduleReport()
@@ -293,6 +323,11 @@ private struct InspectorWidthReader: NSViewRepresentable {
         override func layout() { super.layout(); scheduleReport() }
         @objc private func splitResized(_ notification: Notification) {
             guard let split = notification.object as? NSSplitView, isDescendant(of: split) else { return }
+            // A user resize owns the width immediately, including one that starts
+            // before the first presentation layout has completed.
+            if split.inLiveResize || window?.inLiveResize == true || NSApp.currentEvent?.type == .leftMouseDragged {
+                pendingRestoreWidth = nil
+            }
             scheduleReport()
         }
         func stop() {
@@ -306,12 +341,32 @@ private struct InspectorWidthReader: NSViewRepresentable {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.queued = false
-                guard self.window != nil else { return }
+                guard self.window != nil, self.isPresented, self.isCurrent() else { return }
                 var child: NSView = self
                 while let parent = child.superview {
                     if let split = parent as? NSSplitView, split.isVertical,
                        split.arrangedSubviews.last === child {
                         let width = child.frame.width
+                        if let requested = self.pendingRestoreWidth {
+                            // The native inspector remembers its hidden minimum on a
+                            // Bible→Bible transition. Restore the visible width once,
+                            // after its real pane geometry exists; never fight later
+                            // resize input or continuously constrain a live divider.
+                            guard split.arrangedSubviews.count == 2, !child.isHidden,
+                                  !split.isSubviewCollapsed(child),
+                                  let primary = split.arrangedSubviews.first,
+                                  primary.frame.width >= MacLayoutLimits.studyPanelMinimum,
+                                  abs(child.frame.maxX - split.bounds.maxX) < 1,
+                                  width >= MacLayoutLimits.studyPanelMinimum else { return }
+                            self.pendingRestoreWidth = nil
+                            let available = split.bounds.width - MacLayoutLimits.studyPanelMinimum - split.dividerThickness
+                            let target = min(max(MacLayoutLimits.studyPanelMinimum, requested), min(520, available))
+                            if target >= MacLayoutLimits.studyPanelMinimum, abs(width - target) > 0.5 {
+                                split.setPosition(split.bounds.maxX - target, ofDividerAt: 0)
+                                self.scheduleReport()
+                                return
+                            }
+                        }
                         guard width > 0, self.lastWidth != width else { return }
                         self.lastWidth = width
                         self.settle?.invalidate()
@@ -319,7 +374,8 @@ private struct InspectorWidthReader: NSViewRepresentable {
                         // only a settled pane, without changing its live animation target.
                         let timer = Timer(timeInterval: 0.25, repeats: false) { [weak self] _ in
                             MainActor.assumeIsolated {
-                                guard let self, self.window != nil, self.lastWidth == width else { return }
+                                guard let self, self.window != nil, self.isPresented, self.isCurrent(),
+                                      self.pendingRestoreWidth == nil, self.lastWidth == width else { return }
                                 self.changed(width)
                                 self.settle = nil
                             }
