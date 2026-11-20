@@ -49,3 +49,16 @@ import BereanNotes
         #expect(NoteImages.maskingSources("no images here") == "no images here")
     }
 }
+
+@Suite("note images — insert") struct NoteImagesInsertTests {
+    @Test func buildsOriginalMarkdown() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let md = try #require(NoteImages.markdown(for: png, alt: NoteImages.alt(forFileName: "Cave 4 [scan].png")))
+        #expect(md.hasPrefix("![Cave 4 scan](data:image/png;base64,iVBOR"))
+        #expect(NoteImages.find(in: md).first?.alt == "Cave 4 scan")
+        #expect(NoteImages.dataURIBytes(NoteImages.find(in: md)[0].source) == png)
+        #expect(NoteImages.mimeType(of: Data([0xFF, 0xD8, 0xFF, 0xE0])) == "image/jpeg")
+        #expect(NoteImages.markdown(for: Data("II*\u{0}".utf8), alt: "tiff") == nil)
+        #expect(NoteImages.alt(forFileName: "photo") == "photo")
+    }
+}

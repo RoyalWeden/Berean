@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 import BereanNotes
 import BereanReference
 
@@ -104,6 +105,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .list(let style): editor.setList(style)
                 case .callout(let kind): editor.insertCallout(kind)
                 case .insertTable: editor.insertTable()
+                case .insertImage(let markdown): editor.insertImageMarkdown(markdown)
                 case .addTableRow: editor.addTableRow()
                 case .addTableColumn: editor.addTableColumn()
                 case .deleteTableRow: editor.deleteTablePart(columnOnly: false)
@@ -572,6 +574,27 @@ final class NoteTextView: NSTextView {
 
     override func cut(_ sender: Any?) { copy(sender); insertText("", replacementRange: selectedRange()) }
 
+    /// A plain-text NSTextView only enables Paste for text; also enable it for a picture.
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(paste(_:)), isEditable, Self.pasteboardHasImage { return true }
+        return super.validateUserInterfaceItem(item)
+    }
+
+    static var pasteboardHasImage: Bool {
+        let pb = NSPasteboard.general
+        if pb.canReadItem(withDataConformingToTypes: [UTType.png.identifier, UTType.jpeg.identifier, UTType.tiff.identifier]) { return true }
+        return (pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true,
+            .urlReadingContentsConformToTypes: [UTType.image.identifier]]) as? [URL])?.isEmpty == false
+    }
+
+    func insertImageMarkdown(_ markdown: String) {
+        let text = string as NSString
+        var range = selectedRange()
+        let safe = NoteImageInput.insertionPoint(in: text, at: range.location)
+        if safe != range.location { range = NSRange(location: safe, length: 0) }
+        insertText(NoteImageInput.block(markdown, in: text, at: range.location), replacementRange: range)
+    }
+
     @objc func copyPlainText(_ sender: Any?) {
         let r = selectedRange()
         guard r.length > 0 else { return }
@@ -582,6 +605,11 @@ final class NoteTextView: NSTextView {
     /// Paste: a note's own copy pastes its Markdown (formatting kept); anything else pastes as plain text.
     override func paste(_ sender: Any?) {
         let pb = NSPasteboard.general
+        // A picture (screenshot, copied image or image file) becomes inline image Markdown, as the original.
+        if pb.string(forType: Self.markdownType) == nil, pb.string(forType: .string) == nil,
+           let md = NoteImageInput.pastedImageMarkdown() {
+            insertImageMarkdown(md); return
+        }
         let s = pb.string(forType: Self.markdownType) ?? pb.string(forType: .string) ?? ""
         guard !s.isEmpty else { return }
         insertText(s, replacementRange: selectedRange())

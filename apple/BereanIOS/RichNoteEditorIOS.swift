@@ -89,6 +89,7 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                 case .list(let style): tv.setList(style)
                 case .callout(let kind): tv.insertCallout(kind)
                 case .insertTable: tv.insertTable()
+                case .insertImage(let markdown): tv.insertImageMarkdown(markdown)
                 case .addTableRow: tv.addTableRow()
                 case .addTableColumn: tv.addTableColumn()
                 case .deleteTableRow: tv.deleteTablePart(columnOnly: false)
@@ -778,8 +779,24 @@ final class NoteUITextView: UITextView {
         UIPasteboard.general.items = [[Self.markdownType: (s as NSString).substring(with: r), "public.utf8-plain-text": MarkdownLiveSpans.plainText(s, range: r)]]
     }
 
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)), UIPasteboard.general.hasImages { return true }
+        return super.canPerformAction(action, withSender: sender)
+    }
+
+    func insertImageMarkdown(_ markdown: String) {
+        let current = (text ?? "") as NSString
+        let safe = NoteImageInput.insertionPoint(in: current, at: selectedRange.location)
+        if safe != selectedRange.location { selectedRange = NSRange(location: safe, length: 0) }
+        super.insertText(NoteImageInput.block(markdown, in: current, at: safe))
+    }
+
     override func paste(_ sender: Any?) {
         let pb = UIPasteboard.general
+        // A copied picture becomes inline image Markdown, as the original.
+        if pb.items.first?[Self.markdownType] == nil, !pb.hasStrings, let image = NoteImageInput.pastedImageMarkdown() {
+            insertImageMarkdown(image); return
+        }
         let md = pb.items.first?[Self.markdownType] as? String
         guard let s = md ?? pb.string, !s.isEmpty else { return }
         super.insertText(s)

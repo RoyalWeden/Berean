@@ -64,6 +64,7 @@ struct NoteFormatRequest: Equatable {
         case list(NoteListStyle)
         case callout(NoteCalloutKind)
         case insertTable
+        case insertImage(String)
         case addTableRow
         case addTableColumn
         case deleteTableRow
@@ -838,6 +839,12 @@ struct NoteDetailView: View {
                                 Button(kind.label, systemImage: kind.symbol) {
                                     formatRequest = NoteFormatRequest(action: .callout(kind))
                                 }
+                            }
+                        }
+                        .disabled(editingTable)
+                        Button("Image…", systemImage: "photo") {
+                            NoteImageInput.chooseImage { markdown in
+                                if let markdown { formatRequest = NoteFormatRequest(action: .insertImage(markdown)) }
                             }
                         }
                         .disabled(editingTable)

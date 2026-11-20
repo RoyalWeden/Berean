@@ -66,4 +66,30 @@ public enum NoteImages {
         }
         return masked as String
     }
+
+    /// The image MIME type sniffed from the bytes (png/jpeg/gif/webp), or nil for other formats
+    /// (which callers re-encode as PNG first, since only these four render inline).
+    public static func mimeType(of data: Data) -> String? {
+        let b = [UInt8](data.prefix(12))
+        if b.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return "image/png" }
+        if b.starts(with: [0xFF, 0xD8, 0xFF]) { return "image/jpeg" }
+        if b.starts(with: [0x47, 0x49, 0x46, 0x38]) { return "image/gif" }
+        if b.count >= 12, b.starts(with: [0x52, 0x49, 0x46, 0x46]), Array(b[8..<12]) == [0x57, 0x45, 0x42, 0x50] { return "image/webp" }
+        return nil
+    }
+
+    /// `![alt](data:<mime>;base64,…)` exactly as the original inserts an image (pm/imageInsert.ts:
+    /// alt = file name without extension; the data URL is stored inline). Nil for unsupported bytes.
+    public static func markdown(for data: Data, alt: String) -> String? {
+        guard let mime = mimeType(of: data) else { return nil }
+        let cleanAlt = alt.replacingOccurrences(of: "]", with: "").replacingOccurrences(of: "[", with: "")
+            .components(separatedBy: .newlines).joined(separator: " ")
+        return "![\(cleanAlt)](data:\(mime);base64,\(data.base64EncodedString()))"
+    }
+
+    /// The alt text the original derives from a file name.
+    public static func alt(forFileName name: String) -> String {
+        let ns = name as NSString
+        return ns.pathExtension.isEmpty ? name : ns.deletingPathExtension
+    }
 }
