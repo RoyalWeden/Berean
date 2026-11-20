@@ -30,6 +30,11 @@ struct BereanMacApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
+        Window("Berean Chat", id: "chat") {
+            ChatView().environment(app).defaultAppStorage(UserLibrary.defaults).preferredColorScheme(app.colorScheme)
+                .frame(minWidth: 620, minHeight: 420)
+        }
+        .defaultSize(width: 900, height: 640)
         Window("Presenter", id: "presenter") {
             PresenterView().environment(app).defaultAppStorage(UserLibrary.defaults).preferredColorScheme(app.colorScheme)
                 .frame(minWidth: 480, minHeight: 320)

@@ -2828,3 +2828,7 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 ### 2026-11-20 — Claude Code: App Intents, Spotlight, presenter
 
 [APP-INTENTS-2026-11-20](APP-INTENTS-2026-11-20.md) (A04/A05) and [PRESENTER-2026-11-20](PRESENTER-2026-11-20.md) (U07 first slice). Widget (A07) and Share Extension (A03) need new extension targets + App Group entitlements → owner decision before touching signing/identity.
+
+### 2026-11-20 — Claude Code: Berean Chat (notes side)
+
+[BEREAN-CHAT-2026-11-20](BEREAN-CHAT-2026-11-20.md). Writes go to the native Dev library's `ai_chats` only (no sync yet); format matches the original exactly so later sync is safe.

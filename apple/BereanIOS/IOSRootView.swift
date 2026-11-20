@@ -126,6 +126,9 @@ struct IOSRootView: View {
             alternateEdition = target
         }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
+        .fullScreenCover(isPresented: Binding(get: { app.chatShown }, set: { app.chatShown = $0 })) {
+            ChatView(onDone: { app.chatShown = false })
+        }
         .sheet(isPresented: Binding(get: { app.idiomDraft != nil }, set: { if !$0 { app.idiomDraft = nil } })) {
             NewIdiomSheet(term: app.idiomDraft?.term ?? "", meaning: app.idiomDraft?.meaning ?? "")
                 .presentationDetents([.medium])
@@ -419,6 +422,7 @@ struct IOSRootView: View {
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                     Button("Tags", systemImage: "tag") { app.openTags() }
                     Button("PDFs", systemImage: "doc.richtext") { app.openPdfLibrary() }
+                    Button("Berean Chat", systemImage: "bubble.left.and.text.bubble.right") { app.chatShown = true }
                 }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }

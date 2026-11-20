@@ -275,6 +275,9 @@ final class AppModel {
     private(set) var verseTags: VerseTagsService?
     private(set) var tagGraph: TagGraphService?
     private(set) var pdfs: PdfService?
+    private(set) var chats: ChatsService?
+    var chatsRevision = 0
+    var chatShown = false   // iPhone sheet
     var pdfsRevision = 0
     var showStudyTrail = false
     var studyTrailRecording: StudyTrailRecording?
@@ -405,6 +408,7 @@ final class AppModel {
             studyTrailService = StudyTrailService(db: db.connection)
             verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
             pdfs = PdfService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.pdfsRevision += 1 } })
+            chats = ChatsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.chatsRevision += 1 } })
             if let verseTags {
                 tagGraph = TagGraphService(db: db.connection, tags: verseTags,
                                            onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
