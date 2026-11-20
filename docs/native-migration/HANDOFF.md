@@ -2843,3 +2843,13 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Landed today (each with its own doc): word-replacer rules, tag graph, PDFs, note images, onboarding, e-Sword import, idioms, App Intents/Spotlight, presenter, Berean Chat (notes side), YouTube tab, shortcuts list refresh, chat command in Go.
 - Next executable actions: (1) Chat + YouTube click-free check on Mac (menu by PID, no coordinate clicks); (2) YouTube PiP (M02) — `WebPage` supports PiP by default on iOS, needs auto-enter on tab switch; (3) note image drag-resize handle (N05); (4) idiom hover popover on Mac.
 - Waiting on the owner: BibleGateway importer (account login), Widget/Share Extension (new targets + App Group entitlements), merging PRs #22 → #23 → #24.
+
+### 2026-11-20 — Claude Code: queue items closed (later)
+
+- Mac click-free checks: Chat window (Window menu by PID) and YouTube (Go menu; restored channel page loads in the sandbox). Fixed duplicate Window-menu entries and the YouTube tab title. Sending a chat note on Mac not exercised (macOS kept another QA app frontmost; the guarded script aborted without typing).
+- M02 PiP: toolbar button + ⇧⌘P; YouTube pages persist across tab switches. Auto-PiP on tab switch NOT achieved — three attempts with evidence in YOUTUBE-TAB-2026-11-20.md (one crashed and was reverted).
+- N05: Mac drag-resize handle (outline + handle verified via AX caret; drag itself needs a hand test).
+- Idioms: tooltip now covers spaces in multi-word idioms.
+- Useful tool: `scratchpad/axcaret.swift` pattern — set `AXSelectedTextRange` on the QA app's text view by PID (no clicks) to drive caret-dependent UI.
+- Checks: `swift test -c release` 318 pass; Mac + iOS builds exit 0.
+- Next: (1) a single always-mounted YouTube WebView layer in the root (tab only positions it) → true auto-PiP and no PiP loss on tab switch; (2) iPhone image paste check on sim (`simctl pbcopy` is text-only — use Insert → Image… with a photo in the sim library); (3) Read Aloud remains in Codex's queue.
