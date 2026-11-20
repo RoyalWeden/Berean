@@ -22,3 +22,9 @@ Status: **IMPLEMENTED; Mac VERIFIED, iPhone partly VERIFIED**. Was ❌/❌ (alt 
 - **Image Size** menu (Small 200 / Medium 360 / Large 560 / Original Size; presets wider than the image's pixel width are hidden; the current size is ticked). Mac: the editor's right-click menu on an image. iPhone: first item of the edit menu when the caret or selection is in an image. It writes only the alt text's `|wNNN` (`NoteImages.widthEdit`, tested); a single undoable step; the caret moves after the image markup.
 - Verified on iPhone sim: Original → Small → image redrawn at 200 pt, saved `![Cave 4 fragment|w200](…)`, Undo restored `![Cave 4 fragment](…)`. Mac: built, **not clicked** (see HANDOFF incident note).
 - OPEN: dragging a resize handle (the original's) is not implemented; the menu is the native replacement. Keyboard suggestions can show base64 fragments while the caret sits inside image markup (minor).
+
+## Drag-resize handle (Mac) — 2026-11-20 (later)
+- Caret inside an image's Markdown/caption → accent outline + bottom-right handle (layout `activeImageLocation`); resize cursor over the handle (view cursor rect only, no global cursor change).
+- Dragging the handle previews the width live (aspect kept, 48 pt minimum, up to the line width); release saves one **Resize Image** edit (`|wNNN` in the alt, same as the Image Size menu and the original); Escape cancels.
+- Verified click-free in the QA library: caret placed via the Accessibility API at the image → outline + handle drawn; caret moved away → cleared. **Drag not exercised by me** (no mouse automation on the owner's Mac) — needs a hand test.
+- iPhone keeps the Image Size presets menu (no drag handle).

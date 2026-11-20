@@ -51,7 +51,13 @@ final class NoteTableLayout: NSLayoutManager {
     /// A typical iPhone text width; drawing still fits the real line width.
     static let fallbackWidth: CGFloat = 360
     #endif
-    private struct ImageSlot { let character: Int; let image: PlatformImage; let size: CGSize }
+    private struct ImageSlot { let character: Int; let image: PlatformImage; let size: CGSize; let source: NSRange }
+    /// An image's on-screen frame (text-container coordinates + origin) and its Markdown range.
+    struct ImageFrame { let rect: CGRect; let source: NSRange }
+    /// The image whose resize handle is shown (caret inside its Markdown/caption).
+    var activeImageLocation: Int?
+    /// Live width while dragging the resize handle (keyed by the image's Markdown location).
+    var dragImageWidth: (location: Int, width: CGFloat)?
     private var imageSlots: [ImageSlot] = []
     nonisolated(unsafe) private static let imageCache = NSCache<NSString, PlatformImage>()
 
@@ -116,25 +122,54 @@ final class NoteTableLayout: NSLayoutManager {
             let style = current.mutableCopy() as! NSMutableParagraphStyle
             style.minimumLineHeight = size.height + 10 + captionHeight
             storage.addAttribute(.paragraphStyle, value: style, range: paragraph)
-            imageSlots.append(ImageSlot(character: anchor, image: image, size: size))
+            imageSlots.append(ImageSlot(character: anchor, image: image, size: size,
+                                        source: NSRange(location: found.range.location, length: max(NSMaxRange(found.range), NSMaxRange(found.captionRange)) - found.range.location)))
         }
+    }
+
+    private func imageRect(_ slot: ImageSlot, origin: CGPoint) -> CGRect? {
+        let glyph = glyphIndexForCharacter(at: slot.character)
+        guard glyph < numberOfGlyphs else { return nil }
+        let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let padding = textContainer(forGlyphAt: glyph, effectiveRange: nil)?.lineFragmentPadding ?? 5
+        let available = max(0, line.width - padding * 2)
+        let scale = min(1, available / slot.size.width)
+        var size = CGSize(width: slot.size.width * scale, height: slot.size.height * scale)
+        if let drag = dragImageWidth, drag.location == slot.source.location, size.width > 0 {
+            // Live preview while dragging: same aspect, never taller than the reserved line.
+            let w = min(max(48, drag.width), max(available, size.width))
+            size = CGSize(width: w, height: size.height * w / size.width)
+        }
+        return CGRect(x: line.minX + padding + origin.x, y: line.minY + 4 + origin.y, width: size.width, height: size.height)
+    }
+
+    /// Frames of every laid-out image (for hit testing the resize handle).
+    func imageFrames(origin: CGPoint) -> [ImageFrame] {
+        imageSlots.compactMap { slot in imageRect(slot, origin: origin).map { ImageFrame(rect: $0, source: slot.source) } }
+    }
+
+    static func handleRect(for image: CGRect) -> CGRect {
+        CGRect(x: image.maxX - 7, y: image.maxY - 7, width: 14, height: 14)
     }
 
     private func drawImages(in characters: NSRange, origin: CGPoint) {
         for slot in imageSlots where slot.character < NSMaxRange(characters) {
-            let glyph = glyphIndexForCharacter(at: slot.character)
-            guard glyph < numberOfGlyphs else { continue }
-            let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-            let padding = textContainer(forGlyphAt: glyph, effectiveRange: nil)?.lineFragmentPadding ?? 5
-            let available = max(0, line.width - padding * 2)
-            let scale = min(1, available / slot.size.width)
-            let rect = CGRect(x: line.minX + padding + origin.x, y: line.minY + 4 + origin.y,
-                              width: slot.size.width * scale, height: slot.size.height * scale)
+            guard let rect = imageRect(slot, origin: origin) else { continue }
             #if os(macOS)
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).addClip()
             slot.image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             NSGraphicsContext.restoreGraphicsState()
+            if activeImageLocation == slot.source.location || dragImageWidth?.location == slot.source.location {
+                // Selected image: accent outline + bottom-right resize handle (original's drag handle).
+                NSColor.controlAccentColor.setStroke()
+                let outline = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6)
+                outline.lineWidth = 2
+                outline.stroke()
+                let handle = NSBezierPath(ovalIn: Self.handleRect(for: rect).insetBy(dx: 2, dy: 2))
+                NSColor.white.setFill(); handle.fill()
+                NSColor.controlAccentColor.setStroke(); handle.lineWidth = 2; handle.stroke()
+            }
             #else
             UIGraphicsGetCurrentContext()?.saveGState()
             UIBezierPath(roundedRect: rect, cornerRadius: 6).addClip()

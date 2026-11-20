@@ -409,6 +409,69 @@ final class NoteTextView: NSTextView {
         }
     }
 
+    // MARK: image resize handle
+
+    private var imageLayout: NoteTableLayout? { layoutManager as? NoteTableLayout }
+
+    /// The image whose Markdown or caption holds the caret.
+    private func activeImageFrame() -> NoteTableLayout.ImageFrame? {
+        guard let layout = imageLayout else { return nil }
+        let caret = selectedRange().location
+        return layout.imageFrames(origin: textContainerOrigin).first { caret >= $0.source.location && caret <= NSMaxRange($0.source) }
+    }
+
+    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        guard let layout = imageLayout else { return }
+        let active = activeImageFrame()?.source.location
+        if layout.activeImageLocation != active {
+            layout.activeImageLocation = active
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if let frame = activeImageFrame() {
+            addCursorRect(NoteTableLayout.handleRect(for: frame.rect), cursor: .frameResize(position: .bottomRight, directions: .all))
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard let layout = imageLayout, let frame = activeImageFrame(),
+              NoteTableLayout.handleRect(for: frame.rect).insetBy(dx: -4, dy: -4).contains(point) else {
+            super.mouseDown(with: event)
+            return
+        }
+        // Drag the handle: live preview, then one "Resize Image" edit on release (Escape cancels).
+        let startWidth = frame.rect.width
+        var width = startWidth
+        layout.dragImageWidth = (frame.source.location, width)
+        needsDisplay = true
+        trackLoop: while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp, .keyDown]) {
+            switch next.type {
+            case .leftMouseDragged:
+                let p = convert(next.locationInWindow, from: nil)
+                width = max(48, startWidth + (p.x - point.x))
+                layout.dragImageWidth = (frame.source.location, width)
+                needsDisplay = true
+            case .keyDown where next.keyCode == 53:
+                width = startWidth
+                break trackLoop
+            case .leftMouseUp:
+                break trackLoop
+            default: break
+            }
+        }
+        layout.dragImageWidth = nil
+        needsDisplay = true
+        guard abs(width - startWidth) >= 2,
+              let image = NoteImages.find(in: string).first(where: { $0.range.location == frame.source.location }) else { return }
+        resizeImage(image, width: Int(width.rounded()))
+    }
+
     // MARK: formatting commands
 
     func wrapSelection(_ open: String, _ close: String) {
