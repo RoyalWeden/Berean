@@ -2908,3 +2908,10 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Search In (original `aiLookupCollections`), book scope ("only in the Psalms"), "same restriction", "check that number" — tested, verified on sim; sim setting restored to default.
 - G01 model-free coverage now matches the original's deterministic path except corpus-specific searches outside the KJV (original model-free also searched only kjva).
 - Checks: `swift test -c release` 334 pass; Mac + iOS builds exit 0.
+
+### 2026-11-20 — Claude Code: hints + history settings
+- TipKit first-use hints (Search, Picture in Picture, Ask follow-up) + Settings → About → Reset Hints (applies at next launch) — ONBOARDING doc.
+- Settings → History (original tabNavMaxStack / historyMaxEntries + clear) — HISTORY-SETTINGS-2026-11-20.md. Unset historyMaxEntries keeps 5,000 so nothing is pruned.
+- Stale parity rows fixed (U18 Ask Berean, N13 idiom hover/export).
+- Checks: `swift test -c release` 334 pass; Mac + iOS builds exit 0; verified on sim.
+- Open, no owner decision needed: Print/Export settings section, Custom Themes, reader/editor hints (need anchors in TextKit views), Psalm 119 timing (S14). Danger section (delete notes) deliberately not ported — needs an explicit decision.
