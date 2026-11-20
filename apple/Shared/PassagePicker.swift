@@ -68,15 +68,12 @@ struct PassagePicker: View {
     /// then finishes with `onPick` (original PassagePicker VersesView). Nil keeps the one-tap chapter pick.
     var onPreview: ((ResolvedPassage) -> Void)? = nil
     @State private var verseGrid: (book: BookRow, chapter: Int, count: Int)?
+    @State private var chapterPreviewID: UUID?
 
+    @State private var showingTexts = false
+    @State private var textQuery = ""
     @State private var chosenText: String?
     private var text: String { chosenText ?? textId }
-    private var textSelection: Binding<String> {
-        Binding(get: { text }, set: {
-            chosenText = $0
-            bookChoice = nil
-        })
-    }
     @State private var loadedRequest: BrowseRequest?
     @State private var bookChoice: CatalogBook?
     @State private var didPick = false
@@ -107,7 +104,11 @@ struct PassagePicker: View {
     var body: some View {
         Group {
             if compact {
-                VStack(spacing: 0) { leftColumn.frame(maxHeight: 260); Divider(); middleColumn }
+                VStack(spacing: 0) {
+                    compactHeader
+                    if trimmed.isEmpty { middleColumn }
+                    else { leftColumn }
+                }
             } else {
                 HStack(spacing: 0) {
                     leftColumn.frame(width: 250)
@@ -120,7 +121,7 @@ struct PassagePicker: View {
             }
         }
         .task {
-            searchFocused = true
+            searchFocused = !compact
             catalog = app.bookCatalog.isEmpty ? await app.catalog() : app.bookCatalog
         }
         .task(id: BrowseRequest(text: text, choice: bookChoice)) {
@@ -147,12 +148,27 @@ struct PassagePicker: View {
                 pick(ResolvedPassage(textId: requestedText, bookId: book.id, chapter: chapter, verse: nil))
             }
         }
+        #if os(iOS)
+        .sheet(isPresented: $showingTexts) {
+            NavigationStack {
+                textColumn
+                    .searchable(text: $textQuery, prompt: "Find a text")
+                    .scrollDismissesKeyboard(.interactively)
+                    .navigationTitle("Texts")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingTexts = false } } }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        #endif
         .task(id: sourceEdition) {
             alternateEdition = nil
             let target = await app.installedCounterpart(of: sourceEdition)
             guard !Task.isCancelled else { return }
             alternateEdition = target
         }
+        .onDisappear { chapterPreviewID = nil }
     }
 
     private struct BrowseRequest: Equatable {
@@ -168,12 +184,14 @@ struct PassagePicker: View {
 
     var leftColumn: some View {
         VStack(spacing: 0) {
-            TextField("Book, reference or text", text: $query)
-                .textFieldStyle(.roundedBorder)
-                .focused($searchFocused)
-                .onSubmit(submit)
-                .padding(10)
-                .accessibilityLabel("Search books and references in every text")
+            if !compact {
+                TextField("Book, reference or text", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($searchFocused)
+                    .onSubmit(submit)
+                    .padding(10)
+                    .accessibilityLabel("Search books and references in every text")
+            }
             List {
                 if trimmed.isEmpty, let target = alternateEdition, target == sourceEdition.counterpart {
                     Section("Same Passage") {
@@ -232,23 +250,79 @@ struct PassagePicker: View {
                         }
                     }
                 }
-                if compact {
-                    Section("Text") {
-                        Picker("Text", selection: textSelection) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
-                    }
-                }
             }
             .listStyle(.sidebar)
         }
     }
 
+    private var compactHeader: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Book or reference", text: $query)
+                    .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                    .onSubmit(submit)
+                    .autocorrectionDisabled()
+                    .accessibilityLabel("Search books and references in every text")
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    .submitLabel(.go)
+                    #endif
+                if !query.isEmpty {
+                    Button("Clear search", systemImage: "xmark.circle.fill") { query = "" }
+                        .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                }
+                if searchFocused {
+                    Button("Dismiss keyboard", systemImage: "keyboard.chevron.compact.down") { searchFocused = false }
+                        .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16).frame(minHeight: 50)
+            .glassEffectCompat(interactive: true)
+            Button {
+                searchFocused = false
+                textQuery = ""
+                showingTexts = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "books.vertical").font(.title3).foregroundStyle(.tint)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(textInfo(text).name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        Text("Bible and other writings").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "arrow.left.arrow.right").font(.subheadline).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14).frame(minHeight: 54)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .accessibilityLabel("Choose text, currently \(textInfo(text).name)")
+        }
+        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 8)
+    }
+
+    private func selectText(_ id: String) {
+        chapterPreviewID = nil
+        searchFocused = false
+        chosenText = id
+        bookChoice = nil
+        verseGrid = nil
+        query = ""
+        showingTexts = false
+    }
+
     private func pick(_ passage: ResolvedPassage) {
         guard !didPick else { return }
+        searchFocused = false
         didPick = true
+        chapterPreviewID = nil
         onPick(passage)
     }
 
     private func showBooks() {
+        chapterPreviewID = nil
         openBook = nil
         chapters = []
         bookChoice = nil
@@ -260,12 +334,18 @@ struct PassagePicker: View {
     }
 
     func choose(_ match: CatalogBook) {
+        chapterPreviewID = nil
+        searchFocused = false
+        verseGrid = nil
         chosenText = match.textId
         bookChoice = match
         query = ""
     }
 
     func open(_ book: BookRow, in textId: String) {
+        chapterPreviewID = nil
+        searchFocused = false
+        verseGrid = nil
         bookChoice = CatalogBook(textId: textId, book: book)
     }
 
@@ -277,7 +357,7 @@ struct PassagePicker: View {
         } else if let grid = verseGrid {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Button { verseGrid = nil } label: { Label("Chapters", systemImage: "chevron.backward") }
+                    Button { chapterPreviewID = nil; verseGrid = nil } label: { Label("Chapters", systemImage: "chevron.backward") }
                         .buttonStyle(.interactivePlain)
                     Spacer()
                     Text(Reference.readerChapterLabel(grid.book.id, grid.chapter, textId: text)).font(.headline).lineLimit(1)
@@ -372,11 +452,14 @@ struct PassagePicker: View {
         return Button {
             let passage = ResolvedPassage(textId: text, bookId: book.id, chapter: chapter, verse: nil)
             if compact, let onPreview {
+                let requestID = UUID()
+                chapterPreviewID = requestID
                 onPreview(passage)
                 let t = text
                 Task {
                     let raw = await app.bible.queryChapter(book.id, chapter, textId: t)
                     let count = PsalmSuperscription.apply(raw, textId: t, bookId: book.id, chapter: chapter).count
+                    guard !Task.isCancelled, chapterPreviewID == requestID, text == t, !didPick else { return }
                     if count > 1 { verseGrid = (book, chapter, count) } else { pick(passage) }
                 }
             } else {
@@ -416,17 +499,22 @@ struct PassagePicker: View {
     var textColumn: some View {
         List {
             ForEach(["Bible", "Other writings"], id: \.self) { section in
-                Section(section) {
-                    ForEach(availableTexts.filter { $0.section == section }) { t in
-                        Button { chosenText = t.id; bookChoice = nil } label: {
-                            HStack {
-                                Text(t.name).lineLimit(2)
-                                Spacer()
-                                if t.id == text { Image(systemName: "checkmark").foregroundStyle(.tint) }
-                            }.contentShape(.rect)
+                let matches = availableTexts.filter { $0.section == section && (textQuery.isEmpty || $0.name.localizedCaseInsensitiveContains(textQuery) || $0.short.localizedCaseInsensitiveContains(textQuery)) }
+                if !matches.isEmpty {
+                    Section(section) {
+                        ForEach(matches) { t in
+                            Button { selectText(t.id) } label: {
+                                HStack {
+                                    Text(t.name).lineLimit(2)
+                                    Spacer()
+                                    if t.id == text { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                                }
+                                .frame(minHeight: compact ? 48 : 32)
+                                .contentShape(.rect)
+                            }
+                            .buttonStyle(.interactivePlain)
+                            .accessibilityAddTraits(t.id == text ? .isSelected : [])
                         }
-                        .buttonStyle(.interactivePlain)
-                        .accessibilityAddTraits(t.id == text ? .isSelected : [])
                     }
                 }
             }

@@ -471,6 +471,7 @@ struct TabCardsSheet: View {
     let onNewTab: () -> Void
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var query = ""
     @State private var showTabCleanup = false
     @State private var isSelecting = false
@@ -564,12 +565,18 @@ struct TabCardsSheet: View {
                     let pinned = visibleTabs.filter(\.isPinned), others = visibleTabs.filter { !$0.isPinned }
                     if layout == "grid" {
                         if !visibleTabs.isEmpty {
-                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                                ForEach(sortedTabs(pinned + others)) { card($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }
+                            if !pinned.isEmpty {
+                                Text("Pinned").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                    .listRowBackground(Color.clear)
+                                cardGrid(sortedTabs(pinned), eligible: eligible, sameTitleIndices: sameTitleIndices)
                             }
-                            .padding(.vertical, 6)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-                            .listRowBackground(Color.clear)
+                            if !others.isEmpty {
+                                if !pinned.isEmpty {
+                                    Text("Tabs").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                        .listRowBackground(Color.clear)
+                                }
+                                cardGrid(sortedTabs(others), eligible: eligible, sameTitleIndices: sameTitleIndices)
+                            }
                         }
                     } else if canReorder {
                         ForEach(pinned) { row($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }.onMove { app.moveTabs(pinned.map(\.id), from: $0, to: $1) }
@@ -897,6 +904,15 @@ struct TabCardsSheet: View {
         }.map(\.element)
     }
 
+    private func cardGrid(_ tabs: [BereanWorkspace.Tab], eligible: Set<String>, sameTitleIndices: [String: Int]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 280 : 155, maximum: 320), spacing: 12)], spacing: 12) {
+            ForEach(tabs) { card($0, eligible: eligible.contains($0.id), sameTitleIndex: sameTitleIndices[$0.id]) }
+        }
+        .padding(.vertical, 6)
+        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+        .listRowBackground(Color.clear)
+    }
+
     /// A tab as a card: tinted header with its kind, title and detail, × to close; the current tab is outlined.
     func card(_ tab: BereanWorkspace.Tab, eligible: Bool, sameTitleIndex: Int? = nil) -> some View {
         let current = isSelecting ? selectedTabIDs.contains(tab.id) : tab.id == app.activeTab?.id
@@ -913,10 +929,13 @@ struct TabCardsSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(tab.tint.opacity(0.14))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(tab.navigationLabel).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    Text(tab.navigationLabel).font(.headline).foregroundStyle(.primary)
                         .lineLimit(2).multilineTextAlignment(.leading)
                     let kind = tab.tabType == .bible ? "Scripture" : (tab.tabType?.rawValue ?? tab.type).capitalized
-                    let detail = tab.navigationDetail.replacingOccurrences(of: "Scripture · ", with: "")
+                    let reader = BibleState(tab.state)
+                    let detail = tab.tabType == .bible
+                        ? [reader.translation == "lxx" ? "LXX" : nil, reader.compareMode ? "Compare" : nil].compactMap { $0 }.joined(separator: " · ")
+                        : tab.navigationDetail
                     if !detail.isEmpty, detail != kind, detail != tab.spaceId.title, detail != tab.navigationLabel {
                         Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     }
@@ -927,7 +946,7 @@ struct TabCardsSheet: View {
                     Spacer(minLength: 0)
                 }
                 .padding(10)
-                .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: 154, alignment: .topLeading)
             }
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
             .overlay {
@@ -1243,28 +1262,82 @@ struct ArchivedTabsPage: View {
 }
 
 
-/// A few words of what the tab shows (first verse of a Scripture tab, opening of a note) — original TabPreview.
+/// Content previews share the reader's prepared rows and replacement rules.
+/// A new request clears the previous text and ignores late async completions.
 private struct TabCardPreview: View {
     @Environment(AppModel.self) private var app
     let tab: BereanWorkspace.Tab
     @State private var text = ""
+    @State private var leading = ""
+    private struct Request: Equatable {
+        let tab: BereanWorkspace.Tab
+        let notesRevision: Int
+        let replacer: Bool
+        let rules: [WordReplacerRule]
+    }
+    private var request: Request {
+        Request(tab: tab, notesRevision: tab.tabType == .note ? app.notesRevision : 0,
+                replacer: app.wordReplacerEnabled, rules: app.wordReplacerRules)
+    }
 
     var body: some View {
-        Text(text).font(.caption).foregroundStyle(.secondary).lineLimit(3).multilineTextAlignment(.leading)
-            .task(id: tab.id + tab.title + (tab.tabType == .note ? "|\(app.notesRevision)" : "")) {
-                switch tab.tabType {
-                case .bible:
-                    let st = BibleState(tab.state)
-                    if let row = await app.bible.queryVerse(st.bookId, st.chapter, st.verse ?? 1, textId: st.translation) {
-                        text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: st.translation,
-                                                 replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
-                    }
-                case .note:
-                    if let id = tab.state["noteId"]?.stringValue?.string, let note = try? app.notes?.one(id) {
-                        text = noteExcerptText(note.content).replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
-                    }
-                default: text = ""
-                }
+        VStack(alignment: .leading, spacing: 4) {
+            if !leading.isEmpty {
+                Text(leading).font(.caption.weight(.medium)).foregroundStyle(tab.tint)
             }
+            if !text.isEmpty {
+                Text(text)
+                    .font(tab.tabType == .bible ? .system(.subheadline, design: .serif) : .subheadline)
+                    .foregroundStyle(.secondary).lineSpacing(2).lineLimit(4)
+                    .multilineTextAlignment(.leading)
+            } else {
+                Image(systemName: tab.symbol).font(.system(size: 27, weight: .light))
+                    .foregroundStyle(tab.tint.opacity(0.45)).padding(.top, 10)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: request) {
+            let request = request
+            text = ""; leading = ""
+            var preview = "", caption = ""
+            switch tab.tabType {
+            case .bible:
+                let state = BibleState(tab.state)
+                let edition = ChapterEdition(state)
+                let readingVerse = ReaderViewports.position(in: tab.state, chapter: edition.key)?.verse ?? state.verse
+                let chapter = await app.readerChapter(edition)
+                if let row = chapter.rows.first(where: { $0.verseNum == readingVerse }) ?? chapter.rows.first {
+                    let hidden = Set((tab.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
+                    let visible = row.hidingTextAnnotations(hidden, textId: state.translation)
+                    caption = "Verse " + row.readerVerseLabel
+                    preview = VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: state.translation,
+                                                replacerEnabled: request.replacer, rules: request.rules,
+                                                hideSuppliedWords: hidden.contains(AnnotationFilters.kjvaSuppliedWords))
+                }
+            case .note:
+                if let id = tab.state["noteId"]?.stringValue?.string, let note = try? app.notes?.one(id) {
+                    preview = noteExcerptText(note.content).replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+                }
+            case .lexicon:
+                if let id = tab.state["strongsNum"]?.stringValue?.string, let entry = await app.lexicon.entry(id) {
+                    caption = entry.lemma
+                    preview = entry.gloss.isEmpty ? entry.definition : entry.gloss
+                }
+            case .search:
+                caption = "Search all texts"
+                preview = tab.state["query"]?.stringValue?.string ?? ""
+            case .youtube:
+                caption = "YouTube"
+                preview = tab.state["url"]?.stringValue?.string ?? ""
+            case .calendar: preview = "Daily notes, arranged by date"
+            case .history: preview = "Return to a passage, note or search"
+            case .tags: preview = "Explore tagged passages and notes"
+            default: break
+            }
+            guard !Task.isCancelled, self.request == request else { return }
+            leading = caption
+            text = preview
+        }
     }
 }

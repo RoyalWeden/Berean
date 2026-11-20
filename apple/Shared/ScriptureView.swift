@@ -813,13 +813,20 @@ struct ScriptureView: View {
                         .ignoresSafeArea(.container, edges: .top)
                     }
                     #else
-                    iosReader(st, actionClearance: bottomClearance)
+                    GeometryReader { viewport in
+                        // Extend only the native scrolling surface. Keeping the
+                        // outer layout in its safe area preserves floating-action
+                        // hit targets when the dock is tucked away.
+                        iosReader(st, actionClearance: bottomClearance)
+                            .frame(width: viewport.size.width,
+                                   height: viewport.size.height + viewport.safeAreaInsets.top + viewport.safeAreaInsets.bottom)
+                            .offset(y: -viewport.safeAreaInsets.top)
+                    }
                     #endif
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             #if os(iOS)
-            .clipped()
             .overlay(alignment: .topTrailing) {
                 if let pinchFontSize {
                     Text("\(Int(pinchFontSize)) pt")

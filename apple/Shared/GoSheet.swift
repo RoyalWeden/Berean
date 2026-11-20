@@ -23,29 +23,21 @@ struct GoSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    TextField("Passage, Strong's number, note or words", text: $text)
-                        .focused($focused)
-                        .submitLabel(.go)
-                        .onSubmit { go() }
-                        .autocorrectionDisabled()
-                    #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                    #endif
-                } footer: {
-                    if trimmed.isEmpty { Text("For example: John 3:16 · Ps 23 · Isaiah 53 LXX · H3068 · grace") }
-                }
-                Group {
-                    if trimmed.isEmpty {
-                        shortcuts.clickableCursor()
-                    } else {
-                        results.clickableCursor()
+            VStack(spacing: 0) {
+                searchField
+                List {
+                    Group {
+                        if trimmed.isEmpty {
+                            shortcuts.clickableCursor()
+                        } else {
+                            results.clickableCursor()
+                        }
                     }
+                    #if os(iOS)
+                    .tint(.primary)   // navigation rows use primary text, not accent-coloured links
+                    #endif
                 }
-                #if os(iOS)
-                .tint(.primary)   // navigation rows read as list items (primary text), not accent-coloured links
-                #endif
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(newTab ? "New Tab" : "Go")
             #if os(iOS)
@@ -88,6 +80,38 @@ struct GoSheet: View {
             guard !Task.isCancelled, passage == resolvedPassage else { return }
             passagePreview = excerpt.map { (passage, $0) }
         }
+    }
+
+    private var searchField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Passage or search", text: $text)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .submitLabel(.go)
+                    .onSubmit { go() }
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                if !text.isEmpty {
+                    Button("Clear search", systemImage: "xmark.circle.fill") { text = ""; focused = true }
+                        .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                }
+                if focused {
+                    Button("Dismiss keyboard", systemImage: "keyboard.chevron.compact.down") { focused = false }
+                        .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16).frame(minHeight: 52)
+            .glassEffectCompat(interactive: true)
+            if trimmed.isEmpty {
+                Text("John 3:16 · Psalm 23 LXX · H3068 · grace")
+                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 6)
+            }
+        }
+        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 8)
     }
 
     @ViewBuilder private var shortcuts: some View {
@@ -304,10 +328,12 @@ struct GoSheet: View {
             } icon: {
                 Image(systemName: symbol).foregroundStyle(tint)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 13).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .glassEffectCompat(interactive: true)
         }
-        .buttonStyle(OptionButtonStyle())
-        .background(.quaternary.opacity(0.6), in: .rect(cornerRadius: 9))
+        .buttonStyle(.interactivePlain)
     }
 
     private func noteMatches(_ query: String) -> [Note] {
