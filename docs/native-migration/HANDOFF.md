@@ -2875,3 +2875,6 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Transcript search moved off the main thread (`TranscriptSearcher` actor, own read-only connection, 180 ms debounce; tested while the main connection writes).
 - Transcript list highlights and follows the spoken line (verified on sim). All QA fixtures removed.
 - Remaining transcript gap: data only (sync/data-pack workstream).
+
+### 2026-11-20 — Claude Code: deep-link routes + Study Trail fix
+[DEEP-LINKS-2026-11-20](DEEP-LINKS-2026-11-20.md): video / trail / chat routes added (verified on sim). Fixed iPhone Study Trail: Done sat exactly over New Trail, so trails could not be created on iPhone. M03: YouTube links in notes open the YouTube tab at their timestamp (tested parser).

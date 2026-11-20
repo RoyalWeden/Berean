@@ -63,6 +63,10 @@ struct StudyTrailView: View {
                 if !trails.isEmpty { librarySearchField }
             }
             .navigationTitle("Study Trail")
+            // Done in the bar (it used to be a second bottom inset that sat exactly over New Trail on iPhone).
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { app.showStudyTrail = false } }
+            }
             .safeAreaInset(edge: .bottom) {
                 Button("New Trail", systemImage: "plus") {
                     newTrailName = ""
@@ -88,7 +92,13 @@ struct StudyTrailView: View {
                 Button("OK") { errorMessage = nil }
             } message: { Text(errorMessage ?? "") }
         }
-        .task { load() }
+        .task {
+            load()
+            if let id = app.studyTrailOpenRequest {
+                app.studyTrailOpenRequest = nil
+                path = [TrailRoute(trailID: id)]
+            }
+        }
         .onChange(of: searchActive) { _, active in
             if active && index == nil { loadSearchIndex() }
         }
@@ -936,11 +946,6 @@ extension View {
         .sheet(isPresented: Binding(get: { app.showStudyTrail }, set: { app.showStudyTrail = $0 })) {
             StudyTrailView()
                 .environment(app)
-                .safeAreaInset(edge: .bottom) {
-                    Button("Done") { app.showStudyTrail = false }
-                        .buttonStyle(.bordered)
-                        .padding(8)
-                }
                 #if os(macOS)
                 .frame(minWidth: 460, minHeight: 440)
                 #endif

@@ -107,7 +107,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | A03 | App Groups and Share Extension | implemented (iPhone) | — | ❌ | P2 | Share Extension not built for native |
 | A04 | Spotlight | implemented (iPhone) | — | 🟡 | P3 | Notes, workspaces, books indexed; tap opens via deep link (2026-11-20); sessions not indexed |
 | A05 | App Intents and Siri Shortcuts | implemented (iPhone) | — | 🟡 | P3 | Four intents + phrases (2026-11-20, APP-INTENTS-2026-11-20.md); Read Aloud intent pending |
-| A06 | Deep links and URL schemes | implemented | ❌ | ❌ | P2 | berean:// deep links not handled natively |
+| A06 | Deep links and URL schemes | implemented | 🟡 | 🟡 | P2 | All routes except share handled (berean-native-dev for the Dev build; 2026-11-20, DEEP-LINKS-2026-11-20.md) |
 | A07 | Widget | implemented (iPhone) | — | ❌ | P3 |  |
 | A08 | File providers / document access | partial | 🟡 | 🟡 | — | Open/save panels, document picker |
 | A09 | Notifications | absent (deferred) | — | — | — | Deferred |
@@ -931,7 +931,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/lib/{deepLinks,deepLinkTarget}.ts`, `electron/main.ts` (line 1370), `src/platform/ios/deepLinks.ts`. 3. one router. 4. none. 5. grammar. 6. Universal Links not implemented. 7. none. 8. `deepLinks.test.ts`, `deepLinkDedupe.test.ts`. 9. SW-DATA router + `onOpenURL`. 10. Links already written into
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — berean:// deep links not handled natively
+- **Native Mac / iPhone:** 🟡 / 🟡 — router handles verse, note, lexicon, video, pdf, search, trail, daily, workspace, session, chat; share not supported (no Share Extension). Production `berean://` registration waits for the release identity decision.
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 

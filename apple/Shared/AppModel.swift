@@ -284,6 +284,10 @@ final class AppModel {
     var chatShown = false   // iPhone sheet
     var pdfsRevision = 0
     var showStudyTrail = false
+    /// A trail to open when the Study Trail sheet appears (deep link `trail/<id>`).
+    var studyTrailOpenRequest: String?
+    /// Mac: ask the main window to open the Berean Chat window (deep link `chat`).
+    var chatWindowRequest = 0
     var studyTrailRecording: StudyTrailRecording?
     private(set) var studyTrailService: StudyTrailService?
     private(set) var historyService: HistoryService?
@@ -1771,6 +1775,21 @@ final class AppModel {
                 return
             }
             openPdf(pdf.id, title: pdf.title, page: page)
+        case .video(let id, let start):
+            openYouTubeVideo(id, startMs: Int((start ?? 0) * 1000))
+        case .trail(let id):
+            guard (try? studyTrailService?.trails())?.contains(where: { $0.id == id }) ?? false else {
+                userMessage = "This study trail is unavailable."
+                return
+            }
+            studyTrailOpenRequest = id
+            showStudyTrail = true
+        case .chat:
+            #if os(iOS)
+            chatShown = true
+            #else
+            chatWindowRequest += 1
+            #endif
         default:
             userMessage = "This Berean link can’t be opened here."
         }
