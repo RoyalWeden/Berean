@@ -448,3 +448,10 @@ Both native editors now canonically verify and style copied Scripture without ch
 ## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
 
 Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
+
+
+## 2026-11-20 — Presenter, Messages and iPhone polish
+
+Focused source ebd7f913/b816ec41/1c8004b1/e5816a96 follows Claude5f9b0c45. Delivered real paused Presenter snapshots/rich note presentation, calmer native controls, safer Messages identities/drafts/search/destinations and glass layout, scene-scoped Mac commands, full-height iPhone reading, a roomier all-text picker, glass Go and richer/pinned-first tab cards. Full339 shared tests and both visual-pass builds pass; real Mac and simulator interactions are recorded in [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md). Exact committed build/check status is in CURRENT-STATE. Original21/26 notes, tags/folders and37/47 active IDs preserved; owned note trashed and temporary tabs closed; clearly identified local Chat fixtures remain.
+
+Inspector width restoration passed the custom380pt case twice and settled Notes/Search/Compare/hide-show returns. First constrained geometry and physical/manual resize remain open. Likewise physical phone, accessibility/rotation, failure injection, larger Presenter keyboard shortcut and wider rich-message/reference matrices remain open. This does not complete migration parity. **Owner requires pausing by16:50Pacific today for Claude's handover.**

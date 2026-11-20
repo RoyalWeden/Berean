@@ -14,7 +14,7 @@ Every **new or compacted Claude session** starts with this sequence:
 
 1. Read the repository's current `CLAUDE.md` and any per-directory agent instructions. Verify instructions against current code where contradictory.
 2. Read **this entire playbook** (or, when constrained, its sections 0–4, 8, 12, 15–19, and the precise sections for the next task). Do not act from a vague remembered summary.
-3. Open the latest checkpoint at the end of [HANDOFF](HANDOFF.md) for the working tree, current CI, and next executable checks. Read `STATUS.md`, `TASKS.md`, `DECISIONS.md`, and the latest entries in `CHANGELOG.md` for the wider migration state.
+3. Open the compact current checkpoint at the top of [HANDOFF](HANDOFF.md) and [CURRENT-STATE](CURRENT-STATE.md) for the working tree, current CI, and next executable checks. Read `STATUS.md`, `TASKS.md`, `DECISIONS.md`, and the latest entries in `CHANGELOG.md` for the wider migration state.
 4. Open the separately provided **Berean Native Migration Master Specification** and ensure its location is recorded in `STATUS.md`. If unavailable, do not invent content; continue only with tasks safely specified by this playbook and audits, and log the specification as missing.
 5. Consult relevant original audit sections in `docs/native-migration-audit/00` through `17` before altering a sensitive subsystem.
 6. Verify live evidence: `git status --porcelain=v1`, `git branch --show-current`, `git rev-parse HEAD`, `git worktree list`, relevant PR/CI results, current app identities and build scripts. Never assume an old checkpoint is still current.
@@ -873,3 +873,13 @@ Use NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md for the latest tested source/data
 ## 2026-11-20 — Inspector width investigation remains open
 
 Published334eafbb/4e6c49fa retained. QA trace proves hidden inspector width capture during a new closed-inspector Bible tab. Custom380pt→newPsalmLXX→close→Genesis returns320pt. Three attempted fixes built but failed the identical UI regression (active/presented capture guard; conditional ideal; omit hidden content); **all removed**, exact published source/app restored without diagnostic flags. Original1148divider/0.5782918149466192scroll/Genesis1selected1/Notes restored and prior20/25notes,37/47activeIDs/alltags rechecked unchanged. No GUI phase pending. Read [precise reproduction/trace/failed approaches](READER-VIEWPORT-RESTORATION.md#2026-11-20--width-drift-reproduced-attempted-fixes-rejected); do not report width drift fixed or repeat rejected approaches as untested ideas. Prior9aCI44693533700 cancelled;4e6c49fa CI44695609238 live at latest poll, not green. Broad migrationACTIVE.
+
+
+## 2026-11-20 operational lessons
+
+- Owner's latest hard stop is16:50Pacific Nov20; prepare cleanup/checkpoint by16:40 and pause the broad goal. Continuous notes are required throughout work, not only at the end.
+- After a crash, CUA getApp can auto-launch a copy without QA arguments. Before reacquiring UI, verify the exact live path/arguments/profile; never treat a default-profile launch as isolated. Stop only the identified QA-path process, leaving owner/other checkouts untouched.
+- Test both sides of window command changes. Native Close belongs to SwiftUI.saveItem; adding another⌘W may leave two competing actions. Presenter/Chat and main study shortcuts must each be verified.
+- On Mac split navigation, avoid duplicate native search-toolbar ownership. An inline sidebar search plus a single native thread search passed repeated Chat open/close.
+- Restore original note/tag/folder rows and exact active tab IDs, rather than claiming preservation from a count. Clearly identify owned Chat fixtures; this feature has no Trash, so do not silently hard-delete them.
+- See [the focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md) for rejected underlap/width attempts and tested versus open matrices.

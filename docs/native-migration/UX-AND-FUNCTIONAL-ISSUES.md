@@ -384,3 +384,12 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 ## 2026-11-20 — Inspector width investigation remains open
 
 Published334eafbb/4e6c49fa retained. QA trace proves hidden inspector width capture during a new closed-inspector Bible tab. Custom380pt→newPsalmLXX→close→Genesis returns320pt. Three attempted fixes built but failed the identical UI regression (active/presented capture guard; conditional ideal; omit hidden content); **all removed**, exact published source/app restored without diagnostic flags. Original1148divider/0.5782918149466192scroll/Genesis1selected1/Notes restored and prior20/25notes,37/47activeIDs/alltags rechecked unchanged. No GUI phase pending. Read [precise reproduction/trace/failed approaches](READER-VIEWPORT-RESTORATION.md#2026-11-20--width-drift-reproduced-attempted-fixes-rejected); do not report width drift fixed or repeat rejected approaches as untested ideas. Prior9aCI44693533700 cancelled;4e6c49fa CI44695609238 live at latest poll, not green. Broad migrationACTIVE.
+
+
+## 2026-11-20 — Presenter/Messages follow-through and width correction
+
+The later native restore e5816a96 supersedes the earlier removed width experiments above: custom380pt return passed twice; settled Notes/Search/Compare and explicit hide/show retain width/reading position. Constrained first opening and physical resize are still open, so this is not a universal viewport fix.
+
+Presenter's former pause followed later source edits; b816ec41 now holds rendered content, selection and focus. Main/auxiliary⌘W conflicted; ebd7f913 replaces the native Close group and scopes commands. Actual main-tab and Presenter/Chat close checks pass. The new Mac conversation search initially caused duplicate search toolbar insertion/crash; only the thread now registers native toolbar search, and repeated Chat open/close passed. Keep these failed attempts visible in the [evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md).
+
+Remaining: physical phone/keyboard/rotation/accessibility; larger Presenter keyboard shortcut; long/table messages and internal reference interactions; save/edit failure injection; constrained/manual inspector resizing. Full data preservation and owned QA fixture cleanup details are in the focused evidence and CURRENT-STATE.

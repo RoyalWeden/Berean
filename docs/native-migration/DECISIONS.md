@@ -665,3 +665,16 @@ On iPhone use native Settings category navigation matching Mac panes instead of 
 ## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
 
 Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
+
+
+### ADR-0016 — Rendered Presenter pause, scoped message addresses and native window commands
+
+- Date/author:2026-11-20, Codex. Status: ACCEPTED (engineering, reversible), under the owner's Presenter/Messages quality request.
+- Presenter pause retains a rendered value snapshot and focus/selection, rather than an ID whose content can change later. Resume loads the current source. Shared reader numbering, annotations and replacements apply before snapshot creation.
+- Message IDs remain unchanged in storage. UI addresses combine conversation ID and raw message ID because legacy conversations may reuse IDs. The same address owns scrolling, replies and edits; tests prove no cross-conversation mutation.
+- Drafts are local SceneStorage per conversation; no sync/table format is added. Save failures retain work. Messages reading uses the existing Markdown renderer, with optional intrinsic width; all prior callers retain expanding behavior.
+- Replace the native saveItem Close group, rather than registering a competing⌘W. Study-only actions are disabled in auxiliary windows. Main and auxiliary close behavior passed actual UI checks.
+- Only one Mac NavigationSplitView column registers native search toolbar; the sidebar uses an inline field. Two searchable columns crashed during insertion. Explicit toolbar IDs and repeated open/close verification are required.
+- iPhone underlap extends only the native scroll surface by measured safe insets. Floating controls retain their safe outer layout; direct ignoresSafeArea attempts placed hidden-dock actions below the home indicator and were rejected.
+- Inspector width uses a one-shot public NSSplitView restoration after actual visible geometry, yielding to resize input. Three older SwiftUI-only attempts failed and remain rejected. Manual/constrained matrix is open.
+- No production/sync/schema/raw identity changes. Review/merge guards remain. [Evidence and remaining gates](PRESENTER-MESSAGES-POLISH-2026-11-20.md).

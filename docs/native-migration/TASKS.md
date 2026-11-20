@@ -503,3 +503,18 @@ Both native editors now canonically verify and style copied Scripture without ch
 ## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
 
 Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
+
+
+## 2026-11-20 — Owner follow-up: Presenter, Messages and iPhone navigation
+
+Read [implementation and exact gates](PRESENTER-MESSAGES-POLISH-2026-11-20.md) and CURRENT-STATE before continuing. Owner requires a16:50Pacific handover; continuously checkpoint rather than leaving unrecorded dirty work.
+
+| ID | Status | Delivered / next acceptance gate |
+| --- | --- | --- |
+| PRESENTER-SNAPSHOT | IMPLEMENTED, bounded UI verified | Rendered Scripture/note/lexicon snapshots, real pause/resume, reader filters, rich notes and native grouped controls. Complete chapter/focus/scale and keyboard-zoom matrices. |
+| CHAT-POLISH | IMPLEMENTED, bounded Mac+iPhone UI verified | Rich content-sized bubbles, glass composer, drafts, two kinds of search, explicit All Messages destination, safe edit/reply addresses and error retention. Next: explicit internal links/automatic references, long/table content, failure injection and accessibility. |
+| AUXILIARY-COMMAND-SCOPE | IMPLEMENTED, bounded Mac UI verified | One saveItem Close command; main⌘W closes tab, Presenter/Chat⌘W close only their window. Complete all focused editor/menu/shortcut combinations and⇧⌘W. |
+| IOS-PICKER-ALL-TEXTS | IMPLEMENTED, bounded UI verified | Full-height text search including Other writings, direct single-book chapters, keyboard dismissal, stale preview guard. Rapid typing/text changes, keyboard and accessibility matrices remain. |
+| IOS-READER-UNDERLAP | IMPLEMENTED, bounded UI verified | Scripture beneath chrome/full bottom; selected actions safe with dock shown/hidden. Compare, landscape/rotation, large type and physical phone remain. |
+| IOS-TAB-PREVIEWS | IMPLEMENTED, bounded UI verified | Adaptive cards, pinned separation, prepared Scripture and lexicon previews with stale guards. Saved-reading-position priority, large libraries and accessibility remain. |
+| INSPECTOR-WIDTH-RETURN | IMPLEMENTED, bounded UI verified | Native one-shot width restore and old-tab guards; custom380pt and settled Notes/Search/Compare/hide-show pass. Constrained first presentation and actual user resize/cancellation remain open. |

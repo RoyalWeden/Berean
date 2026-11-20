@@ -9,6 +9,8 @@ Priority: P0 data-safety, P1 major missing workflow, P2 incomplete / usability, 
 
 ## Coverage summary
 
+These historical inventory counts predate the later dated implementation entries. Use each row and the latest evidence before treating a feature as missing or complete.
+
 - **Mac:** — 13, ✅ 31, ❌ 36, 🟡 24
 - **iPhone:** — 16, ✅ 17, ❌ 35, ❓ 1, 🟡 35
 
@@ -71,7 +73,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U04 | Tab and session persistence | implemented | ✅ | ✅ | — | Synced sessions/tabs tables, relaunch restore |
 | U05 | Workspaces and layouts | implemented | ✅ | 🟡 | — | 16 layouts (Mac); saved workspaces both |
 | U06 | Resizable panels, drag and drop | implemented (Mac) | 🟡 | — | P2 | Split panes; no drag tabs into panes |
-| U07 | Multi-window, floating panels, presenter/viewer | implemented (Mac only) | 🟡 | — | P2 | New Window + Presenter window (⌘⇧B) following the active tab with zoom/pause (2026-11-20, PRESENTER-2026-11-20.md); laser/compare/side panel/floating tabs open |
+| U07 | Multi-window, floating panels, presenter/viewer | implemented (Mac only) | 🟡 | — | P2 | New Window + Presenter (⌘⇧B), rendered pause snapshots, rich notes, reader filters and scoped Close behavior; actual bounded UI checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md. Laser/compare/side panel/floating tabs and full focus/zoom matrix open |
 | U08 | Navigation state and history stacks | implemented | ✅ | 🟡 | — | Per-tab history; [sidebar ‹ ›] group (Mac); iPhone Back/Forward in More |
 | U09 | Menus, context actions, commands | implemented | 🟡 | 🟡 | P2 | Menus/context menus partial; ⌘K/Go has a Commands group (notes, calendar, history, tags, PDFs, YouTube, lexicon, workspace, tab and reader commands; iPhone also Berean Chat) |
 | U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; searchable list in Settings → Keyboard Shortcuts (refreshed 2026-11-20 with presenter/chat/headings/text size); editing deferred as in the original |
@@ -82,7 +84,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U15 | Tasks panel and first steps | implemented (Mac only) | 🟡 | 🟡 | P3 | Getting Started checklist with original completedStepIds + native detection, on both platforms (2026-11-20) |
 | U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |
 | U17 | PDFs | partial | 🟡 | 🟡 | P2 | Library + PDFKit reader with highlights, notes, bookmarks, outline, find, page restore and missing-file re-attach (2026-11-20). Share Extension intake, experimental gate and bookmark labels open. |
-| U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Notes side: conversations, Unfiled, pins, folders, replies, edit/delete (2026-11-20, BEREAN-CHAT-2026-11-20.md); model-free Ask Berean saves into Chat (ASK-BEREAN-MODEL-FREE-2026-11-20.md) |
+| U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Conversations/Unfiled/pins/folders/replies/edit/delete; rich bubbles, glass composer, local drafts, search/destinations and scoped message identities. Bounded Mac+iPhone checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md; full references/failure/accessibility matrix remains open. Model-free Ask saves into Chat. |
 | M01 | YouTube browsing and playback | implemented | 🟡 | 🟡 | P2 | WebKit tab: channel list, browse/watch, sign-in persists, timestamp links (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no scraped feed/transcripts |
 | M02 | Picture-in-Picture | implemented | 🟡 | 🟡 | P3 | Manual PiP button + ⇧⌘P; pages persist across tab switches; auto-PiP on tab switch not achieved (YOUTUBE-TAB-2026-11-20.md) |
 | M03 | Video-linked notes and timestamps | implemented | 🟡 | 🟡 | P3 | Insert timestamp link into an open note; YouTube links in notes open the YouTube tab at that moment (2026-11-20) |
@@ -1323,3 +1325,8 @@ Both native editors now canonically verify and style copied Scripture without ch
 ## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
 
 Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
+
+
+## 2026-11-20 — Presenter/Messages/iPhone polish checkpoint
+
+See [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md) for source commits, actual UI scenarios and precise limits. This increment improves U07/U09/U18, iPhoneS02/S04/S08/Q09 and tab previews; it does not mark those broad features complete. Full339 shared tests and both visual builds pass; original notes/tags/folders/active IDs preserved. Wider physical, accessibility, reference, failure and constrained/manual resize matrices remain open.
