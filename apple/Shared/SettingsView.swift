@@ -193,6 +193,7 @@ struct SettingsView: View {
         Section("About") {
             LabeledContent("Version", value: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–") + " (native development build)")
             LabeledContent("Texts", value: "\(availableTexts.count) installed")
+            Button("Replay Getting Started") { app.replayOnboarding() }
         }
         Section("Library") {
             LabeledContent("Location", value: UserLibrary.directory.path).textSelection(.enabled)

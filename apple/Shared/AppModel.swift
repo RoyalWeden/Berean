@@ -327,7 +327,29 @@ final class AppModel {
     private var keys = TabPersistence.OrderKeyMaps()
     private var saveTask: Task<Void, Never>?
 
-    init() { openLibrary(); loadBookCatalog() }
+    init() { openLibrary(); loadBookCatalog(); evaluateOnboarding() }
+
+    // MARK: onboarding (the original's per-device `onboardingCompleted` gate)
+
+    var onboardingShown = false
+
+    /// Shows the getting-started flow only for a genuinely new library: not completed on this
+    /// device *and* no notes, highlights or tags yet — so existing libraries (and QA copies of
+    /// them) are never interrupted by a first-launch sheet.
+    private func evaluateOnboarding() {
+        guard let db = database?.connection,
+              (try? settingsService?.all())?["onboardingCompleted"]?.boolValue != true else { return }
+        let used = (try? db.query("SELECT (SELECT COUNT(*) FROM notes) + (SELECT COUNT(*) FROM highlights) + (SELECT COUNT(*) FROM verse_tags) AS n"))?
+            .first.flatMap { row -> Int64? in if case .integer(let n)? = row["n"] { return n } else { return nil } } ?? 1
+        onboardingShown = used == 0
+    }
+
+    func completeOnboarding() {
+        try? settingsService?.set("onboardingCompleted", .bool(true))
+        onboardingShown = false
+    }
+
+    func replayOnboarding() { onboardingShown = true }
 
     // MARK: library
 

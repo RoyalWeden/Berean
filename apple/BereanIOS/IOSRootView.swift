@@ -126,6 +126,9 @@ struct IOSRootView: View {
             alternateEdition = target
         }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
+        .fullScreenCover(isPresented: Binding(get: { app.onboardingShown }, set: { if !$0 { app.completeOnboarding() } })) {
+            OnboardingView()
+        }
         .sheet(item: $chapterTagTarget) { target in
             TagPickerView(ranges: target.ranges, label: target.label, kind: "chapter")
         }

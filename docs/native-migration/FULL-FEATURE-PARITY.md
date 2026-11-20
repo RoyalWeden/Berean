@@ -77,7 +77,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; no shortcuts list in Settings |
 | U11 | Themes and appearance | implemented | ✅ | ✅ | — | System/light/dark; dark mode visually checked on Mac reader/search |
 | U12 | Settings | implemented | 🟡 | 🟡 | P2 | Reading, Appearance, Workspaces, Library. Includes preferred Shepherd of Hermas edition. Text ordering and other settings sections remain open. |
-| U13 | Onboarding and hints | partial | ❌ | ❌ | P3 | Onboarding not ported |
+| U13 | Onboarding and hints | partial | 🟡 | 🟡 | P3 | Getting started flow (welcome, default text, appearance) + replay in About (2026-11-20, ONBOARDING-2026-11-20.md); feature hints not ported |
 | U14 | Study Trail | implemented | 🟡 | 🟡 | P1 | List, branch map, search, ordering, recording, tag assignment, and sticky notes use legacy rows. Merge/split, draggable map layout and full graph controls remain open. |
 | U15 | Tasks panel and first steps | implemented (Mac only) | ❌ | — | P3 | Tasks panel not ported |
 | U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |

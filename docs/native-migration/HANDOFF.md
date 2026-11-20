@@ -2808,3 +2808,7 @@ PDF library + PDFKit reader on both apps, same tables/tab state; 307 tests + bot
 ### 2026-11-20 — Claude Code: note images (N05) — session ended at usage limit
 
 Inline note images now render on both apps. Also fixed two pre-existing problems found while testing: the image regex failing on large base64, and multi-second keystrokes on notes with images. Details and open items (restyle on width change, insert/paste UI): [NOTE-IMAGES-2026-11-20](NOTE-IMAGES-2026-11-20.md). 312 tests + both builds PASS. Claude's session this round delivered: Word Replacer switches, Tag Graph, PDFs, note images. Claude QA fixtures only: Mac profile `claude-20261120`, sim E8B01B22… (disposable). Codex's checkout/profile/sim untouched.
+
+### 2026-11-20 (later) — Claude Code: images follow-ups + getting started
+
+e681a771 images re-fit on width change and are sized by pixels; ee492af9 paste and Insert → Image… on both apps (fixed insertion inside hidden image markup); 4f1b9059 Mac drop of image files; then the getting-started flow (U13) — see [ONBOARDING-2026-11-20](ONBOARDING-2026-11-20.md) and [NOTE-IMAGES-2026-11-20](NOTE-IMAGES-2026-11-20.md). Tests + both builds PASS. Next ready picks: starter tab using the chosen default text; iPhone image paste on device; Share Extension (A03); Read Aloud (M05).

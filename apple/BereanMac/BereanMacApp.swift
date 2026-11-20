@@ -19,6 +19,9 @@ struct BereanMacApp: App {
                 .preferredColorScheme(app.colorScheme)
                 .frame(minWidth: MacLayoutLimits.windowMinimum, minHeight: 520)
                 .onOpenURL(perform: app.openNativeDevURL)
+                .sheet(isPresented: Binding(get: { app.onboardingShown }, set: { if !$0 { app.completeOnboarding() } })) {
+                    OnboardingView().environment(app)
+                }
         }
         .windowResizability(.contentMinSize)
         Settings {
