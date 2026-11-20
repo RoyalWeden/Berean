@@ -39,6 +39,8 @@ struct MacTabContentHost: View {
                 HistoryView(tabId: tab.id).id(tab.id)
             case .tags:
                 TagManagerView().id(tab.id)
+            case .pdf:
+                PdfTabView(tabId: tab.id).id(tab.id)
             default:
                 ContentUnavailableView(tab.title, systemImage: tab.symbol,
                                        description: Text("This kind of tab arrives in a later native build. It stays saved with your workspace."))

@@ -514,6 +514,7 @@ struct CommandPalette: View {
             ("Notes", "tray.full", { inNewTab in app.openNotesHome(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("History", "clock", { inNewTab in app.openHistory(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("Tags", "tag", { inNewTab in app.openTags(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("PDFs", "doc.richtext", { inNewTab in app.openPdfLibrary(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("Search Lexicon", "character.book.closed", { inNewTab in app.openLexiconSearch(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("New Workspace", "square.stack", { _ in app.newWorkspace() }),
         ]

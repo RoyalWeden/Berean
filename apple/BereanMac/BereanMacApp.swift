@@ -75,6 +75,7 @@ struct BereanMacApp: App {
                 Button("Study Trail") { app.showStudyTrail = true }
                 Button("Calendar") { app.openCalendar() }
                 Button("Tags") { app.openTags() }
+                Button("PDFs") { app.openPdfLibrary() }
                 Divider()
                 Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)
                 Button("Forward") { app.goForward() }.keyboardShortcut("]").disabled(!app.canGoForward)

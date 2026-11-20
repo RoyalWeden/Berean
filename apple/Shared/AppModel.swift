@@ -274,6 +274,8 @@ final class AppModel {
     private(set) var workspaces: WorkspacesService?
     private(set) var verseTags: VerseTagsService?
     private(set) var tagGraph: TagGraphService?
+    private(set) var pdfs: PdfService?
+    var pdfsRevision = 0
     var showStudyTrail = false
     var studyTrailRecording: StudyTrailRecording?
     private(set) var studyTrailService: StudyTrailService?
@@ -348,6 +350,7 @@ final class AppModel {
             historyService = HistoryService(db: db.connection)
             studyTrailService = StudyTrailService(db: db.connection)
             verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
+            pdfs = PdfService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.pdfsRevision += 1 } })
             if let verseTags {
                 tagGraph = TagGraphService(db: db.connection, tags: verseTags,
                                            onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
@@ -580,6 +583,31 @@ final class AppModel {
 
     func openTags(newTab: Bool = false, preferActiveTab: Bool = false) {
         openUtilityTab(.tags, in: .notes, title: "Tags", newTab: newTab, preferActiveTab: preferActiveTab)
+    }
+
+    /// The PDF library (a `pdf` tab without `pdfId`, as the original's picker).
+    func openPdfLibrary(newTab: Bool = false, preferActiveTab: Bool = false) {
+        if !newTab, let tab = session.allTabs.first(where: { $0.tabType == .pdf && $0.state["pdfId"]?.stringValue == nil }) {
+            select(tab.id, in: tab.spaceId); return
+        }
+        if !newTab, preferActiveTab, replaceCurrentTab(.pdf, in: .scripture, title: "PDFs", state: JSObject()) { return }
+        openTab(.pdf, in: .scripture, title: "PDFs", state: JSObject())
+    }
+
+    /// Opens a PDF (focusing an existing tab for it, as the original `openPdf`), optionally at a page.
+    func openPdf(_ id: String, title: String, page: Int? = nil, replacing tabId: String? = nil) {
+        if let tab = session.allTabs.first(where: { $0.tabType == .pdf && $0.state["pdfId"]?.stringValue?.string == id }) {
+            if let page { update(tab.id) { $0.state["page"] = .number(Double(page)) } }
+            select(tab.id, in: tab.spaceId); return
+        }
+        var state = JSObject()
+        state["pdfId"] = .string(JSString(id)); state["title"] = .string(JSString(title))
+        if let page { state["page"] = .number(Double(page)) }
+        if let tabId, findTab(tabId) != nil {
+            update(tabId) { $0.type = TabType.pdf.rawValue; $0.title = title; $0.state = state }
+            return
+        }
+        openTab(.pdf, in: .scripture, title: title, state: state)
     }
 
     func openUtilityTab(_ type: TabType, in space: SpaceId, title: String, newTab: Bool, preferActiveTab: Bool = false) {
@@ -1620,6 +1648,12 @@ final class AppModel {
                 return
             }
             switchSession(id)
+        case .pdf(let id, let page):
+            guard let pdf = try? pdfs?.get(id) else {
+                userMessage = "This PDF isn’t in your library on this device."
+                return
+            }
+            openPdf(pdf.id, title: pdf.title, page: page)
         default:
             userMessage = "This Berean link can’t be opened here."
         }

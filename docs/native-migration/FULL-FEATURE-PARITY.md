@@ -697,8 +697,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/pdf/*`, `electron/ipc/pdf.ts`, `src/platform/services/pdfService.ts`, `src/lib/pdfjs.ts`, `src/platform/ios/bridgeExtras.ts` (`pdf`), iPhone `PdfLibraryPage` in `MobileApp.tsx`, Share Extension PDF intake.
 - **Known original defects:** Bytes never sync (documented). 8. none for pdf components; `bereanMigrations` v11/v46 only. 9. SW-UI with PDFKit (`PDFView`) — a strong native fit; highlights via `PDFAnnotation`. 10. Highlight geometry must map from pdf.js text-layer coordinates to PDFKit selections (INFERRED, medium). 11. C-DATA.
-- **Native Mac / iPhone:** ❌ / ❌ — PDFs not ported
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — Library (import/rename/delete/copy link, missing-file state + hash re-attach), PDFKit reader (page restore, highlights in the original normalised format, notes, bookmarks, outline, find, copy page link, Search Scripture from selection). See [PDF-READER-2026-11-20](PDF-READER-2026-11-20.md). Share Extension intake, `pdfFeatureEnabled` gate and bookmark-label editing remain.
+- **Native files:** BereanNotes/PdfService.swift, PdfGeometry.swift, apple/Shared/PdfViews.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### U18 Berean Chat (notes-style chat)

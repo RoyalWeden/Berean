@@ -315,6 +315,8 @@ struct IOSRootView: View {
                 HistoryView(tabId: tab.id).id(tab.id)
             case .tags:
                 TagManagerView().id(tab.id)
+            case .pdf:
+                PdfTabView(tabId: tab.id).id(tab.id)
             default:
                 ContentUnavailableView(tab.title, systemImage: "square.dashed", description: Text("This kind of tab arrives in a later native build."))
             }
@@ -409,6 +411,7 @@ struct IOSRootView: View {
                     Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                     Button("Tags", systemImage: "tag") { app.openTags() }
+                    Button("PDFs", systemImage: "doc.richtext") { app.openPdfLibrary() }
                 }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }

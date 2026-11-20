@@ -2800,3 +2800,7 @@ Delivered: persisted per-rule Word Replacer switches through every consumer — 
 ### 2026-11-20 — Claude Code: Tag Graph
 
 Delivered U16 tag graph (service + layout port + Canvas UI + inspector) on both apps; 304 tests + both builds PASS; iPhone and Mac UI exercised on Claude-owned fixtures only. Details/limits: [TAG-GRAPH-2026-11-20](TAG-GRAPH-2026-11-20.md). Claude's Mac QA copy: `/private/tmp/berean-claude-qa/BereanMac.app --qa-library --qa-profile claude-20261120` (stopped after use). Next Claude picks: PDFs (U17, ❌ both) or remaining Kokoro/YouTube gaps — check with Codex's queue first.
+
+### 2026-11-20 — Claude Code: native PDFs (U17)
+
+PDF library + PDFKit reader on both apps, same tables/tab state; 307 tests + both builds PASS; Mac and iPhone UI exercised on Claude-owned fixtures (own Mac QA profile `claude-20261120`, own sim E8B01B22…). Details, bugs fixed and open items: [PDF-READER-2026-11-20](PDF-READER-2026-11-20.md).
