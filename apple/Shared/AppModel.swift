@@ -276,6 +276,8 @@ final class AppModel {
     private(set) var tagGraph: TagGraphService?
     private(set) var pdfs: PdfService?
     private(set) var chats: ChatsService?
+    /// Read-only YouTube transcripts (segments come from data packs / desktop; never fetched here).
+    private(set) var transcripts: TranscriptService?
     var chatsRevision = 0
     var chatShown = false   // iPhone sheet
     var pdfsRevision = 0
@@ -412,6 +414,7 @@ final class AppModel {
             studyTrailService = StudyTrailService(db: db.connection)
             verseTags = VerseTagsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.tagsRevision += 1 } })
             pdfs = PdfService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.pdfsRevision += 1 } })
+            transcripts = TranscriptService(db: db.connection)
             chats = ChatsService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.chatsRevision += 1 } })
             if let verseTags {
                 tagGraph = TagGraphService(db: db.connection, tags: verseTags,

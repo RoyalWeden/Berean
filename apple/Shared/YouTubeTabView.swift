@@ -2,6 +2,7 @@ import SwiftUI
 import WebKit
 import BereanCore
 import BereanWorkspace
+import BereanNotes
 
 /// YouTube tab (original YouTubeTab, `youtube` tab type with `{videoId, playlistId, url}` state):
 /// a WebKit page — channel home (the original's allow-listed channels), browse and watch with the
@@ -33,6 +34,7 @@ struct YouTubeTabView: View {
 
     @State private var showingHome = true
     @State private var lastSaved: String?
+    @State private var transcriptShown = false
 
     /// electron/ipc/youtube.ts CHANNELS (hard-coded allow-list in the original).
     static let channels = ["@matthewforyeshua", "@andrewrepent", "@SpiritofTruth.Remnant", "@matthew953", "@antonio-praiseyah3137",
@@ -123,6 +125,15 @@ struct YouTubeTabView: View {
                 Button("Back", systemImage: "chevron.backward") { if let item = page.backForwardList.backList.last { page.load(item) } }
                     .disabled(page.backForwardList.backList.isEmpty)
                 Button("Channels", systemImage: "list.bullet") { showingHome = true }
+                if let id = Self.videoId(from: page.url), let segments = try? app.transcripts?.transcript(id), !segments.isEmpty {
+                    Button("Transcript", systemImage: "text.quote") { transcriptShown = true }
+                        .help("Show the transcript; click a line to jump there")
+                        .popover(isPresented: $transcriptShown) {
+                            TranscriptList(segments: segments) { ms in Task { await seek(ms) } }
+                                .frame(minWidth: 340, idealWidth: 380, minHeight: 420)
+                                .presentationDetents([.medium, .large])
+                        }
+                }
                 if Self.videoId(from: page.url) != nil {
                     Button("Picture in Picture", systemImage: "pip.enter") { Task { await togglePiP() } }
                         .help("Picture in Picture (⇧⌘P)")
@@ -146,6 +157,11 @@ struct YouTubeTabView: View {
                 }
             }
         }
+    }
+
+    private func seek(_ ms: Int) async {
+        _ = try? await page.callJavaScript("var v=document.querySelector('video');if(v){v.currentTime=t;v.play();}",
+                                           arguments: ["t": Double(ms) / 1000])
     }
 
     // MARK: Picture in Picture (WebKit presentation mode on the page's <video>)
@@ -195,3 +211,32 @@ struct YouTubeTabView: View {
 }
 
 
+
+/// Searchable transcript lines with timestamps (original TranscriptViewer); a tap seeks the video.
+struct TranscriptList: View {
+    let segments: [TranscriptService.Segment]
+    let seek: (Int) -> Void
+    @State private var query = ""
+    private var shown: [TranscriptService.Segment] {
+        query.isEmpty ? segments : segments.filter { $0.text.localizedCaseInsensitiveContains(query) }
+    }
+    var body: some View {
+        NavigationStack {
+            List(shown, id: \.startMs) { seg in
+                Button { seek(seg.startMs) } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(TranscriptService.clock(seg.startMs)).font(.caption.monospacedDigit()).foregroundStyle(.tint)
+                        Text(seg.text).foregroundStyle(.primary)
+                    }
+                }
+                .buttonStyle(.interactivePlain)
+            }
+            .overlay { if shown.isEmpty { ContentUnavailableView.search(text: query) } }
+            .searchable(text: $query, prompt: "Search transcript")
+            .navigationTitle("Transcript")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+        }
+    }
+}
