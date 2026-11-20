@@ -321,7 +321,7 @@ final class AppModel {
     var defaultNoteStatus = "none" { didSet { saveSetting("defaultNoteStatus", .string(JSString(defaultNoteStatus))) } }
     private var loadingSettings = false
 
-    private var database: UserDatabase?
+    private(set) var database: UserDatabase?
     private var sessionsService: SessionsService?
     private var lock: SingleInstanceLock?
     private var keys = TabPersistence.OrderKeyMaps()
@@ -332,6 +332,7 @@ final class AppModel {
     // MARK: onboarding (the original's per-device `onboardingCompleted` gate)
 
     var onboardingShown = false
+    var eSwordImportShown = false
 
     /// Shows the getting-started flow only for a genuinely new library: not completed on this
     /// device *and* no notes, highlights or tags yet — so existing libraries (and QA copies of

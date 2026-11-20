@@ -2816,3 +2816,7 @@ e681a771 images re-fit on width change and are sized by pixels; ee492af9 paste a
 ### 2026-11-20 — Claude Code: QA incident (Mac) and the rule it adds
 
 While testing the image resize menu, my QA app's window had not opened yet, and one `cliclick` right-click at screen (560,380) landed on the **installed Electron "Berean" window (PID 78736, Michael's real library)**. It opened that app's verse context menu on Romans 1:24. I dismissed it with Escape sent only to that PID; **nothing was selected or changed** (screenshot confirmed: menu closed, only a hover tint). Rule for every AI: before any coordinate click on the Mac, verify the QA app's PID is frontmost **and** owns the window at that point (helper written: scratchpad `safeclick.sh`). The on-screen window list can disagree with what is drawn, so when in doubt, do not click on the Mac. Prefer the isolated simulator. Further Mac GUI checks of Image Size were skipped for this reason.
+
+### 2026-11-20 — Claude Code: e-Sword import (N15)
+
+Native Mac port of the e-Sword importer with review sheet; output checked against the original TypeScript run under node. Details: [ESWORD-IMPORT-2026-11-20](ESWORD-IMPORT-2026-11-20.md). Mac verified with click-free automation (see the incident rule above).

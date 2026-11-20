@@ -32,7 +32,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
 | S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open. |
 | S14 | Very long chapter performance | implemented (partly measured) | 🟡 | ❓ | P2 | Both TextKit readers render the whole chapter. Psalm 119 latency still needs measurement. |
-| S15 | Find in chapter | implemented | ✅ | ❌ | P2 | Find in chapter (⌘F) missing — NSTextView find bar can be enabled |
+| S15 | Find in chapter | implemented | ✅ | ✅ | P2 | Mac glass find bar; iPhone More → Find in Chapter opens the system find navigator (verified earlier in HANDOFF) |
 | S16 | Word replacer (display rules for divine names and search expansion) | implemented | ✅ | ✅ | — | Word replacer display + search variants + Strong's bridge |
 | Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Both app bundles carry all 19 supported Scripture IDs. All Texts searches the bundled corpus; Mac opened Didache via ⌘K. |
 | Q02 | Reference search | implemented | ✅ | ✅ | — | References in ⌘K/New/search field go to passage |
@@ -58,7 +58,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have month and week grids, direct month/year navigation, and a scrollable daily-note timeline with previews and calendar return. Date-to-note navigation uses the legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
 | N13 | Idiom / reference-book editor | implemented, niche | ❌ | ❌ | P3 | Idiom editor not ported |
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
-| N15 | e-Sword import | implemented (Mac only) | ❌ | — | P3 | e-Sword import not ported |
+| N15 | e-Sword import | implemented (Mac only) | ✅ | — | P3 | File → Import from e-Sword… with review (2026-11-20, ESWORD-IMPORT-2026-11-20.md) |
 | H01 | Storage | implemented | ✅ | ✅ | — | Highlights service golden-verified |
 | H02 | Verse, word and selection highlights; offsets and anchoring | implemented | ✅ | 🟡 | P2 | Both readers map text selections into existing stored character offsets. Mac partial selection previously verified; iPhone write/reopen needs touch QA. |
 | H03 | Colours and categories | partial | ✅ | ✅ | — | 5 colours |

@@ -19,6 +19,9 @@ struct BereanMacApp: App {
                 .preferredColorScheme(app.colorScheme)
                 .frame(minWidth: MacLayoutLimits.windowMinimum, minHeight: 520)
                 .onOpenURL(perform: app.openNativeDevURL)
+                .sheet(isPresented: Binding(get: { app.eSwordImportShown }, set: { app.eSwordImportShown = $0 })) {
+                    ESwordImportView().environment(app)
+                }
                 .sheet(isPresented: Binding(get: { app.onboardingShown }, set: { if !$0 { app.completeOnboarding() } })) {
                     OnboardingView().environment(app)
                 }
@@ -45,6 +48,7 @@ struct BereanMacApp: App {
             }
             CommandGroup(replacing: .importExport) {
                 Button("Import Markdown…") { app.importMarkdownFiles() }
+                Button("Import from e-Sword…") { app.eSwordImportShown = true }
                 Button("Export Note as Markdown…") { app.exportActiveNote() }.keyboardShortcut("e", modifiers: [.command, .shift])
                     .disabled(app.activeNoteId == nil)
             }
