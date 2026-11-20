@@ -606,6 +606,13 @@ final class NoteTextView: NSTextView {
         return true
     }
 
+    func resizeImage(_ image: NoteImages.Image, width: Int?) {
+        guard let current = NoteImages.find(in: string).first(where: { $0.range.location == image.range.location }) else { return }
+        let edit = NoteImages.widthEdit(current, in: string, width: width)
+        replaceSource(edit.range, with: edit.replacement,
+                      select: NSRange(location: NSMaxRange(current.range) + edit.replacement.utf16.count - edit.range.length, length: 0), actionName: "Resize Image")
+    }
+
     func insertImageMarkdown(_ markdown: String) {
         let text = string as NSString
         var range = selectedRange()
@@ -636,6 +643,21 @@ final class NoteTextView: NSTextView {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let m = super.menu(for: event) ?? NSMenu()
+        // Right-clicking an image offers sizes, written as the original's |wNNN alt suffix.
+        let point = convert(event.locationInWindow, from: nil)
+        let index = characterIndexForInsertion(at: point)
+        if let image = NoteImages.image(at: index, in: string) ?? NoteImages.image(at: selectedRange().location, in: string) {
+            let sizes = NSMenu(title: "Image Size")
+            for preset in NoteImageInput.sizePresets(for: image) {
+                let item = ClosureMenuItem(preset.title) { [weak self] in self?.resizeImage(image, width: preset.width) }
+                item.state = image.width == preset.width ? .on : .off
+                sizes.addItem(item)
+            }
+            let parent = NSMenuItem(title: "Image Size", action: nil, keyEquivalent: "")
+            parent.submenu = sizes
+            m.insertItem(parent, at: 0)
+            m.insertItem(.separator(), at: 1)
+        }
         if let i = m.items.firstIndex(where: { $0.action == #selector(copy(_:)) }) {
             m.insertItem(ClosureMenuItem("Copy as Plain Text", key: "c", modifiers: [.command, .option, .shift]) { [weak self] in self?.copyPlainText(nil) }, at: i + 1)
         }

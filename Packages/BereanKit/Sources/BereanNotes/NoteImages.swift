@@ -92,4 +92,20 @@ public enum NoteImages {
         let ns = name as NSString
         return ns.pathExtension.isEmpty ? name : ns.deletingPathExtension
     }
+
+    /// The image whose markup contains (or touches) `location`, if any.
+    public static func image(at location: Int, in text: String) -> Image? {
+        find(in: text).first { location >= $0.range.location && location <= NSMaxRange($0.range) }
+    }
+
+    /// Replaces only the alt text so the image carries `|w<width>` (nil = natural size, the suffix
+    /// removed), exactly as the original serializer writes a resized image. Returns the UTF-16
+    /// range to replace and its replacement; the source is untouched.
+    public static func widthEdit(_ image: Image, in text: String, width: Int?) -> (range: NSRange, replacement: String) {
+        let ns = text as NSString
+        let altStart = image.captionRange.location
+        let closing = ns.range(of: "](", options: [], range: NSRange(location: altStart, length: NSMaxRange(image.range) - altStart))
+        let altRange = NSRange(location: altStart, length: (closing.location == NSNotFound ? NSMaxRange(image.captionRange) : closing.location) - altStart)
+        return (altRange, image.alt + (width.map { "|w\($0)" } ?? ""))
+    }
 }

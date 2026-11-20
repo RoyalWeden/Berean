@@ -2812,3 +2812,7 @@ Inline note images now render on both apps. Also fixed two pre-existing problems
 ### 2026-11-20 (later) — Claude Code: images follow-ups + getting started
 
 e681a771 images re-fit on width change and are sized by pixels; ee492af9 paste and Insert → Image… on both apps (fixed insertion inside hidden image markup); 4f1b9059 Mac drop of image files; then the getting-started flow (U13) — see [ONBOARDING-2026-11-20](ONBOARDING-2026-11-20.md) and [NOTE-IMAGES-2026-11-20](NOTE-IMAGES-2026-11-20.md). Tests + both builds PASS. Next ready picks: starter tab using the chosen default text; iPhone image paste on device; Share Extension (A03); Read Aloud (M05).
+
+### 2026-11-20 — Claude Code: QA incident (Mac) and the rule it adds
+
+While testing the image resize menu, my QA app's window had not opened yet, and one `cliclick` right-click at screen (560,380) landed on the **installed Electron "Berean" window (PID 78736, Michael's real library)**. It opened that app's verse context menu on Romans 1:24. I dismissed it with Escape sent only to that PID; **nothing was selected or changed** (screenshot confirmed: menu closed, only a hover tint). Rule for every AI: before any coordinate click on the Mac, verify the QA app's PID is frontmost **and** owns the window at that point (helper written: scratchpad `safeclick.sh`). The on-screen window list can disagree with what is drawn, so when in doubt, do not click on the Mac. Prefer the isolated simulator. Further Mac GUI checks of Image Size were skipped for this reason.

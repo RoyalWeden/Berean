@@ -16,3 +16,9 @@ Status: **IMPLEMENTED; Mac VERIFIED, iPhone partly VERIFIED**. Was ❌/❌ (alt 
 - Insert menu → **Image…** (NSOpenPanel / document picker) on both apps.
 - **Bug found and fixed in testing:** a click on an image line can put the caret among the hidden `![` characters; the first paste split the existing image's Markdown. `NoteImageInput.insertionPoint` now moves insertion after that image's line. The retest inserted cleanly; the existing images stayed byte-identical.
 - Verified: Mac paste (clipboard restored afterwards). iPhone paste/Insert Image built, not exercised (the simulator clipboard needs the DeviceHub path). Mac drag-and-drop of picture files: IMPLEMENTED (performDragOperation inserts at the drop point), not exercised (Finder drag not automatable here). iPhone drop and resize handles still OPEN.
+
+## Resizing (follow-up)
+
+- **Image Size** menu (Small 200 / Medium 360 / Large 560 / Original Size; presets wider than the image's pixel width are hidden; the current size is ticked). Mac: the editor's right-click menu on an image. iPhone: first item of the edit menu when the caret or selection is in an image. It writes only the alt text's `|wNNN` (`NoteImages.widthEdit`, tested); a single undoable step; the caret moves after the image markup.
+- Verified on iPhone sim: Original → Small → image redrawn at 200 pt, saved `![Cave 4 fragment|w200](…)`, Undo restored `![Cave 4 fragment](…)`. Mac: built, **not clicked** (see HANDOFF incident note).
+- OPEN: dragging a resize handle (the original's) is not implemented; the menu is the native replacement. Keyboard suggestions can show base64 fragments while the caret sits inside image markup (minor).

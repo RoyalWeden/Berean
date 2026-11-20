@@ -84,4 +84,13 @@ enum NoteImageInput {
         let after = location < text.length && text.character(at: location) != 10 ? "\n" : ""
         return before + markdown + "\n" + after
     }
+
+    /// Size presets for the Image Size menu: (title, width or nil for natural), clamped to the image.
+    static func sizePresets(for image: NoteImages.Image) -> [(title: String, width: Int?)] {
+        let natural = NoteTableLayout.decodedImage(image.source).map { Int(NoteTableLayout.pixelSize($0).width) } ?? 1000
+        var out: [(String, Int?)] = []
+        for (title, w) in [("Small", 200), ("Medium", 360), ("Large", 560)] where w < natural { out.append((title, w)) }
+        out.append(("Original Size", nil))
+        return out
+    }
 }

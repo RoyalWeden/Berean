@@ -597,6 +597,12 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                                     children: tableActions), at: 0)
             }
             items.insert(format, at: 0)
+            if let image = NoteImages.image(at: range.location, in: tv.text ?? "") {
+                let sizes = NoteImageInput.sizePresets(for: image).map { preset in
+                    UIAction(title: preset.title, state: image.width == preset.width ? .on : .off) { _ in tv.resizeImage(image, width: preset.width) }
+                }
+                items.insert(UIMenu(title: "Image Size", image: UIImage(systemName: "photo"), children: sizes), at: 0)
+            }
             return UIMenu(children: items)
         }
     }
@@ -766,6 +772,14 @@ final class NoteUITextView: UITextView {
         textStorage.replaceCharacters(in: range, with: replacement)
         selectedRange = selection
         coordinator?.textViewDidChange(self)
+    }
+
+    func resizeImage(_ image: NoteImages.Image, width: Int?) {
+        let source = textStorage.string
+        guard let current = NoteImages.find(in: source).first(where: { $0.range.location == image.range.location }) else { return }
+        let edit = NoteImages.widthEdit(current, in: source, width: width)
+        replaceMarkdownLiterally(edit.range, with: edit.replacement,
+                                 select: NSRange(location: NSMaxRange(current.range) + edit.replacement.utf16.count - edit.range.length, length: 0))
     }
 
     func copyPlain() {

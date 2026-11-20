@@ -62,3 +62,21 @@ import BereanNotes
         #expect(NoteImages.alt(forFileName: "photo") == "photo")
     }
 }
+
+@Suite("note images — resize") struct NoteImagesResizeTests {
+    @Test func widthEditsOnlyTheAlt() throws {
+        let text = "x ![Scroll|w360](data:image/png;base64,AAAA) y ![Plain](a.png)"
+        let first = try #require(NoteImages.image(at: 5, in: text))
+        let e = NoteImages.widthEdit(first, in: text, width: 200)
+        let out = (text as NSString).replacingCharacters(in: e.range, with: e.replacement)
+        #expect(out == "x ![Scroll|w200](data:image/png;base64,AAAA) y ![Plain](a.png)")
+        let second = try #require(NoteImages.image(at: (out as NSString).length - 3, in: out))
+        let e2 = NoteImages.widthEdit(second, in: out, width: 480)
+        let out2 = (out as NSString).replacingCharacters(in: e2.range, with: e2.replacement)
+        #expect(out2.hasSuffix("![Plain|w480](a.png)"))
+        let back = try #require(NoteImages.image(at: 3, in: out2))
+        let e3 = NoteImages.widthEdit(back, in: out2, width: nil)
+        #expect((out2 as NSString).replacingCharacters(in: e3.range, with: e3.replacement).hasPrefix("x ![Scroll](data:"))
+        #expect(NoteImages.image(at: 0, in: text) == nil)
+    }
+}
