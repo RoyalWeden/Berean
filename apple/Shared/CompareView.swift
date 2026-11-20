@@ -1273,6 +1273,7 @@ struct CompareView: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
+        .optionHover()
         .accessibilityLabel("Select verse \(row.readerVerseLabel), \(textInfo(column.text).name)")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .help("Select verse \(row.readerVerseLabel) · \(textInfo(column.text).short)")
@@ -1347,6 +1348,11 @@ struct CompareView: View {
                              fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
                              replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily, hideSuppliedWords: hideSuppliedWords,
                              originalText: row.text)
+                    #if os(iOS)
+                    // A normal tap selects the verse; native long-press text selection and
+                    // inline Strong's links retain their own gestures.
+                    .simultaneousGesture(TapGesture().onEnded { selectComparisonVerse(row, column: column) })
+                    #endif
                     .environment(\.openURL, strongsAction(for: row, textId: column.text))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contextMenu { comparisonVerseActions(row, column: column) }
