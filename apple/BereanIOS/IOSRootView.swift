@@ -357,30 +357,38 @@ struct IOSRootView: View {
                     } label: {
                         Label("Cross References", systemImage: "arrow.triangle.branch")
                     }
-                    Button("Notes for This Chapter", systemImage: "note.text") {
+                    Button("Chapter Notes", systemImage: "note.text") {
                         app.focusStudyVerse(nil, in: tab.id)
                         setStudyPanel(true, in: tab.id, tool: .notes)
                     }
-                    Button("Tag Chapter…", systemImage: "tag") { chapterTagTarget = ChapterTagTarget(st) }
-                        .disabled(!hasText)
-                    Toggle(isOn: Binding(get: { st.showStrongs }, set: { enabled in
-                        app.update(tab.id, recordHistory: false) { $0.state["showStrongs"] = .bool(enabled) }
-                    })) { Label("Strong's Numbers", systemImage: "number") }
-                    Toggle(isOn: Binding(get: { st.compareMode }, set: { enabled in
-                        app.update(tab.id) { $0.state["compareMode"] = enabled ? .bool(true) : nil }
-                    })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
-                    Button("Scripture Display…", systemImage: "textformat.size") { showScriptureDisplay = true }
-                    Menu("Chapter Export", systemImage: "square.and.arrow.up") { ChapterExportActions(state: st, tabId: tab.id, hasText: hasText) }
+                }
+                Section {
+                    Menu("Reading Options", systemImage: "textformat.size") {
+                        Toggle(isOn: Binding(get: { st.showStrongs }, set: { enabled in
+                            app.update(tab.id, recordHistory: false) { $0.state["showStrongs"] = .bool(enabled) }
+                        })) { Label("Strong's Numbers", systemImage: "number") }
+                        Toggle(isOn: Binding(get: { st.compareMode }, set: { enabled in
+                            app.update(tab.id) { $0.state["compareMode"] = enabled ? .bool(true) : nil }
+                        })) { Label("Compare Texts", systemImage: "rectangle.split.2x1") }
+                        Button("Scripture Display…", systemImage: "textformat.size") { showScriptureDisplay = true }
+                    }
+                    Menu("Chapter Actions", systemImage: "square.and.arrow.up") {
+                        Button("Tag Chapter…", systemImage: "tag") { chapterTagTarget = ChapterTagTarget(st) }
+                            .disabled(!hasText)
+                        Divider()
+                        ChapterExportActions(state: st, tabId: tab.id, hasText: hasText)
+                    }
                 }
             }
             if let tab = app.activeTab {
                 Section {
-                    Menu {
-                        ForEach(AppModel.TabKind.allCases, id: \.self) { kind in
-                            Button(kind.rawValue) { app.switchTab(tab.id, to: kind) }
-                        }
-                    } label: { Label("Change Tab To", systemImage: "arrow.triangle.swap") }
                     Menu("Tab Actions", systemImage: "square.on.square") {
+                        Menu {
+                            ForEach(AppModel.TabKind.allCases, id: \.self) { kind in
+                                Button(kind.rawValue) { app.switchTab(tab.id, to: kind) }
+                            }
+                        } label: { Label("Change Tab To", systemImage: "arrow.triangle.swap") }
+                        Divider()
                         Button("Duplicate Tab", systemImage: "plus.square.on.square") { app.duplicate(tab.id) }
                         Button("Archive Tab", systemImage: "archivebox") {
                             let workspaceID = app.currentSessionId
@@ -394,11 +402,14 @@ struct IOSRootView: View {
                 }
             }
             Section {
-                Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
-                Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
+                Menu("Study Tools", systemImage: "books.vertical") {
+                    Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
+                    Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
+                }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }
         } label: { bottomItem(symbol: "ellipsis").hoverEffect(.highlight) }
+        .menuOrder(.fixed)
         .accessibilityLabel("More: commands for this tab")
     }
 
@@ -1204,7 +1215,7 @@ private struct TabCardPreview: View {
 
     var body: some View {
         Text(text).font(.caption).foregroundStyle(.secondary).lineLimit(3).multilineTextAlignment(.leading)
-            .task(id: tab.id + tab.title) {
+            .task(id: tab.id + tab.title + (tab.tabType == .note ? "|\(app.notesRevision)" : "")) {
                 switch tab.tabType {
                 case .bible:
                     let st = BibleState(tab.state)
@@ -1214,7 +1225,7 @@ private struct TabCardPreview: View {
                     }
                 case .note:
                     if let id = tab.state["noteId"]?.stringValue?.string, let note = try? app.notes?.one(id) {
-                        text = note.content.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+                        text = noteExcerptText(note.content).replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
                     }
                 default: text = ""
                 }
