@@ -336,41 +336,47 @@ struct ScriptureSearchView: View {
                     .focused($fieldFocused)
                     .onSubmit(submit)
                     .autocorrectionDisabled()
+                    .frame(minWidth: 80)
                 if !field.isEmpty || !query.isEmpty {
                     Button(action: clearQuery) { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
                         .buttonStyle(.interactivePlain).accessibilityLabel("Clear search")
                 }
-            }
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .frame(minHeight: headerControlSize)
-            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 9))
-            FlowLayout(spacing: 6) {
+                Divider().frame(height: 20).padding(.horizontal, 2)
                 scopeMenu
-                Button {
-                    #if os(iOS)
-                    fieldFocused = false
-                    #endif
-                    showOptions.toggle()
-                } label: {
-                    Label("Options", systemImage: hasActiveOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                        .foregroundStyle(hasActiveOptions ? Color.accentColor : Color.primary)
-                        .frame(minHeight: 24)
-                }
-                .buttonStyle(OptionButtonStyle(active: showOptions || hasActiveOptions))
-                .accessibilityLabel("Search Options")
-                .accessibilityHint(hasActiveOptions ? "Filters are active" : "Match, testament, books, and order")
-                .help(hasActiveOptions ? "Search options · filters active" : "Search options")
-                #if os(macOS)
-                .popover(isPresented: $showOptions, arrowEdge: .bottom) {
-                    ScrollView { options.frame(maxWidth: .infinity, alignment: .leading).padding(14) }
-                        .frame(width: 340, height: 420)
-                }
-                #endif
-                activeSearchFilters
+                searchOptionsButton
             }
+            .padding(.leading, 10).padding(.trailing, 4).padding(.vertical, 3)
+            .frame(minHeight: headerControlSize + 6)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 10))
+            FlowLayout(spacing: 6) { activeSearchFilters }
             if query.utf16.count >= 2 { summaryRow }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
+    }
+
+    private var searchOptionsButton: some View {
+        Button {
+            #if os(iOS)
+            fieldFocused = false
+            #endif
+            showOptions.toggle()
+        } label: {
+            Image(systemName: hasActiveOptions ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                .foregroundStyle(hasActiveOptions ? Color.accentColor : Color.primary)
+                .frame(width: headerControlSize, height: headerControlSize)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .optionHover(active: showOptions || hasActiveOptions)
+        .accessibilityLabel("Search Options")
+        .accessibilityHint(hasActiveOptions ? "Filters are active" : "Match, testament, books, and order")
+        .help(hasActiveOptions ? "Search options · filters active" : "Search options")
+        #if os(macOS)
+        .popover(isPresented: $showOptions, arrowEdge: .bottom) {
+            ScrollView { options.frame(maxWidth: .infinity, alignment: .leading).padding(16) }
+                .frame(width: 380, height: 500)
+        }
+        #endif
     }
 
     @ViewBuilder private var activeSearchFilters: some View {
@@ -450,10 +456,18 @@ struct ScriptureSearchView: View {
             Label(scopeLabel, systemImage: "books.vertical")
                 .foregroundStyle(scope == nil ? Color.primary : Color.accentColor)
                 .lineLimit(1)
-                .frame(minHeight: headerControlSize)
+                #if os(iOS)
+                .labelStyle(.iconOnly)
+                .frame(width: headerControlSize, height: headerControlSize)
+                #else
+                .frame(maxWidth: 150)
+                .padding(.horizontal, 6)
+                .frame(height: headerControlSize)
+                #endif
                 .contentShape(.rect)
         }
-        .menuStyle(.borderlessButton).clickableCursor()
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).clickableCursor()
+        .fixedSize(horizontal: true, vertical: false)
         .optionHover(active: scope != nil)
         .accessibilityLabel("Search Scope")
         .accessibilityValue(scopeLabel)
@@ -471,10 +485,13 @@ struct ScriptureSearchView: View {
     }
 
     var options: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
+            optionsGroup("Matching", symbol: "text.magnifyingglass") {
             Picker("Match", selection: Binding(get: { mode }, set: { set("wordMode", .string(JSString($0.rawValue))) })) {
                 Text("All words").tag(WordMode.all); Text("Any word").tag(WordMode.any); Text("Exact phrase").tag(WordMode.phrase)
             }.modifier(SearchOptionsPickerStyle(title: "Match"))
+            }
+            optionsGroup("Where to Search", symbol: "books.vertical") {
             Picker("Testament", selection: Binding(get: { testament }, set: { set("testament", .string(JSString($0))) })) {
                 Text("All").tag("all"); Text("Old Testament").tag("OT"); Text("New Testament").tag("NT"); Text("Apocrypha").tag("Apocrypha"); Text("Other writings").tag("Pseudepigrapha")
             }.modifier(SearchOptionsPickerStyle(title: "Testament"))
@@ -509,8 +526,8 @@ struct ScriptureSearchView: View {
                     Text("All selected tags").tag(true)
                 }.modifier(SearchOptionsPickerStyle(title: "Match Tags"))
             }
-            Divider()
-            Text("Results").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }
+            optionsGroup("Results", symbol: "list.bullet") {
             Picker("Order", selection: Binding(get: { sort }, set: { set("sort", .string(JSString($0))) })) {
                 Text("Scripture order").tag("bookOrder"); Text("Best match first").tag("relevance")
             }.modifier(SearchOptionsPickerStyle(title: "Order"))
@@ -520,10 +537,24 @@ struct ScriptureSearchView: View {
             Picker("Context", selection: $resultContext) {
                 Text("Verse only").tag(0); Text("±1 verse").tag(1); Text("±2 verses").tag(2)
             }.modifier(SearchOptionsPickerStyle(title: "Context"))
+            }
             if hasActiveOptions {
                 Button("Reset Options", action: resetOptions)
                     .buttonStyle(OptionButtonStyle())
             }
+        }
+    }
+
+    private func optionsGroup<Content: View>(_ title: String, symbol: String,
+                                            @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: symbol)
+                .font(.subheadline.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 10, content: content)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 10))
         }
     }
 
