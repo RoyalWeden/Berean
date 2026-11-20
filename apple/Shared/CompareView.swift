@@ -228,6 +228,7 @@ struct CompareView: View {
     @State private var restoredSharedScrollKey: String?
     #if os(macOS)
     @State private var columnDragToken = UUID()
+    @State private var nativeColumnDrag = CompareColumnDragController()
     @State private var columnDropTarget: Int?
     @State private var liftedColumn: Int?
     @State private var columnWeights: [Int: CGFloat] = [:]
@@ -282,6 +283,9 @@ struct CompareView: View {
                 }
             }
         }
+        #if os(macOS)
+        .background { CompareDragCanvas(controller: nativeColumnDrag) }
+        #endif
         .task(id: Set(cols.map(ColumnBook.init))) {
             let books = Set(cols.map(ColumnBook.init))
             var numbers = chapterNumbers.filter { books.contains($0.key) }
@@ -1042,10 +1046,9 @@ struct CompareView: View {
 
     #if os(macOS)
     private func columnDragBehavior(_ column: CompareColumn, dimsSource: Bool = true) -> CompareColumnDragModifier {
-        CompareColumnDragModifier(payload: columnDragPayload(column),
+        CompareColumnDragModifier(controller: nativeColumnDrag, payload: columnDragPayload(column),
                                   lifted: dimsSource && liftedColumn == column.id,
                                   targeted: liftedColumn != nil && liftedColumn != column.id && columnDropTarget == column.id,
-                                  preview: { AnyView(columnLiftPreview(column)) },
                                   began: { liftedColumn = column.id },
                                   ended: { liftedColumn = nil; columnDropTarget = nil },
                                   targeting: { targeted in
@@ -1053,6 +1056,7 @@ struct CompareView: View {
                                       else if columnDropTarget == column.id { columnDropTarget = nil }
                                   },
                                   receive: { items in
+                                      guard app.activeTab?.id == tabId, state.compareMode else { return false }
                                       let current = columns
                                       guard let item = items.first,
                                             let source = current.first(where: { item == columnDragPayload($0) }),
@@ -1062,56 +1066,6 @@ struct CompareView: View {
                                       columnDropTarget = nil
                                       return moved
                                   })
-    }
-
-    private func columnLiftRows(_ column: CompareColumn) -> [ChapterVerseRow] {
-        let aligned = rows.keys.sorted().compactMap { rows[$0]?[column.id] }
-        let all = aligned.isEmpty ? independentRows[column.id] ?? [] : aligned
-        let anchor = readingAnchor(in: column, source: state)
-        let start = anchor.flatMap { anchor in all.firstIndex { $0.chapter == anchor.chapter && $0.verseNum == anchor.verse } } ?? 0
-        // Only the visible portion is needed for a drag image, not a second
-        // interactive scroll view or an entire long chapter's worth of layout.
-        return Array(all.dropFirst(start).prefix(18))
-    }
-
-    private var columnLiftWidth: CGFloat {
-        let count = max(1, columns.filter { availableColumnIDs.contains($0.id) }.count)
-        return min(420, max(180, (compareWidth - 48) / CGFloat(count)))
-    }
-
-    private func columnLiftPreview(_ column: CompareColumn) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label(column.label, systemImage: "book")
-                .font(.callout.weight(.semibold))
-                .lineLimit(2)
-            Divider()
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(Array(columnLiftRows(column).enumerated()), id: \.offset) { _, row in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        if showVerseNumbers {
-                            Text(row.chapter == column.chapter ? row.readerVerseLabel : "\(row.chapter):\(row.readerVerseLabel)")
-                                .font(.caption.monospacedDigit().weight(.semibold))
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        VerseRowView(row: row.hidingTextAnnotations(hiddenAnnotations, textId: column.text), textId: column.text,
-                                     showStrongs: state.showStrongs,
-                                     highlights: chapterHighlights[EditionChapter(row, text: column.text)]?[row.verseNum] ?? [],
-                                     fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
-                                     replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily,
-                                     hideSuppliedWords: hideSuppliedWords, originalText: row.text)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .frame(width: columnLiftWidth, height: min(620, max(220, compareHeight - 20)), alignment: .topLeading)
-        .background(Color(nsColor: .textBackgroundColor).opacity(0.74), in: .rect(cornerRadius: 14))
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
-        .clipShape(.rect(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12), lineWidth: 1) }
-        .shadow(color: .black.opacity(0.24), radius: 18, y: 8)
-        .allowsHitTesting(false)
     }
 
     private func columnDragPayload(_ column: CompareColumn) -> String {
@@ -2093,10 +2047,10 @@ struct CompareView: View {
 /// Native drag lifetime controls the source placeholder, including cancelled
 /// drags. The passage preview is independent of the source's opacity.
 private struct CompareColumnDragModifier: ViewModifier {
+    let controller: CompareColumnDragController
     let payload: String
     let lifted: Bool
     let targeted: Bool
-    let preview: () -> AnyView
     let began: () -> Void
     let ended: () -> Void
     let targeting: (Bool) -> Void
@@ -2107,16 +2061,19 @@ private struct CompareColumnDragModifier: ViewModifier {
             .opacity(lifted ? 0.16 : 1)
             .background(targeted ? Color.accentColor.opacity(0.08) : .clear, in: .rect(cornerRadius: 9))
             .contentShape(.interaction, .rect)
-            .contentShape(.dragPreview, .rect(cornerRadius: 14))
-            .draggable(payload) { preview() }
-            .onDragSessionUpdated { session in
+            .background { CompareDragRegion(controller: controller, payload: payload) }
+            .gesture(CompareColumnPan(controller: controller, payload: payload, began: began, ended: ended))
+            .dropDestination(for: String.self) { items, _ in _ = receive(items) }
+            .dropConfiguration { _ in
+                DropConfiguration(operation: controller.activePayload != nil && controller.activePayload != payload ? .move : .forbidden)
+            }
+            .onDropSessionUpdated { session in
                 switch session.phase {
-                case .active: began()
-                case .ended(_), .dataTransferCompleted: ended()
-                default: break
+                case .entering, .active: targeting(controller.activePayload != nil && controller.activePayload != payload)
+                case .exiting, .ended(_), .dataTransferCompleted: targeting(false)
+                @unknown default: targeting(false)
                 }
             }
-            .dropDestination(for: String.self) { items, _ in receive(items) } isTargeted: { targeting($0) }
     }
 }
 
