@@ -31,7 +31,7 @@ public enum ESwordImport {
 
     // MARK: folders
 
-    public static func detectFolder(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL? {
+    public static func detectFolder(home: URL = URL(fileURLWithPath: NSHomeDirectory())) -> URL? {
         let candidates = [
             "Library/CloudStorage/OneDrive-Personal/Documents/e-Sword", "OneDrive/Documents/e-Sword", "Documents/e-Sword", "Desktop/e-Sword",
         ].map { home.appendingPathComponent($0) }
