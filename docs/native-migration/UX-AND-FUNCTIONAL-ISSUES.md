@@ -366,3 +366,7 @@ Source bbca520f fixes stale recognizer source identity after reorder, finishes t
 ## 2026-11-19 — Study markers and automatic dictionary blocks
 
 Chapter study visible wording removed while chapter access remains icon. Margin symbols identify primary material with summary and450ms personal-citation preview on Mac; citation-only click opens Cross Refs, combined opens Notes. Filter hover moved outside native Menu labels after owner report; menu clicks verified, continuous physical hover/preview lifecycle/VoiceOver still open. Native dictionary cards checked both platforms; Scripture cards remain open.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+Owner-reported vertical hover offset addressed via native text-input screen anchor; actual native card aligned at top and scrolled. Short verses no longer compress to2lines. Chapter symbols no longer imply notes for tags/citations; mention counts and routes are distinct. Physical hover/resize/Retina and broad target-range matrices remain open. See STUDY-PREVIEW-ALIGNMENT.md.

@@ -2051,3 +2051,11 @@ Source bbca520f fixes stale recognizer source identity after reorder, finishes t
 ## 2026-11-19 — Study markers and automatic dictionary blocks
 
 Added native two-line dictionary cards without changing saved text; prevented reference blocks splitting tables; corrected LXX Psalm note blocks to include title+opening verse and reader numbering. Replaced study dots/generic chapter wording with symbols and personal-reference hover previews. Moved filter hover feedback to native controls. Added searchable Word Replacer rules in Settings. Full274tests and Mac/iPhone builds pass; see HANDOFF for actual UI and limits.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+Fixed misleading chapter note symbols for tags/references; separated mentions from actual passage counts. Mac margin previews now show cited passage text, preserve LXX title+opening verse, anchor via native screen coordinates, resolve before showing and retain full short-verse height. Dismiss stale previews on scroll. Actual Mac checks/both builds passed; physical hover matrix remains open.
+
+## 2026-11-19 — AI continuity documentation
+
+Made HANDOFF the explicit entry point for all AIs, with current state, owner principles, task/evidence map and mandatory continuous checkpoint updates. Added root agent/Claude routes, preserved historical checkpoints verbatim and documented safe resume/usage handover. This is development continuity support, not a new in-app feature or completion of the migration.

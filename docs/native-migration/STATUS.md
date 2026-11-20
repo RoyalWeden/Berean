@@ -431,3 +431,11 @@ Source bbca520f fixes stale recognizer source identity after reorder, finishes t
 ## 2026-11-19 — Study markers and automatic dictionary blocks
 
 Native study/Notes checkpoint567b9861/52516683/66d37947: automatic dictionary cards on both editors, table-safe expansion, fixed LXX Psalm note expansion, clearer study markers/chapter icon, filter hover ownership and searchable Settings rule browser. Full274tests/both builds pass; actual Mac and simulator checks/cleanup in HANDOFF. Canonical Scripture cards, full custom/per-rule replacement and physical hover remain open.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+Source1f4e7361 corrects marker preview alignment/content and chapter symbol semantics. Final both builds and actual Mac preview/scroll/routing checks pass; all existing test-library notes/IDs/tags preserved. Previous de4c37f4 exact CI44678258734 SUCCESS both jobs. Physical hover remains open; see HANDOFF/STUDY-PREVIEW-ALIGNMENT.md. Goal active.
+
+## 2026-11-19 — Owner-required continuous AI handover documentation
+
+Owner explicitly requires durable notes for Codex, Claude Code and any successor throughout work, with HANDOFF as the one entry point. Added AI-CONTINUITY (startup/checkpoint/coordination/safety), OWNER-PRINCIPLES (current decisions and supersessions), CURRENT-STATE (verified source/runtime/evidence/next steps) and DOCUMENTATION-MAP (task-oriented links). Root AGENTS.md and CLAUDE.md route native work to HANDOFF. Replaced the mixed current block with one concise checkpoint; archived the former block verbatim with SHA256 and retained the entire committed historical log. Continuous updates are an ongoing requirement, not a one-time completed migration feature. Preserve dirty work, identities, original data, review guards, actual test scope and the distinction between prototypes/QA entries and delivered parity. Latest snapshot preparation UTC2026-11-20T05:57:54+00:00.

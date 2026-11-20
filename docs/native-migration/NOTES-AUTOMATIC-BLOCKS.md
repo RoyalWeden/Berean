@@ -29,3 +29,7 @@
 4. Test false-positive prose, single/multiline/disjoint/LXX/multiword references, malformed/partial data, table boundaries, code, links, settings changes, return/restart and undo before marking parity.
 
 Full274tests and both final builds pass. Actual evidence and cleanup IDs in HANDOFF. Continuous physical hover/new margin preview, iPhone rule browser, accessibility/compact/read-only combinations remain unverified.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+Owner hover/indicator steering took priority and is implemented/tested as1f4e7361; see STUDY-PREVIEW-ALIGNMENT.md. Before that interruption a pure candidate/ratio draft was started. It is preserved at prototypes/NoteScriptureBlocks.swift.txt, explicitly UNTESTED, not compiled into either app. It handles source-range projection and single/multiline candidates, but has no canonical lookup, settings/editor integration or test proof. Add Hermas/edition support and the safety/verification gates above before use; do not mark Scripture block parity done.

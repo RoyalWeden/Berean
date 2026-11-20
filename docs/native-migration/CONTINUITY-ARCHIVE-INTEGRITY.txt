@@ -1,0 +1,2 @@
+Archived former HANDOFF checkpoint block SHA256: ddfeac00f5da8ec07ed0cd058aa72e2e8b857bbc25eccefde5ce4b7087e9de4e
+The archived content is verbatim; see CHECKPOINT-HISTORY-2026-11-19.md.

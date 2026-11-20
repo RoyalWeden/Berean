@@ -486,3 +486,11 @@ Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel 
 ## 2026-11-19 — Study markers and automatic dictionary blocks
 
 DONE targeted: source-preserving dictionary cards (both), table-safe block expansion, LXX Psalm note expansion, chapter symbol, category markers/preview source, searchable rule browser. OPEN first: canonical-verified Scripture cards + legacy settings; full persisted/per-rule Word Replacer across all consumers; physical filter/marker hover, accessibility and read-only rich-note presentation. Preserve broader history/scroll/splits/Kokoro queue.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+DONE targeted source1f4e7361: truthful chapter symbols, actual cited verse text, native preview anchor, short-verse spacing/count semantics, scroll dismissal and mention-only routes. OPEN: physical hover/accessibility/resize/display/full-range matrix; canonical Scripture blocks/settings (untested draft preserved in prototypes/NoteScriptureBlocks.swift.txt), custom/per-rule Word Replacer, remaining pane-actions menu hover and broader active parity queue.
+
+## 2026-11-19 — Owner-required continuous AI handover documentation
+
+Owner explicitly requires durable notes for Codex, Claude Code and any successor throughout work, with HANDOFF as the one entry point. Added AI-CONTINUITY (startup/checkpoint/coordination/safety), OWNER-PRINCIPLES (current decisions and supersessions), CURRENT-STATE (verified source/runtime/evidence/next steps) and DOCUMENTATION-MAP (task-oriented links). Root AGENTS.md and CLAUDE.md route native work to HANDOFF. Replaced the mixed current block with one concise checkpoint; archived the former block verbatim with SHA256 and retained the entire committed historical log. Continuous updates are an ongoing requirement, not a one-time completed migration feature. Preserve dirty work, identities, original data, review guards, actual test scope and the distinction between prototypes/QA entries and delivered parity. Latest snapshot preparation UTC2026-11-20T05:57:54+00:00.

@@ -851,3 +851,11 @@ DEBUG+simulator --qa-note-keyboard-trace writes ranges, item labels and bounds (
 ## 2026-11-19 — Study markers and automatic dictionary blocks
 
 Use NOTES-AUTOMATIC-BLOCKS.md to resume reference parity: suggestion/insertion, visual block detection, reference linking and backlink indexing are separate acceptance gates. Current dictionary cards + Psalm/table fixes pass274tests; canonical Scripture cards and full Word Replacer remain open. If reads/builds/Git hang on compressed,dataless files, restore required individual tracked paths/metadata (directory or batched brctl requests may not hydrate children); use a temporary build cache. Do not reset or treat empty test runs as passing.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+For margin previews, use native firstRect screen geometry, convert through window/content and resolve text before showing. Keep attached notes, outgoing passages and other-note mentions distinct. Record physical hover separately from opt-in QA entry tests. Resume Scripture-block prototype only after canonical verification/settings/guards/tests; .swift.txt in docs is explicitly uncompiled. Preserve LIVE layout, not stale earlier screenshots: latest Mac Notes panel, sidebar239 and scroll0.5782918149466192.
+
+## 2026-11-19 — Owner-required continuous AI handover documentation
+
+Owner explicitly requires durable notes for Codex, Claude Code and any successor throughout work, with HANDOFF as the one entry point. Added AI-CONTINUITY (startup/checkpoint/coordination/safety), OWNER-PRINCIPLES (current decisions and supersessions), CURRENT-STATE (verified source/runtime/evidence/next steps) and DOCUMENTATION-MAP (task-oriented links). Root AGENTS.md and CLAUDE.md route native work to HANDOFF. Replaced the mixed current block with one concise checkpoint; archived the former block verbatim with SHA256 and retained the entire committed historical log. Continuous updates are an ongoing requirement, not a one-time completed migration feature. Preserve dirty work, identities, original data, review guards, actual test scope and the distinction between prototypes/QA entries and delivered parity. Latest snapshot preparation UTC2026-11-20T05:57:54+00:00.

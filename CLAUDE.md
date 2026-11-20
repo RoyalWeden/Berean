@@ -1,8 +1,8 @@
 # Berean — Claude Code Project Brief
 
-> This file is the single source of truth for the Berean desktop Bible study application.
-> Claude Code should read this file at the start of every session and before making any
-> architectural decisions. Do not deviate from the specs here without explicit user instruction.
+> **Native macOS/iPhone migration: start with [HANDOFF.md](docs/native-migration/HANDOFF.md).** The owner designates it as the single entry point for Claude Code, Codex and any successor AI. It links current state, owner principles, continuous-note requirements, safeguards and task-specific evidence. Follow that reading order before editing, and keep those notes current throughout the work.
+>
+> The rest of this document retains the existing Electron/Capacitor desktop baseline and setup guidance. Preserve legacy compatibility, but verify current checkout/runtime paths through the native handoff rather than blindly applying historical locations or pre-migration assumptions. Latest direct owner instructions and higher-priority environment instructions still take precedence.
 
 ---
 

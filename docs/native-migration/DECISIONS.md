@@ -646,3 +646,11 @@ Use6prose/5table iPhone accessory controls with native glass grouping and flexib
 ## 2026-11-19 — Study markers and automatic dictionary blocks
 
 Dictionary blocks use two-line plaintext compatibility, native body font, neutral rounded container and semibold heading; no source conversion. Chapter-level study uses a quiet symbol, category marker primary material plus summary; avoid adding all-source reference markers to every verse. Notes select reader-prepared Psalm rows, rejecting half a combined record. Rule browser ships as a browser/master control; per-rule editing waits for one revision-aware rules pipeline, preserving unknown persisted fields and defaults/order.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+A note icon must imply an attached note, not any study metadata. Chapter mentions/references use the related-passages symbol; tags use tag. Keep mentions separate from passage counts. Hover previews load lazily, show referenced Scripture rather than only labels, settle content before presentation and use native text-input screen geometry. QA-only Option-click is rendering evidence, not physical hover proof.
+
+## 2026-11-19 — Owner-required continuous AI handover documentation
+
+Owner explicitly requires durable notes for Codex, Claude Code and any successor throughout work, with HANDOFF as the one entry point. Added AI-CONTINUITY (startup/checkpoint/coordination/safety), OWNER-PRINCIPLES (current decisions and supersessions), CURRENT-STATE (verified source/runtime/evidence/next steps) and DOCUMENTATION-MAP (task-oriented links). Root AGENTS.md and CLAUDE.md route native work to HANDOFF. Replaced the mixed current block with one concise checkpoint; archived the former block verbatim with SHA256 and retained the entire committed historical log. Continuous updates are an ongoing requirement, not a one-time completed migration feature. Preserve dirty work, identities, original data, review guards, actual test scope and the distinction between prototypes/QA entries and delivered parity. Latest snapshot preparation UTC2026-11-20T05:57:54+00:00.

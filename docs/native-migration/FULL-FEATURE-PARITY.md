@@ -1310,3 +1310,7 @@ Source bbca520f fixes stale recognizer source identity after reorder, finishes t
 ## 2026-11-19 — Study markers and automatic dictionary blocks
 
 Automatic lexicon block presentation now implemented/tested on Mac+iPhone. Typed expansion remains distinct from presentation and tracking. Canonical Scripture-block recognition and noteScriptureBlock/threshold settings still missing. Word Replacer browser is implemented, individual/custom rule persistence/propagation is not. Marker preview covers personal citations, not all TSKe sources. See NOTES-AUTOMATIC-BLOCKS.md; do not close whole reference parity.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+Personal-note margin previews now resolve actual target passages, with reader-consistent LXX number/title handling. Actual two-passage and scroll-anchor checks passed. This is not all-source TSKe hover parity, continuous hover proof or all range/combined-record coverage. Automatic Scripture blocks still NOT delivered; draft scanner is documentation only, not app/package code.
