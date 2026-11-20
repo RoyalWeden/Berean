@@ -123,19 +123,27 @@ public enum ModelFreeAsk {
     /// Reference candidates inside a sentence, longest first: for each chapter(:verse) number, the
     /// one to three words before it ("How does Isaiah 7:14 read" → "does Isaiah 7:14", "Isaiah 7:14").
     /// The caller keeps the first that resolves to a real passage.
-    public static func referenceCandidates(_ question: String) -> [String] {
+    public static func referenceCandidates(_ question: String) -> [String] { referenceGroups(question).flatMap { $0 } }
+
+    /// Candidates grouped per chapter(:verse) number, so each passage in "compare Genesis 1:1 and
+    /// John 1:1" resolves on its own (original passage comparison, up to four).
+    public static func referenceGroups(_ question: String) -> [[String]] {
         let re = try! NSRegularExpression(pattern: #"\d{1,3}(?::\d{1,3}(?:\s?[-–]\s?\d{1,3})?)?"#)
         let ns = question as NSString
-        var out: [String] = []
+        var out: [[String]] = []
         for m in re.matches(in: question, range: NSRange(location: 0, length: ns.length)) {
             let before = ns.substring(to: m.range.location).trimmingCharacters(in: .whitespaces)
             let words = before.split(separator: " ").map(String.init)
             guard let last = words.last, last.first?.isLetter == true else { continue }
             let number = ns.substring(with: m.range)
-            for k in stride(from: min(3, words.count), through: 1, by: -1) {
-                out.append((words.suffix(k) + [number]).joined(separator: " "))
-            }
+            out.append(stride(from: min(3, words.count), through: 1, by: -1).map { (words.suffix($0) + [number]).joined(separator: " ") })
         }
         return out
+    }
+
+    /// "compare Genesis 1:1 and John 1:1" (two to four passages, original passage-compare).
+    public static func asksPassageComparison(_ question: String) -> Bool {
+        compareWord.firstMatch(in: question, range: NSRange(location: 0, length: (question as NSString).length)) != nil
+            && referenceGroups(question).count >= 2 && strongsIds(question).isEmpty
     }
 }

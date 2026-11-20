@@ -31,6 +31,7 @@ struct AskBereanView: View {
         case passage(String, [Verse])
         case compare([LexiconEntry])
         case parallel(String, kjv: [Verse], lxx: [Verse])
+        case passages([(title: String, verses: [Verse])])
         case keyword([String], [Verse])
         case nothing
     }
@@ -129,6 +130,8 @@ struct AskBereanView: View {
         case .parallel(let title, let kjv, let lxx):
             verseSection("\(title) · KJV", kjv)
             verseSection("\(title) · Brenton LXX", lxx)
+        case .passages(let groups):
+            ForEach(Array(groups.enumerated()), id: \.offset) { _, g in verseSection(g.title, g.verses) }
         case .keyword(let words, let verses):
             if verses.isEmpty {
                 Section { Text("No verses matched “\(words.joined(separator: " "))”.").foregroundStyle(.secondary) }
@@ -202,6 +205,21 @@ struct AskBereanView: View {
                 return
             }
         }
+        // 0c. Two to four passages side by side ("compare Genesis 1:1 and John 1:1").
+        if ModelFreeAsk.asksPassageComparison(q) {
+            var groups: [(title: String, verses: [Verse])] = []
+            for candidates in ModelFreeAsk.referenceGroups(q).prefix(4) {
+                guard let p = candidates.lazy.compactMap({ app.resolvePassage($0) }).first else { continue }
+                let rows = await app.bible.queryChapter(p.bookId, p.chapter, textId: p.textId)
+                let from = p.verse ?? 1, to = p.endVerse ?? p.verse ?? Int.max
+                let verses = rows.filter { $0.verseNum >= from && $0.verseNum <= to }.prefix(30)
+                    .map { Verse(textId: p.textId, bookId: p.bookId, chapter: p.chapter, verse: $0.verseNum, text: $0.text) }
+                let range = p.verse.map { v in p.endVerse.map { "\(v)–\($0)" } ?? "\(v)" }
+                let edition = p.textId == "kjva" ? "" : " · \(textInfo(p.textId).short)"
+                if !verses.isEmpty { groups.append(("\(Reference.bookName(p.bookId)) \(p.chapter)" + (range.map { ":\($0)" } ?? "") + edition, Array(verses))) }
+            }
+            if groups.count >= 2 { answer = .passages(groups); return }
+        }
         // 1. Strong's id or a word study.
         if let id = StrongsId.normalize(q), let entry = await app.lexicon.entry(id) {
             answer = .strongs(entry, await occurrences(id), alternatives: []); return
@@ -225,7 +243,8 @@ struct AskBereanView: View {
                 .map { Verse(textId: p.textId, bookId: p.bookId, chapter: p.chapter, verse: $0.verseNum, text: $0.text) }
             if !verses.isEmpty {
                 let range = p.verse.map { v in p.endVerse.map { "\(v)–\($0)" } ?? "\(v)" }
-                answer = .passage("\(Reference.bookName(p.bookId)) \(p.chapter)" + (range.map { ":\($0)" } ?? ""), Array(verses))
+                let edition = p.textId == "kjva" ? "" : " · \(textInfo(p.textId).short)"
+                answer = .passage("\(Reference.bookName(p.bookId)) \(p.chapter)" + (range.map { ":\($0)" } ?? "") + edition, Array(verses))
                 return
             }
         }
@@ -267,6 +286,8 @@ struct AskBereanView: View {
             if !isFollowUp { convo.refs = [effective] + convo.refs.filter { $0 != effective } }
         case .parallel(let title, _, _):
             convo.refs = [title]
+        case .passages(let groups):
+            convo.refs = groups.map(\.title)
         case .keyword(_, let verses):
             // "more" keeps excluding everything shown so far in this thread of the topic.
             convo.refs = (isFollowUp ? convo.refs : []) + verses.map(\.label)
@@ -306,6 +327,10 @@ struct AskBereanView: View {
         case .passage(let title, let verses):
             f["results"] = results(verses, source: "named"); f["visibleCount"] = .number(Double(verses.count))
             f["summary"] = .string(JSString(title))
+        case .passages(let groups):
+            let all = groups.flatMap(\.verses)
+            f["results"] = results(all, source: "named"); f["visibleCount"] = .number(Double(all.count))
+            f["summary"] = .string(JSString(groups.map(\.title).joined(separator: " · ")))
         case .parallel(let title, let kjv, let lxx):
             f["results"] = results(kjv + lxx, source: "named"); f["visibleCount"] = .number(Double(kjv.count + lxx.count))
             f["summary"] = .string(JSString("\(title) — KJV and Brenton LXX"))

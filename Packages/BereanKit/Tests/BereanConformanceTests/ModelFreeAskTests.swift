@@ -55,4 +55,12 @@ import Testing
         #expect(ModelFreeAsk.referenceCandidates("How does Isaiah 7:14 read in the Septuagint?").contains("Isaiah 7:14"))
         #expect(ModelFreeAsk.referenceCandidates("compare 1 John 4:8 KJV and LXX").contains("1 John 4:8"))
     }
+
+    @Test func passageComparisonGroups() {
+        let g = ModelFreeAsk.referenceGroups("compare Genesis 1:1 and John 1:1")
+        #expect(g.count == 2 && g[0].contains("Genesis 1:1") && g[1].contains("John 1:1"))
+        #expect(ModelFreeAsk.asksPassageComparison("compare Genesis 1:1 and John 1:1"))
+        #expect(!ModelFreeAsk.asksPassageComparison("Genesis 1:1 and John 1:1"))
+        #expect(!ModelFreeAsk.asksPassageComparison("compare H2617 and H7356"))
+    }
 }
