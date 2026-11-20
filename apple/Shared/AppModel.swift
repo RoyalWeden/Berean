@@ -668,13 +668,27 @@ final class AppModel {
     // MARK: history (device-local `history` table, as the existing apps)
 
     static let historyEntryLimit = 5_000
+    /// Original `historyMaxEntries` (50–10,000). Unset keeps the native 5,000 so nothing already kept is pruned.
+    var historyMaxEntries: Int {
+        get { _ = historySettingsRevision; return settingValue("historyMaxEntries")?.numberValue.map { min(10_000, max(50, Int($0))) } ?? Self.historyEntryLimit }
+        set { saveSetting("historyMaxEntries", .number(Double(min(10_000, max(50, newValue))))); historySettingsRevision += 1 }
+    }
+    /// Original `tabNavMaxStack` (10–1,000, default 100): back/forward pages remembered per tab.
+    var tabNavMaxStack: Int {
+        get { _ = historySettingsRevision; return settingValue("tabNavMaxStack")?.numberValue.map { min(1_000, max(10, Int($0))) } ?? 100 }
+        set { saveSetting("tabNavMaxStack", .number(Double(min(1_000, max(10, newValue))))); historySettingsRevision += 1 }
+    }
+    var historySettingsRevision = 0
+    /// Original "Clear all tab nav history".
+    func clearAllTabNavigation() { backStack = [:]; forwardStack = [:] }
+    var tabNavEntryCount: Int { backStack.values.reduce(0) { $0 + $1.count } + forwardStack.values.reduce(0) { $0 + $1.count } }
 
     @discardableResult
     func recordHistory(type: String, title: String, bookId: String? = nil, chapter: Int? = nil, verse: Int? = nil, noteId: String? = nil, strongsNum: String? = nil, query: String? = nil, deduplicate: Bool = true) -> String? {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let e = HistoryEntry(id: "hist-\(now)-\(Self.newId().prefix(8))", type: type, title: title, timestamp: now, sessionId: currentSessionId, sessionName: session.name,
                              bookId: bookId, chapter: chapter, verse: verse, noteId: noteId, strongsNum: strongsNum, query: query)
-        guard (try? historyService?.add(e, maxEntries: Self.historyEntryLimit, deduplicate: deduplicate)) == true else { return nil }
+        guard (try? historyService?.add(e, maxEntries: historyMaxEntries, deduplicate: deduplicate)) == true else { return nil }
         historyRevision += 1
         return e.id
     }
@@ -997,7 +1011,7 @@ final class AppModel {
                     sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
                 }
                 backStack[tabId, default: []].append(.location(historyLocation(before)))
-                if backStack[tabId]!.count > 100 { backStack[tabId]!.removeFirst() }
+                if backStack[tabId]!.count > tabNavMaxStack { backStack[tabId]!.removeFirst() }
                 forwardStack[tabId] = []
             }
             if recordHistory, after.tabType == .bible, BibleState(after.state).compareMode {
@@ -1063,7 +1077,7 @@ final class AppModel {
                                               originTabId: origin?.id, originSpaceId: origin?.spaceId)
         guard sessions[sessionIndex].replaceTabContent(current.id, with: destination) != nil else { return false }
         backStack[current.id, default: []].append(.location(previous))
-        if backStack[current.id]!.count > 100 { backStack[current.id]!.removeFirst() }
+        if backStack[current.id]!.count > tabNavMaxStack { backStack[current.id]!.removeFirst() }
         forwardStack[current.id] = []
         noteListReturnTabs.removeValue(forKey: current.id)
         notesBrowseOptions.removeValue(forKey: current.id)
@@ -1425,7 +1439,7 @@ final class AppModel {
             let returnEntry = TabHistoryEntry.tab(sourceTabID)
             if backStack[destination]?.last != returnEntry {
                 backStack[destination, default: []].append(returnEntry)
-                if backStack[destination, default: []].count > 100 { backStack[destination]?.removeFirst() }
+                if backStack[destination, default: []].count > tabNavMaxStack { backStack[destination]?.removeFirst() }
             }
             forwardStack[destination] = []
             forwardStack[sourceTabID] = []
@@ -1593,7 +1607,7 @@ final class AppModel {
         let entry = TabHistoryEntry.location(previous)
         if backStack[tab.id]?.last != entry {
             backStack[tab.id, default: []].append(entry)
-            if backStack[tab.id]!.count > 100 { backStack[tab.id]!.removeFirst() }
+            if backStack[tab.id]!.count > tabNavMaxStack { backStack[tab.id]!.removeFirst() }
         }
         forwardStack[tab.id] = []
     }

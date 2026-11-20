@@ -29,6 +29,7 @@ struct SettingsView: View {
             Tab("Appearance", systemImage: "paintbrush") { pane { appearanceSection } }
             Tab("Notes", systemImage: "note.text") { pane { notesSection } }
             Tab("Workspaces", systemImage: "square.stack") { pane { WorkspacesSettingsSection() } }
+            Tab("History", systemImage: "clock.arrow.circlepath") { pane { HistorySettingsSection() } }
             Tab("Shortcuts", systemImage: "keyboard") { pane { shortcutsSection } }
             Tab("About", systemImage: "info.circle") { pane { aboutSections } }
         }
@@ -59,6 +60,9 @@ struct SettingsView: View {
                 NavigationLink {
                     Form { WorkspacesSettingsSection() }.formStyle(.grouped).navigationTitle("Workspaces")
                 } label: { Label("Workspaces", systemImage: "square.stack") }
+                NavigationLink {
+                    Form { HistorySettingsSection() }.formStyle(.grouped).navigationTitle("History")
+                } label: { Label("History", systemImage: "clock.arrow.circlepath") }
                 NavigationLink {
                     Form { shortcutsSection }.formStyle(.grouped).navigationTitle("Shortcuts")
                 } label: { Label("Shortcuts", systemImage: "keyboard") }
@@ -429,6 +433,43 @@ private struct WordReplacerSettingsView: View {
                     .accessibilityLabel("\(rule.strongsNum ?? rule.queries.joined(separator: ", ")) to \(rule.replacement)")
                 }
             }
+        }
+    }
+}
+
+
+/// Original HistorySection + the history half of DangerSection: per-tab back/forward depth, the
+/// history log size, and clearing either. Notes and highlights are never touched.
+private struct HistorySettingsSection: View {
+    @Environment(AppModel.self) private var app
+    @State private var confirmClearLog = false
+    @State private var navCleared = false
+
+    var body: some View {
+        @Bindable var app = app
+        Section {
+            Stepper(value: Binding(get: { app.tabNavMaxStack }, set: { app.tabNavMaxStack = $0 }), in: 10...1000, step: 10) {
+                LabeledContent("Pages per tab", value: "\(app.tabNavMaxStack)")
+            }
+            Button(navCleared ? "Cleared" : "Clear Back and Forward History", role: .destructive) {
+                app.clearAllTabNavigation(); navCleared = true
+            }
+            .disabled(navCleared)
+        } header: { Text("Back and Forward") } footer: {
+            Text("How many pages each tab remembers for Back and Forward. \(app.tabNavEntryCount) stored now.")
+        }
+        Section {
+            Stepper(value: Binding(get: { app.historyMaxEntries }, set: { app.historyMaxEntries = $0 }), in: 50...10_000, step: 50) {
+                LabeledContent("Entries kept", value: app.historyMaxEntries.formatted())
+            }
+            Button("Clear History…", role: .destructive) { confirmClearLog = true }
+        } header: { Text("History Log") } footer: {
+            Text("Older entries are removed automatically when the limit is reached. Your notes and highlights are not affected.")
+        }
+        .confirmationDialog("Clear the entire history log?", isPresented: $confirmClearLog, titleVisibility: .visible) {
+            Button("Clear History", role: .destructive) { app.attempt("Couldn’t clear history") { try app.clearHistory() } }
+        } message: {
+            Text("Removes every Scripture, note, lexicon and search entry from History. Notes and highlights stay.")
         }
     }
 }
