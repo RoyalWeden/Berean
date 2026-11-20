@@ -2,6 +2,17 @@ import Foundation
 
 /// Source-preserving inline formatting shared by both native editors.
 public enum NoteInlineFormat {
+    /// Paragraph prefixes cannot be applied to a GFM table row without turning
+    /// its grid into literal Markdown. Inline cell formatting remains supported.
+    public static func allowsParagraphStyle(in text: NSString, selection: NSRange) -> Bool {
+        guard selection.location >= 0, selection.length >= 0,
+              selection.location <= text.length, selection.length <= text.length - selection.location else { return false }
+        // A selection ending at the next line's start does not edit that line.
+        let covered = NSRange(location: selection.location, length: max(0, selection.length - 1))
+        let paragraphs = text.lineRange(for: covered)
+        return !tableLines(in: text).contains { NSIntersectionRange($0.range, paragraphs).length > 0 }
+    }
+
     public struct Edit {
         public let range: NSRange
         public let replacement: String

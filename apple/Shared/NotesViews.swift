@@ -141,8 +141,7 @@ func noteRemoveHighlightEdit(in text: NSString, selection: NSRange)
 
 func noteHeadingEdit(in text: NSString, selection: NSRange, level: Int)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
-    guard (0...3).contains(level), selection.location <= text.length,
-          selection.length <= text.length - selection.location else { return nil }
+    guard (0...3).contains(level), NoteInlineFormat.allowsParagraphStyle(in: text, selection: selection) else { return nil }
     // A selection ending at the start of the next line does not include that line.
     let covered = NSRange(location: selection.location, length: max(0, selection.length - 1))
     let range = text.lineRange(for: covered)
@@ -164,6 +163,7 @@ func noteHeadingEdit(in text: NSString, selection: NSRange, level: Int)
 
 func noteCalloutEdit(in text: NSString, selection: NSRange, kind: NoteCalloutKind)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard NoteInlineFormat.allowsParagraphStyle(in: text, selection: selection) else { return nil }
     guard selection.location <= text.length,
           selection.length <= text.length - selection.location else { return nil }
     let covered = NSRange(location: selection.location, length: max(0, selection.length - 1))
@@ -216,7 +216,7 @@ enum NoteListStyle: CaseIterable {
 
 func noteListEdit(in text: NSString, selection: NSRange, style: NoteListStyle)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
-    guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+    guard NoteInlineFormat.allowsParagraphStyle(in: text, selection: selection) else { return nil }
     let range = text.lineRange(for: NSRange(location: selection.location, length: max(0, selection.length - 1)))
     let original = text.substring(with: range)
     let lines = original.components(separatedBy: "\n")
@@ -251,7 +251,7 @@ func noteListEdit(in text: NSString, selection: NSRange, style: NoteListStyle)
 /// Insert the same two-column Markdown block used by the legacy editor.
 func noteTableInsertion(in text: NSString, selection: NSRange)
     -> (range: NSRange, replacement: String, selection: NSRange)? {
-    guard selection.location <= text.length, selection.length <= text.length - selection.location else { return nil }
+    guard NoteInlineFormat.allowsParagraphStyle(in: text, selection: selection) else { return nil }
     var lineStart = 0
     var contentsEnd = 0
     text.getLineStart(&lineStart, end: nil, contentsEnd: &contentsEnd,
@@ -702,9 +702,11 @@ struct NoteDetailView: View {
                         Section("Paragraph") {
                             Button("Body") { formatRequest = NoteFormatRequest(action: .heading(0)) }
                                 .keyboardShortcut("0", modifiers: [.command, .option])
+                                .disabled(editingTable)
                             ForEach(1...3, id: \.self) { level in
                                 Button("Heading \(level)") { formatRequest = NoteFormatRequest(action: .heading(level)) }
                                     .keyboardShortcut(KeyEquivalent(Character(String(level))), modifiers: [.command, .option])
+                                    .disabled(editingTable)
                             }
                         }
                         Section("Lists") {
@@ -712,6 +714,7 @@ struct NoteDetailView: View {
                                 Button(style.title, systemImage: style.symbol) {
                                     formatRequest = NoteFormatRequest(action: .list(style))
                                 }
+                                .disabled(editingTable)
                             }
                         }
                         tableMenu
@@ -757,6 +760,7 @@ struct NoteDetailView: View {
                         formatRequest = NoteFormatRequest(action: .list(.checklist))
                     }
                     .labelStyle(.iconOnly).help("Make a checklist")
+                    .disabled(editingTable)
                     tableMenu
                         .labelStyle(.iconOnly)
                         .help(editingTable ? "Edit table rows and columns" : "Insert a table")
@@ -772,14 +776,21 @@ struct NoteDetailView: View {
                                     Button("Heading \(level)") { formatRequest = NoteFormatRequest(action: .heading(level)) }
                                 }
                             }
+                            .disabled(editingTable)
                             Button(NoteListStyle.bullet.title, systemImage: NoteListStyle.bullet.symbol) {
                                 formatRequest = NoteFormatRequest(action: .list(.bullet))
                             }
-                            Button("Table", systemImage: "tablecells") {
-                                formatRequest = NoteFormatRequest(action: .insertTable)
+                            .disabled(editingTable)
+                            if editingTable {
+                                tableMenu
+                            } else {
+                                Button("Table", systemImage: "tablecells") {
+                                    formatRequest = NoteFormatRequest(action: .insertTable)
+                                }
                             }
                         }
                         Button("Quote", systemImage: "text.quote") { formatRequest = NoteFormatRequest(action: .inline("\n> ", "")) }
+                            .disabled(editingTable)
                         Menu("Callout", systemImage: "exclamationmark.bubble") {
                             ForEach(NoteCalloutKind.allCases, id: \.self) { kind in
                                 Button(kind.label, systemImage: kind.symbol) {
@@ -787,8 +798,11 @@ struct NoteDetailView: View {
                                 }
                             }
                         }
+                        .disabled(editingTable)
                         Button("Checklist", systemImage: "checklist") { formatRequest = NoteFormatRequest(action: .list(.checklist)) }
+                            .disabled(editingTable)
                         Button("Divider", systemImage: "minus") { formatRequest = NoteFormatRequest(action: .inline("\n\n---\n\n", "")) }
+                            .disabled(editingTable)
                     } label: {
                         Label("Insert", systemImage: "plus")
                     }
