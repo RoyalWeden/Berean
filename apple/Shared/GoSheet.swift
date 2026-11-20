@@ -87,20 +87,7 @@ struct GoSheet: View {
             let columns = [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 260 : 130),
                                     spacing: 8, alignment: .leading)]
             LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                row("Scripture", "book", .blue) {
-                    let passage = lastPassage
-                    app.openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
-                                      endVerse: passage.endVerse, textId: passage.textId,
-                                      reuseTab: !newTab, verseGroups: passage.verseGroups ?? [])
-                }
-                row("Notes", "note.text", .orange) { app.openNotesHome(newTab: newTab) }
-                row("History", "clock", .secondary) { app.openHistory(newTab: newTab) }
-                row("Lexicon", "character.book.closed", .green) { app.openLexiconSearch(newTab: newTab) }
-                row("New Note", "square.and.pencil", .orange) { app.newNote() }
-                row("Today's Note", "calendar", .orange) { app.openTodayDailyNote(newTab: newTab) }
-                row("Tags", "tag", .secondary) { app.openTags(newTab: newTab) }
-                row("PDFs", "doc.richtext", .secondary) { app.openPdfLibrary(newTab: newTab) }
-                row("YouTube", "play.rectangle", .secondary) { app.openYouTube(newTab: newTab) }
+                ForEach(destinations, id: \.title) { d in row(d.title, d.symbol, d.tint, action: d.run) }
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
@@ -127,7 +114,39 @@ struct GoSheet: View {
         trimmed.isEmpty ? nil : app.resolvePassage(trimmed, preferring: preferredText)
     }
 
+    /// The Open shortcuts; typing filters them into a Commands section (like the Mac ⌘K palette).
+    private var destinations: [(title: String, symbol: String, tint: Color, run: () -> Void)] {
+        var out: [(title: String, symbol: String, tint: Color, run: () -> Void)] = [
+            ("Scripture", "book", .blue, {
+                let passage = lastPassage
+                app.openScripture(bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse,
+                                  endVerse: passage.endVerse, textId: passage.textId,
+                                  reuseTab: !newTab, verseGroups: passage.verseGroups ?? [])
+            }),
+            ("Notes", "note.text", .orange, { app.openNotesHome(newTab: newTab) }),
+            ("History", "clock", .secondary, { app.openHistory(newTab: newTab) }),
+            ("Lexicon", "character.book.closed", .green, { app.openLexiconSearch(newTab: newTab) }),
+            ("New Note", "square.and.pencil", .orange, { app.newNote() }),
+            ("Today's Note", "calendar", .orange, { app.openTodayDailyNote(newTab: newTab) }),
+            ("Tags", "tag", .secondary, { app.openTags(newTab: newTab) }),
+            ("PDFs", "doc.richtext", .secondary, { app.openPdfLibrary(newTab: newTab) }),
+            ("YouTube", "play.rectangle", .secondary, { app.openYouTube(newTab: newTab) }),
+        ]
+        #if os(iOS)
+        out.append(("Berean Chat", "bubble.left.and.text.bubble.right", .blue, { app.chatShown = true }))
+        #endif
+        return out
+    }
+
     @ViewBuilder private var results: some View {
+        let commands = destinations.filter { $0.title.localizedCaseInsensitiveContains(trimmed) }
+        if !commands.isEmpty {
+            Section("Commands") {
+                ForEach(commands, id: \.title) { d in
+                    Button { finish(d.run) } label: { Label { Text(d.title) } icon: { Image(systemName: d.symbol).foregroundStyle(d.tint) } }
+                }
+            }
+        }
         if let ref = resolvedPassage {
             let isOpen = !newTab && app.tabs(in: .scripture).contains(where: ref.isShown(in:))
             Section("Passage") {
