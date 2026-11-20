@@ -107,4 +107,13 @@ struct NoteReferenceCompletionTests {
         let ownLine = try #require(detect("G5485"))
         #expect(ownLine.edit(in: "G5485", selection: NSRange(location: 5, length: 0), replacement: "G5485 grace;\nDefinition")?.replacement == "G5485 grace;\nDefinition")
     }
+    @Test func blockSuggestionsCannotSplitExistingTables() {
+        for reference in ["John 3:16", "G5485"] {
+            let text = "| Heading | Other |\n| --- | --- |\n| " + reference + " | value |"
+            let caret = (text as NSString).range(of: reference).upperBound
+            #expect(NoteReferenceCompletion.detect(in: text, selection: NSRange(location: caret, length: 0)) == nil)
+            #expect(detect(text + "\n\n" + reference) != nil)
+        }
+    }
+
 }

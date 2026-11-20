@@ -38,6 +38,25 @@ final class NoteTableLayout: NSLayoutManager {
     }
 
     private var rows: [Row] = []
+    private var dictionaryBlocks: [NoteLexiconBlock] = []
+
+    func styleDictionaryBlocks(in storage: NSTextStorage, spans: [MarkdownLiveSpans.Span],
+                               paragraph: NSParagraphStyle, headingAttributes: [NSAttributedString.Key: Any]) {
+        dictionaryBlocks = NoteLexiconBlock.detect(in: storage.string, spans: spans)
+        for block in dictionaryBlocks {
+            let inset = paragraph.mutableCopy() as! NSMutableParagraphStyle
+            inset.firstLineHeadIndent = 12
+            inset.headIndent = 12
+            inset.tailIndent = -12
+            inset.paragraphSpacing = 8
+            // The entry starts with a Latin Strong’s ID even for Hebrew lemmas.
+            // Keep the surrounding English definition in its natural direction.
+            inset.baseWritingDirection = .leftToRight
+            storage.addAttribute(.paragraphStyle, value: inset, range: block.range)
+            storage.addAttributes(headingAttributes, range: block.heading)
+        }
+    }
+
 
     func styleTables(
         in storage: NSTextStorage, spans: [MarkdownLiveSpans.Span],
@@ -187,6 +206,29 @@ final class NoteTableLayout: NSLayoutManager {
         let context = UIGraphicsGetCurrentContext()
         let label = UIColor.label
         #endif
+        if let context, !dictionaryBlocks.isEmpty {
+            let characters = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+            context.saveGState()
+            context.translateBy(x: origin.x, y: origin.y)
+            for block in dictionaryBlocks where NSIntersectionRange(characters, block.range).length > 0 {
+                let glyphs = glyphRange(forCharacterRange: block.range, actualCharacterRange: nil)
+                guard glyphs.length > 0 else { continue }
+                let first = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+                let last = lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+                let padding = textContainer(forGlyphAt: glyphs.location, effectiveRange: nil)?.lineFragmentPadding ?? 5
+                let box = CGRect(x: first.minX + padding, y: first.minY - 2,
+                                 width: max(0, first.width - padding * 2), height: last.maxY - first.minY + 4)
+                let path = CGPath(roundedRect: box, cornerWidth: 8, cornerHeight: 8, transform: nil)
+                context.addPath(path)
+                context.setFillColor(label.withAlphaComponent(0.045).cgColor)
+                context.fillPath()
+                context.addPath(path)
+                context.setStrokeColor(label.withAlphaComponent(0.12).cgColor)
+                context.setLineWidth(0.75)
+                context.strokePath()
+            }
+            context.restoreGState()
+        }
         if let context, !rows.isEmpty {
             let characters = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
             context.saveGState()

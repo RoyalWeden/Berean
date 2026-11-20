@@ -387,6 +387,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     storage.addAttributes([.link: url, .foregroundColor: UIColor.link], range: ref.range)
                 }
             }
+            (tv.layoutManager as? NoteTableLayout)?.styleDictionaryBlocks(in: storage, spans: spans, paragraph: para,
+                headingAttributes: [.font: font(size, .semibold)])
             (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
             // Null glyphs still participate in TextKit background geometry.
             // Highlight only visible text, not hidden delimiters or destinations.

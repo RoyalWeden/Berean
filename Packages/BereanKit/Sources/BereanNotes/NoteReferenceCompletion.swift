@@ -43,7 +43,10 @@ public struct NoteReferenceCompletion: Equatable, Sendable {
         } else { return nil }
 
         let spans = MarkdownLiveSpans.spans(text)
-        guard !isEscaped(at: range.location, in: source),
+        // Expansion inserts paragraphs, so a cell must retain ordinary reference links
+        // rather than offering an edit that splits its serialized table row.
+        guard NoteInlineFormat.allowsParagraphStyle(in: source, selection: selection),
+              !isEscaped(at: range.location, in: source),
               !isInsideMarkup(source, lineStart: lineStart, through: NSMaxRange(range)),
               !hasUnclosedFormatting(source, lineStart: lineStart, before: range.location, excluding: spans),
               !spans.contains(where: { span in
