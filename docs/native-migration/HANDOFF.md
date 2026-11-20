@@ -2861,3 +2861,12 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - iPhone notes: Insert → Image → **Photo Library…** (PHPicker) / **Choose File…**. Verified on sim end to end (stored as inline data image).
 - Checks: `swift test -c release` 318 pass; Mac + iOS builds exit 0.
 - Next: Read Aloud stays with Codex (Kokoro; never Apple voices). Candidates: Mac Go palette parity review against the iPhone Commands list; YouTube transcripts read-only view (M04) once the transcript DB contract is checked (fetching is dev-only in the original).
+
+### 2026-11-20 — Claude Code: palette parity + transcripts
+
+- Mac ⌘K palette: Berean Chat + Show Presenter commands (verified click-free via File → New Tab… + AX value + AXPress).
+- M04: read-only `TranscriptService` (tested) + in-tab Transcript list with seek (verified: tap 0:08 → currentTime 8.0).
+- Q10: Videos section in iPhone Go and Mac ⌘K → opens the video at the matched moment (verified on sim).
+- All QA fixtures were removed from the sim library afterwards (counts 0/0/0).
+- Checks: `swift test -c release` 319 pass; Mac + iOS builds exit 0.
+- Next: transcript data arrives only with the sync/data-pack workstream (don't fetch on clients); move transcript search off the main thread before real packs (SQLiteConnection thread-safety must be checked first); live current-line highlight in the transcript list.
