@@ -2836,3 +2836,10 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 ### 2026-11-20 — Claude Code: YouTube tab
 
 [YOUTUBE-TAB-2026-11-20](YOUTUBE-TAB-2026-11-20.md). Mac now has the outgoing-network sandbox entitlement (needed by WebKit). Next YouTube work: PiP (M02) and transcripts (M04) — transcripts must stay read-only for non-dev builds (see memory: fetch is dev-only in the original).
+
+### 2026-11-20 — Claude Code: session end state
+
+- Branch `native/reader-notes` (draft PR #24), HEAD after this entry's commit. Checks at end: `swift test -c release` 318 tests pass; `npm run native:build:mac` 0; `npm run native:build:ios` 0.
+- Landed today (each with its own doc): word-replacer rules, tag graph, PDFs, note images, onboarding, e-Sword import, idioms, App Intents/Spotlight, presenter, Berean Chat (notes side), YouTube tab, shortcuts list refresh, chat command in Go.
+- Next executable actions: (1) Chat + YouTube click-free check on Mac (menu by PID, no coordinate clicks); (2) YouTube PiP (M02) — `WebPage` supports PiP by default on iOS, needs auto-enter on tab switch; (3) note image drag-resize handle (N05); (4) idiom hover popover on Mac.
+- Waiting on the owner: BibleGateway importer (account login), Widget/Share Extension (new targets + App Group entitlements), merging PRs #22 → #23 → #24.
