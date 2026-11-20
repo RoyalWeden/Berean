@@ -395,6 +395,7 @@ private struct PaletteQueryField: NSViewRepresentable {
 /// The Mac palette uses the same results for routine navigation and explicit New Tab.
 struct CommandPalette: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.openWindow) private var openWindow
     let newTab: Bool
     let resultsHeight: CGFloat
     let close: () -> Void
@@ -519,6 +520,12 @@ struct CommandPalette: View {
             ("Search Lexicon", "character.book.closed", { inNewTab in app.openLexiconSearch(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("New Workspace", "square.stack", { _ in app.newWorkspace() }),
         ]
+        #if os(macOS)
+        commands += [
+            ("Berean Chat", "bubble.left.and.text.bubble.right", { _ in openWindow(id: "chat") }),
+            ("Show Presenter", "rectangle.on.rectangle", { _ in openWindow(id: "presenter") }),
+        ]
+        #endif
         if let tab = app.activeTab {
             commands += [
                 ("Duplicate Tab", "plus.square.on.square", { _ in app.duplicate(tab.id) }),

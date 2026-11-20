@@ -11,3 +11,4 @@ Status: **IMPLEMENTED; iPhone VERIFIED (sim); Mac window built** (not clicked �
 - Window → Berean Chat (menu by PID) opens the chat window (sidebar All Messages/Conversations, empty state, Unfiled composer) — screenshot of the app window only.
 - Fixed: Berean Chat and Presenter were listed twice in the Window menu (SwiftUI's automatic `Window` entries + our shortcut commands) → `.commandsRemoved()` on both scenes.
 - Sending on Mac not exercised: macOS refused to make the QA app frontmost (another QA process stayed in front), so the guarded keystroke script aborted without typing. Shared send path is verified on iPhone.
+- Mac ⌘K / New Tab palette: **Berean Chat** and **Show Presenter** commands (openWindow). Verified click-free: File → New Tab… (menu by PID) → search text set via the Accessibility API to "chat" → AXPress on the result → Chat window became the app's front window.
