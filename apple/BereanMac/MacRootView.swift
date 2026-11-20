@@ -86,6 +86,9 @@ struct MacRootView: View {
         .sheet(isPresented: Binding(get: { app.gettingStartedShown }, set: { app.gettingStartedShown = $0 })) {
             GettingStartedChecklist().environment(app)
         }
+        .sheet(isPresented: Binding(get: { app.askBereanShown }, set: { app.askBereanShown = $0 })) {
+            AskBereanView().environment(app)
+        }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
         .alert("Library", isPresented: Binding(get: { app.libraryError != nil }, set: { if !$0 { app.libraryError = nil } })) {
             Button("OK") { app.libraryError = nil }

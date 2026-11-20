@@ -533,6 +533,7 @@ struct CommandPalette: View {
         commands += [
             ("Berean Chat", "bubble.left.and.text.bubble.right", { _ in openWindow(id: "chat") }),
             ("Show Presenter", "rectangle.on.rectangle", { _ in openWindow(id: "presenter") }),
+            ("Ask Berean", "sparkle.magnifyingglass", { _ in app.askBereanShown = true }),
         ]
         #endif
         if let tab = app.activeTab {

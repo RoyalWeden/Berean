@@ -2884,3 +2884,6 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 
 ### 2026-11-20 — Claude Code: Getting Started checklist (U15)
 [GETTING-STARTED-CHECKLIST-2026-11-20](GETTING-STARTED-CHECKLIST-2026-11-20.md) — both platforms; original `completedStepIds` format; verified on sim (detection + manual mark + redraw fix).
+
+### 2026-11-20 — Claude Code: Ask Berean (model-free)
+[ASK-BEREAN-MODEL-FREE-2026-11-20](ASK-BEREAN-MODEL-FREE-2026-11-20.md). Next for G01: comparisons, follow-ups, exclusions; saving answers into Berean Chat (ai_chats assistant rows in the original shape).

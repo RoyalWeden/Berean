@@ -353,6 +353,7 @@ final class AppModel {
     /// Bumps when Getting Started progress changes.
     var gettingStartedRevision = 0
     var gettingStartedShown = false
+    var askBereanShown = false
     private var sessionsService: SessionsService?
     private var lock: SingleInstanceLock?
     private var keys = TabPersistence.OrderKeyMaps()

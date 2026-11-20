@@ -92,7 +92,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | M07 | Word-follow highlighting | implemented (estimated, not forced alignment) | ❌ | ❌ | P3 |  |
 | M08 | Voice downloads and caching | implemented | ❌ | ❌ | P3 |  |
 | M09 | Sleep timer (iPhone) | undocumented | — | ❌ | P3 |  |
-| G01 | Direct references and Strong's without a model | implemented (statuses: SPEC "Complete") | ❌ | ❌ | P2 | Ask Berean not ported |
+| G01 | Direct references and Strong's without a model | implemented (statuses: SPEC "Complete") | 🟡 | 🟡 | P2 | Model-free Ask Berean: word studies, Strong's, references, labelled keyword fallback (2026-11-20, ASK-BEREAN-MODEL-FREE-2026-11-20.md); no comparisons/follow-ups yet |
 | G02 | Local model runtime (Ollama), model picker, downloads | partial | ❌ | ❌ | P3 |  |
 | G03 | Ask Berean modes (Commentary ON/OFF), prose stripping, premise check | implemented (ON partial) | ❌ | ❌ | P3 |  |
 | G04 | Deep Search, escalation, cancel and time budgets | implemented (Mac), partial (budgets) | ❌ | — | P3 |  |
@@ -101,7 +101,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | G07 | Cloud model (BYO key) | partial (Mac), not implemented (iPhone) | ❌ | ❌ | P3 |  |
 | G08 | Online research (Wikipedia, Sefaria) | partial | ❌ | ❌ | P3 |  |
 | G09 | Retrieval benchmark and evaluation harness | implemented (dev tooling) | — | — | — | Dev tooling |
-| G10 | iPhone Ask Berean (model-free) | partial | — | ❌ | P3 |  |
+| G10 | iPhone Ask Berean (model-free) | partial | — | 🟡 | P3 | Same model-free sheet on iPhone (2026-11-20) |
 | A01 | iCloud sync (journal) | implemented, device matrix BLOCKED | ❌ | ❌ | P1 | Sync engine port pending (M4, OD-5 gates) |
 | A02 | Keychain / secure storage | partial | ❌ | ❌ | P3 |  |
 | A03 | App Groups and Share Extension | implemented (iPhone) | — | ❌ | P2 | Share Extension not built for native |

@@ -85,6 +85,9 @@ struct IOSRootView: View {
                 .sheet(isPresented: Binding(get: { app.gettingStartedShown }, set: { app.gettingStartedShown = $0 })) {
                     GettingStartedChecklist().environment(app)
                 }
+                .sheet(isPresented: Binding(get: { app.askBereanShown }, set: { app.askBereanShown = $0 })) {
+                    AskBereanView().environment(app)
+                }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
                 .gesture(HistoryEdgeSwipe(
                     enabled: app.canGoBack && !keyboardUp,
@@ -430,6 +433,7 @@ struct IOSRootView: View {
             Section {
                 Menu("Study Tools", systemImage: "books.vertical") {
                     Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
+                    Button("Ask Berean", systemImage: "sparkle.magnifyingglass") { app.askBereanShown = true }
                     Button("Getting Started", systemImage: "checklist") { app.gettingStartedShown = true }
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                     Button("Tags", systemImage: "tag") { app.openTags() }

@@ -142,6 +142,7 @@ struct GoSheet: View {
         ]
         #if os(iOS)
         out.append(("Berean Chat", "bubble.left.and.text.bubble.right", .blue, { app.chatShown = true }))
+        out.append(("Ask Berean", "sparkle.magnifyingglass", .purple, { app.askBereanShown = true }))
         #endif
         return out
     }
