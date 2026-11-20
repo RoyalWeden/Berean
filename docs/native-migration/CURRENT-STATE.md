@@ -2,12 +2,16 @@
 
 Snapshot **2026-11-20T07:31:09.976275+00:00**, Codex. Read HANDOFF first; verify live state and preserve newer edits. Broad goal **ACTIVE**.
 
+## Latest investigation — unresolved, experiments removed
+
+Source/doc334eafbb/4e6c49fa published; exact PR24 head4e6c49fa verified OPEN/draft/base native/m6-navigation. CI44695609238 now in_progress; prior44693533700 is CANCELLED, not green. Mac inspector custom380→newBible inspectorOFF→close→Genesis returns320. Trace proved hidden width capture, but three actual UI-checked fixes failed (capture guard; conditionalideal; omit closed content). All experimental code/diagnostics removed; published Mac source restored. See [precise evidence and rejected approaches](READER-VIEWPORT-RESTORATION.md#2026-11-20--width-drift-reproduced-attempted-fixes-rejected). Never claim this fixed or blindly repeat those attempts. Final published-app restoration build /private/tmp/berean-inspector-published-restore-build.log; BUILD SUCCEEDED; exact published app reinstalled/relaunched without trace flags, final AX confirms original1148/scroll0.5782918149466192/Genesis1selected1/Notes/sidebar239. All CUA phases summarized; no GUI task pending. Final read-only preservation checks repeated PASS for20/25prior notes,37/47activeIDs/alltags after every width experiment.
+
 ## Source and review
 
 - Checkout /Users/roywe/Documents/ChatGPT/Berean/repo, branch native/reader-notes; latest implemented source **334eafbb** (LXX attachment labels and iPhone editor teardown), following7e8142f9 Scripture blocks/Settings and published doc9a210789.
 - Source334eafbb is locally committed; publication/doc head may follow. Verify actual remote/head checks before claiming published or green. Last remotePR24 head9a210789 OPEN/DRAFT/base native/m6-navigation. Pushgithub only; origin is owner's local repo.
 - Owner-only22→23 after correct retarget/checks→draft24. No merge/retarget/ready/force.
-- Prior9a210789 CI44693533700 still live at latest poll: legacy job success; native Mac shared/AppKit regressions success; iOS platform-conformance step running. Do not restart on observation timeout. Priorcf0c6438/1f4e7361 CI success;9fb67f8b cancelled. None proves new source CI.
+- Prior9a210789 CI44693533700 is now CANCELLED, not green; earlier legacy/Mac shared/AppKit steps had succeeded before cancellation. New publication-head44695609238 in_progress at latest poll. No manual restart/cancellation requested. Priorcf0c6438/1f4e7361 CI success;9fb67f8b cancelled. None proves new source CI.
 
 ## Completed validation and data
 

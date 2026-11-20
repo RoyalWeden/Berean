@@ -868,3 +868,8 @@ Use SIMULATOR-CLIPBOARD-QA for exact paste through DeviceHub Send Clipboard; cap
 ## 2026-11-20 — Attachment/editor lifecycle QA
 
 Use NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md for the latest tested source/data preservation and cleanup packet. Check native reader labels separately from raw stored attachment keys; legacy golden output intentionally stays raw. Verify focus teardown by trashing an owned actively edited note and using the returned dock without relaunch. Preserve original notes/tags/tab IDs and restore original pane width/scroll. Unit ordering checks do not replace software-keyboard/physical-device/multi-editor UI checks. Continue updating HANDOFF/CURRENT-STATE during work.
+
+
+## 2026-11-20 — Inspector width investigation remains open
+
+Published334eafbb/4e6c49fa retained. QA trace proves hidden inspector width capture during a new closed-inspector Bible tab. Custom380pt→newPsalmLXX→close→Genesis returns320pt. Three attempted fixes built but failed the identical UI regression (active/presented capture guard; conditional ideal; omit hidden content); **all removed**, exact published source/app restored without diagnostic flags. Original1148divider/0.5782918149466192scroll/Genesis1selected1/Notes restored and prior20/25notes,37/47activeIDs/alltags rechecked unchanged. No GUI phase pending. Read [precise reproduction/trace/failed approaches](READER-VIEWPORT-RESTORATION.md#2026-11-20--width-drift-reproduced-attempted-fixes-rejected); do not report width drift fixed or repeat rejected approaches as untested ideas. Prior9aCI44693533700 cancelled;4e6c49fa CI44695609238 live at latest poll, not green. Broad migrationACTIVE.

@@ -37,3 +37,21 @@ Trace offset710 remained710 across320/756/416; repeated UI Compare returns exact
 ## 2026-11-19 — Native inspector lifetime and width
 
 Root now owns one inspector independently of the document ID, with a tab-ID transaction suppressing inherited animations. Native pane-width measurement (public NSView/NSSplitView) records only after250ms quiet. Content GeometryReader feedback and transient opening-width capture were rejected after actual shrinking/rewrap reproductions. Passing Notes-return values0.4002859185132237/split878 and0.4609053497942387/split938 preceded final minimum-frame polish. First constrained Compare still changes native width/reflows; all-type toolbar/history/resize/rapid-state/physical frame pacing are open. Do not infer physical smoothness from AX settled values. New sidebar240/panel320/window1000 limits and native/content constraints keep controls contained; manual drag matrix remains inconclusive.
+
+
+## 2026-11-20 — Width drift reproduced; attempted fixes rejected
+
+On published334eafbb/4e6c49fa, final label/dock QA again exposed right-divider1148→1168 (340→320pt pane). Temporary opt-in QA-only native trace was added, built and exercised, then **removed**. First log destination/private/tmp was unavailable inside the app; corrected to UserLibrary.directory in the isolated QA profile. Evidence copied read-only to /private/tmp/berean-inspector-width-trace.jsonl. No text/notes were logged.
+
+Exact strong reproduction: set Genesis1 inspector splitter1108 in1488pt window (380pt pane); wait through ordinary UI observation; CmdT→Psalm3:1LXX (inspectorOFF)→CmdW (auto-selects Search)→select originalGenesis1. Published and each attempted fix returned splitter1168 (320pt), while scrollbar0.5587188612099644 stayed exact. Notes→Reader alone retained1108 in a separate traced pass. Thus this is not proved to be every Notes return or a general scroll-save failure.
+
+Trace: visible pane380 was remembered; closing into a new Bible tab produced native width140 then320 while inspector content still existed;250ms later root remembered320. Native split panes read[1488,320] (do not infer conventional nonoverlapping split layout from these widths). Returning toGenesis used320. Hidden measurements can overwrite remembered width, but suppressing that alone did not restore the actual reopened native pane.
+
+Rejected after actual identical UI regression, not published:
+1. Visible-active-tab guard on width callback: buildPASS, still320.
+2. Same guard plus conditional ideal width to force change on reopen: buildPASS, still320.
+3. Same guard plus omit StudyInspector content while bindingfalse, normalideal retained: buildPASS, still320.
+
+All experimental code/trace and flags removed; restored exact committed MacRootView and rebuilt/reinstalled published QA app. No failed attempt is a delivered fix. Do not repeat these three as untested new ideas. Next investigate native inspector saved-width restoration/constraints and attachment-time actual pane frames, without adding delays/fighting user resize or destroying document scroll state. Consider a controlled public NSSplitView restoration only after proving which native pane/geometry is authoritative; no such mutation has been implemented/tested here.
+
+Original pane1148/scroll0.5782918149466192/Genesis1selected1/Notes1:1/sidebar239 restored through UI. Intermediate resizes legitimately changed scroll reading; app relaunch twice preserved original exact value but another prior diagnostic relaunch yielded0.5587188612099644, so universal relaunch/resize stability remainsOPEN. Final restoration/build/data/CI details in CURRENT-STATE. Physical trackpad pacing and all-type/multiwindow/rapid races remainOPEN. No production/shared profile changes.
