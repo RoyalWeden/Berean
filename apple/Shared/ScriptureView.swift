@@ -293,6 +293,10 @@ extension AppModel {
 
     func saveScripturePosition(tabId: String, edition: ChapterEdition, position: ScriptureReadingPosition) {
         scriptureReadingPositions[tabId, default: [:]][edition.key] = position
+        if presenterOpen {
+            let anchor = PresenterAnchor(tabId: tabId, edition: edition, verse: position.verse)
+            if presenterAnchor != anchor { presenterAnchor = anchor }
+        }
         guard let persisted = position.persisted, let tab = findTab(tabId), tab.tabType == .bible else { return }
         guard ReaderViewports.position(in: tab.state, chapter: edition.key) != persisted else { return }
         update(tabId, recordHistory: false) {
@@ -2507,6 +2511,16 @@ extension ScriptureView {
                 }
                 guard !Task.isCancelled else { return }
                 strongsTooltips = next
+            }
+            // Presenter: mirror the reader's live verse selection (only while it is open).
+            .onChange(of: selection, initial: true) {
+                guard app.presenterOpen else { return }
+                let next = AppModel.PresenterSelection(tabId: tabId, edition: ChapterEdition(st), verses: selection)
+                if app.presenterSelection != next { app.presenterSelection = next }
+            }
+            .onChange(of: app.presenterOpen) {
+                guard app.presenterOpen else { return }
+                app.presenterSelection = AppModel.PresenterSelection(tabId: tabId, edition: ChapterEdition(st), verses: selection)
             }
 
     }

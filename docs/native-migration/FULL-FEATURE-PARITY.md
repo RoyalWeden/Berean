@@ -71,7 +71,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U04 | Tab and session persistence | implemented | ✅ | ✅ | — | Synced sessions/tabs tables, relaunch restore |
 | U05 | Workspaces and layouts | implemented | ✅ | 🟡 | — | 16 layouts (Mac); saved workspaces both |
 | U06 | Resizable panels, drag and drop | implemented (Mac) | 🟡 | — | P2 | Split panes; no drag tabs into panes |
-| U07 | Multi-window, floating panels, presenter/viewer | implemented (Mac only) | ❌ | — | P2 | Single window only (no floating tabs/presenter/Study Trail window) |
+| U07 | Multi-window, floating panels, presenter/viewer | implemented (Mac only) | 🟡 | — | P2 | New Window + Presenter window (⌘⇧B) following the active tab with zoom/pause (2026-11-20, PRESENTER-2026-11-20.md); laser/compare/side panel/floating tabs open |
 | U08 | Navigation state and history stacks | implemented | ✅ | 🟡 | — | Per-tab history; [sidebar ‹ ›] group (Mac); iPhone Back/Forward in More |
 | U09 | Menus, context actions, commands | implemented | 🟡 | 🟡 | P2 | Menus/context menus partial; no Commands group in ⌘K |
 | U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; no shortcuts list in Settings |

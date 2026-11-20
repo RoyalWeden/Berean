@@ -30,6 +30,11 @@ struct BereanMacApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
+        Window("Presenter", id: "presenter") {
+            PresenterView().environment(app).defaultAppStorage(UserLibrary.defaults).preferredColorScheme(app.colorScheme)
+                .frame(minWidth: 480, minHeight: 320)
+        }
+        .defaultSize(width: 1000, height: 700)
         Settings {
             SettingsView().environment(app).defaultAppStorage(UserLibrary.defaults).preferredColorScheme(app.colorScheme)
         }
@@ -48,6 +53,10 @@ struct BereanMacApp: App {
                 Button("New Note") { app.newNote() }.keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("Today's Note") { app.openTodayDailyNote() }.keyboardShortcut("d", modifiers: [.command, .shift])
                 Button("New Workspace") { app.newWorkspace() }.keyboardShortcut("0", modifiers: [.command, .shift])
+            }
+            CommandGroup(before: .windowList) {
+                PresenterCommand()
+                Divider()
             }
             CommandGroup(replacing: .importExport) {
                 Button("Import Markdown…") { app.importMarkdownFiles() }

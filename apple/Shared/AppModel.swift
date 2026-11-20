@@ -345,6 +345,15 @@ final class AppModel {
     // MARK: onboarding (the original's per-device `onboardingCompleted` gate)
 
     var onboardingShown = false
+
+    // MARK: presenter (Mac second window)
+    var presenterOpen = false
+    struct PresenterAnchor: Equatable { var tabId: String; var edition: ChapterEdition; var verse: Int? }
+    /// The main reader's top visible verse, published only while the presenter is open.
+    var presenterAnchor: PresenterAnchor?
+    struct PresenterSelection: Equatable { var tabId: String; var edition: ChapterEdition; var verses: Set<Int> }
+    /// The main reader's selected verses, published only while the presenter is open.
+    var presenterSelection: PresenterSelection?
     var eSwordImportShown = false
 
     /// Shows the getting-started flow only for a genuinely new library: not completed on this

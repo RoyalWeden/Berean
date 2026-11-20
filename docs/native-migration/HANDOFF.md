@@ -2824,3 +2824,7 @@ Native Mac port of the e-Sword importer with review sheet; output checked agains
 ### 2026-11-20 — Claude Code: idioms (N13); BibleGateway importer deliberately deferred
 
 Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer (N14) was **not** ported: it signs into biblegateway.com with the owner's credentials and scrapes annotations (outward-facing, account-related) — needs the owner's decision first. S15 parity row corrected (iPhone Find in Chapter exists).
+
+### 2026-11-20 — Claude Code: App Intents, Spotlight, presenter
+
+[APP-INTENTS-2026-11-20](APP-INTENTS-2026-11-20.md) (A04/A05) and [PRESENTER-2026-11-20](PRESENTER-2026-11-20.md) (U07 first slice). Widget (A07) and Share Extension (A03) need new extension targets + App Group entitlements → owner decision before touching signing/identity.
