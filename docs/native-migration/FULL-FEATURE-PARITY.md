@@ -105,7 +105,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | A01 | iCloud sync (journal) | implemented, device matrix BLOCKED | ❌ | ❌ | P1 | Sync engine port pending (M4, OD-5 gates) |
 | A02 | Keychain / secure storage | partial | ❌ | ❌ | P3 |  |
 | A03 | App Groups and Share Extension | implemented (iPhone) | — | ❌ | P2 | Share Extension not built for native |
-| A04 | Spotlight | implemented (iPhone) | — | ❌ | P3 |  |
+| A04 | Spotlight | implemented (iPhone) | — | 🟡 | P3 | Notes, workspaces, books indexed; tap opens via deep link (2026-11-20); sessions not indexed |
 | A05 | App Intents and Siri Shortcuts | implemented (iPhone) | — | 🟡 | P3 | Four intents + phrases (2026-11-20, APP-INTENTS-2026-11-20.md); Read Aloud intent pending |
 | A06 | Deep links and URL schemes | implemented | ❌ | ❌ | P2 | berean:// deep links not handled natively |
 | A07 | Widget | implemented (iPhone) | — | ❌ | P3 |  |
