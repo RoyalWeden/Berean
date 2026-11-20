@@ -724,6 +724,7 @@ struct ChapterTextView: NSViewRepresentable {
                         if let idiom = v.idioms.first(where: { $0.start <= pos && pos < $0.end }), let url = URL(string: "berean-idiom:\(idiom.id)") {
                             a[.underlineStyle] = NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue
                             a[.underlineColor] = NSColor.systemPurple; a[.link] = url
+                            a[.toolTip] = idiom.meaning.isEmpty ? "Idiom — click to open" : idiom.meaning
                         }
                         out.append(NSAttributedString(string: " ", attributes: a)); pos += 1
                     }
