@@ -74,7 +74,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U07 | Multi-window, floating panels, presenter/viewer | implemented (Mac only) | 🟡 | — | P2 | New Window + Presenter window (⌘⇧B) following the active tab with zoom/pause (2026-11-20, PRESENTER-2026-11-20.md); laser/compare/side panel/floating tabs open |
 | U08 | Navigation state and history stacks | implemented | ✅ | 🟡 | — | Per-tab history; [sidebar ‹ ›] group (Mac); iPhone Back/Forward in More |
 | U09 | Menus, context actions, commands | implemented | 🟡 | 🟡 | P2 | Menus/context menus partial; no Commands group in ⌘K |
-| U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; no shortcuts list in Settings |
+| U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; searchable list in Settings → Keyboard Shortcuts (refreshed 2026-11-20 with presenter/chat/headings/text size); editing deferred as in the original |
 | U11 | Themes and appearance | implemented | ✅ | ✅ | — | System/light/dark; dark mode visually checked on Mac reader/search |
 | U12 | Settings | implemented | 🟡 | 🟡 | P2 | Reading, Appearance, Workspaces, Library. Includes preferred Shepherd of Hermas edition. Text ordering and other settings sections remain open. |
 | U13 | Onboarding and hints | partial | 🟡 | 🟡 | P3 | Getting started flow (welcome, default text, appearance) + replay in About (2026-11-20, ONBOARDING-2026-11-20.md); feature hints not ported |

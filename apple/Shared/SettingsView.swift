@@ -326,7 +326,10 @@ extension SettingsView {
         ("⌥⌘←  ⌥⌘→", "Previous · next chapter"), ("⌘F  ⌘G", "Find in chapter · next match"), ("⌘C  ⇧⌘C", "Copy with reference · plain text"),
         ("⌥⌘C", "Compare texts"), ("⌥⌘I", "Study panel"), ("⇧⌘N", "New note"), ("⇧⌘D", "Today's note"), ("⌘Y", "History"),
         ("⇧⌘0", "New workspace"), ("⌃⌘S", "Show / hide sidebar"), ("⌘1 … ⌘5", "Spaces"), ("⌃Tab", "Next tab"),
-        ("⌘B  ⌘I  ⌘U", "Bold · italic · underline (notes)"), ("⌥⇧⌘C", "Copy note text without formatting"),
+        ("⌘B  ⌘I  ⌘U", "Bold · italic · underline (notes)"), ("⇧⌘X", "Strikethrough (notes)"), ("⇧⌘H", "Highlight (notes)"),
+        ("⌥⌘1 … ⌥⌘3  ⌥⌘0", "Heading level · body text (notes)"), ("⇧⌘E", "Export note as Markdown"),
+        ("⌥⇧⌘C", "Copy note text without formatting"), ("⌘=  ⌘−  ⌘0", "Scripture text size · reset"),
+        ("⇧⌘B", "Presenter window"), ("⌃⌘C", "Berean Chat"), ("⌘↩", "Send chat note"), ("⇧⌃Tab", "Previous tab"),
     ]
 }
 
