@@ -189,6 +189,32 @@ struct ChatThreadView: View {
                     .background(note ? Color.accentColor : Color.secondary.opacity(0.14), in: .rect(cornerRadius: 16))
                     .frame(maxWidth: 560, alignment: mine ? .trailing : .leading)
             }
+            if m.kind == .aiReply, let verses = m.raw["results"]?.arrayValue, !verses.isEmpty {
+                // Verses the answer found (original results / visibleCount), as tappable references.
+                let shown = verses.prefix(max(1, Int(m.raw["visibleCount"]?.numberValue ?? 6)))
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { _, r in
+                        if let book = r["bookId"]?.stringValue?.string, let ch = r["chapter"]?.numberValue, let v = r["verse"]?.numberValue {
+                            Button {
+                                app.openScripture(bookId: book, chapter: Int(ch), verse: Int(v), textId: r["textId"]?.stringValue?.string, reuseTab: false)
+                                #if os(iOS)
+                                app.chatShown = false   // the passage opens behind the full-screen chat
+                                #endif
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(r["bookName"]?.stringValue?.string ?? book) \(Int(ch)):\(Int(v))").font(.caption.weight(.semibold)).foregroundStyle(.tint)
+                                    Text(r["text"]?.stringValue?.string ?? "").font(.callout).foregroundStyle(.primary).lineLimit(3)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.interactivePlain)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color.secondary.opacity(0.08), in: .rect(cornerRadius: 12))
+                .frame(maxWidth: 560, alignment: .leading)
+            }
             HStack(spacing: 6) {
                 if !note { Label(m.kind == .aiReply ? "Berean" : "Asked Berean", systemImage: "sparkles").labelStyle(.titleAndIcon) }
                 Text(Date(timeIntervalSince1970: m.time / 1000).formatted(date: .omitted, time: .shortened))

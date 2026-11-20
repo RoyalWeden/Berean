@@ -2,6 +2,8 @@ import SwiftUI
 import BereanBible
 import BereanReference
 import BereanText
+import BereanCore
+import BereanNotes
 
 /// Ask Berean, model-free (original modelFreeLookup.ts, G01; on iPhone the only path — G10).
 /// Order as the original: word study / Strong's → reference → keyword search. Only the keyword
@@ -12,6 +14,8 @@ struct AskBereanView: View {
     @State private var question = ""
     @State private var answer: Answer?
     @State private var asking = false
+    @State private var asked = ""
+    @State private var savedChatId: String?
     @FocusState private var focused: Bool
 
     struct Verse: Identifiable, Hashable {
@@ -42,7 +46,16 @@ struct AskBereanView: View {
                     Text("Try: John 3:16 · H2617 · compare H2617 and H7356 · word study on grace · How does Isaiah 7:14 read in the LXX? · verses on the Sabbath, not from Exodus")
                 }
                 if asking { ProgressView() }
-                if let answer { results(answer) }
+                if let answer {
+                    results(answer)
+                    Section {
+                        if savedChatId != nil {
+                            Label("Saved to Berean Chat", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else {
+                            Button("Save to Berean Chat", systemImage: "bubble.left.and.text.bubble.right") { save(answer) }
+                        }
+                    }
+                }
             }
             .navigationTitle("Ask Berean")
             #if os(iOS)
@@ -143,6 +156,8 @@ struct AskBereanView: View {
         let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return }
         asking = true
+        asked = q
+        savedChatId = nil
         defer { asking = false }
         // 0. Two or more Strong's numbers: their entries side by side (original lexical comparison).
         let ids = ModelFreeAsk.strongsIds(q)
@@ -214,6 +229,55 @@ struct AskBereanView: View {
             if verses.count >= 12 { break }
         }
         answer = .keyword(words, verses)
+    }
+
+    /// Writes the exchange into Berean Chat in the original message shape (a new conversation).
+    private func save(_ answer: Answer) {
+        guard let chats = app.chats else { return }
+        func results(_ verses: [Verse], source: String) -> JSValue {
+            .array(verses.map { v in
+                var o = JSObject()
+                o["textId"] = .string(JSString(v.textId)); o["bookId"] = .string(JSString(v.bookId))
+                o["bookName"] = .string(JSString(Reference.bookName(v.bookId))); o["chapter"] = .number(Double(v.chapter))
+                o["verse"] = .number(Double(v.verse)); o["text"] = .string(JSString(v.text)); o["source"] = .string(JSString(source))
+                return .object(o)
+            })
+        }
+        func card(_ e: LexiconEntry) -> JSValue {
+            var c = JSObject()
+            c["strongsNum"] = .string(JSString(e.strongsNum)); c["lemma"] = .string(JSString(e.lemma))
+            c["transliteration"] = .string(JSString(e.transliteration)); c["gloss"] = .string(JSString(e.gloss))
+            c["definition"] = .string(JSString(e.definition)); c["derivation"] = .string(JSString(e.derivation))
+            c["occurrenceCount"] = .number(Double(e.occurrences))
+            return .object(c)
+        }
+        var f = JSObject()
+        switch answer {
+        case .strongs(let e, let verses, _):
+            f["results"] = results(verses, source: "strongs"); f["visibleCount"] = .number(Double(min(verses.count, 6)))
+            f["strongsCard"] = card(e)
+            f["summary"] = .string(JSString("Strong's \(e.strongsNum) · \(e.lemma) (\(e.transliteration)) — \(e.gloss)"))
+        case .compare(let entries):
+            f["results"] = .array([]); f["visibleCount"] = .number(0)
+            f["summary"] = .string(JSString(entries.map { "\($0.strongsNum) \($0.transliteration) — \($0.gloss)" }.joined(separator: " · ")))
+        case .passage(let title, let verses):
+            f["results"] = results(verses, source: "named"); f["visibleCount"] = .number(Double(verses.count))
+            f["summary"] = .string(JSString(title))
+        case .parallel(let title, let kjv, let lxx):
+            f["results"] = results(kjv + lxx, source: "named"); f["visibleCount"] = .number(Double(kjv.count + lxx.count))
+            f["summary"] = .string(JSString("\(title) — KJV and Brenton LXX"))
+        case .keyword(let words, let verses):
+            f["results"] = results(verses, source: "keyword"); f["visibleCount"] = .number(Double(min(verses.count, 6)))
+            f["keywords"] = .array(words.map { .string(JSString($0)) })
+            f["errorCode"] = "NO_MODEL_INSTALLED"; f["partial"] = .bool(!verses.isEmpty)
+            // The original's replyTextFor(NO_MODEL_INSTALLED) copy.
+            f["content"] = .string(JSString("AI model not installed. The AI model isn't available on this device." + (verses.isEmpty ? "" : " Results found without the AI model are shown below.")))
+        case .nothing:
+            return
+        }
+        if let chat = try? chats.upsert(chatId: nil, title: asked, messages: chats.aiExchange(question: asked, replyFields: f)) {
+            savedChatId = chat.id
+        }
     }
 
     private func occurrences(_ id: String) async -> [Verse] {

@@ -165,6 +165,26 @@ public final class ChatsService: @unchecked Sendable {
         return .object(o)
     }
 
+    /// An Ask Berean exchange as the original controller writes it: `ai-request` (user) then `ai-reply`
+    /// (assistant, `replyTo` the request, created 1 ms later). `replyFields` carries the answer fields
+    /// (`content`, `results`, `visibleCount`, `keywords`, `strongsCard`, `errorCode`, `partial`, …).
+    public func aiExchange(question: String, replyFields: JSObject) -> [JSValue] {
+        let t = now()
+        let requestId = uuid()
+        var request = JSObject()
+        request["id"] = .string(JSString(requestId)); request["role"] = "user"; request["kind"] = "ai-request"
+        request["content"] = .string(JSString(question)); request["createdAt"] = .string(JSString(Self.iso(t)))
+        var mode = JSObject(); mode["commentary"] = .bool(false); mode["deepSearch"] = .bool(false); mode["tabContext"] = .bool(false)
+        request["aiMode"] = .object(mode)
+        var reply = JSObject()
+        reply["id"] = .string(JSString(uuid())); reply["role"] = "assistant"; reply["kind"] = "ai-reply"
+        reply["replyTo"] = .string(JSString(requestId))
+        reply["content"] = .string("")
+        for (k, v) in replyFields.entries { reply[k] = v }
+        reply["createdAt"] = .string(JSString(Self.iso(t + 1)))
+        return [.object(request), .object(reply)]
+    }
+
     /// `upsertMessages`: merge by id into the row as it is now; nil chatId (or a deleted one) creates a conversation.
     @discardableResult
     public func upsert(chatId: String?, title: String? = nil, messages incoming: [JSValue], removeIds: Set<String> = []) throws -> Chat {

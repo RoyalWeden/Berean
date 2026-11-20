@@ -63,4 +63,23 @@ import BereanWorkspace
         #expect(try svc.upsert(chatId: empty.id, messages: [svc.noteMessage("Feasts of Yehovah")]).title == "Feasts of Yehovah")
         #expect(try svc.upsert(chatId: empty.id, messages: [svc.noteMessage("second")]).title == "Feasts of Yehovah")
     }
+
+    @Test func askExchangeMatchesOriginalShape() throws {
+        let (_, svc, _) = try setup()
+        var fields = JSObject()
+        fields["errorCode"] = "NO_MODEL_INSTALLED"; fields["partial"] = .bool(true)
+        fields["keywords"] = .array(["sabbath"])
+        let pair = svc.aiExchange(question: "Sabbath rest", replyFields: fields)
+        let chat = try svc.upsert(chatId: nil, title: "Sabbath rest", messages: pair)
+        let raw = try #require(try svc.chat(chat.id))
+        #expect(raw.title == "Sabbath rest")
+        #expect(raw.messages.count == 2)
+        let req = pair[0], rep = pair[1]
+        #expect(req["kind"]?.stringValue?.string == "ai-request" && req["role"]?.stringValue?.string == "user")
+        #expect(req["aiMode"]?["deepSearch"]?.boolValue == false)
+        #expect(rep["kind"]?.stringValue?.string == "ai-reply" && rep["role"]?.stringValue?.string == "assistant")
+        #expect(rep["replyTo"] == req["id"])
+        #expect(rep["errorCode"]?.stringValue?.string == "NO_MODEL_INSTALLED" && rep["content"]?.stringValue?.string == "")
+        #expect((rep["createdAt"]?.stringValue?.string ?? "") > (req["createdAt"]?.stringValue?.string ?? ""))
+    }
 }
