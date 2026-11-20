@@ -100,6 +100,7 @@ struct GoSheet: View {
                 row("Today's Note", "calendar", .orange) { app.openTodayDailyNote(newTab: newTab) }
                 row("Tags", "tag", .secondary) { app.openTags(newTab: newTab) }
                 row("PDFs", "doc.richtext", .secondary) { app.openPdfLibrary(newTab: newTab) }
+                row("YouTube", "play.rectangle", .secondary) { app.openYouTube(newTab: newTab) }
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())

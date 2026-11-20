@@ -2832,3 +2832,7 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 ### 2026-11-20 — Claude Code: Berean Chat (notes side)
 
 [BEREAN-CHAT-2026-11-20](BEREAN-CHAT-2026-11-20.md). Writes go to the native Dev library's `ai_chats` only (no sync yet); format matches the original exactly so later sync is safe.
+
+### 2026-11-20 — Claude Code: YouTube tab
+
+[YOUTUBE-TAB-2026-11-20](YOUTUBE-TAB-2026-11-20.md). Mac now has the outgoing-network sandbox entitlement (needed by WebKit). Next YouTube work: PiP (M02) and transcripts (M04) — transcripts must stay read-only for non-dev builds (see memory: fetch is dev-only in the original).

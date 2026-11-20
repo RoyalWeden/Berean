@@ -515,6 +515,7 @@ struct CommandPalette: View {
             ("History", "clock", { inNewTab in app.openHistory(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("Tags", "tag", { inNewTab in app.openTags(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("PDFs", "doc.richtext", { inNewTab in app.openPdfLibrary(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("YouTube", "play.rectangle", { inNewTab in app.openYouTube(newTab: inNewTab) }),
             ("Search Lexicon", "character.book.closed", { inNewTab in app.openLexiconSearch(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("New Workspace", "square.stack", { _ in app.newWorkspace() }),
         ]

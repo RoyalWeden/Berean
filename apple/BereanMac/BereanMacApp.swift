@@ -103,6 +103,7 @@ struct BereanMacApp: App {
                 Button("Calendar") { app.openCalendar() }
                 Button("Tags") { app.openTags() }
                 Button("PDFs") { app.openPdfLibrary() }
+                Button("YouTube") { app.openYouTube() }
                 Divider()
                 Button("Back") { app.goBack() }.keyboardShortcut("[").disabled(!app.canGoBack)
                 Button("Forward") { app.goForward() }.keyboardShortcut("]").disabled(!app.canGoForward)

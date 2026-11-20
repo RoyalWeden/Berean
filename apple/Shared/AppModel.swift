@@ -644,6 +644,13 @@ final class AppModel {
         openUtilityTab(.tags, in: .notes, title: "Tags", newTab: newTab, preferActiveTab: preferActiveTab)
     }
 
+    /// A YouTube tab (YouTube space, original `{videoId, playlistId}` state); reuses an open one.
+    func openYouTube(newTab: Bool = false) {
+        if !newTab, let tab = session.allTabs.first(where: { $0.tabType == .youtube }) { select(tab.id, in: tab.spaceId); return }
+        var state = JSObject(); state["videoId"] = .null; state["playlistId"] = .null
+        openTab(.youtube, in: .youtube, title: "YouTube", state: state)
+    }
+
     /// The PDF library (a `pdf` tab without `pdfId`, as the original's picker).
     func openPdfLibrary(newTab: Bool = false, preferActiveTab: Bool = false) {
         if !newTab, let tab = session.allTabs.first(where: { $0.tabType == .pdf && $0.state["pdfId"]?.stringValue == nil }) {

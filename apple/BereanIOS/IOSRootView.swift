@@ -327,6 +327,13 @@ struct IOSRootView: View {
                 TagManagerView().id(tab.id)
             case .pdf:
                 PdfTabView(tabId: tab.id).id(tab.id)
+            case .youtube:
+                if #available(iOS 26.0, macOS 26.0, *) {
+                    YouTubeTabView(tabId: tab.id).id(tab.id)
+                } else {
+                    ContentUnavailableView("YouTube Needs iOS 26", systemImage: "play.rectangle",
+                                           description: Text("Update to iOS 26 or later to watch YouTube in Berean."))
+                }
             default:
                 ContentUnavailableView(tab.title, systemImage: "square.dashed", description: Text("This kind of tab arrives in a later native build."))
             }
@@ -422,6 +429,7 @@ struct IOSRootView: View {
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                     Button("Tags", systemImage: "tag") { app.openTags() }
                     Button("PDFs", systemImage: "doc.richtext") { app.openPdfLibrary() }
+                    Button("YouTube", systemImage: "play.rectangle") { app.openYouTube() }
                     Button("Berean Chat", systemImage: "bubble.left.and.text.bubble.right") { app.chatShown = true }
                 }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }

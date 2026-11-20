@@ -83,7 +83,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |
 | U17 | PDFs | partial | 🟡 | 🟡 | P2 | Library + PDFKit reader with highlights, notes, bookmarks, outline, find, page restore and missing-file re-attach (2026-11-20). Share Extension intake, experimental gate and bookmark labels open. |
 | U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Notes side: conversations, Unfiled, pins, folders, replies, edit/delete (2026-11-20, BEREAN-CHAT-2026-11-20.md); Ask Berean not ported |
-| M01 | YouTube browsing and playback | implemented | ❌ | ❌ | P2 | YouTube not ported |
+| M01 | YouTube browsing and playback | implemented | 🟡 | 🟡 | P2 | WebKit tab: channel list, browse/watch, sign-in persists, timestamp links (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no scraped feed/transcripts |
 | M02 | Picture-in-Picture | partial | ❌ | ❌ | P3 |  |
 | M03 | Video-linked notes and timestamps | implemented | ❌ | ❌ | P3 |  |
 | M04 | Transcripts and transcript search | implemented (dev-fetch model) | ❌ | ❌ | P3 |  |
@@ -715,8 +715,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/youtube/{YouTubeTab(2763),YouTubeSecondaryPanel,TouchYouTubePlayer,TranscriptViewer}.tsx`, `electron/ipc/youtube.ts` (1428), `src/platform/services/{youtubeService,youtubeFetchService,youtubeIndexMerge}.ts`, `src/lib/{youtubeLayouts,youtubeSearch,youtubeTitle}.ts`, `BereanWebViewPlug
 - **Known original defects:** Scraping is brittle and a ToS exposure; CLAUDE.md claims a user-editable allowlist with add-channel prompt, but channels are hard-coded (VERIFIED). WebKit blocks programmatic PiP without a user gesture (iPhone doc). The `webviewTag: true` line carries a stale comment saying it is disabled in MAS.
-- **Native Mac / iPhone:** ❌ / ❌ — YouTube not ported
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — WebKit YouTube tab (channels, browse, inline watch, state `{videoId,url}` persisted, Copy Timestamp/Video Link, Insert into open note in the original Markdown format). Missing: in-app feed scraping, split panels, transcripts, PiP automation.
+- **Native files:** `apple/Shared/YouTubeTabView.swift`
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### M02 Picture-in-Picture

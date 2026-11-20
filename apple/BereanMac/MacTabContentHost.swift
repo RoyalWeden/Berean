@@ -41,6 +41,13 @@ struct MacTabContentHost: View {
                 TagManagerView().id(tab.id)
             case .pdf:
                 PdfTabView(tabId: tab.id).id(tab.id)
+            case .youtube:
+                if #available(iOS 26.0, macOS 26.0, *) {
+                    YouTubeTabView(tabId: tab.id).id(tab.id)
+                } else {
+                    ContentUnavailableView("YouTube Needs iOS 26", systemImage: "play.rectangle",
+                                           description: Text("Update to iOS 26 or later to watch YouTube in Berean."))
+                }
             default:
                 ContentUnavailableView(tab.title, systemImage: tab.symbol,
                                        description: Text("This kind of tab arrives in a later native build. It stays saved with your workspace."))
