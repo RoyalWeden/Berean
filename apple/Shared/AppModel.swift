@@ -9,6 +9,7 @@ import BereanWorkspace
 import BereanBible
 import BereanReference
 import BereanNotes
+import BereanText
 #if os(macOS)
 import AppKit
 #else
@@ -287,6 +288,14 @@ final class AppModel {
     var defaultText = "kjva" { didSet { saveSetting("defaultText", .string(JSString(defaultText))) } }
     var hermasEdition = HermasText.taylor { didSet { saveSetting("hermasTranslation", .string(JSString(hermasEdition.rawValue))) } }
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
+    /// Persisted per-rule switches (`wordReplacerRules`, the original apps' array). Unknown fields survive.
+    var wordReplacerRuleSet = WordReplacerRuleSet(stored: nil) {
+        didSet { if wordReplacerRuleSet != oldValue { saveSetting("wordReplacerRules", wordReplacerRuleSet.stored) } }
+    }
+    /// The rules every Scripture surface applies (all of them, with their own `enabled` switches).
+    var wordReplacerRules: [WordReplacerRule] { wordReplacerRuleSet.rules }
+    /// Changes whenever rendered Scripture text could change — use in task/cache identities.
+    var wordReplacerKey: String { wordReplacerEnabled ? "on:" + wordReplacerRuleSet.revisionKey : "off" }
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
     /// The existing apps' font-family settings ('system' = the platform UI font).
     var notesFontFamily = "system" { didSet { saveSetting("notesFontFamily", .string(JSString(notesFontFamily))) } }
@@ -385,6 +394,7 @@ final class AppModel {
         if let v = all["defaultText"]?.stringValue?.string { defaultText = v }
         if let v = all["hermasTranslation"]?.stringValue?.string, let edition = HermasText(rawValue: v) { hermasEdition = edition }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
+        wordReplacerRuleSet = WordReplacerRuleSet(stored: all["wordReplacerRules"])
         if let v = all["theme"]?.stringValue?.string { theme = v }
         if let v = all["notesFontFamily"]?.stringValue?.string, !v.isEmpty { notesFontFamily = v }
         if let v = all["scriptureFontFamily"]?.stringValue?.string { scriptureFontFamily = v }

@@ -1224,7 +1224,7 @@ private struct TabCardPreview: View {
                     let st = BibleState(tab.state)
                     if let row = await app.bible.queryVerse(st.bookId, st.chapter, st.verse ?? 1, textId: st.translation) {
                         text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: st.translation,
-                                                 replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+                                                 replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
                     }
                 case .note:
                     if let id = tab.state["noteId"]?.stringValue?.string, let note = try? app.notes?.one(id) {

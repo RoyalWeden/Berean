@@ -899,7 +899,7 @@ struct SelectedVersesStrongsView: View {
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .task(id: "\(textId)|\(bookId)|\(chapter)|\(verses)|\(app.wordReplacerEnabled)") {
+        .task(id: "\(textId)|\(bookId)|\(chapter)|\(verses)|\(app.wordReplacerKey)") {
             rows = []
             var out: [(Int, [StudyToken])] = []
             for v in verses.sorted().prefix(Self.limit) {
@@ -907,7 +907,7 @@ struct SelectedVersesStrongsView: View {
                 guard !Task.isCancelled else { return }
                 guard let row else { continue }
                 out.append((v, VerseDisplay.studyTokens(row.text, tagged: row.textTagged, textId: textId,
-                                                        replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)))
+                                                        replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)))
             }
             rows = out.map { (verse: $0.0, tokens: $0.1) }
         }

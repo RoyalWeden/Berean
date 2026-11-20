@@ -108,7 +108,7 @@ extension AppModel {
         let tagged = row?.textTagged
         guard let text, !text.isEmpty else { return nil }
         return VerseDisplay.text(text, tagged: tagged, textId: passage.textId,
-                                 replacerEnabled: wordReplacerEnabled, rules: WordReplacer.defaultRules)
+                                 replacerEnabled: wordReplacerEnabled, rules: wordReplacerRules)
     }
 
     /// Every book of every listed text (loaded once, off the main thread).

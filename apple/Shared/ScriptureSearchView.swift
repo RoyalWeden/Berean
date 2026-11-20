@@ -81,13 +81,13 @@ private struct TaggedSearchResultRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.interactivePlain)
-        .task(id: replaceWords) {
+        .task(id: app.wordReplacerKey) {
             guard let verse = passage.verse else { return }
             let row = await app.bible.queryVerse(passage.bookId, passage.chapter, verse, textId: passage.textId)
             guard !Task.isCancelled else { return }
             preview = row.map {
                 VerseDisplay.text($0.text, tagged: $0.textTagged, textId: passage.textId,
-                                  replacerEnabled: replaceWords, rules: WordReplacer.defaultRules)
+                                  replacerEnabled: replaceWords, rules: app.wordReplacerRules)
             }
         }
     }
@@ -136,6 +136,7 @@ struct ScriptureSearchRequest: Hashable {
     let books: [String]
     let testament: String
     let replacer: Bool
+    let rules: [WordReplacerRule]
     let tagIDs: [String]
     let matchAllTags: Bool
     let tagRevision: Int?
@@ -235,7 +236,7 @@ struct ScriptureSearchView: View {
     private var request: ScriptureSearchRequest {
         let filter = tagSelection
         return ScriptureSearchRequest(query: query, texts: targets, mode: mode, books: bookFilter, testament: testament,
-                                     replacer: app.wordReplacerEnabled, tagIDs: filter.ids, matchAllTags: filter.all,
+                                     replacer: app.wordReplacerEnabled, rules: app.wordReplacerRules, tagIDs: filter.ids, matchAllTags: filter.all,
                                      tagRevision: filter.ids.isEmpty ? nil : app.tagsRevision,
                                      tagMembershipReady: filter.ids.isEmpty || (loadedTagIDs == filter.ids && loadedTagRevision == app.tagsRevision))
     }
@@ -709,7 +710,7 @@ struct ScriptureSearchView: View {
         guard !Task.isCancelled else { return }
         let found = await ScriptureSearch.run(text, in: request.texts, mode: m, bookIds: request.books.isEmpty ? nil : request.books,
                                               testament: request.testament == "all" ? nil : request.testament,
-                                              replacer: request.replacer, bible: app.bible, lexicon: app.lexicon, matching: passageFilter)
+                                              replacer: request.replacer, rules: request.rules, bible: app.bible, lexicon: app.lexicon, matching: passageFilter)
         guard !Task.isCancelled else { return }
         result = found
         completedRequest = request
@@ -1030,12 +1031,12 @@ struct ScriptureSearchView: View {
     }
 
     func displayText(_ h: ScriptureHit) -> String {
-        VerseDisplay.text(h.text, tagged: h.textTagged, textId: h.textId, replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+        VerseDisplay.text(h.text, tagged: h.textTagged, textId: h.textId, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
     }
 
     /// Mark Strong's matches and any plain query words in the same snippet.
     func highlighted(_ hit: ScriptureHit) -> AttributedString {
-        let snippet = hit.strongsSnippet(replacerEnabled: app.wordReplacerEnabled)
+        let snippet = hit.strongsSnippet(replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
         let window = snippet.flatMap { VerseDisplay.wordWindow($0.text, matchIndices: $0.indices) }
         let s = window?.text ?? snippet?.text ?? displayText(hit)
         let indices = Set(window?.indices ?? snippet?.indices ?? [])
@@ -1048,7 +1049,7 @@ struct ScriptureSearchView: View {
         var q = query
         if q.hasPrefix("\""), q.hasSuffix("\"") { q = String(q.dropFirst().dropLast()) }
         if StrongsId.normalize(q) != nil { return a }
-        let variants = app.wordReplacerEnabled ? WordReplacer.searchVariants(q, rules: WordReplacer.defaultRules) : [q]
+        let variants = app.wordReplacerEnabled ? WordReplacer.searchVariants(q, rules: app.wordReplacerRules) : [q]
         let words = Set(variants.flatMap { $0.split(separator: " ").map(String.init) })
             .filter { $0.count >= 2 && StrongsId.normalize($0) == nil }
         for w in words {
@@ -1126,7 +1127,7 @@ private struct SearchResultContext: View {
             for v in range where v > 0 {
                 if let row = await app.bible.queryVerse(hit.bookId, hit.chapter, v, textId: hit.textId) {
                     found.append((v, VerseDisplay.text(row.text, tagged: row.textTagged, textId: hit.textId,
-                                                       replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)))
+                                                       replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)))
                 }
             }
             lines = found

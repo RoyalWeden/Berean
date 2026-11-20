@@ -610,7 +610,7 @@ struct NoteDetailView: View {
         let block: String
         let text: String
         let hermas: String
-        let replacer: Bool
+        let replacer: String
     }
     private struct ScriptureBlockInput: Equatable, Sendable {
         let noteID: String
@@ -619,13 +619,14 @@ struct NoteDetailView: View {
         let defaultText: String
         let hermas: HermasText
         let replacer: Bool
+        let replacerKey: String
         let enabled: Bool
         let threshold: Double
         let catalogCount: Int
 
         func matchesContext(_ other: Self) -> Bool {
             noteID == other.noteID && textID == other.textID && defaultText == other.defaultText
-                && hermas == other.hermas && replacer == other.replacer && enabled == other.enabled
+                && hermas == other.hermas && replacer == other.replacer && replacerKey == other.replacerKey && enabled == other.enabled
                 && threshold == other.threshold && catalogCount == other.catalogCount
         }
     }
@@ -633,7 +634,7 @@ struct NoteDetailView: View {
         .init(noteID: noteId, content: content, textID: note?.textId ?? app.defaultText,
               defaultText: app.defaultText,
               hermas: HermasText(rawValue: note?.textId ?? "") ?? app.hermasEdition,
-              replacer: app.wordReplacerEnabled,
+              replacer: app.wordReplacerEnabled, replacerKey: app.wordReplacerKey,
               enabled: app.noteScriptureBlock, threshold: app.noteScriptureBlockThreshold,
               catalogCount: app.bookCatalog.count)
     }
@@ -1076,13 +1077,14 @@ struct NoteDetailView: View {
             scan.cancel()
         }
         guard !Task.isCancelled, input == scriptureBlockInput, loadedId == input.noteID else { return }
+        let rules = app.wordReplacerRules
         // Resolve before the first suspension, using the captured edition context.
         let resolved = candidates.compactMap { block -> (NoteScriptureBlock, ParsedRef, ResolvedPassage, ScriptureRatioKey)? in
             guard let passage = app.resolvePassage(block.reference, preferring: input.textID),
                   let parsed = Reference.parse(block.reference,
                     hermas: HermasText(rawValue: passage.textId) ?? input.hermas) else { return nil }
             let key = ScriptureRatioKey(block: block.verificationKey, text: passage.textId,
-                                       hermas: input.hermas.rawValue, replacer: input.replacer)
+                                       hermas: input.hermas.rawValue, replacer: input.replacerKey)
             return (block, parsed, passage, key)
         }
         var verifiedRatios = scriptureRatios
@@ -1113,7 +1115,7 @@ struct NoteDetailView: View {
                                                         textId: passage.textId) else { continue }
             let actual = rows.map { row in
                 let body = VerseDisplay.text(row.text, tagged: row.textTagged, textId: passage.textId,
-                    replacerEnabled: input.replacer, rules: WordReplacer.defaultRules)
+                    replacerEnabled: input.replacer, rules: rules)
                 let title = passage.textId == "lxx" ? row.title.map { $0 + " " } ?? "" : ""
                 return title + body
             }.joined(separator: " ")
@@ -1186,7 +1188,7 @@ struct NoteDetailView: View {
                 textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter) else { return }
             let lines = rows.map { row in
                 let body = VerseDisplay.text(row.text, tagged: row.textTagged, textId: passage.textId,
-                                             replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+                                             replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
                 let title = passage.textId == "lxx" ? row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? "" : ""
                 let text = title + body
                 return rows.count == 1 ? text : "\(row.readerVerseLabel) \(text)"

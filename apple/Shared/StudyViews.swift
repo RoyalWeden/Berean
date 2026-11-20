@@ -104,12 +104,13 @@ struct LexiconEntryView: View {
         let renderings: Set<String>
         let sortByMatches: Bool
         let wordReplacerEnabled: Bool
+        let wordReplacerKey: String
     }
 
     private var occurrenceOptions: OccurrenceOptions {
         OccurrenceOptions(pageLimit: visibleOccurrences, edition: occurrenceEdition,
                           book: occurrenceBook, renderings: selectedRenderings, sortByMatches: sortByMatches,
-                          wordReplacerEnabled: app.wordReplacerEnabled)
+                          wordReplacerEnabled: app.wordReplacerEnabled, wordReplacerKey: app.wordReplacerKey)
     }
 
     private var editions: [String] {
@@ -125,7 +126,7 @@ struct LexiconEntryView: View {
 
     private func indexedOccurrences(_ scoped: [LexiconOccurrence]) -> [IndexedOccurrence] {
         return scoped.enumerated().map { index, occurrence in
-            let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled)
+            let preview = previews[OccurrenceKey(occurrence)] ?? Self.occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
             return (index, occurrence, preview.renderings, preview, OccurrenceKey(occurrence))
         }
     }
@@ -139,7 +140,7 @@ struct LexiconEntryView: View {
 
     /// The reader's word replacer (e.g. LORD → Yehovah) applied to lexicon prose, as the original does.
     private func replaced(_ text: String) -> String {
-        app.wordReplacerEnabled ? WordReplacer.apply(text, rules: WordReplacer.defaultRules) : text
+        app.wordReplacerEnabled ? WordReplacer.apply(text, rules: app.wordReplacerRules) : text
     }
 
     /// Gloss shown for an entry; Strong's "unrepresented in English" (H853) gets the original's plain explanation.
@@ -574,16 +575,17 @@ struct LexiconEntryView: View {
             }
         }
         .id(strongsId)
-        .onChange(of: app.wordReplacerEnabled) {
+        .onChange(of: app.wordReplacerKey) {
             selectedRenderings = []
             visibleOccurrences = 40
         }
-        .task(id: "\(strongsId)|\(app.wordReplacerEnabled)") {
+        .task(id: "\(strongsId)|\(app.wordReplacerKey)") {
             guard !occurrencesLoading, !occurrences.isEmpty,
                   entry?.strongsNum == strongsId.uppercased() else { return }
-            let enabled = app.wordReplacerEnabled
-            let updated = await Self.preparePreviews(occurrences, strongsId: strongsId, replacerEnabled: enabled)
-            guard !Task.isCancelled, !occurrencesLoading, app.wordReplacerEnabled == enabled,
+            let enabled = app.wordReplacerEnabled, key = app.wordReplacerKey
+            let updated = await Self.preparePreviews(occurrences, strongsId: strongsId, replacerEnabled: enabled,
+                                                     rules: app.wordReplacerRules)
+            guard !Task.isCancelled, !occurrencesLoading, app.wordReplacerKey == key,
                   entry?.strongsNum == strongsId.uppercased() else { return }
             previews = updated
         }
@@ -648,13 +650,14 @@ struct LexiconEntryView: View {
                 newOccurrences = (await app.lexicon.allOccurrences(strongsId), false)
             }
             guard !Task.isCancelled else { return }
-            var enabled: Bool
+            var key: String
             var updated: [OccurrenceKey: OccurrencePreview]
             repeat {
-                enabled = app.wordReplacerEnabled
-                updated = await Self.preparePreviews(newOccurrences.rows, strongsId: strongsId, replacerEnabled: enabled)
+                key = app.wordReplacerKey
+                updated = await Self.preparePreviews(newOccurrences.rows, strongsId: strongsId,
+                                                     replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
                 guard !Task.isCancelled else { return }
-            } while app.wordReplacerEnabled != enabled
+            } while app.wordReplacerKey != key
             previews = updated
             occurrences = newOccurrences.rows
             occurrencesTruncated = newOccurrences.truncated
@@ -736,7 +739,7 @@ struct LexiconEntryView: View {
         let transfer = hasOccurrenceOptions
             ? OccurrenceOptions(pageLimit: 40, edition: occurrenceEdition, book: occurrenceBook,
                                 renderings: selectedRenderings, sortByMatches: sortByMatches,
-                                wordReplacerEnabled: app.wordReplacerEnabled)
+                                wordReplacerEnabled: app.wordReplacerEnabled, wordReplacerKey: app.wordReplacerKey)
             : nil
         leaveInspector()
         app.openLexicon(strongsId, reuseTab: true)
@@ -1084,22 +1087,22 @@ struct LexiconEntryView: View {
     }
 
     @concurrent private static func preparePreviews(
-        _ occurrences: [LexiconOccurrence], strongsId: String, replacerEnabled: Bool
+        _ occurrences: [LexiconOccurrence], strongsId: String, replacerEnabled: Bool, rules: [WordReplacerRule]
     ) async -> [OccurrenceKey: OccurrencePreview] {
         var result: [OccurrenceKey: OccurrencePreview] = [:]
         result.reserveCapacity(occurrences.count)
         for occurrence in occurrences {
             guard !Task.isCancelled else { return [:] }
-            result[OccurrenceKey(occurrence)] = occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: replacerEnabled)
+            result[OccurrenceKey(occurrence)] = occurrencePreview(occurrence, strongsId: strongsId, replacerEnabled: replacerEnabled, rules: rules)
         }
         return result
     }
 
-    nonisolated private static func occurrencePreview(_ occurrence: LexiconOccurrence, strongsId: String, replacerEnabled: Bool) -> OccurrencePreview {
+    nonisolated private static func occurrencePreview(_ occurrence: LexiconOccurrence, strongsId: String, replacerEnabled: Bool, rules: [WordReplacerRule]) -> OccurrencePreview {
         let hit = ScriptureHit(textId: occurrence.textId, bookId: occurrence.bookId, chapter: occurrence.chapter,
                                verseNum: occurrence.verseNum, text: occurrence.text, textTagged: occurrence.textTagged,
                                matchWordIndices: occurrence.matchWordIndices, matchedStrongs: [strongsId.uppercased()])
-        let snippet = hit.strongsSnippet(replacerEnabled: replacerEnabled)
+        let snippet = hit.strongsSnippet(replacerEnabled: replacerEnabled, rules: rules)
         let words = (snippet?.text ?? occurrence.text).split(whereSeparator: \.isWhitespace)
         let matches = Set(snippet?.indices ?? occurrence.matchWordIndices)
         let renderings = Set(matches.compactMap { index -> String? in
@@ -1456,7 +1459,7 @@ struct CrossRefsView: View {
         let passage = ResolvedPassage(textId: row.textId, bookId: row.book, chapter: row.chapter,
                                       verse: row.verse > 0 ? row.verse : nil, endVerse: row.end)
         let preview = row.noteID != nil ? row.text : VerseDisplay.text(
-            row.text, tagged: nil, textId: passage.textId, replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules
+            row.text, tagged: nil, textId: passage.textId, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules
         )
         return HStack(alignment: .top, spacing: 4) {
             VStack(alignment: .leading, spacing: 4) {
@@ -1539,7 +1542,7 @@ struct CrossRefsView: View {
                     let rows = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
                     let text = rows.filter { (first...max(first, passage.endVerse ?? first)).contains($0.verseNum) }
                         .map { VerseDisplay.text($0.text, tagged: nil, textId: passage.textId,
-                                                 replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules) }
+                                                 replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules) }
                         .joined(separator: " ")
                     if !text.isEmpty { copied += " " + text }
                 }
@@ -1577,7 +1580,7 @@ private struct CrossReferencePreview: View {
         guard expanded, let range, let rangeRows, !rangeRows.isEmpty else { return text }
         return rangeRows.map {
             VerseDisplay.text($0.text, tagged: nil, textId: range.textId,
-                              replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules)
+                              replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
         }.joined(separator: " ")
     }
 
@@ -1657,7 +1660,7 @@ struct SearchResultsView: View {
                         Button { app.openScripture(bookId: r.bookId, chapter: r.chapter, verse: r.verseNum, textId: textId) } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(ResolvedPassage(textId: textId, bookId: r.bookId, chapter: r.chapter, verse: r.verseNum).label).font(.subheadline.weight(.semibold))
-                                Text(VerseDisplay.text(r.text, tagged: r.textTagged, textId: textId, replacerEnabled: true, rules: WordReplacer.defaultRules))
+                                Text(VerseDisplay.text(r.text, tagged: r.textTagged, textId: textId, replacerEnabled: true, rules: app.wordReplacerRules))
                                     .font(.callout).foregroundStyle(.secondary).lineLimit(3)
                             }
                         }.buttonStyle(.interactivePlain)
@@ -1670,7 +1673,7 @@ struct SearchResultsView: View {
             loading = true
             var rows: [VerseSearchRow] = []
             var seen = Set<String>()
-            for variant in WordReplacer.searchVariants(query, rules: WordReplacer.defaultRules) {
+            for variant in WordReplacer.searchVariants(query, rules: app.wordReplacerRules) {
                 for r in await app.bible.searchText(variant, textId: textId, mode: mode) where seen.insert("\(r.bookId)|\(r.chapter)|\(r.verseNum)").inserted { rows.append(r) }
             }
             results = rows
@@ -1734,7 +1737,7 @@ struct TagResultsView: View {
                 ContentUnavailableView("No tag named #\(tagName)", systemImage: "tag", description: Text("Tag verses from the verse menu (Tag Verse…)."))
             }
         }
-        .task(id: "\(tagName)|\(app.tagsRevision)|\(app.defaultText)|\(app.wordReplacerEnabled)") {
+        .task(id: "\(tagName)|\(app.tagsRevision)|\(app.defaultText)|\(app.wordReplacerKey)") {
             let replaceWords = app.wordReplacerEnabled
             texts = [:]
             tag = (try? app.verseTags?.list())?.first { $0.name.caseInsensitiveCompare(tagName) == .orderedSame }
@@ -1743,7 +1746,7 @@ struct TagResultsView: View {
             let refs = members.flatMap { $0.verses.map { ($0.bookId, $0.chapter, $0.verse) } }
             let rows = await app.bible.queryVerses(refs.map { (bookId: $0.0, chapter: $0.1, verse: $0.2) }, textId: edition)
             guard !Task.isCancelled else { return }
-            texts = Dictionary(rows.map { ($0.key, VerseDisplay.text($0.value.text, tagged: nil, textId: edition, replacerEnabled: replaceWords, rules: WordReplacer.defaultRules)) }, uniquingKeysWith: { a, _ in a })
+            texts = Dictionary(rows.map { ($0.key, VerseDisplay.text($0.value.text, tagged: nil, textId: edition, replacerEnabled: replaceWords, rules: app.wordReplacerRules)) }, uniquingKeysWith: { a, _ in a })
         }
     }
 }

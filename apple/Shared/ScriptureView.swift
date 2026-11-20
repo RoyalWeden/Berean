@@ -347,6 +347,7 @@ struct SharedVerseSelection: Transferable {
     let rows: [ChapterVerseRow]
     let textId: String
     let replacerEnabled: Bool
+    let rules: [WordReplacerRule]
     var hideSuppliedWords = false
 
     var fileName: String {
@@ -356,7 +357,7 @@ struct SharedVerseSelection: Transferable {
     var formattedText: String {
         ([reference] + rows.map { row in
             let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: textId,
-                                         replacerEnabled: replacerEnabled, rules: WordReplacer.defaultRules, hideSuppliedWords: hideSuppliedWords)
+                                         replacerEnabled: replacerEnabled, rules: rules, hideSuppliedWords: hideSuppliedWords)
             let title = textId == "lxx" ? row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? "" : ""
             return "\(row.readerVerseLabel) \(title)\(text)"
         }).joined(separator: "\n")
@@ -385,6 +386,7 @@ private struct SharedScriptureChapter: Transferable {
     let chapter: Int
     let textId: String
     let replacerEnabled: Bool
+    let rules: [WordReplacerRule]
     let bible: BibleService
     let hiddenAnnotations: Set<String>
 
@@ -394,7 +396,7 @@ private struct SharedScriptureChapter: Transferable {
         let prepared = PsalmSuperscription.apply(rows, textId: textId, bookId: bookId, chapter: chapter)
         let visibleRows = prepared.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: textId) }
         return SharedVerseSelection(reference: reference, rows: visibleRows, textId: textId,
-                                    replacerEnabled: replacerEnabled,
+                                    replacerEnabled: replacerEnabled, rules: rules,
                                     hideSuppliedWords: hiddenAnnotations.contains(AnnotationFilters.kjvaSuppliedWords)).formattedText
     }
 
@@ -429,7 +431,7 @@ struct ChapterExportActions: View {
         let hidden = Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
         let chapter = SharedScriptureChapter(reference: reference, bookId: state.bookId, chapter: state.chapter,
                                             textId: state.translation, replacerEnabled: app.wordReplacerEnabled,
-                                            bible: app.bible, hiddenAnnotations: hidden)
+                                            rules: app.wordReplacerRules, bible: app.bible, hiddenAnnotations: hidden)
         Button("Copy Chapter", systemImage: "doc.on.doc") {
             Task {
                 do {
@@ -1045,7 +1047,7 @@ struct ScriptureView: View {
     private func shareSelection(_ state: BibleState, rows: [ChapterVerseRow]) -> SharedVerseSelection {
         SharedVerseSelection(reference: selectionLabel(state) + (state.translation == "lxx" ? " LXX" : ""),
                              rows: rows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: state.translation) },
-                             textId: state.translation, replacerEnabled: app.wordReplacerEnabled,
+                             textId: state.translation, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
                              hideSuppliedWords: hideKJVASuppliedWords)
     }
 
@@ -1680,17 +1682,18 @@ struct ScriptureView: View {
         let edition = ChapterEdition(st)
         let hidden = hiddenAnnotations
         let replacer = app.wordReplacerEnabled
+        let replacerKey = app.wordReplacerKey
         let reference = Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)
             + (st.translation == "lxx" ? " LXX" : "")
         let chapter = SharedScriptureChapter(reference: reference, bookId: st.bookId, chapter: st.chapter,
                                             textId: st.translation, replacerEnabled: replacer,
-                                            bible: app.bible, hiddenAnnotations: hidden)
+                                            rules: app.wordReplacerRules, bible: app.bible, hiddenAnnotations: hidden)
         chapterShareTask = Task {
             do {
                 let text = try await chapter.formattedText()
                 guard !Task.isCancelled, generation == chapterShareGeneration,
                       app.activeTab?.id == tabId, ChapterEdition(state) == edition,
-                      hiddenAnnotations == hidden, app.wordReplacerEnabled == replacer else { return }
+                      hiddenAnnotations == hidden, app.wordReplacerEnabled == replacer, app.wordReplacerKey == replacerKey else { return }
                 chapterShareRequest = NativeShareRequest(text: text)
                 chapterShareTask = nil
             } catch {
@@ -2001,7 +2004,7 @@ struct ScriptureView: View {
     private func clipboardVerseText(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
         let visible = verse.hidingTextAnnotations(hiddenAnnotations, textId: state.translation)
         return VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: state.translation,
-                          replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules,
+                          replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
                           hideSuppliedWords: hideKJVASuppliedWords)
     }
 
@@ -2077,6 +2080,7 @@ struct VerseRowView: View {
     var fontSize: Double = 16
     var lineSpacing: CGFloat = 5
     var replacer = true
+    var rules: [WordReplacerRule] = []
     var family = "system"
     var hideSuppliedWords = false
     var originalText: String?
@@ -2111,7 +2115,6 @@ struct VerseRowView: View {
             t.foregroundColor = .secondary
             out = t + out
         }
-        let rules = replacer ? WordReplacer.defaultRules : []
         let wholeTint = highlights.last { $0.startChar == nil && $0.startWord == nil }.map { Color.highlight($0.color).opacity(0.22) }
         guard let tagged = row.textTagged, !tagged.isEmpty, textId == "kjva" || textId == "lxx" else {
             let shown = VerseDisplay.text(row.text, tagged: nil, textId: textId, replacerEnabled: replacer, rules: rules)
@@ -2199,7 +2202,7 @@ enum Clipboard {
 
 extension ScriptureView {
     func readerVerses(_ st: BibleState) -> [ReaderVerse] {
-        let rules = app.wordReplacerEnabled ? WordReplacer.defaultRules : []
+        let rules = app.wordReplacerEnabled ? app.wordReplacerRules : []
         let hidden = hiddenAnnotations
         let hideSuppliedWords = hidden.contains(AnnotationFilters.kjvaSuppliedWords)
         return verses.map { original in
@@ -2416,7 +2419,7 @@ extension ScriptureView {
             let text = rows.map { row in
                 let title = row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? ""
                 let body = VerseDisplay.text(row.text, tagged: row.textTagged, textId: link.textId,
-                    replacerEnabled: replaceWords, rules: WordReplacer.defaultRules)
+                    replacerEnabled: replaceWords, rules: app.wordReplacerRules)
                 return (rows.count > 1 ? row.readerVerseLabel + " " : "") + title + body
             }.joined(separator: "\n")
             previews.append(ReaderStudyPreview(id: "\(link.note.id)|\(index)|\(reference)", reference: reference,

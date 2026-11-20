@@ -332,8 +332,8 @@ extension AppModel {
 }
 
 /// A searchable reference for the reader’s current bundled substitutions.
-/// Rule editing is intentionally separate from this browser until custom-rule persistence
-/// and every display/search/export consumer share a single revision-scoped rule set.
+/// Per-rule switches persist to `wordReplacerRules` (the original apps' array; unknown fields and
+/// custom rules are preserved) and every reader/search/preview/copy consumer reads that one set.
 private struct WordReplacerSettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -341,7 +341,7 @@ private struct WordReplacerSettingsView: View {
 
     private var matchingRules: [WordReplacerRule] {
         let terms = query.split(whereSeparator: \.isWhitespace).map(String.init)
-        return WordReplacer.defaultRules.filter { rule in
+        return app.wordReplacerRules.filter { rule in
             let searchable = ([rule.replacement, rule.strongsNum ?? ""] + rule.queries).joined(separator: " ")
             return terms.allSatisfy { searchable.localizedStandardContains($0) }
         }
@@ -379,6 +379,10 @@ private struct WordReplacerSettingsView: View {
             .navigationTitle("Word Replacer")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Turn All On") { app.wordReplacerRuleSet.enableAll() }
+                        .disabled(!app.wordReplacerEnabled || app.wordReplacerRules.allSatisfy(\.enabled))
+                }
             }
         }
         #if os(macOS)
@@ -390,6 +394,8 @@ private struct WordReplacerSettingsView: View {
         if !rules.isEmpty {
             Section(title) {
                 ForEach(rules) { rule in
+                    Toggle(isOn: Binding(get: { rule.enabled },
+                                         set: { app.wordReplacerRuleSet.setEnabled(rule.id, $0) })) {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text(rule.strongsNum ?? rule.queries.joined(separator: " / "))
@@ -406,7 +412,10 @@ private struct WordReplacerSettingsView: View {
                     }
                     .padding(.vertical, 3)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                    .opacity(rule.enabled && app.wordReplacerEnabled ? 1 : 0.55)
+                    }
+                    .disabled(!app.wordReplacerEnabled)
+                    .accessibilityLabel("\(rule.strongsNum ?? rule.queries.joined(separator: ", ")) to \(rule.replacement)")
                 }
             }
         }

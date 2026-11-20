@@ -1245,7 +1245,7 @@ struct CompareView: View {
         let copyVerse = {
             let visible = row.hidingTextAnnotations(hiddenAnnotations, textId: column.text)
             let text = VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: column.text,
-                                         replacerEnabled: app.wordReplacerEnabled, rules: WordReplacer.defaultRules,
+                                         replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
                                          hideSuppliedWords: hideSuppliedWords)
             Clipboard.copy("\(reference) \(text)")
             AccessibilityNotification.Announcement("Verse copied").post()
@@ -1308,7 +1308,7 @@ struct CompareView: View {
                 VerseRowView(row: row.hidingTextAnnotations(hiddenAnnotations, textId: column.text), textId: column.text, showStrongs: state.showStrongs,
                              highlights: chapterHighlights[EditionChapter(row, text: column.text)]?[row.verseNum] ?? [],
                              fontSize: scriptureFontSize, lineSpacing: app.lineSpacing,
-                             replacer: app.wordReplacerEnabled, family: app.scriptureFontFamily, hideSuppliedWords: hideSuppliedWords,
+                             replacer: app.wordReplacerEnabled, rules: app.wordReplacerRules, family: app.scriptureFontFamily, hideSuppliedWords: hideSuppliedWords,
                              originalText: row.text)
                     #if os(iOS)
                     // A normal tap selects the verse; native long-press text selection and
@@ -1536,7 +1536,7 @@ struct CompareView: View {
         guard let target = selectedPassage, !comparisonSelectedRows.isEmpty else { return nil }
         return SharedVerseSelection(reference: referenceForCopy(comparisonSelectionLabel, textId: target.edition.text),
                                     rows: comparisonSelectedRows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: target.edition.text) },
-                                    textId: target.edition.text, replacerEnabled: app.wordReplacerEnabled,
+                                    textId: target.edition.text, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
                                     hideSuppliedWords: hideSuppliedWords)
     }
 

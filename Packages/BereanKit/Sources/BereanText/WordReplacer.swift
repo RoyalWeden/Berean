@@ -3,7 +3,7 @@ import Synchronization
 
 /// A Word Replacer rule — port of `WordReplacerRule` (src/store). Strong's rules (`strongsNum`) apply
 /// only to KJVA tagged tokens; text rules apply to plain text everywhere.
-public struct WordReplacerRule: Equatable, Sendable, Identifiable {
+public struct WordReplacerRule: Hashable, Sendable, Identifiable {
     public var id: String
     public var queries: [String]
     public var replacement: String
