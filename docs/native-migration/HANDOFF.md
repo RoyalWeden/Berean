@@ -2878,3 +2878,6 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 
 ### 2026-11-20 — Claude Code: deep-link routes + Study Trail fix
 [DEEP-LINKS-2026-11-20](DEEP-LINKS-2026-11-20.md): video / trail / chat routes added (verified on sim). Fixed iPhone Study Trail: Done sat exactly over New Trail, so trails could not be created on iPhone. M03: YouTube links in notes open the YouTube tab at their timestamp (tested parser).
+
+### 2026-11-20 — Claude Code: crash report (O02)
+[CRASH-REPORT-2026-11-20](CRASH-REPORT-2026-11-20.md): MetricKit → "Berean recovered from a crash" banner (Copy Details / Dismiss), verified on sim with a sample. Sample removed (dismissed).

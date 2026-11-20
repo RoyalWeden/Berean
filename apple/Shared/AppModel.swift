@@ -355,7 +355,15 @@ final class AppModel {
     private var keys = TabPersistence.OrderKeyMaps()
     private var saveTask: Task<Void, Never>?
 
-    init() { openLibrary(); loadBookCatalog(); evaluateOnboarding(); refreshIdiomsIfNeeded() }
+    init() {
+        openLibrary(); loadBookCatalog(); evaluateOnboarding(); refreshIdiomsIfNeeded()
+        crashReport = CrashReporter.stored()
+        crashReporter = CrashReporter(app: self)
+    }
+
+    /// Last crash (MetricKit) not yet dismissed — the original "App recovered from a crash" notice.
+    var crashReport: CrashSummary?
+    @ObservationIgnored private var crashReporter: CrashReporter?
 
     // MARK: onboarding (the original's per-device `onboardingCompleted` gate)
 

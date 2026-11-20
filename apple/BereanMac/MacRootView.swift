@@ -82,6 +82,7 @@ struct MacRootView: View {
         .animation(.easeOut(duration: 0.15), value: app.commandPaletteShown)
         .onChange(of: app.sidebarToggleRequest) { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } }
         .onChange(of: app.chatWindowRequest) { openWindow(id: "chat") }
+        .overlay(alignment: .bottomTrailing) { CrashReportBanner() }
         .alert(app.userMessage ?? "", isPresented: Binding(get: { app.userMessage != nil }, set: { if !$0 { app.userMessage = nil } })) { Button("OK") {} }
         .alert("Library", isPresented: Binding(get: { app.libraryError != nil }, set: { if !$0 { app.libraryError = nil } })) {
             Button("OK") { app.libraryError = nil }

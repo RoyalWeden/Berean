@@ -118,7 +118,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | A14 | Accessibility | partial | 🟡 | 🟡 | P2 | Labels/hints on new controls; no full VoiceOver pass |
 | A15 | Auto-update and distribution (Mac) | implemented | ❌ | — | — | Release gate |
 | O01 | Deep-linked "Berean Dev" identity separation | implemented (A11 covers). | ✅ | ✅ | — |  |
-| O02 | Crash report on next launch | implemented (`CrashReport.tsx`, `ErrorBoundary.tsx`; Mac and iPhone mounted in `src/main.tsx`). | ❌ | ❌ | P3 |  |
+| O02 | Crash report on next launch | implemented (`CrashReport.tsx`, `ErrorBoundary.tsx`; Mac and iPhone mounted in `src/main.tsx`). | 🟡 | 🟡 | P3 | MetricKit crash diagnostics → banner with Copy Details / Dismiss (2026-11-20, CRASH-REPORT-2026-11-20.md)  |
 | O03 | Hermas / Recognitions special-case handling | implemented | 🟡 | 🟡 | P2 | Hermas sections/Recognitions numbering in parser; Hermas translation choice not exposed |
 | O04 | Data publication pipeline | implemented | — | — | — | Pipeline unaffected |
 | O05 | Diagnostics and performance tooling | implemented | — | — | — |  |

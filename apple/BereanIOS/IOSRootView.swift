@@ -81,6 +81,7 @@ struct IOSRootView: View {
         @Bindable var app = app
         NavigationStack {
             content
+                .overlay(alignment: .top) { CrashReportBanner() }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
                 .gesture(HistoryEdgeSwipe(
                     enabled: app.canGoBack && !keyboardUp,
