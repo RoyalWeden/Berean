@@ -62,7 +62,7 @@ struct BereanMacApp: App {
                 Button("New Workspace") { app.newWorkspace() }.keyboardShortcut("0", modifiers: [.command, .shift])
             }
             CommandGroup(before: .windowList) {
-                PresenterCommand()
+                PresenterCommand().environment(app)
                 Divider()
             }
             CommandGroup(replacing: .importExport) {

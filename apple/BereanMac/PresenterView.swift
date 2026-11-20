@@ -163,5 +163,17 @@ struct PresenterCommand: View {
             .keyboardShortcut("b", modifiers: [.command, .shift])
         Button("Berean Chat") { openWindow(id: "chat") }
             .keyboardShortcut("c", modifiers: [.command, .control])
+        PiPCommand()
+    }
+}
+
+
+/// ⇧⌘P — original "Toggle YouTube Picture-in-Picture".
+private struct PiPCommand: View {
+    @Environment(AppModel.self) private var app
+    var body: some View {
+        Button("Toggle Picture in Picture") { app.pipToggleRequest += 1 }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(app.activeTab?.tabType != .youtube)
     }
 }

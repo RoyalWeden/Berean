@@ -84,7 +84,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U17 | PDFs | partial | 🟡 | 🟡 | P2 | Library + PDFKit reader with highlights, notes, bookmarks, outline, find, page restore and missing-file re-attach (2026-11-20). Share Extension intake, experimental gate and bookmark labels open. |
 | U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Notes side: conversations, Unfiled, pins, folders, replies, edit/delete (2026-11-20, BEREAN-CHAT-2026-11-20.md); Ask Berean not ported |
 | M01 | YouTube browsing and playback | implemented | 🟡 | 🟡 | P2 | WebKit tab: channel list, browse/watch, sign-in persists, timestamp links (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no scraped feed/transcripts |
-| M02 | Picture-in-Picture | partial | ❌ | ❌ | P3 |  |
+| M02 | Picture-in-Picture | implemented | 🟡 | 🟡 | P3 | Manual PiP button + ⇧⌘P; pages persist across tab switches; auto-PiP on tab switch not achieved (YOUTUBE-TAB-2026-11-20.md) |
 | M03 | Video-linked notes and timestamps | implemented | ❌ | ❌ | P3 |  |
 | M04 | Transcripts and transcript search | implemented (dev-fetch model) | ❌ | ❌ | P3 |  |
 | M05 | Read Aloud engine (Kokoro) | implemented | ❌ | ❌ | P2 | Read Aloud not ported |

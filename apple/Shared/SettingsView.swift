@@ -329,7 +329,7 @@ extension SettingsView {
         ("⌘B  ⌘I  ⌘U", "Bold · italic · underline (notes)"), ("⇧⌘X", "Strikethrough (notes)"), ("⇧⌘H", "Highlight (notes)"),
         ("⌥⌘1 … ⌥⌘3  ⌥⌘0", "Heading level · body text (notes)"), ("⇧⌘E", "Export note as Markdown"),
         ("⌥⇧⌘C", "Copy note text without formatting"), ("⌘=  ⌘−  ⌘0", "Scripture text size · reset"),
-        ("⇧⌘B", "Presenter window"), ("⌃⌘C", "Berean Chat"), ("⌘↩", "Send chat note"), ("⇧⌃Tab", "Previous tab"),
+        ("⇧⌘B", "Presenter window"), ("⇧⌘P", "YouTube Picture in Picture"), ("⌃⌘C", "Berean Chat"), ("⌘↩", "Send chat note"), ("⇧⌃Tab", "Previous tab"),
     ]
 }
 

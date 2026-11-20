@@ -296,6 +296,10 @@ final class AppModel {
     var wordReplacerEnabled = true { didSet { saveSetting("wordReplacerEnabled", .bool(wordReplacerEnabled)) } }
     /// Original `idiomHighlightEnabled` (default on): underline idiom terms in Scripture.
     var idiomHighlightEnabled = true { didSet { saveSetting("idiomHighlightEnabled", .bool(idiomHighlightEnabled)) } }
+    /// Live WebKit pages for open YouTube tabs (kept while the tab exists so playback and PiP survive tab switches).
+    @ObservationIgnored var youtubePages: [String: AnyObject] = [:]
+    /// ⇧⌘P (original Cmd+Shift+P): toggle Picture in Picture for the active YouTube tab.
+    var pipToggleRequest = 0
     private(set) var idioms: [Idiom] = []
     private(set) var idiomMatcher = Idioms.Matcher([])
     private var idiomsRevisionLoaded = -1

@@ -15,3 +15,12 @@ Status: **IMPLEMENTED (partial); iPhone VERIFIED (sim); Mac built** (no Mac clic
 - Go → YouTube (menu by PID) shows the channel home; the signed app has `com.apple.security.network.client`.
 - Tab state seeded with `@matthewforyeshua/videos` → relaunch restores and loads the channel page (desktop YouTube) in the sandbox.
 - Fixed: sidebar tab title stayed "YouTube" because the page title arrives after the URL change — the tab title now follows `page.title`.
+
+## Picture in Picture (M02) and page lifetime
+- Each YouTube tab's `WebPage` now lives in `AppModel.youtubePages` while the tab is open: switching tabs and back keeps the page, scroll and playback position (verified: comments sheet still open, no reload). Closing the tab drops the page.
+- PiP button in the toolbar (on watch pages) and **⇧⌘P** on Mac (original Cmd+Shift+P) toggle WebKit's `webkitSetPresentationMode` — verified on iPhone sim (floating player + "playing in picture in picture"). PiP keeps playing while you scroll the page or leave the app.
+- **Not achieved: auto-PiP when switching Berean tabs** (original `autoPiP`). Tried and reverted, with evidence:
+  1. Calling PiP from `onDisappear` → WebKit stayed `inline` (the view was already out of the window).
+  2. Parking the page in a hidden 2×2 host first → WebKit reported `picture-in-picture` and `paused=false`, but iOS never showed the PiP window (system PiP needs a user gesture).
+  3. Parking an already-PiP page in the host during the switch → the app process ended ("Scene client is invalid") — the same page briefly in two web views.
+  A manual PiP also ends when you switch Berean tabs. A real fix needs one WebView kept mounted across tabs (e.g., an always-present YouTube layer in the root that the tab only positions), which is a larger layout change — queued.

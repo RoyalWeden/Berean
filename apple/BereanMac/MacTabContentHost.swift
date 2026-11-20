@@ -43,7 +43,7 @@ struct MacTabContentHost: View {
                 PdfTabView(tabId: tab.id).id(tab.id)
             case .youtube:
                 if #available(iOS 26.0, macOS 26.0, *) {
-                    YouTubeTabView(tabId: tab.id).id(tab.id)
+                    YouTubeTabView(tabId: tab.id, app: app).id(tab.id)
                 } else {
                     ContentUnavailableView("YouTube Needs iOS 26", systemImage: "play.rectangle",
                                            description: Text("Update to iOS 26 or later to watch YouTube in Berean."))

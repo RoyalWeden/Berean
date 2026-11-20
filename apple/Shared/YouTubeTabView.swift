@@ -12,14 +12,25 @@ import BereanWorkspace
 struct YouTubeTabView: View {
     @Environment(AppModel.self) private var app
     let tabId: String
-    @State private var page: WebPage = {
-        var config = WebPage.Configuration()
-        #if os(iOS)
-        // Play inline (the original's in-tab player), not straight into full screen.
-        config.mediaPlaybackBehavior = .allowsInlinePlayback
-        #endif
-        return WebPage(configuration: config)
-    }()
+    @State private var page: WebPage
+
+    init(tabId: String, app: AppModel) {
+        self.tabId = tabId
+        if let existing = app.youtubePages[tabId] as? WebPage {
+            _page = State(initialValue: existing)
+            _showingHome = State(initialValue: existing.url == nil)
+        } else {
+            var config = WebPage.Configuration()
+            #if os(iOS)
+            // Play inline (the original's in-tab player), not straight into full screen.
+            config.mediaPlaybackBehavior = .allowsInlinePlayback
+            #endif
+            let page = WebPage(configuration: config)
+            app.youtubePages[tabId] = page
+            _page = State(initialValue: page)
+        }
+    }
+
     @State private var showingHome = true
     @State private var lastSaved: String?
 
@@ -48,7 +59,16 @@ struct YouTubeTabView: View {
         }
         .navigationTitle(showingHome ? "YouTube" : (page.title.isEmpty ? "YouTube" : page.title.replacingOccurrences(of: " - YouTube", with: "")))
         .toolbar { toolbar }
-        .onAppear(perform: restore)
+        .onAppear {
+            // Drop pages of closed YouTube tabs (stops their playback).
+            for id in app.youtubePages.keys where app.findTab(id) == nil { app.youtubePages[id] = nil }
+            if page.url == nil { restore() }
+        }
+        .onDisappear {
+            // A closed tab's page is dropped (stops playback); an open tab keeps its page for when you return.
+            if app.findTab(tabId) == nil { app.youtubePages[tabId] = nil }
+        }
+        .onChange(of: app.pipToggleRequest) { _, _ in Task { await togglePiP() } }
         .onChange(of: page.url) { _, url in persist(url) }
         .onChange(of: page.title) { _, raw in
             // The title usually arrives after the URL change.
@@ -104,6 +124,10 @@ struct YouTubeTabView: View {
                     .disabled(page.backForwardList.backList.isEmpty)
                 Button("Channels", systemImage: "list.bullet") { showingHome = true }
                 if Self.videoId(from: page.url) != nil {
+                    Button("Picture in Picture", systemImage: "pip.enter") { Task { await togglePiP() } }
+                        .help("Picture in Picture (⇧⌘P)")
+                }
+                if Self.videoId(from: page.url) != nil {
                     Menu("Timestamp", systemImage: "link.badge.plus") {
                         Button("Copy Timestamp Link", systemImage: "clock") { Task { await copyLink(timestamp: true) } }
                         Button("Copy Video Link", systemImage: "link") { Task { await copyLink(timestamp: false) } }
@@ -122,6 +146,21 @@ struct YouTubeTabView: View {
                 }
             }
         }
+    }
+
+    // MARK: Picture in Picture (WebKit presentation mode on the page's <video>)
+
+    private func setPresentation(_ mode: String) async {
+        _ = try? await page.callJavaScript("""
+        var v=document.querySelector('video');
+        if(v&&v.webkitSupportsPresentationMode&&v.webkitPresentationMode!==mode&&!(mode==='inline'&&v.webkitPresentationMode==='inline')){v.webkitSetPresentationMode(mode);}
+        return v?v.webkitPresentationMode:null;
+        """, arguments: ["mode": mode])
+    }
+
+    private func togglePiP() async {
+        let mode = ((try? await page.callJavaScript("var v=document.querySelector('video');return v?v.webkitPresentationMode:'';")) as? String) ?? ""
+        await setPresentation(mode == "picture-in-picture" ? "inline" : "picture-in-picture")
     }
 
     /// The original's Markdown link text.
@@ -154,3 +193,5 @@ struct YouTubeTabView: View {
         app.userMessage = "Timestamp added to “\(note.title.isEmpty ? "Untitled" : note.title)”."
     }
 }
+
+
