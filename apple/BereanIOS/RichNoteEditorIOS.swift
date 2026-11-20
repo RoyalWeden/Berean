@@ -604,6 +604,20 @@ struct RichNoteEditorIOS: UIViewRepresentable {
 final class NoteUITextView: UITextView {
     weak var coordinator: RichNoteEditorIOS.Coordinator?
     static let markdownType = "com.berean.note-markdown"
+    private var imageRestylePending = false
+
+    /// Images reserve height for the width they were sized at; re-fit them after rotation or resizing.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let layout = layoutManager as? NoteTableLayout, markedTextRange == nil else { return }
+        let available = textContainer.size.width - 2 * textContainer.lineFragmentPadding
+        guard !imageRestylePending, layout.imagesNeedRestyle(forAvailable: available) else { return }
+        imageRestylePending = true
+        DispatchQueue.main.async { [weak self] in
+            self?.imageRestylePending = false
+            self?.coordinator?.restyle()
+        }
+    }
 
     override var keyCommands: [UIKeyCommand]? {
         var commands = super.keyCommands ?? []

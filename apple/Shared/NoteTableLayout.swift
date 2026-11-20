@@ -55,6 +55,19 @@ final class NoteTableLayout: NSLayoutManager {
     private var imageSlots: [ImageSlot] = []
     nonisolated(unsafe) private static let imageCache = NSCache<NSString, PlatformImage>()
 
+    /// The original shows an image at its CSS pixel width (one pixel per point), regardless of
+    /// the file's DPI, so size by pixels on both platforms.
+    static func pixelSize(_ image: PlatformImage) -> CGSize {
+        #if os(macOS)
+        if let rep = image.representations.first, rep.pixelsWide > 0, rep.pixelsHigh > 0 {
+            return CGSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+        }
+        return image.size
+        #else
+        return CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        #endif
+    }
+
     static func decodedImage(_ source: String) -> PlatformImage? {
         // Hashing a multi-hundred-KB base64 string per keystroke is the slow path; length plus
         // three short slices identifies an image well enough for a decode cache.
@@ -71,13 +84,23 @@ final class NoteTableLayout: NSLayoutManager {
     /// Inline `data:` images draw above their caption in a tall caption line (minimum line
     /// height); the Markdown source (and its character indices) is never changed. Paragraph
     /// spacing-before is not used: TextKit skips it when the paragraph starts with hidden glyphs.
+    /// The width images were last sized for, so text views can restyle when it changes.
+    private(set) var imageStyledWidth: CGFloat = 0
+    var hasImages: Bool { !imageSlots.isEmpty }
+
+    /// True when images exist and were sized for a noticeably different text width.
+    func imagesNeedRestyle(forAvailable available: CGFloat) -> Bool {
+        hasImages && available > 40 && abs(available - imageStyledWidth) > 1
+    }
+
     func styleImages(in storage: NSTextStorage, available: CGFloat) {
         imageSlots = []
+        imageStyledWidth = available > 40 ? available : 0
         let text = storage.string as NSString
         for found in NoteImages.find(in: storage.string) {
             guard let image = Self.decodedImage(found.source) else { continue }
             // Before the first layout the container can still be zero-wide; drawing clamps to the real line width.
-            let size = NoteImages.displaySize(natural: image.size, savedWidth: found.width, available: available > 40 ? available : Self.fallbackWidth)
+            let size = NoteImages.displaySize(natural: Self.pixelSize(image), savedWidth: found.width, available: available > 40 ? available : Self.fallbackWidth)
             guard size.height > 0 else { continue }
             let paragraph = text.paragraphRange(for: NSRange(location: found.range.location, length: 0))
             // A visible character on the image's line: the caption, else the paragraph's line break.

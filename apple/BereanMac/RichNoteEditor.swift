@@ -392,6 +392,20 @@ struct RichNoteEditor: NSViewRepresentable {
 final class NoteTextView: NSTextView {
     weak var coordinator: RichNoteEditor.Coordinator?
     static let markdownType = NSPasteboard.PasteboardType("com.berean.note-markdown")
+    private var imageRestylePending = false
+
+    /// Images reserve height for the width they were sized at; re-fit them when the column resizes.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        guard let layout = layoutManager as? NoteTableLayout, let container = textContainer else { return }
+        let available = container.size.width - 2 * container.lineFragmentPadding
+        guard !imageRestylePending, layout.imagesNeedRestyle(forAvailable: available) else { return }
+        imageRestylePending = true
+        DispatchQueue.main.async { [weak self] in
+            self?.imageRestylePending = false
+            self?.coordinator?.restyle()
+        }
+    }
 
     // MARK: formatting commands
 
