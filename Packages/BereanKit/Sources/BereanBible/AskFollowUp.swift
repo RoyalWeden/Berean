@@ -20,9 +20,12 @@ public enum AskFollowUp {
         public var reason: String
         public var excludeRefs: [String] = []
         public var limit: Int?
+        /// "any in Proverbs?": the last Strong's number, occurrences in this book (phrase to resolve).
+        public var occurrencesOf: String?
+        public var inBook: String?
     }
 
-    static let followUp = try! NSRegularExpression(pattern: #"^(?:(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:greek|hebrew)\s+(?:equivalent|counterpart|one)|and|now|any|anything|ok(?:ay)?|also|then|what about|how about|same|more|show|give|just|only|try|compare|contrast|switch|no,|actually|i meant)\b|\b(?:that|those|these|them|it|more|the same|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b"#, options: .caseInsensitive)
+    static let followUp = try! NSRegularExpression(pattern: #"^(?:(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:greek|hebrew)\s+(?:equivalent|counterpart|one)|is it|was it|some|and|now|any|anything|ok(?:ay)?|also|then|what about|how about|same|more|show|give|just|only|try|compare|contrast|switch|no,|actually|i meant)\b|\b(?:that|those|these|them|it|more|the same|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b"#, options: .caseInsensitive)
     static let ordinals: [String: Int] = ["first": 0, "second": 1, "third": 2, "fourth": 3, "fifth": 4, "last": -1]
     static let numberWords: [String: Int] = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10]
 
@@ -59,6 +62,11 @@ public enum AskFollowUp {
             if let term = state.term {
                 return Resolved(question: "\(term) in \(lang)", reason: "The \(lang.capitalized) word for “\(term)”")
             }
+        }
+        // "any in Proverbs?", "is it in Job?" — the word just studied, in one book.
+        if let m = match(#"^(?:any|anything|some|is it|was it|and|what about|how about)\b.*?\bin\s+(?:the\s+)?((?:[1-3]\s?)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)\s*\??$"#, q),
+           let id = state.strongs.first, match(#"\b(greek|hebrew|lxx|septuagint)\b"#, m[1]) == nil {
+            return Resolved(question: "\(id) in \(m[1])", reason: "\(id) in \(m[1])", occurrencesOf: id, inBook: m[1])
         }
         // "compare the first two" / "compare the second with the first"
         if match(#"\b(compare|contrast)\b"#, q) != nil, state.strongs.count >= 2 {

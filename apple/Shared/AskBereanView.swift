@@ -182,6 +182,15 @@ struct AskBereanView: View {
             remember(raw: raw, effective: q, isFollowUp: followUp != nil)
             focused = true   // ready for the follow-up
         }
+        // Follow-up "any in Proverbs?": the last Strong's number's occurrences in that book.
+        if let id = followUp?.occurrencesOf, let phrase = followUp?.inBook,
+           let book = app.resolvePassage("\(phrase) 1")?.bookId, let entry = await app.lexicon.entry(id) {
+            let verses = await app.lexicon.occurrences(id, bookId: book).prefix(30)
+                .map { Verse(textId: $0.textId, bookId: $0.bookId, chapter: $0.chapter, verse: $0.verseNum, text: $0.text) }
+            interpreted = verses.isEmpty ? "\(id) does not occur in \(Reference.bookName(book))" : "\(id) in \(Reference.bookName(book)) — \(verses.count) verse\(verses.count == 1 ? "" : "s")"
+            answer = .strongs(entry, Array(verses), alternatives: [])
+            return
+        }
         // 0. Two or more Strong's numbers: their entries side by side (original lexical comparison).
         let ids = ModelFreeAsk.strongsIds(q)
         if ids.count >= 2 {

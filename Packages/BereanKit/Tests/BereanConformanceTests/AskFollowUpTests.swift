@@ -25,4 +25,13 @@ import Testing
         #expect(AskFollowUp.resolve("word study on mercy", state: study) == nil)
         #expect(AskFollowUp.resolve("John 3:16", state: study) == nil)
     }
+
+    @Test func occurrencesInABook() {
+        let study = AskFollowUp.State(topicQuestion: "word study on grace", term: "grace", lang: "H", strongs: ["H2580"])
+        let r = AskFollowUp.resolve("any in Proverbs?", state: study)
+        #expect(r?.occurrencesOf == "H2580" && r?.inBook == "Proverbs")
+        #expect(AskFollowUp.resolve("is it in 1 Samuel", state: study)?.inBook == "1 Samuel")
+        #expect(AskFollowUp.resolve("what about in the Greek?", state: study)?.inBook == nil)   // a language switch, not a book
+        #expect(AskFollowUp.resolve("any in Proverbs?", state: .init())?.occurrencesOf == nil)
+    }
 }
