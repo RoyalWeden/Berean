@@ -49,6 +49,7 @@ struct MacRootView: View {
                 }
         }
         .toolbarBackground(scriptureToolbarBackground, for: .windowToolbar)
+        .background { NativeDividerCursorRegions() }
         // Match the content scrim above the native toolbar glass.
         .background { ToolbarDimOverlay(isVisible: app.commandPaletteShown, opacity: paletteDimOpacity) }
         .disabled(app.commandPaletteShown)
@@ -300,7 +301,7 @@ private struct InspectorWidthReader: NSViewRepresentable {
                 var child: NSView = self
                 while let parent = child.superview {
                     if let split = parent as? NSSplitView, split.isVertical,
-                       split.subviews.last === child {
+                       split.arrangedSubviews.last === child {
                         let width = child.frame.width
                         guard width > 0, self.lastWidth != width else { return }
                         self.lastWidth = width

@@ -1140,20 +1140,9 @@ final class ReaderTextView: NSTextView {
     private func isOverNativeDivider(_ windowPoint: NSPoint) -> Bool {
         var ancestor = superview
         while let view = ancestor {
-            if let split = view as? NSSplitView, split.subviews.count > 1 {
+            if let split = view as? NSSplitView {
                 let point = split.convert(windowPoint, from: nil)
-                let panes = split.subviews.sorted {
-                    split.isVertical ? $0.frame.minX < $1.frame.minX : $0.frame.minY < $1.frame.minY
-                }
-                for (first, second) in zip(panes, panes.dropFirst()) {
-                    let start = split.isVertical ? first.frame.maxX : first.frame.maxY
-                    let end = split.isVertical ? second.frame.minX : second.frame.minY
-                    let thickness = max(split.dividerThickness, end - start)
-                    let divider = split.isVertical
-                        ? NSRect(x: start - 6, y: split.bounds.minY, width: thickness + 12, height: split.bounds.height)
-                        : NSRect(x: split.bounds.minX, y: start - 6, width: split.bounds.width, height: thickness + 12)
-                    if divider.contains(point) { return true }
-                }
+                if NativeSplitDividerGeometry.rects(in: split, outset: 6).contains(where: { $0.contains(point) }) { return true }
             }
             ancestor = view.superview
         }

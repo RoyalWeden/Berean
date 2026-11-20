@@ -17,7 +17,9 @@ import AppKit
                 guard let window else { return }
                 let cursor = NSCursor.current
                 let actual = cursor == .arrow ? "arrow" : cursor == .iBeam ? "text"
-                    : cursor == .pointingHand ? "link" : "native-other"
+                    : cursor == .pointingHand ? "link"
+                    : cursor == .resizeLeftRight ? "horizontal-resize"
+                    : cursor == .resizeUpDown ? "vertical-resize" : "native-other"
                 let sample = ["cursor": actual, "event": eventType,
                               "x": String(describing: point.x), "y": String(describing: point.y),
                               "windowIsKey": String(window.isKeyWindow)]
