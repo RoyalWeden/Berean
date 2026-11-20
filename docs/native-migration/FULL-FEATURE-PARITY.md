@@ -1298,3 +1298,7 @@ Seven focused source commits now deliver the Mac chapter share anchor (actual op
 ## 2026-11-19 — Compare drag interaction increment
 
 Mac native Compare now lifts its rendered visible column using NSDraggingSession rather than a reconstructed preview. Independent KJVA/LXX reorder/restore, native move operation, Escape cancellation, passage picker and verse-selection actions verified. This is bounded interaction parity; pinned/aligned/stacked/Strong’s/text-selection/2x/physical feel matrix remains open. No iPhone runtime or data changes this increment. Both targets build; details in HANDOFF and NATIVE-COMPARE-DRAG.md.
+
+## 2026-11-19 — Repeated Compare drag correctness
+
+Source bbca520f fixes stale recognizer source identity after reorder, finishes the native gesture lifetime and masks stacked drag images to the actual source fragments. Real aligned/pinned consecutive moves, invalid-drop recovery, rendered Strong’s link and temporary three-column stacked reorder/return verified; both builds pass. Temporary column removed and reading states restored;16notes/37IDs/alltags unchanged. Blue verse-control image fidelity,2x/selected/text-selection/4column/race/physical cursor matrices remain open. Exact evidence in HANDOFF/NATIVE-COMPARE-DRAG.md. Previous718d9e2e CI44665586360 is green; new head’s checks are separate.

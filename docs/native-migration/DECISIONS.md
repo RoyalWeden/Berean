@@ -632,3 +632,7 @@ Use the existing rendered Compare content as the native drag image, at backing r
 Divider geometry must use NSSplitView.arrangedSubviews, including intentional full-main-pane overlap beneath anchored sidebar/inspector glass. Subviews also contain decorations. Own only narrow native-divider tracking regions and preserve them when unchanged; no delegate replacement, swizzling, global cursor monitor or forced app activation. Real inactive-window synthetic input is not evidence of key-window hover correctness.
 
 Divider cursor geometry also honors the existing public native delegate effectiveRect and connected narrow additional gutter methods. Query, never replace, the native delegate. This retains wider/disabled native targets and avoids assigning resize cursors to separate broad header controls. Standalone regression covers each case.
+
+## 2026-11-19 — Drag source follows geometry, not a representable closure
+
+SwiftUI can share a hosting view across Compare recognizers; after reorder, the first recognizer may represent another column. Resolve exactly one live source from actual registered fragments containing the initial pickup, then notify the source payload. Do not use a union bounding rectangle to select a source in interleaved stacked mode. Snapshot only that source’s fragments, leaving other-edition gaps blank. Complete the native recognizer explicitly when dragging consumes mouse-up; retain single-click/double-click handling. Real consecutive UI moves are required; unattached recognizer state setters do not simulate AppKit’s gesture engine.

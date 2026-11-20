@@ -419,3 +419,7 @@ Seven focused source commits now deliver the Mac chapter share anchor (actual op
 ## 2026-11-19 — Native Compare lift and divider follow-through
 
 5658bcfe adds narrow stable divider cursor ownership with native glass-underlay geometry; standalone AppKit geometry fixtures pass.6c351503 snapshots rendered Compare columns into native offset-preserving move sessions; actual independent reorder/cancel/passage-click/verse-actions checks pass. Both app builds pass. Sustained key-window cursor hover/right resize,2x and remaining Compare modes remain unverified. No full package rerun; previous258 baseline retained. Full checkpoint/limits in HANDOFF and NATIVE-COMPARE-DRAG.md; migration remains active.
+
+## 2026-11-19 — Repeated Compare drag correctness
+
+Source bbca520f fixes stale recognizer source identity after reorder, finishes the native gesture lifetime and masks stacked drag images to the actual source fragments. Real aligned/pinned consecutive moves, invalid-drop recovery, rendered Strong’s link and temporary three-column stacked reorder/return verified; both builds pass. Temporary column removed and reading states restored;16notes/37IDs/alltags unchanged. Blue verse-control image fidelity,2x/selected/text-selection/4column/race/physical cursor matrices remain open. Exact evidence in HANDOFF/NATIVE-COMPARE-DRAG.md. Previous718d9e2e CI44665586360 is green; new head’s checks are separate.

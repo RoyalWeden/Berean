@@ -471,3 +471,8 @@ Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel 
 - Implemented: divider cursor regions based on arranged glass panes, unchanged tracking retained across updates; regression fixture covers decorative/hidden/overlapping/horizontal cases.
 - OPEN: sustained physical cursor hover in key window, minimum/maximum left/right resize and inactive transitions. Synthetic post-relaunch window was not key; do not call those hover tests passes.
 - OPEN: Compare pinned/aligned/stacked/4-column, Retina2x, text selection/Strong’s links, selected/highlighted snapshot and repeated cross-tab/race matrix. See NATIVE-COMPARE-DRAG.md.
+
+### Compare follow-through bbca520f
+
+- Verified: repeated aligned and pinned reorders, invalid drop then next move, actual Strong’s G2532 link, temporary three-column stacked move/return and cleanup. Both builds pass.
+- OPEN: blue verse controls/selected outlines/highlights in native bitmap,2x/light, native word/range selection,4columns, full pin/scroll/history/race/device matrix. Physical divider hover remains open separately.

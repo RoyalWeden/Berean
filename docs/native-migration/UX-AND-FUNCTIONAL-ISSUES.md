@@ -354,3 +354,7 @@ Seven focused source commits now deliver the Mac chapter share anchor (actual op
 ## 2026-11-19 — Divider/Compare implementation checkpoint
 
 Divider transient cursor report has a narrow native tracking implementation plus arranged-pane/glass-overlap regression coverage (5658bcfe); physical key-window sustained hover remains OPEN. Compare reconstructed preview is replaced by the actual rendered visible column with native pickup offset (6c351503); independent move/cancel and verse actions verified, broader interaction/2x/modes remain OPEN. Preserve the remaining owner queue in FOLLOWUP-2026-11-19.md.
+
+## 2026-11-19 — Repeated Compare drag correctness
+
+Source bbca520f fixes stale recognizer source identity after reorder, finishes the native gesture lifetime and masks stacked drag images to the actual source fragments. Real aligned/pinned consecutive moves, invalid-drop recovery, rendered Strong’s link and temporary three-column stacked reorder/return verified; both builds pass. Temporary column removed and reading states restored;16notes/37IDs/alltags unchanged. Blue verse-control image fidelity,2x/selected/text-selection/4column/race/physical cursor matrices remain open. Exact evidence in HANDOFF/NATIVE-COMPARE-DRAG.md. Previous718d9e2e CI44665586360 is green; new head’s checks are separate.

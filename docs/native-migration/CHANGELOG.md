@@ -2039,3 +2039,7 @@ Mac Compare now starts a native drag with the rendered visible column, preservin
 ### Effective divider target refinement
 
 The existing NSSplitView delegate may provide a wider effectiveRect or a connected additional gutter. The helper now queries those public methods rather than assuming the visible line is the whole target. Connected additional areas are limited to narrow gutter handles; broad separate header drag surfaces retain their own controls/cursors. Regression fixtures add wider target, disabled target and connected handle checks. Actual final controls-profile strips remain7pt. Final Mac build /tmp/berean-native-divider-effective-final-mac.log and standalone fixture pass; actual final reader has scrollbar0/Genesis1/selected1/CrossRefs. Physical key-window hover is still open. This is a refinement of5658bcfe; exact final commit is in git log.
+
+## 2026-11-19 — Repeated Compare drag correctness
+
+Source bbca520f fixes stale recognizer source identity after reorder, finishes the native gesture lifetime and masks stacked drag images to the actual source fragments. Real aligned/pinned consecutive moves, invalid-drop recovery, rendered Strong’s link and temporary three-column stacked reorder/return verified; both builds pass. Temporary column removed and reading states restored;16notes/37IDs/alltags unchanged. Blue verse-control image fidelity,2x/selected/text-selection/4column/race/physical cursor matrices remain open. Exact evidence in HANDOFF/NATIVE-COMPARE-DRAG.md. Previous718d9e2e CI44665586360 is green; new head’s checks are separate.
