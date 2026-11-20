@@ -10,8 +10,9 @@ public enum AskFollowUp {
         public var lang: String?          // "H" / "G"
         public var strongs: [String] = [] // most recent answer first
         public var refs: [String] = []    // references shown last ("Isaiah 7:14")
-        public init(topicQuestion: String? = nil, term: String? = nil, lang: String? = nil, strongs: [String] = [], refs: [String] = []) {
-            self.topicQuestion = topicQuestion; self.term = term; self.lang = lang; self.strongs = strongs; self.refs = refs
+        public var scopePhrase: String?   // "only in the Psalms", carried by "same restriction"
+        public init(topicQuestion: String? = nil, term: String? = nil, lang: String? = nil, strongs: [String] = [], refs: [String] = [], scopePhrase: String? = nil) {
+            self.topicQuestion = topicQuestion; self.term = term; self.lang = lang; self.strongs = strongs; self.refs = refs; self.scopePhrase = scopePhrase
         }
     }
 
@@ -27,7 +28,7 @@ public enum AskFollowUp {
         public var wordTable: [String]?
     }
 
-    static let followUp = try! NSRegularExpression(pattern: #"^(?:(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:greek|hebrew)\s+(?:equivalent|counterpart|one)|is it|was it|some|and|now|any|anything|ok(?:ay)?|also|then|what about|how about|same|more|show|give|just|only|try|compare|contrast|switch|no,|actually|i meant)\b|\b(?:that|those|these|them|it|more|word by word|the same|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b"#, options: .caseInsensitive)
+    static let followUp = try! NSRegularExpression(pattern: #"^(?:(?:what(?:'s|\s+is)\s+)?(?:the\s+)?(?:greek|hebrew)\s+(?:equivalent|counterpart|one)|is it|was it|some|and|now|any|anything|ok(?:ay)?|also|then|what about|how about|same|more|show|give|just|only|try|compare|contrast|switch|no,|actually|i meant)\b|\b(?:that|those|these|them|it|more|word by word|same restriction|the same|again|the (?:first|second|third|last) (?:one|passage|verse|entry))\b"#, options: .caseInsensitive)
     static let ordinals: [String: Int] = ["first": 0, "second": 1, "third": 2, "fourth": 3, "fifth": 4, "last": -1]
     static let numberWords: [String: Int] = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10]
 
@@ -53,6 +54,17 @@ public enum AskFollowUp {
     public static func resolve(_ question: String, state: State) -> Resolved? {
         let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isFollowUp(q) else { return nil }
+        // "verses about refuge, same restriction" — the new topic under the last scope.
+        if let scope = state.scopePhrase, let m = match(#"^(.*?)[,;]?\s*(?:with\s+)?(?:the\s+)?same\s+restriction\b"#, q) {
+            let topic = m[1].trimmingCharacters(in: .whitespaces)
+            let base = topic.isEmpty ? (state.topicQuestion ?? "") : topic
+            if !base.isEmpty { return Resolved(question: "\(base) \(scope)", reason: "“\(base)” \(scope)") }
+        }
+        // "check that number" — show the last Strong's entry again from the lexicon.
+        if match(#"\b(check|verify|confirm)\b.*\b(number|id|strong'?s)\b"#, q) != nil, let id = state.strongs.first {
+            let asked = state.term.map { " for “\($0)”" } ?? ""
+            return Resolved(question: id, reason: "Checked \(id)\(asked) against the lexicon")
+        }
         // "try again"
         if match(#"^(?:please\s+)?try again\b"#, q) != nil, let base = state.topicQuestion {
             return Resolved(question: base, reason: "Asked again: “\(base)”")
@@ -102,5 +114,10 @@ public enum AskFollowUp {
             return Resolved(question: base, reason: "“\(base)”, \(n) result\(n == 1 ? "" : "s")", limit: n)
         }
         return nil
+    }
+
+    /// A scope stated in a question ("only in the Psalms", "only in the Apocrypha", "in the New Testament").
+    public static func scopePhrase(_ question: String) -> String? {
+        match(#"\b(only\s+(?:in\s+)?(?:the\s+)?(?:psalms|proverbs|gospels|new testament|old testament|torah|prophets|apocrypha|[1-3]?\s?[A-Z][a-z]+)|in\s+the\s+(?:new|old)\s+testament)\b"#, question)?[1]
     }
 }

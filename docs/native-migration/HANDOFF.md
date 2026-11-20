@@ -2903,3 +2903,8 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Checks: `swift test -c release` 333 pass; Mac + iOS builds exit 0.
 - Ask Berean model-free remaining: "check that number", "same restriction", Ask options screen (collections setting). Everything else in G01 is in.
 - Remaining parity work outside Ask Berean is owner-gated (sync, vault, BibleGateway, Share/Widget targets, model-backed modes) or Codex's (Read Aloud).
+
+### 2026-11-20 — Claude Code: Ask Berean round 5
+- Search In (original `aiLookupCollections`), book scope ("only in the Psalms"), "same restriction", "check that number" — tested, verified on sim; sim setting restored to default.
+- G01 model-free coverage now matches the original's deterministic path except corpus-specific searches outside the KJV (original model-free also searched only kjva).
+- Checks: `swift test -c release` 334 pass; Mac + iOS builds exit 0.

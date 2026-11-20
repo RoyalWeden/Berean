@@ -207,4 +207,14 @@ public enum ModelFreeAsk {
         guard match(#"\b(every word|each word|word by word|word table|strong'?s numbers? (?:in|for|of))\b"#, question) else { return nil }
         return referenceCandidates(question).isEmpty ? nil : question
     }
+
+    /// "…only in the Psalms", "…only in Romans": the book phrase that limits a keyword search.
+    public static func onlyInBook(_ question: String) -> (phrase: String, remainder: String)? {
+        let re = try! NSRegularExpression(pattern: #"[,;]?\s*\bonly\s+(?:in|from)\s+(?:the\s+)?(?:book\s+of\s+)?((?:[1-3]\s?)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)\b"#, options: .caseInsensitive)
+        let ns = question as NSString
+        guard let m = re.firstMatch(in: question, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        let phrase = ns.substring(with: m.range(at: 1))
+        if scopeNames.contains(where: { match($0.1, phrase) }) || ["new", "old"].contains(phrase.lowercased()) { return nil }   // collections, not books
+        return (phrase, ns.replacingCharacters(in: m.range, with: "").trimmingCharacters(in: .whitespaces))
+    }
 }

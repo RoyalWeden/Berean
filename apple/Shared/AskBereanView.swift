@@ -342,11 +342,15 @@ struct AskBereanView: View {
             return app.resolvePassage("\(name) 1")?.bookId
         }
         let collections = ModelFreeAsk.activeCollections(q, setting: app.askCollections)
-        let words = ModelFreeAsk.withoutScopeWords(ModelFreeAsk.keywords(excluded.remainder))
+        // "…only in the Psalms": search that book only.
+        let onlyIn = ModelFreeAsk.onlyInBook(excluded.remainder)
+        let onlyBook = onlyIn.flatMap { app.resolvePassage("\($0.phrase) 1")?.bookId }
+        let words = ModelFreeAsk.withoutScopeWords(ModelFreeAsk.keywords(onlyBook != nil ? onlyIn!.remainder : excluded.remainder))
+        let books = onlyBook.map { [$0] }
         guard !words.isEmpty else { answer = .nothing; return }
-        var rows = await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .all)
-        if rows.count < 3 { rows += await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .any) }
-        if rows.isEmpty { rows = await app.bible.searchText(ModelFreeAsk.stems(words).joined(separator: " "), textId: "kjva", mode: .any) }
+        var rows = await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .all, bookIds: books)
+        if rows.count < 3 { rows += await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .any, bookIds: books) }
+        if rows.isEmpty { rows = await app.bible.searchText(ModelFreeAsk.stems(words).joined(separator: " "), textId: "kjva", mode: .any, bookIds: books) }
         var seen = Set<String>(), verses: [Verse] = []
         for r in rows {
             let v = Verse(textId: "kjva", bookId: r.bookId, chapter: r.chapter, verse: r.verseNum, text: r.text)
@@ -363,6 +367,8 @@ struct AskBereanView: View {
     /// Updates the conversation state from the answer just shown (original stateFromTurns, natively).
     private func remember(raw: String, effective: String, isFollowUp: Bool) {
         if !isFollowUp { convo.topicQuestion = effective }
+        if let scope = AskFollowUp.scopePhrase(effective) { convo.scopePhrase = scope }
+        if raw.range(of: #"\b(any testament|remove (?:the )?(?:restriction|filter)s?|start over|new topic)\b"#, options: [.regularExpression, .caseInsensitive]) != nil { convo.scopePhrase = nil }
         if let study = ModelFreeAsk.wordStudy(effective) { convo.term = study.word; convo.lang = study.lang }
         switch answer {
         case .strongs(let e, let verses, let alternatives):

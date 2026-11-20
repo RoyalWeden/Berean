@@ -43,4 +43,15 @@ import Testing
         #expect(ModelFreeAsk.wordTableRequest("John 3:16") == nil)
         #expect(ModelFreeAsk.wordTableRequest("every word matters") == nil)
     }
+
+    @Test func sameRestrictionAndCheck() {
+        let scoped = AskFollowUp.State(topicQuestion: "verses about refuge only in the Psalms", scopePhrase: "only in the Psalms")
+        #expect(AskFollowUp.resolve("verses about strength, same restriction", state: scoped)?.question == "verses about strength only in the Psalms")
+        #expect(AskFollowUp.scopePhrase("verses about refuge only in the Psalms") == "only in the Psalms")
+        let study = AskFollowUp.State(term: "grace", strongs: ["G5485"])
+        let check = AskFollowUp.resolve("check that number against the database", state: study)
+        #expect(check?.question == "G5485" && check?.reason.contains("grace") == true)
+        #expect(ModelFreeAsk.onlyInBook("verses about refuge only in the Psalms")! == ("Psalms", "verses about refuge"))
+        #expect(ModelFreeAsk.onlyInBook("wisdom only in the Apocrypha") == nil)
+    }
 }
