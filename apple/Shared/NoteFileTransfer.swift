@@ -132,7 +132,12 @@ struct NativeShareAnchor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { NSView() }
 
     func updateNSView(_ view: NSView, context: Context) {
-        guard let request, context.coordinator.requestID != request.id else { return }
+        guard let request else {
+            // Invalidate a queued presentation when its caller navigates away.
+            context.coordinator.requestID = nil
+            return
+        }
+        guard context.coordinator.requestID != request.id else { return }
         let coordinator = context.coordinator
         coordinator.requestID = request.id
         // Wait until the menu has closed; its source toolbar view remains attached.

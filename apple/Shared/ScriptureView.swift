@@ -420,6 +420,8 @@ struct ChapterExportActions: View {
     let state: BibleState
     let tabId: String
     var hasText = true
+    /// The Mac toolbar owns presentation, so its anchor outlives this menu content.
+    var shareChapter: (() -> Void)? = nil
 
     var body: some View {
         let chapterLabel = Reference.readerChapterLabel(state.bookId, state.chapter, textId: state.translation)
@@ -465,10 +467,15 @@ struct ChapterExportActions: View {
             }
         }
         .disabled(!hasText)
-        ShareLink(item: chapter, preview: SharePreview(reference)) {
-            Label("Share Chapter…", systemImage: "square.and.arrow.up")
+        if let shareChapter {
+            Button("Share Chapter…", systemImage: "square.and.arrow.up", action: shareChapter)
+                .disabled(!hasText)
+        } else {
+            ShareLink(item: chapter, preview: SharePreview(reference)) {
+                Label("Share Chapter…", systemImage: "square.and.arrow.up")
+            }
+            .disabled(!hasText)
         }
-        .disabled(!hasText)
     }
 }
 
@@ -562,6 +569,9 @@ struct ScriptureView: View {
     private enum VersePopover { case highlight, export }
     @State private var versePopover: VersePopover?
     @State private var displayOptionsShown = false
+    @State private var chapterShareRequest: NativeShareRequest?
+    @State private var chapterShareTask: Task<Void, Never>?
+    @State private var chapterShareGeneration = UUID()
     #endif
     @AppStorage("scriptureWidth") private var scriptureWidth = ScriptureWidth.normal
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
@@ -678,8 +688,23 @@ struct ScriptureView: View {
         }
         #endif
         .toolbar { toolbar(st) }
-        .onChange(of: chapterKey(st)) { numberingExplanation = nil }
-        .onDisappear { chapterStepTask?.cancel() }
+        .onChange(of: chapterKey(st)) {
+            numberingExplanation = nil
+            #if os(macOS)
+            cancelChapterShare()
+            #endif
+        }
+        #if os(macOS)
+        .onChange(of: app.activeTab?.id) {
+            if app.activeTab?.id != tabId { cancelChapterShare() }
+        }
+        #endif
+        .onDisappear {
+            chapterStepTask?.cancel()
+            #if os(macOS)
+            cancelChapterShare()
+            #endif
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, !st.compareMode, let position = positionReader.capture(nil) else { return }
             app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: position)
@@ -1610,16 +1635,54 @@ struct ScriptureView: View {
                 }
                 .disabled(!hasText)
                 Divider()
-                ChapterExportActions(state: st, tabId: tabId, hasText: hasText)
+                ChapterExportActions(state: st, tabId: tabId, hasText: hasText, shareChapter: { shareChapter(st) })
             } label: {
                 Label("Chapter Actions", systemImage: "square.and.arrow.up")
             }
             .menuIndicator(.hidden)
             .clickableCursor()
             .help("Tag, copy, or share the chapter")
+            .background { NativeShareAnchor(request: chapterShareRequest) }
         }
         #endif
     }
+
+    #if os(macOS)
+    private func cancelChapterShare() {
+        chapterShareTask?.cancel()
+        chapterShareTask = nil
+        chapterShareGeneration = UUID()
+        chapterShareRequest = nil
+    }
+
+    private func shareChapter(_ st: BibleState) {
+        cancelChapterShare()
+        let generation = chapterShareGeneration
+        let edition = ChapterEdition(st)
+        let hidden = hiddenAnnotations
+        let replacer = app.wordReplacerEnabled
+        let reference = Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)
+            + (st.translation == "lxx" ? " LXX" : "")
+        let chapter = SharedScriptureChapter(reference: reference, bookId: st.bookId, chapter: st.chapter,
+                                            textId: st.translation, replacerEnabled: replacer,
+                                            bible: app.bible, hiddenAnnotations: hidden)
+        chapterShareTask = Task {
+            do {
+                let text = try await chapter.formattedText()
+                guard !Task.isCancelled, generation == chapterShareGeneration,
+                      app.activeTab?.id == tabId, ChapterEdition(state) == edition,
+                      hiddenAnnotations == hidden, app.wordReplacerEnabled == replacer else { return }
+                chapterShareRequest = NativeShareRequest(text: text)
+                chapterShareTask = nil
+            } catch {
+                guard !Task.isCancelled, generation == chapterShareGeneration,
+                      app.activeTab?.id == tabId, ChapterEdition(state) == edition else { return }
+                chapterShareTask = nil
+                app.userMessage = "This chapter has no text to share."
+            }
+        }
+    }
+    #endif
 
     private var numberingInfoPresented: Binding<Bool> {
         Binding(get: { numberingExplanation != nil }, set: { if !$0 { numberingExplanation = nil } })
