@@ -464,3 +464,10 @@ Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel 
 | WINDOW-STUDY-INSPECTOR | Stable native host, widths and minimum content frames | IMPLEMENTED_UNVERIFIED | Notes return exact settled values; restored panel containment shown. First constrained Compare reflow/all states/physical drag/overflow open |
 | DIVIDER-CURSOR-OWNERSHIP | Yield overlapping arrow/I-beam regions | IMPLEMENTED_UNVERIFIED | Local source ownership/build checked; sustained hardware hover and every divider open |
 | MAC-CHAPTER-SHARE-ANCHOR | Stable toolbar owner/async stale guards | IMPLEMENTED_UNVERIFIED | Actual open/cancel/reopen anchored; async race/window/overflow matrix open |
+
+### 2026-11-19 bounded follow-through
+
+- Implemented: actual rendered Compare column snapshot, native pickup offset and local move/cancel lifetime; stale-tab drop rejection. Independent reorder/cancel/passage click/verse actions verified.
+- Implemented: divider cursor regions based on arranged glass panes, unchanged tracking retained across updates; regression fixture covers decorative/hidden/overlapping/horizontal cases.
+- OPEN: sustained physical cursor hover in key window, minimum/maximum left/right resize and inactive transitions. Synthetic post-relaunch window was not key; do not call those hover tests passes.
+- OPEN: Compare pinned/aligned/stacked/4-column, Retina2x, text selection/Strong’s links, selected/highlighted snapshot and repeated cross-tab/race matrix. See NATIVE-COMPARE-DRAG.md.

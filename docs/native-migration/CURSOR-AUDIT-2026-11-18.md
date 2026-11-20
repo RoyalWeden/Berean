@@ -58,3 +58,7 @@ Final checkpoint: commit3c38eb5c removes the global cursor machinery. Both final
 
 
 Final reader checkpoint: both direct-repo final grouping builds passed and Mac input/copy/range UI checks passed. This does not establish physical cursor-motion/flicker coverage; that matrix remains open. No global cursor override was reintroduced.
+
+## 2026-11-19 — Divider cursor follow-through (5658bcfe)
+
+Reader-only yielding was insufficient. Native split subviews include decorations; modern glass main panes overlap the whole split. New shared geometry uses actual arranged panes, anchored glass edges and visible bounds. Passive local split tracking sets resize only inside7pt strips; unchanged regions survive normal SwiftUI updates. No hit interception/delegate replacement/global cursor override. Standalone AppKit regressions pass. Actual opt-in region dump shows only sidebar and inspector strips, rather than broad phantom regions. One key-window sidebar drag resized239→299; later synthetic drags after relaunch had windowIsKey=false and cannot verify continuous hover/right resize. Keep physical key-window sweep, native control/text transitions, minimum/maximum resize and inactive behavior OPEN. Final Mac build passes; trace supports explicit horizontal/vertical resize classification.

@@ -624,3 +624,9 @@ A bare Strong’s mention or explicit lexicon destination belongs in that lexico
 ## 2026-11-19 — Stable window study inspector and usable widths
 
 The native window owns one inspector; document hosts supply content. A late setter still targets its captured active reader identity. Retain actual native pane width after layout quiet, not inset SwiftUI content width or intermediate opening frames. Preserve native resizing and cursor ownership. Sidebar minimum240, study minimum320, window content minimum1000; native traits and content frames both enforce restored bounds, including inline study layouts. Keep Notes quiet grouped surfaces and search controls together. Current full-window/future multi-pane focus routing and first constrained Compare reflow remain separate unfinished gates. Reference the final HANDOFF entry before claiming all transitions or physical cursor behavior fixed.
+
+## 2026-11-19 — Native image and cursor ownership boundaries
+
+Use the existing rendered Compare content as the native drag image, at backing resolution and original pickup offset; avoid a second reconstructed SwiftUI preview whose font, width and scroll differ. Keep drag-image capture ephemeral; opt-in artifacts only in named DEBUG QA profiles. Destinations accept same-controller moves and reject stale active-tab/Compare/passage payloads.
+
+Divider geometry must use NSSplitView.arrangedSubviews, including intentional full-main-pane overlap beneath anchored sidebar/inspector glass. Subviews also contain decorations. Own only narrow native-divider tracking regions and preserve them when unchanged; no delegate replacement, swizzling, global cursor monitor or forced app activation. Real inactive-window synthetic input is not evidence of key-window hover correctness.
