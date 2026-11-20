@@ -36,10 +36,23 @@ import SwiftUI
             }
             guard end - start <= max(16, split.dividerThickness) else { return nil }
             let thickness = max(split.dividerThickness, end - start)
-            let rect = (split.isVertical
-                ? NSRect(x: start - outset, y: split.bounds.minY, width: thickness + outset * 2, height: split.bounds.height)
-                : NSRect(x: split.bounds.minX, y: start - outset, width: split.bounds.width, height: thickness + outset * 2))
-                .intersection(split.visibleRect)
+            let drawn = split.isVertical
+                ? NSRect(x: start, y: split.bounds.minY, width: thickness, height: split.bounds.height)
+                : NSRect(x: split.bounds.minX, y: start, width: split.bounds.width, height: thickness)
+            let proposed = drawn.insetBy(dx: split.isVertical ? -outset : 0, dy: split.isVertical ? 0 : -outset)
+            let index = split.arrangedSubviews.firstIndex { $0 === first } ?? 0
+            // Ask the existing native delegate about its effective grab target.
+            // In glass layouts that target can be wider than the visible line.
+            var effective = split.delegate?.splitView?(split, effectiveRect: proposed,
+                forDrawnRect: drawn, ofDividerAt: index) ?? proposed
+            if let additional = split.delegate?.splitView?(split, additionalEffectiveRectOfDividerAt: index),
+               !additional.isEmpty, additional.intersects(effective),
+               (split.isVertical ? additional.width : additional.height) <= max(32, thickness) {
+                // Include connected gutter handles, not separate broad header
+                // drag surfaces whose child controls own their own cursors.
+                effective = effective.union(additional)
+            }
+            let rect = effective.intersection(split.visibleRect)
             return rect.isEmpty ? nil : rect
         }
     }
