@@ -476,3 +476,9 @@ Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel 
 
 - Verified: repeated aligned and pinned reorders, invalid drop then next move, actual Strong’s G2532 link, temporary three-column stacked move/return and cleanup. Both builds pass.
 - OPEN: blue verse controls/selected outlines/highlights in native bitmap,2x/light, native word/range selection,4columns, full pin/scroll/history/race/device matrix. Physical divider hover remains open separately.
+
+### Notes follow-through713bd02e/1b9a4074
+
+- Implemented/tested: shared table protection, minimal native iPhone keyboard groups, contextual table actions, live disabled cell navigation, exact source/Undo/Redo.265tests/both builds pass; both disposable fixtures cleaned.
+- Open: physical phone/iPad/compact320/landscape/DynamicType/VoiceOver/IME/full multicell/color/typing matrices and remaining rich editor parity.
+- Latest owner queue OPEN: clear categorical verse indicators with hover previews; remove Chapter study; full word replacer in Settings; working hover feedback on tab-type/Notes/cross-ref filters; actual legacy auto verse/Strong’s blocks. See FOLLOWUP.

@@ -636,3 +636,9 @@ Divider cursor geometry also honors the existing public native delegate effectiv
 ## 2026-11-19 — Drag source follows geometry, not a representable closure
 
 SwiftUI can share a hosting view across Compare recognizers; after reorder, the first recognizer may represent another column. Resolve exactly one live source from actual registered fragments containing the initial pickup, then notify the source payload. Do not use a union bounding rectangle to select a source in interleaved stacked mode. Snapshot only that source’s fragments, leaving other-edition gaps blank. Complete the native recognizer explicitly when dragging consumes mouse-up; retain single-click/double-click handling. Real consecutive UI moves are required; unattached recognizer state setters do not simulate AppKit’s gesture engine.
+
+## 2026-11-19 — Table structure and keyboard action density
+
+Block prefixes cannot preserve a GFM grid inside a cell. Keep inline style/link/reference edits available; reject paragraph/list/callout/nested-table insertion when their covered paragraphs overlap an actual table. Use the existing parsed table ranges, preserve literal-pipe prose/fenced code and UTF16/newline boundaries, and disable incompatible UI entry points. Do not silently rewrite imported table source.
+
+Use6prose/5table iPhone accessory controls with native glass grouping and flexibleWidth. Cell navigation belongs in the Table menu plus existing Tab/ShiftTab, preserving direct Undo/Redo/Formatting/Table/Hide. Seven separate controls overflowed, so removing essential actions into system overflow was rejected. Refresh navigation with uncached deferred native menu content; avoid cached action availability and retain the editor selection across menus. Respect the existing haptics setting.
