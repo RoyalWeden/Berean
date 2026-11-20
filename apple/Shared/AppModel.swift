@@ -658,6 +658,24 @@ final class AppModel {
         openTab(.youtube, in: .youtube, title: "YouTube", state: state)
     }
 
+    /// Load request for a YouTube tab's live page (a transcript hit → video at that moment).
+    var youtubeLoadRequest: (tabId: String, url: URL, nonce: Int)?
+
+    /// Opens a video at `startMs` in the YouTube tab (reusing an open one).
+    func openYouTubeVideo(_ videoId: String, startMs: Int = 0) {
+        let secs = startMs / 1000
+        guard let url = URL(string: "https://www.youtube.com/watch?v=\(videoId)" + (secs > 0 ? "&t=\(secs)s" : "")) else { return }
+        if let tab = session.allTabs.first(where: { $0.tabType == .youtube }) {
+            update(tab.id, recordHistory: false) { $0.state["url"] = .string(JSString(url.absoluteString)); $0.state["videoId"] = .string(JSString(videoId)) }
+            youtubeLoadRequest = (tab.id, url, (youtubeLoadRequest?.nonce ?? 0) + 1)
+            select(tab.id, in: tab.spaceId)
+        } else {
+            var state = JSObject(); state["videoId"] = .string(JSString(videoId)); state["playlistId"] = .null
+            state["url"] = .string(JSString(url.absoluteString))
+            openTab(.youtube, in: .youtube, title: "YouTube", state: state)
+        }
+    }
+
     /// The PDF library (a `pdf` tab without `pdfId`, as the original's picker).
     func openPdfLibrary(newTab: Bool = false, preferActiveTab: Bool = false) {
         if !newTab, let tab = session.allTabs.first(where: { $0.tabType == .pdf && $0.state["pdfId"]?.stringValue == nil }) {

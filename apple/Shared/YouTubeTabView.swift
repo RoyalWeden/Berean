@@ -71,6 +71,13 @@ struct YouTubeTabView: View {
             if app.findTab(tabId) == nil { app.youtubePages[tabId] = nil }
         }
         .onChange(of: app.pipToggleRequest) { _, _ in Task { await togglePiP() } }
+        .onChange(of: app.youtubeLoadRequest?.nonce) { _, _ in
+            if let r = app.youtubeLoadRequest, r.tabId == tabId { load(r.url); app.youtubeLoadRequest = nil }
+        }
+        .task {
+            // A request made just before this view existed (tab switched to in the same update).
+            if let r = app.youtubeLoadRequest, r.tabId == tabId { load(r.url); app.youtubeLoadRequest = nil }
+        }
         .onChange(of: page.url) { _, url in persist(url) }
         .onChange(of: page.title) { _, raw in
             // The title usually arrives after the URL change.

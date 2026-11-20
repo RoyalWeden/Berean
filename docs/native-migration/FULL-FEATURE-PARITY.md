@@ -43,7 +43,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | Q07 | Filtering and ranking | implemented / partial ranking | ✅ | 🟡 | — | Testament, books, match mode, scripture/relevance order, grouping by text/book/none |
 | Q08 | Semantic search and embeddings | partial (Mac dev only; not shipped) | — | — | — | Dev-only in original |
 | Q09 | Floating search / unified Search Berean / command palette | implemented | ✅ | 🟡 | P2 | Mac floating search and iPhone Go group passage, Strong’s, Notes, and Scripture destinations with previews. Unified verse-result streams and YouTube remain open. |
-| Q10 | YouTube transcript search | implemented (see M04) | ❌ | ❌ | P3 | Depends on YouTube (M01) |
+| Q10 | YouTube transcript search | implemented (see M04) | 🟡 | 🟡 | P3 | Videos section in Go / ⌘K opens the video at the matched moment (2026-11-20); needs transcript data in native libraries |
 | N01 | General, verse and daily notes | implemented | 🟡 | 🟡 | P1 | General and verse notes create/edit; Today’s Note and the Calendar open daily notes on both platforms. |
 | N02 | Markdown model and ProseMirror structure | implemented | 🟡 | 🟡 | P1 | Live-preview editor over verbatim Markdown (ADR-0014) — no data loss by construction; structures shown simplified |
 | N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings, lists, and six named highlight colors. Existing legacy highlight colors render in the native editor. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open. |

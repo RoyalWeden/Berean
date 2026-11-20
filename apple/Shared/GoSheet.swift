@@ -226,6 +226,22 @@ struct GoSheet: View {
                 }
             }
         }
+        // Transcript matches (original Q10: unified search includes YouTube transcripts).
+        if trimmed.count >= 3, let videos = try? app.transcripts?.search(trimmed, videoLimit: 4), !videos.isEmpty {
+            Section("Videos") {
+                ForEach(videos, id: \.videoId) { hit in
+                    Button { finish { app.openYouTubeVideo(hit.videoId, startMs: hit.startMs) } } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(hit.title).lineLimit(1)
+                                Text("\(TranscriptService.clock(hit.startMs)) · \(hit.snippet)")
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                        } icon: { Image(systemName: "play.rectangle") }
+                    }
+                }
+            }
+        }
         Section("Scripture") {
             let qualified = app.editionQualifiedQuery(trimmed)
             let title = qualified.map { "Search \(textInfo($0.text).short) for “\($0.query)”" } ?? "Search for “\(trimmed)”"

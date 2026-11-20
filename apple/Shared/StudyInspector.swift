@@ -508,6 +508,14 @@ struct CommandPalette: View {
                                 symbol: "square.stack") { _ in app.open(workspace) })
             }
         }
+        if trimmed.count >= 3, let videos = try? app.transcripts?.search(trimmed, videoLimit: 4) {
+            for hit in videos {
+                out.append(Item(id: "video-\(hit.videoId)", group: "Videos", title: hit.title,
+                                detail: "\(TranscriptService.clock(hit.startMs)) · \(hit.snippet)", symbol: "play.rectangle") { _ in
+                    app.openYouTubeVideo(hit.videoId, startMs: hit.startMs)
+                })
+            }
+        }
         var commands: [(String, String, (Bool) -> Void)] = [
             ("New Note", "square.and.pencil", { _ in app.newNote() }),
             ("Today's Note", "calendar", { inNewTab in app.openTodayDailyNote(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
