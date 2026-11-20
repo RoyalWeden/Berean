@@ -85,7 +85,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Notes side: conversations, Unfiled, pins, folders, replies, edit/delete (2026-11-20, BEREAN-CHAT-2026-11-20.md); Ask Berean not ported |
 | M01 | YouTube browsing and playback | implemented | 🟡 | 🟡 | P2 | WebKit tab: channel list, browse/watch, sign-in persists, timestamp links (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no scraped feed/transcripts |
 | M02 | Picture-in-Picture | implemented | 🟡 | 🟡 | P3 | Manual PiP button + ⇧⌘P; pages persist across tab switches; auto-PiP on tab switch not achieved (YOUTUBE-TAB-2026-11-20.md) |
-| M03 | Video-linked notes and timestamps | implemented | ❌ | ❌ | P3 |  |
+| M03 | Video-linked notes and timestamps | implemented | 🟡 | 🟡 | P3 | Insert timestamp link into an open note; YouTube links in notes open the YouTube tab at that moment (2026-11-20) |
 | M04 | Transcripts and transcript search | implemented (dev-fetch model) | 🟡 | 🟡 | P3 | Read-only service + in-tab transcript with seek (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no transcript data in native libraries yet; not in global search |
 | M05 | Read Aloud engine (Kokoro) | implemented | ❌ | ❌ | P2 | Read Aloud not ported |
 | M06 | Audio playback, seeking, queue and background | implemented | ❌ | ❌ | P2 |  |

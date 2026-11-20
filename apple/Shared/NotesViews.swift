@@ -1449,6 +1449,12 @@ struct NoteDetailView: View {
             }
             return
         }
+        // Timestamp / video links open in Berean's YouTube tab at that moment (original M03).
+        if let video = YouTubeLink.parse(url.absoluteString) {
+            saveNow()
+            routeFromEditor { app.openYouTubeVideo(video.videoId, startMs: video.startMs) }
+            return
+        }
         let route = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition)
         if route != nil || AppModel.isBereanLink(url) {
             saveNow()

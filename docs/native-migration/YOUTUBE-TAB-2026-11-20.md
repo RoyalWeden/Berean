@@ -37,3 +37,8 @@ Status: **IMPLEMENTED (partial); iPhone VERIFIED (sim); Mac built** (no Mac clic
 - Not yet: transcript **data** in native libraries (packs / sync — part of the sync/data workstream).
 - **Q10 transcript search**: iPhone Go and the Mac ⌘K palette show a **Videos** section (≥3 characters, top 4 videos, timestamp + widened snippet). Choosing one opens the video at that moment in the YouTube tab (`openYouTubeVideo` → one-shot `youtubeLoadRequest`, consumed by the tab). Verified on sim with the QA fixture (removed): "messiah" → Videos → tab state `watch?v=…&t=8s`. Search runs off the main thread: `TranscriptSearcher` actor with its own read-only connection (connections are NOMUTEX — never shared across threads), debounced 180 ms; tested while the main connection writes, and re-verified on sim.
 - **Current line**: while the transcript is open the tab reads `currentTime` every 0.5 s; the spoken line is highlighted (bold, accent row, `isSelected` for VoiceOver) and scrolled to centre (not while filtering). Verified on sim: tap 0:08 → 0:08 highlighted; 4 s later → 0:12 highlighted. Fixture removed.
+
+## Video-linked notes (M03) — 2026-11-20
+- `BereanNotes/YouTubeLink.swift` (tested): youtu.be / watch / shorts / embed / live links with `t=` or `start=` (`754`, `754s`, `12m34s`, `1h2m5s`); rejects channel pages and look-alike hosts.
+- Notes: tapping/clicking a YouTube link (e.g. an inserted timestamp link) opens it in Berean's YouTube tab at that moment instead of the browser. Verified on sim: typed `[Matthew 0:08](https://youtu.be/7PZjoIgdows?t=8)` in a note → tap → YouTube tab with the video.
+- Together with "Insert into note" (timestamp link) this covers the original M03 loop: link a moment from a video into a note, and jump back to it from the note.
