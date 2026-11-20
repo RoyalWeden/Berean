@@ -80,4 +80,23 @@ struct NoteStrongsLinksTests {
         #expect(NoteStrongsLinks.spans(in: "5485 2617 grace lovingkindness John 3:16 H0 G00000 xG5485 αH2617 G123456").isEmpty)
         #expect(NoteStrongsLinks.spans(in: "H 2617; g5485a").map(\.number) == ["H2617", "G5485"])
     }
+    @Test func backlinksIncludeExplicitLexiconLinksWithoutReinterpretingNoteTitles() {
+        let source = """
+        h00430 G-05485 G5485
+        [love](berean-native-dev://lexicon/G26)
+        [father](berean://lexicon/H1)
+        [word](berean-lexicon:H2)
+        [[H3]] [[G4|H5]]
+        [H6](https://example.org/H7)
+        ![G8](berean://lexicon/H9)
+        `[hidden](berean://lexicon/H10)`
+        ```
+        [hidden](berean://lexicon/H11)
+        ```
+        <!-- [hidden](berean://lexicon/H12) -->
+        """
+        #expect(NoteStrongsLinks.references(in: source) == ["H430", "G5485", "G26", "H1", "H2"])
+        #expect(NoteStrongsLinks.references(in: "No reference here").isEmpty)
+    }
+
 }

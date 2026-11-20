@@ -61,6 +61,10 @@ struct LexiconEntryView: View {
     var compact = false
     @State private var entry: LexiconEntry?
     @State private var related: [LexiconRelated] = []
+    @State private var relatedNotes: [Note] = []
+    @State private var relatedNotesEntry = ""
+    @State private var relatedNotesExpanded = false
+    @State private var relatedNotesError = false
     @State private var occurrences: [LexiconOccurrence] = []
     @State private var occurrencesTruncated = false
     @State private var previews: [OccurrenceKey: OccurrencePreview] = [:]
@@ -320,6 +324,36 @@ struct LexiconEntryView: View {
                                 section("Extended") { Text(markFind(AttributedString(replaced(e.extendedDef)))).textSelection(.enabled) }.id(FindSection.extended)
                             }
                         }
+                        if relatedNotesEntry == strongsId, !relatedNotes.isEmpty || relatedNotesError {
+                            DisclosureGroup(isExpanded: $relatedNotesExpanded) {
+                                if relatedNotesError {
+                                    Text("Notes could not be loaded. Reopen this entry to try again.")
+                                        .font(.callout).foregroundStyle(.secondary)
+                                } else {
+                                    ForEach(relatedNotes) { note in
+                                        Button {
+                                            leaveInspector()
+                                            app.openNote(note.id, fromList: tabId)
+                                        } label: {
+                                            NoteRowView(note: note)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .padding(.vertical, 4)
+                                                .contentShape(.rect)
+                                        }
+                                        .buttonStyle(OptionButtonStyle())
+                                        .contextMenu {
+                                            Button("Open in New Tab", systemImage: "plus.square.on.square") {
+                                                leaveInspector()
+                                                app.openNote(note.id, newTab: true, fromList: tabId)
+                                            }
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label(relatedNotesError ? "My Notes" : "My Notes (\(relatedNotes.count))", systemImage: "note.text")
+                                    .font(.headline)
+                            }
+                        }
                         if !related.isEmpty {
                             section("Derived Terms") {
                                 ForEach(related, id: \.strongsNum) { r in
@@ -563,6 +597,22 @@ struct LexiconEntryView: View {
                 app.lexiconScrollOffsets[tabId]?.removeValue(forKey: strongsId)
             }
             app.lexiconOccurrenceOptions[tabId, default: [:]][strongsId] = options
+        }
+        .task(id: "notes|\(strongsId)|\(app.notesRevision)") {
+            if relatedNotesEntry != strongsId { relatedNotesExpanded = false }
+            relatedNotes = []
+            relatedNotesEntry = strongsId
+            relatedNotesError = false
+            do {
+                let notes = try await app.notesCitingStrongs(strongsId)
+                guard !Task.isCancelled else { return }
+                relatedNotes = notes
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                relatedNotesError = true
+            }
         }
         .task(id: strongsId) {
             restoredScrollEntry = nil

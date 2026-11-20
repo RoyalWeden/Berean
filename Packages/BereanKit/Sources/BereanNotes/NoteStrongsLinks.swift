@@ -72,6 +72,26 @@ public enum NoteStrongsLinks {
         }
     }
 
+    /// Lexicon identities cited by a note, independent of automatic link styling settings.
+    /// Wiki links retain their note-title identity; code and unrelated URLs never create backlinks.
+    public static func references(in text: String) -> Set<String> {
+        let markdown = MarkdownLiveSpans.spans(text)
+        var numbers = Set(spans(in: text, markdownSpans: markdown).map(\.number))
+        let source = text as NSString
+        let comments = exclusions[0].matches(in: text, range: NSRange(location: 0, length: source.length)).map(\.range)
+        for span in markdown {
+            guard case .link(let href) = span.kind,
+                  !comments.contains(where: { NSIntersectionRange($0, span.range).length > 0 }) else { continue }
+            if case .lexicon(let number) = DeepLink.parse(href), let id = StrongsId.normalize(number) {
+                numbers.insert(id)
+            } else if href.hasPrefix("berean-lexicon:"),
+                      let id = StrongsId.normalize(String(href.dropFirst("berean-lexicon:".count))) {
+                numbers.insert(id)
+            }
+        }
+        return numbers
+    }
+
     private static func isEscaped(at offset: Int, in source: NSString) -> Bool {
         var preceding = offset
         while preceding > 0, source.character(at: preceding - 1) == 92 { preceding -= 1 }

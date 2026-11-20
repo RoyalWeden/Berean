@@ -49,6 +49,34 @@ func noteJSON(_ n: Note) -> JSValue {
         svc = NotesService(db: db)
     }
 
+    @Test func strongsBacklinksCoverAllNotesAndRefreshWithoutChangingSource() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let service = NotesService(db: db, now: { 1 })
+        for i in 0..<205 {
+            _ = try service.create(.init(id: "ref-\(i)", title: "Mention \(i)", content: "**h00430** H430"))
+        }
+        _ = try service.create(.init(id: "explicit", title: "Named link", content: "[God](berean-native-dev://lexicon/H430)"))
+        _ = try service.create(.init(id: "wiki", title: "H430", content: "[[H430]] `H430`"))
+        let original = try service.all(limit: Int.max)
+        let index = NoteStrongsIndex(notes: original)
+        #expect(index.notes(citing: "H-00430").count == 206)
+        #expect(Set(index.notes(citing: "H430").map(\.id)).count == 206)
+        #expect(index.notes(citing: "H43").isEmpty)
+        #expect(index.notes(citing: "G430").isEmpty)
+        #expect(index.notes(citing: "H0").isEmpty)
+        #expect(try service.all(limit: Int.max) == original)
+        _ = try service.update("explicit", .init(content: "H43"))
+        try service.delete("ref-0")
+        let updated = NoteStrongsIndex(notes: try service.all(limit: Int.max))
+        #expect(updated.notes(citing: "H430").count == 204)
+        #expect(updated.notes(citing: "H43").map(\.id) == ["explicit"])
+        let includingTrash = NoteStrongsIndex(notes: try service.all(limit: Int.max) + service.trash())
+        #expect(includingTrash.notes(citing: "H430").count == 204)
+        #expect(try service.restore("ref-0"))
+        #expect(NoteStrongsIndex(notes: try service.all(limit: Int.max)).notes(citing: "H430").count == 205)
+    }
+
     @Test func listsAndLookups() throws {
         #expect(JSValue.array(try svc.all().map(noteJSON)) == g["all"]!)
         #expect(try svc.all(limit: 3, offset: 2).map(\.id) == g.arr("page").map(\.str))

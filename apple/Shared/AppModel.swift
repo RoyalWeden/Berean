@@ -245,6 +245,27 @@ final class AppModel {
     var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.
     var notesRevision = 0
+    @ObservationIgnored private var strongsNotesIndex: (revision: Int, task: Task<NoteStrongsIndex, Never>)?
+
+    /// One off-main parse per note revision, shared by the full entry and study inspector.
+    /// Fetch the SQLite snapshot on the app actor, then keep parsing off the UI actor.
+    func notesCitingStrongs(_ number: String) async throws -> [Note] {
+        let revision = notesRevision
+        let task: Task<NoteStrongsIndex, Never>
+        if let cached = strongsNotesIndex, cached.revision == revision {
+            task = cached.task
+        } else {
+            let snapshot = try notes?.all(limit: Int.max) ?? []
+            task = Task.detached(priority: .utility) { NoteStrongsIndex(notes: snapshot) }
+            strongsNotesIndex = (revision, task)
+        }
+        let index = await task.value
+        try Task.checkCancellation()
+        // An edit during parsing must not publish stale note titles or resurrect trashed notes.
+        guard notesRevision == revision else { return try await notesCitingStrongs(number) }
+        return index.notes(citing: number)
+    }
+
     private(set) var notes: NotesService?
     private(set) var highlights: HighlightsService?
     var highlightsRevision = 0
@@ -1424,8 +1445,7 @@ final class AppModel {
 
     var notesListReturnTitle: String {
         if let editor = activeTab, let source = noteListReturnTabs[editor.id],
-           let tab = tabs(in: .notes).first(where: { $0.id == source }),
-           tab.tabType == .note, tab.state["noteId"]?.stringValue == nil {
+           let tab = findTab(source), tab.id != editor.id {
             return tab.title
         }
         let location = activeTab?.state["listFolderId"]?.stringValue?.string
@@ -1434,9 +1454,8 @@ final class AppModel {
 
     func returnToNotesList() {
         if let editor = activeTab, let source = noteListReturnTabs.removeValue(forKey: editor.id),
-           let tab = tabs(in: .notes).first(where: { $0.id == source }),
-           tab.tabType == .note, tab.state["noteId"]?.stringValue == nil {
-            select(source, in: .notes)
+           let tab = findTab(source), tab.id != editor.id {
+            select(source, in: tab.spaceId)
             return
         }
         openNote(nil)
