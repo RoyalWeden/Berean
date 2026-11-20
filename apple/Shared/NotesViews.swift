@@ -603,6 +603,45 @@ struct NoteDetailView: View {
         let replacement: String
     }
     @State private var preparedReference: PreparedReference?
+    @State private var scriptureBlocks: [NoteScriptureBlock] = []
+    @State private var verifiedScriptureInput: ScriptureBlockInput?
+    @State private var scriptureRatios: [ScriptureRatioKey: Double] = [:]
+    private struct ScriptureRatioKey: Hashable {
+        let block: String
+        let text: String
+        let hermas: String
+        let replacer: Bool
+    }
+    private struct ScriptureBlockInput: Equatable, Sendable {
+        let noteID: String
+        let content: String
+        let textID: String
+        let defaultText: String
+        let hermas: HermasText
+        let replacer: Bool
+        let enabled: Bool
+        let threshold: Double
+        let catalogCount: Int
+
+        func matchesContext(_ other: Self) -> Bool {
+            noteID == other.noteID && textID == other.textID && defaultText == other.defaultText
+                && hermas == other.hermas && replacer == other.replacer && enabled == other.enabled
+                && threshold == other.threshold && catalogCount == other.catalogCount
+        }
+    }
+    private var scriptureBlockInput: ScriptureBlockInput {
+        .init(noteID: noteId, content: content, textID: note?.textId ?? app.defaultText,
+              defaultText: app.defaultText,
+              hermas: HermasText(rawValue: note?.textId ?? "") ?? app.hermasEdition,
+              replacer: app.wordReplacerEnabled,
+              enabled: app.noteScriptureBlock, threshold: app.noteScriptureBlockThreshold,
+              catalogCount: app.bookCatalog.count)
+    }
+    private var visibleScriptureBlocks: [NoteScriptureBlock] {
+        guard app.noteScriptureBlock,
+              verifiedScriptureInput?.matchesContext(scriptureBlockInput) == true else { return [] }
+        return scriptureBlocks
+    }
     @FocusState private var focus: Field?
     enum Field { case title, body }
 
@@ -668,6 +707,7 @@ struct NoteDetailView: View {
                         .overlay(alignment: .topLeading) { wikiLinkSuggestions }
                         .overlay(alignment: .topLeading) { referenceSuggestion }
                         .task(id: referenceCompletion) { await prepareReference() }
+                        .task(id: scriptureBlockInput) { await prepareScriptureBlocks(scriptureBlockInput) }
                 }
                 .onChange(of: content) { scheduleSave(); scheduleSnapshot() }
                 .frame(maxWidth: 720, alignment: .leading)
@@ -960,6 +1000,7 @@ struct NoteDetailView: View {
         formatRequest = nil
         wikiLinkQuery = nil; dismissedWikiLinkQuery = nil; wikiLinkTargets = []
         referenceCompletion = nil; dismissedReferenceCompletion = nil; preparedReference = nil
+        scriptureBlocks = []
         if loadedId != nil, loadedId != noteId { saveNow(); snapshot() }
         reload()
         loadedId = noteId; lastSnapshot = content
@@ -1003,6 +1044,7 @@ struct NoteDetailView: View {
         #if os(macOS)
         RichNoteEditor(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
                        detectStrongsReferences: app.noteLexiconRefsEnabled,
+                       scriptureBlocks: visibleScriptureBlocks, hermasEdition: scriptureBlockInput.hermas,
                        spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                        onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                        onReferenceCompletion: receiveReferenceCompletion,
@@ -1012,6 +1054,7 @@ struct NoteDetailView: View {
         #else
         RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
                        detectStrongsReferences: app.noteLexiconRefsEnabled,
+                       scriptureBlocks: visibleScriptureBlocks, hermasEdition: scriptureBlockInput.hermas,
                           spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                           onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                           onReferenceCompletion: receiveReferenceCompletion,
@@ -1020,6 +1063,75 @@ struct NoteDetailView: View {
                           onInsertLink: { showLinkPrompt(selection: $0) }, onLink: openLink)
             .focused($focus, equals: .body)
         #endif
+    }
+
+    private func prepareScriptureBlocks(_ input: ScriptureBlockInput) async {
+        guard input.enabled else { scriptureBlocks = []; return }
+        let scan = Task.detached(priority: .utility) {
+            NoteScriptureBlock.candidates(in: input.content, hermas: input.hermas)
+        }
+        let candidates = await withTaskCancellationHandler {
+            await scan.value
+        } onCancel: {
+            scan.cancel()
+        }
+        guard !Task.isCancelled, input == scriptureBlockInput, loadedId == input.noteID else { return }
+        // Resolve before the first suspension, using the captured edition context.
+        let resolved = candidates.compactMap { block -> (NoteScriptureBlock, ParsedRef, ResolvedPassage, ScriptureRatioKey)? in
+            guard let passage = app.resolvePassage(block.reference, preferring: input.textID),
+                  let parsed = Reference.parse(block.reference,
+                    hermas: HermasText(rawValue: passage.textId) ?? input.hermas) else { return nil }
+            let key = ScriptureRatioKey(block: block.verificationKey, text: passage.textId,
+                                       hermas: input.hermas.rawValue, replacer: input.replacer)
+            return (block, parsed, passage, key)
+        }
+        var verifiedRatios = scriptureRatios
+        let cached = resolved.compactMap { block, _, _, key in
+            scriptureRatios[key].map { $0 >= input.threshold } == true ? block : nil
+        }
+        scriptureBlocks = cached
+        verifiedScriptureInput = input
+        // An edit outside an already verified passage uses the cache immediately.
+        // Actual database work waits until typing has settled.
+        do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+        var chapters: [String: [ChapterVerseRow]] = [:]
+        for (block, parsed, passage, key) in resolved where verifiedRatios[key] == nil {
+            guard !Task.isCancelled, input == scriptureBlockInput else { return }
+            let end = parsed.endChapter ?? parsed.chapter
+            guard parsed.chapter >= 0, end >= parsed.chapter, end <= 999 else { continue }
+            var passageChapters: [Int: [ChapterVerseRow]] = [:]
+            for chapter in parsed.chapter...end {
+                let chapterKey = "\(passage.textId)|\(parsed.bookId)|\(chapter)"
+                if let cached = chapters[chapterKey] { passageChapters[chapter] = cached }
+                else {
+                    let rows = await app.bible.queryChapter(parsed.bookId, chapter, textId: passage.textId)
+                    guard !Task.isCancelled, input == scriptureBlockInput else { return }
+                    chapters[chapterKey] = rows; passageChapters[chapter] = rows
+                }
+            }
+            guard let rows = NoteScriptureSelection.rows(for: parsed, chapters: passageChapters,
+                                                        textId: passage.textId) else { continue }
+            let actual = rows.map { row in
+                let body = VerseDisplay.text(row.text, tagged: row.textTagged, textId: passage.textId,
+                    replacerEnabled: input.replacer, rules: WordReplacer.defaultRules)
+                let title = passage.textId == "lxx" ? row.title.map { $0 + " " } ?? "" : ""
+                return title + body
+            }.joined(separator: " ")
+            guard !actual.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            let ratio = NoteScriptureBlock.matchRatio(candidate: block.body, actual: actual)
+            // Keep memory bounded during long editing sessions. Cache misses can
+            // always be verified again; no missing-data result is cached as valid.
+            if scriptureRatios.count >= 500 { scriptureRatios.removeAll(keepingCapacity: true) }
+            scriptureRatios[key] = ratio
+            verifiedRatios[key] = ratio
+        }
+        guard !Task.isCancelled, input == scriptureBlockInput, loadedId == input.noteID else { return }
+        // Apply a shared lookup to every occurrence, including duplicate quoted
+        // passages at different positions in the same note.
+        scriptureBlocks = resolved.compactMap { block, _, _, key in
+            verifiedRatios[key].map { $0 >= input.threshold } == true ? block : nil
+        }.sorted { $0.range.location < $1.range.location }
+        verifiedScriptureInput = input
     }
 
     private func referenceSuggestionEnabled(_ completion: NoteReferenceCompletion) -> Bool {
@@ -1297,7 +1409,7 @@ struct NoteDetailView: View {
         if url.scheme == "berean-note" {
             saveNow()
             let title = String(url.absoluteString.dropFirst("berean-note:".count)).removingPercentEncoding ?? ""
-            if let passage = app.resolvePassage(title) {
+            if let passage = app.resolvePassage(title, preferring: note?.textId) {
                 let id = noteId, name = self.title
                 routeFromEditor { app.visitScripture(passage, fromNote: id, title: name) }
                 return

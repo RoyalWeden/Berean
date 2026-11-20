@@ -36,17 +36,36 @@ struct SettingsView: View {
         .frame(minHeight: 540)
         #else
         Form {
-            readingSection
-            appearanceSection
-            notesSection
             Section {
-                Toggle("Haptic Feedback", isOn: $hapticsEnabled)
-            } footer: {
-                Text("A light tap when you select verses or turn the chapter.")
+                NavigationLink {
+                    Form { readingSection }.formStyle(.grouped).navigationTitle("Reading")
+                } label: { Label("Reading", systemImage: "book") }
+                NavigationLink {
+                    Form {
+                        appearanceSection
+                        Section {
+                            Toggle("Haptic Feedback", isOn: $hapticsEnabled)
+                        } footer: {
+                            Text("A light tap when you select verses or turn the chapter.")
+                        }
+                    }
+                    .formStyle(.grouped).navigationTitle("Appearance")
+                } label: { Label("Appearance", systemImage: "paintbrush") }
+                NavigationLink {
+                    Form { notesSection }.formStyle(.grouped).navigationTitle("Notes")
+                } label: { Label("Notes", systemImage: "note.text") }
             }
-            WorkspacesSettingsSection()
-            shortcutsSection
-            aboutSections
+            Section {
+                NavigationLink {
+                    Form { WorkspacesSettingsSection() }.formStyle(.grouped).navigationTitle("Workspaces")
+                } label: { Label("Workspaces", systemImage: "square.stack") }
+                NavigationLink {
+                    Form { shortcutsSection }.formStyle(.grouped).navigationTitle("Shortcuts")
+                } label: { Label("Shortcuts", systemImage: "keyboard") }
+                NavigationLink {
+                    Form { aboutSections }.formStyle(.grouped).navigationTitle("About")
+                } label: { Label("About", systemImage: "info.circle") }
+            }
         }
         .formStyle(.grouped)
         #endif
@@ -102,6 +121,19 @@ struct SettingsView: View {
             Toggle("Detect Strong’s References", isOn: $app.noteLexiconRefsEnabled)
             Toggle("Suggest Scripture Blocks", isOn: $app.noteVerseBlockSuggest)
             Toggle("Suggest Strong’s Blocks", isOn: $app.noteStrongsBlockSuggest)
+            Toggle("Format Scripture Blocks", isOn: $app.noteScriptureBlock)
+                .help("Recognize pasted passages without changing their saved text")
+            if app.noteScriptureBlock {
+                LabeledContent("Text Match") {
+                    Slider(value: $app.noteScriptureBlockThreshold, in: 0...1, step: 0.05)
+                        .frame(maxWidth: 180)
+                        .accessibilityLabel("Scripture block text match")
+                    Text(app.noteScriptureBlockThreshold, format: .percent.precision(.fractionLength(0)))
+                        .monospacedDigit().foregroundStyle(.secondary)
+                        .frame(minWidth: 40, alignment: .trailing)
+                }
+                .help("How closely a pasted passage must match its Scripture text; 90% is the default")
+            }
             Toggle("Check Spelling", isOn: $app.noteSpellCheck)
             Toggle("Confirm Before Moving Notes to Trash", isOn: $app.confirmNoteDelete)
             Toggle("Typing -- makes an em dash (—)", isOn: $autoEmDash)

@@ -14,6 +14,8 @@ struct RichNoteEditor: NSViewRepresentable {
     var fontFamily = "system"
     var detectVerseReferences = true
     var detectStrongsReferences = true
+    var scriptureBlocks: [NoteScriptureBlock] = []
+    var hermasEdition = HermasText.robertsDonaldson
     var spellCheck = true
     var formatRequest: NoteFormatRequest? = nil
     var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
@@ -66,6 +68,7 @@ struct RichNoteEditor: NSViewRepresentable {
         let c = context.coordinator
         let styleChanged = c.parent.detectVerseReferences != detectVerseReferences
             || c.parent.detectStrongsReferences != detectStrongsReferences
+            || c.parent.scriptureBlocks != scriptureBlocks || c.parent.hermasEdition != hermasEdition
             || c.parent.fontFamily != fontFamily || c.parent.fontSize != fontSize
         let spellingSettingChanged = c.parent.spellCheck != spellCheck
         let previousRequest = c.parent.formatRequest
@@ -201,11 +204,19 @@ struct RichNoteEditor: NSViewRepresentable {
             // Scripture references written as plain text link to the passage (original note auto-linking; same
             // berean-note: route the editor already resolves as a passage first).
             if parent.detectVerseReferences {
-                for ref in NoteVerseRefs.linkSpans(content: text) where NSMaxRange(ref.range) <= storage.length {
+                for ref in NoteVerseRefs.linkSpans(content: text, hermas: parent.hermasEdition) where NSMaxRange(ref.range) <= storage.length {
                     // Explicit Markdown links own their label even when it reads like a verse.
                     guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)) else { continue }
                     guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
                     storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
+                }
+            }
+            // A verified block can use richer reference grammar (Hermas sections,
+            // comma-separated book names) than the legacy inline scanner.
+            if parent.detectVerseReferences {
+                for block in parent.scriptureBlocks where block.isCurrent(in: text) {
+                    guard let url = URL(string: "berean-note:" + (block.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? block.reference)) else { continue }
+                    storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: block.referenceRange)
                 }
             }
             // Link explicit Strong's IDs without changing the saved dictionary/prose source.
@@ -216,7 +227,8 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
                 }
             }
-            (tv.layoutManager as? NoteTableLayout)?.styleDictionaryBlocks(in: storage, spans: spans, paragraph: para,
+            (tv.layoutManager as? NoteTableLayout)?.styleReferenceBlocks(in: storage, spans: spans,
+                scriptureBlocks: parent.scriptureBlocks, paragraph: para,
                 headingAttributes: [.font: ScriptureFont.nativeFont(parent.fontFamily, size: size, weight: .semibold)])
             (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
             // Null glyphs still participate in TextKit background geometry.

@@ -295,6 +295,14 @@ final class AppModel {
     var noteLexiconRefsEnabled = true { didSet { saveSetting("noteLexiconRefsEnabled", .bool(noteLexiconRefsEnabled)) } }
     var noteStrongsBlockSuggest = true { didSet { saveSetting("noteStrongsBlockSuggest", .bool(noteStrongsBlockSuggest)) } }
     var noteVerseBlockSuggest = true { didSet { saveSetting("noteVerseBlockSuggest", .bool(noteVerseBlockSuggest)) } }
+    var noteScriptureBlock = false { didSet { saveSetting("noteScriptureBlock", .bool(noteScriptureBlock)) } }
+    var noteScriptureBlockThreshold = 0.9 {
+        didSet {
+            let safe = NoteScriptureSelection.threshold(noteScriptureBlockThreshold)
+            if safe != noteScriptureBlockThreshold { noteScriptureBlockThreshold = safe }
+            saveSetting("noteScriptureBlockThreshold", .number(safe))
+        }
+    }
     var autoCopyOnHighlight = false { didSet { saveSetting("autoCopyOnHighlight", .bool(autoCopyOnHighlight)) } }
     var confirmNoteDelete = false { didSet { saveSetting("confirmNoteDelete", .bool(confirmNoteDelete)) } }
     var noteSpellCheck = true { didSet { saveSetting("noteSpellCheck", .bool(noteSpellCheck)) } }
@@ -384,6 +392,10 @@ final class AppModel {
         if let v = all["noteLexiconRefsEnabled"]?.boolValue { noteLexiconRefsEnabled = v }
         if let v = all["noteStrongsBlockSuggest"]?.boolValue { noteStrongsBlockSuggest = v }
         if let v = all["noteVerseBlockSuggest"]?.boolValue { noteVerseBlockSuggest = v }
+        if let v = all["noteScriptureBlock"]?.boolValue { noteScriptureBlock = v }
+        if let v = all["noteScriptureBlockThreshold"]?.numberValue {
+            noteScriptureBlockThreshold = NoteScriptureSelection.threshold(v)
+        }
         if let v = all["autoCopyOnHighlight"]?.boolValue { autoCopyOnHighlight = v }
         if let v = all["confirmNoteDelete"]?.boolValue { confirmNoteDelete = v }
         if let v = all["noteSpellCheck"]?.boolValue { noteSpellCheck = v }

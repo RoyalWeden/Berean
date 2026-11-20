@@ -38,12 +38,19 @@ final class NoteTableLayout: NSLayoutManager {
     }
 
     private var rows: [Row] = []
-    private var dictionaryBlocks: [NoteLexiconBlock] = []
+    private var referenceBlockRanges: [NSRange] = []
 
-    func styleDictionaryBlocks(in storage: NSTextStorage, spans: [MarkdownLiveSpans.Span],
+    func styleReferenceBlocks(in storage: NSTextStorage, spans: [MarkdownLiveSpans.Span],
+                               scriptureBlocks: [NoteScriptureBlock],
                                paragraph: NSParagraphStyle, headingAttributes: [NSAttributedString.Key: Any]) {
-        dictionaryBlocks = NoteLexiconBlock.detect(in: storage.string, spans: spans)
-        for block in dictionaryBlocks {
+        let dictionary = NoteLexiconBlock.detect(in: storage.string, spans: spans)
+        // Edits can precede SwiftUI's async canonical verification. Never style
+        // yesterday's ranges over new source, even for one native text-change pass.
+        let scripture = scriptureBlocks.filter { $0.isCurrent(in: storage.string) }
+        let blocks = dictionary.map { ($0.range, $0.heading) }
+            + scripture.map { ($0.range, $0.referenceRange) }
+        referenceBlockRanges = blocks.map { $0.0 }
+        for (range, heading) in blocks {
             let inset = paragraph.mutableCopy() as! NSMutableParagraphStyle
             inset.firstLineHeadIndent = 12
             inset.headIndent = 12
@@ -52,8 +59,8 @@ final class NoteTableLayout: NSLayoutManager {
             // The entry starts with a Latin Strong’s ID even for Hebrew lemmas.
             // Keep the surrounding English definition in its natural direction.
             inset.baseWritingDirection = .leftToRight
-            storage.addAttribute(.paragraphStyle, value: inset, range: block.range)
-            storage.addAttributes(headingAttributes, range: block.heading)
+            storage.addAttribute(.paragraphStyle, value: inset, range: range)
+            storage.addAttributes(headingAttributes, range: heading)
         }
     }
 
@@ -206,12 +213,12 @@ final class NoteTableLayout: NSLayoutManager {
         let context = UIGraphicsGetCurrentContext()
         let label = UIColor.label
         #endif
-        if let context, !dictionaryBlocks.isEmpty {
+        if let context, !referenceBlockRanges.isEmpty {
             let characters = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
             context.saveGState()
             context.translateBy(x: origin.x, y: origin.y)
-            for block in dictionaryBlocks where NSIntersectionRange(characters, block.range).length > 0 {
-                let glyphs = glyphRange(forCharacterRange: block.range, actualCharacterRange: nil)
+            for range in referenceBlockRanges where NSIntersectionRange(characters, range).length > 0 {
+                let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
                 guard glyphs.length > 0 else { continue }
                 let first = lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
                 let last = lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
