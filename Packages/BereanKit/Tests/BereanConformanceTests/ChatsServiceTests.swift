@@ -64,6 +64,33 @@ import BereanWorkspace
         #expect(try svc.upsert(chatId: empty.id, messages: [svc.noteMessage("second")]).title == "Feasts of Yehovah")
     }
 
+    @Test func allMessagesKeepsConversationScopedIdentityAndReplyTarget() throws {
+        let (db, svc, _) = try setup()
+        var created: [String: String] = [:]
+        for id in ["first", "second"] {
+            var message = JSObject()
+            message["id"] = "shared-legacy-id"
+            message["role"] = "user"
+            message["kind"] = "note"
+            message["content"] = .string(JSString("A thought in " + id))
+            created[id] = try svc.upsert(chatId: nil, title: id, messages: [.object(message)]).id
+        }
+        let items = try svc.stream()
+        #expect(items.count == 2)
+        #expect(Set(items.map(\.id)).count == 2)
+        let target = try #require(items.first { $0.chat.id == created["second"] })
+        try svc.upsert(chatId: target.id.chatID,
+                       messages: [svc.noteMessage("A reply in the second conversation", inReplyTo: target.id.messageID)])
+        #expect(try svc.chat(created["first"]!)?.messages.count == 1)
+        #expect(try svc.chat(created["second"]!)?.messages.last?.inReplyTo == "shared-legacy-id")
+        #expect(try svc.stream(search: "thought").count == 2)
+        try svc.editMessage(chatId: target.id.chatID, messageId: target.id.messageID, text: "Edited only in second")
+        #expect(try svc.chat(created["first"]!)?.messages.first?.content == "A thought in first")
+        #expect(try svc.chat(created["second"]!)?.messages.first?.content == "Edited only in second")
+        let raw = try #require(try db.query("SELECT messages FROM ai_chats WHERE id = ?", [.text(created["first"]!)]).first?["messages"]?.string)
+        #expect(raw.contains("shared-legacy-id"))
+    }
+
     @Test func askExchangeMatchesOriginalShape() throws {
         let (_, svc, _) = try setup()
         var fields = JSObject()

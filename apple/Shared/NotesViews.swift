@@ -1541,7 +1541,8 @@ struct NoteDetailView: View {
 /// Block-level Markdown for reading notes (headings, quotes, lists, rules, code) with inline Markdown.
 struct MarkdownText: View {
     let source: String
-    init(_ s: String) { source = s }
+    let expands: Bool
+    init(_ s: String, expands: Bool = true) { source = s; self.expands = expands }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(NotePreviewBlock.parse(source).enumerated()), id: \.offset) { _, previewBlock in
@@ -1558,7 +1559,7 @@ struct MarkdownText: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: expands ? .infinity : nil, alignment: .leading)
     }
     private func calloutView(_ kind: NoteCalloutKind, title: String, body: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -39,6 +39,22 @@ public final class ChatsService: @unchecked Sendable {
         public var isUnfiled: Bool { id == ChatsService.unfiledId }
     }
 
+    /// Message IDs belong to a conversation. Legacy chats may reuse an ID in
+    /// different rows; stream selection, scroll and reply targets need both.
+    public struct MessageAddress: Hashable, Sendable {
+        public let chatID: String
+        public let messageID: String
+        public init(chatID: String, messageID: String) {
+            self.chatID = chatID; self.messageID = messageID
+        }
+    }
+    public struct StreamItem: Equatable, Sendable, Identifiable {
+        public let chat: Chat
+        public let message: Message
+        public var id: MessageAddress { .init(chatID: chat.id, messageID: message.id) }
+        public init(chat: Chat, message: Message) { self.chat = chat; self.message = message }
+    }
+
     let db: SQLiteConnection
     let now: @Sendable () -> Int64
     let uuid: @Sendable () -> String
@@ -264,14 +280,14 @@ public final class ChatsService: @unchecked Sendable {
     }
 
     /// All messages across conversations (oldest → newest), optional substring search.
-    public func stream(search: String? = nil) throws -> [(chat: Chat, message: Message)] {
+    public func stream(search: String? = nil) throws -> [StreamItem] {
         let needle = search?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        var items: [(Chat, Message)] = []
+        var items: [StreamItem] = []
         for c in try all() {
             for m in c.messages where needle.isEmpty || (m.content + "\n" + (m.raw["summary"]?.stringValue?.string ?? "")).lowercased().contains(needle) {
-                items.append((c, m))
+                items.append(.init(chat: c, message: m))
             }
         }
-        return items.sorted { ($0.1.time, $0.0.id, $0.1.id) < ($1.1.time, $1.0.id, $1.1.id) }
+        return items.sorted { ($0.message.time, $0.chat.id, $0.message.id) < ($1.message.time, $1.chat.id, $1.message.id) }
     }
 }
