@@ -14,6 +14,7 @@ struct GoSheet: View {
     @State private var text = ""
     @State private var notes: [Note] = []
     @State private var notesQuery = ""
+    @State private var videoHits: (query: String, hits: [TranscriptService.SearchHit]) = ("", [])
     @State private var strongsPreview: (id: String, text: String)?
     @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @FocusState private var focused: Bool
@@ -61,6 +62,13 @@ struct GoSheet: View {
         .onChange(of: trimmed, initial: true) { _, query in
             notes = noteMatches(query)
             notesQuery = query
+        }
+        .task(id: trimmed) {
+            let query = trimmed
+            guard query.count >= 3, let searcher = app.transcriptSearcher else { videoHits = (query, []); return }
+            do { try await Task.sleep(for: .milliseconds(180)) } catch { return }   // debounce typing
+            let hits = await searcher.search(query)
+            if !Task.isCancelled { videoHits = (query, hits) }
         }
         .task(id: StrongsId.normalize(trimmed)) {
             guard let id = StrongsId.normalize(trimmed) else {
@@ -227,7 +235,8 @@ struct GoSheet: View {
             }
         }
         // Transcript matches (original Q10: unified search includes YouTube transcripts).
-        if trimmed.count >= 3, let videos = try? app.transcripts?.search(trimmed, videoLimit: 4), !videos.isEmpty {
+        if videoHits.query == trimmed, !videoHits.hits.isEmpty {
+            let videos = videoHits.hits
             Section("Videos") {
                 ForEach(videos, id: \.videoId) { hit in
                     Button { finish { app.openYouTubeVideo(hit.videoId, startMs: hit.startMs) } } label: {

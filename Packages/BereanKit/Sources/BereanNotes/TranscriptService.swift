@@ -112,3 +112,16 @@ public struct TranscriptService: Sendable {
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
     }
 }
+
+/// Transcript search off the main thread: its own read-only connection (connections are opened
+/// NOMUTEX, so never shared across threads), serialised by the actor. WAL lets it read while the
+/// main connection writes.
+public actor TranscriptSearcher {
+    private let service: TranscriptService
+    public init(databasePath: String) throws {
+        service = TranscriptService(db: try SQLiteConnection(readOnlyPath: databasePath))
+    }
+    public func search(_ query: String, videoLimit: Int = 4) -> [TranscriptService.SearchHit] {
+        (try? service.search(query, videoLimit: videoLimit)) ?? []
+    }
+}

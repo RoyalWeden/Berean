@@ -404,6 +404,7 @@ struct CommandPalette: View {
     @State private var strongsPreview: (id: String, text: String)?
     @State private var passagePreview: (passage: ResolvedPassage, text: String)?
     @State private var noteResults: (query: String, hits: [Note], excerpts: [String: String])?
+    @State private var videoHits: (query: String, hits: [TranscriptService.SearchHit]) = ("", [])
     @State private var actionsShown = false
     @FocusState private var focused: Bool
 
@@ -508,8 +509,8 @@ struct CommandPalette: View {
                                 symbol: "square.stack") { _ in app.open(workspace) })
             }
         }
-        if trimmed.count >= 3, let videos = try? app.transcripts?.search(trimmed, videoLimit: 4) {
-            for hit in videos {
+        if videoHits.query == trimmed {
+            for hit in videoHits.hits {
                 out.append(Item(id: "video-\(hit.videoId)", group: "Videos", title: hit.title,
                                 detail: "\(TranscriptService.clock(hit.startMs)) · \(hit.snippet)", symbol: "play.rectangle") { _ in
                     app.openYouTubeVideo(hit.videoId, startMs: hit.startMs)
@@ -808,6 +809,13 @@ struct CommandPalette: View {
             let excerpt = await app.passageExcerpt(passage)
             guard !Task.isCancelled, passage == resolvePassage(trimmed) else { return }
             passagePreview = excerpt.map { (passage, $0) }
+        }
+        .task(id: query) {
+            let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard q.count >= 3, let searcher = app.transcriptSearcher else { videoHits = (q, []); return }
+            do { try await Task.sleep(for: .milliseconds(180)) } catch { return }
+            let hits = await searcher.search(q)
+            if !Task.isCancelled { videoHits = (q, hits) }
         }
         .onChange(of: query, initial: true) { _, query in
             // This bounded lookup is synchronous. A cancelled task can leave

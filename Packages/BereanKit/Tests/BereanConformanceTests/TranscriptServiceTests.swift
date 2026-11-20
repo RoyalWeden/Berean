@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import BereanSQLite
 import BereanStore
@@ -31,5 +32,22 @@ import BereanStore
         #expect(try svc.search("holy")[0].startMs == 4000)
         #expect(try svc.search("feast", videoLimit: 1).count == 1)
         #expect(TranscriptService.clock(754_000) == "12:34" && TranscriptService.clock(3_725_000) == "1:02:05")
+    }
+
+    @Test func searcherUsesItsOwnReadOnlyConnection() async throws {
+        let path = NSTemporaryDirectory() + "transcripts-\(UUID().uuidString).db"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let db = try SQLiteConnection(readWritePath: path, create: true)
+        try db.run("PRAGMA journal_mode=WAL")
+        try Migrator.migrate(db)
+        try db.run("INSERT INTO youtube_videos (video_id, title, published, channel_name, channel_handle, thumbnail_url, type, fetched_at) VALUES ('v9', 'Shavuot', '2026-01-01', 'M', '@m', '', 'video', '2026-01-01')")
+        try db.run("INSERT INTO youtube_transcripts (video_id, fetched_at, segment_count) VALUES ('v9', 0, 1)")
+        try db.run("INSERT INTO youtube_transcript_segments (video_id, start_ms, text) VALUES ('v9', 61000, 'counting the omer')")
+        let searcher = try TranscriptSearcher(databasePath: path)
+        let hits = await searcher.search("omer")
+        #expect(hits.map(\.videoId) == ["v9"] && hits[0].startMs == 61000)
+        // The main connection keeps writing while the searcher holds its own reader.
+        try db.run("INSERT INTO youtube_transcript_segments (video_id, start_ms, text) VALUES ('v9', 90000, 'fifty days')")
+        #expect(await searcher.search("fifty").first?.startMs == 90000)
     }
 }
