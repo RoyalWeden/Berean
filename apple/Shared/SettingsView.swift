@@ -13,8 +13,15 @@ struct SettingsView: View {
     @AppStorage("berean.notes.autoEmDash") private var autoEmDash = true
     @AppStorage("defaultScriptureLayout") private var defaultLayout = "standard"
     @State private var shortcutQuery = ""
+    @State private var showsWordReplacer = false
 
     var body: some View {
+        settingsContent.sheet(isPresented: $showsWordReplacer) {
+            WordReplacerSettingsView()
+        }
+    }
+
+    @ViewBuilder private var settingsContent: some View {
         #if os(macOS)
         // macOS Settings window: a toolbar of panes, as in Apple's own apps.
         TabView {
@@ -59,7 +66,13 @@ struct SettingsView: View {
             }
             ScriptureDisplayOptions()
             Toggle("Copy Verses When Highlighting", isOn: $app.autoCopyOnHighlight)
-            Toggle("Word Replacer (Yehovah, Yeshua, …)", isOn: $app.wordReplacerEnabled)
+            LabeledContent("Word Replacer") {
+                HStack(spacing: 12) {
+                    Toggle("Word Replacer", isOn: $app.wordReplacerEnabled).labelsHidden()
+                    Button("Rules…") { showsWordReplacer = true }
+                        .help("Browse name replacements and Strong’s-based rules")
+                }
+            }
             #if os(macOS)
             Picker("Layout for new Scripture tabs", selection: $defaultLayout) {
                 ForEach(ScriptureLayout.allCases) { Text($0.title).tag($0.rawValue) }
@@ -284,4 +297,86 @@ extension SettingsView {
 
 extension AppModel {
     var colorScheme: ColorScheme? { theme == "light" ? .light : theme == "dark" ? .dark : nil }
+}
+
+/// A searchable reference for the reader’s current bundled substitutions.
+/// Rule editing is intentionally separate from this browser until custom-rule persistence
+/// and every display/search/export consumer share a single revision-scoped rule set.
+private struct WordReplacerSettingsView: View {
+    @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var matchingRules: [WordReplacerRule] {
+        let terms = query.split(whereSeparator: \.isWhitespace).map(String.init)
+        return WordReplacer.defaultRules.filter { rule in
+            let searchable = ([rule.replacement, rule.strongsNum ?? ""] + rule.queries).joined(separator: " ")
+            return terms.allSatisfy { searchable.localizedStandardContains($0) }
+        }
+    }
+
+    var body: some View {
+        @Bindable var app = app
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Word Replacer", isOn: $app.wordReplacerEnabled)
+                } footer: {
+                    Text("Restore names while reading Scripture. The original text is preserved.")
+                }
+                Section {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("Find a name or Strong’s number", text: $query)
+                            .textFieldStyle(.plain).autocorrectionDisabled()
+                        if !query.isEmpty {
+                            Button("Clear Search", systemImage: "xmark.circle.fill") { query = "" }
+                                .labelStyle(.iconOnly).buttonStyle(.interactivePlain)
+                        }
+                    }
+                }
+                let rules = matchingRules
+                if rules.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                } else {
+                    ruleSection("Divine Names", rules: rules.filter { $0.strongsNum != nil })
+                    ruleSection("Names and Phrases", rules: rules.filter { $0.strongsNum == nil })
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Word Replacer")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+        #if os(macOS)
+        .frame(width: 550, height: 620)
+        #endif
+    }
+
+    @ViewBuilder private func ruleSection(_ title: String, rules: [WordReplacerRule]) -> some View {
+        if !rules.isEmpty {
+            Section(title) {
+                ForEach(rules) { rule in
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(rule.strongsNum ?? rule.queries.joined(separator: " / "))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "arrow.right").font(.caption).foregroundStyle(.tertiary)
+                            Text(rule.replacement).fontWeight(.medium)
+                        }
+                        if rule.strongsNum != nil {
+                            Text("KJV + Apocrypha · matched by Strong’s number")
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else if rule.wholeWord {
+                            Text("Whole words").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                }
+            }
+        }
+    }
 }
