@@ -354,6 +354,20 @@ final class AppModel {
     var gettingStartedRevision = 0
     var gettingStartedShown = false
     var askBereanShown = false
+    var askSettingsRevision = 0
+    /// Original `aiLookupCollections` (Ask options): which collections Ask Berean searches.
+    var askCollections: [ModelFreeAsk.Collection] {
+        get {
+            _ = askSettingsRevision   // re-read after a change
+            let stored = (settingValue("aiLookupCollections")?.arrayValue ?? []).compactMap { $0.stringValue.flatMap { ModelFreeAsk.Collection(rawValue: $0.string) } }
+            return stored.isEmpty ? ModelFreeAsk.defaultCollections : stored
+        }
+        set {
+            let value = newValue.isEmpty ? [ModelFreeAsk.Collection.canon] : newValue   // original: never empty
+            saveSetting("aiLookupCollections", .array(value.map { .string(JSString($0.rawValue)) }))
+            askSettingsRevision += 1
+        }
+    }
     private var sessionsService: SessionsService?
     private var lock: SingleInstanceLock?
     private var keys = TabPersistence.OrderKeyMaps()

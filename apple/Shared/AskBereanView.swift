@@ -74,7 +74,25 @@ struct AskBereanView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    // Original Ask options: the collections searched (a question's "only …" still wins).
+                    Menu("Search In", systemImage: "books.vertical") {
+                        ForEach(ModelFreeAsk.Collection.allCases, id: \.self) { c in
+                            Toggle(Self.collectionLabel(c), isOn: Binding(
+                                get: { app.askCollections.contains(c) },
+                                set: { on in
+                                    var set = app.askCollections.filter { $0 != c }
+                                    if on { set.append(c) }
+                                    app.askCollections = ModelFreeAsk.Collection.allCases.filter(set.contains)
+                                }))
+                        }
+                        Divider()
+                        Text("Without an AI model, Ask Berean searches the KJV and its Apocrypha.")
+                    }
+                }
+            }
             .onAppear { focused = true }
         }
         #if os(macOS)
@@ -182,6 +200,17 @@ struct AskBereanView: View {
                 }
                 .buttonStyle(.interactivePlain)
             }
+        }
+    }
+
+    /// Original COLLECTIONS labels.
+    static func collectionLabel(_ c: ModelFreeAsk.Collection) -> String {
+        switch c {
+        case .canon: "Old and New Testament (66 books)"
+        case .apocrypha: "Apocrypha / Deuterocanon (KJV 1611)"
+        case .pseudepigrapha: "Pseudepigrapha (Enoch, Jubilees, Testaments…)"
+        case .earlyChristian: "Early Christian writings (Hermas, Clement, Didache…)"
+        case .lxx: "Septuagint (Brenton English)"
         }
     }
 
@@ -312,7 +341,7 @@ struct AskBereanView: View {
             let name = phrase.replacingOccurrences(of: #"^(?:the\s+book\s+of\s+)"#, with: "", options: [.regularExpression, .caseInsensitive])
             return app.resolvePassage("\(name) 1")?.bookId
         }
-        let collections = ModelFreeAsk.activeCollections(q)
+        let collections = ModelFreeAsk.activeCollections(q, setting: app.askCollections)
         let words = ModelFreeAsk.withoutScopeWords(ModelFreeAsk.keywords(excluded.remainder))
         guard !words.isEmpty else { answer = .nothing; return }
         var rows = await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .all)
