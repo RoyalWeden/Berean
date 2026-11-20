@@ -587,6 +587,25 @@ final class NoteTextView: NSTextView {
             .urlReadingContentsConformToTypes: [UTType.image.identifier]]) as? [URL])?.isEmpty == false
     }
 
+    /// Dropping picture files inserts them as inline images at the drop point (original drop handler).
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pb = sender.draggingPasteboard
+        guard isEditable,
+              let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true,
+                  .urlReadingContentsConformToTypes: [UTType.image.identifier]]) as? [URL], !urls.isEmpty else {
+            return super.performDragOperation(sender)
+        }
+        let blocks = urls.compactMap { url in
+            (try? Data(contentsOf: url)).flatMap { NoteImageInput.markdown(data: $0, alt: NoteImages.alt(forFileName: url.lastPathComponent)) }
+        }
+        guard !blocks.isEmpty else { return super.performDragOperation(sender) }
+        let point = convert(sender.draggingLocation, from: nil)
+        setSelectedRange(NSRange(location: characterIndexForInsertion(at: point), length: 0))
+        insertImageMarkdown(blocks.joined(separator: "\n"))
+        window?.makeFirstResponder(self)
+        return true
+    }
+
     func insertImageMarkdown(_ markdown: String) {
         let text = string as NSString
         var range = selectedRange()
