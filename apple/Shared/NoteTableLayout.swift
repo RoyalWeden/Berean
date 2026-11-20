@@ -40,6 +40,88 @@ final class NoteTableLayout: NSLayoutManager {
     private var rows: [Row] = []
     private var referenceBlockRanges: [NSRange] = []
 
+    #if os(macOS)
+    typealias PlatformImage = NSImage
+    #else
+    typealias PlatformImage = UIImage
+    #endif
+    #if os(macOS)
+    static let fallbackWidth: CGFloat = 680
+    #else
+    /// A typical iPhone text width; drawing still fits the real line width.
+    static let fallbackWidth: CGFloat = 360
+    #endif
+    private struct ImageSlot { let character: Int; let image: PlatformImage; let size: CGSize }
+    private var imageSlots: [ImageSlot] = []
+    nonisolated(unsafe) private static let imageCache = NSCache<NSString, PlatformImage>()
+
+    static func decodedImage(_ source: String) -> PlatformImage? {
+        // Hashing a multi-hundred-KB base64 string per keystroke is the slow path; length plus
+        // three short slices identifies an image well enough for a decode cache.
+        let ns = source as NSString
+        let n = ns.length
+        func slice(_ at: Int) -> String { ns.substring(with: NSRange(location: max(0, min(at, n - 48)), length: min(48, n))) }
+        let key = "\(n):\(slice(0)):\(slice(n / 2)):\(slice(n - 48))" as NSString
+        if let cached = imageCache.object(forKey: key) { return cached }
+        guard let data = NoteImages.dataURIBytes(source), let image = PlatformImage(data: data) else { return nil }
+        imageCache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// Inline `data:` images draw above their caption in a tall caption line (minimum line
+    /// height); the Markdown source (and its character indices) is never changed. Paragraph
+    /// spacing-before is not used: TextKit skips it when the paragraph starts with hidden glyphs.
+    func styleImages(in storage: NSTextStorage, available: CGFloat) {
+        imageSlots = []
+        let text = storage.string as NSString
+        for found in NoteImages.find(in: storage.string) {
+            guard let image = Self.decodedImage(found.source) else { continue }
+            // Before the first layout the container can still be zero-wide; drawing clamps to the real line width.
+            let size = NoteImages.displaySize(natural: image.size, savedWidth: found.width, available: available > 40 ? available : Self.fallbackWidth)
+            guard size.height > 0 else { continue }
+            let paragraph = text.paragraphRange(for: NSRange(location: found.range.location, length: 0))
+            // A visible character on the image's line: the caption, else the paragraph's line break.
+            let anchor = found.captionRange.length > 0 ? found.captionRange.location
+                : (NSMaxRange(paragraph) > NSMaxRange(found.range) ? NSMaxRange(paragraph) - 1 : found.range.location)
+            #if os(macOS)
+            let font = (storage.attribute(.font, at: anchor, effectiveRange: nil) as? NSFont) ?? .systemFont(ofSize: 13)
+            #else
+            let font = (storage.attribute(.font, at: anchor, effectiveRange: nil) as? UIFont) ?? .systemFont(ofSize: 15)
+            #endif
+            let captionHeight = ceil(font.ascender - font.descender + font.leading)
+            let current = (storage.attribute(.paragraphStyle, at: paragraph.location, effectiveRange: nil) as? NSParagraphStyle) ?? .default
+            let style = current.mutableCopy() as! NSMutableParagraphStyle
+            style.minimumLineHeight = size.height + 10 + captionHeight
+            storage.addAttribute(.paragraphStyle, value: style, range: paragraph)
+            imageSlots.append(ImageSlot(character: anchor, image: image, size: size))
+        }
+    }
+
+    private func drawImages(in characters: NSRange, origin: CGPoint) {
+        for slot in imageSlots where slot.character < NSMaxRange(characters) {
+            let glyph = glyphIndexForCharacter(at: slot.character)
+            guard glyph < numberOfGlyphs else { continue }
+            let line = lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+            let padding = textContainer(forGlyphAt: glyph, effectiveRange: nil)?.lineFragmentPadding ?? 5
+            let available = max(0, line.width - padding * 2)
+            let scale = min(1, available / slot.size.width)
+            let rect = CGRect(x: line.minX + padding + origin.x, y: line.minY + 4 + origin.y,
+                              width: slot.size.width * scale, height: slot.size.height * scale)
+            #if os(macOS)
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).addClip()
+            slot.image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            NSGraphicsContext.restoreGraphicsState()
+            #else
+            UIGraphicsGetCurrentContext()?.saveGState()
+            UIBezierPath(roundedRect: rect, cornerRadius: 6).addClip()
+            slot.image.draw(in: rect)
+            UIGraphicsGetCurrentContext()?.restoreGState()
+            #endif
+        }
+    }
+
+
     func styleReferenceBlocks(in storage: NSTextStorage, spans: [MarkdownLiveSpans.Span],
                                scriptureBlocks: [NoteScriptureBlock],
                                paragraph: NSParagraphStyle, headingAttributes: [NSAttributedString.Key: Any]) {
@@ -285,6 +367,9 @@ final class NoteTableLayout: NSLayoutManager {
                 context.strokePath()
             }
             context.restoreGState()
+        }
+        if !imageSlots.isEmpty {
+            drawImages(in: characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil), origin: origin)
         }
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
     }

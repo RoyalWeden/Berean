@@ -197,14 +197,16 @@ struct RichNoteEditor: NSViewRepresentable {
                 case .tableRule, .rule:
                     storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: r)
                 case .image:
-                    storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .backgroundColor: NSColor.quaternaryLabelColor], range: r)
+                    storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: size * 0.85)], range: r)
                 case .structure: break
                 }
             }
+            // Image sources (base64) are blanked for the reference scanners: same ranges, no per-keystroke scan.
+            let scanText = NoteImages.maskingSources(text)
             // Scripture references written as plain text link to the passage (original note auto-linking; same
             // berean-note: route the editor already resolves as a passage first).
             if parent.detectVerseReferences {
-                for ref in NoteVerseRefs.linkSpans(content: text, hermas: parent.hermasEdition) where NSMaxRange(ref.range) <= storage.length {
+                for ref in NoteVerseRefs.linkSpans(content: scanText, hermas: parent.hermasEdition) where NSMaxRange(ref.range) <= storage.length {
                     // Explicit Markdown links own their label even when it reads like a verse.
                     guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)) else { continue }
                     guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
@@ -221,7 +223,7 @@ struct RichNoteEditor: NSViewRepresentable {
             }
             // Link explicit Strong's IDs without changing the saved dictionary/prose source.
             if parent.detectStrongsReferences {
-                for ref in NoteStrongsLinks.spans(in: text, markdownSpans: spans) where NSMaxRange(ref.range) <= storage.length {
+                for ref in NoteStrongsLinks.spans(in: scanText, markdownSpans: spans) where NSMaxRange(ref.range) <= storage.length {
                     guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)),
                           let url = URL(string: "berean-native-dev://lexicon/" + ref.number) else { continue }
                     storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
@@ -231,6 +233,7 @@ struct RichNoteEditor: NSViewRepresentable {
                 scriptureBlocks: parent.scriptureBlocks, paragraph: para,
                 headingAttributes: [.font: ScriptureFont.nativeFont(parent.fontFamily, size: size, weight: .semibold)])
             (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
+            (tv.layoutManager as? NoteTableLayout)?.styleImages(in: storage, available: (tv.textContainer?.size.width ?? 600) - 2 * (tv.textContainer?.lineFragmentPadding ?? 5))
             // Null glyphs still participate in TextKit background geometry.
             // Highlight only visible text, not hidden delimiters or destinations.
             for range in hidden.rangeView {

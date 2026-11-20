@@ -2804,3 +2804,7 @@ Delivered U16 tag graph (service + layout port + Canvas UI + inspector) on both 
 ### 2026-11-20 — Claude Code: native PDFs (U17)
 
 PDF library + PDFKit reader on both apps, same tables/tab state; 307 tests + both builds PASS; Mac and iPhone UI exercised on Claude-owned fixtures (own Mac QA profile `claude-20261120`, own sim E8B01B22…). Details, bugs fixed and open items: [PDF-READER-2026-11-20](PDF-READER-2026-11-20.md).
+
+### 2026-11-20 — Claude Code: note images (N05) — session ended at usage limit
+
+Inline note images now render on both apps. Also fixed two pre-existing problems found while testing: the image regex failing on large base64, and multi-second keystrokes on notes with images. Details and open items (restyle on width change, insert/paste UI): [NOTE-IMAGES-2026-11-20](NOTE-IMAGES-2026-11-20.md). 312 tests + both builds PASS. Claude's session this round delivered: Word Replacer switches, Tag Graph, PDFs, note images. Claude QA fixtures only: Mac profile `claude-20261120`, sim E8B01B22… (disposable). Codex's checkout/profile/sim untouched.
