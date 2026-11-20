@@ -756,7 +756,10 @@ struct WindowDragArea: NSViewRepresentable {
 
         override func resetCursorRects() {
             super.resetCursorRects()
-            addCursorRect(visibleRect, cursor: .arrow)
+            // Do not let the empty-sidebar arrow rectangle cover the native
+            // split divider's wider resize hit area at either horizontal edge.
+            let interior = visibleRect.insetBy(dx: 6, dy: 0)
+            if !interior.isEmpty { addCursorRect(interior, cursor: .arrow) }
         }
 
         override func mouseDown(with event: NSEvent) {

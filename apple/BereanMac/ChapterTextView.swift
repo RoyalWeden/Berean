@@ -1125,12 +1125,39 @@ final class ReaderTextView: NSTextView {
     // Tracking areas also receive events beneath floating SwiftUI controls.
     // Only set the text cursor when the reader actually owns the hit.
     private func ownsPointer(at event: NSEvent) -> Bool {
+        // Native split dividers have a wider resize hit region than their drawn
+        // line. The text view's tracking area can overlap that region; yield to
+        // AppKit rather than resetting its resize cursor to the I-beam.
+        guard !isOverNativeDivider(event.locationInWindow) else { return false }
         guard let window, event.locationInWindow.y <= window.contentLayoutRect.maxY,
               let content = window.contentView else { return false }
         let root = content.superview ?? content
         let point = root.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
         guard let hit = root.hitTest(point) else { return false }
         return hit === self || hit.isDescendant(of: self)
+    }
+
+    private func isOverNativeDivider(_ windowPoint: NSPoint) -> Bool {
+        var ancestor = superview
+        while let view = ancestor {
+            if let split = view as? NSSplitView, split.subviews.count > 1 {
+                let point = split.convert(windowPoint, from: nil)
+                let panes = split.subviews.sorted {
+                    split.isVertical ? $0.frame.minX < $1.frame.minX : $0.frame.minY < $1.frame.minY
+                }
+                for (first, second) in zip(panes, panes.dropFirst()) {
+                    let start = split.isVertical ? first.frame.maxX : first.frame.maxY
+                    let end = split.isVertical ? second.frame.minX : second.frame.minY
+                    let thickness = max(split.dividerThickness, end - start)
+                    let divider = split.isVertical
+                        ? NSRect(x: start - 6, y: split.bounds.minY, width: thickness + 12, height: split.bounds.height)
+                        : NSRect(x: split.bounds.minX, y: start - 6, width: split.bounds.width, height: thickness + 12)
+                    if divider.contains(point) { return true }
+                }
+            }
+            ancestor = view.superview
+        }
+        return false
     }
 
     override func cursorUpdate(with event: NSEvent) {
