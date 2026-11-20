@@ -10,3 +10,8 @@ Status: **IMPLEMENTED (partial); iPhone VERIFIED (sim); Mac built** (no Mac clic
 - Entry points: Mac Go → YouTube, ⌘K palette, Go sheet, iPhone More → Study Tools → YouTube.
 - Verified on sim: channel list → @matthewforyeshua videos → video plays inline; DB tab row `{"playlistId":null,"url":"https://m.youtube.com/watch?v=…","videoId":"…"}`.
 - Known: YouTube's mobile bottom bar sits just under Berean's floating dock (usable, slightly crowded). NOT ported: scraped feed/grid of new videos, two-panel layout, transcripts (Q10/M04), auto PiP (M02), add-channel allow-list prompt (the original never had it either).
+
+## Mac check (click-free, isolated QA library `claude-20261120`)
+- Go → YouTube (menu by PID) shows the channel home; the signed app has `com.apple.security.network.client`.
+- Tab state seeded with `@matthewforyeshua/videos` → relaunch restores and loads the channel page (desktop YouTube) in the sandbox.
+- Fixed: sidebar tab title stayed "YouTube" because the page title arrives after the URL change — the tab title now follows `page.title`.

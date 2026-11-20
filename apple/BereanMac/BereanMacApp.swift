@@ -35,11 +35,13 @@ struct BereanMacApp: App {
                 .frame(minWidth: 620, minHeight: 420)
         }
         .defaultSize(width: 900, height: 640)
+        .commandsRemoved() // listed once, with its shortcut, by PresenterCommand
         Window("Presenter", id: "presenter") {
             PresenterView().environment(app).defaultAppStorage(UserLibrary.defaults).preferredColorScheme(app.colorScheme)
                 .frame(minWidth: 480, minHeight: 320)
         }
         .defaultSize(width: 1000, height: 700)
+        .commandsRemoved()
         Settings {
             SettingsView().environment(app).defaultAppStorage(UserLibrary.defaults).preferredColorScheme(app.colorScheme)
         }

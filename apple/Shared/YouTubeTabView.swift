@@ -50,6 +50,12 @@ struct YouTubeTabView: View {
         .toolbar { toolbar }
         .onAppear(perform: restore)
         .onChange(of: page.url) { _, url in persist(url) }
+        .onChange(of: page.title) { _, raw in
+            // The title usually arrives after the URL change.
+            let title = raw.replacingOccurrences(of: " - YouTube", with: "").trimmingCharacters(in: .whitespaces)
+            guard !showingHome, !title.isEmpty, app.findTab(tabId)?.title != title else { return }
+            app.update(tabId, recordHistory: false) { $0.title = title }
+        }
     }
 
     private func restore() {
