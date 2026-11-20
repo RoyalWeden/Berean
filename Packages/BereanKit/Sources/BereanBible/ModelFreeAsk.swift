@@ -146,4 +146,59 @@ public enum ModelFreeAsk {
         compareWord.firstMatch(in: question, range: NSRange(location: 0, length: (question as NSString).length)) != nil
             && referenceGroups(question).count >= 2 && strongsIds(question).isEmpty
     }
+
+    // MARK: Collections (original lib/research/collections.ts)
+
+    public enum Collection: String, CaseIterable, Sendable { case canon, apocrypha, pseudepigrapha, earlyChristian = "early-christian", lxx }
+
+    /// kjva.db `books.testament = 'Apocrypha'`.
+    public static let kjvaApocrypha: Set<String> = ["1ES", "2ES", "TOB", "JDT", "ESG", "WIS", "SIR", "BAR", "PRA", "SUS", "BEL", "PRM", "1MA", "2MA"]
+    static let textCollection: [String: Collection] = [
+        "kjva": .canon, "kjv": .canon, "lxx": .lxx,
+        "enoch": .pseudepigrapha, "jubilees": .pseudepigrapha, "apoc_elijah": .pseudepigrapha, "asc_isaiah": .pseudepigrapha,
+        "t12p": .pseudepigrapha, "gad": .pseudepigrapha, "t_job": .pseudepigrapha, "apoc_abraham": .pseudepigrapha,
+        "t_jacob": .pseudepigrapha, "2baruch": .pseudepigrapha,
+        "hermas": .earlyChristian, "hermas_taylor": .earlyChristian, "1clement": .earlyChristian,
+        "didache_hoole": .earlyChristian, "ep_barnabas": .earlyChristian, "recog_clement": .earlyChristian,
+    ]
+    public static let defaultCollections: [Collection] = [.canon, .apocrypha, .pseudepigrapha, .earlyChristian]
+
+    public static func collection(textId: String, bookId: String) -> Collection {
+        let c = textCollection[textId] ?? .pseudepigrapha
+        return c == .canon && kjvaApocrypha.contains(bookId) ? .apocrypha : c
+    }
+
+    static let scopeNames: [(Collection, String)] = [
+        (.apocrypha, #"\b(apocrypha|apocryphal|deuterocanon(?:ical|s)?)\b"#),
+        (.pseudepigrapha, #"\bpseudepigrapha(?:l)?\b"#),
+        (.earlyChristian, #"\b(early christian writings|apostolic fathers)\b"#),
+        (.lxx, #"\b(septuagint|lxx)\b"#),
+        (.canon, #"\b(66 books|protestant canon|the canon|canonical books|canonical scriptures?|the bible only|only the bible|just the bible)\b"#),
+    ]
+
+    /// The collections a question searches: an explicit "only …" scope, else the defaults, minus "without …".
+    public static func activeCollections(_ question: String, setting: [Collection]? = nil) -> [Collection] {
+        let named = scopeNames.filter { match($0.1, question) }.map(\.0)
+        var only: [Collection] = [], exclude: [Collection] = []
+        if !named.isEmpty {
+            if match(#"\b(without|exclude|excluding|except|not (?:the|including|from)|remove|no)\b"#, question) {
+                exclude = named.filter { $0 != .canon }
+            } else if match(#"\b(only|just|solely|exclusively|in the|from the|within)\b"#, question) || match(#"\bcanonical\b"#, question) {
+                only = named
+            }
+        }
+        let base = !only.isEmpty ? only : (setting?.isEmpty == false ? setting! : defaultCollections)
+        let out = base.filter { !exclude.contains($0) }
+        return out.isEmpty ? [.canon] : out
+    }
+
+    /// Scope words never become search keywords ("only the apocrypha wisdom" searches "wisdom").
+    public static func withoutScopeWords(_ keywords: [String]) -> [String] {
+        keywords.filter { k in !scopeNames.contains { match($0.1, k) } && !["canon", "canonical", "books", "testament"].contains(k) }
+    }
+
+    static func match(_ pattern: String, _ text: String) -> Bool {
+        (try? NSRegularExpression(pattern: pattern, options: .caseInsensitive))?
+            .firstMatch(in: text, range: NSRange(location: 0, length: (text as NSString).length)) != nil
+    }
 }

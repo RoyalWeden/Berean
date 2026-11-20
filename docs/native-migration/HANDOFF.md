@@ -2892,3 +2892,8 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Model-free Ask Berean now also does Strong's comparison, KJV/LXX parallel, exclusions (ported with the original's test cases) and saves answers to Berean Chat in the original `ai-request`/`ai-reply` shape; Chat lists reply verses (works for the original apps' replies too).
 - Checks: `swift test -c release` 328 pass; Mac + iOS builds exit 0. All verified on the iPhone sim.
 - Next for G01: follow-ups (`conversationState.ts`: "now only Greek", "the second", "more"), multi-passage comparison (2–4 refs), collections scope. Model-backed G02–G08 stay owner decisions (model runtime / API keys).
+
+### 2026-11-20 — Claude Code: Ask Berean round 3
+- Follow-ups (language switch, compare the first two, more, limits, LXX, try again), 2–4 passage comparison, collections scope — all tested and verified on the iPhone sim. Bug fixed: field lost focus after an answer.
+- Checks: `swift test -c release` 331 pass; Mac + iOS builds exit 0.
+- Next for Ask Berean: Ask options screen (collections setting, original `aiLookupCollections`), word tables ("every Strong's number in those verses" — needs tagged-verse rendering), "any in Proverbs?" book-scoped occurrences.

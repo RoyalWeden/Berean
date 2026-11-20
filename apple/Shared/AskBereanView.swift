@@ -254,7 +254,8 @@ struct AskBereanView: View {
             let name = phrase.replacingOccurrences(of: #"^(?:the\s+book\s+of\s+)"#, with: "", options: [.regularExpression, .caseInsensitive])
             return app.resolvePassage("\(name) 1")?.bookId
         }
-        let words = ModelFreeAsk.keywords(excluded.remainder)
+        let collections = ModelFreeAsk.activeCollections(q)
+        let words = ModelFreeAsk.withoutScopeWords(ModelFreeAsk.keywords(excluded.remainder))
         guard !words.isEmpty else { answer = .nothing; return }
         var rows = await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .all)
         if rows.count < 3 { rows += await app.bible.searchText(words.joined(separator: " "), textId: "kjva", mode: .any) }
@@ -264,6 +265,7 @@ struct AskBereanView: View {
             let v = Verse(textId: "kjva", bookId: r.bookId, chapter: r.chapter, verse: r.verseNum, text: r.text)
             if excluded.bookIds.contains(r.bookId) || ModelFreeAsk.mentionsExcluded(r.text, terms: excluded.terms) { continue }
             if followUp?.excludeRefs.contains(v.label) == true { continue }   // "more": not the ones already shown
+            if !collections.contains(ModelFreeAsk.collection(textId: "kjva", bookId: r.bookId)) { continue }
             guard seen.insert(v.id).inserted else { continue }
             verses.append(v)
             if verses.count >= (followUp?.limit ?? 12) { break }

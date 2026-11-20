@@ -63,4 +63,15 @@ import Testing
         #expect(!ModelFreeAsk.asksPassageComparison("Genesis 1:1 and John 1:1"))
         #expect(!ModelFreeAsk.asksPassageComparison("compare H2617 and H7356"))
     }
+
+    @Test func collectionsScope() {
+        #expect(ModelFreeAsk.collection(textId: "kjva", bookId: "WIS") == .apocrypha)
+        #expect(ModelFreeAsk.collection(textId: "kjva", bookId: "GEN") == .canon)
+        #expect(ModelFreeAsk.collection(textId: "enoch", bookId: "ENO") == .pseudepigrapha)
+        #expect(ModelFreeAsk.activeCollections("wisdom") == ModelFreeAsk.defaultCollections)
+        #expect(ModelFreeAsk.activeCollections("wisdom only in the Apocrypha") == [.apocrypha])
+        #expect(ModelFreeAsk.activeCollections("wisdom without the apocrypha") == [.canon, .pseudepigrapha, .earlyChristian])
+        #expect(ModelFreeAsk.activeCollections("just the 66 books on wisdom") == [.canon])
+        #expect(ModelFreeAsk.withoutScopeWords(["wisdom", "apocrypha", "books"]) == ["wisdom"])
+    }
 }
