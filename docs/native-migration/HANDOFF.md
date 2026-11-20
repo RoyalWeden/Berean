@@ -2887,3 +2887,8 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 
 ### 2026-11-20 — Claude Code: Ask Berean (model-free)
 [ASK-BEREAN-MODEL-FREE-2026-11-20](ASK-BEREAN-MODEL-FREE-2026-11-20.md). Next for G01: comparisons, follow-ups, exclusions; saving answers into Berean Chat (ai_chats assistant rows in the original shape).
+
+### 2026-11-20 — Claude Code: Ask Berean follow-ups
+- Model-free Ask Berean now also does Strong's comparison, KJV/LXX parallel, exclusions (ported with the original's test cases) and saves answers to Berean Chat in the original `ai-request`/`ai-reply` shape; Chat lists reply verses (works for the original apps' replies too).
+- Checks: `swift test -c release` 328 pass; Mac + iOS builds exit 0. All verified on the iPhone sim.
+- Next for G01: follow-ups (`conversationState.ts`: "now only Greek", "the second", "more"), multi-passage comparison (2–4 refs), collections scope. Model-backed G02–G08 stay owner decisions (model runtime / API keys).
