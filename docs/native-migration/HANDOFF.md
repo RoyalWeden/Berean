@@ -2881,3 +2881,6 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 
 ### 2026-11-20 — Claude Code: crash report (O02)
 [CRASH-REPORT-2026-11-20](CRASH-REPORT-2026-11-20.md): MetricKit → "Berean recovered from a crash" banner (Copy Details / Dismiss), verified on sim with a sample. Sample removed (dismissed).
+
+### 2026-11-20 — Claude Code: Getting Started checklist (U15)
+[GETTING-STARTED-CHECKLIST-2026-11-20](GETTING-STARTED-CHECKLIST-2026-11-20.md) — both platforms; original `completedStepIds` format; verified on sim (detection + manual mark + redraw fix).

@@ -79,7 +79,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | U12 | Settings | implemented | 🟡 | 🟡 | P2 | Reading, Appearance, Workspaces, Library. Includes preferred Shepherd of Hermas edition. Text ordering and other settings sections remain open. |
 | U13 | Onboarding and hints | partial | 🟡 | 🟡 | P3 | Getting started flow (welcome, default text, appearance) + replay in About (2026-11-20, ONBOARDING-2026-11-20.md); feature hints not ported |
 | U14 | Study Trail | implemented | 🟡 | 🟡 | P1 | List, branch map, search, ordering, recording, tag assignment, and sticky notes use legacy rows. Merge/split, draggable map layout and full graph controls remain open. |
-| U15 | Tasks panel and first steps | implemented (Mac only) | ❌ | — | P3 | Tasks panel not ported |
+| U15 | Tasks panel and first steps | implemented (Mac only) | 🟡 | 🟡 | P3 | Getting Started checklist with original completedStepIds + native detection, on both platforms (2026-11-20) |
 | U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |
 | U17 | PDFs | partial | 🟡 | 🟡 | P2 | Library + PDFKit reader with highlights, notes, bookmarks, outline, find, page restore and missing-file re-attach (2026-11-20). Share Extension intake, experimental gate and bookmark labels open. |
 | U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Notes side: conversations, Unfiled, pins, folders, replies, edit/delete (2026-11-20, BEREAN-CHAT-2026-11-20.md); Ask Berean not ported |

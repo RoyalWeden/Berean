@@ -82,6 +82,9 @@ struct IOSRootView: View {
         NavigationStack {
             content
                 .overlay(alignment: .top) { CrashReportBanner() }
+                .sheet(isPresented: Binding(get: { app.gettingStartedShown }, set: { app.gettingStartedShown = $0 })) {
+                    GettingStartedChecklist().environment(app)
+                }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
                 .gesture(HistoryEdgeSwipe(
                     enabled: app.canGoBack && !keyboardUp,
@@ -427,6 +430,7 @@ struct IOSRootView: View {
             Section {
                 Menu("Study Tools", systemImage: "books.vertical") {
                     Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
+                    Button("Getting Started", systemImage: "checklist") { app.gettingStartedShown = true }
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                     Button("Tags", systemImage: "tag") { app.openTags() }
                     Button("PDFs", systemImage: "doc.richtext") { app.openPdfLibrary() }

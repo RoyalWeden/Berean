@@ -196,6 +196,7 @@ struct SettingsView: View {
             LabeledContent("Version", value: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–") + " (native development build)")
             LabeledContent("Texts", value: "\(availableTexts.count) installed")
             Button("Replay Getting Started") { app.replayOnboarding() }
+            Button("Getting Started Checklist…") { app.gettingStartedShown = true }
         }
         Section("Library") {
             LabeledContent("Location", value: UserLibrary.directory.path).textSelection(.enabled)

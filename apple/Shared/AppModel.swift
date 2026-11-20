@@ -350,6 +350,9 @@ final class AppModel {
     private var loadingSettings = false
 
     private(set) var database: UserDatabase?
+    /// Bumps when Getting Started progress changes.
+    var gettingStartedRevision = 0
+    var gettingStartedShown = false
     private var sessionsService: SessionsService?
     private var lock: SingleInstanceLock?
     private var keys = TabPersistence.OrderKeyMaps()
@@ -502,7 +505,10 @@ final class AppModel {
         loadingSettings = false
     }
 
-    private func saveSetting(_ key: String, _ v: JSValue) {
+    /// One stored setting (original keys), for features that read settings on demand.
+    func settingValue(_ key: String) -> JSValue? { (try? settingsService?.all())?[key] }
+
+    func saveSetting(_ key: String, _ v: JSValue) {
         guard !loadingSettings else { return }
         try? settingsService?.set(key, v)
     }
