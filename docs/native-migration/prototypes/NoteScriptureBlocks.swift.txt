@@ -1,3 +1,5 @@
+// HISTORICAL UNTESTED DRAFT — superseded by compiled/tested source7e8142f9.
+// Kept for provenance; never copy over live NoteScriptureBlocks/NoteScriptureSelection.
 // UNTESTED PROTOTYPE — not compiled into either app. No canonical verification or editor integration yet.
 // Resume from NOTES-AUTOMATIC-BLOCKS.md; add tests and correct edition/Hermas handling before use.
 import Foundation

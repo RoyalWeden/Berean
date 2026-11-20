@@ -64,3 +64,8 @@ The root [CLAUDE.md](../../CLAUDE.md) retains legacy Electron/Capacitor compatib
 When adding a new focused document, link it here and in the relevant HANDOFF/TASKS entry. Keep this map task-oriented and the current checkpoint concise.
 
 - [Ollama cleanup](OLLAMA-REMOVAL-2026-11-19.md): owner-requested local model/app removal, recoverable paths, remaining admin shortcut and interrupted native work.
+
+- [Simulator clipboard QA](SIMULATOR-CLIPBOARD-QA.md): exact paste through native DeviceHub Send Clipboard, source checks, ownership and cleanup.
+
+- [Verified Scripture blocks](SCRIPTURE-BLOCKS-2026-11-19.md): source7e8142f9, tests/builds, actual Mac/Simulator evidence, owned cleanup and precise remaining scope.
+- [Working checkpoint archive](CHECKPOINT-HISTORY-2026-11-20.md): historical implementation/interruption notes; CURRENT-STATE supersedes its temporary labels.

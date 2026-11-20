@@ -2059,3 +2059,7 @@ Fixed misleading chapter note symbols for tags/references; separated mentions fr
 ## 2026-11-19 — AI continuity documentation
 
 Made HANDOFF the explicit entry point for all AIs, with current state, owner principles, task/evidence map and mandatory continuous checkpoint updates. Added root agent/Claude routes, preserved historical checkpoints verbatim and documented safe resume/usage handover. This is development continuity support, not a new in-app feature or completion of the migration.
+
+## 2026-11-19 — Verified Scripture blocks and iPhone Settings (7e8142f9)
+
+Both native editors now canonically verify and style copied Scripture without changing source, with original false/0.9 settings, cancellable/debounced bounded verification and complete LXX/range selection. iPhone Settings gains six native category routes. Full290sharedtests/finalMac+iOSbuilds PASS; actual Mac/Simulator source/Undo/settings/table/duplicate/rejection checks PASS. All owned fixtures trashed/extra tabs closed; existing19/24note-row hashes,37/47activeIDs/alltags preserved. See SCRIPTURE-BLOCKS-2026-11-19 and CURRENT-STATE for precise proof, runtime and limits. Full rich-import/read-only/index parity remainsOPEN. Next fix LXX attachment display, iPhone dock after editor removal and Mac viewport drift; no Apple voices/merge action. Broad migration remainsACTIVE.

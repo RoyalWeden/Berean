@@ -17,15 +17,13 @@ The former mixed current-summary block has been [archived verbatim](CHECKPOINT-H
 <!-- AI CONTINUITY END -->
 
 <!-- BEGIN CURRENT CHECKPOINT -->
-- **Active objective:** substantial native Mac+iPhone migration, original functional/data compatibility and polished native UX. This goal is ACTIVE; batches/docs/green checks are not completion.
-- **Source checkpoint:** published `1f4e7361` on `native/reader-notes`, draft PR24. Current dirty files, docs head, runtime and exact-head checks must be verified from Git/GitHub; see [CURRENT-STATE](CURRENT-STATE.md).
-- **Latest verified feature:** actual cited verse text in a native aligned Mac study preview, truthful chapter symbols, separate attached-note/related-passage/mention counts. See [STUDY-PREVIEW-ALIGNMENT](STUDY-PREVIEW-ALIGNMENT.md) and the latest detailed entry below.
-- **Validation:** final Mac+iOS publication builds PASS. Prior package274tests PASS; source1f4e7361 CI44683148736 native+legacy jobs SUCCESS (CI Mac build skipped; final local Mac build PASS). A newer documentation head has separate checks. Do not label a QA Option-click continuous physical hover proof.
-- **Data/runtime:** original16Mac/17iPhone notes,37/47exact active IDs/alltags preserved; owned attached test note trashed/extra tab closed. Mac current Notes inspector/Genesis1:1/scroll0.5782918149466192/sidebar239; iPhone Psalm3LXX. See CURRENT-STATE for safe paths/container discovery, not old PIDs below.
-- **Review guard:** owner-only22→23 after correct retarget/checks→draft24; no merge/retarget/ready action. In the Codex clone pushgithub, never local-origin.
-- **Local environment:** owner requested Ollama removal; models deleted/app+settings in recoverable Trash, no Ollama processes/PATH command. A negligible root-owned dangling shortcut needs owner authentication; see [cleanup evidence](OLLAMA-REMOVAL-2026-11-19.md).
-- **Next app work:** canonical-verified automatic Scripture block recognition/settings (preserved draft is untested/uncompiled), full persisted/per-rule Word Replacer, actual hover/cursor/remaining menu ownership, all-state history/scroll, live generic splits, rich Notes/sharing and Kokoro. No Apple voices. Follow [TASKS](TASKS.md) and [FOLLOWUP](FOLLOWUP-2026-11-19.md).
-- **Continuous AI notes are now an owner requirement:** every AI must maintain CURRENT-STATE, HANDOFF and relevant queue/evidence/decisions throughout work, before handover or limits. Read [AI-CONTINUITY](AI-CONTINUITY.md) and [OWNER-PRINCIPLES](OWNER-PRINCIPLES.md); keep them current rather than writing another detached prompt.
+- **Active objective:** substantial native Mac+iPhone migration, legacy functional/data compatibility, polished native UX; goalACTIVE.
+- **Latest source:** 7e8142f94febbb35a609d2398dba9b8f0795fb76, automatic verified Scripture blocks on both editors and six-category iPhone Settings. Verify publication/head checks in [CURRENT-STATE](CURRENT-STATE.md).
+- **Evidence:** new16meaningfultests; full290PASS; final Mac+iOS builds PASS; actual Mac/Simulator source-preserving cards, duplicate/rejection/table/Undo/settings/navigation checks. [Detailed proof and limits](SCRIPTURE-BLOCKS-2026-11-19.md).
+- **Cleanup/runtime:** owned notes recoverablytrashed/extra tabs closed, all19/24prior note-row hashes and37/47exact active IDs/alltags preserved; original16/17notes included. Mac Genesis1selected1/Notes1:1/sidebar239/rightdivider1148/scroll0.5782918149466192; iPhonePsalm3LXX/no selection/CaptureOFF. Both format prefs restoredOFF. Fresh paths and helper/clipboard cleanup in CURRENT-STATE.
+- **Next:** LXX note-attachment display mapping; iPhone dock after editor removal; Mac return/relaunch viewport trace; then larger WordReplacer/history/split/richNotes/cursor/Kokoro backlog. No Apple voices. Old prototype is superseded.
+- **Review/data guards:** owner-only22→23 after correct retarget/checks→draft24; no merge/retarget/ready/force. Pushgithub, never local-origin in this clone. Preserve production/sync/identities/legacy and newer edits.
+- **Continuous notes:** every AI maintains CURRENT-STATE, HANDOFF and relevant queue/evidence/decisions throughout work and before limits/handover. Start with [AI-CONTINUITY](AI-CONTINUITY.md), [OWNER-PRINCIPLES](OWNER-PRINCIPLES.md), [DOCUMENTATION-MAP](DOCUMENTATION-MAP.md). No CUA phase is pending.
 <!-- END CURRENT CHECKPOINT -->
 
 ## Historical implementation log — dated evidence, not current state
@@ -2770,3 +2768,15 @@ Resume rule: the owner should only need to point a successor at this file. The b
 See [OLLAMA-REMOVAL-2026-11-19](OLLAMA-REMOVAL-2026-11-19.md). Roughly39.6GiB of downloaded models permanently removed; app/settings moved to recoverable Trash, Ollama processes stopped and no command available. Only the negligible root-owned dangling `/usr/local/bin/ollama` symlink remains; administrator password is needed to unlink. No Berean data/integration or other AI tools removed.
 
 Native Scripture-block work was interrupted: Codex-owned untracked NoteScriptureBlocks.swift is a candidate scanner with Hermas/reference-space propagation, still untested/uncompiled/unwired. Preserve it and resume canonical verification/settings/both native editors; the continuity guides remain in force. This local environment cleanup is not product parity completion.
+
+## 2026-11-19 — Active automatic Scripture-block implementation (uncommitted)
+
+Resumed after Ollama cleanup. Scanner and complete canonical selection helpers plus16meaningfultests now pass; both native editors/settings and async verified source-preserving card presentation are wired as Codex WIP. No UI proof or final builds yet; see CURRENT-STATE for exact files/live process/logs. Preserve edits. Next: finish builds, full suite, isolated Mac+iPhone checks and only then publish/mark the proven scope.
+
+## 2026-11-19 — Verified native Scripture blocks and iPhone Settings
+
+Source7e8142f9 implements canonical-verified source-preserving cards in both native editors, legacy false/0.9 settings, full Hermas heading grammar, complete/disjoint/cross-chapter/LXX reader-row coverage, stale/cancellation/cache guards and categorized iPhone Settings. Full290tests/finalMac+iOSbuilds PASS. Actual Mac/Simulator paste, duplicate/false-positive/table, Undo/Redo, independent settings and all six category routes verified. Exact source and owned cleanup/data-ID evidence are in [SCRIPTURE-BLOCKS-2026-11-19](SCRIPTURE-BLOCKS-2026-11-19.md). Physical phone/rich-import/read-only/history/index grammar remain open.
+
+All owned fixtures are recoverablytrashed; extra tabs closed; all19Mac/24iPhone existing note rows,37/47activeIDs/alltags unchanged. Original reading/UI/settings restored. TextEdit's synthetic autosaved helper moved out of iCloud to temporary storage and closed; original fixture window/clipboard restored. Read [SIMULATOR-CLIPBOARD-QA](SIMULATOR-CLIPBOARD-QA.md) before clipboard testing. No current CUA phase remains.
+
+Next concrete fixes: LXX attachment label raw2 vsreader1, dock stuck after iPhone editor removal, Mac Notes-return/relaunch viewport drift. These were reproduced/queued, not fixed by this batch. Current source/doc/CI publication must be verified from Git/GitHub; older green runs are not new-source proof. Broad goalACTIVE. Previous working CURRENT-STATE was [archived](CHECKPOINT-HISTORY-2026-11-20.md).

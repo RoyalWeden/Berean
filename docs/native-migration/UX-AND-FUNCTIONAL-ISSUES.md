@@ -370,3 +370,7 @@ Chapter study visible wording removed while chapter access remains icon. Margin 
 ## 2026-11-19 — Aligned cited-passage previews
 
 Owner-reported vertical hover offset addressed via native text-input screen anchor; actual native card aligned at top and scrolled. Short verses no longer compress to2lines. Chapter symbols no longer imply notes for tags/citations; mention counts and routes are distinct. Physical hover/resize/Retina and broad target-range matrices remain open. See STUDY-PREVIEW-ALIGNMENT.md.
+
+## 2026-11-19 — Verified Scripture blocks and iPhone Settings (7e8142f9)
+
+Both native editors now canonically verify and style copied Scripture without changing source, with original false/0.9 settings, cancellable/debounced bounded verification and complete LXX/range selection. iPhone Settings gains six native category routes. Full290sharedtests/finalMac+iOSbuilds PASS; actual Mac/Simulator source/Undo/settings/table/duplicate/rejection checks PASS. All owned fixtures trashed/extra tabs closed; existing19/24note-row hashes,37/47activeIDs/alltags preserved. See SCRIPTURE-BLOCKS-2026-11-19 and CURRENT-STATE for precise proof, runtime and limits. Full rich-import/read-only/index parity remainsOPEN. Next fix LXX attachment display, iPhone dock after editor removal and Mac viewport drift; no Apple voices/merge action. Broad migration remainsACTIVE.

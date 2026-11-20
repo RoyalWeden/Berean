@@ -1314,3 +1314,7 @@ Automatic lexicon block presentation now implemented/tested on Mac+iPhone. Typed
 ## 2026-11-19 — Aligned cited-passage previews
 
 Personal-note margin previews now resolve actual target passages, with reader-consistent LXX number/title handling. Actual two-passage and scroll-anchor checks passed. This is not all-source TSKe hover parity, continuous hover proof or all range/combined-record coverage. Automatic Scripture blocks still NOT delivered; draft scanner is documentation only, not app/package code.
+
+## 2026-11-19 — Verified Scripture blocks and iPhone Settings (7e8142f9)
+
+Both native editors now canonically verify and style copied Scripture without changing source, with original false/0.9 settings, cancellable/debounced bounded verification and complete LXX/range selection. iPhone Settings gains six native category routes. Full290sharedtests/finalMac+iOSbuilds PASS; actual Mac/Simulator source/Undo/settings/table/duplicate/rejection checks PASS. All owned fixtures trashed/extra tabs closed; existing19/24note-row hashes,37/47activeIDs/alltags preserved. See SCRIPTURE-BLOCKS-2026-11-19 and CURRENT-STATE for precise proof, runtime and limits. Full rich-import/read-only/index parity remainsOPEN. Next fix LXX attachment display, iPhone dock after editor removal and Mac viewport drift; no Apple voices/merge action. Broad migration remainsACTIVE.
