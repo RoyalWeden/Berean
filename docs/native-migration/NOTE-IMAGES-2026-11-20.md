@@ -28,3 +28,7 @@ Status: **IMPLEMENTED; Mac VERIFIED, iPhone partly VERIFIED**. Was ❌/❌ (alt 
 - Dragging the handle previews the width live (aspect kept, 48 pt minimum, up to the line width); release saves one **Resize Image** edit (`|wNNN` in the alt, same as the Image Size menu and the original); Escape cancels.
 - Verified click-free in the QA library: caret placed via the Accessibility API at the image → outline + handle drawn; caret moved away → cleared. **Drag not exercised by me** (no mouse automation on the owner's Mac) — needs a hand test.
 - iPhone keeps the Image Size presets menu (no drag handle).
+
+## iPhone Photo Library — 2026-11-20 (later)
+- iPhone Insert → Image now offers **Photo Library…** (PHPicker — out of process, no photo permission prompt) and **Choose File…** (Files). Previously only Files was offered, which is the wrong default on a phone.
+- Verified on sim: photo added with `simctl addmedia` → Insert → Image → Photo Library… → picked → inserted at natural width with caption from the photo name (`qa-gradient`); stored as an inline `data:image/png;base64` Markdown image.

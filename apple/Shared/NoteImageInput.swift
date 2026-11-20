@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import PhotosUI
+#endif
 import UniformTypeIdentifiers
 import BereanNotes
 #if os(macOS)
@@ -67,6 +70,41 @@ enum NoteImageInput {
         NoteFileTransfer.topViewController()?.present(picker, animated: true)
         #endif
     }
+
+    #if os(iOS)
+    /// Photo library picker (PHPicker: out-of-process, needs no photo-library permission).
+    @MainActor static func choosePhoto(completion: @escaping @MainActor @Sendable (String?) -> Void) {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 1
+        let picker = PHPickerViewController(configuration: config)
+        let delegate = PhotoPickerDelegate(completion: completion)
+        picker.delegate = delegate
+        objc_setAssociatedObject(picker, &PhotoPickerDelegate.key, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        NoteFileTransfer.topViewController()?.present(picker, animated: true)
+    }
+
+    private final class PhotoPickerDelegate: NSObject, PHPickerViewControllerDelegate {
+        nonisolated(unsafe) static var key = 0
+        let completion: @MainActor @Sendable (String?) -> Void
+        init(completion: @escaping @MainActor @Sendable (String?) -> Void) { self.completion = completion }
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            guard let provider = results.first?.itemProvider,
+                  let type = provider.registeredTypeIdentifiers.compactMap(UTType.init).first(where: { $0.conforms(to: .image) }) else {
+                let done = completion
+                Task { @MainActor in done(nil) }
+                return
+            }
+            let name = provider.suggestedName.map { $0 + "." + (type.preferredFilenameExtension ?? "png") } ?? "Photo"
+            let done = completion
+            provider.loadDataRepresentation(for: type) { data, _ in
+                let markdown = data.flatMap { NoteImageInput.markdown(data: $0, alt: NoteImages.alt(forFileName: name)) }
+                Task { @MainActor in done(markdown) }
+            }
+        }
+    }
+    #endif
 
     /// Where an image block goes for a caret at `location`: never inside another image's markup
     /// (the caret can rest among its hidden characters) — then after that image's line instead.

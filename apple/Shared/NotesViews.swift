@@ -847,12 +847,28 @@ struct NoteDetailView: View {
                             }
                         }
                         .disabled(editingTable)
+                        #if os(iOS)
+                        Menu("Image", systemImage: "photo") {
+                            Button("Photo Library…", systemImage: "photo.on.rectangle") {
+                                NoteImageInput.choosePhoto { markdown in
+                                    if let markdown { formatRequest = NoteFormatRequest(action: .insertImage(markdown)) }
+                                }
+                            }
+                            Button("Choose File…", systemImage: "folder") {
+                                NoteImageInput.chooseImage { markdown in
+                                    if let markdown { formatRequest = NoteFormatRequest(action: .insertImage(markdown)) }
+                                }
+                            }
+                        }
+                        .disabled(editingTable)
+                        #else
                         Button("Image…", systemImage: "photo") {
                             NoteImageInput.chooseImage { markdown in
                                 if let markdown { formatRequest = NoteFormatRequest(action: .insertImage(markdown)) }
                             }
                         }
                         .disabled(editingTable)
+                        #endif
                         Button("Checklist", systemImage: "checklist") { formatRequest = NoteFormatRequest(action: .list(.checklist)) }
                             .disabled(editingTable)
                         Button("Divider", systemImage: "minus") { formatRequest = NoteFormatRequest(action: .inline("\n\n---\n\n", "")) }
