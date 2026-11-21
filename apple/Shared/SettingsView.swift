@@ -117,6 +117,11 @@ struct SettingsView: View {
             Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented).clickableCursor()
             Picker("Reading Theme", selection: $app.themePreset) {
                 Text("Default").tag("")
+                if !app.customThemes.isEmpty {
+                    Section("Custom") {
+                        ForEach(app.customThemes) { t in Text(t.name).tag(CustomReaderTheme.prefix + t.id) }
+                    }
+                }
                 ForEach(ReaderTheme.families, id: \.self) { family in
                     Section(family) {
                         ForEach(ReaderTheme.presets.filter { $0.family == family && !$0.id.isEmpty }) { theme in
@@ -129,6 +134,7 @@ struct SettingsView: View {
         } footer: {
             Text("Colours the Scripture page — background and text — in light and dark mode. The rest of Berean keeps the system look.")
         }
+        CustomThemesSection()
     }
 
     private var notesSection: some View {

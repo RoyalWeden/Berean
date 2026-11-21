@@ -2271,7 +2271,7 @@ extension ScriptureView {
 
     /// Reading theme page colour (original themePreset), nothing for Default.
     @ViewBuilder var readingThemeBackground: some View {
-        if let theme = ReaderTheme.find(app.themePreset) {
+        if let theme = app.activeReaderTheme {
             ReaderTheme.color(theme.palette(dark: colorScheme == .dark).bg)
         }
     }
@@ -2279,8 +2279,8 @@ extension ScriptureView {
     func readerStyle(_ st: BibleState) -> ReaderStyle {
         ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily,
                     showStrongs: st.showStrongs, showVerseNumbers: showVerseNumbers, redLetters: showRedLetters, width: scriptureWidth,
-                    themeText: ReaderTheme.find(app.themePreset)?.palette(dark: colorScheme == .dark).text,
-                    themeAccent: ReaderTheme.find(app.themePreset)?.palette(dark: colorScheme == .dark).accent)
+                    themeText: app.activeReaderTheme?.palette(dark: colorScheme == .dark).text,
+                    themeAccent: app.activeReaderTheme?.palette(dark: colorScheme == .dark).accent)
     }
 
     /// Partial highlight: shown-word offsets → offsets into the stored verse text (OffsetMap), saved as a character highlight.

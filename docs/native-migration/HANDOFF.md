@@ -2927,3 +2927,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - 6d9f2cde S14 measured (iPhone sim, KJV Psalm 119 ≈ 17–25 ms build+layout; S14-PSALM-119-TIMING doc). d1ec2f73 hints for Strong's (Mac) and note Format (both). 340 tests pass; both builds pass.
 - Still open (no owner decision needed): Presenter keyboard/focus checks (Codex list; Mac keyboard input needs the QA app frontmost), Psalm 119 on a physical iPhone and on Mac, Custom Themes settings.
 - f909aa23 Reading themes (original 38 presets on the Scripture page, `themePreset` key; READING-THEMES doc), verified on sim light/dark, sim restored to Default. Next candidates: custom-theme editing (original `customThemes`), Presenter keyboard/focus checks, Psalm 119 on device/Mac.
+- Custom themes (original `customThemes`, `custom:<id>` selection) with editor in Settings → Appearance; verified on sim (create/rename/delete fallback), sim left at Default with no custom themes.

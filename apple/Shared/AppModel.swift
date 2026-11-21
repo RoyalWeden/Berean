@@ -684,6 +684,7 @@ final class AppModel {
     }
     var historySettingsRevision = 0
     var printSettingsRevision = 0
+    var customThemesRevision = 0
     /// Original "Clear all tab nav history".
     func clearAllTabNavigation() { backStack = [:]; forwardStack = [:] }
     var tabNavEntryCount: Int { backStack.values.reduce(0) { $0 + $1.count } + forwardStack.values.reduce(0) { $0 + $1.count } }
