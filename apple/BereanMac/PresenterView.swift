@@ -11,12 +11,25 @@ import BereanReference
 struct PresenterView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("presenter.scale") private var scale = 1.6
     @State private var paused = false
     @State private var frozenFocus: Int?
     @State private var snapshot: Snapshot = .idle
     @State private var loadedSource: Source = .idle
     @State private var loading = false
+    @State private var followedVerse: Int?
+    @State private var renderedAppearance = Appearance.standard
+
+    private struct Appearance: Equatable {
+        var family = "system"
+        var spacing = 5.0
+        var numbers = true
+        var palette: ReaderTheme.Palette?
+        var scheme: ColorScheme?
+        static let standard = Appearance()
+    }
 
     private enum Source: Equatable {
         case scripture(tabID: String, edition: ChapterEdition)
@@ -44,6 +57,7 @@ struct PresenterView: View {
         let rules: [WordReplacerRule]
         let hiddenAnnotations: Set<String>
         let paused: Bool
+        let appearance: Appearance
     }
 
     private var source: Source {
@@ -60,10 +74,14 @@ struct PresenterView: View {
         if let mirror = app.presenterSelection, mirror.tabId == tabID, mirror.edition == edition { return mirror.verses }
         return Set(app.studySelectedVerses(in: tabID, state: BibleState(tab.state)))
     }
+    private var readerAnchor: Int? {
+        guard case .scripture(let tabID, let edition) = source,
+              let anchor = app.presenterAnchor, anchor.tabId == tabID, anchor.edition == edition else { return nil }
+        return anchor.verse
+    }
     private var liveFocus: Int? {
-        guard case .scripture(let tabID, let edition) = source else { return nil }
-        let anchor = app.presenterAnchor.flatMap { $0.tabId == tabID && $0.edition == edition ? $0.verse : nil }
-        return selected.min() ?? anchor ?? app.activeTab.map { BibleState($0.state).verse } ?? nil
+        guard case .scripture = source else { return nil }
+        return followedVerse ?? selected.min() ?? readerAnchor ?? app.activeTab.map { BibleState($0.state).verse } ?? nil
     }
     @State private var frozenSelection: Set<Int> = []
     private var request: Request {
@@ -71,38 +89,53 @@ struct PresenterView: View {
                 replacer: { if case .scripture = source { return app.wordReplacerEnabled }; return false }(),
                 rules: { if case .scripture = source { return app.wordReplacerRules }; return [] }(),
                 hiddenAnnotations: Set((app.activeTab?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string }),
-                paused: paused)
+                paused: paused,
+                appearance: {
+                    guard case .scripture = source else { return Appearance(scheme: colorScheme) }
+                    return Appearance(family: app.scriptureFontFamily, spacing: Double(app.lineSpacing), numbers: showVerseNumbers,
+                                      palette: app.activeReaderTheme?.palette(dark: colorScheme == .dark), scheme: colorScheme)
+                }())
     }
 
     var body: some View {
         ZStack {
-            Color(nsColor: .textBackgroundColor).ignoresSafeArea()
+            pageBackground.ignoresSafeArea()
             if !paused && loadedSource != source {
                 ProgressView().controlSize(.small)
             } else {
                 audienceContent
             }
         }
+        .environment(\.colorScheme, renderedAppearance.scheme ?? colorScheme)
         .navigationTitle(paused ? "Presenter — Paused" : "Presenter")
         .toolbar {
             ToolbarItem(placement: .status) {
-                Label(paused ? "Paused" : "Live", systemImage: paused ? "pause.circle" : "dot.radiowaves.left.and.right")
-                    .labelStyle(.titleAndIcon)
-                    .font(.callout).foregroundStyle(.secondary)
-                    .help(paused ? "The audience view is frozen" : "Following the active document in the main window")
+                Image(systemName: paused ? "pause.circle" : "dot.radiowaves.left.and.right")
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(paused ? "Paused" : "Following main window")
+                    .help(paused ? "The audience view is frozen" : "Following the main window")
             }
-            ToolbarItemGroup {
-                ControlGroup {
-                    // ⌘- / ⌘= / ⌘0 live in View (presenterZoom focused value): the main menu's
-                    // Scripture text-size items owned those keys before the toolbar buttons.
+            ToolbarItem {
+                HStack(spacing: 6) {
                     Button("Smaller", systemImage: "textformat.size.smaller") { setScale(scale - 0.2) }
                         .disabled(scale <= PresenterZoom.range.lowerBound)
-                    Text("\(Int((scale * 100).rounded()))%")
-                        .font(.callout.monospacedDigit()).frame(minWidth: 42).accessibilityLabel("Text size")
+                        .help("Smaller text (⌘−)")
+                    Button { setScale(PresenterZoom.standard) } label: {
+                        Text("\(Int((scale * 100).rounded()))%")
+                            .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+                            .frame(minWidth: 42)
+                    }
+                    .accessibilityLabel("Text size \(Int((scale * 100).rounded())) percent. Reset text size")
+                    .help("Reset text size (⌘0)")
                     Button("Larger", systemImage: "textformat.size.larger") { setScale(scale + 0.2) }
                         .disabled(scale >= PresenterZoom.range.upperBound)
+                        .help("Larger text (⌘+)")
                 }
-                .controlGroupStyle(.navigation)
+                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .padding(.horizontal, 6).frame(minHeight: 32)
+                .glassEffectCompat(interactive: true)
+            }
+            ToolbarItem {
                 Button(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill") {
                     if !paused { frozenFocus = liveFocus; frozenSelection = selected }
                     paused.toggle()
@@ -117,12 +150,23 @@ struct PresenterView: View {
         }
         .onDisappear { app.presenterOpen = false }
         .task(id: request) { await load(request) }
+        // Follow the latest interaction: selection focuses its first verse;
+        // subsequent reader scrolling must still move the audience view.
+        .onChange(of: source) { _, _ in followedVerse = nil }
+        .onChange(of: selected) { _, verses in followedVerse = verses.min() ?? readerAnchor }
+        .onChange(of: readerAnchor) { _, verse in followedVerse = verse }
         // The menu calls this outside the view graph: write through the $scale binding (a
         // captured struct copy didn't update the view, nor did a raw UserDefaults write).
         .focusedSceneValue(\.presenterZoom, PresenterZoom(scale: scale, set: { [binding = $scale] v in
             binding.wrappedValue = PresenterZoom.clamped(v)
         }))
     }
+
+    private var pageBackground: Color {
+        renderedAppearance.palette.map { ReaderTheme.color($0.bg) } ?? Color(nsColor: .textBackgroundColor)
+    }
+    private var pageText: Color { renderedAppearance.palette.map { ReaderTheme.color($0.text) } ?? .primary }
+    private var pageAccent: Color { renderedAppearance.palette.map { ReaderTheme.color($0.accent) } ?? .accentColor }
 
     private func setScale(_ value: Double) { scale = PresenterZoom.clamped(value) }
 
@@ -134,7 +178,7 @@ struct PresenterView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     Text(note.title.isEmpty ? "Untitled" : note.title)
-                        .font(.system(size: 26 * scale, weight: .semibold))
+                        .font(.system(size: 22 * scale, weight: .semibold))
                     MarkdownText(note.content).font(.system(size: 18 * scale)).lineSpacing(5 * scale)
                         .textSelection(.enabled)
                 }
@@ -167,34 +211,39 @@ struct PresenterView: View {
         let highlights = paused ? frozenSelection : selected
         return ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 12 * scale) {
+                VStack(alignment: .leading, spacing: 7 * scale) {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(Reference.readerChapterLabel(edition.book, edition.chapter, textId: edition.text))
-                            .font(.system(size: 26 * scale, weight: .semibold, design: .serif))
+                            .font(.system(size: 18 * scale, weight: .medium))
                         if edition.text == "lxx" { Text("LXX").font(.system(size: 12 * scale, weight: .medium)).foregroundStyle(.secondary) }
                     }
-                    .padding(.bottom, 12 * scale)
+                    .padding(.leading, renderedAppearance.numbers ? 34 * scale : 10 * scale)
+                    .padding(.bottom, 14 * scale)
                     .id("presenter-chapter-heading")
                     ForEach(verses, id: \.id) { verse in
                         HStack(alignment: .firstTextBaseline, spacing: 12 * scale) {
-                            Text(verse.number).font(.system(size: 12 * scale, weight: .medium))
-                                .foregroundStyle(.secondary).frame(minWidth: 26 * scale, alignment: .trailing)
+                            if renderedAppearance.numbers {
+                                Text(verse.number).font(.system(size: 10 * scale, weight: .medium))
+                                    .foregroundStyle(pageText.opacity(0.45)).frame(minWidth: 22 * scale, alignment: .trailing)
+                            }
                             VStack(alignment: .leading, spacing: 6 * scale) {
                                 if let title = verse.title, !title.isEmpty {
-                                    Text(title).font(.system(size: 16 * scale, design: .serif)).italic().foregroundStyle(.secondary)
+                                    Text(title).font(ScriptureFont.font(renderedAppearance.family, size: 15 * scale)).italic().foregroundStyle(.secondary)
                                 }
-                                Text(verse.text).font(.system(size: 22 * scale, design: .serif))
-                                    .lineSpacing(6 * scale).fixedSize(horizontal: false, vertical: true)
+                                Text(verse.text).font(ScriptureFont.font(renderedAppearance.family, size: 20 * scale))
+                                    .lineSpacing(CGFloat(renderedAppearance.spacing) * scale).fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        .padding(.vertical, 6 * scale).padding(.horizontal, 12 * scale)
+                        .padding(.vertical, 4 * scale).padding(.horizontal, 10 * scale)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(highlights.contains(verse.id) ? Color.accentColor.opacity(0.10) : .clear,
+                        .background(highlights.contains(verse.id) ? pageAccent.opacity(0.07) : .clear,
                                     in: .rect(cornerRadius: 12 * scale))
                         .id(verse.id)
                     }
                 }
-                .padding(40).frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
+                .foregroundStyle(pageText)
+                .padding(.horizontal, 36).padding(.vertical, 28)
+                .frame(maxWidth: 1040, alignment: .leading).frame(maxWidth: .infinity)
             }
             .onAppear {
                 if focused == verses.first?.id { proxy.scrollTo("presenter-chapter-heading", anchor: .top) }
@@ -233,6 +282,7 @@ struct PresenterView: View {
         }
         guard !Task.isCancelled, self.request == request else { return }
         snapshot = result
+        renderedAppearance = request.appearance
         loadedSource = request.source
         loading = false
     }
