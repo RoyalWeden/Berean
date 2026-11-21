@@ -2016,6 +2016,14 @@ private enum NotePrintMarkup {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { return "<br>" }
             if trimmed == "---" || trimmed == "***" { return "<hr>" }
+            // An inline image line prints as the image (saved width, caption) — data: images only,
+            // so printing never fetches from the network.
+            if let image = NoteImages.find(in: trimmed).first, image.range.location == 0,
+               image.source.hasPrefix("data:image/") {
+                let width = image.width.map { "width: \(min($0, 640))px; " } ?? ""
+                let caption = image.alt.isEmpty ? "" : "<p style=\"font-size: 9pt; color: #666; margin-top: 2pt\">\(escape(image.alt))</p>"
+                return "<p><img src=\"\(image.source)\" style=\"\(width)max-width: 100%;\" alt=\"\(escape(image.alt))\"></p>\(caption)"
+            }
             let headingLevel = trimmed.prefix { $0 == "#" }.count
             if (1...3).contains(headingLevel), trimmed.dropFirst(headingLevel).first == " " {
                 return "<h\(headingLevel)>\(inline(String(trimmed.dropFirst(headingLevel + 1))))</h\(headingLevel)>"
