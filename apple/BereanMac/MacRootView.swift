@@ -55,11 +55,13 @@ struct MacRootView: View {
         }
         .toolbarBackground(scriptureToolbarBackground, for: .windowToolbar)
         .background { NativeDividerCursorRegions() }
-        // Match the content scrim above the native toolbar glass.
+        // Both scrims switch immediately from the same visibility state. A fade
+        // on the SwiftUI overlay leaves the native title bar dimming ahead of it.
         .background { ToolbarDimOverlay(isVisible: app.commandPaletteShown, opacity: paletteDimOpacity) }
         .disabled(app.commandPaletteShown)
         .studyTrailSheet(app: app)
         .sheet(isPresented: $showsArchive) { MacArchivedTabsSheet() }
+        .overlay(alignment: .bottomTrailing) { CrashReportBanner() }
         .overlay(alignment: .top) {
             if app.commandPaletteShown {
                 GeometryReader { geometry in
@@ -80,13 +82,11 @@ struct MacRootView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .transition(.opacity)
+                .transition(.identity)
             }
         }
-        .animation(.easeOut(duration: 0.15), value: app.commandPaletteShown)
         .onChange(of: app.sidebarToggleRequest) { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } }
         .onChange(of: app.chatWindowRequest) { openWindow(id: "chat") }
-        .overlay(alignment: .bottomTrailing) { CrashReportBanner() }
         .sheet(isPresented: Binding(get: { app.gettingStartedShown }, set: { app.gettingStartedShown = $0 })) {
             GettingStartedChecklist().environment(app)
         }

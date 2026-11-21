@@ -347,7 +347,7 @@ private struct PaletteQueryField: NSViewRepresentable {
             DispatchQueue.main.async { [weak self, weak field] in
                 guard let self else { return }
                 self.focusQueued = false
-                guard let field, let window = field.window else { return }
+                guard self.parent.focused, let field, let window = field.window else { return }
                 window.makeFirstResponder(field)
                 self.applySelection(field)
                 self.parent.ready(field)
@@ -406,7 +406,7 @@ struct CommandPalette: View {
     @State private var noteResults: (query: String, hits: [Note], excerpts: [String: String])?
     @State private var videoHits: (query: String, hits: [TranscriptService.SearchHit]) = ("", [])
     @State private var actionsShown = false
-    @FocusState private var focused: Bool
+    @State private var focused = true
 
     init(newTab: Bool, location: AppModel.LocationRequest?, resultsHeight: CGFloat, close: @escaping () -> Void) {
         self.newTab = newTab
@@ -656,7 +656,7 @@ struct CommandPalette: View {
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
                     PaletteQueryField(text: $text,
-                                      focused: Binding(get: { focused && !actionsShown }, set: { focused = $0 }),
+                                      focused: Binding(get: { app.commandPaletteShown && focused && !actionsShown }, set: { focused = $0 }),
                                       selectionRequest: locationRequestID,
                                       placeholder: newTab ? "New tab: passage, Strong's number, note or words" : "Passage, Strong's number, note or words",
                                       submit: { submit(inNewTab: newTab || $0) },
@@ -774,7 +774,6 @@ struct CommandPalette: View {
         }
         .clipShape(.rect(cornerRadius: 20))
         .modifier(CommandPaletteSurface())
-        .onAppear { focused = true }
         .accessibilityElement(children: .contain)
         .onExitCommand {
             if actionsShown {
@@ -819,9 +818,7 @@ struct CommandPalette: View {
             if !Task.isCancelled { videoHits = (q, hits) }
         }
         .onChange(of: query, initial: true) { _, query in
-            // This bounded lookup is synchronous. A cancelled task can leave
-            // noteResults keyed to an earlier keystroke while typing continues.
-            let hits = noteHits(for: query)
+            // The displayed items already resolved this query's note matches.
             let excerpts = hits.reduce(into: [String: String]()) { excerpts, note in
                 excerpts[note.id] = noteSearchPreview(note, query: query)
             }
