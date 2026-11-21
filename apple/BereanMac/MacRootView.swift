@@ -33,10 +33,10 @@ struct MacRootView: View {
                             .frame(minWidth: MacLayoutLimits.studyPanelMinimum)
                             .inspectorColumnWidth(min: MacLayoutLimits.studyPanelMinimum, ideal: max(MacLayoutLimits.studyPanelMinimum, inspectorWidth), max: 520)
                             .background {
-                                InspectorWidthReader(isPresented: inspectorBinding.wrappedValue,
+                                InspectorWidthReader(isPresented: activeInspectorState(for: tab.id)?.rightPanelOpen == true,
                                                      preferredWidth: inspectorWidth,
-                                                     isCurrent: { app.activeTab?.id == tab.id && inspectorBinding.wrappedValue }) { width in
-                                    guard app.activeTab?.id == tab.id, inspectorBinding.wrappedValue,
+                                                     isCurrent: { activeInspectorState(for: tab.id)?.rightPanelOpen == true }) { width in
+                                    guard activeInspectorState(for: tab.id)?.rightPanelOpen == true,
                                           width >= MacLayoutLimits.studyPanelMinimum, width <= 520,
                                           abs(width - inspectorWidth) > 0.5 else { return }
                                     inspectorWidth = width
@@ -105,27 +105,31 @@ struct MacRootView: View {
     }
 
     private var inspectorBinding: Binding<Bool> {
-        // Capture this render's target so a late native dismissal cannot change
-        // the newly selected tab's saved open/closed state.
-        let target = app.activeTab
+        // Keep the render's identity but read live state. Change Current Tab
+        // can reuse this ID for a different type while AppKit is dismissing.
+        let targetID = app.activeTab.flatMap { inspectorState(in: $0) == nil ? nil : $0.id }
         return Binding(get: {
-            guard let target, target.tabType == .bible,
-                  app.activeTab?.id == target.id else { return false }
-            let state = BibleState(target.state)
-            let layout = ScriptureLayout(rawValue: state.scriptureLayout) ?? .standard
-            return layout.usesInspector && state.rightPanelOpen
+            targetID.flatMap { activeInspectorState(for: $0)?.rightPanelOpen } ?? false
         }, set: { presented in
-            guard let target, target.tabType == .bible,
-                  app.activeTab?.id == target.id else { return }
-            let state = BibleState(target.state)
-            let layout = ScriptureLayout(rawValue: state.scriptureLayout) ?? .standard
-            guard layout.usesInspector else { return }
-            app.update(target.id, recordHistory: false) { tab in
-                var reader = BibleState(tab.state)
-                reader.rightPanelOpen = presented
-                tab.state = reader.merged(into: tab.state)
+            guard let targetID, let reader = activeInspectorState(for: targetID),
+                  reader.rightPanelOpen != presented else { return }
+            app.update(targetID, recordHistory: false) { tab in
+                guard inspectorState(in: tab) != nil else { return }
+                tab.state["rightPanelOpen"] = .bool(presented)
             }
         })
+    }
+
+    private func activeInspectorState(for tabID: String) -> BibleState? {
+        guard let tab = app.activeTab, tab.id == tabID else { return nil }
+        return inspectorState(in: tab)
+    }
+
+    private func inspectorState(in tab: BereanWorkspace.Tab) -> BibleState? {
+        guard tab.tabType == .bible else { return nil }
+        let state = BibleState(tab.state)
+        let layout = ScriptureLayout(rawValue: state.scriptureLayout) ?? .standard
+        return layout.usesInspector ? state : nil
     }
 
     /// [sidebar] [‹] [›] stay together in the sidebar title bar.
