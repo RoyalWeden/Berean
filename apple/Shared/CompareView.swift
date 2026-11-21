@@ -504,8 +504,9 @@ struct CompareView: View {
     }
 
     private func manageTranslations(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
+        let passage = passageKey(st, cols)
         let additions = availableTexts.filter { text in
-            loadedPassage == passageKey(st, cols) && eligibleComparisonEditions.contains(text.id)
+            loadedPassage == passage && eligibleComparisonEditions.contains(text.id)
                 && !cols.contains { $0.text == text.id && $0.follows(st) }
         }
         return Menu {
@@ -549,6 +550,14 @@ struct CompareView: View {
                       systemImage: "arrow.left.arrow.right")
             }
             .disabled(cols.count < 2)
+            Menu(closeColumnTitle(count: cols.count), systemImage: "xmark") {
+                ForEach(cols) { column in
+                    Button("Column \(column.id + 1) · \(column.label)") {
+                        closeColumn(column, in: passage)
+                    }
+                }
+            }
+            .disabled(cols.isEmpty)
             Section("Open in Reader") {
                 ForEach(cols.filter { availableColumnIDs.contains($0.id) }) { column in
                     Button(column.label) { setColumns([column]) }
@@ -1489,6 +1498,8 @@ struct CompareView: View {
 
     private func columnActions(_ column: CompareColumn, columns: [CompareColumn]) -> some View {
         let pinned = column.isPinned || !column.follows(state)
+        let configuredColumns = self.columns
+        let passage = passageKey(state, configuredColumns)
         return Menu {
             Button {
                 editingColumn = column
@@ -1520,11 +1531,9 @@ struct CompareView: View {
             }
             Divider()
             Button {
-                let remaining = columns.filter { $0.id != column.id }
-                // Old workspaces can open Compare with only one saved column.
-                setColumns(remaining.isEmpty ? [column] : remaining)
+                closeColumn(column, in: passage)
             } label: {
-                Label(columns.count <= 2 ? "Close Column and Exit Compare" : "Close Column", systemImage: "xmark")
+                Label(closeColumnTitle(count: configuredColumns.count), systemImage: "xmark")
             }
         } label: {
             Label("Actions for \(column.label)", systemImage: "ellipsis.circle")
@@ -1540,6 +1549,21 @@ struct CompareView: View {
         .hoverEffect(.highlight)
         #endif
         .help("Column actions")
+    }
+
+    private func closeColumnTitle(count: Int) -> String {
+        count <= 2 ? "Close Column and Exit Compare" : "Close Column"
+    }
+
+    private func closeColumn(_ column: CompareColumn, in passage: String) {
+        guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return }
+        let source = BibleState(tab.state)
+        let columns = CompareColumn.resolved(in: tab.state)
+        guard source.compareMode, passageKey(source, columns) == passage,
+              let closing = columns.first(where: { $0.id == column.id && $0.historyKey == column.historyKey }) else { return }
+        let remaining = columns.filter { $0.id != closing.id }
+        // Older workspaces can open Compare with one saved column.
+        setColumns(remaining.isEmpty ? [closing] : remaining)
     }
 
     private var selectionColumn: CompareColumn? {
