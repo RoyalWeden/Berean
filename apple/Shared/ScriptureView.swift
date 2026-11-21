@@ -953,6 +953,14 @@ struct ScriptureView: View {
         let saved = app.savedScripturePosition(tabId: tabId, edition: ChapterEdition(state))
         scrollTarget = restoringReader && saved?.selectedVerses == next ? nil : focus
         selection = next
+        publishPresenterSelection(requestsFocus: !restoringReader)
+    }
+
+    private func publishPresenterSelection(requestsFocus: Bool) {
+        guard app.presenterOpen, app.activeTab?.id == tabId, !state.compareMode else { return }
+        let next = AppModel.PresenterSelection(tabId: tabId, edition: ChapterEdition(state), verses: selection,
+                                               requestsFocus: requestsFocus)
+        if app.presenterSelection != next { app.presenterSelection = next }
     }
 
     private func passageSelection(_ state: BibleState) -> Set<Int> {
@@ -995,6 +1003,7 @@ struct ScriptureView: View {
         let disjoint = destination.endVerse == nil && selection.count > 1 ? selection.sorted() : []
         writeLocalSelectionDestination(destination, disjoint: disjoint)
         app.focusStudyVerse(selectedVerse, in: tabId, selectedVerses: selection.sorted())
+        publishPresenterSelection(requestsFocus: true)
     }
 
     private func writeLocalSelectionDestination(_ destination: SelectionDestination, disjoint: [Int] = []) {
@@ -2544,16 +2553,14 @@ extension ScriptureView {
                 guard !Task.isCancelled else { return }
                 strongsTooltips = next
             }
-            // Presenter: mirror the reader's live verse selection (only while it is open).
+            // Derived selection changes mirror highlights without replacing a matching focus request.
             .onChange(of: selection, initial: true) {
-                guard app.presenterOpen else { return }
-                let next = AppModel.PresenterSelection(tabId: tabId, edition: ChapterEdition(st), verses: selection)
-                if app.presenterSelection != next { app.presenterSelection = next }
+                let mirror = app.presenterSelection
+                if mirror?.tabId != tabId || mirror?.edition != ChapterEdition(st) || mirror?.verses != selection {
+                    publishPresenterSelection(requestsFocus: false)
+                }
             }
-            .onChange(of: app.presenterOpen) {
-                guard app.presenterOpen else { return }
-                app.presenterSelection = AppModel.PresenterSelection(tabId: tabId, edition: ChapterEdition(st), verses: selection)
-            }
+            .onChange(of: app.presenterOpen) { publishPresenterSelection(requestsFocus: false) }
 
     }
 

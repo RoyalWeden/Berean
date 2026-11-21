@@ -394,7 +394,12 @@ final class AppModel {
     struct PresenterAnchor: Equatable { var tabId: String; var edition: ChapterEdition; var verse: Int? }
     /// The main reader's top visible verse, published only while the presenter is open.
     var presenterAnchor: PresenterAnchor?
-    struct PresenterSelection: Equatable { var tabId: String; var edition: ChapterEdition; var verses: Set<Int> }
+    struct PresenterSelection: Equatable {
+        var tabId: String
+        var edition: ChapterEdition
+        var verses: Set<Int>
+        var requestsFocus = true
+    }
     /// The main reader's selected verses, published only while the presenter is open.
     var presenterSelection: PresenterSelection?
     var eSwordImportShown = false

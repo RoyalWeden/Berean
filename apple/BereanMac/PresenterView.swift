@@ -167,7 +167,12 @@ struct PresenterView: View {
         // Follow the latest interaction: selection focuses its first verse;
         // subsequent reader scrolling must still move the audience view.
         .onChange(of: source) { _, _ in followedVerse = readerAnchor ?? selected.min() }
-        .onChange(of: selected) { _, verses in followedVerse = verses.min() ?? readerAnchor }
+        .onChange(of: app.presenterSelection) { _, selection in
+            guard let selection, selection.requestsFocus,
+                  case .scripture(let tabID, let edition) = source,
+                  selection.tabId == tabID, selection.edition == edition else { return }
+            followedVerse = selection.verses.min() ?? readerAnchor
+        }
         .onChange(of: readerAnchor) { _, verse in followedVerse = verse }
         // The menu calls this outside the view graph: write through the $scale binding (a
         // captured struct copy didn't update the view, nor did a raw UserDefaults write).
