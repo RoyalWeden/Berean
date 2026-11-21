@@ -473,3 +473,10 @@ Settled reopen now uses the retained reader viewport; live observation remains s
 
 ### Nov21 startup correction — ada385b1
 Supersedes reproduced startup selection-overwrite above: transient highlight snapshots no longer request focus; deliberate verse selection/clear/destination still does. Both builds PASS; actual fresh startup stays at savedverse7/selected1, explicitverse8 focuses8; original state restored. No persisted format/schema changes. Wider multi-window/paused/edition/history matrix remainsOPEN. Focused evidence has exact scope and next steps.
+
+## 2026-11-21 — Native reader and diagnostics
+
+Local source through `7118fff8` includes Scripture history viewport restoration, complete local crash diagnostics and save timing, iPhone reader insets and a clear top edge, and immediate Mac floating search. Both final Dev builds passed and 349 shared tests passed. Same-chapter history passed live on Mac and iPhone Simulator. Mac cross-chapter and Scripture–Lexicon Back/Forward pass after the initial-layout correction. Final iPhone body-tap selection and Mac palette immediate typing/Actions/outside dismissal pass within the focused scope. Missing-viewport, broader width/type matrices and instrumented first-frame timing remain open. Physical iPhone watchdog cause remains open. CI 44894290052 passed at the prior published `ec6138cd`. See [CURRENT-STATE](CURRENT-STATE.md).
+
+
+2026-11-21 follow-up — `7118fff8`: rebuilt Mac actual Scripture → G5485 → Back, then Forward/Back, restores the exact 446-point viewport through first native layout. User scrolling remains free. Cross-chapter Back also passed. See the focused history record for scope; missing-viewport/rapid/edition and first-frame matrices remain open. No desktop margin change.

@@ -537,5 +537,14 @@ Settled reopen now uses the retained reader viewport; live observation remains s
 Supersedes reproduced startup selection-overwrite above: transient highlight snapshots no longer request focus; deliberate verse selection/clear/destination still does. Both builds PASS; actual fresh startup stays at savedverse7/selected1, explicitverse8 focuses8; original state restored. No persisted format/schema changes. Wider multi-window/paused/edition/history matrix remainsOPEN. Focused evidence has exact scope and next steps.
 
 
-### Nov21 confirmed history offset gap (OPEN)
+### Nov21 original history offset gap (repaired in e3845c9b; evidence below)
 Finalada385b1 actualCmdLGenesis1:20/currenttab/Presenterfollow PASS. Back→Genesis1:1 returnsscroll0 rather than prior509pt/verse7. History snapshot keeps viewport but ignoredcache shadowsit, selectionobserver reveals1 and same-passage native viewportrestore is not triggered. Next fix needs scoped one-time restoration across bothadapters, not cache-only change. Full implementation/test packet in PRESENTER-REFINEMENT-2026-11-21.md. FinalQAselection/viewport restored; no extra tabs.
+
+### Nov 21 — Scripture history, iPhone layout, Mac search and watchdog
+
+- **VERIFIED (bounded)** Same-chapter Scripture Back/Forward restores saved scroll on Mac and iPhone Simulator. Mac user-scroll persistence and Presenter live/paused behavior passed. Mac cross-chapter and repeated Scripture–Lexicon round trips pass after 7118fff8. Missing-viewport and broader type combinations remain open. [History evidence](HISTORY-VIEWPORT-RESTORATION-2026-11-21.md)
+- **VERIFIED (bounded)** Final iPhone inset build supports body-tap selection/deselection and clear text between glass controls. Mac search immediate typing, Actions and outside dismissal passed. All phone width presets and instrumented first-frame timing remain open.
+- **IN_PROGRESS** Physical iPhone exit-watchdog cause. Diagnostic preservation, local redelivery acknowledgement and content-free save timing landed in source. [Investigation](IOS-WATCHDOG-2026-11-21.md)
+
+
+2026-11-21 follow-up — `7118fff8`: rebuilt Mac actual Scripture → G5485 → Back, then Forward/Back, restores the exact 446-point viewport through first native layout. User scrolling remains free. Cross-chapter Back also passed. See the focused history record for scope; missing-viewport/rapid/edition and first-frame matrices remain open. No desktop margin change.

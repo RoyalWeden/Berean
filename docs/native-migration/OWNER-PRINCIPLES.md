@@ -58,3 +58,11 @@ Protect production data/sync/identities and existing review guards. The owner pe
 - Sidebar/study pane minimum widths must contain their controls; dividers need a stable resize cursor. Preserve the owner’s current layout when testing.
 
 When an item is improved, retain this principle, update the evidence/status and record deliberate replacements. Do not silently revert a working choice to a stale screenshot or a different AI’s default taste.
+
+## 2026-11-21 — iPhone Scripture top edge
+
+Owner explicitly requests no full-width top-bar blur on iPhone Scripture. Keep text clear between floating controls; only the individual glass controls blur text beneath their bounds. This supersedes any broad automatic top scroll-edge blur. Preserve existing Mac toolbar design. Owner also reported a physical-phone termination watchdog; investigate actual lifecycle evidence and do not dismiss it as harmless or claim simulator tests prove hardware stability.
+
+## 2026-11-21 — Faster desktop search and wider iPhone Scripture
+
+Owner observes titlebar dimming ahead of content and a slow floatingsearch open. Dim together in one presentation update; opening should feel immediate while retaining glass, autofocus, CmdLselection, outsideclick and Actions. Owner requests slightly reduced iPhoneScripturesidepadding so verses span wider; retain numbergutter/selectionoutline and distinctwidthpresets. Macreadingwidthunchanged.

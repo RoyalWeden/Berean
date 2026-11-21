@@ -704,3 +704,11 @@ Settled reopen now uses the retained reader viewport; live observation remains s
 
 ### Nov21 startup correction — ada385b1
 Supersedes reproduced startup selection-overwrite above: transient highlight snapshots no longer request focus; deliberate verse selection/clear/destination still does. Both builds PASS; actual fresh startup stays at savedverse7/selected1, explicitverse8 focuses8; original state restored. No persisted format/schema changes. Wider multi-window/paused/edition/history matrix remainsOPEN. Focused evidence has exact scope and next steps.
+
+### 2026-11-21 — History restoration, lifecycle diagnostics and scroll surfaces
+
+- Give an incoming Scripture history viewport a scoped, one-shot restoration request. Hydrate its matching cache entry before exposing the restored tab and suppress the selection reveal until restoration finishes. Preserve ordinary reveal when the snapshot lacks usable geometry. iPhone programmatic reader jumps checkpoint their destination so reverse history captures the new viewport. [Implementation and tests](HISTORY-VIEWPORT-RESTORATION-2026-11-21.md)
+- Store full MetricKit call stacks locally and acknowledge dismissal with a canonical fingerprint. Record content-free lifecycle timing to measure the synchronous save candidate while retaining durable saves. The physical watchdog attribution remains open. [Investigation](IOS-WATCHDOG-2026-11-21.md)
+- Keep iPhone glass on the individual floating controls and hide the top scroll-edge effect where available. Adjust only the iPhone text inset. For Mac floating search, use the same immediate visibility state for content and title-bar scrims, with query focus requested on presentation.
+
+For a newly mounted Mac reader only, keep the completed history intent through the existing geometry-settling burst. The first valid application completes the model request once; later geometry corrections require no newer restore and cancel on native input. This fixes the reproduced +26-point cross-type drift without extending warm same-host restores or delaying presentation (7118fff8, actual repeated round trips checked).

@@ -417,3 +417,11 @@ Supersedes reproduced startup selection-overwrite above: transient highlight sna
 
 ### Nov21 confirmed history offset gap (OPEN)
 Finalada385b1 actualCmdLGenesis1:20/currenttab/Presenterfollow PASS. Back→Genesis1:1 returnsscroll0 rather than prior509pt/verse7. History snapshot keeps viewport but ignoredcache shadowsit, selectionobserver reveals1 and same-passage native viewportrestore is not triggered. Next fix needs scoped one-time restoration across bothadapters, not cache-only change. Full implementation/test packet in PRESENTER-REFINEMENT-2026-11-21.md. FinalQAselection/viewport restored; no extra tabs.
+
+
+## 2026-11-21 — Reader navigation and surfaces checkpoint
+
+- Same-chapter history losing its saved viewport is repaired on both native readers (e3845c9b); iPhone programmatic jumps now checkpoint reverse-history destinations. Actual Mac/iPhone exact-offset round trips pass. The Mac +26-point Scripture–Lexicon return drift is repaired through first-attachment layout correction (7118fff8), with repeated actual round trips. Broader missing-viewport/type/edition/first-frame cases remain open.
+- iPhone Scripture has no full-width top edge blur and uses smaller phone-only insets; desktop widths/margins are unchanged. Final Simulator body-tap selection/deselection checked. Wider device/accessibility matrix remains open.
+- Mac palette now presents without its old 150ms fade, with shared immediate dimming and initial query focus. Immediate typing, Actions and outside dismissal checked; precise first-frame timing remains unmeasured.
+- Physical iPhone exit-watchdog cause remains open. Diagnostics now preserve full stacks and acknowledge dismissed reports locally, with save timing for further investigation. See CURRENT-STATE and the linked focused records for evidence and safe next steps.

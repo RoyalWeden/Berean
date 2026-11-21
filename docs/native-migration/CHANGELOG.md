@@ -2105,3 +2105,13 @@ Settled reopen now uses the retained reader viewport; live observation remains s
 
 ### Nov21 startup correction — ada385b1
 Supersedes reproduced startup selection-overwrite above: transient highlight snapshots no longer request focus; deliberate verse selection/clear/destination still does. Both builds PASS; actual fresh startup stays at savedverse7/selected1, explicitverse8 focuses8; original state restored. No persisted format/schema changes. Wider multi-window/paused/edition/history matrix remainsOPEN. Focused evidence has exact scope and next steps.
+
+### 2026-11-21 — Scripture Back and Forward, diagnostics, and native presentation
+
+- `e3845c9b` restores Scripture history viewport and selection together. Mac and iPhone Simulator verified same-chapter round trips. Mac also verified subsequent user scrolling and Presenter follow/pause. Cross-type initial-layout drift was subsequently repaired in 7118fff8 and checked with repeated Mac round trips.
+- `da77a14c` keeps full readable crash diagnostics, acknowledges dismissed reports locally, and records content-free save timing. The physical iPhone exit-watchdog cause remains open.
+- `0d6c0ad3` keeps iPhone Scripture clear between the glass controls on supported iOS versions and widens Scripture by reducing the phone inset. `40fb2923` presents Mac floating search immediately with matching title-bar and content dimming.
+- Both final Dev builds passed. Shared tests passed 349. Scoped interaction evidence and remaining cases are in the [history record](HISTORY-VIEWPORT-RESTORATION-2026-11-21.md) and [watchdog record](IOS-WATCHDOG-2026-11-21.md). Source through `7118fff8` is local. CI 44894290052 covers the prior published `ec6138cd`.
+
+
+2026-11-21 follow-up — `7118fff8`: rebuilt Mac actual Scripture → G5485 → Back, then Forward/Back, restores the exact 446-point viewport through first native layout. User scrolling remains free. Cross-chapter Back also passed. See the focused history record for scope; missing-viewport/rapid/edition and first-frame matrices remain open. No desktop margin change.

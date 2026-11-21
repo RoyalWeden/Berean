@@ -76,3 +76,7 @@ When adding a new focused document, link it here and in the relevant HANDOFF/TAS
 ## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
 
 Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
+
+- [Same-chapter history viewport restoration](HISTORY-VIEWPORT-RESTORATION-2026-11-21.md): current Back/Forward fix, ownership, required UI matrix and evidence.
+
+- [iPhone watchdog investigation](IOS-WATCHDOG-2026-11-21.md): supplied physical report, matched symbols, diagnostic fixes, clear top edge and unresolved hardware gates.
