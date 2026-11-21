@@ -2,7 +2,7 @@
 
 [HANDOFF](HANDOFF.md) is the owner-designated entry point. Read the current checkpoint and verify live state; then select relevant documents here. Historical implementation records are evidence, not current runtime instructions. Links below are repository-relative.
 
-Latest focused work: [Presenter/Messages/iPhone polish and remaining gates](PRESENTER-MESSAGES-POLISH-2026-11-20.md); [continuous owner-request investigation](OWNER-UX-2026-11-20.md).
+Latest focused work: [Resumed Presenter and Claude UI refinement](PRESENTER-REFINEMENT-2026-11-21.md). Earlier: [Presenter/Messages/iPhone polish and remaining gates](PRESENTER-MESSAGES-POLISH-2026-11-20.md); [continuous owner-request investigation](OWNER-UX-2026-11-20.md).
 
 ## Required continuity and project state
 

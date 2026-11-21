@@ -460,3 +460,12 @@ Inspector width restoration passed the custom380pt case twice and settled Notes/
 ## 2026-11-20 15:25 Pacific — Messages reference and composing follow-up
 
 Commit **1ec16c13** restores plain Scripture/Strong’s internal links without rewriting saved messages, uses normal destination navigation and reveals the main document. Stable declarative targets plus an initial-only bottom anchor fix reopening at older content. The iPhone native multiline composer grows to eight lines, preserves Markdown punctuation, and sends with Send/Command-Return. Actual Mac+iPhone reference, rich table/list/code, search, reopen and iPhone draft-return checks pass. Both Dev builds and344 shared tests pass. Original notes/tags/folders and exact37/47 active tab IDs unchanged. Rejected input/layout/focus attempts and remaining physical/accessibility/failure gates remain explicit in [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md). No production/sync/schema/raw identity changes or merges. Publication of this follow-up is next; prior b8882e06 CI44831691582 is green.
+
+
+## 2026-11-21 — Presenter and Claude follow-through
+
+Local sourcea4fcc429/16067d57/da8aecce/81938ff0 improves Presenter typography/appearance/focus, image preview preservation, custom print fractions/theme accessibility and clean Messages excerpts/replies.346shared tests pass; both integrated builds pass. Actual Mac follow/pause/theme/font/numbers/image/reply/search and iPhone named-theme/fraction controls checked; scoped limitations remain in PRESENTER-REFINEMENT-2026-11-21.md. Original QA records preserved, effective print defaults restored, exact active-ID recheck pending final publication. Broad goal ACTIVE after owner resumed; previous Nov20 cutoff superseded. Draft24 remains open; publication/exact-head checks in CURRENT-STATE. No production/sync/identity/merge changes.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.

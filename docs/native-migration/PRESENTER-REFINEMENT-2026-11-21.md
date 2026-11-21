@@ -1,0 +1,98 @@
+# Presenter refinement — 2026-11-21
+
+Owner explicitly resumed after Claude finished; the Nov20 handover deadline is superseded. Latest request: make Presenter more minimal, improve its font and syncing, and polish other Claude work it missed.
+
+## Baseline and ownership
+
+- Fast-forwarded isolated Codex checkout to Claude85d0f9a4 after preserving all five dirty files in stash `codex-preserved-presenter-before-claude-20261121` and `/private/tmp/berean-pre-resume-presenter-20261121.patch`. The older Presenter command candidate is superseded by Claude4f6ec1a4; do not blindly pop it. Other checkout is clean at85d0f9a4 and untouched.
+- Claude added print preferences,38 reading themes/custom themes, note images and reader accessibility. His Presenter keyboard/focus proof is historical evidence; do not rerun his CGEvent harness under Codex computer-use rules. Only CUA for UI actions.
+- Preserve production/sync/schema/identities and owner-only merge stack. Same Codex isolated QA profile and Simulator; validate actual path/arguments before interaction. No quota resets or retries of exhausted delegates.
+
+## Current work — unverified until checks below
+
+- Presenter follows the reader's selected Scripture font (system/San Francisco by default), spacing, verse-number preference and reading-theme palette; a rendered appearance snapshot stays frozen while paused.
+- Smaller quiet chapter heading, readable20pt base audience body, softer selection wash, compact grouped zoom/reset controls and unobtrusive follow-state symbol.
+- Fix focus precedence: selecting a verse focuses it, but later reader scrolling can move the audience view even with that selection retained. Preserve pause/resume semantics and stale async guards.
+- Mac build running in `/private/tmp/berean-presenter-minimal-mac-build.log`. No UI evidence yet. Continue with live selection→scroll→Pause→main changes→Resume, font/theme/number sync and bounds/keyboard regression checks.
+- Independent read-only scan of Claude's theme/print/image controls is delegated; no shared-file editing or UI by delegate.
+
+
+## First actual Mac checks
+
+- Built and launched isolated QA-onlyPID11079; ownerPID11064 untouched. Actual SF audience text, quieter heading and grouped glass zoom/reset controls inspected.
+- With Genesis1verse1 still selected, native reader Scroll Down moved reader0.4182415776499589→0.8422350041084634 and Presenter0.3156626506024096→0.6534939759036145; screenshot shows verse21 at focus. This confirms retained selection no longer blocks later reader scrolling.
+- Paused at verse21; main Scroll Up returned to verse11. Changed reader font toGeorgia and hid verse numbers through Scripture Display. Paused Presenter retained SF, numbers, verse21 and exact0.6534939759036145. Resume adoptedGeorgia/no numbers and verse11 (0.3134981968057702). Main restoredSystem/verse numbers ON and exact original0.4182415776499589. Presenter remains open/live160% in background; no tabs/notes changed by this phase.
+- Coordinate scroll failed because the main window’s position was outside the interactive display; used its explicitly exposed native Scroll Down/Up accessibility actions. No external UI scripts or CGEvents.
+
+## Additional Claude follow-through — implemented, checks pending
+
+- Delegate changed only PrintPreferences.swift/CustomReaderThemes.swift; parent reviewed diff. Custom always available with four quarter-inch margin controls; patch only changed settings and preserve unknown custom-margin fields. Correct inherited theme accent and clear per-theme Actions/selected accessibility.
+- Parent found preview image branches consumed an entire line after its first image. Added UTF16-safe leading-image split +two regression tests and recursively render the remainder, preserving subsequent prose/links/images. Remote loading/error states have explicit labels; caption is not duplicated on failure. Stored Markdown unchanged.
+- Targeted image tests and integrated Mac→iPhone builds running in `/private/tmp/berean-presenter-image-targeted-tests.log` and `/private/tmp/berean-refinement-final-{mac,ios}-build.log`. Continue actual image/print/theme UI tests, then full shared suite, data checks and focused commits. No new source commit yet.
+
+
+## Owner-requested restart pause — Nov21
+
+Owner requested immediate pause to restart the computer. Goal PAUSED. All resumed changes remain **uncommitted**: PresenterView.swift, NotesViews.swift, PrintPreferences.swift, CustomReaderThemes.swift, BereanNotes/NoteImages.swift and NoteImagesTests.swift, plus current documentation/new focused records. Published head85d0f9a4. Preserve these files and the older named stash/patch; do not pop the superseded Presenter command candidate.
+
+First Presenter Mac build passed and actual font/number/follow/pause/resume checks are recorded above. New integrated builds and targeted tests had not returned a final result when paused: build session74552 (`/private/tmp/berean-refinement-final-{mac,ios}-build.log`), test session79804 (`/private/tmp/berean-presenter-image-targeted-tests.log`). Treat them as potentially interrupted by restart; inspect logs/process state before rerunning. No claim that these new settings/image changes passed builds or UI yet. Full shared suite not rerun. No commits/pushes for this resumed batch.
+
+Mac test state restored System font/verse numbers ON/Genesis1KJVA selected1/Notes inspector/scroll0.4182415776499589; Presenter remains open/live160%. iPhone untouched this resume. No new note/tab fixtures created. After restart all PIDs, tool bindings and build handles require revalidation. Recheck exact original data baselines before claiming final preservation. Next: inspect check results, review/finish current source, actual theme/print/image UI, verify both apps and full tests, update evidence, commit/push normally to draft24. Owner-only merge guards remain.
+
+
+## Post-restart resume — 00:31 Pacific
+
+Owner resumed. All source changes intact, head85d0f9a4. Restart removed `/private/tmp` build/test logs, caches, old patch and old data baselines. The named Git stash survives (verify before use); do not treat missing temp evidence as a pass. No old live build/test process. Fresh full tests session91089 and Mac→iPhone build40859 use ignored `build/apple/qa-evidence/20261121` logs, build cache`build/apple/DerivedData-codex-20261121`, shared scratch`build/apple/swiftpm-codex-20261121`. Keep new evidence here so another restart does not remove it.
+
+Only owner Mac appPID728 was running; leave it untouched. Fresh read-only Mac QA baseline:22notes (includes prior owned trashed note),37activeIDs and all current settings/chat/tag rows. Snapshot`build/apple/qa-evidence/20261121/mac-baseline.json` contains hashes only. This fresh baseline does not retroactively replace the removed older21-original-note proof. iPhone device was shut down and container lookup failed; starting only CodexD0CC2F4C before requery/snapshot. No QA data changes yet.
+
+- Both post-restart integrated builds pass (`mac-build.log`, `ios-build.log`). Full tests still live (helperPID4120, CPU65% at observation); do not restart. The first Custom-margin Mac check found four visible controls collapsed into one AX text element. Parent separated label/value from the native hidden-label Stepper in a contained row and assigned explicit labels/values. Corrected Mac build passes; corrected iPhone build still running (session54931). QA Custom selection created only `printMarginPreset=custom`; baseline had no print/theme keys. Restore effective Normal and default custom values after tests; record additions rather than claiming byte-identical settings.
+- Durable fresh iPhone baseline has26notes/47activeIDs; Mac22notes/37activeIDs. Pre-restart removed baselines cannot be reused. Only owner appPID728 and Codex QA process3469 had been running; Codex3469 stopped/relaunched for corrected UI. Fresh runtime log`mac-margin-runtime.log`.
+
+
+## Post-restart verification and review — 00:42 Pacific
+
+- Fresh full shared run **346 passes**:4 core tests/1suite plus342 conformance tests/90suites; `build/apple/qa-evidence/20261121/shared-tests.log` (92.565s conformance). Both integrated builds and corrected margin builds pass. UI-only review edits after this run still need final builds; shared parser source unchanged after this passing run.
+- Actual corrected Mac margin controls expose separate native Stepper labels/values/Increment/Decrement. Top1→1.25 and Right1→1.5, Standard→Custom retains asymmetric values, then both restored1 and Standard/Normal. Effective original defaults restored; new owned setting rows remain `printMarginPreset=normal` and four-sided `printCustomMargins=1`, because baseline had no print keys. Do not claim settings byte-identical. No notes/tabs changed.
+- New actual theme-picker defect: preset items were all named “Aa” in the AX menu because the decorative swatch text overshadowed the title. Parent changed rows to title-first with shared decorative ThemeChip and explicit accessible theme names; final UI confirmation pending. No theme selection changed during discovery; Default remains selected.
+- Delegate final review found and parent corrected: paused Default-theme audience still followed the app's live color scheme (now capture effective scheme in appearance); image suffix was reparsed as a block and could become an unintended heading/divider (ordinary suffix now inline, only next image recurses); margin visual label duplicated the explicit Stepper name/value (visual-only label hidden from AX). UTF16 split and stale async publication guard reviewed sound.
+- Current final build session63134: `mac-review-final-build.log`→`ios-review-final-build.log`. No source commits yet. Next actual UI: theme names, Presenter Default/theme/color freeze, image-led prose/sequence and native print controls after final rebuild; then data/identity checks and focused commits/push.
+
+
+## Final Mac checks and focused commits — 00:50 Pacific
+
+- **a4fcc429** Presenter typography/follow/appearance. Actual final Default-dark Pause→appLight+Bible selection retains old dark audience; Resume adopts light Bible palette. Proper theme names now appear in native picker (previously all“Aa”). Restored appSystem/readingDefault. Prior font/number/selection-scroll checks above still apply.
+- **16067d57** image-content preservation, two new shared regressions. Actual owned Mac conversation `ab44752e-5113-4c1b-869a-8b7a60d9c706` (“QA image preview — 2026-11-21”) has one synthetic message: blue data image + following bold text/reference, then two consecutive images + literal `#` suffix. All three images, captions, following text/link and literal suffix render. No hard deletion; keep clearly named local QA fixture. Exact snapshot`build/apple/qa-evidence/20261121/mac-owned-image-conversation.json`. No original Chat row changed.
+- UI discovered conversation row exposed raw image Markdown/base64 and a long date crowded its title. Dirty ChatViews.swift now uses existing semantic Markdown plain-text rendering only for display/reply excerpts and a compact today-time/month-day stamp. Legacy service preview/title grammar and stored source remain unchanged. Both `mac-message-preview-build.log`/`ios-message-preview-build.log` pass. Actual Mac row now shows clean caption/prose with12:45AM; no image payload/markup. Reply display uses the same helper; its full matrix remains open.
+- Closed Chat and Presenter through native File→Close, returned original Genesis1KJVA selected1/Notes inspector; dismissed newly shown Strong’s TipKit overlay. After reboot native window geometry is narrower (sidebar239.5/right divider660), reader fraction0.2150401351922265 with verses7–13 visible and verse11 in view. Do not claim the older1540pt/0.418… geometry was restored. No tab count/ID changes. Original note/tag/chat/settings hashes all present; only owned new print/default-theme keys and image conversation added.
+- Native development identities verified (`com.berean.native.mac.dev` / `.ios.dev`). Final reviewed source builds pass;346 shared tests pass. No further shared parser source changed. iPhone installed/launched on onlyD0CC2F4C; UI interaction still pending. Source commits not pushed yet; print/theme and message preview still dirty pending bounded iPhone checks.
+
+## Latest explicit resume and review
+
+Owner resumed again. Final native controls logs both BUILD SUCCEEDED. Actual Mac preset menu exposes proper theme names; four margin steppers have one label each. Restored Normal. Review found two gaps before publication: blank semantic message content must retain legacy result summary; custom print must accept typed fractions as legacy does. Chat-only delegate fixed fallback and computes search collection once per body evaluation without stale caches. Parent added bounded0...4inch typed entry beside quarter-inch steppers (no imported value rewriting). New builds61933; actual final UI pending. Draft24 remains open/base native/m6-navigation/head85d0f9a4. Only own QA process5691 restarted to load test build; owner728 untouched. Current runtime session29175. Refreshed compact current docs, preserving historical evidence.
+
+- Both fractional-entry builds pass. Actual iPhone native theme menu now exposes named choices, not missing menu items. Custom Top typed0.125→increment0.375 verified; restoredTop1/Normal/Default/Psalm3LXX/no sheet. Actual Mac same0.125→0.375→1/Normal works. Mac screenshot revealed the TextField's automatic form label duplicated/wrapped the row title; parent added labelsHidden while retaining explicit accessible label. Final layout rebuild pending. iPhone DB location is container`Library/Application Support/BereanNative/berean.db` (Mac profile directory differs); resolve suffix from baseline, do not assume identical profile path.
+
+## Publication preparation
+
+Source commits da8aecce (print/theme controls) and81938ff0 (Messages). Actual Mac final layout is aligned; remaining duplicate accessible description was addressed with an empty internal TextField title plus explicit label. Both publish builds17394 pending final observation. Actual final Chat image conversation row and Replying to composer display clean captions/prose without raw source; AFTER IMAGE conversation search keeps the correct row. Canceled Reply, cleared search and closed Chat using File→Close; mainGenesis1KJVA/selected1/Notes inspector/exactscroll0.2150401351922265/sidebar239.5/rightdivider660 restored. No message sent/edited/deleted. Native text context menu intercepted first right-click; image area exposes actual Reply/Copy/Edit/Delete; explicitly used Reply only. Keyboard Escape did not dismiss a native menu reliably; exposed Cancel action worked.
+
+Read-only baseline checks: every original row hash in notes/settings/chat/tags present on both profiles; printMarginPreset normal and four custom sides1 on both. ActiveID sets still require final exact comparison. No full sync-parity claim: 'syncs' here refers to live Presenter following the main reader, not cross-device transport. Custom theme fallback is internally consistent, but legacy scheme-dependent inherited accent and separate iPhone verseNumber override remain OPEN.
+
+## Next Presenter correctness slice — in progress
+
+Review confirms Compare has local per-column positions/selections but no Presenter projection; legacy mirrors whole comparison. Queue a transient atomic active-column projection keyed by tab/configuration with actual mapped chapter, using Compare readingAnchor. Do not pretend primary-reader following closes Compare parity. Narrow ready fix: opening/reopening Presenter after scrolling while it was closed had only a possibly stale live mirror. Parent now reads current cached/persisted viewport before mirror and seeds initial follow from the visible anchor (read-only, no cache mutation during view render). Build/actual deep-scroll/reopen checks pending.
+
+- Runtime follow-up: toolbar now exposes Decrease/Reset/Increase text size with Reset160percent; actions160→140→160 and140→Reset160 pass. Live reader0.215→0.433 updates Presenter settled0.408 (verse13), preserving observer correctness. Reopen13→19 proof above passed, but cold startup exposed a further timing case: Presenter may mount before active source resolves and initially follow stale selected1. Source-change handler now seeds from latest current viewport rather than nil; cold-start final check pending. No claim that intermediate1e9eeed7 alone covers observation/cold-start. Final changes are a separate corrective commit after UI verification. Main restored exact0.2150401351922265, Presenter closed160%, iPhone restoredPsalm3LXX after plain-preview layout check; no message writes.
+
+## Final verified scope and remaining startup defect
+
+Source1e9eeed7+6a50adc6 retains viewport observation by explicitly reading the observable live anchor before ignored caches; removes historical mirror-value fallback after viewport clearing; seeds resolved source changes. Final Mac build`mac-presenter-source-seed-build.log`PASS. Actual zoom names Decrease/Reset/Increase and Reset160percent,160→140→160 andReset actions pass; native container now namedPresentertextsize. Focused keyboard limits matrix remainsClaude historical, notrerun here. Actual live reader0.215→0.433/Presenter0.408 and settled reopening at13→19 passed. Final settled reopen mainoffset509/verse7/selected1→audience0.177 passes.
+
+**OPEN, not fixed:** restored Presenter at cold startup showed0.0067/chapterstart while main savedoffset509/verse7. Source-change seed alone did not resolve it; next trace main restoration, cache-versus-persisted nil anchor and first selection mirror publication. No guessed sleep/delay or production data mutation. Explicit same-chapter jump regression also pending. Closing/reopening after reader settles is current QA workaround. Final main restoredGenesis1KJVAselected1/Notes/exact0.2150401351922265/sidebar239.5/rightdivider660; Presenter/Chat closed160%. Runtime87528, logmac-presenter-source-seed-runtime.log.
+
+Final original row hashes present and exact37/47active IDs unchanged on both profiles; resultsresumed-data-check.json. New preferences/fake Chat fixture remain clearly owned as recorded. iPhone native Chat plain-conversation preview/date visually checked, navigation returnedPsalm3LXX9tabs/no sheet. iPhone image/reply matrix stillOPEN. Final source commits still local pending normal draft24 publication.
+
+### Compare Presenter implementation packet (next slice)
+
+Presenter currently derives primaryBibleState; Compare publishes no anchor/selection. Reuse CompareView.readingAnchor (aligned/mapped/independent/stacked), including actual adjacent mapped chapter. Publish one atomic transient projection keyed by active tab and current passage/config+column destination. Explicit verse selection determines logical column; otherwise choose primary matching column or first surviving. Decide deliberately whether genuine user scroll drives focus; programmatic synchronized callbacks must not claim it. Reject stale projections after exit/reorder/remove/tab switch. Ordinary primary mirrors must not overwrite active Compare projection. Legacy mirrors whole comparison, so focused-column support alone is partial parity. Test non-primary pinnedLXXPsalm/mappedscroll/clear/reorder/close/reenter/pause+switch-note+resume and preserve raw stored annotations.

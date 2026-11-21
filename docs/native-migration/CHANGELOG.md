@@ -2088,3 +2088,16 @@ Published334eafbb/4e6c49fa retained. QA trace proves hidden inspector width capt
 ## 2026-11-20 15:25 Pacific — Messages reference and composing follow-up
 
 Commit **1ec16c13** restores plain Scripture/Strong’s internal links without rewriting saved messages, uses normal destination navigation and reveals the main document. Stable declarative targets plus an initial-only bottom anchor fix reopening at older content. The iPhone native multiline composer grows to eight lines, preserves Markdown punctuation, and sends with Send/Command-Return. Actual Mac+iPhone reference, rich table/list/code, search, reopen and iPhone draft-return checks pass. Both Dev builds and344 shared tests pass. Original notes/tags/folders and exact37/47 active tab IDs unchanged. Rejected input/layout/focus attempts and remaining physical/accessibility/failure gates remain explicit in [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md). No production/sync/schema/raw identity changes or merges. Publication of this follow-up is next; prior b8882e06 CI44831691582 is green.
+
+
+## 2026-11-21 — Presenter, preview and settings refinement
+
+- a4fcc429: calmer Presenter typography, grouped zoom/reset, reader preference synchronization, appearance-safe pause and reader scrolling after selection.
+-16067d57: preserve prose/links and consecutive images after a leading Markdown image; no stored-content rewrite.
+- da8aecce: editable custom print margins including direct fractions; per-control accessibility; reliable named native theme choices; consistent inherited custom accent.
+-81938ff0: clean message/reply excerpts without image payloads, compact date labels and one conversation filtering pass; preserve legacy result fallback.
+- Validation:346shared tests; both Dev builds; actual bounded Mac/iPhone interactions in focused evidence. Unknown-field/paper/physical-device/full Compare and rich-message matrices remain open. New evidence is durable under ignored build/apple/qa-evidence/20261121 after restart removed old temp paths. Original QA row hashes retained; new owned preferences/Chat fixture explicitly recorded. No production data or sync changes. Review remains draft24/owner-only merges.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.

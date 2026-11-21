@@ -398,3 +398,14 @@ Remaining: physical phone/keyboard/rotation/accessibility; larger Presenter keyb
 ## 2026-11-20 15:25 Pacific — Messages reference and composing follow-up
 
 Commit **1ec16c13** restores plain Scripture/Strong’s internal links without rewriting saved messages, uses normal destination navigation and reveals the main document. Stable declarative targets plus an initial-only bottom anchor fix reopening at older content. The iPhone native multiline composer grows to eight lines, preserves Markdown punctuation, and sends with Send/Command-Return. Actual Mac+iPhone reference, rich table/list/code, search, reopen and iPhone draft-return checks pass. Both Dev builds and344 shared tests pass. Original notes/tags/folders and exact37/47 active tab IDs unchanged. Rejected input/layout/focus attempts and remaining physical/accessibility/failure gates remain explicit in [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md). No production/sync/schema/raw identity changes or merges. Publication of this follow-up is next; prior b8882e06 CI44831691582 is green.
+
+
+## 2026-11-21 — Newly found and refined Claude controls
+
+Fixed: theme preset accessibility entries all“Aa”/iPhone missing named choices; native text choices expose actual names. Custom print was unavailable unless imported and had no editor; now always selectable with four native fraction fields/steppers (0...4in), preserving unknown saved fields. Fixed Mac automatic duplicate/wrapped field labels after visual QA. Messages rows/reply excerpts no longer expose image source/base64 and use quieter date stamps; blank semantic text preserves legacy summary. Image-led read-only blocks retain following prose/images. Presenter pause no longer changes effective scheme underneath the frozen palette.
+
+Still OPEN: physical VoiceOver/dynamic-type print controls, actual paper result, arbitrary locale/invalid-number edits, iPhone images/reply matrix, imported theme dark-scheme/verse-number override semantics, larger message-search performance, Presenter secondary Compare focus and rich heading scaling. See focused Nov21 evidence; do not mark these wider cases verified from build success.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.

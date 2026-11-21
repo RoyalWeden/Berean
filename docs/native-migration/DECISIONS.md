@@ -687,3 +687,16 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - Use composite message addresses in a declarative scroll layout, with a bottom anchor only for the initial offset. Do not force every subsequent size change to the end of the conversation.
 - iPhone composition uses a bounded native UITextView with ordinary state/delegate focus and smart quotes/dashes disabled. Return inserts a line break; explicit Send/Command-Return send. A SwiftUI FocusState binding directly on the UIKit wrapper and unbounded TextEditor layout were rejected by actual UI checks. Source formats and identities remain compatible.
 - Evidence and remaining gates: [Presenter/Messages polish](PRESENTER-MESSAGES-POLISH-2026-11-20.md). No broader feature-parity completion claim.
+
+
+## 2026-11-21 — Calm Presenter and native controls
+
+Presenter uses the reader's font/spacing/numbers/palette rather than a separate serif design. A pause freezes document, focus, selection and effective appearance; latest selection or scroll intent determines live focus. Smaller chapter metadata and grouped zoom/reset controls retain audience readability. Source a4fcc429; Compare secondary follow is separate pending work.
+
+Use plain named native preset choices: decorative“Aa”swatches replaced accessible theme names in menus and hid choices on iPhone. Keep swatches in custom-theme editing. Custom margin fields permit legacy arbitrary fractions alongside quarter-inch steps, patch only changed settings and preserve unknown fields. Never rewrite imported source merely to edit one option (da8aecce).
+
+Sanitize message excerpts only at the UI boundary, leaving legacy preview/title grammar and source untouched (81938ff0). Preserve result-summary fallback when semantic body is blank, and avoid repeated filtering across sidebar groups. Image block suffixes render inline unless another image starts the suffix, preventing accidental heading/divider reinterpretation (16067d57). The owner resumed after the restart; prior Nov20 deadline is superseded.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.

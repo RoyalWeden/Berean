@@ -1330,3 +1330,12 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 ## 2026-11-20 — Presenter/Messages/iPhone polish checkpoint
 
 See [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md) for source commits, actual UI scenarios and precise limits. This increment improves U07/U09/U18, iPhoneS02/S04/S08/Q09 and tab previews; it does not mark those broad features complete. Full339 shared tests and both visual builds pass; original notes/tags/folders/active IDs preserved. Wider physical, accessibility, reference, failure and constrained/manual resize matrices remain open.
+
+
+## 2026-11-21 — Bounded follow-through, not full closure
+
+Presenter now follows reader typography/appearance and later scrolling despite retained selection (a4fcc429); pause holds effective color scheme until Resume. Mac actual follow/pause/font/number/theme cases pass. Compare focused-secondary source remains OPEN. Markdown image previews preserve trailing text/consecutive images (16067d57;2regressions;346shared tests); iPhone actual image flow and mid-paragraph image layout remain OPEN. Print custom fraction entry/accessibility and native theme menu names are implemented in da8aecce, with actual Mac/iPhone0.125→0.375 behavior; paper output/unknown-field runtime/custom-dark accent semantics need further checks.81938ff0 sanitizes presentation excerpts/replies and retains existing service summaries without rewriting raw Chat data; Mac owned fixture search/reply passes, iPhone matrix open. Detailed evidence: PRESENTER-REFINEMENT-2026-11-21.md.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.

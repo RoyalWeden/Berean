@@ -518,3 +518,16 @@ Read [implementation and exact gates](PRESENTER-MESSAGES-POLISH-2026-11-20.md) a
 | IOS-READER-UNDERLAP | IMPLEMENTED, bounded UI verified | Scripture beneath chrome/full bottom; selected actions safe with dock shown/hidden. Compare, landscape/rotation, large type and physical phone remain. |
 | IOS-TAB-PREVIEWS | IMPLEMENTED, bounded UI verified | Adaptive cards, pinned separation, prepared Scripture and lexicon previews with stale guards. Saved-reading-position priority, large libraries and accessibility remain. |
 | INSPECTOR-WIDTH-RETURN | IMPLEMENTED, bounded UI verified | Native one-shot width restore and old-tab guards; custom380pt and settled Notes/Search/Compare/hide-show pass. Constrained first presentation and actual user resize/cancellation remain open. |
+
+
+## 2026-11-21 — Presenter and Claude UI follow-through
+
+- VERIFIED (bounded Mac UI): a4fcc429 Presenter reader font/spacing/numbers/theme, paused appearance freeze including effective scheme, and latest reader-scroll follow after retained verse selection. Compare secondary source and full rich-note scaling remain OPEN.
+- VERIFIED (Mac rendering + shared tests):16067d57 preserves image-led prose/links/consecutive images and literal suffix;2new regressions within346passing shared tests. iPhone image flow and nonleading inline image layout remain OPEN.
+- IMPLEMENTED + bounded Mac/iPhone UI:da8aecce custom four-sided print margins with direct fraction entry and quarter-inch steps; native accessible theme names, inherited custom accent consistency. Final labels-only cleanup built separately. Unknown-field preservation reviewed, actual print output and imported-dark accent parity remain OPEN.
+- VERIFIED (Mac owned fixture):81938ff0 clean conversation/reply previews, caption/prose search and compact dates; retains blank-content legacy summary and filters once per render. iPhone reply/accessibility/large-library performance matrix remains OPEN.
+- Continue from CURRENT-STATE and PRESENTER-REFINEMENT-2026-11-21. No broad parity row is closed by these checks.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.
