@@ -33,6 +33,13 @@ public enum NoteImages {
         }
     }
 
+    /// Split an image-led preview line without dropping following prose or images.
+    /// Ranges stay in UTF-16, matching the stored Markdown and existing scanner.
+    public static func leadingImage(in text: String) -> (image: Image, remainder: String)? {
+        guard let image = find(in: text).first, image.range.location == 0 else { return nil }
+        return (image, (text as NSString).substring(from: NSMaxRange(image.range)))
+    }
+
     /// Bytes of a supported base64 data URI (gif/png/jpeg/webp — SVG is not rendered, as the original refuses it inline).
     public static func dataURIBytes(_ source: String) -> Data? {
         let ns = source as NSString

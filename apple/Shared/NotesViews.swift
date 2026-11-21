@@ -1648,22 +1648,31 @@ struct MarkdownText: View {
 
     @ViewBuilder func block(_ line: String) -> some View {
         let t = line.trimmingCharacters(in: .whitespaces)
-        if let image = NoteImages.find(in: t).first, image.range.location == 0,
+        let leading = NoteImages.leadingImage(in: t)
+        if let image = leading?.image,
            image.source.lowercased().hasPrefix("https://") || image.source.lowercased().hasPrefix("http://"),
            let url = URL(string: image.source) {
             // Remote image line in a read-only preview (Presenter etc.).
             VStack(alignment: .leading, spacing: 4) {
                 AsyncImage(url: url) { phase in
-                    if let picture = phase.image { picture.resizable().scaledToFit() }
-                    else if phase.error != nil { Label(image.alt.isEmpty ? "Image unavailable" : image.alt, systemImage: "photo").foregroundStyle(.secondary) }
-                    else { ProgressView() }
+                    if let picture = phase.image {
+                        picture.resizable().scaledToFit().accessibilityLabel(image.alt.isEmpty ? "Image" : image.alt)
+                    } else if phase.error != nil {
+                        Label("Image unavailable", systemImage: "photo").foregroundStyle(.secondary)
+                    } else { ProgressView().accessibilityLabel("Loading image") }
                 }
                 .frame(maxWidth: image.width.map { CGFloat($0) } ?? .infinity, alignment: .leading)
                 .clipShape(.rect(cornerRadius: 6))
-                .accessibilityLabel(image.alt.isEmpty ? "Image" : image.alt)
                 if !image.alt.isEmpty { Text(image.alt).font(.caption).foregroundStyle(.secondary) }
+                if let remainder = leading?.remainder, !remainder.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if NoteImages.leadingImage(in: remainder.trimmingCharacters(in: .whitespaces)) != nil {
+                        MarkdownText(remainder, expands: expands)
+                    } else {
+                        inline(remainder)
+                    }
+                }
             }
-        } else if let image = NoteImages.find(in: t).first, image.range.location == 0,
+        } else if let image = leading?.image,
            let data = NoteImages.dataURIBytes(image.source), let picture = PreviewImage(data: data) {
             // Inline data: image line (saved width, caption) — the Presenter and previews used to
             // show only the "alt|w360" text. Never fetches remote images.
@@ -1673,6 +1682,13 @@ struct MarkdownText: View {
                     .clipShape(.rect(cornerRadius: 6))
                     .accessibilityLabel(image.alt.isEmpty ? "Image" : image.alt)
                 if !image.alt.isEmpty { Text(image.alt).font(.caption).foregroundStyle(.secondary) }
+                if let remainder = leading?.remainder, !remainder.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if NoteImages.leadingImage(in: remainder.trimmingCharacters(in: .whitespaces)) != nil {
+                        MarkdownText(remainder, expands: expands)
+                    } else {
+                        inline(remainder)
+                    }
+                }
             }
         } else if let passage = standaloneScriptureLink(t) {
             Link(destination: passage.url) {

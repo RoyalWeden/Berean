@@ -80,3 +80,24 @@ import BereanNotes
         #expect(NoteImages.image(at: 0, in: text) == nil)
     }
 }
+
+
+@Suite("note images — preview content preservation") struct NoteImagesPreviewTests {
+    @Test func keepsFollowingUnicodeProseAndAnotherImage() throws {
+        let source = "![Scroll|w240](data:image/png;base64,AAAA) 😀 Read **John 3:16**. ![Second](https://example.com/image.png)"
+        let first = try #require(NoteImages.leadingImage(in: source))
+        #expect(first.image.alt == "Scroll")
+        #expect(first.image.width == 240)
+        #expect(first.remainder == " 😀 Read **John 3:16**. ![Second](https://example.com/image.png)")
+        #expect((source as NSString).substring(with: first.image.range) + first.remainder == source)
+    }
+    @Test func handlesImageSequencesAndLeavesInlineTextIntact() throws {
+        let source = "![First](https://example.com/1.png)![Second](https://example.com/2.png)"
+        let first = try #require(NoteImages.leadingImage(in: source))
+        let second = try #require(NoteImages.leadingImage(in: first.remainder))
+        #expect(second.image.alt == "Second")
+        #expect(second.remainder.isEmpty)
+        #expect(NoteImages.leadingImage(in: "Text before " + source) == nil)
+        #expect(NoteImages.leadingImage(in: "`" + source + "`") == nil)
+    }
+}
