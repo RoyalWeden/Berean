@@ -950,6 +950,7 @@ final class AppModel {
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
         compareSelections.removeValue(forKey: tabId)
+        if compareSelectionHistoryRestore?.tabID == tabId { compareSelectionHistoryRestore = nil }
         studyVerseFocus.removeValue(forKey: tabId)
         dailyTimelinePositions.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
@@ -1088,6 +1089,7 @@ final class AppModel {
         var tab: BereanWorkspace.Tab
         var notesOptions: NotesHomeView.BrowseOptions?
         var notesReturnTab: String?
+        var compareSelection: CompareSelectionSnapshot?
     }
 
     private enum TabHistoryEntry: Equatable {
@@ -1097,11 +1099,15 @@ final class AppModel {
 
     private func historyLocation(_ tab: BereanWorkspace.Tab) -> TabHistoryLocation {
         var snapshot = tab
+        var compareSelection: CompareSelectionSnapshot?
         if tab.tabType == .bible {
             let state = BibleState(tab.state)
             let chapter = ChapterEdition(state).key
-            if !state.compareMode, let position = scriptureReadingPositions[tab.id]?[chapter]?.persisted,
-               position != ReaderViewports.position(in: tab.state, chapter: chapter) {
+            if state.compareMode {
+                let passage = CompareColumn.passageKey(state, CompareColumn.resolved(in: tab.state))
+                if let saved = compareSelections[tab.id], saved.passage == passage { compareSelection = saved }
+            } else if let position = scriptureReadingPositions[tab.id]?[chapter]?.persisted,
+                      position != ReaderViewports.position(in: tab.state, chapter: chapter) {
                 snapshot.state = ReaderViewports.updating(tab.state, chapter: chapter, position: position)
             }
         }
@@ -1116,7 +1122,7 @@ final class AppModel {
             snapshot.state["searchScrollTop"] = .number(Double(offset))
         }
         return TabHistoryLocation(tab: snapshot, notesOptions: notesBrowseOptions[tab.id],
-                                  notesReturnTab: noteListReturnTabs[tab.id])
+                                  notesReturnTab: noteListReturnTabs[tab.id], compareSelection: compareSelection)
     }
 
     /// Explicit location editing keeps this tab's identity, pin and sidebar position,
@@ -1138,6 +1144,7 @@ final class AppModel {
                                               originTabId: origin?.id, originSpaceId: origin?.spaceId)
         guard sessions[sessionIndex].replaceTabContent(current.id, with: destination) != nil else { return false }
         if scriptureHistoryRestore?.tabID == current.id { scriptureHistoryRestore = nil }
+        if compareSelectionHistoryRestore?.tabID == current.id { compareSelectionHistoryRestore = nil }
         backStack[current.id, default: []].append(.location(previous))
         if backStack[current.id]!.count > tabNavMaxStack { backStack[current.id]!.removeFirst() }
         forwardStack[current.id] = []
@@ -1153,11 +1160,16 @@ final class AppModel {
     private func restoreLocation(_ location: TabHistoryLocation, for id: String) {
         guard sessions[sessionIndex].replaceTabContent(id, with: location.tab) != nil else { return }
         scriptureHistoryRestore = nil
+        compareSelectionHistoryRestore = nil
+        compareSelections[id] = location.compareSelection
         if scriptureJumpRequest?.tabID == id { scriptureJumpRequest = nil }
         scriptureEditionSources.removeValue(forKey: id)
         if location.tab.tabType == .bible {
             let state = BibleState(location.tab.state)
-            if !state.compareMode {
+            if state.compareMode {
+                let passage = CompareColumn.passageKey(state, CompareColumn.resolved(in: location.tab.state))
+                compareSelectionHistoryRestore = CompareSelectionHistoryRestore(tabID: id, passage: passage)
+            } else {
                 let edition = ChapterEdition(state)
                 let position = ReaderViewports.position(in: location.tab.state, chapter: edition.key).map(ScriptureReadingPosition.init)
                 scriptureReadingPositions[id, default: [:]][edition.key] = position
@@ -1186,10 +1198,17 @@ final class AppModel {
     @ObservationIgnored var compareScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var compareColumnScrollVerses: [String: [String: Int]] = [:]
     @ObservationIgnored var compareSelections: [String: CompareSelectionSnapshot] = [:]
+    struct CompareSelectionHistoryRestore: Equatable {
+        let tabID: String
+        let passage: String
+        let revision = UUID()
+    }
+    var compareSelectionHistoryRestore: CompareSelectionHistoryRestore?
 
     /// Explicit verse commands jump to the requested selection. Ordinary Compare visits restore scrolling.
     func prepareCompareJump(in tabId: String, edition: ChapterEdition) {
         compareSelections.removeValue(forKey: tabId)
+        if compareSelectionHistoryRestore?.tabID == tabId { compareSelectionHistoryRestore = nil }
         let prefix = edition.key + "|"
         compareScrollOffsets[tabId] = compareScrollOffsets[tabId]?.filter {
             !$0.key.hasPrefix("aligned|" + prefix) && !$0.key.hasPrefix("stacked|" + prefix)

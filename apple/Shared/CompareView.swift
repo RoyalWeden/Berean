@@ -134,15 +134,16 @@ struct CompareSelectedPassage: Equatable {
     var scope: String { "\(column)|\(destination)|\(edition.key)" }
 }
 
-/// One local snapshot per open tab. Match the incoming reader intent too, so
-/// an explicit new verse command cannot restore an unrelated old selection.
+/// Match the incoming reader intent and history visit independently of the
+/// loaded chapter, which can stay mounted when history restores an older selection.
 private struct CompareReaderSelectionIntent: Equatable {
     let edition: ChapterEdition
     let verse: Int?
     let selection: Set<Int>
+    let historyRevision: UUID?
 }
 
-struct CompareSelectionSnapshot {
+struct CompareSelectionSnapshot: Equatable {
     let passage: String
     let readerVerse: Int?
     let readerSelection: Set<Int>
@@ -366,15 +367,16 @@ struct CompareView: View {
                 }
             }
         }
-        .onChange(of: CompareReaderSelectionIntent(edition: ChapterEdition(st), verse: st.verse, selection: selectedVerses(in: st))) { _, _ in
-            guard loadedPassage == passage else { return }
-            compareSelection = ReaderVerseSelection()
-            selectedPassage = nil
+        .onChange(of: CompareReaderSelectionIntent(edition: ChapterEdition(st), verse: st.verse,
+                                                  selection: selectedVerses(in: st), historyRevision: selectionHistoryRevision(for: passage))) { _, _ in
+            guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible, loadedPassage == passage else { return }
+            let current = BibleState(tab.state)
+            let columns = CompareColumn.resolved(in: tab.state)
+            guard current.compareMode, passageKey(current, columns) == passage else { return }
             #if os(macOS)
             presentationFocus = nil
             #endif
-            seedComparisonSelection(st, columns: cols)
-            rememberComparisonSelection()
+            restoreComparisonSelection(current, columns: columns, passage: passage)
         }
         .onChange(of: app.scriptureJumpRequest?.revision) {
             guard let jump = app.scriptureJumpRequest, jump.tabID == tabId,
@@ -1669,6 +1671,12 @@ struct CompareView: View {
             && loadedPassage == passageKey(state, columns)
     }
 
+    private func selectionHistoryRevision(for passage: String) -> UUID? {
+        guard let restore = app.compareSelectionHistoryRestore,
+              restore.tabID == tabId, restore.passage == passage else { return nil }
+        return restore.revision
+    }
+
     private func rememberComparisonSelection() {
         let source = state
         let passage = passageKey(source, columns)
@@ -1899,23 +1907,27 @@ struct CompareView: View {
         independentRows = independent
         eligibleComparisonEditions = Set(eligible)
         loadedPassage = passage
-        // The same chapter can receive a new verse command during its fetch.
+        restoreComparisonSelection(arrival, columns: cols, passage: passage)
+    }
+
+    private func restoreComparisonSelection(_ arrival: BibleState, columns cols: [CompareColumn], passage: String) {
+        compareSelection = ReaderVerseSelection()
+        selectedPassage = nil
         var restoredSelection = false
         if let saved = app.compareSelections[tabId], saved.passage == passage,
            saved.readerVerse == arrival.verse, saved.readerSelection == selectedVerses(in: arrival) {
             if let target = saved.target,
-               let column = cols.first(where: { $0.id == target.column && $0.historyKey == target.destination }) {
+               let column = cols.first(where: { $0.id == target.column && $0.historyKey == target.destination
+                   && $0.text == target.edition.text && $0.book == target.edition.book }) {
                 let available = selectionRows(in: column, chapter: target.edition.chapter)
                 selectedPassage = target
                 compareSelection.restore(saved.selection, scope: target.scope, ordered: available.map(\.verseNum))
                 restoredSelection = true
             } else if saved.target == nil {
-                compareSelection = ReaderVerseSelection()
-                selectedPassage = nil
                 restoredSelection = true
             }
         }
-        if !restoredSelection, selectedPassage == nil { seedComparisonSelection(arrival, columns: cols) }
+        if !restoredSelection { seedComparisonSelection(arrival, columns: cols) }
         rememberComparisonSelection()
     }
 
@@ -2116,32 +2128,35 @@ struct CompareView: View {
             openReader(passage, readingVerse: anchor?.verse)
             return
         }
-        preserveReadingPositions(for: cols)
+        let remappedSelection = preserveReadingPositions(for: cols)
         app.update(tabId) { tab in
             tab.state["compareColumns"] = .array(cols.map { .object($0.record) })
         }
+        // update records the outgoing history entry from the old selection.
+        if let remappedSelection { app.compareSelections[tabId] = remappedSelection }
     }
 
-    private func preserveReadingPositions(for next: [CompareColumn]) {
+    private func preserveReadingPositions(for next: [CompareColumn]) -> CompareSelectionSnapshot? {
         let previous = columns
         let anchor = state
         let reindexed = next.enumerated().compactMap { CompareColumn(id: $0.offset, record: $0.element.record, anchor: anchor) }
-        guard reindexed.count == next.count else { return }
+        guard reindexed.count == next.count else { return nil }
         let oldPassage = passageKey(anchor, previous)
         let newPassage = passageKey(anchor, reindexed)
-        guard oldPassage != newPassage else { return }
+        guard oldPassage != newPassage else { return nil }
 
+        var remappedSelection: CompareSelectionSnapshot?
         if let selection = selectedPassage,
            let index = next.firstIndex(where: { $0.id == selection.column && $0.historyKey == selection.destination }) {
             let column = reindexed[index]
             let target = CompareSelectedPassage(column: column.id, destination: column.historyKey, edition: selection.edition)
-            app.compareSelections[tabId] = CompareSelectionSnapshot(passage: newPassage, readerVerse: anchor.verse,
-                                                                   readerSelection: selectedVerses(in: anchor),
-                                                                   target: target, selection: compareSelection)
+            remappedSelection = CompareSelectionSnapshot(passage: newPassage, readerVerse: anchor.verse,
+                                                         readerSelection: selectedVerses(in: anchor),
+                                                         target: target, selection: compareSelection)
         } else if selectedPassage != nil {
-            app.compareSelections[tabId] = CompareSelectionSnapshot(passage: newPassage, readerVerse: anchor.verse,
-                                                                   readerSelection: selectedVerses(in: anchor),
-                                                                   target: nil, selection: ReaderVerseSelection())
+            remappedSelection = CompareSelectionSnapshot(passage: newPassage, readerVerse: anchor.verse,
+                                                         readerSelection: selectedVerses(in: anchor),
+                                                         target: nil, selection: ReaderVerseSelection())
         }
 
         let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
@@ -2174,6 +2189,7 @@ struct CompareView: View {
                 break
             }
         }
+        return remappedSelection
     }
 }
 

@@ -124,7 +124,7 @@ func readerBodyOffset(in text: NSAttributedString, range: NSRange, index: Int) -
 
 /// Compare selection is local to a column/passage, never translated through
 /// the anchor tab's edition. Shift ranges follow actual displayed row order.
-struct ReaderVerseSelection {
+struct ReaderVerseSelection: Equatable {
     private(set) var scope: String?
     private(set) var verses: Set<Int> = []
     private(set) var anchor: Int?
