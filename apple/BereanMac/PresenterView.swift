@@ -75,13 +75,15 @@ struct PresenterView: View {
         return Set(app.studySelectedVerses(in: tabID, state: BibleState(tab.state)))
     }
     private var readerAnchor: Int? {
+        // Viewport caches are observation-ignored; the live mirror invalidates
+        // this calculation even when a viewport publication does not write a tab.
+        _ = app.presenterAnchor
         guard case .scripture(let tabID, let edition) = source, let tab = app.activeTab else { return nil }
-        // The live mirror is only published while Presenter is open. The reader
-        // keeps its viewport even while it is closed, so prefer that newer state.
+        // The reader retains a newer viewport while Presenter is closed. A jump
+        // clears these stores; never revive an older mirror after that clearing.
         if let position = app.scriptureReadingPositions[tabID]?[edition.key] { return position.verse }
         if let position = ReaderViewports.position(in: tab.state, chapter: edition.key) { return position.verse }
-        guard let anchor = app.presenterAnchor, anchor.tabId == tabID, anchor.edition == edition else { return nil }
-        return anchor.verse
+        return nil
     }
     private var liveFocus: Int? {
         guard case .scripture = source else { return nil }
@@ -122,6 +124,8 @@ struct PresenterView: View {
             ToolbarItem {
                 HStack(spacing: 6) {
                     Button("Smaller", systemImage: "textformat.size.smaller") { setScale(scale - 0.2) }
+                        .labelStyle(.iconOnly)
+                        .accessibilityLabel("Decrease text size")
                         .disabled(scale <= PresenterZoom.range.lowerBound)
                         .help("Smaller text (⌘−)")
                     Button { setScale(PresenterZoom.standard) } label: {
@@ -129,15 +133,20 @@ struct PresenterView: View {
                             .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
                             .frame(minWidth: 42)
                     }
-                    .accessibilityLabel("Text size \(Int((scale * 100).rounded())) percent. Reset text size")
+                    .accessibilityLabel("Reset text size")
+                    .accessibilityValue("\(Int((scale * 100).rounded())) percent")
                     .help("Reset text size (⌘0)")
                     Button("Larger", systemImage: "textformat.size.larger") { setScale(scale + 0.2) }
+                        .labelStyle(.iconOnly)
+                        .accessibilityLabel("Increase text size")
                         .disabled(scale >= PresenterZoom.range.upperBound)
                         .help("Larger text (⌘+)")
                 }
-                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .buttonStyle(.borderless)
                 .padding(.horizontal, 6).frame(minHeight: 32)
                 .glassEffectCompat(interactive: true)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Presenter text size")
             }
             ToolbarItem {
                 Button(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill") {
@@ -157,7 +166,7 @@ struct PresenterView: View {
         .task(id: request) { await load(request) }
         // Follow the latest interaction: selection focuses its first verse;
         // subsequent reader scrolling must still move the audience view.
-        .onChange(of: source) { _, _ in followedVerse = nil }
+        .onChange(of: source) { _, _ in followedVerse = readerAnchor ?? selected.min() }
         .onChange(of: selected) { _, verses in followedVerse = verses.min() ?? readerAnchor }
         .onChange(of: readerAnchor) { _, verse in followedVerse = verse }
         // The menu calls this outside the view graph: write through the $scale binding (a
