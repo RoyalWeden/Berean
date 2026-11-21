@@ -57,6 +57,9 @@ struct IOSChapterTextView: UIViewRepresentable {
     var scrollRevision: UUID?
     let positionReader: ScripturePositionReader
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
+    var historyRestore: ScriptureHistoryRestore?
+    var isHistoryRestoreCurrent: (UUID?) -> Bool = { _ in true }
+    var finishHistoryRestore: (ScriptureHistoryRestore, ScriptureReadingPosition?) -> Void = { _, _ in }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var findRequest: Int
     var reference: (Int, Int) -> String
@@ -253,12 +256,13 @@ struct IOSChapterTextView: UIViewRepresentable {
         if previousSelection != selectedVerses || !samePassage {
             view.layoutManager.invalidateDisplay(forCharacterRange: NSRange(location: 0, length: view.textStorage.length))
         }
-        if revealSelection, scrollTarget == nil {
+        if revealSelection, scrollTarget == nil, historyRestore == nil {
             let currentPassage = passageId
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
                       coordinator.parent.passageId == currentPassage, coordinator.parent.scrollTarget == nil,
-                      coordinator.parent.selectedVerses == selectedVerses else { return }
+                      coordinator.parent.selectedVerses == selectedVerses,
+                      coordinator.parent.isHistoryRestoreCurrent(nil) else { return }
                 let ranges = selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: coordinator.verseRanges, orderedVerses: coordinator.parent.verses.map(\.verse))
                 for range in ranges {
                     coordinator.layoutThroughEnd(of: range, in: view)
@@ -272,17 +276,26 @@ struct IOSChapterTextView: UIViewRepresentable {
                     if offset != 0 {
                         let end = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
                         let y = min(max(view.contentOffset.y + offset, -inset.top), end)
-                        view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
+                        if y != view.contentOffset.y {
+                            view.setContentOffset(CGPoint(x: view.contentOffset.x, y: y), animated: false)
+                            coordinator.checkpointPosition(in: view)
+                        }
                     }
                     break
                 }
             }
         }
-        if !samePassage, scrollTarget == nil {
+        if (!samePassage || historyRestore != nil), scrollTarget == nil {
+            let restore = historyRestore
+            let revision = restore?.revision
             view.afterViewportLayout { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == passageId, coordinator.parent.passageId == passageId,
-                      coordinator.parent.scrollTarget == nil, let position = coordinator.parent.restorePosition() else { return }
+                      coordinator.parent.scrollTarget == nil, coordinator.parent.historyRestore?.revision == revision,
+                      coordinator.parent.isHistoryRestoreCurrent(revision),
+                      let position = restore?.position ?? coordinator.parent.restorePosition() else { return }
+                if restore != nil { view.discardResizeAnchor() }
                 coordinator.restoreReadingPosition(position, in: view)
+                if let restore { coordinator.parent.finishHistoryRestore(restore, coordinator.readingPosition(in: view)) }
             }
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
@@ -294,6 +307,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             view.afterViewportLayout { [weak view, weak coordinator] in
                 guard let view, let coordinator, coordinator.passageId == currentPassage,
                       coordinator.parent.scrollTarget == target, coordinator.lastTarget == request,
+                      coordinator.parent.isHistoryRestoreCurrent(nil),
                       coordinator.parent.selectedVerses.max() == request.lastSelectedVerse,
                       NSMaxRange(range) <= view.textStorage.length else { return }
                 let lastRange = request.lastSelectedVerse.flatMap { verse in
@@ -318,6 +332,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 }
                 let bottom = view.contentSize.height + inset.bottom - view.bounds.height
                 view.setContentOffset(CGPoint(x: 0, y: max(-inset.top, min(y, bottom))), animated: false)
+                // Programmatic verse jumps have no drag-end event to checkpoint their destination.
+                coordinator.checkpointPosition(in: view)
             }
         }
     }
@@ -392,6 +408,13 @@ struct IOSChapterTextView: UIViewRepresentable {
             selectionVisibleBeforeResize = reader.selectedGroupLines(in: self).map {
                 $0.lowerBound >= top - 1 && $0.upperBound <= bounds.maxY - adjustedContentInset.bottom + 1
             } ?? false
+        }
+
+        func discardResizeAnchor() {
+            resizeRestore?.cancel()
+            resizeRestore = nil
+            positionBeforeResize = nil
+            positionPassage = nil
         }
 
         func afterViewportLayout(_ action: @escaping () -> Void) {
@@ -754,7 +777,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             checkpointPosition(in: scrollView)
         }
 
-        private func checkpointPosition(in scrollView: UIScrollView) {
+        fileprivate func checkpointPosition(in scrollView: UIScrollView) {
             guard let view = scrollView as? UITextView, let position = readingPosition(in: view) else { return }
             parent.savePosition(position)
         }

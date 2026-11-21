@@ -576,6 +576,7 @@ final class AppModel {
     func switchSession(_ id: String, preferredSpace: SpaceId? = nil, rememberPrevious: Bool = true) {
         guard id != currentSessionId, let destination = sessions.first(where: { $0.id == id }) else { return }
         if rememberPrevious { rememberActiveTab() }
+        scriptureHistoryRestore = nil
         currentSessionId = id
         let remembered = workspaceSpaces[id].flatMap(SpaceId.init(rawValue:))
         if let space = preferredSpace ?? remembered, !destination.tabs(in: space).isEmpty {
@@ -857,6 +858,7 @@ final class AppModel {
 
     func select(_ tabId: String, in space: SpaceId, rememberPrevious: Bool = true) {
         if rememberPrevious, activeTab?.id != tabId { rememberActiveTab() }
+        if let restore = scriptureHistoryRestore, restore.tabID != tabId { scriptureHistoryRestore = nil }
         sessions[sessionIndex].activeTabId[space] = tabId
         activeSpace = space
         scheduleSave()
@@ -921,6 +923,7 @@ final class AppModel {
         defer { if wasActive, let n = neighbour, findTab(n.id) != nil { select(n.id, in: n.spaceId) } }
         for sp in SpaceId.allCases {
             guard var list = sessions[sessionIndex].tabs[sp], let idx = list.firstIndex(where: { $0.id == tabId }) else { continue }
+            if scriptureHistoryRestore?.tabID == tabId { scriptureHistoryRestore = nil }
             list.remove(at: idx)
             sessions[sessionIndex].tabs[sp] = list
             if activeTabId(in: sp) == tabId { sessions[sessionIndex].activeTabId[sp] = list.isEmpty ? nil : list[min(idx, list.count - 1)].id }
@@ -1017,6 +1020,7 @@ final class AppModel {
                 studyVerseFocus.removeValue(forKey: tabId)
             }
             if recordHistory, locationChanged {
+                if scriptureHistoryRestore?.tabID == tabId { scriptureHistoryRestore = nil }
                 if let saved = after.state["nativeSelectedVerses"], saved == before.state["nativeSelectedVerses"],
                    Self.selectionLocation(before) != Self.selectionLocation(after) {
                     sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
@@ -1055,6 +1059,14 @@ final class AppModel {
 
     private func historyLocation(_ tab: BereanWorkspace.Tab) -> TabHistoryLocation {
         var snapshot = tab
+        if tab.tabType == .bible {
+            let state = BibleState(tab.state)
+            let chapter = ChapterEdition(state).key
+            if !state.compareMode, let position = scriptureReadingPositions[tab.id]?[chapter]?.persisted,
+               position != ReaderViewports.position(in: tab.state, chapter: chapter) {
+                snapshot.state = ReaderViewports.updating(tab.state, chapter: chapter, position: position)
+            }
+        }
         if tab.tabType == .lexicon, let search = lexiconSearches[tab.id] {
             snapshot.state["searchQuery"] = .string(JSString(search.query))
             snapshot.state["searchLang"] = .string(JSString(search.lang))
@@ -1087,6 +1099,7 @@ final class AppModel {
                                               title: title, state: state,
                                               originTabId: origin?.id, originSpaceId: origin?.spaceId)
         guard sessions[sessionIndex].replaceTabContent(current.id, with: destination) != nil else { return false }
+        if scriptureHistoryRestore?.tabID == current.id { scriptureHistoryRestore = nil }
         backStack[current.id, default: []].append(.location(previous))
         if backStack[current.id]!.count > tabNavMaxStack { backStack[current.id]!.removeFirst() }
         forwardStack[current.id] = []
@@ -1101,6 +1114,20 @@ final class AppModel {
 
     private func restoreLocation(_ location: TabHistoryLocation, for id: String) {
         guard sessions[sessionIndex].replaceTabContent(id, with: location.tab) != nil else { return }
+        scriptureHistoryRestore = nil
+        if scriptureJumpRequest?.tabID == id { scriptureJumpRequest = nil }
+        scriptureEditionSources.removeValue(forKey: id)
+        if location.tab.tabType == .bible {
+            let state = BibleState(location.tab.state)
+            if !state.compareMode {
+                let edition = ChapterEdition(state)
+                let position = ReaderViewports.position(in: location.tab.state, chapter: edition.key).map(ScriptureReadingPosition.init)
+                scriptureReadingPositions[id, default: [:]][edition.key] = position
+                if let position {
+                    scriptureHistoryRestore = ScriptureHistoryRestore(tabID: id, edition: edition, position: position)
+                }
+            }
+        }
         notesBrowseOptions[id] = location.notesOptions
         noteListReturnTabs[id] = location.notesReturnTab
         if location.tab.tabType == .lexicon {
@@ -1166,6 +1193,7 @@ final class AppModel {
     @ObservationIgnored var readerChapterLoads: [ChapterEdition: Task<PreparedReaderChapter, Never>] = [:]
     @ObservationIgnored var scriptureReadingPositions: [String: [String: ScriptureReadingPosition]] = [:]
     var scriptureJumpRequest: (tabID: String, chapter: ChapterEdition, revision: UUID)?
+    var scriptureHistoryRestore: ScriptureHistoryRestore?
     @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition, position: ScriptureReadingPosition?)] = [:]
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesSearchOffsets: [String: [NotesHomeView.SearchPosition: CGFloat]] = [:]
@@ -1926,6 +1954,7 @@ final class AppModel {
     }
 
     func requestScriptureJump(in tabID: String, to chapter: ChapterEdition) {
+        if scriptureHistoryRestore?.tabID == tabID { scriptureHistoryRestore = nil }
         scriptureReadingPositions[tabID]?.removeValue(forKey: chapter.key)
         update(tabID, recordHistory: false) {
             $0.state = ReaderViewports.updating($0.state, chapter: chapter.key, position: nil)

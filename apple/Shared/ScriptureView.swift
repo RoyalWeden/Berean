@@ -9,6 +9,13 @@ import BereanReference
 import BereanWorkspace
 import BereanNotes
 
+struct ScriptureHistoryRestore {
+    let tabID: String
+    let edition: ChapterEdition
+    let position: ScriptureReadingPosition
+    let revision = UUID()
+}
+
 struct ScriptureReadingPosition: Equatable {
     let offset: CGFloat
     let verse: Int?
@@ -293,6 +300,7 @@ extension AppModel {
     }
 
     func saveScripturePosition(tabId: String, edition: ChapterEdition, position: ScriptureReadingPosition) {
+        if let restore = scriptureHistoryRestore, restore.tabID == tabId, restore.edition == edition { return }
         scriptureReadingPositions[tabId, default: [:]][edition.key] = position
         if presenterOpen {
             let anchor = PresenterAnchor(tabId: tabId, edition: edition, verse: position.verse)
@@ -608,6 +616,7 @@ struct ScriptureView: View {
     private var scrollTarget: Int? {
         get {
             let chapter = ChapterEdition(state)
+            if historyRestore(for: state) != nil { return nil }
             if let jump = app.scriptureJumpRequest, jump.tabID == tabId, jump.chapter == chapter { return state.verse }
             if scrollTargetScope == selectionScope { return storedScrollTarget }
             let next = passageSelection(state)
@@ -770,6 +779,27 @@ struct ScriptureView: View {
         "\(state.translation)|\(state.bookId)|\(state.chapter)"
     }
 
+    private func historyRestore(for state: BibleState) -> ScriptureHistoryRestore? {
+        guard let restore = app.scriptureHistoryRestore, restore.tabID == tabId,
+              restore.edition == ChapterEdition(state), app.activeTab?.id == tabId else { return nil }
+        return restore
+    }
+
+    private func isHistoryRestoreCurrent(_ revision: UUID?, for state: BibleState) -> Bool {
+        let edition = ChapterEdition(state)
+        guard let tab = app.findTab(tabId), tab.tabType == .bible else { return false }
+        let current = BibleState(tab.state)
+        guard !current.compareMode, ChapterEdition(current) == edition else { return false }
+        guard let restore = app.scriptureHistoryRestore, restore.tabID == tabId else { return revision == nil }
+        return restore.revision == revision && restore.edition == edition && app.activeTab?.id == tabId
+    }
+
+    private func finishHistoryRestore(_ restore: ScriptureHistoryRestore, position: ScriptureReadingPosition?) {
+        guard isHistoryRestoreCurrent(restore.revision, for: state) else { return }
+        app.scriptureHistoryRestore = nil
+        if let position { app.saveScripturePosition(tabId: tabId, edition: restore.edition, position: position) }
+    }
+
     private func restoreReaderPosition(_ state: BibleState) -> ScriptureReadingPosition? {
         let edition = ChapterEdition(state)
         if let arrival = chapterStepArrival, arrival.chapter == edition {
@@ -797,6 +827,11 @@ struct ScriptureView: View {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if verses.isEmpty {
                     unavailablePassage(st)
+                        .onChange(of: historyRestore(for: st)?.revision, initial: true) { _, revision in
+                            guard loadedChapter == chapter, verses.isEmpty,
+                                  let restore = historyRestore(for: st), restore.revision == revision else { return }
+                            finishHistoryRestore(restore, position: nil)
+                        }
                 } else {
                     #if os(macOS)
                     GeometryReader { geometry in
@@ -891,6 +926,9 @@ struct ScriptureView: View {
             guard loadedChapter == chapter, consumeVerseJump(for: st) else { return }
             applyPassageSelection(st)
         }
+        .onChange(of: historyRestore(for: st)?.revision, initial: true) { _, revision in
+            if revision != nil { scrollTarget = nil }
+        }
         .onChange(of: chapter) { _, _ in
             if app.readerChromeHidden {
                 withAnimation(reduceMotion ? nil : .snappy) { app.readerChromeHidden = false }
@@ -950,10 +988,11 @@ struct ScriptureView: View {
         }
         selectedVerse = focus
         anchor = focus
+        let restoringHistory = historyRestore(for: state) != nil
         let saved = app.savedScripturePosition(tabId: tabId, edition: ChapterEdition(state))
-        scrollTarget = restoringReader && saved?.selectedVerses == next ? nil : focus
+        scrollTarget = restoringHistory || (restoringReader && saved?.selectedVerses == next) ? nil : focus
         selection = next
-        publishPresenterSelection(requestsFocus: !restoringReader)
+        publishPresenterSelection(requestsFocus: !restoringReader && !restoringHistory)
     }
 
     private func publishPresenterSelection(requestsFocus: Bool) {
@@ -1453,6 +1492,9 @@ struct ScriptureView: View {
             scrollRevision: scrollRevision,
             positionReader: positionReader,
             restorePosition: { restoreReaderPosition(st) },
+            historyRestore: historyRestore(for: st),
+            isHistoryRestoreCurrent: { isHistoryRestoreCurrent($0, for: st) },
+            finishHistoryRestore: finishHistoryRestore,
             savePosition: { app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: $0) },
             findRequest: findRequest,
             reference: { first, last in
@@ -2510,6 +2552,9 @@ extension ScriptureView {
             },
             onFindKey: handleChapterFindKey,
             restorePosition: { restoreReaderPosition(st) },
+            historyRestore: historyRestore(for: st),
+            isHistoryRestoreCurrent: { isHistoryRestoreCurrent($0, for: st) },
+            finishHistoryRestore: finishHistoryRestore,
             savePosition: { app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: $0) },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
             rangeReference: { a, b in "\(referenceChapterLabel(st)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },

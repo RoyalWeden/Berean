@@ -225,6 +225,9 @@ struct ChapterTextView: NSViewRepresentable {
     var onFindRefresh: (String, Int, Int) -> Void = { _, _, _ in }
     var onFindKey: (NSEvent, Bool) -> Bool = { _, _ in false }
     var restorePosition: () -> ScriptureReadingPosition? = { nil }
+    var historyRestore: ScriptureHistoryRestore?
+    var isHistoryRestoreCurrent: (UUID?) -> Bool = { _ in true }
+    var finishHistoryRestore: (ScriptureHistoryRestore, ScriptureReadingPosition?) -> Void = { _, _ in }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
     var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
@@ -400,25 +403,31 @@ struct ChapterTextView: NSViewRepresentable {
             c.renderedSelection = selectedVerses
             tv.needsDisplay = true
         }
-        if revealSelection, scrollTarget == nil {
+        if revealSelection, scrollTarget == nil, historyRestore == nil {
             let destination = passageId
             DispatchQueue.main.async { [weak scroll, weak c] in
                 guard let scroll, let c, c.lastPassage == destination,
                       c.parent.passageId == destination, c.parent.scrollTarget == nil,
-                      c.parent.selectedVerses == selectedVerses else { return }
+                      c.parent.selectedVerses == selectedVerses,
+                      c.parent.isHistoryRestoreCurrent(nil) else { return }
                 for range in selectionRevealRanges(selectedVerses, previous: previousSelection, focus: selectionFocus, in: c.verseRanges, orderedVerses: c.parent.verses.map(\.verse)) {
                     if c.revealSelectedRange(range, in: scroll) { break }
                 }
             }
         }
-        if passageChanged, scrollTarget == nil {
+        if (passageChanged || historyRestore != nil), scrollTarget == nil {
+            let restore = historyRestore
+            let revision = restore?.revision
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll = scroll as? ChapterPullScrollView, let c, c.lastPassage == passageId,
-                      c.parent?.scrollTarget == nil, let position = c.parent?.restorePosition(),
+                      c.parent?.scrollTarget == nil, c.parent?.historyRestore?.revision == revision,
+                      c.parent?.isHistoryRestoreCurrent(revision) == true,
+                      let position = restore?.position ?? c.parent?.restorePosition(),
                       let container = tv.textContainer else { return }
                 scroll.enqueueViewportAction { [weak scroll, weak tv, weak c] in
                     guard let scroll, let tv, let c, c.lastPassage == passageId,
-                          c.parent?.scrollTarget == nil else { return }
+                          c.parent?.scrollTarget == nil, c.parent?.historyRestore?.revision == revision,
+                          c.parent?.isHistoryRestoreCurrent(revision) == true else { return }
                     tv.layoutManager?.ensureLayout(for: container)
                     let clip = scroll.contentView
                     var bounds = clip.bounds
@@ -431,6 +440,7 @@ struct ChapterTextView: NSViewRepresentable {
                     c.editionArrival = position.returnEdition.map {
                         ScriptureEditionArrival(edition: $0, offset: max(0, clip.bounds.minY - clip.documentRect.minY))
                     }
+                    if let restore { c.parent?.finishHistoryRestore(restore, c.readingPosition(in: scroll)) }
                 }
             }
         }
@@ -443,11 +453,13 @@ struct ChapterTextView: NSViewRepresentable {
             DispatchQueue.main.async { [weak tv, weak scroll, weak c] in
                 guard let tv, let scroll = scroll as? ChapterPullScrollView, let c,
                       c.parent.passageId == destination, c.parent.scrollTarget == target,
+                      c.parent.isHistoryRestoreCurrent(nil),
                       c.scrolledTo == request, c.parent.selectedVerses.max() == request.lastSelectedVerse,
                       let range = c.verseRanges[target], let container = tv.textContainer else { return }
                 scroll.enqueueViewportAction { [weak scroll, weak tv, weak c] in
                     guard let scroll, let tv, let c, c.parent.passageId == destination,
                           c.parent.scrollTarget == target, c.scrolledTo == request,
+                          c.parent.isHistoryRestoreCurrent(nil),
                           c.parent.selectedVerses.max() == request.lastSelectedVerse else { return }
                     scroll.layoutSubtreeIfNeeded()
                     tv.layoutManager?.ensureLayout(for: container)
