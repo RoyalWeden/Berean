@@ -2936,3 +2936,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - iPhone reader: per-verse VoiceOver elements (select/deselect, Verse Actions) — verified via AX hierarchy; VoiceOver gesture pass on device pending.
 - Presenter real-keyboard ⌘=/⌘-/⌘0 verified via CGEvent.postToPid (Presenter vs main window routing correct). Presenter matrix CLOSED. Mac QA tip: post key events to the QA PID, never global keystrokes. Remaining owner-only: physical iPhone Psalm 119 timing + VoiceOver gesture pass.
 - S04 Psalm superscriptions checked on sim (KJVA Ps 3, Brenton Ps 50) — matches owner's grouped-title decision; row ✅/✅.
+- S02 iPhone edge taps + pull navigation verified on sim (incl. momentum-flick negative case; note a reopened chapter restores its saved position, which can already be the end). Row ✅/✅.
