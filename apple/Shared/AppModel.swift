@@ -501,6 +501,7 @@ final class AppModel {
         if let v = all["hermasTranslation"]?.stringValue?.string, let edition = HermasText(rawValue: v) { hermasEdition = edition }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["idiomHighlightEnabled"]?.boolValue { idiomHighlightEnabled = v }
+        PrintPreferences.current = PrintPreferences(settings: all)
         wordReplacerRuleSet = WordReplacerRuleSet(stored: all["wordReplacerRules"])
         if let v = all["theme"]?.stringValue?.string { theme = v }
         if let v = all["notesFontFamily"]?.stringValue?.string, !v.isEmpty { notesFontFamily = v }
@@ -679,6 +680,7 @@ final class AppModel {
         set { saveSetting("tabNavMaxStack", .number(Double(min(1_000, max(10, newValue))))); historySettingsRevision += 1 }
     }
     var historySettingsRevision = 0
+    var printSettingsRevision = 0
     /// Original "Clear all tab nav history".
     func clearAllTabNavigation() { backStack = [:]; forwardStack = [:] }
     var tabNavEntryCount: Int { backStack.values.reduce(0) { $0 + $1.count } + forwardStack.values.reduce(0) { $0 + $1.count } }

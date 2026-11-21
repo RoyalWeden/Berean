@@ -523,12 +523,19 @@ func noteBlockReturnEdit(in text: NSString, selection: NSRange)
 }
 
 /// Prints a prepared HTML document (notes, idiom reference book) through the platform print panel.
-@MainActor func printMarkup(title: String, markup: String, fallback body: String = "") {
+@MainActor func printMarkup(title: String, markup rawMarkup: String, fallback body: String = "") {
+    // Print & Export settings (original keys): font, title and colour in the HTML, page on the print info.
+    let prefs = PrintPreferences.current
+    let markup = prefs.apply(to: rawMarkup, title: title)
+    let margins = prefs.marginPoints
     // Let the originating menu dismiss before the system presents its print panel.
     DispatchQueue.main.async {
         #if os(macOS)
         let printInfo = NSPrintInfo.shared.copy() as? NSPrintInfo ?? NSPrintInfo.shared
         printInfo.isVerticallyCentered = false
+        printInfo.paperSize = prefs.paperPoints
+        printInfo.topMargin = margins.top; printInfo.rightMargin = margins.right
+        printInfo.bottomMargin = margins.bottom; printInfo.leftMargin = margins.left
         let width = max(1, printInfo.paperSize.width - printInfo.leftMargin - printInfo.rightMargin)
         let view = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 1))
         view.isVerticallyResizable = true
@@ -560,7 +567,9 @@ func noteBlockReturnEdit(in text: NSString, selection: NSRange)
         info.jobName = title.isEmpty ? "Note" : title
         info.outputType = .general
         controller.printInfo = info
-        controller.printFormatter = UIMarkupTextPrintFormatter(markupText: markup)
+        let formatter = UIMarkupTextPrintFormatter(markupText: markup)
+        formatter.perPageContentInsets = UIEdgeInsets(top: margins.top, left: margins.left, bottom: margins.bottom, right: margins.right)
+        controller.printFormatter = formatter
         controller.present(animated: true)
         #endif
     }

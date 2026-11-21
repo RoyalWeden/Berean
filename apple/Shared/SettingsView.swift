@@ -30,6 +30,7 @@ struct SettingsView: View {
             Tab("Notes", systemImage: "note.text") { pane { notesSection } }
             Tab("Workspaces", systemImage: "square.stack") { pane { WorkspacesSettingsSection() } }
             Tab("History", systemImage: "clock.arrow.circlepath") { pane { HistorySettingsSection() } }
+            Tab("Print", systemImage: "printer") { pane { PrintSettingsSection() } }
             Tab("Shortcuts", systemImage: "keyboard") { pane { shortcutsSection } }
             Tab("About", systemImage: "info.circle") { pane { aboutSections } }
         }
@@ -63,6 +64,9 @@ struct SettingsView: View {
                 NavigationLink {
                     Form { HistorySettingsSection() }.formStyle(.grouped).navigationTitle("History")
                 } label: { Label("History", systemImage: "clock.arrow.circlepath") }
+                NavigationLink {
+                    Form { PrintSettingsSection() }.formStyle(.grouped).navigationTitle("Print & Export")
+                } label: { Label("Print & Export", systemImage: "printer") }
                 NavigationLink {
                     Form { shortcutsSection }.formStyle(.grouped).navigationTitle("Shortcuts")
                 } label: { Label("Shortcuts", systemImage: "keyboard") }

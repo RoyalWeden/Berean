@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import UIKit
 import BereanCore
 import BereanWorkspace
@@ -195,6 +196,7 @@ struct IOSRootView: View {
     }
 
     private func openGo(newTab: Bool = false) {
+        GoTip().invalidate(reason: .actionPerformed)   // the hint has done its job once Go is used
         // Presentation and destination intent travel together. Separate state
         // variables can leave a newly presented sheet with the previous mode.
         goRequest = GoRequest(newTab: newTab)
