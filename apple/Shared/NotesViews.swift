@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import BereanCore
 import BereanBible
 import BereanNotes
@@ -812,6 +813,8 @@ struct NoteDetailView: View {
                     }
                     .menuIndicator(.hidden)
                     .help("Format selected note text")
+                    .popoverTip(NoteFormatTip())
+                    .simultaneousGesture(TapGesture().onEnded { NoteFormatTip().invalidate(reason: .actionPerformed) })
                     #if os(macOS)
                     Button("Checklist", systemImage: "checklist") {
                         formatRequest = NoteFormatRequest(action: .list(.checklist))

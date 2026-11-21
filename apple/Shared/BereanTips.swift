@@ -21,6 +21,18 @@ struct AskFollowUpTip: Tip {
     var image: Image? { Image(systemName: "arrow.turn.down.right") }
 }
 
+struct StrongsTip: Tip {
+    var title: Text { Text("Strong's numbers") }
+    var message: Text? { Text("Show the Hebrew and Greek word numbers. Click one to open its lexicon entry.") }
+    var image: Image? { Image(systemName: "number") }
+}
+
+struct NoteFormatTip: Tip {
+    var title: Text { Text("Format your note") }
+    var message: Text? { Text("Headings, highlights, callouts and lists. Notes stay plain Markdown, so they open anywhere.") }
+    var image: Image? { Image(systemName: "textformat") }
+}
+
 @MainActor enum BereanTips {
     static let resetKey = "resetHintsOnLaunch"
     static func configure() {

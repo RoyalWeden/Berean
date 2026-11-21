@@ -10,4 +10,5 @@ Status: **IMPLEMENTED; iPhone VERIFIED, Mac built** (sheet path shares the view)
 ## Feature hints (U13) — 2026-11-20 (later)
 - Original §16 hints (first-use tooltip, Dismiss / don't show again, reset in About) ported with **TipKit** (`apple/Shared/BereanTips.swift`): Search Berean (iPhone search button), Picture in Picture (YouTube button; invalidated once used), Ask a follow-up (inline in Ask Berean after the first answer). Settings → About → **Reset Hints** (applies at next launch — TipKit can only reset before it is configured).
 - Verified on sim: the Search Berean hint appears above the search button on launch.
-- Not added: hints for Strong's hover, verse click, highlight, compare, notes markdown toggle (anchors are inside the TextKit readers/editors; TipKit needs a SwiftUI anchor — follow-up).
+- Added later: **Strong's numbers** (Mac reader toolbar toggle; retires once used) and **Format your note** (note Format menu, both platforms; retires once opened). TipKit shows one hint at a time, so these follow the Search hint (seen on sim: Search hint shown first on a note).
+- Not added: verse-click, highlight and compare hints (their anchors are inside the TextKit readers; iPhone's Strong's toggle is inside a menu).

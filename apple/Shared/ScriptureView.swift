@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import CoreTransferable
 import UniformTypeIdentifiers
 import BereanCore
@@ -1651,9 +1652,10 @@ struct ScriptureView: View {
             Toggle(isOn: Binding(get: { st.compareMode }, set: { app.setReaderCompareMode($0, in: tabId) })) { Label("Compare", systemImage: "rectangle.split.2x1") }
                 .clickableCursor()
                 .help("Compare texts side by side (⌥⌘C)")
-            Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
+            Toggle(isOn: Binding(get: { st.showStrongs }, set: { v in StrongsTip().invalidate(reason: .actionPerformed); mutate { $0.showStrongs = v } })) { Label("Strong's Numbers", systemImage: "number") }
                 .clickableCursor()
                 .help("Show Strong's numbers")
+                .popoverTip(StrongsTip())
             Toggle(isOn: Binding(get: { st.rightPanelOpen }, set: { app.setReaderStudyPanelOpen($0, in: tabId) })) { Label("Study Panel", systemImage: "sidebar.trailing") }
                 .clickableCursor()
                 .help("Study panel: notes, lexicon, cross references (⌥⌘I)")
