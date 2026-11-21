@@ -23,7 +23,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S01 | Text loading and bundled texts | implemented | ✅ | ✅ | — | All 19 texts bundled; lxx→lxx_brenton mapping fixed; text list = legacy TRANSLATIONS (KJV hidden, Hermas Taylor listed) |
 | S02 | Book / chapter / passage navigation | implemented | ✅ | 🟡 | P1 | iPhone chapter swipe and Go reuse available reading tabs; edge taps and pull navigation pending. |
 | S03 | Reference parsing | implemented | ✅ | ✅ | — | Golden-pinned parser + native resolver (bare book names, "Jude 5", other texts) |
-| S04 | Verse rendering | implemented | ✅ | 🟡 | P1 | Continuous TextKit readers on both platforms. Psalm superscription treatment still needs a running-app check. |
+| S04 | Verse rendering | implemented | ✅ | ✅ | P1 | Continuous TextKit readers on both platforms. Psalm superscriptions checked in the running iPhone app 2026-11-20: KJVA Psalm 3 title in muted italics under verse 1; Brenton Psalm 50 two title verses folded into one line, body shown as verse 1 with the KJV Psalm 51 note — the owner's grouped-title decision (CHANGELOG "Brenton Psalm titles belong to first displayed body verse1"), intentionally unlike the original's unnumbered line above. |
 | S05 | Strong's rendering and lexicon access | implemented | ✅ | 🟡 | P1 | Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover now loads the lemma, transliteration, and gloss. Runtime hover verification remains pending. |
 | S06 | Interlinear | deferred | — | — | — | Deferred in original too |
 | S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Both readers use a single selectable chapter. iPhone long-press word selection and its copy menu verified in Simulator; cross-verse handle drag and clipboard output need touch QA. |
@@ -159,7 +159,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** Same renderer on both; iPhone adds long-press sheets.
 - **Original files:** `src/components/bible/{VerseRow(2155),ChapterView(1431),TaggedVerseList,verseRowStyles}.tsx`; `src/lib/{taggedTokens,annotationFilters,psalmSuperscription,psalmTitles,verseTagRanges,scriptureText}.ts`; iPhone `src/mobile/study/VerseStudy.tsx`, `src/mobile/reader/readerViews.tsx`.
 - **Known original defects:** Rendering depends on DOM text-node ordering for selection→offset conversion; any native replacement must reproduce exactly the character positions that existing highlights were stored with (see H02).
-- **Native Mac / iPhone:** ✅ / 🟡 — Continuous TextKit readers on both platforms. Psalm superscription treatment still needs a running-app check.
+- **Native Mac / iPhone:** ✅ / ✅ — Continuous TextKit readers; Psalm superscriptions checked in the running iPhone app (KJVA Ps 3, Brenton Ps 50) per the owner's grouped-title decision.
 - **Native files:** ChapterTextView.swift, ScriptureView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
