@@ -22,30 +22,32 @@ struct ChatView: View {
     @State private var folderName = ""
     @State private var deleting: ChatsService.Chat?
 
-    private var conversations: [ChatsService.Chat] {
+    private var filteredConversations: [ChatsService.Chat] {
         chats.filter { chat in
             !chat.isUnfiled && (search.isEmpty || chat.title.localizedCaseInsensitiveContains(search)
-                || chat.messages.contains { $0.preview.localizedCaseInsensitiveContains(search) })
+                || chat.messages.contains { $0.displayPreview.localizedCaseInsensitiveContains(search) })
         }
     }
-    private var pinned: [ChatsService.Chat] { conversations.filter { $0.pinnedAt != nil }.sorted { ($0.pinnedAt ?? "") > ($1.pinnedAt ?? "") } }
-    private var folders: [String] { Array(Set(conversations.compactMap { $0.pinnedAt == nil ? $0.folder : nil })).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending } }
-    private var loose: [ChatsService.Chat] { conversations.filter { $0.pinnedAt == nil && $0.folder == nil } }
 
     var body: some View {
+        let conversations = filteredConversations
+        let pinned = conversations.filter { $0.pinnedAt != nil }.sorted { ($0.pinnedAt ?? "") > ($1.pinnedAt ?? "") }
+        let unpinned = conversations.filter { $0.pinnedAt == nil }
+        let folders = Set(unpinned.compactMap(\.folder)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        let loose = unpinned.filter { $0.folder == nil }
         NavigationSplitView {
             List(selection: $selection) {
                 Label("All Messages", systemImage: "tray.full")
                     .font(.body.weight(.medium)).padding(.vertical, 6).tag(Selection.all)
-                if !pinned.isEmpty { Section("Pinned") { ForEach(pinned) { row($0) } } }
+                if !pinned.isEmpty { Section("Pinned") { ForEach(pinned) { row($0, folders: folders) } } }
                 ForEach(folders, id: \.self) { f in
-                    Section(f) { ForEach(conversations.filter { $0.pinnedAt == nil && $0.folder == f }) { row($0) } }
+                    Section(f) { ForEach(unpinned.filter { $0.folder == f }) { row($0, folders: folders) } }
                 }
                 Section("Conversations") {
                     if loose.isEmpty && pinned.isEmpty && folders.isEmpty {
                         Text(search.isEmpty ? "No conversations yet" : "No conversations match").foregroundStyle(.secondary)
                     }
-                    ForEach(loose) { row($0) }
+                    ForEach(loose) { row($0, folders: folders) }
                 }
             }
             .navigationTitle("Berean Chat")
@@ -109,7 +111,7 @@ struct ChatView: View {
         } message: { Text("Its messages are deleted too.") }
     }
 
-    private func row(_ c: ChatsService.Chat) -> some View {
+    private func row(_ c: ChatsService.Chat, folders: [String]) -> some View {
         HStack(spacing: 12) {
             Image(systemName: c.pinnedAt == nil ? "bubble.left.and.text.bubble.right" : "pin.fill")
                 .font(.body.weight(.medium)).foregroundStyle(.tint)
@@ -120,11 +122,14 @@ struct ChatView: View {
                     Text(c.title).font(.body.weight(.medium)).lineLimit(1)
                     Spacer(minLength: 4)
                     if let date = ChatsService.time(c.updatedAt) {
-                        Text(Date(timeIntervalSince1970: date / 1000), style: .date)
+                        let updated = Date(timeIntervalSince1970: date / 1000)
+                        Text(updated.formatted(Calendar.current.isDateInToday(updated)
+                                               ? .dateTime.hour().minute() : .dateTime.month(.abbreviated).day()))
                             .font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                            .accessibilityLabel(updated.formatted(date: .complete, time: .shortened))
                     }
                 }
-                Text(c.messages.last?.preview ?? "Start the conversation")
+                Text(c.messages.last?.displayPreview ?? "Start the conversation")
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
         }
@@ -280,7 +285,7 @@ struct ChatThreadView: View {
             }
             if let parentId = m.inReplyTo {
                 let parent = chat.messages.first { $0.id == parentId }
-                Label(parent.map { String($0.preview.prefix(80)) } ?? "Original message deleted", systemImage: "arrowshape.turn.up.left")
+                Label(parent.map { String($0.displayPreview.prefix(80)) } ?? "Original message deleted", systemImage: "arrowshape.turn.up.left")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             if editing?.id == ChatsService.MessageAddress(chatID: chat.id, messageID: m.id) {
@@ -364,7 +369,7 @@ struct ChatThreadView: View {
             }
             if let replyTo {
                 HStack {
-                    Label("Replying to: \(String(replyTo.message.preview.prefix(60)))", systemImage: "arrowshape.turn.up.left").font(.caption).lineLimit(1)
+                    Label("Replying to: \(String(replyTo.message.displayPreview.prefix(60)))", systemImage: "arrowshape.turn.up.left").font(.caption).lineLimit(1)
                     Spacer()
                     Button("Cancel Reply", systemImage: "xmark.circle.fill") { self.replyTo = nil }.labelStyle(.iconOnly).buttonStyle(.plain)
                 }
@@ -528,3 +533,16 @@ private struct ChatMessageEditor: UIViewRepresentable {
     }
 }
 #endif
+
+
+private extension ChatsService.Message {
+    /// A presentation-only excerpt. Keep the legacy service preview/title grammar
+    /// and saved source intact, while hiding image payloads and link destinations.
+    var displayPreview: String {
+        let source = content.isEmpty ? preview : content
+        let plain = MarkdownLiveSpans.plainText(source).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        if !plain.isEmpty { return plain }
+        if source.contains("![") && !NoteImages.find(in: source).isEmpty { return "Image" }
+        return preview
+    }
+}
