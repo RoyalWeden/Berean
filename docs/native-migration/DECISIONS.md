@@ -728,3 +728,8 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 
 - Drive the compact iPhone grid from prepared reader rows rather than row count. Use their display and accessibility labels and submit the stored verse identity directly. Give the iPhone clear and keyboard-dismiss controls 44-point targets and preserve Mac compact dimensions.
 - Own the Mac title in the active tab host. Gate reader toolbar registration and picker mutations by the live tab type, identity, mode and passage. Close old popovers as ownership changes. An initial visibility guard blocked Return submission as the popover dismissed. The final callback uses live ownership and the picker’s single-pick guard. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+
+
+### 2026-11-21 — Compare selection belongs to the history visit
+
+Copy the matching Compare selection into the existing bounded session history entry. Capture the outgoing visit before installing the remapped destination cache. Restoration replaces or evicts the matching cache and uses a tab- and passage-scoped revision with the same helper for load and same-chapter returns. Explicit verse commands still clear or reseed selection. Reader selection has value equality. The history change leaves schemas, sync and persisted selection untouched. Keep viewport transfer separate so it can follow the actual rendered layout and be verified independently. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)

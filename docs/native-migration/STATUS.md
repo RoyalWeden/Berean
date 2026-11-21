@@ -495,3 +495,8 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 ## 2026-11-21 — Passage picker and Mac toolbar
 
 Local source `d9da6c36` includes the iPhone prepared-row verse grid and Mac active-reader toolbar ownership. Both final Dev builds passed. Simulator verified four irregular LXX chapter grids and the expanded dismiss target. Mac verified the Compare → Genesis and Scripture → Strong’s → Back toolbar routes, plus bounded pinned and mapped Presenter behavior. Software-keyboard dismissal, Mac mouse row activation, and the wider Compare matrix remain open. Previous published `f6865f54` passed all three checks in CI 44940784658. Publication and CI for the new source are pending. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+
+
+## 2026-11-21 — Compare selection history
+
+Local source `50f00c76` preserves Compare selections per Back/Forward visit during the current session. Both Dev builds and the actual reader selection regression passed. Mac and iPhone Simulator verified the targeted routes. The narrow-layout viewport mismatch remains audited and open, alongside persisted Compare viewport and broader interaction coverage. All three checks passed at the previous published `e39b48a0` in CI 44943410767. Publication and CI for the new source are pending. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)

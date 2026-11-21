@@ -565,3 +565,9 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 - **VERIFIED (bounded)** iPhone Simulator showed the actual irregular LXX grid rows for Exodus 32, 1 Kings 14, Psalm 115 and Psalm 3. A tap at the outer edge of the expanded keyboard-dismiss target worked. Interactive software-keyboard dismissal and physical-device coverage remain open. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
 - **VERIFIED (bounded)** Mac Compare Presenter showed the pinned Psalm 3 LXX secondary and returned to the primary after Clear. In synced Jonah, it showed LXX Jonah 2:1 aligned to KJV Jonah 1:17. Full mirroring and narrow, reorder and scroll matrices remain open. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
 - **VERIFIED (bounded)** Mac main passage popover Return navigated in Compare. The subsequent Genesis tab switch and same-ID Strong’s search/Back restored one Genesis toolbar and the saved viewport. Mouse row activation remains inconclusive. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+
+
+### Nov 21 — Compare selection history
+
+- **VERIFIED (bounded)** Compare Back/Forward remembers the selection for each visit during the current session. Mac passed swap, close to a single reader, Back/Forward, repeated visits with different selections, and explicit verse navigation followed by Back. iPhone Simulator passed secondary selection through swap and Back/Forward, then returned to the original unselected reader with nine tabs. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)
+- **OPEN** Reconcile the narrow layout’s reading-position transfer with the rendered mode and verify column removal and resize. Persisted Compare viewport, rapid navigation, accessibility and full Presenter mirroring remain open.

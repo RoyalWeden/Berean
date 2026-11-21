@@ -441,3 +441,8 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 
 - **Verified on iPhone Simulator:** The compact picker uses real prepared rows, so skipped and combined LXX labels select the corresponding stored verse. The outside edge of the enlarged dismiss control removed focus. A connected hardware keyboard leaves interactive software-keyboard dismissal unverified. Existing Other writings → Apocalypse of Elijah opened chapters 1–5 directly.
 - **Verified on Mac:** Switching out of the exercised Exodus Compare route left one Genesis toolbar and the matching window title. Back from a same-ID Strong’s search also restored the Genesis toolbar and viewport. Main passage popover Return passed. Tool coordinate and accessibility mapping left mouse row activation inconclusive. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+
+
+## 2026-11-21 — Compare Back/Forward selection loss
+
+**Verified on Mac and iPhone Simulator.** Mac Back through swap and close now restores the original LXX verse 3 selection. Two visits to the same order retain their distinct selections, and Back after an explicit jump restores the prior LXX selection. iPhone Back and Forward restore the selected KJVA verse 3 in each column order. The narrow Compare reading-position handoff remains open: its source can choose an anchor using a mode different from the rendered layout. Persisted Compare viewport, rapid navigation, accessibility and full mirroring still need coverage. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)

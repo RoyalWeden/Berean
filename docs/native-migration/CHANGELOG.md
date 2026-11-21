@@ -2132,3 +2132,10 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 - `c39ca828` uses prepared Scripture rows and raw verse IDs in the compact iPhone picker. It exposes combined verse labels and enlarges the iOS clear and dismiss targets to 44 points. Simulator verified Exodus 32 omits 9 and opens 35, 1 Kings 14 shows 21–31 and opens 31, Psalm 115 shows 4–5 and opens stored verse 4, and Psalm 3 display verse 1 opens stored verse 2.
 - `d9da6c36` gives the active Mac Scripture tab ownership of the window title and toolbar. Return selected Jonah from the Compare popover. After Back and switching to Genesis, the window showed Genesis 1, one principal toolbar and no old Manage Translations control. A same-ID Strong’s query and Back also retained the Genesis viewport and toolbar.
 - Both final Dev builds passed. The final QA comparison preserved original note hashes, all 37 Mac and 47 iPhone active tab IDs, and the original Exodus Compare sync state. The recorded totals were 22 Mac and 26 iPhone notes. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+
+
+### 2026-11-21 — Compare remembers each visit’s selection
+
+- `50f00c76` preserves each Compare visit’s selection within the bounded navigation history. Mac restored the previous column selection after swap and close, distinguished two visits to the same layout with verse 3 versus verse 5, and restored the LXX selection after an explicit KJV verse jump and Back.
+- iPhone Simulator restored selected KJVA verse 3 in both orders through swap and Back/Forward, then returned to the original unselected Psalm 3 LXX reader. No notes or tabs were created in either run.
+- Both Dev builds and the actual reader selection regression passed. The shared package is unchanged since its previous 349-test run. Selection history is session-local. Narrow viewport transfer and persisted Compare viewport remain open. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)
