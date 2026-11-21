@@ -16,6 +16,13 @@ private final class ChapterPullScrollView: NSScrollView {
     private var applyingViewport = false
     private var studyPreviewOrigin: NSPoint?
     private var appliedViewportGeometry: ViewportGeometry?
+    private var historyOffsetCorrection: HistoryOffsetCorrection?
+
+    private struct HistoryOffsetCorrection {
+        let actionID = UUID()
+        var appliedY: CGFloat?
+        var queued = false
+    }
 
     private struct ViewportGeometry: Equatable {
         let clipSize: NSSize
@@ -34,9 +41,10 @@ private final class ChapterPullScrollView: NSScrollView {
     // SwiftUI may queue a restore before this native view has a window or size.
     // Apply the latest intent once its actual viewport exists, then retain it
     // only through the initial native layout burst.
-    func enqueueViewportAction(_ action: @escaping () -> Void) {
+    func enqueueViewportAction(correctHistoryOffset: Bool = false, _ action: @escaping () -> Void) {
         pendingViewportAction = action
         appliedViewportGeometry = nil
+        historyOffsetCorrection = correctHistoryOffset ? HistoryOffsetCorrection() : nil
         applyViewportActionIfReady()
     }
 
@@ -50,6 +58,7 @@ private final class ChapterPullScrollView: NSScrollView {
         action()
         applyingViewport = false
         appliedViewportGeometry = viewportGeometry
+        historyOffsetCorrection?.appliedY = contentView.bounds.minY
         // A native inspector can resize through several widths after attachment.
         // Apply immediately, then retain this one intent through that layout burst.
         // Any new scroll/input owns the viewport and cancels it immediately.
@@ -75,10 +84,32 @@ private final class ChapterPullScrollView: NSScrollView {
         }
         if !applyingViewport, let event = NSApp.currentEvent, event.window === window,
            event.type == .leftMouseDragged { cancelViewportAction() }
+        if clipView === contentView { queueHistoryOffsetCorrection() }
         checkpointDue = ProcessInfo.processInfo.systemUptime + 0.35
         // Scroll reflection can run at the display refresh rate. Keep one idle
         // timer instead of allocating/cancelling a Swift task for every frame.
         if positionCheckpoint == nil { scheduleCheckpoint(after: 0.35) }
+    }
+
+    // AppKit can still adjust the clip origin after the final resize, with no
+    // change in its dimensions. Retry once for this geometry after reflection.
+    private func queueHistoryOffsetCorrection() {
+        guard !applyingViewport, var correction = historyOffsetCorrection, !correction.queued,
+              let appliedY = correction.appliedY, contentView.bounds.minY != appliedY,
+              viewportGeometry == appliedViewportGeometry else { return }
+        correction.queued = true
+        historyOffsetCorrection = correction
+        let actionID = correction.actionID
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.historyOffsetCorrection?.actionID == actionID else { return }
+            self.historyOffsetCorrection?.queued = false
+            guard let appliedY = self.historyOffsetCorrection?.appliedY, self.contentView.bounds.minY != appliedY,
+                  self.viewportGeometry == self.appliedViewportGeometry, let action = self.pendingViewportAction else { return }
+            self.historyOffsetCorrection?.appliedY = nil
+            self.applyingViewport = true
+            action()
+            self.applyingViewport = false
+        }
     }
 
     private func scheduleCheckpoint(after delay: TimeInterval) {
@@ -127,6 +158,7 @@ private final class ChapterPullScrollView: NSScrollView {
         viewportSettle = nil
         pendingViewportAction = nil
         appliedViewportGeometry = nil
+        historyOffsetCorrection = nil
     }
 
     private func publish(_ cue: ChapterPullCue?) {
@@ -426,7 +458,7 @@ struct ChapterTextView: NSViewRepresentable {
                       let position = restore?.position ?? c.parent?.restorePosition(),
                       let container = tv.textContainer else { return }
                 var finishedHistoryRestore = false
-                scroll.enqueueViewportAction { [weak scroll, weak tv, weak c] in
+                scroll.enqueueViewportAction(correctHistoryOffset: firstPassage && restore != nil) { [weak scroll, weak tv, weak c] in
                     guard let scroll, let tv, let c, let parent = c.parent, c.lastPassage == passageId,
                           parent.scrollTarget == nil else { return }
                     if finishedHistoryRestore {
