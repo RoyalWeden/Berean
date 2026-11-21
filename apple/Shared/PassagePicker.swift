@@ -67,7 +67,7 @@ struct PassagePicker: View {
     /// Compact (iPhone) only: a chapter tap moves the reader here and shows that chapter's verse grid; a verse tap
     /// then finishes with `onPick` (original PassagePicker VersesView). Nil keeps the one-tap chapter pick.
     var onPreview: ((ResolvedPassage) -> Void)? = nil
-    @State private var verseGrid: (book: BookRow, chapter: Int, count: Int)?
+    @State private var verseGrid: (edition: ChapterEdition, rows: [ChapterVerseRow])?
     @State private var chapterPreviewID: UUID?
 
     @State private var showingTexts = false
@@ -252,6 +252,9 @@ struct PassagePicker: View {
                 }
             }
             .listStyle(.sidebar)
+            #if os(iOS)
+            .scrollDismissesKeyboard(compact ? .interactively : .automatic)
+            #endif
         }
     }
 
@@ -270,12 +273,22 @@ struct PassagePicker: View {
                     .submitLabel(.go)
                     #endif
                 if !query.isEmpty {
-                    Button("Clear search", systemImage: "xmark.circle.fill") { query = "" }
-                        .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                    Button { query = "" } label: {
+                        Label("Clear search", systemImage: "xmark.circle.fill")
+                            .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                            #if os(iOS)
+                            .frame(width: 44, height: 44).contentShape(.rect)
+                            #endif
+                    }
                 }
                 if searchFocused {
-                    Button("Dismiss keyboard", systemImage: "keyboard.chevron.compact.down") { searchFocused = false }
-                        .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                    Button { searchFocused = false } label: {
+                        Label("Dismiss keyboard", systemImage: "keyboard.chevron.compact.down")
+                            .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                            #if os(iOS)
+                            .frame(width: 44, height: 44).contentShape(.rect)
+                            #endif
+                    }
                 }
             }
             .padding(.horizontal, 16).frame(minHeight: 50)
@@ -355,33 +368,41 @@ struct PassagePicker: View {
         if loadedRequest != BrowseRequest(text: text, choice: bookChoice) {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let grid = verseGrid {
+            let edition = grid.edition
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Button { chapterPreviewID = nil; verseGrid = nil } label: { Label("Chapters", systemImage: "chevron.backward") }
                         .buttonStyle(.interactivePlain)
                     Spacer()
-                    Text(Reference.readerChapterLabel(grid.book.id, grid.chapter, textId: text)).font(.headline).lineLimit(1)
+                    Text(Reference.readerChapterLabel(edition.book, edition.chapter, textId: edition.text)).font(.headline).lineLimit(1)
                 }.padding(10)
                 Divider()
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44, maximum: 52), spacing: 6)], spacing: 6) {
-                        ForEach(1...grid.count, id: \.self) { v in
-                            Button {
-                                pick(ResolvedPassage(textId: text, bookId: grid.book.id, chapter: grid.chapter, verse: v).convertingReaderNumbersToStored)
-                            } label: {
-                                Text("\(v)").monospacedDigit()
-                                    .frame(maxWidth: .infinity).frame(height: 44)
-                                    .background(Color.secondary.opacity(0.12), in: .rect(cornerRadius: 8))
-                                    .contentShape(.rect)
+                if grid.rows.isEmpty {
+                    ContentUnavailableView("No Verses Available", systemImage: "book")
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44, maximum: 52), spacing: 6)], spacing: 6) {
+                            ForEach(grid.rows, id: \.verseNum) { row in
+                                Button {
+                                    pick(ResolvedPassage(textId: edition.text, bookId: edition.book,
+                                                         chapter: edition.chapter, verse: row.verseNum))
+                                } label: {
+                                    Text(row.readerVerseLabel).monospacedDigit()
+                                        .lineLimit(1).minimumScaleFactor(0.65)
+                                        .frame(maxWidth: .infinity).frame(height: 44)
+                                        .background(Color.secondary.opacity(0.12), in: .rect(cornerRadius: 8))
+                                        .contentShape(.rect)
+                                }
+                                .buttonStyle(.interactivePlain)
+                                .accessibilityLabel(row.readerVerseNumbers.lowerBound == row.readerVerseNumbers.upperBound
+                                    ? "Verse \(row.readerVerseLabel)" : "Verses \(row.readerVerseLabel)")
                             }
-                            .buttonStyle(.interactivePlain)
-                            .accessibilityLabel("Verse \(v)")
                         }
+                        .padding(12)
                     }
-                    .padding(12)
+                    Text("The reader is already on this chapter — pick a verse, or tap Done.")
+                        .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
                 }
-                Text("The reader is already on this chapter — pick a verse, or tap Done.")
-                    .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
             }
         } else if let b = openBook {
             VStack(alignment: .leading, spacing: 0) {
@@ -455,12 +476,11 @@ struct PassagePicker: View {
                 let requestID = UUID()
                 chapterPreviewID = requestID
                 onPreview(passage)
-                let t = text
+                let edition = ChapterEdition(book: book.id, chapter: chapter, text: text)
                 Task {
-                    let raw = await app.bible.queryChapter(book.id, chapter, textId: t)
-                    let count = PsalmSuperscription.apply(raw, textId: t, bookId: book.id, chapter: chapter).count
-                    guard !Task.isCancelled, chapterPreviewID == requestID, text == t, !didPick else { return }
-                    if count > 1 { verseGrid = (book, chapter, count) } else { pick(passage) }
+                    let rows = await app.readerChapter(edition).rows
+                    guard !Task.isCancelled, chapterPreviewID == requestID, text == edition.text, !didPick else { return }
+                    if rows.count == 1 { pick(passage) } else { verseGrid = (edition, rows) }
                 }
             } else {
                 pick(passage)
