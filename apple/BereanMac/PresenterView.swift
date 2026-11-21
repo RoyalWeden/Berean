@@ -75,8 +75,12 @@ struct PresenterView: View {
         return Set(app.studySelectedVerses(in: tabID, state: BibleState(tab.state)))
     }
     private var readerAnchor: Int? {
-        guard case .scripture(let tabID, let edition) = source,
-              let anchor = app.presenterAnchor, anchor.tabId == tabID, anchor.edition == edition else { return nil }
+        guard case .scripture(let tabID, let edition) = source, let tab = app.activeTab else { return nil }
+        // The live mirror is only published while Presenter is open. The reader
+        // keeps its viewport even while it is closed, so prefer that newer state.
+        if let position = app.scriptureReadingPositions[tabID]?[edition.key] { return position.verse }
+        if let position = ReaderViewports.position(in: tab.state, chapter: edition.key) { return position.verse }
+        guard let anchor = app.presenterAnchor, anchor.tabId == tabID, anchor.edition == edition else { return nil }
         return anchor.verse
     }
     private var liveFocus: Int? {
@@ -146,6 +150,7 @@ struct PresenterView: View {
         }
         .onAppear {
             scale = scale.isFinite ? min(4, max(0.8, scale)) : 1.6
+            followedVerse = readerAnchor ?? selected.min()
             app.presenterOpen = true
         }
         .onDisappear { app.presenterOpen = false }
