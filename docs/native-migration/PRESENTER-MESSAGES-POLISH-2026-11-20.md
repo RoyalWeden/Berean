@@ -115,3 +115,10 @@ Not covered: selecting a verse in the main reader while live (needs a pointer cl
 - Same gap on iPhone: the chapter was one text element for VoiceOver. `ReaderTextView` now exposes one `VerseAccessibilityElement` per verse — label "Verse N", value = verse text, Button trait (+ Selected when selected), double-tap = the normal verse tap (select/deselect), custom action **Verse Actions**; frames come from TextKit glyph rects so VoiceOver scrolls and focuses the right lines.
 - Verified on sim E8B01B22 via the accessibility hierarchy: 15 visible verse elements for John 1 with frames matching the drawn verses (Verse 2 at y 128–152); a real tap on verse 3 → element reports Selected and "Selected John 1:3"; deselected afterwards. VoiceOver gestures themselves (double-tap, rotor actions) need a device/VoiceOver pass.
 - Trade-off: Strong's links and word-level text inside a verse are not separate VoiceOver stops (they were not reachable as links before either).
+
+### Real key presses (later, 2026-11-20) — CLOSED
+
+Key events delivered with `CGEvent.postToPid` to the QA instance only (no global keystrokes, so nothing can land in another app):
+- Presenter key: ⌘= 160→180, ⌘= →200, ⌘- →180, ⌘0 →160 (screenshots of the zoom label).
+- Main window key: View shows "Increase Scripture Text Size"; ⌘= changed the Scripture `fontSize` 16→17 (QA DB) while the Presenter stayed at 160 %; ⌘- restored 16.
+The Presenter zoom/focus matrix is now complete on Mac. (Harness `keypid.swift`: Command+keycode to one PID — use this instead of System Events keystrokes for Mac QA.)

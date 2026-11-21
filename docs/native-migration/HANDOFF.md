@@ -2934,3 +2934,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Presenter matrix run (chapter/pause/scale bounds/note) — PRESENTER-MESSAGES-POLISH; found+fixed note images missing in Presenter/Markdown previews. QA instance left at 160 %, John 1.
 - Mac reader VoiceOver custom actions (Select or Deselect Verse / Select Through Verse); live Presenter follows verse selection — verified. Only physical-device/physical-keyboard checks remain for Presenter/S14.
 - iPhone reader: per-verse VoiceOver elements (select/deselect, Verse Actions) — verified via AX hierarchy; VoiceOver gesture pass on device pending.
+- Presenter real-keyboard ⌘=/⌘-/⌘0 verified via CGEvent.postToPid (Presenter vs main window routing correct). Presenter matrix CLOSED. Mac QA tip: post key events to the QA PID, never global keystrokes. Remaining owner-only: physical iPhone Psalm 119 timing + VoiceOver gesture pass.
