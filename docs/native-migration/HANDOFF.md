@@ -2924,3 +2924,5 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Separate runtimes: Claude sim E8B01B22 + Mac QA `claude-20261120`; never touch Codex's D0CC2F4C or `codex-controls-20261119`.
 - Next (from Codex's list + mine): Presenter keyboard/focus checks; Messages internal reference routing; printed notes missing inline images; reader/editor hints; Psalm 119 timing.
 - 38ba7e1d: printed notes include inline images (verified in the iPhone print preview). Checks: 340 tests pass; both Dev builds pass.
+- 6d9f2cde S14 measured (iPhone sim, KJV Psalm 119 ≈ 17–25 ms build+layout; S14-PSALM-119-TIMING doc). d1ec2f73 hints for Strong's (Mac) and note Format (both). 340 tests pass; both builds pass.
+- Still open (no owner decision needed): Presenter keyboard/focus checks (Codex list; Mac keyboard input needs the QA app frontmost), Psalm 119 on a physical iPhone and on Mac, Custom Themes settings.
