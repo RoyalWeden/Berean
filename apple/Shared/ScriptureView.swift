@@ -491,6 +491,7 @@ struct ChapterExportActions: View {
 /// selectable verse that drives the study inspector.
 struct ScriptureView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.colorScheme) private var colorScheme
     let tabId: String
     #if os(iOS)
     var findRequest: Int = 0
@@ -802,6 +803,7 @@ struct ScriptureView: View {
                         GeometryReader { underlap in
                             let titleBar = max(0, geometry.frame(in: .global).minY - underlap.frame(in: .global).minY)
                             macReader(st, actionClearance: actionSpace, titleBarClearance: titleBar)
+                                .background { readingThemeBackground }
                                 .clipped()
                                 .overlay(alignment: .topTrailing) {
                                     if chapterFindVisible {
@@ -822,6 +824,7 @@ struct ScriptureView: View {
                             .frame(width: viewport.size.width,
                                    height: viewport.size.height + viewport.safeAreaInsets.top + viewport.safeAreaInsets.bottom)
                             .offset(y: -viewport.safeAreaInsets.top)
+                            .background { readingThemeBackground.ignoresSafeArea() }
                     }
                     #endif
                 }
@@ -2266,9 +2269,18 @@ extension ScriptureView {
         }
     }
 
+    /// Reading theme page colour (original themePreset), nothing for Default.
+    @ViewBuilder var readingThemeBackground: some View {
+        if let theme = ReaderTheme.find(app.themePreset) {
+            ReaderTheme.color(theme.palette(dark: colorScheme == .dark).bg)
+        }
+    }
+
     func readerStyle(_ st: BibleState) -> ReaderStyle {
         ReaderStyle(fontSize: app.fontSize, lineSpacing: app.lineSpacing, family: app.scriptureFontFamily,
-                    showStrongs: st.showStrongs, showVerseNumbers: showVerseNumbers, redLetters: showRedLetters, width: scriptureWidth)
+                    showStrongs: st.showStrongs, showVerseNumbers: showVerseNumbers, redLetters: showRedLetters, width: scriptureWidth,
+                    themeText: ReaderTheme.find(app.themePreset)?.palette(dark: colorScheme == .dark).text,
+                    themeAccent: ReaderTheme.find(app.themePreset)?.palette(dark: colorScheme == .dark).accent)
     }
 
     /// Partial highlight: shown-word offsets → offsets into the stored verse text (OffsetMap), saved as a character highlight.

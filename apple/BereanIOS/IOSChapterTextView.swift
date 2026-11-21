@@ -769,7 +769,8 @@ struct IOSChapterTextView: UIViewRepresentable {
         private var markerRanges: [Int: NSRange] = [:]
 
         private func markerColor(_ verse: Int) -> UIColor {
-            parent.selectedVerses.contains(verse) ? .tintColor : .tintColor.withAlphaComponent(0.82)
+            let accent = parent.style.themeAccent.map { UIColor(ReaderTheme.color($0)) } ?? .tintColor   // reading theme
+            return parent.selectedVerses.contains(verse) ? accent : accent.withAlphaComponent(0.82)
         }
 
         func updateMarkerColors(in storage: NSTextStorage, changed: Set<Int>) {
@@ -808,7 +809,8 @@ struct IOSChapterTextView: UIViewRepresentable {
                 paragraph.tabStops = [NSTextTab(textAlignment: .left, location: size * 0.8)]
                 paragraph.headIndent = size * 0.8
             }
-            let base: [NSAttributedString.Key: Any] = [.font: regular, .foregroundColor: UIColor.label, .paragraphStyle: paragraph]
+            let bodyColor = parent.style.themeText.map { UIColor(ReaderTheme.color($0)) } ?? UIColor.label   // reading theme
+            let base: [NSAttributedString.Key: Any] = [.font: regular, .foregroundColor: bodyColor, .paragraphStyle: paragraph]
             if let header = parent.header {
                 let headerParagraph = NSMutableParagraphStyle()
                 headerParagraph.firstLineHeadIndent = paragraph.headIndent

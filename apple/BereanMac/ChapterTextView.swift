@@ -503,7 +503,8 @@ struct ChapterTextView: NSViewRepresentable {
         }
 
         private func markerColor(_ verse: Int, _ reader: ChapterTextView) -> NSColor {
-            return reader.selectedVerses.contains(verse) ? .controlAccentColor : NSColor.controlAccentColor.withAlphaComponent(0.82)
+            let accent = reader.style.themeAccent.map { NSColor(ReaderTheme.color($0)) } ?? .controlAccentColor   // reading theme
+            return reader.selectedVerses.contains(verse) ? accent : accent.withAlphaComponent(0.82)
         }
 
         private var findQuery = ""
@@ -640,7 +641,8 @@ struct ChapterTextView: NSViewRepresentable {
                 para.tabStops = [NSTextTab(textAlignment: .left, location: gutterWidth)]
                 para.headIndent = gutterWidth
             }
-            let base: [NSAttributedString.Key: Any] = [.font: font(size), .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
+            let bodyColor = p.style.themeText.map { NSColor(ReaderTheme.color($0)) } ?? NSColor.labelColor   // reading theme
+            let base: [NSAttributedString.Key: Any] = [.font: font(size), .foregroundColor: bodyColor, .paragraphStyle: para]
 
             let headPara = NSMutableParagraphStyle(); headPara.paragraphSpacing = 10; headPara.headIndent = gutterWidth; headPara.firstLineHeadIndent = gutterWidth
             for h in p.header {

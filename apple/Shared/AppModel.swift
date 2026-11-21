@@ -328,6 +328,8 @@ final class AppModel {
     /// Changes whenever rendered Scripture text could change — use in task/cache identities.
     var wordReplacerKey: String { wordReplacerEnabled ? "on:" + wordReplacerRuleSet.revisionKey : "off" }
     var theme = "system" { didSet { saveSetting("theme", .string(JSString(theme))) } }
+    /// Original `themePreset` (a preset id, "" = Default). Natively: the Scripture page colours.
+    var themePreset = "" { didSet { saveSetting("themePreset", .string(JSString(themePreset))) } }
     /// The existing apps' font-family settings ('system' = the platform UI font).
     var notesFontFamily = "system" { didSet { saveSetting("notesFontFamily", .string(JSString(notesFontFamily))) } }
     var scriptureFontFamily = "system" { didSet { saveSetting("scriptureFontFamily", .string(JSString(scriptureFontFamily))) } }
@@ -501,6 +503,7 @@ final class AppModel {
         if let v = all["hermasTranslation"]?.stringValue?.string, let edition = HermasText(rawValue: v) { hermasEdition = edition }
         if let v = all["wordReplacerEnabled"]?.boolValue { wordReplacerEnabled = v }
         if let v = all["idiomHighlightEnabled"]?.boolValue { idiomHighlightEnabled = v }
+        if let v = all["themePreset"]?.stringValue?.string { themePreset = v }
         PrintPreferences.current = PrintPreferences(settings: all)
         wordReplacerRuleSet = WordReplacerRuleSet(stored: all["wordReplacerRules"])
         if let v = all["theme"]?.stringValue?.string { theme = v }

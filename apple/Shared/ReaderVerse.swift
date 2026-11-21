@@ -404,6 +404,10 @@ struct ReaderStyle: Equatable {
     var showVerseNumbers = true
     var redLetters = true
     var width: ScriptureWidth = .normal
+    /// Reading theme text colour ("r g b"), nil = system label colour.
+    var themeText: String? = nil
+    /// Reading theme accent ("r g b") for verse numbers, nil = system accent.
+    var themeAccent: String? = nil
 }
 
 

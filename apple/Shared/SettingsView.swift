@@ -113,8 +113,21 @@ struct SettingsView: View {
 
     @ViewBuilder private var appearanceSection: some View {
         @Bindable var app = app
-        Section("Appearance") {
+        Section {
             Picker("Theme", selection: $app.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented).clickableCursor()
+            Picker("Reading Theme", selection: $app.themePreset) {
+                Text("Default").tag("")
+                ForEach(ReaderTheme.families, id: \.self) { family in
+                    Section(family) {
+                        ForEach(ReaderTheme.presets.filter { $0.family == family && !$0.id.isEmpty }) { theme in
+                            Label { Text(theme.label) } icon: { ReadingThemeSwatch(theme: theme) }.tag(theme.id)
+                        }
+                    }
+                }
+            }
+            .clickableCursor()
+        } footer: {
+            Text("Colours the Scripture page — background and text — in light and dark mode. The rest of Berean keeps the system look.")
         }
     }
 
@@ -475,5 +488,20 @@ private struct HistorySettingsSection: View {
         } message: {
             Text("Removes every Scripture, note, lexicon and search entry from History. Notes and highlights stay.")
         }
+    }
+}
+
+
+/// A small page swatch of a reading theme: background with a line of its text colour.
+private struct ReadingThemeSwatch: View {
+    @Environment(\.colorScheme) private var scheme
+    let theme: ReaderTheme
+    var body: some View {
+        let p = theme.palette(dark: scheme == .dark)
+        RoundedRectangle(cornerRadius: 4)
+            .fill(ReaderTheme.color(p.bg))
+            .overlay { Text("Aa").font(.system(size: 9, weight: .semibold)).foregroundStyle(ReaderTheme.color(p.text)) }
+            .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary.opacity(0.4)) }
+            .frame(width: 22, height: 16)
     }
 }
