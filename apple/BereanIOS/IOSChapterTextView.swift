@@ -340,6 +340,38 @@ struct IOSChapterTextView: UIViewRepresentable {
     final class ReaderTextView: UITextView {
         weak var reader: Coordinator?
 
+        // MARK: VoiceOver — one element per verse (the chapter used to read as one text blob with
+        // no way to select a verse). Double-tap = tap (select/deselect); "Verse Actions" action.
+        private var verseElements: [VerseAccessibilityElement] = []
+        private var verseElementsKey = ""
+
+        override var isAccessibilityElement: Bool { get { false } set { } }
+        override var accessibilityElements: [Any]? {
+            get {
+                guard let reader else { return nil }
+                let key = "\(reader.parent.passageId)|\(textStorage.length)|\(reader.verseRanges.count)"
+                if key != verseElementsKey {
+                    let text = textStorage.string as NSString
+                    verseElements = reader.verseRanges.keys.sorted().compactMap { verse in
+                        guard let range = reader.verseRanges[verse], NSMaxRange(range) <= text.length else { return nil }
+                        var body = text.substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines)
+                        let number = String(verse)
+                        if body.hasPrefix(number) { body = String(body.dropFirst(number.count)).trimmingCharacters(in: .whitespaces) }
+                        return VerseAccessibilityElement(textView: self, verse: verse, range: range, text: body)
+                    }
+                    verseElementsKey = key
+                }
+                return verseElements
+            }
+            set { }
+        }
+
+        func verseFrame(_ range: NSRange) -> CGRect {
+            let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
+            return rect.offsetBy(dx: textContainerInset.left, dy: textContainerInset.top)
+        }
+
         private var pendingViewportAction: (() -> Void)?
 
         private var viewportSize = CGSize.zero
@@ -1335,5 +1367,42 @@ struct IOSChapterTextView: UIViewRepresentable {
             guard gesture.state == .recognized, parent.selectedVerses.isEmpty, pinchStartSize == nil else { return }
             parent.onStep(gesture.direction == .left ? 1 : -1)
         }
+    }
+}
+
+
+/// A verse in the iPhone reader as a VoiceOver element.
+final class VerseAccessibilityElement: UIAccessibilityElement {
+    private weak var textView: IOSChapterTextView.ReaderTextView?
+    let verse: Int
+    private let range: NSRange
+
+    init(textView: IOSChapterTextView.ReaderTextView, verse: Int, range: NSRange, text: String) {
+        self.textView = textView; self.verse = verse; self.range = range
+        super.init(accessibilityContainer: textView)
+        accessibilityLabel = "Verse \(verse)"
+        accessibilityValue = text
+        accessibilityHint = "Double-tap to select or deselect."
+        accessibilityCustomActions = [UIAccessibilityCustomAction(name: "Verse Actions") { [weak self] _ in
+            guard let self, let reader = self.textView?.reader else { return false }
+            reader.parent.onVerseActions(self.verse)
+            return true
+        }]
+    }
+
+    override var accessibilityFrameInContainerSpace: CGRect {
+        get { textView?.verseFrame(range) ?? .zero }
+        set { }
+    }
+
+    override var accessibilityTraits: UIAccessibilityTraits {
+        get { (textView?.reader?.parent.selectedVerses.contains(verse) ?? false) ? [.button, .selected] : .button }
+        set { }
+    }
+
+    override func accessibilityActivate() -> Bool {
+        guard let reader = textView?.reader else { return false }
+        reader.parent.onVerseTap(verse)
+        return true
     }
 }

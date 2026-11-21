@@ -109,3 +109,9 @@ Not covered: selecting a verse in the main reader while live (needs a pointer cl
 - Gap found: verse selection in the Mac reader was pointer-only (no per-verse accessibility path for VoiceOver). Added `accessibilityCustomActions` on `ReaderTextView`: **Select or Deselect Verse** (= click, toggles the verse at the text cursor) and **Select Through Verse** (= Shift-click range).
 - Verified click-free with AX (cursor via AXSelectedTextRange, action via its `Name:` action string): toggling verse 5 → tab "John 1:1, 5" and the live Presenter highlights both; deselect 1 + Select Through 8 → "John 1:5–8", Presenter scrolls to verse 5 and highlights 5–8. Selection restored to verse 1 afterwards.
 - Presenter matrix now covered except physical keyboard presses.
+
+### iPhone reader VoiceOver verses (later, 2026-11-20)
+
+- Same gap on iPhone: the chapter was one text element for VoiceOver. `ReaderTextView` now exposes one `VerseAccessibilityElement` per verse — label "Verse N", value = verse text, Button trait (+ Selected when selected), double-tap = the normal verse tap (select/deselect), custom action **Verse Actions**; frames come from TextKit glyph rects so VoiceOver scrolls and focuses the right lines.
+- Verified on sim E8B01B22 via the accessibility hierarchy: 15 visible verse elements for John 1 with frames matching the drawn verses (Verse 2 at y 128–152); a real tap on verse 3 → element reports Selected and "Selected John 1:3"; deselected afterwards. VoiceOver gestures themselves (double-tap, rotor actions) need a device/VoiceOver pass.
+- Trade-off: Strong's links and word-level text inside a verse are not separate VoiceOver stops (they were not reachable as links before either).

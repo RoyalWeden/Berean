@@ -2933,3 +2933,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Verse / highlight / compare hints (TipKit, ONBOARDING addendum), verified on sim. Remaining no-owner items: Presenter chapter/focus/scale combinations by hand; physical-iPhone Psalm 119.
 - Presenter matrix run (chapter/pause/scale bounds/note) — PRESENTER-MESSAGES-POLISH; found+fixed note images missing in Presenter/Markdown previews. QA instance left at 160 %, John 1.
 - Mac reader VoiceOver custom actions (Select or Deselect Verse / Select Through Verse); live Presenter follows verse selection — verified. Only physical-device/physical-keyboard checks remain for Presenter/S14.
+- iPhone reader: per-verse VoiceOver elements (select/deselect, Verse Actions) — verified via AX hierarchy; VoiceOver gesture pass on device pending.
