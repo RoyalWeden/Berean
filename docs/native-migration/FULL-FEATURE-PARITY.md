@@ -11,8 +11,8 @@ Priority: P0 data-safety, P1 major missing workflow, P2 incomplete / usability, 
 
 These historical inventory counts predate the later dated implementation entries. Use each row and the latest evidence before treating a feature as missing or complete.
 
-- **Mac:** — 13, ✅ 31, ❌ 36, 🟡 24
-- **iPhone:** — 16, ✅ 17, ❌ 35, ❓ 1, 🟡 35
+- **Mac:** — 13, ✅ 37, ❌ 18, 🟡 36
+- **iPhone:** — 15, ✅ 18, ❌ 17, 🟡 54
 
 Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace/tab buildup, sunrise-aware daily notes (N12), iPhone cross-verse touch QA (S07/H02), remaining Notes home parity (N11), advanced note structures (N04/N05), PDFs/YouTube/Read Aloud/Ask Berean (U17, M01, M05, G01).
 
@@ -33,7 +33,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size and family, line spacing, text width, verse-number visibility, red lettering, word replacer and theme. The reader exposes display options on both platforms. Mac View commands adjust Scripture text size with the original zoom shortcuts. iPhone Scripture supports pinch-to-resize, pending gesture QA. App-wide zoom remains open. Paragraph mode and per-text options remain open. |
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
 | S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open. |
-| S14 | Very long chapter performance | implemented (partly measured) | 🟡 | ❓ | P2 | Both TextKit readers render the whole chapter. iPhone sim: KJV Psalm 119 ≈ 17–25 ms build+layout (S14-PSALM-119-TIMING-2026-11-20.md); physical-device and Mac numbers still to take. |
+| S14 | Very long chapter performance | implemented (measured) | ✅ | 🟡 | P2 | Both TextKit readers render the whole chapter. KJV Psalm 119: iPhone sim ≈ 17–25 ms, Mac ≈ 19–23 ms build+layout (S14-PSALM-119-TIMING-2026-11-20.md); physical iPhone still to measure. |
 | S15 | Find in chapter | implemented | ✅ | ✅ | P2 | Mac glass find bar; iPhone More → Find in Chapter opens the system find navigator (verified earlier in HANDOFF) |
 | S16 | Word replacer (display rules for divine names and search expansion) | implemented | ✅ | ✅ | — | Word replacer display + search variants + Strong's bridge |
 | Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Both app bundles carry all 19 supported Scripture IDs. All Texts searches the bundled corpus; Mac opened Didache via ⌘K. |
@@ -258,7 +258,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** same.
 - **Original files:** `src/components/shell/FindBar.tsx`, `src/lib/{scriptureFind,findHandoff,scriptureHighlight}.ts`, `src/mobile/reader/FindOnPage.tsx`.
 - **Known original defects:** none known.
-- **Native Mac / iPhone:** ❌ / ❌ — Find in chapter (⌘F) missing — NSTextView find bar can be enabled
+- **Native Mac / iPhone:** ✅ / ✅ — Mac glass find bar; iPhone More → Find in Chapter opens the system find navigator (verified earlier in HANDOFF) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -357,7 +357,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** —
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Depends on YouTube (M01)
+- **Native Mac / iPhone:** 🟡 / 🟡 — Videos section in Go / ⌘K opens the video at the matched moment (2026-11-20); needs transcript data in native libraries (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -402,7 +402,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/imageInsert.ts`, `nodeViews.ts`, `electron/ipc/noteImages.ts`, `electron/ipc/vault.ts` (`extractInlineImages` line 257, `inlineVaultImages` 307).
 - **Known original defects:** Inline base64 inflates DB, FTS, sync journal ops (full `fields` per upsert) and version snapshots (INFERRED); perf doc mentions a 452 KB image note and +25 MB footprint once. No general attachment type (PDF files are separate, see U-PDF).
-- **Native Mac / iPhone:** ❌ / ❌ — Images shown as alt-text caption only
+- **Native Mac / iPhone:** 🟡 / 🟡 — Inline data: images render with captions and saved width (2026-11-20, NOTE-IMAGES-2026-11-20.md); Mac drag-resize handle; insert/paste/resize UI, remote and attachment files open (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -474,7 +474,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/types/index.ts` (`IdiomData`), `notesService.listIdioms`, `src/lib/idiomsExport.ts`, `VerseRow.tsx`, `BibleRightPanel.tsx`, `SettingsModal.tsx`.
 - **Known original defects:** Not in CLAUDE.md. 8. `idiomsExport.test.ts`. 9. SW-DATA. 10. Easy to forget. 11. C-DATA.
-- **Native Mac / iPhone:** ❌ / ❌ — Idiom editor not ported
+- **Native Mac / iPhone:** 🟡 / 🟡 — Idiom notes with header editor; Mac reader underline + click + meaning tooltip, reference-book export (2026-11-20, IDIOMS-2026-11-20.md) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -492,7 +492,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `electron/ipc/eSwordImport.ts` (543), `src/components/settings/ESwordImporter.tsx`. 3. better-sqlite3 on a user file; home-directory search. 4. e-Sword files. 5. maps to `type: esword`. 6. Mac only. 7. Home-dir probing is sandbox-hostile in MAS (INFERRED). 8. none found. 9. SW-DATA with `sqlite3` an
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / — — e-Sword import not ported
+- **Native Mac / iPhone:** ✅ / — — File → Import from e-Sword… with review (2026-11-20, ESWORD-IMPORT-2026-11-20.md) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -609,7 +609,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `electron/main.ts` (window creators ~lines 789–1134), `src/lib/{crossWindowSync,floatingTab,perWindowViewState,presenterBand,presenterOverlay,windowChrome}.ts`, `src/hooks/useViewerSync.ts`, `src/components/viewer/*`, `src/components/bible/PresenterOutline.tsx`, `src/components/shell/{FloatingShell,
 - **Known original defects:** Heavy debug instrumentation hooks (`window.__bereanPresenterDebug`). Pending-save flush when returning a floating tab (`flushPendingSaves`).
-- **Native Mac / iPhone:** ❌ / — — Single window only (no floating tabs/presenter/Study Trail window)
+- **Native Mac / iPhone:** 🟡 / — — New Window + Presenter (⌘⇧B), rendered pause snapshots, rich notes, reader filters and scoped Close behavior; actual bounded UI checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md. Laser/compare/side panel/floating tabs and full focus/zoom matrix open (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -663,7 +663,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/shell/{Onboarding,OnboardingModelStep}.tsx`, `src/mobile/onboarding/*`, `TasksPanel.tsx` (first-steps checklist, Mac only). 3. flags in store. 4. none. 5. `onboardingCompleted`. 6. different flows; no Tasks panel on iPhone. 7. Hints absent. 8. `Onboarding.maybeImportVault.test.ts`, `
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Onboarding not ported
+- **Native Mac / iPhone:** 🟡 / 🟡 — Getting started flow + replay; TipKit hints (Search, PiP, Ask follow-up) with Reset Hints (2026-11-20, ONBOARDING-2026-11-20.md); reader/editor hints open (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -681,7 +681,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 - **Mac vs iPhone (original):** —
 - **Original files:** —
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / — — Tasks panel not ported
+- **Native Mac / iPhone:** 🟡 / 🟡 — Getting Started checklist with original completedStepIds + native detection, on both platforms (2026-11-20) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
