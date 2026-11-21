@@ -326,6 +326,7 @@ struct ChapterTextView: NSViewRepresentable {
         tv.titleBarClearance = titleBarClearance
         tv.updateOutlineMotion()
         let clip = scroll.contentView
+        let firstPassage = c.lastPassage.isEmpty
         let passageChanged = c.lastPassage != passageId
         let key = Key(header: header, chapterTags: chapterTags.map(\.name), chapterStudy: chapterStudy, verses: verses, style: style)
         let insetChanged = scroll.contentInsets.bottom != actionClearance
@@ -424,10 +425,19 @@ struct ChapterTextView: NSViewRepresentable {
                       c.parent?.isHistoryRestoreCurrent(revision) == true,
                       let position = restore?.position ?? c.parent?.restorePosition(),
                       let container = tv.textContainer else { return }
+                var finishedHistoryRestore = false
                 scroll.enqueueViewportAction { [weak scroll, weak tv, weak c] in
-                    guard let scroll, let tv, let c, c.lastPassage == passageId,
-                          c.parent?.scrollTarget == nil, c.parent?.historyRestore?.revision == revision,
-                          c.parent?.isHistoryRestoreCurrent(revision) == true else { return }
+                    guard let scroll, let tv, let c, let parent = c.parent, c.lastPassage == passageId,
+                          parent.scrollTarget == nil else { return }
+                    if finishedHistoryRestore {
+                        // A newly mounted reader can still change geometry after its
+                        // first application. Let the native layout burst correct it
+                        // while this action owns the viewport and no new restore exists.
+                        guard firstPassage, parent.isHistoryRestoreCurrent(nil) else { return }
+                    } else {
+                        guard parent.historyRestore?.revision == revision,
+                              parent.isHistoryRestoreCurrent(revision) else { return }
+                    }
                     tv.layoutManager?.ensureLayout(for: container)
                     let clip = scroll.contentView
                     var bounds = clip.bounds
@@ -440,7 +450,10 @@ struct ChapterTextView: NSViewRepresentable {
                     c.editionArrival = position.returnEdition.map {
                         ScriptureEditionArrival(edition: $0, offset: max(0, clip.bounds.minY - clip.documentRect.minY))
                     }
-                    if let restore { c.parent?.finishHistoryRestore(restore, c.readingPosition(in: scroll)) }
+                    if let restore, !finishedHistoryRestore {
+                        finishedHistoryRestore = true
+                        parent.finishHistoryRestore(restore, c.readingPosition(in: scroll))
+                    }
                 }
             }
         }
