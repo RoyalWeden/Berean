@@ -74,7 +74,30 @@ final class NoteTableLayout: NSLayoutManager {
         #endif
     }
 
+    /// Posted on the main thread when a remote (https) note image finishes downloading.
+    static let remoteImageLoaded = Notification.Name("BereanNoteRemoteImageLoaded")
+    /// URLs already requested (touched on the main thread only, from styling).
+    nonisolated(unsafe) private static var remoteRequested = Set<String>()
+
+    /// Remote images (`![alt](https://…)`, which the original renders as <img>): returned from the
+    /// cache, else fetched once in the background; editors restyle on `remoteImageLoaded`.
+    static func remoteImage(_ source: String) -> PlatformImage? {
+        guard let url = URL(string: source), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http" else { return nil }
+        let key = source as NSString
+        if let cached = imageCache.object(forKey: key) { return cached }
+        guard remoteRequested.insert(source).inserted else { return nil }
+        Task.detached(priority: .utility) {
+            guard let (data, response) = try? await URLSession.shared.data(from: url),
+                  ((response as? HTTPURLResponse)?.statusCode ?? 200) < 400, data.count < 25_000_000,
+                  let image = PlatformImage(data: data) else { return }
+            imageCache.setObject(image, forKey: key)
+            await MainActor.run { NotificationCenter.default.post(name: remoteImageLoaded, object: nil) }
+        }
+        return nil
+    }
+
     static func decodedImage(_ source: String) -> PlatformImage? {
+        if !source.hasPrefix("data:") { return remoteImage(source) }
         // Hashing a multi-hundred-KB base64 string per keystroke is the slow path; length plus
         // three short slices identifies an image well enough for a decode cache.
         let ns = source as NSString

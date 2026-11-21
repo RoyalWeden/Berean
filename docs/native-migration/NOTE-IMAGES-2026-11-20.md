@@ -32,3 +32,11 @@ Status: **IMPLEMENTED; Mac VERIFIED, iPhone partly VERIFIED**. Was ❌/❌ (alt 
 ## iPhone Photo Library — 2026-11-20 (later)
 - iPhone Insert → Image now offers **Photo Library…** (PHPicker — out of process, no photo permission prompt) and **Choose File…** (Files). Previously only Files was offered, which is the wrong default on a phone.
 - Verified on sim: photo added with `simctl addmedia` → Insert → Image → Photo Library… → picked → inserted at natural width with caption from the photo name (`qa-gradient`); stored as an inline `data:image/png;base64` Markdown image.
+
+## Remote images (later, 2026-11-20)
+
+- `![alt](https://…)` (and http) images — which the original renders as `<img>` — now load in both native editors: `NoteTableLayout.decodedImage` routes non-`data:` sources to `remoteImage`, which returns the cached image or starts one background download (≤ 25 MB, HTTP < 400), then posts `remoteImageLoaded`; each editor coordinator restyles on it so the image gets its space and draws. Failed URLs aren't retried in the session; the Markdown is never changed.
+- Read-only previews (`MarkdownText`, e.g. Presenter) use `AsyncImage` for remote image lines (spinner → image, or a "photo" label if it fails).
+- Printing still embeds only `data:` images (never fetches during print).
+- Verified on iPhone sim: a note containing a Wikimedia PNG shows the image at natural width with its "Dice" caption above the following text; QA note + tab removed afterwards (4 notes, empty outbox/FTS match). Mac editor uses the same layout code and observer (built, not exercised).
+- Insert (Photo Library / Choose File / paste) and size presets (iPhone Edit menu → Image Size; Mac drag handle) were already in place. Vault `attachments/` images still depend on vault sync (not ported).

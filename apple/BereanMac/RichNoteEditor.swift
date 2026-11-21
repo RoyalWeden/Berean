@@ -134,7 +134,15 @@ struct RichNoteEditor: NSViewRepresentable {
         private var publishedReferenceCompletion: NoteReferenceCompletion?
         private var publishedTableContext = false
 
-        init(_ p: RichNoteEditor) { parent = p }
+        private var remoteImageObserver: NSObjectProtocol?
+
+        init(_ p: RichNoteEditor) {
+            parent = p
+            super.init()
+            remoteImageObserver = NotificationCenter.default.addObserver(forName: NoteTableLayout.remoteImageLoaded, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.restyle() }
+            }
+        }
 
         // MARK: styling
 

@@ -333,7 +333,16 @@ struct RichNoteEditorIOS: UIViewRepresentable {
         }
         var hidden = IndexSet()
         var substitutions: [Int: (len: Int, glyph: String)] = [:]
-        init(_ p: RichNoteEditorIOS) { parent = p }
+        private var remoteImageObserver: NSObjectProtocol?
+
+        init(_ p: RichNoteEditorIOS) {
+            parent = p
+            super.init()
+            // A remote (https) image finished downloading: reserve its space and draw it.
+            remoteImageObserver = NotificationCenter.default.addObserver(forName: NoteTableLayout.remoteImageLoaded, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.restyle() }
+            }
+        }
 
         func font(_ size: CGFloat, _ weight: UIFont.Weight = .regular, traits: UIFontDescriptor.SymbolicTraits = []) -> UIFont {
             let base = ScriptureFont.nativeFont(parent.fontFamily, size: size, weight: weight)
