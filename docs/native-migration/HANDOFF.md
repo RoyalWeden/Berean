@@ -2923,3 +2923,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Codex's ChatViews rework kept the Ask Berean answer-verse links (now via `openBereanLink` + `revealMainDocument`).
 - Separate runtimes: Claude sim E8B01B22 + Mac QA `claude-20261120`; never touch Codex's D0CC2F4C or `codex-controls-20261119`.
 - Next (from Codex's list + mine): Presenter keyboard/focus checks; Messages internal reference routing; printed notes missing inline images; reader/editor hints; Psalm 119 timing.
+- 38ba7e1d: printed notes include inline images (verified in the iPhone print preview). Checks: 340 tests pass; both Dev builds pass.
