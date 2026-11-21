@@ -80,3 +80,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Same-chapter history viewport restoration](HISTORY-VIEWPORT-RESTORATION-2026-11-21.md): current Back/Forward fix, ownership, required UI matrix and evidence.
 
 - [iPhone watchdog investigation](IOS-WATCHDOG-2026-11-21.md): supplied physical report, matched symbols, diagnostic fixes, clear top edge and unresolved hardware gates.
+
+- [Tab lifecycle and inspector continuity, Nov 21](TAB-LIFECYCLE-2026-11-21.md): same-ID live inspector callback guard, corrected interpretation of AX divider geometry, final AppKit offset-only drift and active native trace/correction evidence.
