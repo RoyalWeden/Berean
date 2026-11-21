@@ -18,10 +18,10 @@ The former mixed current-summary block has been [archived verbatim](CHECKPOINT-H
 
 <!-- BEGIN CURRENT CHECKPOINT -->
 - **2026-11-21: owner resumed; broad goal ACTIVE.** Read [CURRENT-STATE](CURRENT-STATE.md) for exact dirty ownership, safe QA paths, durable evidence, publication and next checks. Old checkpoint wording below is historical.
-- Committed source through **6a50adc6**: Presenter typography/follow/pause, image suffix preservation, print fractions/theme names, clean Messages/reply previews and accessible zoom/settled reopening. Final Mac/iOS builds and346shared tests pass; bounded actual Mac+iPhone evidence in focused record. Not pushed yet. **OPEN:** restored Presenter cold-start can still start at top until closed/reopened after reader settles; Compare secondary follow remains absent.
-- Live draft24 open/base`native/m6-navigation`/remote85d0f9a4. No production/sync/schema/identity changes or merges; owner-only22→23→24 review guards retained.
+- Committed source through **ada385b1**: Presenter typography/follow/pause, image suffix preservation, print fractions/theme names, clean Messages/reply previews and accessible zoom/settled reopening. Final Mac/iOS builds and346shared tests pass; bounded actual Mac+iPhone evidence in focused record. Published in draft24 at docs head665d8262; exact-head CI44893513952 running. ada385b1 fixes the reproduced startup selection-overwrite case (freshstartupverse7withselected1;explicitverse8focuspasses). Broaderstartup/history/pausedmatrix and Comparesecondaryfollow remain OPEN.
+- Live draft24 open/base`native/m6-navigation`/remote665d8262. No production/sync/schema/identity changes or merges; owner-only22→23→24 review guards retained.
 - [Focused evidence](PRESENTER-REFINEMENT-2026-11-21.md) records actual Mac/iPhone checks and remaining cases. [Previous checkpoint](CHECKPOINT-BEFORE-RESUME-2026-11-21.md) is historical. Old temporary evidence was removed at restart; new logs live under ignored`build/apple/qa-evidence/20261121`.
-- **Next:** publish docs/source to draft24 and verify exact-head CI; investigate documented Presenter cold-start and Compare-source gaps, continue owner queue autonomously. Keep these notes current during implementation.
+- **Next:** observe exact-head CI and finish bounded initial selection/focus investigation; investigate documented Presenter cold-start and Compare-source gaps, continue owner queue autonomously. Keep these notes current during implementation.
 <!-- END CURRENT CHECKPOINT -->
 
 ## Historical implementation log — dated evidence, not current state
