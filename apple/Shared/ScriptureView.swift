@@ -713,9 +713,8 @@ struct ScriptureView: View {
             if st.compareMode { CompareView(tabId: tabId) } else { chapterBody(st) }
         }
         .overlay(alignment: .topLeading) { noteReturnPill(st) }
-        .navigationTitle(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
-        .navigationSubtitleCompat(st.compareMode ? "Compare" : textInfo(st.translation).name)
         #if os(iOS)
+        .navigationTitle(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         .readerClearTopEdge()
@@ -724,7 +723,13 @@ struct ScriptureView: View {
             flipEdition(st, to: target)
         }
         #endif
-        .toolbar { toolbar(st) }
+        .toolbar {
+            #if os(macOS)
+            if ownsMacToolbar(st) { toolbar(st) }
+            #else
+            toolbar(st)
+            #endif
+        }
         .onChange(of: chapterKey(st)) {
             numberingExplanation = nil
             #if os(macOS)
@@ -732,13 +737,17 @@ struct ScriptureView: View {
             #endif
         }
         #if os(macOS)
-        .onChange(of: app.activeTab?.id) {
-            if app.activeTab?.id != tabId { cancelChapterShare() }
+        .onChange(of: isActiveMacReader) { _, isActive in
+            if !isActive {
+                dismissMacToolbarPopovers()
+                cancelChapterShare()
+            }
         }
         #endif
         .onDisappear {
             chapterStepTask?.cancel()
             #if os(macOS)
+            dismissMacToolbarPopovers()
             cancelChapterShare()
             #endif
         }
@@ -1748,6 +1757,23 @@ struct ScriptureView: View {
     }
 
     #if os(macOS)
+    private var isActiveMacReader: Bool {
+        guard let tab = app.activeTab else { return false }
+        return tab.id == tabId && tab.tabType == .bible
+    }
+
+    private func ownsMacToolbar(_ rendered: BibleState) -> Bool {
+        guard isActiveMacReader, let tab = app.activeTab else { return false }
+        let current = BibleState(tab.state)
+        return current.compareMode == rendered.compareMode && ChapterEdition(current) == ChapterEdition(rendered)
+    }
+
+    private func dismissMacToolbarPopovers() {
+        pickerShown = false
+        numberingExplanation = nil
+        displayOptionsShown = false
+    }
+
     private func cancelChapterShare() {
         chapterShareTask?.cancel()
         chapterShareTask = nil
@@ -1867,6 +1893,10 @@ struct ScriptureView: View {
 
     func picker(_ st: BibleState, compact: Bool) -> some View {
         PassagePicker(textId: st.translation, currentBook: st.bookId, currentChapter: st.chapter, onPick: { passage in
+            #if os(macOS)
+            guard ownsMacToolbar(st) else { return }
+            pickerShown = false
+            #endif
             mutate(passage: passage) {
                 $0.translation = passage.textId
                 $0.bookId = passage.bookId
@@ -1874,7 +1904,9 @@ struct ScriptureView: View {
                 $0.verse = passage.verse
                 $0.endVerse = passage.endVerse
             }
+            #if os(iOS)
             pickerShown = false
+            #endif
         }, compact: compact, onPreview: compact ? { passage in
             mutate(passage: passage) {
                 $0.translation = passage.textId

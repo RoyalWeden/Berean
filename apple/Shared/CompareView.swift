@@ -429,7 +429,9 @@ struct CompareView: View {
         #endif
         #if os(macOS)
         .toolbar {
-            ToolbarItem { manageTranslations(st, cols) }
+            if ownsMacToolbar(passage) {
+                ToolbarItem { manageTranslations(st, cols) }
+            }
         }
         .focusable()
         .focusEffectDisabled()
@@ -2043,6 +2045,12 @@ struct CompareView: View {
     }
 
     #if os(macOS)
+    private func ownsMacToolbar(_ renderedPassage: String) -> Bool {
+        guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return false }
+        let current = BibleState(tab.state)
+        return current.compareMode && passageKey(current, CompareColumn.resolved(in: tab.state)) == renderedPassage
+    }
+
     private var presentationColumn: CompareColumn? {
         guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return nil }
         let source = BibleState(tab.state)

@@ -1,4 +1,5 @@
 import SwiftUI
+import BereanReference
 import BereanWorkspace
 
 /// Renders the requested document identity rather than choosing a document from
@@ -16,15 +17,26 @@ struct MacTabContentHost: View {
                 let layout = ScriptureLayout(rawValue: st.scriptureLayout) ?? .standard
                 ScriptureLayoutView(tabId: tab.id, layout: layout)
                     .id(tab.id)
+                    .navigationTitle(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
+                    .navigationSubtitleCompat(st.compareMode ? "Compare" : textInfo(st.translation).name)
                     .toolbar {
-                        ToolbarItem {
-                            Menu {
-                                Picker("Layout", selection: Binding(get: { layout }, set: { v in
-                                    app.update(tab.id) { t in var s = BibleState(t.state); s.scriptureLayout = v.rawValue; if v == .standard { s.rightPanelOpen = true }; t.state = s.merged(into: t.state) }
-                                })) { ForEach(ScriptureLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) } }
-                                    .pickerStyle(.inline)
-                            } label: { Label("Layout", systemImage: layout.symbol) }
-                            .menuIndicator(.hidden)
+                        if isActiveBibleTab {
+                            ToolbarItem {
+                                Menu {
+                                    Picker("Layout", selection: Binding(get: { layout }, set: { v in
+                                        guard isActiveBibleTab else { return }
+                                        app.update(tab.id) { t in
+                                            guard t.tabType == .bible else { return }
+                                            var s = BibleState(t.state)
+                                            s.scriptureLayout = v.rawValue
+                                            if v == .standard { s.rightPanelOpen = true }
+                                            t.state = s.merged(into: t.state)
+                                        }
+                                    })) { ForEach(ScriptureLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) } }
+                                        .pickerStyle(.inline)
+                                } label: { Label("Layout", systemImage: layout.symbol) }
+                                .menuIndicator(.hidden)
+                            }
                         }
                     }
             case .lexicon:
@@ -56,5 +68,10 @@ struct MacTabContentHost: View {
             ContentUnavailableView("Tab Unavailable", systemImage: "rectangle.slash",
                                    description: Text("This tab is no longer open in this workspace."))
         }
+    }
+
+    private var isActiveBibleTab: Bool {
+        guard let tab = app.activeTab else { return false }
+        return tab.id == tabID && tab.tabType == .bible
     }
 }
