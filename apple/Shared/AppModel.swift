@@ -405,6 +405,19 @@ final class AppModel {
     }
     /// The main reader's selected verses, published only while the presenter is open.
     var presenterSelection: PresenterSelection?
+    #if os(macOS)
+    struct ComparePresentation: Equatable {
+        let owner: UUID
+        let tabID: String
+        let configuration: ComparePresentationConfiguration
+        let columnID: Int
+        let columnDestination: String
+        let edition: ChapterEdition
+        let verses: Set<Int>
+        let focus: Int?
+    }
+    var comparePresentation: ComparePresentation?
+    #endif
     var eSwordImportShown = false
 
     /// Shows the getting-started flow only for a genuinely new library: not completed on this

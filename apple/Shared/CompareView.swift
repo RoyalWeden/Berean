@@ -91,10 +91,27 @@ struct CompareColumn: Identifiable {
 
     var destinationKey: String { "\(text):\(book):\(chapter)" }
 
+    static func passageKey(_ state: BibleState, _ columns: [CompareColumn]) -> String {
+        let destinations = columns.map { "\($0.id):\($0.historyKey)" }.joined(separator: ",")
+        return "\(state.translation)|\(state.bookId)|\(state.chapter)|\(destinations)"
+    }
+
     var label: String {
         "\(Reference.readerChapterLabel(book, chapter, textId: text)) · \(textInfo(text).short)"
     }
 }
+
+#if os(macOS)
+struct ComparePresentationConfiguration: Equatable {
+    let passage: String
+    let syncScrolling: Bool
+
+    init(state: JSObject, columns: [CompareColumn]) {
+        passage = CompareColumn.passageKey(BibleState(state), columns)
+        syncScrolling = state["compareSyncScroll"]?.boolValue ?? true
+    }
+}
+#endif
 
 private struct CompareSelectionCell: Hashable {
     let column: Int
@@ -212,6 +229,13 @@ struct CompareView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if os(macOS)
     @FocusState private var selectionHasKeyboardFocus: Bool
+    @State private var presentationOwner = UUID()
+    @State private var presentationFocus: PresentationFocus?
+
+    private struct PresentationFocus {
+        let target: CompareSelectedPassage
+        let anchor: ReadingAnchor?
+    }
     #endif
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
@@ -260,6 +284,16 @@ struct CompareView: View {
         return width >= CGFloat(count) * 260
     }
 
+    private enum ComparisonLayout {
+        case independent, stacked, aligned
+    }
+
+    private func comparisonLayout(_ columns: [CompareColumn], source: BibleState, width: CGFloat) -> ComparisonLayout {
+        let following = columns.allSatisfy { $0.follows(source) }
+        if canShowIndependentPanes(width: width, count: columns.count), !syncScrolling || !following { return .independent }
+        return following ? .aligned : .stacked
+    }
+
     var body: some View {
         let st = state, cols = columns
         let passage = passageKey(st, cols)
@@ -274,19 +308,33 @@ struct CompareView: View {
                     if visible.isEmpty {
                         ContentUnavailableView("Choose a Passage", systemImage: "book",
                                                description: Text("These saved chapters are unavailable in their editions."))
-                    } else if canShowIndependentPanes(width: geometry.size.width, count: visible.count),
-                              !syncScrolling || !visible.allSatisfy({ $0.follows(st) }) {
-                        independentPanes(visible, passage: passage, compact: geometry.size.width < CGFloat(visible.count) * 260)
-                    } else if !visible.allSatisfy({ $0.follows(st) }) {
-                        stackedIndependentComparison(st, visible, passage: passage)
                     } else {
-                        alignedComparison(st, visible)
+                        switch comparisonLayout(visible, source: st, width: geometry.size.width) {
+                        case .independent:
+                            independentPanes(visible, passage: passage, compact: geometry.size.width < CGFloat(visible.count) * 260)
+                        case .stacked:
+                            stackedIndependentComparison(st, visible, passage: passage)
+                        case .aligned:
+                            alignedComparison(st, visible, passage: passage)
+                        }
                     }
                 }
             }
         }
         #if os(macOS)
         .background { CompareDragCanvas(controller: nativeColumnDrag) }
+        .onChange(of: presentation, initial: true) { _, value in
+            guard value == presentation else { return }
+            if let value {
+                if app.comparePresentation != value { app.comparePresentation = value }
+            } else {
+                clearPresentation()
+            }
+        }
+        .onDisappear { clearPresentation() }
+        .onChange(of: presentationAnchor) { _, anchor in
+            if let presentationFocus, presentationFocus.anchor != anchor { self.presentationFocus = nil }
+        }
         #endif
         .task(id: Set(cols.map(ColumnBook.init))) {
             let books = Set(cols.map(ColumnBook.init))
@@ -322,6 +370,9 @@ struct CompareView: View {
             guard loadedPassage == passage else { return }
             compareSelection = ReaderVerseSelection()
             selectedPassage = nil
+            #if os(macOS)
+            presentationFocus = nil
+            #endif
             seedComparisonSelection(st, columns: cols)
             rememberComparisonSelection()
         }
@@ -331,17 +382,26 @@ struct CompareView: View {
             compareSelection = ReaderVerseSelection()
             selectedPassage = nil
             seedComparisonSelection(st, columns: cols)
+            #if os(macOS)
+            if let target = selectedPassage, let column = selectionColumn {
+                presentationFocus = PresentationFocus(target: target, anchor: readingAnchor(in: column, source: st))
+            } else {
+                presentationFocus = nil
+            }
+            #endif
             rememberComparisonSelection()
         }
         .onChange(of: passage) {
             compareSelection = ReaderVerseSelection()
             selectedPassage = nil
             independentVisibleVerses = [:]
+            visibleIndependentRows = [:]
             visibleStackedVerses = [:]
             scrollingColumn = nil
             lastScrolledColumn = nil
             #if os(macOS)
             wheelDriver = nil
+            presentationFocus = nil
             #endif
             visibleAlignedVerses = []
             pendingAlignedVerse = nil
@@ -544,8 +604,7 @@ struct CompareView: View {
     }
 
     private func passageKey(_ state: BibleState, _ columns: [CompareColumn]) -> String {
-        let destinations = columns.map { "\($0.id):\($0.historyKey)" }.joined(separator: ",")
-        return "\(state.translation)|\(state.bookId)|\(state.chapter)|\(destinations)"
+        CompareColumn.passageKey(state, columns)
     }
 
     private func selectedVerses(in state: BibleState) -> Set<Int> {
@@ -557,7 +616,7 @@ struct CompareView: View {
         return selected.isEmpty ? state.verse.map { [$0] } ?? [] : selected
     }
 
-    private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn]) -> some View {
+    private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn], passage: String) -> some View {
         let available = availableColumnIDs
         #if os(macOS)
         let space = compareWidth - 48 - 18 * CGFloat(cols.count - 1)
@@ -595,17 +654,17 @@ struct CompareView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id(v)
                 .onScrollVisibilityChange(threshold: 0.2) { visible in
-                    trackAlignedVerse(v, passage: passageKey(st, self.columns), visible: visible)
+                    trackAlignedVerse(v, passage: passage, visible: visible)
                 }
                 .onDisappear {
-                    trackAlignedVerse(v, passage: passageKey(st, self.columns), visible: false)
+                    trackAlignedVerse(v, passage: passage, visible: false)
                 }
             }
         }
         .padding(24)
     }
 
-    private func stackedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
+    private func stackedComparison(_ state: BibleState, _ columns: [CompareColumn], passage: String) -> some View {
         let available = availableColumnIDs
         return LazyVStack(alignment: .leading, spacing: 14) {
             // Headers share one container: as siblings their column ids (0, 1, …) collided with the verse rows'
@@ -645,10 +704,10 @@ struct CompareView: View {
                 }
                 .id(verse)
                 .onScrollVisibilityChange(threshold: 0.2) { visible in
-                    trackAlignedVerse(verse, passage: passageKey(state, self.columns), visible: visible)
+                    trackAlignedVerse(verse, passage: passage, visible: visible)
                 }
                 .onDisappear {
-                    trackAlignedVerse(verse, passage: passageKey(state, self.columns), visible: false)
+                    trackAlignedVerse(verse, passage: passage, visible: false)
                 }
             }
         }
@@ -712,14 +771,14 @@ struct CompareView: View {
         }
     }
 
-    private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn]) -> some View {
-        let key = "aligned|" + passageKey(state, self.columns)
+    private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn], passage: String) -> some View {
+        let key = "aligned|" + passage
         return ScrollViewReader { proxy in
             restoredCompareScroll(key: key, preferringVerse: pendingAlignedVerse != nil) {
                 if prefersStackedComparison || compareWidth < CGFloat(columns.count) * 280 + 60 {
-                    stackedComparison(state, columns)
+                    stackedComparison(state, columns, passage: passage)
                 } else {
-                    comparisonGrid(state, columns)
+                    comparisonGrid(state, columns, passage: passage)
                 }
             }
             .onChange(of: app.scriptureJumpRequest?.revision) {
@@ -1504,6 +1563,10 @@ struct CompareView: View {
     }
 
     private func selectComparisonVerse(_ row: ChapterVerseRow, column: CompareColumn) {
+        let source = state
+        let columns = self.columns
+        guard source.compareMode, loadedPassage == passageKey(source, columns),
+              columns.contains(where: { $0.id == column.id && $0.historyKey == column.historyKey }) else { return }
         let target = CompareSelectedPassage(column: column.id, destination: column.historyKey,
                                            edition: ChapterEdition(book: row.bookId, chapter: row.chapter, text: column.text))
         #if os(macOS)
@@ -1517,6 +1580,8 @@ struct CompareView: View {
         copiedSelection = false
         #if os(macOS)
         selectionHasKeyboardFocus = true
+        presentationFocus = compareSelection.verses.isEmpty ? nil : PresentationFocus(
+            target: target, anchor: readingAnchor(in: column, source: state))
         #endif
         rememberComparisonSelection()
     }
@@ -1581,6 +1646,9 @@ struct CompareView: View {
     private func clearComparisonSelection() {
         compareSelection = ReaderVerseSelection()
         selectedPassage = nil
+        #if os(macOS)
+        presentationFocus = nil
+        #endif
         copiedSelection = false
         app.update(tabId, recordHistory: false) { tab in
             var reader = BibleState(tab.state)
@@ -1772,8 +1840,10 @@ struct CompareView: View {
         let eligible = await app.bible.comparisonEditions(forBook: st.bookId, chapter: st.chapter, from: st.translation,
                                                         candidates: availableTexts.map(\.id))
         guard !Task.isCancelled else { return }
-        let aligned = cols.allSatisfy { $0.follows(st) }
-        for column in cols where aligned {
+        // Available following columns can still form a grid if an unavailable
+        // pinned column remains in the saved configuration.
+        let canAlign = cols.allSatisfy { $0.follows(st) || independent[$0.id]?.isEmpty != false }
+        for column in cols where canAlign && column.follows(st) {
             let edition = column.text
             var chapters = ChapterMap.equivalentChapters(st.bookId, st.chapter, from: st.translation, to: edition)
             if ChapterMap.isLxx(st.translation), ChapterMap.isKjv(edition) {
@@ -1816,7 +1886,9 @@ struct CompareView: View {
             }
             independent[column.id] = MissingLxxVerses.annotate(lxx, comparingTo: kjv)
         }
-        guard !Task.isCancelled else { return }
+        // Read the current selection intent instead of the task's old capture.
+        let arrival = state
+        guard !Task.isCancelled, arrival.compareMode, passageKey(arrival, columns) == passage else { return }
         chapterHighlights = [:]
         chapterNoteCounts = [:]
         chapterPersonalLinks = [:]
@@ -1826,9 +1898,6 @@ struct CompareView: View {
         eligibleComparisonEditions = Set(eligible)
         loadedPassage = passage
         // The same chapter can receive a new verse command during its fetch.
-        // Read the current selection intent instead of the task's old capture.
-        let arrival = state
-        guard passageKey(arrival, columns) == passage else { return }
         var restoredSelection = false
         if let saved = app.compareSelections[tabId], saved.passage == passage,
            saved.readerVerse == arrival.verse, saved.readerSelection == selectedVerses(in: arrival) {
@@ -1945,27 +2014,74 @@ struct CompareView: View {
         return passage
     }
 
-    private func readingAnchor(in column: CompareColumn, source: BibleState) -> (chapter: Int, verse: Int)? {
+    private struct ReadingAnchor: Equatable {
+        let chapter: Int
+        let verse: Int
+    }
+
+    private func readingAnchor(in column: CompareColumn, source: BibleState) -> ReadingAnchor? {
         let passage = passageKey(source, columns)
         guard loadedPassage == passage else { return nil }
-        if syncScrolling, columns.allSatisfy({ $0.follows(source) }) {
+        let visible = columns.filter { availableColumnIDs.contains($0.id) }
+        let layout = comparisonLayout(visible, source: source, width: compareWidth)
+        if layout == .aligned {
             guard let top = visibleAlignedVerses.min() else { return nil }
-            let row = rows[top]?[column.id] ?? rows.keys.filter { $0 > top }.sorted().lazy.compactMap {
-                rows[$0]?[column.id]
-            }.first
-            return row.map { ($0.chapter, $0.verseNum) }
+            let mapped = rows.keys.filter { rows[$0]?[column.id] != nil }
+            let key = mapped.filter { $0 >= top }.min() ?? mapped.max()
+            return key.flatMap { rows[$0]?[column.id] }.map { ReadingAnchor(chapter: $0.chapter, verse: $0.verseNum) }
         }
         let key = columnScrollKey(column.id, passage: passage)
         let saved = app.compareColumnScrollVerses[tabId]?[key]
             ?? column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) }
         let verse: Int?
-        if canShowIndependentPanes(width: compareWidth, count: columns.count) {
+        if layout == .independent {
             verse = independentVisibleVerses[column.id] ?? saved
         } else {
             verse = visibleStackedVerses[column.id]?.min() ?? saved ?? independentRows[column.id]?.first?.verseNum
         }
-        return verse.map { (column.chapter, $0) }
+        return verse.map { ReadingAnchor(chapter: column.chapter, verse: $0) }
     }
+
+    #if os(macOS)
+    private var presentationColumn: CompareColumn? {
+        guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return nil }
+        let source = BibleState(tab.state)
+        let columns = CompareColumn.resolved(in: tab.state)
+        guard source.compareMode, loadedPassage == passageKey(source, columns) else { return nil }
+        let visible = columns.filter { availableColumnIDs.contains($0.id) }
+        if let target = selectedPassage, compareSelection.scope == target.scope, !compareSelection.verses.isEmpty,
+           let column = visible.first(where: { $0.id == target.column && $0.historyKey == target.destination }) {
+            return column
+        }
+        return visible.first { $0.text == source.translation && $0.book == source.bookId && $0.chapter == source.chapter }
+            ?? visible.first
+    }
+
+    private var presentationAnchor: ReadingAnchor? {
+        presentationColumn.flatMap { readingAnchor(in: $0, source: state) }
+    }
+
+    private var presentation: AppModel.ComparePresentation? {
+        guard let column = presentationColumn, let tab = app.activeTab else { return nil }
+        let anchor = readingAnchor(in: column, source: state)
+        let selected = selectedPassage.flatMap { target in
+            target.column == column.id && target.destination == column.historyKey && compareSelection.scope == target.scope
+                && !compareSelection.verses.isEmpty ? target : nil
+        }
+        let hasExplicitFocus = selected != nil && presentationFocus?.target == selected && presentationFocus?.anchor == anchor
+        let edition = (hasExplicitFocus || anchor == nil ? selected?.edition : nil)
+            ?? ChapterEdition(book: column.book, chapter: anchor?.chapter ?? column.chapter, text: column.text)
+        let verses = selected?.edition == edition ? compareSelection.verses : []
+        return AppModel.ComparePresentation(owner: presentationOwner, tabID: tabId,
+            configuration: ComparePresentationConfiguration(state: tab.state, columns: columns),
+            columnID: column.id, columnDestination: column.historyKey, edition: edition, verses: verses,
+            focus: hasExplicitFocus ? compareSelection.focus : anchor?.verse ?? (verses.isEmpty ? nil : compareSelection.focus))
+    }
+
+    private func clearPresentation() {
+        if app.comparePresentation?.owner == presentationOwner { app.comparePresentation = nil }
+    }
+    #endif
 
     func setColumns(_ cols: [CompareColumn]) {
         #if os(macOS)

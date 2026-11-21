@@ -33,9 +33,18 @@ struct PresenterView: View {
 
     private enum Source: Equatable {
         case scripture(tabID: String, edition: ChapterEdition)
+        case comparison(tabID: String, columnID: Int, edition: ChapterEdition)
+        case comparisonUnavailable
         case note(String)
         case lexicon(String)
         case idle
+
+        var edition: ChapterEdition? {
+            switch self {
+            case .scripture(_, let edition), .comparison(_, _, let edition): return edition
+            default: return nil
+            }
+        }
     }
     private struct PresentedVerse {
         let id: Int
@@ -60,16 +69,32 @@ struct PresenterView: View {
         let appearance: Appearance
     }
 
+    private var comparison: AppModel.ComparePresentation? {
+        guard let tab = app.activeTab, tab.tabType == .bible, BibleState(tab.state).compareMode,
+              let comparison = app.comparePresentation, comparison.tabID == tab.id else { return nil }
+        let columns = CompareColumn.resolved(in: tab.state)
+        guard comparison.configuration == ComparePresentationConfiguration(state: tab.state, columns: columns),
+              columns.contains(where: { $0.id == comparison.columnID && $0.historyKey == comparison.columnDestination }) else { return nil }
+        return comparison
+    }
+
     private var source: Source {
         guard let tab = app.activeTab else { return .idle }
         switch tab.tabType {
-        case .bible: return .scripture(tabID: tab.id, edition: ChapterEdition(BibleState(tab.state)))
+        case .bible:
+            let reader = BibleState(tab.state)
+            if reader.compareMode {
+                guard let comparison else { return .comparisonUnavailable }
+                return .comparison(tabID: tab.id, columnID: comparison.columnID, edition: comparison.edition)
+            }
+            return .scripture(tabID: tab.id, edition: ChapterEdition(reader))
         case .note: return tab.state["noteId"]?.stringValue.map { .note($0.string) } ?? .idle
         case .lexicon: return tab.state["strongsNum"]?.stringValue.map { .lexicon($0.string) } ?? .idle
         default: return .idle
         }
     }
     private var selected: Set<Int> {
+        if let comparison { return comparison.verses }
         guard case .scripture(let tabID, let edition) = source, let tab = app.activeTab else { return [] }
         if let mirror = app.presenterSelection, mirror.tabId == tabID, mirror.edition == edition { return mirror.verses }
         return Set(app.studySelectedVerses(in: tabID, state: BibleState(tab.state)))
@@ -86,18 +111,19 @@ struct PresenterView: View {
         return nil
     }
     private var liveFocus: Int? {
+        if let comparison { return comparison.focus }
         guard case .scripture = source else { return nil }
         return followedVerse ?? selected.min() ?? readerAnchor ?? app.activeTab.map { BibleState($0.state).verse } ?? nil
     }
     @State private var frozenSelection: Set<Int> = []
     private var request: Request {
         Request(source: source, notesRevision: { if case .note = source { return app.notesRevision }; return 0 }(),
-                replacer: { if case .scripture = source { return app.wordReplacerEnabled }; return false }(),
-                rules: { if case .scripture = source { return app.wordReplacerRules }; return [] }(),
+                replacer: source.edition != nil && app.wordReplacerEnabled,
+                rules: source.edition == nil ? [] : app.wordReplacerRules,
                 hiddenAnnotations: Set((app.activeTab?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string }),
                 paused: paused,
                 appearance: {
-                    guard case .scripture = source else { return Appearance(scheme: colorScheme) }
+                    guard source.edition != nil else { return Appearance(scheme: colorScheme) }
                     return Appearance(family: app.scriptureFontFamily, spacing: Double(app.lineSpacing), numbers: showVerseNumbers,
                                       palette: app.activeReaderTheme?.palette(dark: colorScheme == .dark), scheme: colorScheme)
                 }())
@@ -284,7 +310,7 @@ struct PresenterView: View {
         loading = true
         let result: Snapshot
         switch request.source {
-        case .scripture(_, let edition):
+        case .scripture(_, let edition), .comparison(_, _, let edition):
             let chapter = await app.readerChapter(edition)
             result = .scripture(edition, chapter.rows.filter { $0.verseNum > 0 || $0.title == nil }.map { row in
                 let visible = row.hidingTextAnnotations(request.hiddenAnnotations, textId: edition.text)
@@ -297,6 +323,7 @@ struct PresenterView: View {
             result = ((try? app.notes?.one(id)) ?? nil).map(Snapshot.note) ?? .missing("This note is no longer available.")
         case .lexicon(let id):
             result = await app.lexicon.entry(id).map(Snapshot.lexicon) ?? .missing("This lexicon entry is not available.")
+        case .comparisonUnavailable: result = .missing("Choose an available passage in Compare.")
         case .idle: result = .idle
         }
         guard !Task.isCancelled, self.request == request else { return }
