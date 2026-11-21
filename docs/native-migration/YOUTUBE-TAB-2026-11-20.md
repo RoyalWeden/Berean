@@ -1,0 +1,44 @@
+# YouTube tab (M01) — 2026-11-20 (Claude Code)
+
+Status: **IMPLEMENTED (partial); iPhone VERIFIED (sim); Mac built** (no Mac clicks — HANDOFF incident rule).
+
+- `apple/Shared/YouTubeTabView.swift` (SwiftUI `WebPage`/`WebView`, iOS 26+/macOS 26+; iOS 18–25 shows "YouTube Needs iOS 26"). `youtube` tab in the YouTube space, original state keys `{videoId, playlistId, url}`; the tab title follows the page title.
+- Home: YouTube Home + the original's 37 hard-coded channel handles (`electron/ipc/youtube.ts` CHANNELS) → `/@handle/videos`. Sign-in uses the WebKit default store, so it persists.
+- iOS plays inline (`mediaPlaybackBehavior = .allowsInlinePlayback`) — without it the first tap went straight to full screen.
+- Toolbar: Back, Channels, Timestamp menu → Copy Timestamp Link, Copy Video Link, Insert into “<open note>”. Format matches the original: `[Channel — Title — m:ss](https://youtu.be/ID?t=secs)`.
+- Mac sandbox: `ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES` added to BereanMac.xcconfig.
+- Entry points: Mac Go → YouTube, ⌘K palette, Go sheet, iPhone More → Study Tools → YouTube.
+- Verified on sim: channel list → @matthewforyeshua videos → video plays inline; DB tab row `{"playlistId":null,"url":"https://m.youtube.com/watch?v=…","videoId":"…"}`.
+- Known: YouTube's mobile bottom bar sits just under Berean's floating dock (usable, slightly crowded). NOT ported: scraped feed/grid of new videos, two-panel layout, transcripts (Q10/M04), auto PiP (M02), add-channel allow-list prompt (the original never had it either).
+
+## Mac check (click-free, isolated QA library `claude-20261120`)
+- Go → YouTube (menu by PID) shows the channel home; the signed app has `com.apple.security.network.client`.
+- Tab state seeded with `@matthewforyeshua/videos` → relaunch restores and loads the channel page (desktop YouTube) in the sandbox.
+- Fixed: sidebar tab title stayed "YouTube" because the page title arrives after the URL change — the tab title now follows `page.title`.
+
+## Picture in Picture (M02) and page lifetime
+- Each YouTube tab's `WebPage` now lives in `AppModel.youtubePages` while the tab is open: switching tabs and back keeps the page, scroll and playback position (verified: comments sheet still open, no reload). Closing the tab drops the page.
+- PiP button in the toolbar (on watch pages) and **⇧⌘P** on Mac (original Cmd+Shift+P) toggle WebKit's `webkitSetPresentationMode` — verified on iPhone sim (floating player + "playing in picture in picture"). PiP keeps playing while you scroll the page or leave the app.
+- **Not achieved: auto-PiP when switching Berean tabs** (original `autoPiP`). Tried and reverted, with evidence:
+  1. Calling PiP from `onDisappear` → WebKit stayed `inline` (the view was already out of the window).
+  2. Parking the page in a hidden 2×2 host first → WebKit reported `picture-in-picture` and `paused=false`, but iOS never showed the PiP window (system PiP needs a user gesture).
+  3. Parking an already-PiP page in the host during the switch → the app process ended ("Scene client is invalid") — the same page briefly in two web views.
+  A manual PiP also ends when you switch Berean tabs. A real fix needs one WebView kept mounted across tabs (e.g., an always-present YouTube layer in the root that the tab only positions), which is a larger layout change — queued.
+
+### Always-mounted player layer (tried, reverted) — 2026-11-20
+- iPhone: the tab drew a transparent placeholder (anchor preference) and a root layer kept one `WebView` per open YouTube tab under a fixed parent, moved over the placeholder or kept at its last frame when hidden.
+- Findings: (a) creating the layer's WebView before the tab frame was known (2×2) crashed WebKit's SwiftUI `makeViewProvider` (SIGTRAP) — mount only after the frame is known fixed that; (b) overlay layer + hidden at opacity 0.011: manual PiP still ended on tab switch, auto-PiP never started; (c) background layer + hidden players fully opaque under a cover: same — PiP ends on switch, no auto-PiP.
+- Conclusion: in this WebKit/iOS 27 sim, WebKit ends PiP when its web view stops being the presented content and won't start PiP without a gesture; keeping the view mounted is not enough. Reverted to the simpler per-tab page store (state survives tab switches). Possible next route: native AVPlayer is not available for YouTube streams (ToS), so auto-PiP stays a known gap; the Mac (single-window case) could be retried with an AppKit-level persistent WKWebView.
+
+## Transcripts (M04, read-only) — 2026-11-20
+- `BereanNotes/TranscriptService.swift`: port of youtubeService `getTranscript`, `getTranscriptStatus` (segments must exist — D-007) and `searchTranscripts` (FTS5 prefix tokens, bounded bm25 candidate CTE, LIKE fallback, per-video grouping with matchCount, ±12 s snippet widening to 400 chars). **Never writes or fetches** (original fetch is dev-only). Test `TranscriptServiceTests` (read, availability, tokenization, ranking/grouping, widening, limits, clock labels).
+- YouTube tab: **Transcript** button when the current video has local segments → searchable list with timestamps; tapping a line seeks the video (`currentTime`) and plays. iPhone sheet uses a medium detent so the video stays visible.
+- Verified on sim with a labelled QA fixture (4 segments for the restored video, removed afterwards): button shown, list rendered, tap 0:08 → `currentTime` 8.0 (temporary os_log, removed).
+- Not yet: transcript **data** in native libraries (packs / sync — part of the sync/data workstream).
+- **Q10 transcript search**: iPhone Go and the Mac ⌘K palette show a **Videos** section (≥3 characters, top 4 videos, timestamp + widened snippet). Choosing one opens the video at that moment in the YouTube tab (`openYouTubeVideo` → one-shot `youtubeLoadRequest`, consumed by the tab). Verified on sim with the QA fixture (removed): "messiah" → Videos → tab state `watch?v=…&t=8s`. Search runs off the main thread: `TranscriptSearcher` actor with its own read-only connection (connections are NOMUTEX — never shared across threads), debounced 180 ms; tested while the main connection writes, and re-verified on sim.
+- **Current line**: while the transcript is open the tab reads `currentTime` every 0.5 s; the spoken line is highlighted (bold, accent row, `isSelected` for VoiceOver) and scrolled to centre (not while filtering). Verified on sim: tap 0:08 → 0:08 highlighted; 4 s later → 0:12 highlighted. Fixture removed.
+
+## Video-linked notes (M03) — 2026-11-20
+- `BereanNotes/YouTubeLink.swift` (tested): youtu.be / watch / shorts / embed / live links with `t=` or `start=` (`754`, `754s`, `12m34s`, `1h2m5s`); rejects channel pages and look-alike hosts.
+- Notes: tapping/clicking a YouTube link (e.g. an inserted timestamp link) opens it in Berean's YouTube tab at that moment instead of the browser. Verified on sim: typed `[Matthew 0:08](https://youtu.be/7PZjoIgdows?t=8)` in a note → tap → YouTube tab with the video.
+- Together with "Insert into note" (timestamp link) this covers the original M03 loop: link a moment from a video into a note, and jump back to it from the note.

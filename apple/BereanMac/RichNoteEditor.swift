@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 import BereanNotes
+import BereanReference
 
 /// The Mac notes editor (ADR-0014): formatted while you type, no visible Markdown. The text storage holds the note's
 /// Markdown verbatim; `MarkdownLiveSpans` decides the styling, hidden markup becomes null glyphs (no width, no caret
@@ -9,17 +11,29 @@ import BereanNotes
 /// Copy as Plain Text (⌥⇧⌘C) puts the readable text only.
 struct RichNoteEditor: NSViewRepresentable {
     @Binding var text: String
-    var fontSize: CGFloat = 15
+    var fontSize: CGFloat = NSFont.systemFontSize
+    var fontFamily = "system"
+    var detectVerseReferences = true
+    var detectStrongsReferences = true
+    var scriptureBlocks: [NoteScriptureBlock] = []
+    var hermasEdition = HermasText.robertsDonaldson
+    var spellCheck = true
+    var formatRequest: NoteFormatRequest? = nil
+    var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
+    var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
+    var onReferenceCompletion: (NoteReferenceCompletion?) -> Void = { _ in }
+    var onTableContext: (Bool) -> Void = { _ in }
+    var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
         let storage = NSTextStorage()
-        let layout = NSLayoutManager()
+        let layout = NoteTableLayout()
         layout.delegate = context.coordinator
         storage.addLayoutManager(layout)
-        let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        let container = NoteTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         layout.addTextContainer(container)
         let tv = NoteTextView(frame: .zero, textContainer: container)
@@ -28,7 +42,8 @@ struct RichNoteEditor: NSViewRepresentable {
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
         tv.drawsBackground = false
-        tv.textContainerInset = NSSize(width: 0, height: 8)
+        tv.textContainerInset = NSSize(width: 0, height: 6)
+        container.lineFragmentPadding = 0
         tv.autoresizingMask = [.width]
         tv.isVerticallyResizable = true
         tv.minSize = NSSize(width: 0, height: 0)
@@ -36,6 +51,9 @@ struct RichNoteEditor: NSViewRepresentable {
         tv.delegate = context.coordinator
         tv.coordinator = context.coordinator
         tv.setAccessibilityLabel("Note text")
+        // Link colour comes from the styled runs (task boxes keep their accent / secondary tint); this only adds the hand.
+        tv.linkTextAttributes = [.cursor: NSCursor.pointingHand]
+        tv.isContinuousSpellCheckingEnabled = spellCheck
         tv.string = text
         context.coordinator.textView = tv
         context.coordinator.restyle()
@@ -49,20 +67,82 @@ struct RichNoteEditor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         let c = context.coordinator
+        let styleChanged = c.parent.detectVerseReferences != detectVerseReferences
+            || c.parent.detectStrongsReferences != detectStrongsReferences
+            || c.parent.scriptureBlocks != scriptureBlocks || c.parent.hermasEdition != hermasEdition
+            || c.parent.fontFamily != fontFamily || c.parent.fontSize != fontSize
+        let spellingSettingChanged = c.parent.spellCheck != spellCheck
+        let previousRequest = c.parent.formatRequest
         c.parent = self
-        guard let tv = c.textView, tv.string != text, !c.editing else { return }
-        tv.string = text
-        c.restyle()
+        if let request = formatRequest, request != previousRequest {
+            DispatchQueue.main.async { [weak c] in
+                guard let c, c.parent.formatRequest == request, let editor = c.textView,
+                      let window = editor.window else { return }
+                switch request.action {
+                case .inline(let open, let close): editor.wrapSelection(open, close)
+                case .link(let destination, let selection):
+                    if let edit = noteLinkEdit(in: editor.string as NSString, selection: selection ?? editor.selectedRange(), destination: destination) {
+                        editor.replace(edit.range, with: edit.replacement, select: edit.selection)
+                    }
+                case .wikiLink(let completion, let title):
+                    guard !editor.hasMarkedText(),
+                          let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), title: title) else { return }
+                    editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection)
+                case .referenceBlock(let completion, let replacement):
+                    guard !editor.hasMarkedText(),
+                          let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), replacement: replacement) else { return }
+                    editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection, actionName: "Insert Reference Block")
+                case .highlight(let color): editor.setHighlight(color)
+                case .removeHighlight:
+                    if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
+                        editor.replace(edit.range, with: edit.replacement, select: edit.selection)
+                    }
+                case .inlineCode:
+                    if let edit = noteInlineCodeEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
+                        editor.replace(edit.range, with: edit.replacement, select: edit.selection)
+                    }
+                case .heading(let level): editor.setHeading(level)
+                case .list(let style): editor.setList(style)
+                case .callout(let kind): editor.insertCallout(kind)
+                case .insertTable: editor.insertTable()
+                case .insertImage(let markdown): editor.insertImageMarkdown(markdown)
+                case .addTableRow: editor.addTableRow()
+                case .addTableColumn: editor.addTableColumn()
+                case .deleteTableRow: editor.deleteTablePart(columnOnly: false)
+                case .deleteTableColumn: editor.deleteTablePart(columnOnly: true)
+                case .deleteTable: editor.deleteTable()
+                }
+                window.makeFirstResponder(editor)
+            }
+        }
+        guard let tv = c.textView else { return }
+        if spellingSettingChanged { tv.isContinuousSpellCheckingEnabled = spellCheck }
+        let contentChanged = tv.string != text && !c.editing
+        if contentChanged { tv.string = text }
+        if contentChanged || styleChanged { c.restyle() }
+        if contentChanged { c.publishWikiLinkQuery() }
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
+    @MainActor final class Coordinator: NSObject, NSTextViewDelegate, @preconcurrency NSLayoutManagerDelegate {
         var parent: RichNoteEditor
         weak var textView: NoteTextView?
         var editing = false
         var hidden = IndexSet()
         var substitutions: [Int: (len: Int, glyph: String)] = [:]
+        private var wikiLinkQueryPending = false
+        private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
+        private var publishedReferenceCompletion: NoteReferenceCompletion?
+        private var publishedTableContext = false
 
-        init(_ p: RichNoteEditor) { parent = p }
+        private var remoteImageObserver: NSObjectProtocol?
+
+        init(_ p: RichNoteEditor) {
+            parent = p
+            super.init()
+            remoteImageObserver = NotificationCenter.default.addObserver(forName: NoteTableLayout.remoteImageLoaded, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.restyle() }
+            }
+        }
 
         // MARK: styling
 
@@ -70,13 +150,15 @@ struct RichNoteEditor: NSViewRepresentable {
             guard let tv = textView, let storage = tv.textStorage else { return }
             let text = tv.string
             let size = parent.fontSize
-            let body = NSFont.systemFont(ofSize: size)
+            let body = ScriptureFont.nativeFont(parent.fontFamily, size: size)
             let para = NSMutableParagraphStyle(); para.lineSpacing = 3; para.paragraphSpacing = 6
             storage.beginEditing()
             let all = NSRange(location: 0, length: storage.length)
             storage.setAttributes([.font: body, .foregroundColor: NSColor.labelColor, .paragraphStyle: para], range: all)
             hidden = IndexSet(); substitutions = [:]
-            for sp in MarkdownLiveSpans.spans(text) where NSMaxRange(sp.range) <= storage.length {
+            var explicitLinks = IndexSet()
+            let spans = MarkdownLiveSpans.spans(text)
+            for sp in spans where NSMaxRange(sp.range) <= storage.length {
                 let r = sp.range
                 switch sp.kind {
                 case .hidden: hidden.insert(integersIn: r.location..<NSMaxRange(r))
@@ -88,14 +170,15 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor], range: r)
                 case .highlight(let c): storage.addAttribute(.backgroundColor, value: NSColor(Color.highlight(c ?? "yellow")).withAlphaComponent(0.35), range: r)
                 case .link(let url):
-                    if let u = URL(string: url) { storage.addAttribute(.link, value: u, range: r) }
+                    explicitLinks.insert(integersIn: r.location..<NSMaxRange(r))
+                    if let u = URL(string: url) { storage.addAttributes([.link: u, .foregroundColor: NSColor.linkColor, .underlineStyle: NSUnderlineStyle.single.rawValue], range: r) }
                 case .wikilink(let target):
                     storage.addAttributes([.link: URL(string: "berean-note:" + (target.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? target))!,
                                            .foregroundColor: NSColor.linkColor], range: r)
                 case .heading(let level):
                     let scale: [CGFloat] = [1.75, 1.45, 1.25, 1.12, 1.05, 1.0]
                     let hp = NSMutableParagraphStyle(); hp.paragraphSpacingBefore = level <= 2 ? 10 : 6; hp.paragraphSpacing = 4
-                    storage.addAttributes([.font: NSFont.systemFont(ofSize: size * scale[min(level, 6) - 1], weight: level <= 2 ? .bold : .semibold), .paragraphStyle: hp], range: r)
+                    storage.addAttributes([.font: ScriptureFont.nativeFont(parent.fontFamily, size: size * scale[min(level, 6) - 1], weight: level <= 2 ? .bold : .semibold), .paragraphStyle: hp], range: r)
                 case .quote:
                     let qp = NSMutableParagraphStyle(); qp.headIndent = 18; qp.firstLineHeadIndent = 18; qp.paragraphSpacing = 4
                     storage.addAttributes([.paragraphStyle: qp, .foregroundColor: NSColor.secondaryLabelColor], range: r)
@@ -107,20 +190,64 @@ struct RichNoteEditor: NSViewRepresentable {
                     storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: r)
                 case .task(let on):
                     substitutions[r.location] = (r.length, on ? "☑" : "□")
+                    storage.addAttribute(.link, value: NoteTaskLink.url(for: r), range: NSRange(location: r.location, length: 1))
                     storage.addAttribute(.foregroundColor, value: on ? NSColor.controlAccentColor : NSColor.secondaryLabelColor, range: r)
                 case .codeBlock:
                     storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: size * 0.9, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor.withAlphaComponent(0.5)], range: r)
                 case .tableRow:
-                    storage.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: size * 0.92, weight: .regular), range: r)
-                    let line = (text as NSString).substring(with: r) as NSString
-                    var i = 0
-                    while i < line.length { if line.character(at: i) == 124 { storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: NSRange(location: r.location + i, length: 1)) }; i += 1 }
+                    let cells = MarkdownLiveSpans.tableCells(in: text as NSString, range: r)
+                    if !cells.isEmpty {
+                        for delimiter in [r.location] + cells.map(\.upperBound) {
+                            storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor,
+                                                 range: NSRange(location: delimiter, length: 1))
+                        }
+                    }
+                case .tableHeader:
+                    storage.addAttribute(.font, value: ScriptureFont.nativeFont(parent.fontFamily, size: size, weight: .semibold), range: r)
                 case .tableRule, .rule:
-                    storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor, .font: NSFont.monospacedSystemFont(ofSize: size * 0.7, weight: .regular)], range: r)
+                    storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: r)
                 case .image:
-                    storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .backgroundColor: NSColor.quaternaryLabelColor], range: r)
+                    storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: size * 0.85)], range: r)
                 case .structure: break
                 }
+            }
+            // Image sources (base64) are blanked for the reference scanners: same ranges, no per-keystroke scan.
+            let scanText = NoteImages.maskingSources(text)
+            // Scripture references written as plain text link to the passage (original note auto-linking; same
+            // berean-note: route the editor already resolves as a passage first).
+            if parent.detectVerseReferences {
+                for ref in NoteVerseRefs.linkSpans(content: scanText, hermas: parent.hermasEdition) where NSMaxRange(ref.range) <= storage.length {
+                    // Explicit Markdown links own their label even when it reads like a verse.
+                    guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)) else { continue }
+                    guard let url = URL(string: "berean-note:" + (ref.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ref.reference)) else { continue }
+                    storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
+                }
+            }
+            // A verified block can use richer reference grammar (Hermas sections,
+            // comma-separated book names) than the legacy inline scanner.
+            if parent.detectVerseReferences {
+                for block in parent.scriptureBlocks where block.isCurrent(in: text) {
+                    guard let url = URL(string: "berean-note:" + (block.reference.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? block.reference)) else { continue }
+                    storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: block.referenceRange)
+                }
+            }
+            // Link explicit Strong's IDs without changing the saved dictionary/prose source.
+            if parent.detectStrongsReferences {
+                for ref in NoteStrongsLinks.spans(in: scanText, markdownSpans: spans) where NSMaxRange(ref.range) <= storage.length {
+                    guard !explicitLinks.intersects(integersIn: ref.range.location..<NSMaxRange(ref.range)),
+                          let url = URL(string: "berean-native-dev://lexicon/" + ref.number) else { continue }
+                    storage.addAttributes([.link: url, .foregroundColor: NSColor.linkColor], range: ref.range)
+                }
+            }
+            (tv.layoutManager as? NoteTableLayout)?.styleReferenceBlocks(in: storage, spans: spans,
+                scriptureBlocks: parent.scriptureBlocks, paragraph: para,
+                headingAttributes: [.font: ScriptureFont.nativeFont(parent.fontFamily, size: size, weight: .semibold)])
+            (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
+            (tv.layoutManager as? NoteTableLayout)?.styleImages(in: storage, available: (tv.textContainer?.size.width ?? 600) - 2 * (tv.textContainer?.lineFragmentPadding ?? 5))
+            // Null glyphs still participate in TextKit background geometry.
+            // Highlight only visible text, not hidden delimiters or destinations.
+            for range in hidden.rangeView {
+                storage.removeAttribute(.backgroundColor, range: NSRange(range))
             }
             storage.endEditing()
             if let lm = tv.layoutManager { lm.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil); lm.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil) }
@@ -172,9 +299,83 @@ struct RichNoteEditor: NSViewRepresentable {
             parent.text = tv.string
             restyle()
             editing = false
+            publishWikiLinkQuery()
+        }
+
+        /// Coalesce notifications and deliver outside representable updates. Read the final caret position
+        /// after replacements, which notify text changes before updating their selection.
+        func publishWikiLinkQuery() {
+            guard !wikiLinkQueryPending else { return }
+            wikiLinkQueryPending = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.wikiLinkQueryPending = false
+                let query = self.textView.flatMap { editor in
+                    editor.window?.firstResponder === editor && !editor.hasMarkedText()
+                        ? NoteWikiLinkCompletion.detect(in: editor.string, selection: editor.selectedRange()) : nil
+                }
+                let reference = self.textView.flatMap { editor in
+                    editor.window?.firstResponder === editor && !editor.hasMarkedText() && query == nil
+                        ? NoteReferenceCompletion.detect(in: editor.string, selection: editor.selectedRange()) : nil
+                }
+                if query != nil || reference != nil, let editor = self.textView,
+                   let window = editor.window, let scroll = editor.enclosingScrollView {
+                    let screenRect = editor.firstRect(forCharacterRange: editor.selectedRange(), actualRange: nil)
+                    let rect = scroll.convert(window.convertFromScreen(screenRect), from: nil)
+                    let y = scroll.isFlipped ? rect.minY - scroll.bounds.minY : scroll.bounds.maxY - rect.maxY
+                    self.parent.onWikiLinkAnchor(CGRect(x: rect.minX - scroll.bounds.minX, y: y,
+                                                       width: rect.width, height: rect.height))
+                }
+                // Preserve table context when the toolbar takes focus; formatting uses
+                // the native editor's retained selection, not the current first responder.
+                let inTable = self.textView.map { editor in
+                    noteTableContext(in: (editor.string) as NSString, selection: editor.selectedRange()) != nil
+                } ?? false
+                if inTable != self.publishedTableContext {
+                    self.publishedTableContext = inTable
+                    self.parent.onTableContext(inTable)
+                }
+                if query != self.publishedWikiLinkQuery {
+                    self.publishedWikiLinkQuery = query
+                    self.parent.onWikiLinkQuery(query)
+                }
+                if reference != self.publishedReferenceCompletion {
+                    self.publishedReferenceCompletion = reference
+                    self.parent.onReferenceCompletion(reference)
+                }
+            }
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            publishWikiLinkQuery()
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            guard !textView.hasMarkedText() else { return false }
+            let wiki = NoteWikiLinkCompletion.detect(in: textView.string, selection: textView.selectedRange())
+            let reference = wiki == nil ? NoteReferenceCompletion.detect(in: textView.string, selection: textView.selectedRange()) : nil
+            // A key can arrive before the coalesced query notification. Let normal
+            // editing continue rather than accepting an older result and losing Return.
+            guard (wiki != nil && wiki == publishedWikiLinkQuery)
+                    || (reference != nil && reference == publishedReferenceCompletion) else { return false }
+            let command: NoteWikiLinkCommand
+            switch commandSelector {
+            case #selector(NSResponder.moveUp(_:)): command = .up
+            case #selector(NSResponder.moveDown(_:)): command = .down
+            case #selector(NSResponder.insertNewline(_:)): command = .accept
+            case #selector(NSResponder.cancelOperation(_:)): command = .dismiss
+            default: return false
+            }
+            return parent.onWikiLinkCommand(command)
         }
 
         /// Keeps the caret off hidden markup: it moves past it in the direction of travel.
+        func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString text: String?) -> Bool {
+            guard let text, let dash = NoteAutoEmDash.dashRange(in: textView.string as NSString, range: range, replacement: text) else { return true }
+            textView.insertText("—", replacementRange: dash)
+            return false
+        }
+
         func textView(_ textView: NSTextView, willChangeSelectionFromCharacterRange old: NSRange, toCharacterRange new: NSRange) -> NSRange {
             guard new.length == 0, hidden.contains(new.location) || (new.location > 0 && hidden.contains(new.location - 1) && hidden.contains(new.location)) else { return new }
             var loc = new.location
@@ -184,8 +385,15 @@ struct RichNoteEditor: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            if let u = link as? URL { parent.onLink(u); return true }
-            return false
+            guard let url = link as? URL else { return false }
+            if url.scheme == NoteTaskLink.scheme {
+                guard let editor = textView as? NoteTextView,
+                      let edit = NoteTaskLink.edit(for: url, in: editor.string as NSString) else { return true }
+                editor.replace(edit.range, with: edit.replacement, select: editor.selectedRange())
+                return true
+            }
+            parent.onLink(url)
+            return true
         }
     }
 }
@@ -194,48 +402,204 @@ struct RichNoteEditor: NSViewRepresentable {
 final class NoteTextView: NSTextView {
     weak var coordinator: RichNoteEditor.Coordinator?
     static let markdownType = NSPasteboard.PasteboardType("com.berean.note-markdown")
+    private var imageRestylePending = false
+
+    /// Images reserve height for the width they were sized at; re-fit them when the column resizes.
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        guard let layout = layoutManager as? NoteTableLayout, let container = textContainer else { return }
+        let available = container.size.width - 2 * container.lineFragmentPadding
+        guard !imageRestylePending, layout.imagesNeedRestyle(forAvailable: available) else { return }
+        imageRestylePending = true
+        DispatchQueue.main.async { [weak self] in
+            self?.imageRestylePending = false
+            self?.coordinator?.restyle()
+        }
+    }
+
+    // MARK: image resize handle
+
+    private var imageLayout: NoteTableLayout? { layoutManager as? NoteTableLayout }
+
+    /// The image whose Markdown or caption holds the caret.
+    private func activeImageFrame() -> NoteTableLayout.ImageFrame? {
+        guard let layout = imageLayout else { return nil }
+        let caret = selectedRange().location
+        return layout.imageFrames(origin: textContainerOrigin).first { caret >= $0.source.location && caret <= NSMaxRange($0.source) }
+    }
+
+    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        guard let layout = imageLayout else { return }
+        let active = activeImageFrame()?.source.location
+        if layout.activeImageLocation != active {
+            layout.activeImageLocation = active
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if let frame = activeImageFrame() {
+            addCursorRect(NoteTableLayout.handleRect(for: frame.rect), cursor: .frameResize(position: .bottomRight, directions: .all))
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard let layout = imageLayout, let frame = activeImageFrame(),
+              NoteTableLayout.handleRect(for: frame.rect).insetBy(dx: -4, dy: -4).contains(point) else {
+            super.mouseDown(with: event)
+            return
+        }
+        // Drag the handle: live preview, then one "Resize Image" edit on release (Escape cancels).
+        let startWidth = frame.rect.width
+        var width = startWidth
+        layout.dragImageWidth = (frame.source.location, width)
+        needsDisplay = true
+        trackLoop: while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp, .keyDown]) {
+            switch next.type {
+            case .leftMouseDragged:
+                let p = convert(next.locationInWindow, from: nil)
+                width = max(48, startWidth + (p.x - point.x))
+                layout.dragImageWidth = (frame.source.location, width)
+                needsDisplay = true
+            case .keyDown where next.keyCode == 53:
+                width = startWidth
+                break trackLoop
+            case .leftMouseUp:
+                break trackLoop
+            default: break
+            }
+        }
+        layout.dragImageWidth = nil
+        needsDisplay = true
+        guard abs(width - startWidth) >= 2,
+              let image = NoteImages.find(in: string).first(where: { $0.range.location == frame.source.location }) else { return }
+        resizeImage(image, width: Int(width.rounded()))
+    }
 
     // MARK: formatting commands
 
     func wrapSelection(_ open: String, _ close: String) {
-        let r = selectedRange()
-        let s = string as NSString
-        // Toggle off when the selection is already wrapped.
-        if r.location >= open.utf16.count, NSMaxRange(r) + close.utf16.count <= s.length,
-           s.substring(with: NSRange(location: r.location - open.utf16.count, length: open.utf16.count)) == open,
-           s.substring(with: NSRange(location: NSMaxRange(r), length: close.utf16.count)) == close {
-            let full = NSRange(location: r.location - open.utf16.count, length: r.length + open.utf16.count + close.utf16.count)
-            replace(full, with: s.substring(with: r), select: NSRange(location: full.location, length: r.length)); return
-        }
-        let inner = r.length > 0 ? s.substring(with: r) : ""
-        replace(r, with: open + inner + close, select: NSRange(location: r.location + open.utf16.count, length: inner.utf16.count))
+        guard let edit = noteFormatEdit(in: string as NSString, selection: selectedRange(),
+                                        opening: open, closing: close) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func setHighlight(_ color: String?) {
+        guard let edit = noteHighlightEdit(in: string as NSString, selection: selectedRange(), color: color) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func setHeading(_ level: Int) {
-        let s = string as NSString
-        let line = s.lineRange(for: selectedRange())
-        var text = s.substring(with: line)
-        while text.hasPrefix("#") { text.removeFirst() }
-        text = text.trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
-        let prefix = level > 0 ? String(repeating: "#", count: level) + " " : ""
-        replace(line, with: prefix + text, select: NSRange(location: line.location + prefix.utf16.count + max(0, (text as NSString).length - (text.hasSuffix("\n") ? 1 : 0)), length: 0))
+        guard let edit = noteHeadingEdit(in: string as NSString, selection: selectedRange(), level: level) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
-    func toggleBulletList() {
-        let s = string as NSString
-        let lines = s.lineRange(for: selectedRange())
-        let body = s.substring(with: lines)
-        let parts = body.components(separatedBy: "\n")
-        let allBulleted = parts.filter { !$0.isEmpty }.allSatisfy { $0.hasPrefix("- ") }
-        let out = parts.map { $0.isEmpty ? $0 : (allBulleted ? String($0.dropFirst(2)) : "- " + $0) }.joined(separator: "\n")
-        replace(lines, with: out, select: NSRange(location: lines.location, length: (out as NSString).length))
+    override func scrollRangeToVisible(_ range: NSRange) {
+        super.scrollRangeToVisible(range)
+        coordinator?.publishWikiLinkQuery()
+    }
+
+    override func insertNewline(_ sender: Any?) {
+        guard !hasMarkedText(),
+              let edit = noteBlockReturnEdit(in: string as NSString, selection: selectedRange()) else {
+            super.insertNewline(sender)
+            return
+        }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    override func insertTab(_ sender: Any?) {
+        if !moveTableCell(backwards: false) { super.insertTab(sender) }
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        if !moveTableCell(backwards: true) { super.insertBacktab(sender) }
+    }
+
+    private func moveTableCell(backwards: Bool) -> Bool {
+        guard !hasMarkedText(),
+              let destination = noteTableCellDestination(in: string as NSString, selection: selectedRange(),
+                                                         backwards: backwards) else { return false }
+        setSelectedRange(destination)
+        scrollRangeToVisible(destination)
+        return true
+    }
+
+    func deleteTable() {
+        guard let edit = noteWholeTableDeletion(in: string as NSString, selection: selectedRange()) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func deleteTablePart(columnOnly: Bool) {
+        guard let edit = noteTableDeletion(in: string as NSString, selection: selectedRange(),
+                                           columnOnly: columnOnly) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func addTableColumn() {
+        guard let edit = noteTableColumnInsertion(in: string as NSString, selection: selectedRange()) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func addTableRow() {
+        guard let edit = noteTableRowInsertion(in: string as NSString, selection: selectedRange()) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func insertTable() {
+        guard let edit = noteTableInsertion(in: string as NSString, selection: selectedRange()) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func insertCallout(_ kind: NoteCalloutKind) {
+        guard let edit = noteCalloutEdit(in: string as NSString, selection: selectedRange(), kind: kind) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
+    }
+
+    func setList(_ style: NoteListStyle) {
+        guard let edit = noteListEdit(in: string as NSString, selection: selectedRange(), style: style) else { return }
+        replace(edit.range, with: edit.replacement, select: edit.selection)
     }
 
     func replace(_ r: NSRange, with s: String, select: NSRange) {
-        guard shouldChangeText(in: r, replacementString: s) else { return }
-        textStorage?.replaceCharacters(in: r, with: s)
-        didChangeText()
-        setSelectedRange(select)
+        replaceSource(r, with: s, select: select, actionName: "Format Note")
+    }
+
+    /// Formatting/completion is a separate undo action from native typing.
+    /// Register the inverse explicitly so later typing cannot extend its undo range.
+    func replaceSource(_ range: NSRange, with replacement: String, select selection: NSRange, actionName: String = "Insert Note Link") {
+        let source = string as NSString
+        guard let storage = textStorage,
+              range.location != NSNotFound, range.location >= 0, range.length >= 0, range.location <= source.length,
+              range.length <= source.length - range.location else { return }
+        let resultingLength = source.length - range.length + replacement.utf16.count
+        guard selection.location != NSNotFound, selection.location >= 0, selection.length >= 0, selection.location <= resultingLength,
+              selection.length <= resultingLength - selection.location else { return }
+        let previousText = source.substring(with: range)
+        let previousSelection = selectedRange()
+        let inserted = NSRange(location: range.location, length: replacement.utf16.count)
+        breakUndoCoalescing()
+        let manager = undoManager
+        let registrationEnabled = manager?.isUndoRegistrationEnabled == true
+        if registrationEnabled { manager?.disableUndoRegistration() }
+        // Retain NSTextView's delegate policy, but own the undo record for this replacement.
+        let allowed = shouldChangeText(in: range, replacementString: replacement)
+        if allowed {
+            storage.replaceCharacters(in: range, with: replacement)
+            didChangeText()
+            setSelectedRange(selection)
+        }
+        if registrationEnabled { manager?.enableUndoRegistration() }
+        guard allowed else { return }
+        manager?.registerUndo(withTarget: self) { editor in
+            editor.replaceSource(inserted, with: previousText, select: previousSelection, actionName: actionName)
+        }
+        manager?.setActionName(actionName)
+        breakUndoCoalescing()
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -247,13 +611,13 @@ final class NoteTextView: NSTextView {
         case ([.command], "i"): wrapSelection("*", "*"); return true
         case ([.command], "u"): wrapSelection("<u>", "</u>"); return true
         case ([.command, .shift], "x"): wrapSelection("~~", "~~"); return true
-        case ([.command, .shift], "h"): wrapSelection("==", "=="); return true
+        case ([.command, .shift], "h"): setHighlight(nil); return true
         case ([.command], "c"): copy(nil); return true
         case ([.command, .option, .shift], "c"): copyPlainText(nil); return true
         case ([.command], "v"): paste(nil); return true
         case ([.command, .option], "1"), ([.command, .option], "2"), ([.command, .option], "3"): setHeading(Int(k)!); return true
         case ([.command, .option], "0"): setHeading(0); return true
-        case ([.command, .shift], "8"), ([.command, .shift], "*"): toggleBulletList(); return true
+        case ([.command, .shift], "8"), ([.command, .shift], "*"): setList(.bullet); return true
         default: return super.performKeyEquivalent(with: event)
         }
     }
@@ -281,6 +645,53 @@ final class NoteTextView: NSTextView {
 
     override func cut(_ sender: Any?) { copy(sender); insertText("", replacementRange: selectedRange()) }
 
+    /// A plain-text NSTextView only enables Paste for text; also enable it for a picture.
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(paste(_:)), isEditable, Self.pasteboardHasImage { return true }
+        return super.validateUserInterfaceItem(item)
+    }
+
+    static var pasteboardHasImage: Bool {
+        let pb = NSPasteboard.general
+        if pb.canReadItem(withDataConformingToTypes: [UTType.png.identifier, UTType.jpeg.identifier, UTType.tiff.identifier]) { return true }
+        return (pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true,
+            .urlReadingContentsConformToTypes: [UTType.image.identifier]]) as? [URL])?.isEmpty == false
+    }
+
+    /// Dropping picture files inserts them as inline images at the drop point (original drop handler).
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pb = sender.draggingPasteboard
+        guard isEditable,
+              let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true,
+                  .urlReadingContentsConformToTypes: [UTType.image.identifier]]) as? [URL], !urls.isEmpty else {
+            return super.performDragOperation(sender)
+        }
+        let blocks = urls.compactMap { url in
+            (try? Data(contentsOf: url)).flatMap { NoteImageInput.markdown(data: $0, alt: NoteImages.alt(forFileName: url.lastPathComponent)) }
+        }
+        guard !blocks.isEmpty else { return super.performDragOperation(sender) }
+        let point = convert(sender.draggingLocation, from: nil)
+        setSelectedRange(NSRange(location: characterIndexForInsertion(at: point), length: 0))
+        insertImageMarkdown(blocks.joined(separator: "\n"))
+        window?.makeFirstResponder(self)
+        return true
+    }
+
+    func resizeImage(_ image: NoteImages.Image, width: Int?) {
+        guard let current = NoteImages.find(in: string).first(where: { $0.range.location == image.range.location }) else { return }
+        let edit = NoteImages.widthEdit(current, in: string, width: width)
+        replaceSource(edit.range, with: edit.replacement,
+                      select: NSRange(location: NSMaxRange(current.range) + edit.replacement.utf16.count - edit.range.length, length: 0), actionName: "Resize Image")
+    }
+
+    func insertImageMarkdown(_ markdown: String) {
+        let text = string as NSString
+        var range = selectedRange()
+        let safe = NoteImageInput.insertionPoint(in: text, at: range.location)
+        if safe != range.location { range = NSRange(location: safe, length: 0) }
+        insertText(NoteImageInput.block(markdown, in: text, at: range.location), replacementRange: range)
+    }
+
     @objc func copyPlainText(_ sender: Any?) {
         let r = selectedRange()
         guard r.length > 0 else { return }
@@ -291,6 +702,11 @@ final class NoteTextView: NSTextView {
     /// Paste: a note's own copy pastes its Markdown (formatting kept); anything else pastes as plain text.
     override func paste(_ sender: Any?) {
         let pb = NSPasteboard.general
+        // A picture (screenshot, copied image or image file) becomes inline image Markdown, as the original.
+        if pb.string(forType: Self.markdownType) == nil, pb.string(forType: .string) == nil,
+           let md = NoteImageInput.pastedImageMarkdown() {
+            insertImageMarkdown(md); return
+        }
         let s = pb.string(forType: Self.markdownType) ?? pb.string(forType: .string) ?? ""
         guard !s.isEmpty else { return }
         insertText(s, replacementRange: selectedRange())
@@ -298,6 +714,21 @@ final class NoteTextView: NSTextView {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let m = super.menu(for: event) ?? NSMenu()
+        // Right-clicking an image offers sizes, written as the original's |wNNN alt suffix.
+        let point = convert(event.locationInWindow, from: nil)
+        let index = characterIndexForInsertion(at: point)
+        if let image = NoteImages.image(at: index, in: string) ?? NoteImages.image(at: selectedRange().location, in: string) {
+            let sizes = NSMenu(title: "Image Size")
+            for preset in NoteImageInput.sizePresets(for: image) {
+                let item = ClosureMenuItem(preset.title) { [weak self] in self?.resizeImage(image, width: preset.width) }
+                item.state = image.width == preset.width ? .on : .off
+                sizes.addItem(item)
+            }
+            let parent = NSMenuItem(title: "Image Size", action: nil, keyEquivalent: "")
+            parent.submenu = sizes
+            m.insertItem(parent, at: 0)
+            m.insertItem(.separator(), at: 1)
+        }
         if let i = m.items.firstIndex(where: { $0.action == #selector(copy(_:)) }) {
             m.insertItem(ClosureMenuItem("Copy as Plain Text", key: "c", modifiers: [.command, .option, .shift]) { [weak self] in self?.copyPlainText(nil) }, at: i + 1)
         }

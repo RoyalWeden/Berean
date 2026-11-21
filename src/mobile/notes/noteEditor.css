@@ -130,3 +130,18 @@ html[data-m-selbar] .m-note-insert > * { pointer-events: none; }
 }
 .m-note-title::placeholder { color: rgb(var(--color-text-muted) / 0.7); }
 .m-note-title-wrap .mobile-note-meta { padding: 4px 0 0; }
+.m-note-attachments { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.m-note-attachments button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 9px;
+  background: rgb(var(--color-accent) / 0.1);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.m-note-attachments button:active { background: rgb(var(--color-accent) / 0.2); }

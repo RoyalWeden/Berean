@@ -1,4 +1,6 @@
+import Foundation
 import BereanCore
+import BereanReference
 import BereanSQLite
 import BereanText
 
@@ -24,6 +26,7 @@ public actor LexiconService {
     private let lexiconPath: @Sendable (Character) -> String?   // "H" / "G"
     private let textPath: @Sendable (String) -> String?
     private var open: [String: SQLiteConnection] = [:]
+    private var foldedIndex: [Character: [(id: String, folded: String)]] = [:]
     static let occurrenceTexts: [Character: [String]] = ["H": ["kjva"], "G": ["kjva", "lxx"]]
     static let pageMax = 50
 
@@ -54,6 +57,26 @@ public actor LexiconService {
         let num = Self.normalizedId(strongsNum)
         guard let lang = num.first, lang == "H" || lang == "G", let db = lexicon(lang) else { return nil }
         return (try? db.query("SELECT * FROM entries WHERE strongs_id = ?", [.text(num)]))?.first.map(Self.mapEntry)
+    }
+
+    /// Find the nearest existing entries in the same lexicon, ordered by Strong's number.
+    public func adjacentEntries(_ strongsNum: String) -> (previous: String?, next: String?) {
+        let id = Self.normalizedId(strongsNum)
+        guard let language = id.first, language == "H" || language == "G",
+              let number = Int64(id.dropFirst().prefix(while: \.isNumber)),
+              let db = lexicon(language) else { return (nil, nil) }
+        func neighbor(before: Bool) -> String? {
+            let comparison = before ? "<" : ">"
+            let direction = before ? "DESC" : "ASC"
+            let sql = """
+                SELECT strongs_id FROM entries
+                WHERE (CAST(SUBSTR(strongs_id, 2) AS INTEGER), strongs_id) \(comparison) (?, ?)
+                ORDER BY CAST(SUBSTR(strongs_id, 2) AS INTEGER) \(direction), strongs_id \(direction)
+                LIMIT 1
+                """
+            return (try? db.query(sql, [.integer(number), .text(id)]))?.first?["strongs_id"]?.string
+        }
+        return (neighbor(before: true), neighbor(before: false))
     }
 
     /// `getRelated` — entries whose derivation cites this one (Hebrew: bare number as a whole token).
@@ -93,6 +116,37 @@ public actor LexiconService {
     }
 
     /// `search` — gloss/definition search over one or both lexicons (30 per lexicon).
+    /// Transliteration spelling as people type it: no accents or breathing marks, ç → s, ᵉ → e, and the vowel letters
+    /// Strong's writes after long vowels dropped ("shâlôwm" → "shalom", "cheçed" → "chesed", "bᵉrîyth" → "berith").
+    public static func foldTransliteration(_ s: String) -> String {
+        var t = s.lowercased().replacingOccurrences(of: "ç", with: "s").replacingOccurrences(of: "ᵉ", with: "e")
+        t = t.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
+        t = t.filter { $0.isLetter }
+        for (a, b) in [("ow", "o"), ("iy", "i"), ("uw", "u")] { t = t.replacingOccurrences(of: a, with: b) }
+        return t
+    }
+
+    /// Native addition (no TypeScript counterpart): entries whose folded transliteration contains the folded query,
+    /// for searches the shared SQL `LIKE` misses because of diacritics. Exact Strong's / SQL matches stay in `search`.
+    public func searchFoldedTransliteration(_ query: String, lang: String, limit: Int = 20) -> [LexiconEntry] {
+        let q = Self.foldTransliteration(query)
+        guard q.count >= 3 else { return [] }
+        var out: [LexiconEntry] = []
+        for l: Character in ["H", "G"] where lang == String(l) || lang == "all" {
+            if foldedIndex[l] == nil {
+                guard let db = lexicon(l), let rows = try? db.query("SELECT strongs_id, transliteration FROM entries", []) else { continue }
+                foldedIndex[l] = rows.compactMap { r in
+                    guard let id = r["strongs_id"]?.string, let tr = r["transliteration"]?.string else { return nil }
+                    return (id, Self.foldTransliteration(tr))
+                }
+            }
+            let hits = (foldedIndex[l] ?? []).filter { $0.folded.contains(q) }
+                .sorted { ($0.folded == q ? 0 : $0.folded.hasPrefix(q) ? 1 : 2, $0.folded.count) < ($1.folded == q ? 0 : $1.folded.hasPrefix(q) ? 1 : 2, $1.folded.count) }
+            out += hits.prefix(limit).compactMap { entry($0.id) }
+        }
+        return out
+    }
+
     public func search(_ query: String, lang: String) -> [LexiconEntry] {
         let q = SQLiteValue.text("%\(JSText.trim(query))%")
         let sql = """
@@ -207,28 +261,77 @@ public actor LexiconService {
     /// `getOccurrences` — verses whose own tagged text carries the number (KJVA for Hebrew; KJVA + LXX for Greek,
     /// up to 1000 / 500 per text, or `quickLimit`), optionally scoped to one book.
     public func occurrences(_ strongsNum: String, bookId: String? = nil, quickLimit: Int? = nil) -> [LexiconOccurrence] {
+        occurrenceBatch(strongsNum, bookId: bookId, quickLimit: quickLimit).rows
+    }
+
+    /// Complete results in Scripture order within each edition. The inspector uses the capped batch.
+    public func allOccurrences(_ strongsNum: String) -> [LexiconOccurrence] {
         let num = Self.normalizedId(strongsNum)
-        guard let lang = num.first, lang == "H" || lang == "G", let lex = lexicon(lang) else { return [] }
+        guard let lang = num.first, let editions = Self.occurrenceTexts[lang],
+              let lex = lexicon(lang) else { return [] }
+        let shortDef = (try? lex.query("SELECT short_def FROM entries WHERE strongs_id = ?", [.text(num)]))?.first?.values.first?.string ?? ""
+        let gloss = VerseDisplay.glossWords(shortDef)
+        let params: [SQLiteValue] = [.text("%{\(num)}%"), .text("%{\(num)|%"), .text("%|\(num)}%"), .text("%|\(num)|%")]
+        let sql = """
+            SELECT book_id, chapter, verse_num, text, text_tagged FROM verses
+            WHERE text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?
+            ORDER BY book_id, chapter, verse_num, rowid
+            """
+        var matches: [LexiconOccurrence] = []
+        for edition in editions {
+            guard !Task.isCancelled else { return [] }
+            guard let db = connection(textPath(edition)), let rows = try? db.query(sql, params) else { continue }
+            var seen = Set<String>()
+            var matchesByBook: [String: [LexiconOccurrence]] = [:]
+            for row in rows {
+                guard !Task.isCancelled else { return [] }
+                let book = row.values[0].string ?? ""
+                let chapter = row.values[1].int ?? 0
+                let verse = row.values[2].int ?? 0
+                guard seen.insert("\(book)|\(chapter)|\(verse)").inserted else { continue }
+                let text = row.values[3].string ?? ""
+                let tagged = row.values[4].string
+                let occurrence = LexiconOccurrence(bookId: book, chapter: chapter, verseNum: verse,
+                                                    text: text, textTagged: tagged, textId: edition,
+                                                    matchWordIndices: Self.occurrenceIndices(tagged: tagged, plain: text,
+                                                                                           num: num, gloss: gloss))
+                matchesByBook[book, default: []].append(occurrence)
+            }
+            let books = matchesByBook.keys.sorted { (Reference.bookOrder($0), $0) < (Reference.bookOrder($1), $1) }
+            for book in books {
+                matches.append(contentsOf: matchesByBook[book, default: []])
+            }
+        }
+        return matches
+    }
+
+    /// Report whether any edition has additional matches beyond the returned sample.
+    public func occurrenceBatch(_ strongsNum: String, bookId: String? = nil, quickLimit: Int? = nil) -> (rows: [LexiconOccurrence], truncated: Bool) {
+        let num = Self.normalizedId(strongsNum)
+        guard let lang = num.first, lang == "H" || lang == "G", let lex = lexicon(lang) else { return ([], false) }
         let isGreek = lang == "G"
         let scope = bookId.map { JSText.upper($0) }
         let kjva = connection(textPath("kjva")), lxx = connection(textPath("lxx"))
+        var truncated = false
         func scan(_ db: SQLiteConnection?, _ textId: String, _ limit: Int) -> [(String, Int, Int, String)] {
             guard let db else { return [] }
             var params: [SQLiteValue] = [.text("%{\(num)}%"), .text("%{\(num)|%"), .text("%|\(num)}%"), .text("%|\(num)|%")]
             if let scope { params.append(.text(scope)) }
-            params.append(.integer(Int64(limit)))
+            params.append(.integer(Int64(limit >= 0 && limit < Int.max ? limit + 1 : limit)))
             let sql = """
                 SELECT book_id, chapter, verse_num as verse FROM verses
                            WHERE (text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?)\(scope != nil ? " AND book_id = ?" : "")
                            ORDER BY book_id, chapter, verse_num LIMIT ?
                 """
-            return ((try? db.query(sql, params)) ?? []).map { ($0.values[0].string ?? "", $0.values[1].int ?? 0, $0.values[2].int ?? 0, textId) }
+            let rows = (try? db.query(sql, params)) ?? []
+            if limit >= 0 && rows.count > limit { truncated = true }
+            return rows.prefix(limit >= 0 ? limit : rows.count).map { ($0.values[0].string ?? "", $0.values[1].int ?? 0, $0.values[2].int ?? 0, textId) }
         }
         let raw = isGreek ? scan(kjva, "kjva", quickLimit ?? 500) + scan(lxx, "lxx", quickLimit ?? 500) : scan(kjva, "kjva", quickLimit ?? 1000)
-        if raw.isEmpty { return [] }
+        if raw.isEmpty { return ([], truncated) }
         let shortDef = (try? lex.query("SELECT short_def FROM entries WHERE strongs_id = ?", [.text(num)]))?.first?.values.first?.string ?? ""
         let gloss = VerseDisplay.glossWords(shortDef)
-        return raw.map { b, c, v, t in
+        let rows = raw.map { b, c, v, t in
             let db = t == "lxx" ? lxx : kjva
             let row = (try? db?.query("SELECT text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1",
                                       [.text(b), .integer(Int64(c)), .integer(Int64(v))]))??.first
@@ -236,5 +339,6 @@ public actor LexiconService {
             return LexiconOccurrence(bookId: b, chapter: c, verseNum: v, text: text, textTagged: tagged, textId: t,
                                      matchWordIndices: Self.occurrenceIndices(tagged: tagged, plain: text, num: num, gloss: gloss))
         }
+        return (rows, truncated)
     }
 }

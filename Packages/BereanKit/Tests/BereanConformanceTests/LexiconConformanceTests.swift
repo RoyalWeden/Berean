@@ -2,6 +2,7 @@ import Testing
 import BereanCore
 import BereanSync
 import BereanBible
+import BereanReference
 
 extension LexiconEntry {
     var json: JSValue {
@@ -17,6 +18,24 @@ extension LexiconEntry {
     let g: JSObject
     let svc = LexiconService(lexiconPath: { dataFile($0 == "H" ? "strongs_hebrew" : "strongs_greek") }, textPath: { dataFile($0) })
     init() throws { g = try Golden.load("lexicon") }
+
+    @Test func adjacentEntriesFollowNumericOrderAndStopAtBoundaries() async {
+        let first = await svc.adjacentEntries(" g1 ")
+        #expect(first.previous == nil)
+        #expect(first.next == "G2")
+
+        let middle = await svc.adjacentEntries("H10")
+        #expect(middle.previous == "H9")
+        #expect(middle.next == "H11")
+
+        let last = await svc.adjacentEntries("G5624")
+        #expect(last.previous == "G5623")
+        #expect(last.next == nil)
+
+        let invalid = await svc.adjacentEntries("X10")
+        #expect(invalid.previous == nil)
+        #expect(invalid.next == nil)
+    }
 
     @Test func everyEntry() async {
         var failures: [String] = []
@@ -61,6 +80,41 @@ extension LexiconEntry {
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
     }
 
+    @Test func occurrenceBatchDistinguishesExactLimitFromTruncation() async {
+        let common = await svc.occurrenceBatch("H3068", quickLimit: 1)
+        #expect(common.rows.count == 1)
+        #expect(common.truncated)
+
+        let rare = await svc.occurrenceBatch("H1286", quickLimit: 1)
+        #expect(rare.rows.count == 1)
+        #expect(!rare.truncated)
+    }
+
+    @Test func completeOccurrencesIncludeMatchesBeyondEditionCap() async {
+        let capped = await svc.occurrenceBatch("G3056")
+        let complete = await svc.allOccurrences("G3056")
+        #expect(capped.truncated)
+        #expect(complete.count > capped.rows.count)
+        #expect(Set(complete.map(\.textId)) == ["kjva", "lxx"])
+        let destinations = complete.map { "\($0.textId)|\($0.bookId)|\($0.chapter)|\($0.verseNum)" }
+        #expect(Set(destinations).count == complete.count)
+        #expect(complete.first?.textId == "kjva")
+        #expect(complete.last?.textId == "lxx")
+        for edition in ["kjva", "lxx"] {
+            let rows = complete.filter { $0.textId == edition }
+            #expect(!rows.isEmpty)
+            for (previous, next) in zip(rows, rows.dropFirst()) {
+                let previousPosition = (Reference.bookOrder(previous.bookId), previous.bookId, previous.chapter, previous.verseNum)
+                let nextPosition = (Reference.bookOrder(next.bookId), next.bookId, next.chapter, next.verseNum)
+                #expect(previousPosition < nextPosition)
+            }
+        }
+        let hebrew = await svc.allOccurrences("H3068")
+        #expect(hebrew.first?.bookId == "GEN")
+        #expect(hebrew.first?.chapter == 2)
+        #expect(hebrew.first?.verseNum == 4)
+    }
+
     @Test func occurrences() async {
         var failures: [String] = []
         for c in g.arr("occurrences") {
@@ -76,5 +130,22 @@ extension LexiconEntry {
             if d["count"] != c["count"] || d["hash"] != c["hash"] { failures.append("\(c["num"]!.str) \(c["bookId"]?.optionalString ?? "-") \(rows.count)") }
         }
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
+    }
+}
+
+@Suite("lexicon transliteration folding") struct LexiconFoldingTests {
+    @Test func foldsStrongsSpellings() {
+        #expect(LexiconService.foldTransliteration("shâlôwm") == "shalom")
+        #expect(LexiconService.foldTransliteration("cheçed") == "chesed")
+        #expect(LexiconService.foldTransliteration("bᵉrîyth") == "berith")
+        #expect(LexiconService.foldTransliteration("Yᵉhôvâh") == "yehovah")
+    }
+}
+
+@Suite("BDB notes tokens") struct BdbNotesTests {
+    @Test func expandsAbbreviationsAndTagsNumbers() {
+        #expect(BdbNotes.tokens("n.f., covenant 285") == [.abbr(expanded: "noun, feminine", raw: "n.f."), .text(","), .text(" "),
+                                                       .text("covenant"), .text(" "), .number("285")])
+        #expect(BdbNotes.tokens("vb. pass on") == [.abbr(expanded: "verb", raw: "vb."), .text(" "), .text("pass"), .text(" "), .text("on")])
     }
 }

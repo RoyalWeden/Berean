@@ -1,0 +1,8992 @@
+{
+ "format": 1,
+ "sources": {
+  "src/lib/tts/kokoro/kokoroChunking.ts": "4999f324bd437a8bd0c01eec5c5eb199ca7ff256ce952d4f6c7267396a619e7a",
+  "src/lib/tts/extractSpokenText.ts": "0fd84208c497e1db0472acf50462a58c0e8be3320d27a3938614771de157f36d"
+ },
+ "cases": [
+  {
+   "queue": [],
+   "startIndex": 0,
+   "output": []
+  },
+  {
+   "queue": [
+    []
+   ],
+   "startIndex": 0,
+   "output": []
+  },
+  {
+   "queue": [
+    []
+   ],
+   "startIndex": 1,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "Hi",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 2
+     },
+     {
+      "text": "there.",
+      "wordIndex": 1,
+      "charStart": 3,
+      "charLen": 6
+     },
+     {
+      "text": "This",
+      "wordIndex": 2,
+      "charStart": 10,
+      "charLen": 4
+     },
+     {
+      "text": "continues.",
+      "wordIndex": 3,
+      "charStart": 15,
+      "charLen": 10
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "Hi there.",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "This continues.",
+     "verseCharOffsets": [
+      [
+       0,
+       -10
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "Hi",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 2
+     },
+     {
+      "text": "there.",
+      "wordIndex": 1,
+      "charStart": 3,
+      "charLen": 6
+     },
+     {
+      "text": "This",
+      "wordIndex": 2,
+      "charStart": 10,
+      "charLen": 4
+     },
+     {
+      "text": "continues.",
+      "wordIndex": 3,
+      "charStart": 15,
+      "charLen": 10
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "In",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 2
+     },
+     {
+      "text": "the",
+      "wordIndex": 1,
+      "charStart": 3,
+      "charLen": 3
+     },
+     {
+      "text": "beginning",
+      "wordIndex": 2,
+      "charStart": 7,
+      "charLen": 9
+     }
+    ],
+    [
+     {
+      "text": "God",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 3
+     },
+     {
+      "text": "created",
+      "wordIndex": 1,
+      "charStart": 4,
+      "charLen": 7
+     },
+     {
+      "text": "the",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 3
+     },
+     {
+      "text": "heavens.",
+      "wordIndex": 3,
+      "charStart": 16,
+      "charLen": 8
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "In the beginning God created the heavens.",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ],
+      [
+       1,
+       17
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "In",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 2
+     },
+     {
+      "text": "the",
+      "wordIndex": 1,
+      "charStart": 3,
+      "charLen": 3
+     },
+     {
+      "text": "beginning",
+      "wordIndex": 2,
+      "charStart": 7,
+      "charLen": 9
+     }
+    ],
+    [
+     {
+      "text": "God",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 3
+     },
+     {
+      "text": "created",
+      "wordIndex": 1,
+      "charStart": 4,
+      "charLen": 7
+     },
+     {
+      "text": "the",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 3
+     },
+     {
+      "text": "heavens.",
+      "wordIndex": 3,
+      "charStart": 16,
+      "charLen": 8
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "God created the heavens.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "In",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 2
+     },
+     {
+      "text": "the",
+      "wordIndex": 1,
+      "charStart": 3,
+      "charLen": 3
+     },
+     {
+      "text": "beginning",
+      "wordIndex": 2,
+      "charStart": 7,
+      "charLen": 9
+     }
+    ],
+    [
+     {
+      "text": "God",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 3
+     },
+     {
+      "text": "created",
+      "wordIndex": 1,
+      "charStart": 4,
+      "charLen": 7
+     },
+     {
+      "text": "the",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 3
+     },
+     {
+      "text": "heavens.",
+      "wordIndex": 3,
+      "charStart": 16,
+      "charLen": 8
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "word0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "word1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "word2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "word3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "word4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "word5",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 5
+     },
+     {
+      "text": "word6",
+      "wordIndex": 6,
+      "charStart": 36,
+      "charLen": 5
+     },
+     {
+      "text": "word7",
+      "wordIndex": 7,
+      "charStart": 42,
+      "charLen": 5
+     },
+     {
+      "text": "word8",
+      "wordIndex": 8,
+      "charStart": 48,
+      "charLen": 5
+     },
+     {
+      "text": "word9",
+      "wordIndex": 9,
+      "charStart": 54,
+      "charLen": 5
+     },
+     {
+      "text": "word10",
+      "wordIndex": 10,
+      "charStart": 60,
+      "charLen": 6
+     },
+     {
+      "text": "word11",
+      "wordIndex": 11,
+      "charStart": 67,
+      "charLen": 6
+     },
+     {
+      "text": "word12",
+      "wordIndex": 12,
+      "charStart": 74,
+      "charLen": 6
+     },
+     {
+      "text": "word13",
+      "wordIndex": 13,
+      "charStart": 81,
+      "charLen": 6
+     },
+     {
+      "text": "word14",
+      "wordIndex": 14,
+      "charStart": 88,
+      "charLen": 6
+     },
+     {
+      "text": "word15",
+      "wordIndex": 15,
+      "charStart": 95,
+      "charLen": 6
+     },
+     {
+      "text": "word16",
+      "wordIndex": 16,
+      "charStart": 102,
+      "charLen": 6
+     },
+     {
+      "text": "word17",
+      "wordIndex": 17,
+      "charStart": 109,
+      "charLen": 6
+     },
+     {
+      "text": "word18",
+      "wordIndex": 18,
+      "charStart": 116,
+      "charLen": 6
+     },
+     {
+      "text": "word19",
+      "wordIndex": 19,
+      "charStart": 123,
+      "charLen": 6
+     },
+     {
+      "text": "word20",
+      "wordIndex": 20,
+      "charStart": 130,
+      "charLen": 6
+     },
+     {
+      "text": "word21",
+      "wordIndex": 21,
+      "charStart": 137,
+      "charLen": 6
+     },
+     {
+      "text": "word22",
+      "wordIndex": 22,
+      "charStart": 144,
+      "charLen": 6
+     },
+     {
+      "text": "word23",
+      "wordIndex": 23,
+      "charStart": 151,
+      "charLen": 6
+     },
+     {
+      "text": "word24",
+      "wordIndex": 24,
+      "charStart": 158,
+      "charLen": 6
+     },
+     {
+      "text": "word25",
+      "wordIndex": 25,
+      "charStart": 165,
+      "charLen": 6
+     },
+     {
+      "text": "word26",
+      "wordIndex": 26,
+      "charStart": 172,
+      "charLen": 6
+     },
+     {
+      "text": "word27",
+      "wordIndex": 27,
+      "charStart": 179,
+      "charLen": 6
+     },
+     {
+      "text": "word28",
+      "wordIndex": 28,
+      "charStart": 186,
+      "charLen": 6
+     },
+     {
+      "text": "word29",
+      "wordIndex": 29,
+      "charStart": 193,
+      "charLen": 6
+     },
+     {
+      "text": "word30",
+      "wordIndex": 30,
+      "charStart": 200,
+      "charLen": 6
+     },
+     {
+      "text": "word31",
+      "wordIndex": 31,
+      "charStart": 207,
+      "charLen": 6
+     },
+     {
+      "text": "word32",
+      "wordIndex": 32,
+      "charStart": 214,
+      "charLen": 6
+     },
+     {
+      "text": "word33",
+      "wordIndex": 33,
+      "charStart": 221,
+      "charLen": 6
+     },
+     {
+      "text": "word34",
+      "wordIndex": 34,
+      "charStart": 228,
+      "charLen": 6
+     },
+     {
+      "text": "word35",
+      "wordIndex": 35,
+      "charStart": 235,
+      "charLen": 6
+     },
+     {
+      "text": "word36",
+      "wordIndex": 36,
+      "charStart": 242,
+      "charLen": 6
+     },
+     {
+      "text": "word37",
+      "wordIndex": 37,
+      "charStart": 249,
+      "charLen": 6
+     },
+     {
+      "text": "word38",
+      "wordIndex": 38,
+      "charStart": 256,
+      "charLen": 6
+     },
+     {
+      "text": "word39",
+      "wordIndex": 39,
+      "charStart": 263,
+      "charLen": 6
+     },
+     {
+      "text": "word40",
+      "wordIndex": 40,
+      "charStart": 270,
+      "charLen": 6
+     },
+     {
+      "text": "word41",
+      "wordIndex": 41,
+      "charStart": 277,
+      "charLen": 6
+     },
+     {
+      "text": "word42",
+      "wordIndex": 42,
+      "charStart": 284,
+      "charLen": 6
+     },
+     {
+      "text": "word43",
+      "wordIndex": 43,
+      "charStart": 291,
+      "charLen": 6
+     },
+     {
+      "text": "word44",
+      "wordIndex": 44,
+      "charStart": 298,
+      "charLen": 6
+     },
+     {
+      "text": "word45",
+      "wordIndex": 45,
+      "charStart": 305,
+      "charLen": 6
+     },
+     {
+      "text": "word46",
+      "wordIndex": 46,
+      "charStart": 312,
+      "charLen": 6
+     },
+     {
+      "text": "word47",
+      "wordIndex": 47,
+      "charStart": 319,
+      "charLen": 6
+     },
+     {
+      "text": "word48",
+      "wordIndex": 48,
+      "charStart": 326,
+      "charLen": 6
+     },
+     {
+      "text": "word49",
+      "wordIndex": 49,
+      "charStart": 333,
+      "charLen": 6
+     },
+     {
+      "text": "word50",
+      "wordIndex": 50,
+      "charStart": 340,
+      "charLen": 6
+     },
+     {
+      "text": "word51",
+      "wordIndex": 51,
+      "charStart": 347,
+      "charLen": 6
+     },
+     {
+      "text": "word52",
+      "wordIndex": 52,
+      "charStart": 354,
+      "charLen": 6
+     },
+     {
+      "text": "word53",
+      "wordIndex": 53,
+      "charStart": 361,
+      "charLen": 6
+     },
+     {
+      "text": "word54",
+      "wordIndex": 54,
+      "charStart": 368,
+      "charLen": 6
+     },
+     {
+      "text": "word55",
+      "wordIndex": 55,
+      "charStart": 375,
+      "charLen": 6
+     },
+     {
+      "text": "word56",
+      "wordIndex": 56,
+      "charStart": 382,
+      "charLen": 6
+     },
+     {
+      "text": "word57",
+      "wordIndex": 57,
+      "charStart": 389,
+      "charLen": 6
+     },
+     {
+      "text": "word58",
+      "wordIndex": 58,
+      "charStart": 396,
+      "charLen": 6
+     },
+     {
+      "text": "word59",
+      "wordIndex": 59,
+      "charStart": 403,
+      "charLen": 6
+     },
+     {
+      "text": "word60",
+      "wordIndex": 60,
+      "charStart": 410,
+      "charLen": 6
+     },
+     {
+      "text": "word61",
+      "wordIndex": 61,
+      "charStart": 417,
+      "charLen": 6
+     },
+     {
+      "text": "word62",
+      "wordIndex": 62,
+      "charStart": 424,
+      "charLen": 6
+     },
+     {
+      "text": "word63",
+      "wordIndex": 63,
+      "charStart": 431,
+      "charLen": 6
+     },
+     {
+      "text": "word64",
+      "wordIndex": 64,
+      "charStart": 438,
+      "charLen": 6
+     },
+     {
+      "text": "word65",
+      "wordIndex": 65,
+      "charStart": 445,
+      "charLen": 6
+     },
+     {
+      "text": "word66",
+      "wordIndex": 66,
+      "charStart": 452,
+      "charLen": 6
+     },
+     {
+      "text": "word67",
+      "wordIndex": 67,
+      "charStart": 459,
+      "charLen": 6
+     },
+     {
+      "text": "word68",
+      "wordIndex": 68,
+      "charStart": 466,
+      "charLen": 6
+     },
+     {
+      "text": "word69",
+      "wordIndex": 69,
+      "charStart": 473,
+      "charLen": 6
+     },
+     {
+      "text": "word70",
+      "wordIndex": 70,
+      "charStart": 480,
+      "charLen": 6
+     },
+     {
+      "text": "word71",
+      "wordIndex": 71,
+      "charStart": 487,
+      "charLen": 6
+     },
+     {
+      "text": "word72",
+      "wordIndex": 72,
+      "charStart": 494,
+      "charLen": 6
+     },
+     {
+      "text": "word73",
+      "wordIndex": 73,
+      "charStart": 501,
+      "charLen": 6
+     },
+     {
+      "text": "word74",
+      "wordIndex": 74,
+      "charStart": 508,
+      "charLen": 6
+     },
+     {
+      "text": "word75",
+      "wordIndex": 75,
+      "charStart": 515,
+      "charLen": 6
+     },
+     {
+      "text": "word76",
+      "wordIndex": 76,
+      "charStart": 522,
+      "charLen": 6
+     },
+     {
+      "text": "word77",
+      "wordIndex": 77,
+      "charStart": 529,
+      "charLen": 6
+     },
+     {
+      "text": "word78",
+      "wordIndex": 78,
+      "charStart": 536,
+      "charLen": 6
+     },
+     {
+      "text": "word79",
+      "wordIndex": 79,
+      "charStart": 543,
+      "charLen": 6
+     },
+     {
+      "text": "word80",
+      "wordIndex": 80,
+      "charStart": 550,
+      "charLen": 6
+     },
+     {
+      "text": "word81",
+      "wordIndex": 81,
+      "charStart": 557,
+      "charLen": 6
+     },
+     {
+      "text": "word82",
+      "wordIndex": 82,
+      "charStart": 564,
+      "charLen": 6
+     },
+     {
+      "text": "word83",
+      "wordIndex": 83,
+      "charStart": 571,
+      "charLen": 6
+     },
+     {
+      "text": "word84",
+      "wordIndex": 84,
+      "charStart": 578,
+      "charLen": 6
+     },
+     {
+      "text": "word85",
+      "wordIndex": 85,
+      "charStart": 585,
+      "charLen": 6
+     },
+     {
+      "text": "word86",
+      "wordIndex": 86,
+      "charStart": 592,
+      "charLen": 6
+     },
+     {
+      "text": "word87",
+      "wordIndex": 87,
+      "charStart": 599,
+      "charLen": 6
+     },
+     {
+      "text": "word88",
+      "wordIndex": 88,
+      "charStart": 606,
+      "charLen": 6
+     },
+     {
+      "text": "word89",
+      "wordIndex": 89,
+      "charStart": 613,
+      "charLen": 6
+     },
+     {
+      "text": "word90",
+      "wordIndex": 90,
+      "charStart": 620,
+      "charLen": 6
+     },
+     {
+      "text": "word91",
+      "wordIndex": 91,
+      "charStart": 627,
+      "charLen": 6
+     },
+     {
+      "text": "word92",
+      "wordIndex": 92,
+      "charStart": 634,
+      "charLen": 6
+     },
+     {
+      "text": "word93",
+      "wordIndex": 93,
+      "charStart": 641,
+      "charLen": 6
+     },
+     {
+      "text": "word94",
+      "wordIndex": 94,
+      "charStart": 648,
+      "charLen": 6
+     },
+     {
+      "text": "word95",
+      "wordIndex": 95,
+      "charStart": 655,
+      "charLen": 6
+     },
+     {
+      "text": "word96",
+      "wordIndex": 96,
+      "charStart": 662,
+      "charLen": 6
+     },
+     {
+      "text": "word97",
+      "wordIndex": 97,
+      "charStart": 669,
+      "charLen": 6
+     },
+     {
+      "text": "word98",
+      "wordIndex": 98,
+      "charStart": 676,
+      "charLen": 6
+     },
+     {
+      "text": "word99",
+      "wordIndex": 99,
+      "charStart": 683,
+      "charLen": 6
+     },
+     {
+      "text": "word100",
+      "wordIndex": 100,
+      "charStart": 690,
+      "charLen": 7
+     },
+     {
+      "text": "word101",
+      "wordIndex": 101,
+      "charStart": 698,
+      "charLen": 7
+     },
+     {
+      "text": "word102",
+      "wordIndex": 102,
+      "charStart": 706,
+      "charLen": 7
+     },
+     {
+      "text": "word103",
+      "wordIndex": 103,
+      "charStart": 714,
+      "charLen": 7
+     },
+     {
+      "text": "word104",
+      "wordIndex": 104,
+      "charStart": 722,
+      "charLen": 7
+     },
+     {
+      "text": "word105",
+      "wordIndex": 105,
+      "charStart": 730,
+      "charLen": 7
+     },
+     {
+      "text": "word106",
+      "wordIndex": 106,
+      "charStart": 738,
+      "charLen": 7
+     },
+     {
+      "text": "word107",
+      "wordIndex": 107,
+      "charStart": 746,
+      "charLen": 7
+     },
+     {
+      "text": "word108",
+      "wordIndex": 108,
+      "charStart": 754,
+      "charLen": 7
+     },
+     {
+      "text": "word109",
+      "wordIndex": 109,
+      "charStart": 762,
+      "charLen": 7
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51",
+     "verseCharOffsets": [
+      [
+       0,
+       -74
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91",
+     "verseCharOffsets": [
+      [
+       0,
+       -354
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109",
+     "verseCharOffsets": [
+      [
+       0,
+       -634
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "word0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "word1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "word2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "word3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "word4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "word5",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 5
+     },
+     {
+      "text": "word6",
+      "wordIndex": 6,
+      "charStart": 36,
+      "charLen": 5
+     },
+     {
+      "text": "word7",
+      "wordIndex": 7,
+      "charStart": 42,
+      "charLen": 5
+     },
+     {
+      "text": "word8",
+      "wordIndex": 8,
+      "charStart": 48,
+      "charLen": 5
+     },
+     {
+      "text": "word9",
+      "wordIndex": 9,
+      "charStart": 54,
+      "charLen": 5
+     },
+     {
+      "text": "word10",
+      "wordIndex": 10,
+      "charStart": 60,
+      "charLen": 6
+     },
+     {
+      "text": "word11",
+      "wordIndex": 11,
+      "charStart": 67,
+      "charLen": 6
+     },
+     {
+      "text": "word12",
+      "wordIndex": 12,
+      "charStart": 74,
+      "charLen": 6
+     },
+     {
+      "text": "word13",
+      "wordIndex": 13,
+      "charStart": 81,
+      "charLen": 6
+     },
+     {
+      "text": "word14",
+      "wordIndex": 14,
+      "charStart": 88,
+      "charLen": 6
+     },
+     {
+      "text": "word15",
+      "wordIndex": 15,
+      "charStart": 95,
+      "charLen": 6
+     },
+     {
+      "text": "word16",
+      "wordIndex": 16,
+      "charStart": 102,
+      "charLen": 6
+     },
+     {
+      "text": "word17",
+      "wordIndex": 17,
+      "charStart": 109,
+      "charLen": 6
+     },
+     {
+      "text": "word18",
+      "wordIndex": 18,
+      "charStart": 116,
+      "charLen": 6
+     },
+     {
+      "text": "word19",
+      "wordIndex": 19,
+      "charStart": 123,
+      "charLen": 6
+     },
+     {
+      "text": "word20",
+      "wordIndex": 20,
+      "charStart": 130,
+      "charLen": 6
+     },
+     {
+      "text": "word21",
+      "wordIndex": 21,
+      "charStart": 137,
+      "charLen": 6
+     },
+     {
+      "text": "word22",
+      "wordIndex": 22,
+      "charStart": 144,
+      "charLen": 6
+     },
+     {
+      "text": "word23",
+      "wordIndex": 23,
+      "charStart": 151,
+      "charLen": 6
+     },
+     {
+      "text": "word24",
+      "wordIndex": 24,
+      "charStart": 158,
+      "charLen": 6
+     },
+     {
+      "text": "word25",
+      "wordIndex": 25,
+      "charStart": 165,
+      "charLen": 6
+     },
+     {
+      "text": "word26",
+      "wordIndex": 26,
+      "charStart": 172,
+      "charLen": 6
+     },
+     {
+      "text": "word27",
+      "wordIndex": 27,
+      "charStart": 179,
+      "charLen": 6
+     },
+     {
+      "text": "word28",
+      "wordIndex": 28,
+      "charStart": 186,
+      "charLen": 6
+     },
+     {
+      "text": "word29",
+      "wordIndex": 29,
+      "charStart": 193,
+      "charLen": 6
+     },
+     {
+      "text": "word30",
+      "wordIndex": 30,
+      "charStart": 200,
+      "charLen": 6
+     },
+     {
+      "text": "word31",
+      "wordIndex": 31,
+      "charStart": 207,
+      "charLen": 6
+     },
+     {
+      "text": "word32",
+      "wordIndex": 32,
+      "charStart": 214,
+      "charLen": 6
+     },
+     {
+      "text": "word33",
+      "wordIndex": 33,
+      "charStart": 221,
+      "charLen": 6
+     },
+     {
+      "text": "word34",
+      "wordIndex": 34,
+      "charStart": 228,
+      "charLen": 6
+     },
+     {
+      "text": "word35",
+      "wordIndex": 35,
+      "charStart": 235,
+      "charLen": 6
+     },
+     {
+      "text": "word36",
+      "wordIndex": 36,
+      "charStart": 242,
+      "charLen": 6
+     },
+     {
+      "text": "word37",
+      "wordIndex": 37,
+      "charStart": 249,
+      "charLen": 6
+     },
+     {
+      "text": "word38",
+      "wordIndex": 38,
+      "charStart": 256,
+      "charLen": 6
+     },
+     {
+      "text": "word39",
+      "wordIndex": 39,
+      "charStart": 263,
+      "charLen": 6
+     },
+     {
+      "text": "word40",
+      "wordIndex": 40,
+      "charStart": 270,
+      "charLen": 6
+     },
+     {
+      "text": "word41",
+      "wordIndex": 41,
+      "charStart": 277,
+      "charLen": 6
+     },
+     {
+      "text": "word42",
+      "wordIndex": 42,
+      "charStart": 284,
+      "charLen": 6
+     },
+     {
+      "text": "word43",
+      "wordIndex": 43,
+      "charStart": 291,
+      "charLen": 6
+     },
+     {
+      "text": "word44",
+      "wordIndex": 44,
+      "charStart": 298,
+      "charLen": 6
+     },
+     {
+      "text": "word45",
+      "wordIndex": 45,
+      "charStart": 305,
+      "charLen": 6
+     },
+     {
+      "text": "word46",
+      "wordIndex": 46,
+      "charStart": 312,
+      "charLen": 6
+     },
+     {
+      "text": "word47",
+      "wordIndex": 47,
+      "charStart": 319,
+      "charLen": 6
+     },
+     {
+      "text": "word48",
+      "wordIndex": 48,
+      "charStart": 326,
+      "charLen": 6
+     },
+     {
+      "text": "word49",
+      "wordIndex": 49,
+      "charStart": 333,
+      "charLen": 6
+     },
+     {
+      "text": "word50",
+      "wordIndex": 50,
+      "charStart": 340,
+      "charLen": 6
+     },
+     {
+      "text": "word51",
+      "wordIndex": 51,
+      "charStart": 347,
+      "charLen": 6
+     },
+     {
+      "text": "word52",
+      "wordIndex": 52,
+      "charStart": 354,
+      "charLen": 6
+     },
+     {
+      "text": "word53",
+      "wordIndex": 53,
+      "charStart": 361,
+      "charLen": 6
+     },
+     {
+      "text": "word54",
+      "wordIndex": 54,
+      "charStart": 368,
+      "charLen": 6
+     },
+     {
+      "text": "word55",
+      "wordIndex": 55,
+      "charStart": 375,
+      "charLen": 6
+     },
+     {
+      "text": "word56",
+      "wordIndex": 56,
+      "charStart": 382,
+      "charLen": 6
+     },
+     {
+      "text": "word57",
+      "wordIndex": 57,
+      "charStart": 389,
+      "charLen": 6
+     },
+     {
+      "text": "word58",
+      "wordIndex": 58,
+      "charStart": 396,
+      "charLen": 6
+     },
+     {
+      "text": "word59",
+      "wordIndex": 59,
+      "charStart": 403,
+      "charLen": 6
+     },
+     {
+      "text": "word60",
+      "wordIndex": 60,
+      "charStart": 410,
+      "charLen": 6
+     },
+     {
+      "text": "word61",
+      "wordIndex": 61,
+      "charStart": 417,
+      "charLen": 6
+     },
+     {
+      "text": "word62",
+      "wordIndex": 62,
+      "charStart": 424,
+      "charLen": 6
+     },
+     {
+      "text": "word63",
+      "wordIndex": 63,
+      "charStart": 431,
+      "charLen": 6
+     },
+     {
+      "text": "word64",
+      "wordIndex": 64,
+      "charStart": 438,
+      "charLen": 6
+     },
+     {
+      "text": "word65",
+      "wordIndex": 65,
+      "charStart": 445,
+      "charLen": 6
+     },
+     {
+      "text": "word66",
+      "wordIndex": 66,
+      "charStart": 452,
+      "charLen": 6
+     },
+     {
+      "text": "word67",
+      "wordIndex": 67,
+      "charStart": 459,
+      "charLen": 6
+     },
+     {
+      "text": "word68",
+      "wordIndex": 68,
+      "charStart": 466,
+      "charLen": 6
+     },
+     {
+      "text": "word69",
+      "wordIndex": 69,
+      "charStart": 473,
+      "charLen": 6
+     },
+     {
+      "text": "word70",
+      "wordIndex": 70,
+      "charStart": 480,
+      "charLen": 6
+     },
+     {
+      "text": "word71",
+      "wordIndex": 71,
+      "charStart": 487,
+      "charLen": 6
+     },
+     {
+      "text": "word72",
+      "wordIndex": 72,
+      "charStart": 494,
+      "charLen": 6
+     },
+     {
+      "text": "word73",
+      "wordIndex": 73,
+      "charStart": 501,
+      "charLen": 6
+     },
+     {
+      "text": "word74",
+      "wordIndex": 74,
+      "charStart": 508,
+      "charLen": 6
+     },
+     {
+      "text": "word75",
+      "wordIndex": 75,
+      "charStart": 515,
+      "charLen": 6
+     },
+     {
+      "text": "word76",
+      "wordIndex": 76,
+      "charStart": 522,
+      "charLen": 6
+     },
+     {
+      "text": "word77",
+      "wordIndex": 77,
+      "charStart": 529,
+      "charLen": 6
+     },
+     {
+      "text": "word78",
+      "wordIndex": 78,
+      "charStart": 536,
+      "charLen": 6
+     },
+     {
+      "text": "word79",
+      "wordIndex": 79,
+      "charStart": 543,
+      "charLen": 6
+     },
+     {
+      "text": "word80",
+      "wordIndex": 80,
+      "charStart": 550,
+      "charLen": 6
+     },
+     {
+      "text": "word81",
+      "wordIndex": 81,
+      "charStart": 557,
+      "charLen": 6
+     },
+     {
+      "text": "word82",
+      "wordIndex": 82,
+      "charStart": 564,
+      "charLen": 6
+     },
+     {
+      "text": "word83",
+      "wordIndex": 83,
+      "charStart": 571,
+      "charLen": 6
+     },
+     {
+      "text": "word84",
+      "wordIndex": 84,
+      "charStart": 578,
+      "charLen": 6
+     },
+     {
+      "text": "word85",
+      "wordIndex": 85,
+      "charStart": 585,
+      "charLen": 6
+     },
+     {
+      "text": "word86",
+      "wordIndex": 86,
+      "charStart": 592,
+      "charLen": 6
+     },
+     {
+      "text": "word87",
+      "wordIndex": 87,
+      "charStart": 599,
+      "charLen": 6
+     },
+     {
+      "text": "word88",
+      "wordIndex": 88,
+      "charStart": 606,
+      "charLen": 6
+     },
+     {
+      "text": "word89",
+      "wordIndex": 89,
+      "charStart": 613,
+      "charLen": 6
+     },
+     {
+      "text": "word90",
+      "wordIndex": 90,
+      "charStart": 620,
+      "charLen": 6
+     },
+     {
+      "text": "word91",
+      "wordIndex": 91,
+      "charStart": 627,
+      "charLen": 6
+     },
+     {
+      "text": "word92",
+      "wordIndex": 92,
+      "charStart": 634,
+      "charLen": 6
+     },
+     {
+      "text": "word93",
+      "wordIndex": 93,
+      "charStart": 641,
+      "charLen": 6
+     },
+     {
+      "text": "word94",
+      "wordIndex": 94,
+      "charStart": 648,
+      "charLen": 6
+     },
+     {
+      "text": "word95",
+      "wordIndex": 95,
+      "charStart": 655,
+      "charLen": 6
+     },
+     {
+      "text": "word96",
+      "wordIndex": 96,
+      "charStart": 662,
+      "charLen": 6
+     },
+     {
+      "text": "word97",
+      "wordIndex": 97,
+      "charStart": 669,
+      "charLen": 6
+     },
+     {
+      "text": "word98",
+      "wordIndex": 98,
+      "charStart": 676,
+      "charLen": 6
+     },
+     {
+      "text": "word99",
+      "wordIndex": 99,
+      "charStart": 683,
+      "charLen": 6
+     },
+     {
+      "text": "word100",
+      "wordIndex": 100,
+      "charStart": 690,
+      "charLen": 7
+     },
+     {
+      "text": "word101",
+      "wordIndex": 101,
+      "charStart": 698,
+      "charLen": 7
+     },
+     {
+      "text": "word102",
+      "wordIndex": 102,
+      "charStart": 706,
+      "charLen": 7
+     },
+     {
+      "text": "word103",
+      "wordIndex": 103,
+      "charStart": 714,
+      "charLen": 7
+     },
+     {
+      "text": "word104",
+      "wordIndex": 104,
+      "charStart": 722,
+      "charLen": 7
+     },
+     {
+      "text": "word105",
+      "wordIndex": 105,
+      "charStart": 730,
+      "charLen": 7
+     },
+     {
+      "text": "word106",
+      "wordIndex": 106,
+      "charStart": 738,
+      "charLen": 7
+     },
+     {
+      "text": "word107",
+      "wordIndex": 107,
+      "charStart": 746,
+      "charLen": 7
+     },
+     {
+      "text": "word108",
+      "wordIndex": 108,
+      "charStart": 754,
+      "charLen": 7
+     },
+     {
+      "text": "word109",
+      "wordIndex": 109,
+      "charStart": 762,
+      "charLen": 7
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "word0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "word1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "word2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "word3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "word4,",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 6
+     },
+     {
+      "text": "word5",
+      "wordIndex": 5,
+      "charStart": 31,
+      "charLen": 5
+     },
+     {
+      "text": "word6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "word7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "word8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "word9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "word10",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 6
+     },
+     {
+      "text": "word11",
+      "wordIndex": 11,
+      "charStart": 68,
+      "charLen": 6
+     },
+     {
+      "text": "word12",
+      "wordIndex": 12,
+      "charStart": 75,
+      "charLen": 6
+     },
+     {
+      "text": "word13,",
+      "wordIndex": 13,
+      "charStart": 82,
+      "charLen": 7
+     },
+     {
+      "text": "word14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "word15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "word16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "word17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "word18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "word19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "word20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "word21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "word22,",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 7
+     },
+     {
+      "text": "word23",
+      "wordIndex": 23,
+      "charStart": 154,
+      "charLen": 6
+     },
+     {
+      "text": "word24",
+      "wordIndex": 24,
+      "charStart": 161,
+      "charLen": 6
+     },
+     {
+      "text": "word25",
+      "wordIndex": 25,
+      "charStart": 168,
+      "charLen": 6
+     },
+     {
+      "text": "word26",
+      "wordIndex": 26,
+      "charStart": 175,
+      "charLen": 6
+     },
+     {
+      "text": "word27",
+      "wordIndex": 27,
+      "charStart": 182,
+      "charLen": 6
+     },
+     {
+      "text": "word28",
+      "wordIndex": 28,
+      "charStart": 189,
+      "charLen": 6
+     },
+     {
+      "text": "word29",
+      "wordIndex": 29,
+      "charStart": 196,
+      "charLen": 6
+     },
+     {
+      "text": "word30",
+      "wordIndex": 30,
+      "charStart": 203,
+      "charLen": 6
+     },
+     {
+      "text": "word31,",
+      "wordIndex": 31,
+      "charStart": 210,
+      "charLen": 7
+     },
+     {
+      "text": "word32",
+      "wordIndex": 32,
+      "charStart": 218,
+      "charLen": 6
+     },
+     {
+      "text": "word33",
+      "wordIndex": 33,
+      "charStart": 225,
+      "charLen": 6
+     },
+     {
+      "text": "word34",
+      "wordIndex": 34,
+      "charStart": 232,
+      "charLen": 6
+     },
+     {
+      "text": "word35",
+      "wordIndex": 35,
+      "charStart": 239,
+      "charLen": 6
+     },
+     {
+      "text": "word36",
+      "wordIndex": 36,
+      "charStart": 246,
+      "charLen": 6
+     },
+     {
+      "text": "word37",
+      "wordIndex": 37,
+      "charStart": 253,
+      "charLen": 6
+     },
+     {
+      "text": "word38",
+      "wordIndex": 38,
+      "charStart": 260,
+      "charLen": 6
+     },
+     {
+      "text": "word39",
+      "wordIndex": 39,
+      "charStart": 267,
+      "charLen": 6
+     },
+     {
+      "text": "word40,",
+      "wordIndex": 40,
+      "charStart": 274,
+      "charLen": 7
+     },
+     {
+      "text": "word41",
+      "wordIndex": 41,
+      "charStart": 282,
+      "charLen": 6
+     },
+     {
+      "text": "word42",
+      "wordIndex": 42,
+      "charStart": 289,
+      "charLen": 6
+     },
+     {
+      "text": "word43",
+      "wordIndex": 43,
+      "charStart": 296,
+      "charLen": 6
+     },
+     {
+      "text": "word44",
+      "wordIndex": 44,
+      "charStart": 303,
+      "charLen": 6
+     },
+     {
+      "text": "word45",
+      "wordIndex": 45,
+      "charStart": 310,
+      "charLen": 6
+     },
+     {
+      "text": "word46",
+      "wordIndex": 46,
+      "charStart": 317,
+      "charLen": 6
+     },
+     {
+      "text": "word47",
+      "wordIndex": 47,
+      "charStart": 324,
+      "charLen": 6
+     },
+     {
+      "text": "word48",
+      "wordIndex": 48,
+      "charStart": 331,
+      "charLen": 6
+     },
+     {
+      "text": "word49,",
+      "wordIndex": 49,
+      "charStart": 338,
+      "charLen": 7
+     },
+     {
+      "text": "word50",
+      "wordIndex": 50,
+      "charStart": 346,
+      "charLen": 6
+     },
+     {
+      "text": "word51",
+      "wordIndex": 51,
+      "charStart": 353,
+      "charLen": 6
+     },
+     {
+      "text": "word52",
+      "wordIndex": 52,
+      "charStart": 360,
+      "charLen": 6
+     },
+     {
+      "text": "word53",
+      "wordIndex": 53,
+      "charStart": 367,
+      "charLen": 6
+     },
+     {
+      "text": "word54",
+      "wordIndex": 54,
+      "charStart": 374,
+      "charLen": 6
+     },
+     {
+      "text": "word55",
+      "wordIndex": 55,
+      "charStart": 381,
+      "charLen": 6
+     },
+     {
+      "text": "word56",
+      "wordIndex": 56,
+      "charStart": 388,
+      "charLen": 6
+     },
+     {
+      "text": "word57",
+      "wordIndex": 57,
+      "charStart": 395,
+      "charLen": 6
+     },
+     {
+      "text": "word58,",
+      "wordIndex": 58,
+      "charStart": 402,
+      "charLen": 7
+     },
+     {
+      "text": "word59",
+      "wordIndex": 59,
+      "charStart": 410,
+      "charLen": 6
+     },
+     {
+      "text": "word60",
+      "wordIndex": 60,
+      "charStart": 417,
+      "charLen": 6
+     },
+     {
+      "text": "word61",
+      "wordIndex": 61,
+      "charStart": 424,
+      "charLen": 6
+     },
+     {
+      "text": "word62",
+      "wordIndex": 62,
+      "charStart": 431,
+      "charLen": 6
+     },
+     {
+      "text": "word63",
+      "wordIndex": 63,
+      "charStart": 438,
+      "charLen": 6
+     },
+     {
+      "text": "word64",
+      "wordIndex": 64,
+      "charStart": 445,
+      "charLen": 6
+     },
+     {
+      "text": "word65",
+      "wordIndex": 65,
+      "charStart": 452,
+      "charLen": 6
+     },
+     {
+      "text": "word66",
+      "wordIndex": 66,
+      "charStart": 459,
+      "charLen": 6
+     },
+     {
+      "text": "word67,",
+      "wordIndex": 67,
+      "charStart": 466,
+      "charLen": 7
+     },
+     {
+      "text": "word68",
+      "wordIndex": 68,
+      "charStart": 474,
+      "charLen": 6
+     },
+     {
+      "text": "word69",
+      "wordIndex": 69,
+      "charStart": 481,
+      "charLen": 6
+     },
+     {
+      "text": "word70",
+      "wordIndex": 70,
+      "charStart": 488,
+      "charLen": 6
+     },
+     {
+      "text": "word71",
+      "wordIndex": 71,
+      "charStart": 495,
+      "charLen": 6
+     },
+     {
+      "text": "word72",
+      "wordIndex": 72,
+      "charStart": 502,
+      "charLen": 6
+     },
+     {
+      "text": "word73",
+      "wordIndex": 73,
+      "charStart": 509,
+      "charLen": 6
+     },
+     {
+      "text": "word74",
+      "wordIndex": 74,
+      "charStart": 516,
+      "charLen": 6
+     },
+     {
+      "text": "word75",
+      "wordIndex": 75,
+      "charStart": 523,
+      "charLen": 6
+     },
+     {
+      "text": "word76,",
+      "wordIndex": 76,
+      "charStart": 530,
+      "charLen": 7
+     },
+     {
+      "text": "word77",
+      "wordIndex": 77,
+      "charStart": 538,
+      "charLen": 6
+     },
+     {
+      "text": "word78",
+      "wordIndex": 78,
+      "charStart": 545,
+      "charLen": 6
+     },
+     {
+      "text": "word79",
+      "wordIndex": 79,
+      "charStart": 552,
+      "charLen": 6
+     },
+     {
+      "text": "word80",
+      "wordIndex": 80,
+      "charStart": 559,
+      "charLen": 6
+     },
+     {
+      "text": "word81",
+      "wordIndex": 81,
+      "charStart": 566,
+      "charLen": 6
+     },
+     {
+      "text": "word82",
+      "wordIndex": 82,
+      "charStart": 573,
+      "charLen": 6
+     },
+     {
+      "text": "word83",
+      "wordIndex": 83,
+      "charStart": 580,
+      "charLen": 6
+     },
+     {
+      "text": "word84",
+      "wordIndex": 84,
+      "charStart": 587,
+      "charLen": 6
+     },
+     {
+      "text": "word85,",
+      "wordIndex": 85,
+      "charStart": 594,
+      "charLen": 7
+     },
+     {
+      "text": "word86",
+      "wordIndex": 86,
+      "charStart": 602,
+      "charLen": 6
+     },
+     {
+      "text": "word87",
+      "wordIndex": 87,
+      "charStart": 609,
+      "charLen": 6
+     },
+     {
+      "text": "word88",
+      "wordIndex": 88,
+      "charStart": 616,
+      "charLen": 6
+     },
+     {
+      "text": "word89",
+      "wordIndex": 89,
+      "charStart": 623,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "word0 word1 word2 word3 word4,",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "word5 word6 word7 word8 word9 word10 word11 word12 word13, word14 word15 word16 word17 word18 word19 word20 word21 word22, word23 word24 word25 word26 word27 word28 word29 word30 word31, word32 word33 word34 word35 word36 word37 word38 word39 word40,",
+     "verseCharOffsets": [
+      [
+       0,
+       -31
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "word41 word42 word43 word44 word45 word46 word47 word48 word49, word50 word51 word52 word53 word54 word55 word56 word57 word58, word59 word60 word61 word62 word63 word64 word65 word66 word67, word68 word69 word70 word71 word72 word73 word74 word75 word76,",
+     "verseCharOffsets": [
+      [
+       0,
+       -282
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "word77 word78 word79 word80 word81 word82 word83 word84 word85, word86 word87 word88 word89",
+     "verseCharOffsets": [
+      [
+       0,
+       -538
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "word0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "word1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "word2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "word3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "word4,",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 6
+     },
+     {
+      "text": "word5",
+      "wordIndex": 5,
+      "charStart": 31,
+      "charLen": 5
+     },
+     {
+      "text": "word6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "word7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "word8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "word9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "word10",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 6
+     },
+     {
+      "text": "word11",
+      "wordIndex": 11,
+      "charStart": 68,
+      "charLen": 6
+     },
+     {
+      "text": "word12",
+      "wordIndex": 12,
+      "charStart": 75,
+      "charLen": 6
+     },
+     {
+      "text": "word13,",
+      "wordIndex": 13,
+      "charStart": 82,
+      "charLen": 7
+     },
+     {
+      "text": "word14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "word15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "word16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "word17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "word18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "word19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "word20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "word21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "word22,",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 7
+     },
+     {
+      "text": "word23",
+      "wordIndex": 23,
+      "charStart": 154,
+      "charLen": 6
+     },
+     {
+      "text": "word24",
+      "wordIndex": 24,
+      "charStart": 161,
+      "charLen": 6
+     },
+     {
+      "text": "word25",
+      "wordIndex": 25,
+      "charStart": 168,
+      "charLen": 6
+     },
+     {
+      "text": "word26",
+      "wordIndex": 26,
+      "charStart": 175,
+      "charLen": 6
+     },
+     {
+      "text": "word27",
+      "wordIndex": 27,
+      "charStart": 182,
+      "charLen": 6
+     },
+     {
+      "text": "word28",
+      "wordIndex": 28,
+      "charStart": 189,
+      "charLen": 6
+     },
+     {
+      "text": "word29",
+      "wordIndex": 29,
+      "charStart": 196,
+      "charLen": 6
+     },
+     {
+      "text": "word30",
+      "wordIndex": 30,
+      "charStart": 203,
+      "charLen": 6
+     },
+     {
+      "text": "word31,",
+      "wordIndex": 31,
+      "charStart": 210,
+      "charLen": 7
+     },
+     {
+      "text": "word32",
+      "wordIndex": 32,
+      "charStart": 218,
+      "charLen": 6
+     },
+     {
+      "text": "word33",
+      "wordIndex": 33,
+      "charStart": 225,
+      "charLen": 6
+     },
+     {
+      "text": "word34",
+      "wordIndex": 34,
+      "charStart": 232,
+      "charLen": 6
+     },
+     {
+      "text": "word35",
+      "wordIndex": 35,
+      "charStart": 239,
+      "charLen": 6
+     },
+     {
+      "text": "word36",
+      "wordIndex": 36,
+      "charStart": 246,
+      "charLen": 6
+     },
+     {
+      "text": "word37",
+      "wordIndex": 37,
+      "charStart": 253,
+      "charLen": 6
+     },
+     {
+      "text": "word38",
+      "wordIndex": 38,
+      "charStart": 260,
+      "charLen": 6
+     },
+     {
+      "text": "word39",
+      "wordIndex": 39,
+      "charStart": 267,
+      "charLen": 6
+     },
+     {
+      "text": "word40,",
+      "wordIndex": 40,
+      "charStart": 274,
+      "charLen": 7
+     },
+     {
+      "text": "word41",
+      "wordIndex": 41,
+      "charStart": 282,
+      "charLen": 6
+     },
+     {
+      "text": "word42",
+      "wordIndex": 42,
+      "charStart": 289,
+      "charLen": 6
+     },
+     {
+      "text": "word43",
+      "wordIndex": 43,
+      "charStart": 296,
+      "charLen": 6
+     },
+     {
+      "text": "word44",
+      "wordIndex": 44,
+      "charStart": 303,
+      "charLen": 6
+     },
+     {
+      "text": "word45",
+      "wordIndex": 45,
+      "charStart": 310,
+      "charLen": 6
+     },
+     {
+      "text": "word46",
+      "wordIndex": 46,
+      "charStart": 317,
+      "charLen": 6
+     },
+     {
+      "text": "word47",
+      "wordIndex": 47,
+      "charStart": 324,
+      "charLen": 6
+     },
+     {
+      "text": "word48",
+      "wordIndex": 48,
+      "charStart": 331,
+      "charLen": 6
+     },
+     {
+      "text": "word49,",
+      "wordIndex": 49,
+      "charStart": 338,
+      "charLen": 7
+     },
+     {
+      "text": "word50",
+      "wordIndex": 50,
+      "charStart": 346,
+      "charLen": 6
+     },
+     {
+      "text": "word51",
+      "wordIndex": 51,
+      "charStart": 353,
+      "charLen": 6
+     },
+     {
+      "text": "word52",
+      "wordIndex": 52,
+      "charStart": 360,
+      "charLen": 6
+     },
+     {
+      "text": "word53",
+      "wordIndex": 53,
+      "charStart": 367,
+      "charLen": 6
+     },
+     {
+      "text": "word54",
+      "wordIndex": 54,
+      "charStart": 374,
+      "charLen": 6
+     },
+     {
+      "text": "word55",
+      "wordIndex": 55,
+      "charStart": 381,
+      "charLen": 6
+     },
+     {
+      "text": "word56",
+      "wordIndex": 56,
+      "charStart": 388,
+      "charLen": 6
+     },
+     {
+      "text": "word57",
+      "wordIndex": 57,
+      "charStart": 395,
+      "charLen": 6
+     },
+     {
+      "text": "word58,",
+      "wordIndex": 58,
+      "charStart": 402,
+      "charLen": 7
+     },
+     {
+      "text": "word59",
+      "wordIndex": 59,
+      "charStart": 410,
+      "charLen": 6
+     },
+     {
+      "text": "word60",
+      "wordIndex": 60,
+      "charStart": 417,
+      "charLen": 6
+     },
+     {
+      "text": "word61",
+      "wordIndex": 61,
+      "charStart": 424,
+      "charLen": 6
+     },
+     {
+      "text": "word62",
+      "wordIndex": 62,
+      "charStart": 431,
+      "charLen": 6
+     },
+     {
+      "text": "word63",
+      "wordIndex": 63,
+      "charStart": 438,
+      "charLen": 6
+     },
+     {
+      "text": "word64",
+      "wordIndex": 64,
+      "charStart": 445,
+      "charLen": 6
+     },
+     {
+      "text": "word65",
+      "wordIndex": 65,
+      "charStart": 452,
+      "charLen": 6
+     },
+     {
+      "text": "word66",
+      "wordIndex": 66,
+      "charStart": 459,
+      "charLen": 6
+     },
+     {
+      "text": "word67,",
+      "wordIndex": 67,
+      "charStart": 466,
+      "charLen": 7
+     },
+     {
+      "text": "word68",
+      "wordIndex": 68,
+      "charStart": 474,
+      "charLen": 6
+     },
+     {
+      "text": "word69",
+      "wordIndex": 69,
+      "charStart": 481,
+      "charLen": 6
+     },
+     {
+      "text": "word70",
+      "wordIndex": 70,
+      "charStart": 488,
+      "charLen": 6
+     },
+     {
+      "text": "word71",
+      "wordIndex": 71,
+      "charStart": 495,
+      "charLen": 6
+     },
+     {
+      "text": "word72",
+      "wordIndex": 72,
+      "charStart": 502,
+      "charLen": 6
+     },
+     {
+      "text": "word73",
+      "wordIndex": 73,
+      "charStart": 509,
+      "charLen": 6
+     },
+     {
+      "text": "word74",
+      "wordIndex": 74,
+      "charStart": 516,
+      "charLen": 6
+     },
+     {
+      "text": "word75",
+      "wordIndex": 75,
+      "charStart": 523,
+      "charLen": 6
+     },
+     {
+      "text": "word76,",
+      "wordIndex": 76,
+      "charStart": 530,
+      "charLen": 7
+     },
+     {
+      "text": "word77",
+      "wordIndex": 77,
+      "charStart": 538,
+      "charLen": 6
+     },
+     {
+      "text": "word78",
+      "wordIndex": 78,
+      "charStart": 545,
+      "charLen": 6
+     },
+     {
+      "text": "word79",
+      "wordIndex": 79,
+      "charStart": 552,
+      "charLen": 6
+     },
+     {
+      "text": "word80",
+      "wordIndex": 80,
+      "charStart": 559,
+      "charLen": 6
+     },
+     {
+      "text": "word81",
+      "wordIndex": 81,
+      "charStart": 566,
+      "charLen": 6
+     },
+     {
+      "text": "word82",
+      "wordIndex": 82,
+      "charStart": 573,
+      "charLen": 6
+     },
+     {
+      "text": "word83",
+      "wordIndex": 83,
+      "charStart": 580,
+      "charLen": 6
+     },
+     {
+      "text": "word84",
+      "wordIndex": 84,
+      "charStart": 587,
+      "charLen": 6
+     },
+     {
+      "text": "word85,",
+      "wordIndex": 85,
+      "charStart": 594,
+      "charLen": 7
+     },
+     {
+      "text": "word86",
+      "wordIndex": 86,
+      "charStart": 602,
+      "charLen": 6
+     },
+     {
+      "text": "word87",
+      "wordIndex": 87,
+      "charStart": 609,
+      "charLen": 6
+     },
+     {
+      "text": "word88",
+      "wordIndex": 88,
+      "charStart": 616,
+      "charLen": 6
+     },
+     {
+      "text": "word89",
+      "wordIndex": 89,
+      "charStart": 623,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "One;",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 4
+     },
+     {
+      "text": "two:",
+      "wordIndex": 1,
+      "charStart": 5,
+      "charLen": 4
+     },
+     {
+      "text": "three,",
+      "wordIndex": 2,
+      "charStart": 10,
+      "charLen": 6
+     },
+     {
+      "text": "four!\"]",
+      "wordIndex": 3,
+      "charStart": 17,
+      "charLen": 7
+     },
+     {
+      "text": "Five?",
+      "wordIndex": 4,
+      "charStart": 25,
+      "charLen": 5
+     },
+     {
+      "text": "Six.)",
+      "wordIndex": 5,
+      "charStart": 31,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "One; two: three, four!\"]",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "Five?",
+     "verseCharOffsets": [
+      [
+       0,
+       -25
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "Six.)",
+     "verseCharOffsets": [
+      [
+       0,
+       -31
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "One;",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 4
+     },
+     {
+      "text": "two:",
+      "wordIndex": 1,
+      "charStart": 5,
+      "charLen": 4
+     },
+     {
+      "text": "three,",
+      "wordIndex": 2,
+      "charStart": 10,
+      "charLen": 6
+     },
+     {
+      "text": "four!\"]",
+      "wordIndex": 3,
+      "charStart": 17,
+      "charLen": 7
+     },
+     {
+      "text": "Five?",
+      "wordIndex": 4,
+      "charStart": 25,
+      "charLen": 5
+     },
+     {
+      "text": "Six.)",
+      "wordIndex": 5,
+      "charStart": 31,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "α😀",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 3
+     },
+     {
+      "text": "é",
+      "wordIndex": 1,
+      "charStart": 4,
+      "charLen": 2
+     },
+     {
+      "text": "",
+      "wordIndex": 2,
+      "charStart": 7,
+      "charLen": 0
+     },
+     {
+      "text": "word",
+      "wordIndex": 3,
+      "charStart": 8,
+      "charLen": 4
+     },
+     {
+      "text": "two words",
+      "wordIndex": 4,
+      "charStart": 13,
+      "charLen": 9
+     },
+     {
+      "text": "ending.",
+      "wordIndex": 5,
+      "charStart": 23,
+      "charLen": 7
+     }
+    ],
+    [],
+    [
+     {
+      "text": "Next",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 4
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 5,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "α😀 é  word two words ending.",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "Next verse.",
+     "verseCharOffsets": [
+      [
+       2,
+       0
+      ]
+     ],
+     "startVerseIndex": 2,
+     "endVerseIndex": 2
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "α😀",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 3
+     },
+     {
+      "text": "é",
+      "wordIndex": 1,
+      "charStart": 4,
+      "charLen": 2
+     },
+     {
+      "text": "",
+      "wordIndex": 2,
+      "charStart": 7,
+      "charLen": 0
+     },
+     {
+      "text": "word",
+      "wordIndex": 3,
+      "charStart": 8,
+      "charLen": 4
+     },
+     {
+      "text": "two words",
+      "wordIndex": 4,
+      "charStart": 13,
+      "charLen": 9
+     },
+     {
+      "text": "ending.",
+      "wordIndex": 5,
+      "charStart": 23,
+      "charLen": 7
+     }
+    ],
+    [],
+    [
+     {
+      "text": "Next",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 4
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 5,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Next verse.",
+     "verseCharOffsets": [
+      [
+       2,
+       0
+      ]
+     ],
+     "startVerseIndex": 2,
+     "endVerseIndex": 2
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "α😀",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 3
+     },
+     {
+      "text": "é",
+      "wordIndex": 1,
+      "charStart": 4,
+      "charLen": 2
+     },
+     {
+      "text": "",
+      "wordIndex": 2,
+      "charStart": 7,
+      "charLen": 0
+     },
+     {
+      "text": "word",
+      "wordIndex": 3,
+      "charStart": 8,
+      "charLen": 4
+     },
+     {
+      "text": "two words",
+      "wordIndex": 4,
+      "charStart": 13,
+      "charLen": 9
+     },
+     {
+      "text": "ending.",
+      "wordIndex": 5,
+      "charStart": 23,
+      "charLen": 7
+     }
+    ],
+    [],
+    [
+     {
+      "text": "Next",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 4
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 5,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": [
+    {
+     "text": "Next verse.",
+     "verseCharOffsets": [
+      [
+       2,
+       0
+      ]
+     ],
+     "startVerseIndex": 2,
+     "endVerseIndex": 2
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "α😀",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 3
+     },
+     {
+      "text": "é",
+      "wordIndex": 1,
+      "charStart": 4,
+      "charLen": 2
+     },
+     {
+      "text": "",
+      "wordIndex": 2,
+      "charStart": 7,
+      "charLen": 0
+     },
+     {
+      "text": "word",
+      "wordIndex": 3,
+      "charStart": 8,
+      "charLen": 4
+     },
+     {
+      "text": "two words",
+      "wordIndex": 4,
+      "charStart": 13,
+      "charLen": 9
+     },
+     {
+      "text": "ending.",
+      "wordIndex": 5,
+      "charStart": 23,
+      "charLen": 7
+     }
+    ],
+    [],
+    [
+     {
+      "text": "Next",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 4
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 5,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 3,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "First",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Second",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 6
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 7,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Third",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "First verse.",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "Second verse.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    },
+    {
+     "text": "Third verse.",
+     "verseCharOffsets": [
+      [
+       2,
+       0
+      ]
+     ],
+     "startVerseIndex": 2,
+     "endVerseIndex": 2
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "First",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Second",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 6
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 7,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Third",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Second verse.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    },
+    {
+     "text": "Third verse.",
+     "verseCharOffsets": [
+      [
+       2,
+       0
+      ]
+     ],
+     "startVerseIndex": 2,
+     "endVerseIndex": 2
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "First",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Second",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 6
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 7,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Third",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": [
+    {
+     "text": "Third verse.",
+     "verseCharOffsets": [
+      [
+       2,
+       0
+      ]
+     ],
+     "startVerseIndex": 2,
+     "endVerseIndex": 2
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "First",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Second",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 6
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 7,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Third",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "verse.",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 6
+     }
+    ]
+   ],
+   "startIndex": 3,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "one.\n",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "two?\r",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "three!\r\n",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 8
+     },
+     {
+      "text": "four. ",
+      "wordIndex": 3,
+      "charStart": 21,
+      "charLen": 6
+     },
+     {
+      "text": "five. ",
+      "wordIndex": 4,
+      "charStart": 28,
+      "charLen": 6
+     },
+     {
+      "text": "end.",
+      "wordIndex": 5,
+      "charStart": 35,
+      "charLen": 4
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "one.\n two?\r three!\r\n four.  five.  end.",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "one.\n",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "two?\r",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "three!\r\n",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 8
+     },
+     {
+      "text": "four. ",
+      "wordIndex": 3,
+      "charStart": 21,
+      "charLen": 6
+     },
+     {
+      "text": "five. ",
+      "wordIndex": 4,
+      "charStart": 28,
+      "charLen": 6
+     },
+     {
+      "text": "end.",
+      "wordIndex": 5,
+      "charStart": 35,
+      "charLen": 4
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10: Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ],
+      [
+       1,
+       69
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10:",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term11 Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       -69
+      ],
+      [
+       1,
+       7
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10:",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term11 term12 Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       -69
+      ],
+      [
+       1,
+       14
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10:",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term11 term12 term13 term14 term15 term16 term17 term18 term19 term20 term21 term22 term23 term24 term25 term26 term27 term28 term29 term30 term31 term32 term33 term34 term35 term36 term37 term38 Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       -69
+      ],
+      [
+       1,
+       196
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10:",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term11 term12 term13 term14 term15 term16 term17 term18 term19 term20 term21 term22 term23 term24 term25 term26 term27 term28 term29 term30 term31 term32 term33 term34 term35 term36 term37 term38 term39 Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       -69
+      ],
+      [
+       1,
+       203
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10:",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term11 term12 term13 term14 term15 term16 term17 term18 term19 term20 term21 term22 term23 term24 term25 term26 term27 term28 term29 term30 term31 term32 term33 term34 term35 term36 term37 term38 term39 term40 Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       -69
+      ],
+      [
+       1,
+       210
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     },
+     {
+      "text": "term41",
+      "wordIndex": 41,
+      "charStart": 279,
+      "charLen": 6
+     },
+     {
+      "text": "term42",
+      "wordIndex": 42,
+      "charStart": 286,
+      "charLen": 6
+     },
+     {
+      "text": "term43",
+      "wordIndex": 43,
+      "charStart": 293,
+      "charLen": 6
+     },
+     {
+      "text": "term44",
+      "wordIndex": 44,
+      "charStart": 300,
+      "charLen": 6
+     },
+     {
+      "text": "term45",
+      "wordIndex": 45,
+      "charStart": 307,
+      "charLen": 6
+     },
+     {
+      "text": "term46",
+      "wordIndex": 46,
+      "charStart": 314,
+      "charLen": 6
+     },
+     {
+      "text": "term47",
+      "wordIndex": 47,
+      "charStart": 321,
+      "charLen": 6
+     },
+     {
+      "text": "term48",
+      "wordIndex": 48,
+      "charStart": 328,
+      "charLen": 6
+     },
+     {
+      "text": "term49",
+      "wordIndex": 49,
+      "charStart": 335,
+      "charLen": 6
+     },
+     {
+      "text": "term50",
+      "wordIndex": 50,
+      "charStart": 342,
+      "charLen": 6
+     },
+     {
+      "text": "term51",
+      "wordIndex": 51,
+      "charStart": 349,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10:",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term11 term12 term13 term14 term15 term16 term17 term18 term19 term20 term21 term22 term23 term24 term25 term26 term27 term28 term29 term30 term31 term32 term33 term34 term35 term36 term37 term38 term39 term40 term41 term42 term43 term44 term45 term46 term47 term48 term49 term50",
+     "verseCharOffsets": [
+      [
+       0,
+       -69
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term51 Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       -349
+      ],
+      [
+       1,
+       7
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     },
+     {
+      "text": "term41",
+      "wordIndex": 41,
+      "charStart": 279,
+      "charLen": 6
+     },
+     {
+      "text": "term42",
+      "wordIndex": 42,
+      "charStart": 286,
+      "charLen": 6
+     },
+     {
+      "text": "term43",
+      "wordIndex": 43,
+      "charStart": 293,
+      "charLen": 6
+     },
+     {
+      "text": "term44",
+      "wordIndex": 44,
+      "charStart": 300,
+      "charLen": 6
+     },
+     {
+      "text": "term45",
+      "wordIndex": 45,
+      "charStart": 307,
+      "charLen": 6
+     },
+     {
+      "text": "term46",
+      "wordIndex": 46,
+      "charStart": 314,
+      "charLen": 6
+     },
+     {
+      "text": "term47",
+      "wordIndex": 47,
+      "charStart": 321,
+      "charLen": 6
+     },
+     {
+      "text": "term48",
+      "wordIndex": 48,
+      "charStart": 328,
+      "charLen": 6
+     },
+     {
+      "text": "term49",
+      "wordIndex": 49,
+      "charStart": 335,
+      "charLen": 6
+     },
+     {
+      "text": "term50",
+      "wordIndex": 50,
+      "charStart": 342,
+      "charLen": 6
+     },
+     {
+      "text": "term51",
+      "wordIndex": 51,
+      "charStart": 349,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     },
+     {
+      "text": "term41",
+      "wordIndex": 41,
+      "charStart": 279,
+      "charLen": 6
+     },
+     {
+      "text": "term42",
+      "wordIndex": 42,
+      "charStart": 286,
+      "charLen": 6
+     },
+     {
+      "text": "term43",
+      "wordIndex": 43,
+      "charStart": 293,
+      "charLen": 6
+     },
+     {
+      "text": "term44",
+      "wordIndex": 44,
+      "charStart": 300,
+      "charLen": 6
+     },
+     {
+      "text": "term45",
+      "wordIndex": 45,
+      "charStart": 307,
+      "charLen": 6
+     },
+     {
+      "text": "term46",
+      "wordIndex": 46,
+      "charStart": 314,
+      "charLen": 6
+     },
+     {
+      "text": "term47",
+      "wordIndex": 47,
+      "charStart": 321,
+      "charLen": 6
+     },
+     {
+      "text": "term48",
+      "wordIndex": 48,
+      "charStart": 328,
+      "charLen": 6
+     },
+     {
+      "text": "term49",
+      "wordIndex": 49,
+      "charStart": 335,
+      "charLen": 6
+     },
+     {
+      "text": "term50",
+      "wordIndex": 50,
+      "charStart": 342,
+      "charLen": 6
+     },
+     {
+      "text": "term51",
+      "wordIndex": 51,
+      "charStart": 349,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     },
+     {
+      "text": "term41",
+      "wordIndex": 41,
+      "charStart": 279,
+      "charLen": 6
+     },
+     {
+      "text": "term42",
+      "wordIndex": 42,
+      "charStart": 286,
+      "charLen": 6
+     },
+     {
+      "text": "term43",
+      "wordIndex": 43,
+      "charStart": 293,
+      "charLen": 6
+     },
+     {
+      "text": "term44",
+      "wordIndex": 44,
+      "charStart": 300,
+      "charLen": 6
+     },
+     {
+      "text": "term45",
+      "wordIndex": 45,
+      "charStart": 307,
+      "charLen": 6
+     },
+     {
+      "text": "term46",
+      "wordIndex": 46,
+      "charStart": 314,
+      "charLen": 6
+     },
+     {
+      "text": "term47",
+      "wordIndex": 47,
+      "charStart": 321,
+      "charLen": 6
+     },
+     {
+      "text": "term48",
+      "wordIndex": 48,
+      "charStart": 328,
+      "charLen": 6
+     },
+     {
+      "text": "term49",
+      "wordIndex": 49,
+      "charStart": 335,
+      "charLen": 6
+     },
+     {
+      "text": "term50",
+      "wordIndex": 50,
+      "charStart": 342,
+      "charLen": 6
+     },
+     {
+      "text": "term51",
+      "wordIndex": 51,
+      "charStart": 349,
+      "charLen": 6
+     },
+     {
+      "text": "term52",
+      "wordIndex": 52,
+      "charStart": 356,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 0,
+   "output": [
+    {
+     "text": "term0 term1 term2 term3 term4 term5; term6 term7 term8 term9 term10:",
+     "verseCharOffsets": [
+      [
+       0,
+       0
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term11 term12 term13 term14 term15 term16 term17 term18 term19 term20 term21 term22 term23 term24 term25 term26 term27 term28 term29 term30 term31 term32 term33 term34 term35 term36 term37 term38 term39 term40 term41 term42 term43 term44 term45 term46 term47 term48 term49 term50",
+     "verseCharOffsets": [
+      [
+       0,
+       -69
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 0
+    },
+    {
+     "text": "term51 term52 Done.",
+     "verseCharOffsets": [
+      [
+       0,
+       -349
+      ],
+      [
+       1,
+       14
+      ]
+     ],
+     "startVerseIndex": 0,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     },
+     {
+      "text": "term41",
+      "wordIndex": 41,
+      "charStart": 279,
+      "charLen": 6
+     },
+     {
+      "text": "term42",
+      "wordIndex": 42,
+      "charStart": 286,
+      "charLen": 6
+     },
+     {
+      "text": "term43",
+      "wordIndex": 43,
+      "charStart": 293,
+      "charLen": 6
+     },
+     {
+      "text": "term44",
+      "wordIndex": 44,
+      "charStart": 300,
+      "charLen": 6
+     },
+     {
+      "text": "term45",
+      "wordIndex": 45,
+      "charStart": 307,
+      "charLen": 6
+     },
+     {
+      "text": "term46",
+      "wordIndex": 46,
+      "charStart": 314,
+      "charLen": 6
+     },
+     {
+      "text": "term47",
+      "wordIndex": 47,
+      "charStart": 321,
+      "charLen": 6
+     },
+     {
+      "text": "term48",
+      "wordIndex": 48,
+      "charStart": 328,
+      "charLen": 6
+     },
+     {
+      "text": "term49",
+      "wordIndex": 49,
+      "charStart": 335,
+      "charLen": 6
+     },
+     {
+      "text": "term50",
+      "wordIndex": 50,
+      "charStart": 342,
+      "charLen": 6
+     },
+     {
+      "text": "term51",
+      "wordIndex": 51,
+      "charStart": 349,
+      "charLen": 6
+     },
+     {
+      "text": "term52",
+      "wordIndex": 52,
+      "charStart": 356,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 1,
+   "output": [
+    {
+     "text": "Done.",
+     "verseCharOffsets": [
+      [
+       1,
+       0
+      ]
+     ],
+     "startVerseIndex": 1,
+     "endVerseIndex": 1
+    }
+   ]
+  },
+  {
+   "queue": [
+    [
+     {
+      "text": "term0",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     },
+     {
+      "text": "term1",
+      "wordIndex": 1,
+      "charStart": 6,
+      "charLen": 5
+     },
+     {
+      "text": "term2",
+      "wordIndex": 2,
+      "charStart": 12,
+      "charLen": 5
+     },
+     {
+      "text": "term3",
+      "wordIndex": 3,
+      "charStart": 18,
+      "charLen": 5
+     },
+     {
+      "text": "term4",
+      "wordIndex": 4,
+      "charStart": 24,
+      "charLen": 5
+     },
+     {
+      "text": "term5;",
+      "wordIndex": 5,
+      "charStart": 30,
+      "charLen": 6
+     },
+     {
+      "text": "term6",
+      "wordIndex": 6,
+      "charStart": 37,
+      "charLen": 5
+     },
+     {
+      "text": "term7",
+      "wordIndex": 7,
+      "charStart": 43,
+      "charLen": 5
+     },
+     {
+      "text": "term8",
+      "wordIndex": 8,
+      "charStart": 49,
+      "charLen": 5
+     },
+     {
+      "text": "term9",
+      "wordIndex": 9,
+      "charStart": 55,
+      "charLen": 5
+     },
+     {
+      "text": "term10:",
+      "wordIndex": 10,
+      "charStart": 61,
+      "charLen": 7
+     },
+     {
+      "text": "term11",
+      "wordIndex": 11,
+      "charStart": 69,
+      "charLen": 6
+     },
+     {
+      "text": "term12",
+      "wordIndex": 12,
+      "charStart": 76,
+      "charLen": 6
+     },
+     {
+      "text": "term13",
+      "wordIndex": 13,
+      "charStart": 83,
+      "charLen": 6
+     },
+     {
+      "text": "term14",
+      "wordIndex": 14,
+      "charStart": 90,
+      "charLen": 6
+     },
+     {
+      "text": "term15",
+      "wordIndex": 15,
+      "charStart": 97,
+      "charLen": 6
+     },
+     {
+      "text": "term16",
+      "wordIndex": 16,
+      "charStart": 104,
+      "charLen": 6
+     },
+     {
+      "text": "term17",
+      "wordIndex": 17,
+      "charStart": 111,
+      "charLen": 6
+     },
+     {
+      "text": "term18",
+      "wordIndex": 18,
+      "charStart": 118,
+      "charLen": 6
+     },
+     {
+      "text": "term19",
+      "wordIndex": 19,
+      "charStart": 125,
+      "charLen": 6
+     },
+     {
+      "text": "term20",
+      "wordIndex": 20,
+      "charStart": 132,
+      "charLen": 6
+     },
+     {
+      "text": "term21",
+      "wordIndex": 21,
+      "charStart": 139,
+      "charLen": 6
+     },
+     {
+      "text": "term22",
+      "wordIndex": 22,
+      "charStart": 146,
+      "charLen": 6
+     },
+     {
+      "text": "term23",
+      "wordIndex": 23,
+      "charStart": 153,
+      "charLen": 6
+     },
+     {
+      "text": "term24",
+      "wordIndex": 24,
+      "charStart": 160,
+      "charLen": 6
+     },
+     {
+      "text": "term25",
+      "wordIndex": 25,
+      "charStart": 167,
+      "charLen": 6
+     },
+     {
+      "text": "term26",
+      "wordIndex": 26,
+      "charStart": 174,
+      "charLen": 6
+     },
+     {
+      "text": "term27",
+      "wordIndex": 27,
+      "charStart": 181,
+      "charLen": 6
+     },
+     {
+      "text": "term28",
+      "wordIndex": 28,
+      "charStart": 188,
+      "charLen": 6
+     },
+     {
+      "text": "term29",
+      "wordIndex": 29,
+      "charStart": 195,
+      "charLen": 6
+     },
+     {
+      "text": "term30",
+      "wordIndex": 30,
+      "charStart": 202,
+      "charLen": 6
+     },
+     {
+      "text": "term31",
+      "wordIndex": 31,
+      "charStart": 209,
+      "charLen": 6
+     },
+     {
+      "text": "term32",
+      "wordIndex": 32,
+      "charStart": 216,
+      "charLen": 6
+     },
+     {
+      "text": "term33",
+      "wordIndex": 33,
+      "charStart": 223,
+      "charLen": 6
+     },
+     {
+      "text": "term34",
+      "wordIndex": 34,
+      "charStart": 230,
+      "charLen": 6
+     },
+     {
+      "text": "term35",
+      "wordIndex": 35,
+      "charStart": 237,
+      "charLen": 6
+     },
+     {
+      "text": "term36",
+      "wordIndex": 36,
+      "charStart": 244,
+      "charLen": 6
+     },
+     {
+      "text": "term37",
+      "wordIndex": 37,
+      "charStart": 251,
+      "charLen": 6
+     },
+     {
+      "text": "term38",
+      "wordIndex": 38,
+      "charStart": 258,
+      "charLen": 6
+     },
+     {
+      "text": "term39",
+      "wordIndex": 39,
+      "charStart": 265,
+      "charLen": 6
+     },
+     {
+      "text": "term40",
+      "wordIndex": 40,
+      "charStart": 272,
+      "charLen": 6
+     },
+     {
+      "text": "term41",
+      "wordIndex": 41,
+      "charStart": 279,
+      "charLen": 6
+     },
+     {
+      "text": "term42",
+      "wordIndex": 42,
+      "charStart": 286,
+      "charLen": 6
+     },
+     {
+      "text": "term43",
+      "wordIndex": 43,
+      "charStart": 293,
+      "charLen": 6
+     },
+     {
+      "text": "term44",
+      "wordIndex": 44,
+      "charStart": 300,
+      "charLen": 6
+     },
+     {
+      "text": "term45",
+      "wordIndex": 45,
+      "charStart": 307,
+      "charLen": 6
+     },
+     {
+      "text": "term46",
+      "wordIndex": 46,
+      "charStart": 314,
+      "charLen": 6
+     },
+     {
+      "text": "term47",
+      "wordIndex": 47,
+      "charStart": 321,
+      "charLen": 6
+     },
+     {
+      "text": "term48",
+      "wordIndex": 48,
+      "charStart": 328,
+      "charLen": 6
+     },
+     {
+      "text": "term49",
+      "wordIndex": 49,
+      "charStart": 335,
+      "charLen": 6
+     },
+     {
+      "text": "term50",
+      "wordIndex": 50,
+      "charStart": 342,
+      "charLen": 6
+     },
+     {
+      "text": "term51",
+      "wordIndex": 51,
+      "charStart": 349,
+      "charLen": 6
+     },
+     {
+      "text": "term52",
+      "wordIndex": 52,
+      "charStart": 356,
+      "charLen": 6
+     }
+    ],
+    [
+     {
+      "text": "Done.",
+      "wordIndex": 0,
+      "charStart": 0,
+      "charLen": 5
+     }
+    ]
+   ],
+   "startIndex": 2,
+   "output": []
+  }
+ ]
+}

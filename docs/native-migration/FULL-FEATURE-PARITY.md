@@ -9,58 +9,60 @@ Priority: P0 data-safety, P1 major missing workflow, P2 incomplete / usability, 
 
 ## Coverage summary
 
-- **Mac:** — 13, ✅ 31, ❌ 36, 🟡 24
-- **iPhone:** — 16, ✅ 17, ❌ 35, ❓ 1, 🟡 35
+These historical inventory counts predate the later dated implementation entries. Use each row and the latest evidence before treating a feature as missing or complete.
 
-Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes home (N11), partial-selection highlights (H02), find in chapter (S15), unified ⌘K with notes (Q09/Q05), iPhone reader gestures and cross-verse selection (S02/S07), advanced note structures (N04/N05), PDFs/YouTube/Read Aloud/Ask Berean (U17, M01, M05, G01).
+- **Mac:** — 13, ✅ 37, ❌ 18, 🟡 36
+- **iPhone:** — 15, ✅ 18, ❌ 17, 🟡 54
+
+Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace/tab buildup, sunrise-aware daily notes (N12), iPhone cross-verse touch QA (S07/H02), remaining Notes home parity (N11), advanced note structures (N04/N05), PDFs/YouTube/Read Aloud/Ask Berean (U17, M01, M05, G01).
 
 ## Index
 
 | ID | Feature | Original status | Mac | iPhone | Pri | Native state / next |
 |---|---|---|---|---|---|---|
 | S01 | Text loading and bundled texts | implemented | ✅ | ✅ | — | All 19 texts bundled; lxx→lxx_brenton mapping fixed; text list = legacy TRANSLATIONS (KJV hidden, Hermas Taylor listed) |
-| S02 | Book / chapter / passage navigation | implemented | ✅ | 🟡 | P1 | Mac: passage navigator (all-text search, history, internal back, texts column), real chapter lists incl. prologue 0, single-chapter books open directly, chapter stepping over real chapters. iPhone: navigator as sheet; NO swipe/edge-tap chapter change, no pull-nav |
+| S02 | Book / chapter / passage navigation | implemented | ✅ | ✅ | P1 | iPhone chapter swipe, edge taps and pull navigation verified with real simulator gestures 2026-11-20: right/left edge tap Psalm 50↔51 (LXX); pull up past the end → next chapter, pull down past the top → previous; a flick that only reaches the end by momentum does NOT change chapter (pull must start at the edge). Go reuses reading tabs. |
 | S03 | Reference parsing | implemented | ✅ | ✅ | — | Golden-pinned parser + native resolver (bare book names, "Jude 5", other texts) |
-| S04 | Verse rendering | implemented | ✅ | 🟡 | P1 | Mac continuous TextKit reader (red letters, italics, titles, note dots, tags, highlights). iPhone per-verse SwiftUI rows; no psalm superscription special-casing check yet |
-| S05 | Strong's rendering and lexicon access | implemented | ✅ | 🟡 | P1 | Mac: clickable superscript Strong's → study panel lexicon; iPhone: Strong's links in rows open lexicon via openURL (needs device check); hover gloss tooltip missing on Mac |
+| S04 | Verse rendering | implemented | ✅ | ✅ | P1 | Continuous TextKit readers on both platforms. Psalm superscriptions checked in the running iPhone app 2026-11-20: KJVA Psalm 3 title in muted italics under verse 1; Brenton Psalm 50 two title verses folded into one line, body shown as verse 1 with the KJV Psalm 51 note — the owner's grouped-title decision (CHANGELOG "Brenton Psalm titles belong to first displayed body verse1"), intentionally unlike the original's unnumbered line above. |
+| S05 | Strong's rendering and lexicon access | implemented | ✅ | 🟡 | P1 | Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover now loads the lemma, transliteration, and gloss. Runtime hover verification remains pending. |
 | S06 | Interlinear | deferred | — | — | — | Deferred in original too |
-| S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Mac: cross-verse text selection; verse-number click/⇧-click selection; selection bar; legacy copy formats (⌘C/⌘⇧C). iPhone: tap-select verses + selection bar; no cross-verse text selection (rows) |
-| S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Missing vs original: copy reference, play audio from here, compare this verse |
-| S09 | Multiple translations and editions | implemented | ✅ | ✅ | — | Text switching in navigator; Compare mode for parallel texts |
-| S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward history + picker History (recent passages). Missing: global History tab/sheet, scroll-position memory per tab |
-| S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size, line spacing, Scripture font, word replacer, theme. Missing: verse-number visibility, red-letter toggle, paragraph mode, per-text options (Hermas translation etc.) |
+| S07 | Selection and copying | implemented | ✅ | 🟡 | P1 | Both readers use a single selectable chapter. iPhone long-press word selection and its copy menu verified in Simulator; cross-verse handle drag and clipboard output need touch QA. |
+| S08 | Verse context menus and actions | implemented | ✅ | 🟡 | P2 | Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Copy Reference and Compare This Verse also available. Play Audio from Here remains open. |
+| S09 | Multiple translations and editions | implemented | ✅ | ✅ | — | Text switching in the navigator, a direct KJV/LXX control, and Compare mode for parallel texts |
+| S10 | Reading position and history | implemented | ✅ | 🟡 | P3 | Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Search and Notes folders keep row anchors per tab and view configuration for the current run. Mac Search and Notes folder history round trips passed live. Exact offsets, relaunch persistence, and full tab coverage remain open. |
+| S11 | Reading preferences | implemented | 🟡 | 🟡 | P2 | Font size and family, line spacing, text width, verse-number visibility, red lettering, word replacer and theme. The reader exposes display options on both platforms. Mac View commands adjust Scripture text size with the original zoom shortcuts. iPhone Scripture supports pinch-to-resize, pending gesture QA. App-wide zoom remains open. Paragraph mode and per-text options remain open. |
 | S12 | Cross-references | implemented | ✅ | 🟡 | P2 | Cross refs (TSKe/Classic) in study panel; iPhone via inspector sheet (not device-verified) |
-| S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Compare columns aligned by verse; missing per-column navigation, verse compare view from verse menu |
-| S14 | Very long chapter performance | implemented (partly measured) | 🟡 | ❓ | P2 | Mac TextKit renders whole chapter (Ps 119 untested for latency); iPhone LazyVStack |
-| S15 | Find in chapter | implemented | ✅ | ❌ | P2 | Find in chapter (⌘F) missing — NSTextView find bar can be enabled |
+| S13 | Parallel comparison | implemented | 🟡 | 🟡 | P2 | Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open. |
+| S14 | Very long chapter performance | implemented (measured) | ✅ | 🟡 | P2 | Both TextKit readers render the whole chapter. KJV Psalm 119: iPhone sim ≈ 17–25 ms, Mac ≈ 19–23 ms build+layout (S14-PSALM-119-TIMING-2026-11-20.md); physical iPhone still to measure. |
+| S15 | Find in chapter | implemented | ✅ | ✅ | P2 | Mac glass find bar; iPhone More → Find in Chapter opens the system find navigator (verified earlier in HANDOFF) |
 | S16 | Word replacer (display rules for divine names and search expansion) | implemented | ✅ | ✅ | — | Word replacer display + search variants + Strong's bridge |
-| Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Native multi-text search (All Texts default, scope menu, per-text counts, options popover). iPhone uses same view (not tap-verified) |
+| Q01 | Scripture full-text search | implemented | ✅ | 🟡 | — | Both app bundles carry all 19 supported Scripture IDs. All Texts searches the bundled corpus; Mac opened Didache via ⌘K. |
 | Q02 | Reference search | implemented | ✅ | ✅ | — | References in ⌘K/New/search field go to passage |
-| Q03 | Strong's search | implemented | ✅ | 🟡 | — | Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap) |
-| Q04 | Lexicon search | implemented | 🟡 | 🟡 | P2 | Lexicon search service ported; no UI entry other than Strong's numbers |
-| Q05 | Notes search | implemented | 🟡 | 🟡 | P1 | Notes home search field (FTS); ⌘K does NOT search notes (MAC-FUNC-003) |
+| Q03 | Strong's search | implemented | ✅ | 🟡 | — | Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap), and matched-word snippet highlighting with Word Replacer remapping |
+| Q04 | Lexicon search | implemented | 🟡 | 🟡 | P2 | Dedicated Lexicon tab and palette search with All/Hebrew/Greek filters. Simulator verified deep entry return and relaunch restoration, plus rapid Return/Clear recovery. Mac verification of the revised rows and the broader history/accessibility checks remain open. |
+| Q05 | Notes search | implemented | 🟡 | 🟡 | P1 | Notes home supports folder/global scope, type/status, three FTS match modes, excerpts and live refresh. Mac ⌘K includes notes. |
 | Q06 | Indexing | implemented (FTS), partial (others) | ✅ | ✅ | — | FTS5 per text; deterministic ordering (ADR-0008) |
 | Q07 | Filtering and ranking | implemented / partial ranking | ✅ | 🟡 | — | Testament, books, match mode, scripture/relevance order, grouping by text/book/none |
 | Q08 | Semantic search and embeddings | partial (Mac dev only; not shipped) | — | — | — | Dev-only in original |
-| Q09 | Floating search / unified Search Berean / command palette | implemented | ✅ | 🟡 | P2 | ⌘K palette: references, Strong's, word search. Missing unified grouped results (Go to · Verses · Lexicon · Notes · Commands) |
-| Q10 | YouTube transcript search | implemented (see M04) | ❌ | ❌ | P3 | Depends on YouTube (M01) |
-| N01 | General, verse and daily notes | implemented | 🟡 | 🟡 | P1 | General + verse notes create/edit; Today's Note (daily) on iPhone New sheet; Mac lacks daily-note command (⌘⇧D) and calendar |
+| Q09 | Floating search / unified Search Berean / command palette | implemented | ✅ | 🟡 | P2 | Mac floating search and iPhone Go group passage, Strong’s, Notes, and Scripture destinations with previews. Unified verse-result streams and YouTube remain open. |
+| Q10 | YouTube transcript search | implemented (see M04) | 🟡 | 🟡 | P3 | Videos section in Go / ⌘K opens the video at the matched moment (2026-11-20); needs transcript data in native libraries |
+| N01 | General, verse and daily notes | implemented | 🟡 | 🟡 | P1 | General and verse notes create/edit; Today’s Note and the Calendar open daily notes on both platforms. |
 | N02 | Markdown model and ProseMirror structure | implemented | 🟡 | 🟡 | P1 | Live-preview editor over verbatim Markdown (ADR-0014) — no data loss by construction; structures shown simplified |
-| N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Missing toolbar & slash commands, task toggling by click |
-| N04 | Tables | implemented | 🟡 | 🟡 | P2 | Tables shown as aligned monospace source, not grid |
-| N05 | Images and attachments | partial | ❌ | ❌ | P2 | Images shown as alt-text caption only |
-| N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links and wikilinks clickable; Scripture refs in plain text not auto-linked |
+| N03 | Inline formatting and block types | implemented | 🟡 | 🟡 | P2 | Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings, lists, and six named highlight colors. Existing legacy highlight colors render in the native editor. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open. |
+| N04 | Tables | implemented | 🟡 | 🟡 | P2 | Markdown tables support insertion, row and column add/delete, whole-table deletion, keyboard cell navigation, and iPhone cell controls in the edit menu and above the software keyboard. Mac whole-table deletion, undo, redo, and note reopening passed live QA. Complete tables render with a header fill and cell borders in the Notes body font. Insertion and undo/redo passed on the iPhone simulator. Previously malformed iPhone separators are recognized without changing stored Markdown. Wide tables and broader editing QA remain open. |
+| N05 | Images and attachments | partial | 🟡 | 🟡 | P2 | data: and remote https images render in both editors with captions and saved width; insert from Photos/Files/paste; resize (Mac drag handle, iPhone Image Size presets); Presenter/previews show them (NOTE-IMAGES-2026-11-20.md). Open: vault `attachments/` files (needs vault sync) |
+| N06 | Links, wikilinks and Scripture references | implemented | 🟡 | 🟡 | P2 | Links, wikilinks, bare Scripture references and explicit Strong’s numbers are linked in the native editors. Note-title completion includes a passage/excerpt preview. Plain Scripture and Strong’s block suggestions passed Simulator insertion and Undo checks. Cross-chapter blocks and Mac runtime verification remain open. |
 | N07 | Autosave | implemented | ✅ | ✅ | — | 600 ms autosave + snapshots on idle/leave/close |
-| N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet, restore with pre-restore snapshot (golden); undo via text system |
-| N09 | Export, import, print | implemented | ✅ | 🟡 | — | Export (save panel) / import / copy; iPhone document picker untapped; no print |
+| N08 | Undo/redo and version history | implemented | ✅ | 🟡 | — | Version history sheet with a compact iPhone selector and full-width preview; restore with pre-restore snapshot (golden); undo via text system |
+| N09 | Export, import, print | implemented | ✅ | 🟡 | — | Markdown export, import and copy; system note printing with formatted Markdown. System print preview verified on Mac and iPhone Simulator; Files and multipage output checks remain. |
 | N10 | Vault integration (Octarine/Obsidian) | implemented (Mac only) | ❌ | — | P2 | Vault sync not ported (M7-03) |
-| N11 | Folders, trash, pin, status, icons, board, list views | implemented | ✅ | ✅ | P2 | Notes list with type filters/folder picker/pin/trash/restore. Missing: real Notes home (recent, folders browser, sort, previews, status/icons, board view), folder management UI |
-| N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Today's note (iPhone New sheet); no calendar / sunrise day boundary |
-| N13 | Idiom / reference-book editor | implemented, niche | ❌ | ❌ | P3 | Idiom editor not ported |
+| N11 | Folders, trash, pin, status, icons, board, list views | implemented | 🟡 | 🟡 | P2 | Notes supports folder navigation, List/Gallery, sort/group, bulk selection/share, pin/trash/restore and scoped search. Gallery opening and return passed on Mac and iPhone simulator. Layout and All Notes location survived relaunch on both platforms. Collapsible sections and hidden-selection counts are implemented and runtime checked on Mac and simulator. Board and broader accessibility QA remain. |
+| N12 | Daily notes, calendar and sunrise day boundary | implemented | 🟡 | 🟡 | P2 | Both apps have month and week grids, direct month/year navigation, and a scrollable daily-note timeline with previews and calendar return. Date-to-note navigation uses the legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback. |
+| N13 | Idiom / reference-book editor | implemented, niche | 🟡 | 🟡 | P3 | Idiom notes with header editor; Mac reader underline + click + meaning tooltip, reference-book export (2026-11-20, IDIOMS-2026-11-20.md) |
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
-| N15 | e-Sword import | implemented (Mac only) | ❌ | — | P3 | e-Sword import not ported |
+| N15 | e-Sword import | implemented (Mac only) | ✅ | — | P3 | File → Import from e-Sword… with review (2026-11-20, ESWORD-IMPORT-2026-11-20.md) |
 | H01 | Storage | implemented | ✅ | ✅ | — | Highlights service golden-verified |
-| H02 | Verse, word and selection highlights; offsets and anchoring | implemented | ✅ | 🟡 | P2 | Whole-verse highlight + rendering of stored char ranges; cannot create partial-selection highlights yet |
+| H02 | Verse, word and selection highlights; offsets and anchoring | implemented | ✅ | 🟡 | P2 | Both readers map text selections into existing stored character offsets. Mac partial selection previously verified; iPhone write/reopen needs touch QA. |
 | H03 | Colours and categories | partial | ✅ | ✅ | — | 5 colours |
 | H04 | Note and tag indicators on verses | implemented | ✅ | 🟡 | — | Note dots + tag chips (Mac); iPhone note dots, tag chips in rows |
 | H05 | Cross-translation highlights | absent (documented in CLAUDE.md §15 as a setting) — deferred | — | — | — | Deferred in original |
@@ -71,28 +73,28 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | U04 | Tab and session persistence | implemented | ✅ | ✅ | — | Synced sessions/tabs tables, relaunch restore |
 | U05 | Workspaces and layouts | implemented | ✅ | 🟡 | — | 16 layouts (Mac); saved workspaces both |
 | U06 | Resizable panels, drag and drop | implemented (Mac) | 🟡 | — | P2 | Split panes; no drag tabs into panes |
-| U07 | Multi-window, floating panels, presenter/viewer | implemented (Mac only) | ❌ | — | P2 | Single window only (no floating tabs/presenter/Study Trail window) |
+| U07 | Multi-window, floating panels, presenter/viewer | implemented (Mac only) | 🟡 | — | P2 | New Window + Presenter (⌘⇧B), rendered pause snapshots, rich notes, reader filters and scoped Close behavior; actual bounded UI checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md. Laser/compare/side panel/floating tabs and full focus/zoom matrix open |
 | U08 | Navigation state and history stacks | implemented | ✅ | 🟡 | — | Per-tab history; [sidebar ‹ ›] group (Mac); iPhone Back/Forward in More |
-| U09 | Menus, context actions, commands | implemented | 🟡 | 🟡 | P2 | Menus/context menus partial; no Commands group in ⌘K |
-| U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; no shortcuts list in Settings |
+| U09 | Menus, context actions, commands | implemented | 🟡 | 🟡 | P2 | Menus/context menus partial; ⌘K/Go has a Commands group (notes, calendar, history, tags, PDFs, YouTube, lexicon, workspace, tab and reader commands; iPhone also Berean Chat) |
+| U10 | Keyboard shortcuts | partial | 🟡 | — | P2 | Core shortcuts; searchable list in Settings → Keyboard Shortcuts (refreshed 2026-11-20 with presenter/chat/headings/text size); editing deferred as in the original |
 | U11 | Themes and appearance | implemented | ✅ | ✅ | — | System/light/dark; dark mode visually checked on Mac reader/search |
-| U12 | Settings | implemented | 🟡 | 🟡 | P2 | Reading, Appearance, Workspaces, Library. Missing many sections (Texts, Shortcuts, About, Notes, YouTube, AI, Read Aloud) |
-| U13 | Onboarding and hints | partial | ❌ | ❌ | P3 | Onboarding not ported |
-| U14 | Study Trail | implemented | ❌ | ❌ | P1 | Study Trail not ported (1223-line service) |
-| U15 | Tasks panel and first steps | implemented (Mac only) | ❌ | — | P3 | Tasks panel not ported |
-| U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search. Missing tag manager / tag graph |
-| U17 | PDFs | partial | ❌ | ❌ | P2 | PDFs not ported |
-| U18 | Berean Chat (notes-style chat) | implemented | ❌ | ❌ | P3 | Berean Chat not ported |
-| M01 | YouTube browsing and playback | implemented | ❌ | ❌ | P2 | YouTube not ported |
-| M02 | Picture-in-Picture | partial | ❌ | ❌ | P3 |  |
-| M03 | Video-linked notes and timestamps | implemented | ❌ | ❌ | P3 |  |
-| M04 | Transcripts and transcript search | implemented (dev-fetch model) | ❌ | ❌ | P3 |  |
+| U12 | Settings | implemented | 🟡 | 🟡 | P2 | Reading, Appearance, Workspaces, Library. Includes preferred Shepherd of Hermas edition; History pane (tabNavMaxStack, historyMaxEntries, clear) and Ask Berean Search In (2026-11-20). Print & Export pane (2026-11-20); Reading themes from the original presets on the Scripture page (READING-THEMES-2026-11-20.md); custom themes (create/edit/duplicate/delete, original `customThemes`); Danger (delete notes) open; the spec's text ordering never existed in the original. |
+| U13 | Onboarding and hints | partial | 🟡 | 🟡 | P3 | Getting started flow + replay; TipKit hints (Search, PiP, Ask follow-up, Strong's, note format, verse actions, highlight, compare) with Reset Hints (2026-11-20, ONBOARDING-2026-11-20.md); reader/editor hints open |
+| U14 | Study Trail | implemented | 🟡 | 🟡 | P1 | List, branch map, search, ordering, recording, tag assignment, and sticky notes use legacy rows. Merge/split, draggable map layout and full graph controls remain open. |
+| U15 | Tasks panel and first steps | implemented (Mac only) | 🟡 | 🟡 | P3 | Getting Started checklist with original completedStepIds + native detection, on both platforms (2026-11-20) |
+| U16 | Tags and tag graph | implemented | 🟡 | 🟡 | P3 | Verse tags (golden), chips, picker, #tag search, Tag Manager (rename/colour/merge/delete) and Tag Graph (2026-11-20: force layout, drawn connections with arrows/dashed/colour/note, shared-verse lines, pin by drag, inspector). Physical touch/trackpad pinch and large-graph performance unverified. |
+| U17 | PDFs | partial | 🟡 | 🟡 | P2 | Library + PDFKit reader with highlights, notes, bookmarks, outline, find, page restore and missing-file re-attach (2026-11-20). Share Extension intake, experimental gate and bookmark labels open. |
+| U18 | Berean Chat (notes-style chat) | implemented | 🟡 | 🟡 | P3 | Conversations/Unfiled/pins/folders/replies/edit/delete; rich bubbles, glass composer, local drafts, search/destinations and scoped message identities. Bounded Mac+iPhone checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md; automatic/explicit reference routing and long/table content checked; failure/accessibility matrix remains open. Model-free Ask saves into Chat. |
+| M01 | YouTube browsing and playback | implemented | 🟡 | 🟡 | P2 | WebKit tab: channel list, browse/watch, sign-in persists, timestamp links (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no scraped feed/transcripts |
+| M02 | Picture-in-Picture | implemented | 🟡 | 🟡 | P3 | Manual PiP button + ⇧⌘P; pages persist across tab switches; auto-PiP on tab switch not achieved (YOUTUBE-TAB-2026-11-20.md) |
+| M03 | Video-linked notes and timestamps | implemented | 🟡 | 🟡 | P3 | Insert timestamp link into an open note; YouTube links in notes open the YouTube tab at that moment (2026-11-20) |
+| M04 | Transcripts and transcript search | implemented (dev-fetch model) | 🟡 | 🟡 | P3 | Read-only service + in-tab transcript with seek (2026-11-20, YOUTUBE-TAB-2026-11-20.md); no transcript data in native libraries yet; not in global search |
 | M05 | Read Aloud engine (Kokoro) | implemented | ❌ | ❌ | P2 | Read Aloud not ported |
 | M06 | Audio playback, seeking, queue and background | implemented | ❌ | ❌ | P2 |  |
 | M07 | Word-follow highlighting | implemented (estimated, not forced alignment) | ❌ | ❌ | P3 |  |
 | M08 | Voice downloads and caching | implemented | ❌ | ❌ | P3 |  |
 | M09 | Sleep timer (iPhone) | undocumented | — | ❌ | P3 |  |
-| G01 | Direct references and Strong's without a model | implemented (statuses: SPEC "Complete") | ❌ | ❌ | P2 | Ask Berean not ported |
+| G01 | Direct references and Strong's without a model | implemented (statuses: SPEC "Complete") | 🟡 | 🟡 | P2 | Model-free Ask Berean: word studies, Strong's, references, labelled keyword fallback, Strong's comparison, KJV/LXX parallel, exclusions, follow-ups (2026-11-20, ASK-BEREAN-MODEL-FREE-2026-11-20.md) |
 | G02 | Local model runtime (Ollama), model picker, downloads | partial | ❌ | ❌ | P3 |  |
 | G03 | Ask Berean modes (Commentary ON/OFF), prose stripping, premise check | implemented (ON partial) | ❌ | ❌ | P3 |  |
 | G04 | Deep Search, escalation, cancel and time budgets | implemented (Mac), partial (budgets) | ❌ | — | P3 |  |
@@ -101,13 +103,13 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | G07 | Cloud model (BYO key) | partial (Mac), not implemented (iPhone) | ❌ | ❌ | P3 |  |
 | G08 | Online research (Wikipedia, Sefaria) | partial | ❌ | ❌ | P3 |  |
 | G09 | Retrieval benchmark and evaluation harness | implemented (dev tooling) | — | — | — | Dev tooling |
-| G10 | iPhone Ask Berean (model-free) | partial | — | ❌ | P3 |  |
+| G10 | iPhone Ask Berean (model-free) | partial | — | 🟡 | P3 | Same model-free sheet on iPhone (2026-11-20) |
 | A01 | iCloud sync (journal) | implemented, device matrix BLOCKED | ❌ | ❌ | P1 | Sync engine port pending (M4, OD-5 gates) |
 | A02 | Keychain / secure storage | partial | ❌ | ❌ | P3 |  |
 | A03 | App Groups and Share Extension | implemented (iPhone) | — | ❌ | P2 | Share Extension not built for native |
-| A04 | Spotlight | implemented (iPhone) | — | ❌ | P3 |  |
-| A05 | App Intents and Siri Shortcuts | implemented (iPhone) | — | ❌ | P3 |  |
-| A06 | Deep links and URL schemes | implemented | ❌ | ❌ | P2 | berean:// deep links not handled natively |
+| A04 | Spotlight | implemented (iPhone) | — | 🟡 | P3 | Notes, workspaces, books indexed; tap opens via deep link (2026-11-20); sessions not indexed |
+| A05 | App Intents and Siri Shortcuts | implemented (iPhone) | — | 🟡 | P3 | Four intents + phrases (2026-11-20, APP-INTENTS-2026-11-20.md); Read Aloud intent pending |
+| A06 | Deep links and URL schemes | implemented | 🟡 | 🟡 | P2 | All routes except share handled (berean-native-dev for the Dev build; 2026-11-20, DEEP-LINKS-2026-11-20.md) |
 | A07 | Widget | implemented (iPhone) | — | ❌ | P3 |  |
 | A08 | File providers / document access | partial | 🟡 | 🟡 | — | Open/save panels, document picker |
 | A09 | Notifications | absent (deferred) | — | — | — | Deferred |
@@ -118,7 +120,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 | A14 | Accessibility | partial | 🟡 | 🟡 | P2 | Labels/hints on new controls; no full VoiceOver pass |
 | A15 | Auto-update and distribution (Mac) | implemented | ❌ | — | — | Release gate |
 | O01 | Deep-linked "Berean Dev" identity separation | implemented (A11 covers). | ✅ | ✅ | — |  |
-| O02 | Crash report on next launch | implemented (`CrashReport.tsx`, `ErrorBoundary.tsx`; Mac and iPhone mounted in `src/main.tsx`). | ❌ | ❌ | P3 |  |
+| O02 | Crash report on next launch | implemented (`CrashReport.tsx`, `ErrorBoundary.tsx`; Mac and iPhone mounted in `src/main.tsx`). | 🟡 | 🟡 | P3 | MetricKit crash diagnostics → banner with Copy Details / Dismiss (2026-11-20, CRASH-REPORT-2026-11-20.md)  |
 | O03 | Hermas / Recognitions special-case handling | implemented | 🟡 | 🟡 | P2 | Hermas sections/Recognitions numbering in parser; Hermas translation choice not exposed |
 | O04 | Data publication pipeline | implemented | — | — | — | Pipeline unaffected |
 | O05 | Diagnostics and performance tooling | implemented | — | — | — |  |
@@ -139,7 +141,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Different UI per platform, one parser (S03). Pull-nav physics is Mac trackpad; iPhone uses swipe + edge-back.
 - **Original files:** `src/components/bible/{BiblePanel(4382 lines),BookChapterPicker,ContinuousChapterScroll,useChapterPullNav,ChapterPullIndicator}.tsx`; `src/lib/{bibleNav,translationChapterMap,verseNavigation,scrollToVerse}.ts`; `src/mobile/reader/{ReaderPage,PassagePicker,ReferencePicker,CompactPassageHeader}.tsx`.
 - **Known original defects:** Verse-level LXX mapping not implemented (file header, VERIFIED). BiblePanel 4382 lines is a concentration risk.
-- **Native Mac / iPhone:** ✅ / 🟡 — Mac: passage navigator (all-text search, history, internal back, texts column), real chapter lists incl. prologue 0, single-chapter books open directly, chapter stepping over real chapters. iPhone: navigator as sheet; NO swipe/edge-tap chapter change, no pull-nav
+- **Native Mac / iPhone:** ✅ / 🟡 — iPhone chapter swipe and Go reuse available reading tabs; edge taps and pull navigation pending.
 - **Native files:** PassagePicker.swift, ScriptureView.swift step()
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -157,7 +159,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Same renderer on both; iPhone adds long-press sheets.
 - **Original files:** `src/components/bible/{VerseRow(2155),ChapterView(1431),TaggedVerseList,verseRowStyles}.tsx`; `src/lib/{taggedTokens,annotationFilters,psalmSuperscription,psalmTitles,verseTagRanges,scriptureText}.ts`; iPhone `src/mobile/study/VerseStudy.tsx`, `src/mobile/reader/readerViews.tsx`.
 - **Known original defects:** Rendering depends on DOM text-node ordering for selection→offset conversion; any native replacement must reproduce exactly the character positions that existing highlights were stored with (see H02).
-- **Native Mac / iPhone:** ✅ / 🟡 — Mac continuous TextKit reader (red letters, italics, titles, note dots, tags, highlights). iPhone per-verse SwiftUI rows; no psalm superscription special-casing check yet
+- **Native Mac / iPhone:** ✅ / ✅ — Continuous TextKit readers; Psalm superscriptions checked in the running iPhone app (KJVA Ps 3, Brenton Ps 50) per the owner's grouped-title decision.
 - **Native files:** ChapterTextView.swift, ScriptureView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -166,7 +168,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** iPhone: sheet drag-up instead of hover. Floating-lexicon items hidden on iPhone.
 - **Original files:** `src/components/bible/{StrongsInline,StrongsTooltip,SelectedVersesStrongs}.tsx`; `src/components/lexicon/{LexiconPanel,LexiconTab,StrongsContextMenu,parts}.tsx`; `src/mobile/study/StrongsSheet.tsx`; `src/platform/services/lexiconService.ts` (432 lines); `electron/ipc/lexicon.ts`.
 - **Known original defects:** LIKE-scan over all verses per lookup (no index); PLAN.md calls the `occurrences` tables stale. Hebrew occurrences lack `text_id`.
-- **Native Mac / iPhone:** ✅ / 🟡 — Mac: clickable superscript Strong's → study panel lexicon; iPhone: Strong's links in rows open lexicon via openURL (needs device check); hover gloss tooltip missing on Mac
+- **Native Mac / iPhone:** ✅ / 🟡 — Mac and iPhone have tappable Strong’s links in continuous Scripture. iPhone Obadiah 1 H2377 opened the lexicon in Simulator. Mac hover now loads the lemma, transliteration, and gloss. Runtime hover verification remains pending.
 - **Native files:** ChapterTextView.swift, StudyViews.swift LexiconEntryView
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -184,7 +186,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** iPhone: long-press → `VerseActionSheet`; tap numbers toggles.
 - **Original files:** `src/lib/{verseSelection,verseClipboard,scriptureText,verseRangeFormat}.ts`; `src/components/bible/{VerseSelectionBar,VerseCopyMenu,verseDragSelect,verseInteraction,VerseDragIndicator}.ts(x)`; `src/mobile/study/{SelectionBar,MultiVerseSheet}.tsx`.
 - **Known original defects:** `HIGHLIGHT_OFFSET_DEBUG = true` leftover logging was found and fixed in the 2026-10-19 performance pass (doc claim; fix not re-verified).
-- **Native Mac / iPhone:** ✅ / 🟡 — Mac: cross-verse text selection; verse-number click/⇧-click selection; selection bar; legacy copy formats (⌘C/⌘⇧C). iPhone: tap-select verses + selection bar; no cross-verse text selection (rows)
+- **Native Mac / iPhone:** ✅ / 🟡 — Both readers use a single selectable chapter. iPhone long-press word selection and its copy menu verified in Simulator; cross-verse handle drag and clipboard output need touch QA.
 - **Native files:** ChapterTextView.swift, ScriptureView.swift selection
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -193,7 +195,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Floating-window items hidden on iPhone via `capabilities.multiWindow`-style checks (`platformCapabilities.ts`).
 - **Original files:** `src/components/bible/VerseRow.tsx`, `VerseSelectionBar.tsx`; `src/mobile/study/VerseActionSheet.tsx`, `verseSheetMode.ts`, `src/mobile/primitives/{ActionSheet,PopoverMenu,anchoredMenu}.ts(x)`; Mac native menus built in main for some surfaces (`app:noteImageMenu`, `buildAppMenu`).
 - **Known original defects:** none beyond UX drift between two implementations of the same action list.
-- **Native Mac / iPhone:** ✅ / 🟡 — Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Missing vs original: copy reference, play audio from here, compare this verse
+- **Native Mac / iPhone:** ✅ / 🟡 — Verse actions: copy, highlight, tag verse/chapter, add note, verse notes, cross refs, open in new tab. Copy Reference and Compare This Verse also available. Play Audio from Here remains open.
 - **Native files:** ScriptureView.swift verseNSMenu/verseActions
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -202,7 +204,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Same.
 - **Original files:** `src/lib/bibleTexts.ts`, `translationChapterMap.ts`, `passageDestinations.ts`, `src/components/bible/BiblePanel.tsx`, `src/mobile/reader/*`.
 - **Known original defects:** LXX numbering is chapter-level only; Hermas has two translations with different versification and `hermasMap.ts` bridging.
-- **Native Mac / iPhone:** ✅ / ✅ — Text switching in navigator; Compare mode for parallel texts
+- **Native Mac / iPhone:** ✅ / ✅ — Text switching in the navigator, a direct KJV/LXX control, and Compare mode for parallel texts
 - **Native files:** PassagePicker.swift, CompareView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -211,7 +213,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** iPhone adds edge-swipe back.
 - **Original files:** `src/hooks/{useReadingAnchor,useKeyedScrollMemory,useChapterProgress}.ts`; `src/mobile/reader/readerScrollMemory.ts`; `src/platform/services/historyService.ts`; `src/components/shell/HistoryModal.tsx`; `src/mobile/history/HistoryPage.tsx`; `src/lib/historyModel.ts`; `src/store/index.ts` (`tabNavStac
 - **Known original defects:** Reading position is device-local.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Per-tab back/forward history + picker History (recent passages). Missing: global History tab/sheet, scroll-position memory per tab
+- **Native Mac / iPhone:** 🟡 / 🟡 — Per-tab back/forward, recent passages in the picker, and a History view. Both readers preserve the visible verse on same-chapter reflow. Search and Notes folders keep row anchors per tab and view configuration for the current run. Mac Search and Notes folder history round trips passed live. Exact offsets, relaunch persistence, and full tab coverage remain open.
 - **Native files:** AppModel goBack/goForward, PassagePicker recents
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -220,7 +222,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** iPhone uses Dynamic Type bridging via `BereanA11yPlugin.swift` (INFERRED from plugin name; content not read in detail).
 - **Original files:** `src/store/index.ts` prefs; `src/hooks/useBibleLineHeight.ts`; `src/lib/{zoom,fontFamilies,textFit}.ts`; `src/mobile/reader/{usePinchFontSize,readerWidth,scriptureTheme.css}`; `src/mobile/settings/scriptureTheme.ts`.
 - **Known original defects:** Preferences do not sync via iCloud (X6).
-- **Native Mac / iPhone:** 🟡 / 🟡 — Font size, line spacing, Scripture font, word replacer, theme. Missing: verse-number visibility, red-letter toggle, paragraph mode, per-text options (Hermas translation etc.)
+- **Native Mac / iPhone:** 🟡 / 🟡 — Font size and family, line spacing, text width, verse-number visibility, red lettering, word replacer and theme. The reader exposes display options on both platforms. Mac View commands adjust Scripture text size with the original zoom shortcuts. iPhone Scripture supports pinch-to-resize, pending gesture QA. App-wide zoom remains open. Paragraph mode and per-text options remain open.
 - **Native files:** SettingsView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -238,7 +240,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Mac side-by-side; iPhone interleaved; CLAUDE.md "unlock a cell" independent navigation is not found (grep `unlock` only matched unrelated UI strings; UNVERIFIED but likely absent).
 - **Original files:** `src/components/bible/CompareView.tsx` (802), `src/mobile/reader/{ComparePage,compareState,compareInteraction}.tsx`, `src/components/viewer/ViewerCompare.tsx`, `src/platform/services/researchService.ts` (comparison payloads for AI), `src/lib/research/compareWords.ts`.
 - **Known original defects:** Persistence of compare state fixed per memory note ("compare persistence").
-- **Native Mac / iPhone:** 🟡 / 🟡 — Compare columns aligned by verse; missing per-column navigation, verse compare view from verse menu
+- **Native Mac / iPhone:** 🟡 / 🟡 — Same-passage columns align by verse. Change Column Passage opens the chapter picker for one column. Different passages scroll independently in wide windows and use sections at narrow widths. Persisted scroll restoration and presenter integration remain open.
 - **Native files:** CompareView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -247,7 +249,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Doc reports Mac scroll with 0 frames over 25 ms and iPhone reader scroll p95 17 ms (60 Hz), one frame over 25 ms of 120, simulator only. Numbers are the doc's (UNVERIFIED by this audit); iPhone numbers are simulator, not device.
 - **Original files:** `src/components/bible/{ContinuousChapterScroll,ChapterView}.tsx`; `docs/performance-audit-2026-10-19.md`; `scripts/perf/{nav,scroll}.*`.
 - **Known original defects:** Physical-device scroll and memory not measured (doc says so). Chromium sibling-selector restyle problem fixed in CSS (doc).
-- **Native Mac / iPhone:** 🟡 / ❓ — Mac TextKit renders whole chapter (Ps 119 untested for latency); iPhone LazyVStack
+- **Native Mac / iPhone:** 🟡 / ❓ — Both TextKit readers render the whole chapter. Psalm 119 latency still needs measurement.
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -256,7 +258,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** same.
 - **Original files:** `src/components/shell/FindBar.tsx`, `src/lib/{scriptureFind,findHandoff,scriptureHighlight}.ts`, `src/mobile/reader/FindOnPage.tsx`.
 - **Known original defects:** none known.
-- **Native Mac / iPhone:** ❌ / ❌ — Find in chapter (⌘F) missing — NSTextView find bar can be enabled
+- **Native Mac / iPhone:** ✅ / ✅ — Mac glass find bar; iPhone More → Find in Chapter opens the system find navigator (verified earlier in HANDOFF) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -274,7 +276,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Same; iPhone uses `src/lib/scriptureSearch.ts`.
 - **Original files:** `src/platform/services/bibleService.ts` (`searchText`, `safeFtsQuery`, `cleanWords`), `src/lib/{scriptureSearch,scriptureSearchFilters,numberWords}.ts`, `src/components/bible/ScriptureSearchView.tsx` (2090), `src/mobile/search/*`.
 - **Known original defects:** FTS query failures are swallowed (`catch { return [] }`); ranking is plain FTS rank, no cross-text blending (SPEC_STATUS notes keyword matches from other texts can outrank canonical verses in AI use).
-- **Native Mac / iPhone:** ✅ / 🟡 — Native multi-text search (All Texts default, scope menu, per-text counts, options popover). iPhone uses same view (not tap-verified)
+- **Native Mac / iPhone:** ✅ / 🟡 — Both app bundles carry all 19 supported Scripture IDs. All Texts searches the bundled corpus; Mac opened Didache via ⌘K.
 - **Native files:** ScriptureSearchView.swift, ScriptureSearch.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -292,7 +294,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/lib/strongsSearch.ts`, `scriptureSearch.ts` (`runStrongsSearch`), `lexiconService.getOccurrences`.
 - **Known original defects:** —
-- **Native Mac / iPhone:** ✅ / 🟡 — Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap)
+- **Native Mac / iPhone:** ✅ / 🟡 — Strong's number queries (single/multi + words), uncapped occurrences for search (native improvement over legacy 1000 cap), and matched-word snippet highlighting with Word Replacer remapping
 - **Native files:** ScriptureSearch.strongs
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -310,7 +312,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/platform/services/notesService.ts` (`search`, `getByChapter`, `getChapterCounts`), `src/lib/panelDataCache.ts`.
 - **Known original defects:** The index covers the raw markdown including inline base64 image data URLs (INFERRED from storage format, N05), which inflates the index and snippets.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Notes home search field (FTS); ⌘K does NOT search notes (MAC-FUNC-003)
+- **Native Mac / iPhone:** 🟡 / 🟡 — Notes home supports folder/global scope, type/status, three FTS match modes, excerpts and live refresh. Mac ⌘K includes notes.
 - **Native files:** NotesViews.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -346,8 +348,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/shell/FloatingSearch.tsx` (1678), `src/lib/{commands,search/*,navigation/*,searchNav}.ts`, `src/mobile/search/*`, `src/mobile/navigation/{NewTabSheet,destinationQuery}.tsx`, `docs/navigation-contract.md`.
 - **Known original defects:** FloatingSearch 1678 lines of UI logic.
-- **Native Mac / iPhone:** 🟡 / 🟡 — ⌘K palette: references, Strong's, word search. Missing unified grouped results (Go to · Verses · Lexicon · Notes · Commands)
-- **Native files:** StudyInspector.swift CommandPalette
+- **Native Mac / iPhone:** 🟡 / 🟡 — Mac floating search and iPhone Go group passage, Strong’s, Notes, and Scripture destinations with previews. Unified verse-result streams and YouTube remain open.
+- **Native files:** `apple/Shared/StudyInspector.swift` (CommandPalette), `apple/Shared/GoSheet.swift`, `apple/Shared/PassageResolver.swift`
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### Q10 YouTube transcript search
@@ -355,7 +357,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** —
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Depends on YouTube (M01)
+- **Native Mac / iPhone:** 🟡 / 🟡 — Videos section in Go / ⌘K opens the video at the matched moment (2026-11-20); needs transcript data in native libraries (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -364,7 +366,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** iPhone cannot print via Electron; uses `BereanPrintPlugin`. Verse sheets embed an in-place editor.
 - **Original files:** `src/platform/services/notesService.ts` (769 lines), `electron/ipc/notes.ts`, `src/types/index.ts` (`Note`), `src/components/notes/*`, `src/mobile/notes/*`, `src/lib/{noteUtils,noteTitle,noteStatus,notePreviewText,noteRecency,finalizeNote}.ts`.
 - **Known original defects:** Verse-note anchor is verse-level only; no word-range anchor.
-- **Native Mac / iPhone:** 🟡 / 🟡 — General + verse notes create/edit; Today's Note (daily) on iPhone New sheet; Mac lacks daily-note command (⌘⇧D) and calendar
+- **Native Mac / iPhone:** 🟡 / 🟡 — General and verse notes create/edit; Today’s Note and the Calendar open daily notes on both platforms.
 - **Native files:** NotesViews.swift, AppModel+Workspaces openTodayDailyNote
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -382,7 +384,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/*`, `src/lib/noteTextBlocks.ts`, `bereanMigrations.ts` v24/v27 collapse tables.
 - **Known original defects:** Alignment is PM attr, stored how in markdown? UNVERIFIED (not read).
-- **Native Mac / iPhone:** 🟡 / 🟡 — Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Missing toolbar & slash commands, task toggling by click
+- **Native Mac / iPhone:** 🟡 / 🟡 — Bold/italic/underline/strike/highlight/code/headings/quotes/callouts/lists/tasks render; commands ⌘B/I/U etc. Format menu supports inline styles, headings, lists, and six named highlight colors. Existing legacy highlight colors render in the native editor. List continuation and checkbox toggling are implemented. Live checklist QA and slash command parity remain open.
 - **Native files:** RichNoteEditor.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -391,7 +393,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/{tablePlugins,tableStatusPlugin,columnControls}.ts(x)`.
 - **Known original defects:** —
-- **Native Mac / iPhone:** 🟡 / 🟡 — Tables shown as aligned monospace source, not grid
+- **Native Mac / iPhone:** 🟡 / 🟡 — Markdown tables support insertion, row and column add/delete, whole-table deletion, keyboard cell navigation, and iPhone cell controls in the edit menu and above the software keyboard. Mac whole-table deletion, undo, redo, and note reopening passed live QA. Complete tables render with a header fill and cell borders in the Notes body font. Insertion and undo/redo passed on the iPhone simulator. Previously malformed iPhone separators are recognized without changing stored Markdown. Wide tables and broader editing QA remain open.
 - **Native files:** RichNoteEditor.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -400,7 +402,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/imageInsert.ts`, `nodeViews.ts`, `electron/ipc/noteImages.ts`, `electron/ipc/vault.ts` (`extractInlineImages` line 257, `inlineVaultImages` 307).
 - **Known original defects:** Inline base64 inflates DB, FTS, sync journal ops (full `fields` per upsert) and version snapshots (INFERRED); perf doc mentions a 452 KB image note and +25 MB footprint once. No general attachment type (PDF files are separate, see U-PDF).
-- **Native Mac / iPhone:** ❌ / ❌ — Images shown as alt-text caption only
+- **Native Mac / iPhone:** 🟡 / 🟡 — Inline data: images render with captions and saved width (2026-11-20, NOTE-IMAGES-2026-11-20.md); Mac drag-resize handle; insert/paste/resize UI, remote and attachment files open (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -409,8 +411,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/pm/{autocomplete,AutocompletePopups,refDecorations,linkModel,LinkEditor}.ts(x)`, `src/lib/{noteRefs,notesCrossRefs,deepLinks}.ts`, `src/components/notes/MarkdownReferenceModal.tsx`.
 - **Known original defects:** Display book labels vs canonical names (Hermas, roman numerals) can drift in titles; vault wikilinks are folder-unaware (memory: M6 issue list, fix status UNVERIFIED).
-- **Native Mac / iPhone:** 🟡 / 🟡 — Links and wikilinks clickable; Scripture refs in plain text not auto-linked
-- **Native files:** NotesViews.swift openLink
+- **Native Mac / iPhone:** 🟡 / 🟡 — Links, wikilinks, bare Scripture references and explicit Strong’s numbers are linked in the native editors. Note-title completion includes a passage/excerpt preview. Plain Scripture and Strong’s block suggestions passed Simulator insertion and Undo checks. Cross-chapter blocks and Mac runtime verification remain open.
+- **Native files:** NotesViews.swift, RichNoteEditor.swift, RichNoteEditorIOS.swift, NoteReferenceCompletion.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### N07 Autosave
@@ -427,7 +429,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `notesService` (`createVersion`, `pruneNoteVersions`, `getVersions`, `restoreVersion`), `src/components/notes/NoteVersionHistory.tsx`, `prosemirror-history` in `keymap.ts`.
 - **Known original defects:** Undo stack is in-memory; lost on reload.
-- **Native Mac / iPhone:** ✅ / 🟡 — Version history sheet, restore with pre-restore snapshot (golden); undo via text system
+- **Native Mac / iPhone:** ✅ / 🟡 — Version history sheet with a compact iPhone selector and full-width preview; restore with pre-restore snapshot (golden); undo via text system
 - **Native files:** NotesViews.swift NoteVersionHistoryView
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -436,7 +438,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** Mac sandbox build; iPhone share sheet.
 - **Original files:** `src/lib/noteMarkdownFile.ts`, `src/platform/ios/exportNotes.ts`, `electron/main.ts` (`app:printNote`, `app:exportNotePDF`, `app:renderPreviewPDF`), `src/components/notes/PrintPreviewModal.tsx`, `BereanPrintPlugin.swift`, `src/lib/{notePreviewRender,idiomsExport}.ts`.
 - **Known original defects:** Two serializers can drift.
-- **Native Mac / iPhone:** ✅ / 🟡 — Export (save panel) / import / copy; iPhone document picker untapped; no print
+- **Native Mac / iPhone:** ✅ / 🟡 — Markdown export, import and copy; system note printing with formatted Markdown. System print preview verified on Mac and iPhone Simulator; Files and multipage output checks remain.
 - **Native files:** NoteFileTransfer.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -454,16 +456,16 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/notes/{NotesHomePanel,NotesFolderView,NotesBoardView,NotesList,NoteContextMenu,NoteIcon*,NoteStatusDropdown,folderTreeGeometry}.tsx`, `src/mobile/notes/{NotesHomePage,VirtualNoteList,TrashPage,FolderPicker,notesHomeModel}.ts(x)`, `notesService` folder functions.
 - **Known original defects:** Folder delete cascades (`folderDeleteDeep`) rely on sync `dependents`.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Notes list with type filters/folder picker/pin/trash/restore. Missing: real Notes home (recent, folders browser, sort, previews, status/icons, board view), folder management UI
+- **Native Mac / iPhone:** 🟡 / 🟡 — Notes supports folder navigation, List/Gallery, sort/group, bulk selection/share, pin/trash/restore and scoped search. Gallery opening and return passed on Mac and iPhone simulator. Layout and All Notes location survived relaunch on both platforms. Collapsible sections and hidden-selection counts are implemented and runtime checked on Mac and simulator. Board and broader accessibility QA remain.
 - **Native files:** NotesViews.swift NotesHomeView
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### N12 Daily notes, calendar and sunrise day boundary
-- **Original (both):** Daily note per date titled `Daily — YYYY-MM-DD` (title is a de facto key); day boundary at local sunrise via `suncalc` plus location (location once per launch); Sabbath label for Saturday; calendar widget (Mac sidebar), calendar tab (both), continuous daily scroll, today shortcut (Cmd+Shift+D, intent, widget, `berean://daily`).
+- **Original (both):** Daily note per date titled `Daily — YYYY-MM-DD` (title is a de facto key); day boundary at local sunrise via `suncalc` plus location (location once per launch); Sabbath label for Saturday; calendar widget with week view (Mac sidebar), calendar tab (both), continuous daily scroll, today shortcut (Cmd+Shift+D, intent, widget, `berean://daily`).
 - **Mac vs iPhone (original):** Mac uses Electron geolocation path in main (INFERRED: `NSLocationWhenInUseUsageDescription` in `extendInfo`); iPhone plugin.
 - **Original files:** `src/lib/{dailyNotes,dailyNoteUtils,calendarModel,noteUtils}.ts`, `src/components/notes/{CalendarWidget,CalendarTabPanel,ContinuousDailyScroll,DailyNoteEditsSection}.tsx`, `src/mobile/calendar/*`, `BereanLocationPlugin.swift`, `suncalc`.
 - **Known original defects:** Location denied fallback to midnight (INFERRED); title-as-key means renames could break daily detection.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Today's note (iPhone New sheet); no calendar / sunrise day boundary
+- **Native Mac / iPhone:** 🟡 / 🟡 — Both apps have month and week grids, direct month/year navigation, and a scrollable daily-note timeline with previews and calendar return. Date-to-note navigation uses the legacy keys. Today supports sunrise using an optional locally stored location, with a midnight fallback.
 - **Native files:** AppModel+Workspaces
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -472,7 +474,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/types/index.ts` (`IdiomData`), `notesService.listIdioms`, `src/lib/idiomsExport.ts`, `VerseRow.tsx`, `BibleRightPanel.tsx`, `SettingsModal.tsx`.
 - **Known original defects:** Not in CLAUDE.md. 8. `idiomsExport.test.ts`. 9. SW-DATA. 10. Easy to forget. 11. C-DATA.
-- **Native Mac / iPhone:** ❌ / ❌ — Idiom editor not ported
+- **Native Mac / iPhone:** 🟡 / 🟡 — Idiom notes with header editor; Mac reader underline + click + meaning tooltip, reference-book export (2026-11-20, IDIOMS-2026-11-20.md) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -490,7 +492,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `electron/ipc/eSwordImport.ts` (543), `src/components/settings/ESwordImporter.tsx`. 3. better-sqlite3 on a user file; home-directory search. 4. e-Sword files. 5. maps to `type: esword`. 6. Mac only. 7. Home-dir probing is sandbox-hostile in MAS (INFERRED). 8. none found. 9. SW-DATA with `sqlite3` an
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / — — e-Sword import not ported
+- **Native Mac / iPhone:** ✅ / — — File → Import from e-Sword… with review (2026-11-20, ESWORD-IMPORT-2026-11-20.md) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -508,7 +510,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `highlightsService.ts`, `VerseRow.tsx`, `src/lib/{scriptureHighlight,verseUtils}.ts`, `src/mobile/study/VerseActionSheet.tsx`.
 - **Known original defects:** No re-anchoring after data fixes (e.g. the Enoch row splits, KJV italics re-seed) — INFERRED risk; legacy word-level rows use word index into tagged tokens, a second coordinate system.
-- **Native Mac / iPhone:** 🟡 / 🟡 — Whole-verse highlight + rendering of stored char ranges; cannot create partial-selection highlights yet
+- **Native Mac / iPhone:** 🟡 / 🟡 — Both readers map text selections into existing stored character offsets. Mac partial selection previously verified; iPhone write/reopen needs touch QA.
 - **Native files:** ChapterTextView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -607,7 +609,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `electron/main.ts` (window creators ~lines 789–1134), `src/lib/{crossWindowSync,floatingTab,perWindowViewState,presenterBand,presenterOverlay,windowChrome}.ts`, `src/hooks/useViewerSync.ts`, `src/components/viewer/*`, `src/components/bible/PresenterOutline.tsx`, `src/components/shell/{FloatingShell,
 - **Known original defects:** Heavy debug instrumentation hooks (`window.__bereanPresenterDebug`). Pending-save flush when returning a floating tab (`flushPendingSaves`).
-- **Native Mac / iPhone:** ❌ / — — Single window only (no floating tabs/presenter/Study Trail window)
+- **Native Mac / iPhone:** 🟡 / — — New Window + Presenter (⌘⇧B), rendered pause snapshots, rich notes, reader filters and scoped Close behavior; actual bounded UI checks in PRESENTER-MESSAGES-POLISH-2026-11-20.md. Laser/compare/side panel/floating tabs and full focus/zoom matrix open (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -652,7 +654,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/settings/*`, `src/mobile/settings/*`. 3. store-backed switches; `settings` table. 4. none. 5. `settings(key,value JSON)`; many prefs only in localStorage. 6. different pages. 7. SettingsModal is a very large monolith (INFERRED). 8. `settings/sections/__tests__` exists; `settingsServi
 - **Known original defects:** —
-- **Native Mac / iPhone:** 🟡 / 🟡 — Reading, Appearance, Workspaces, Library. Missing many sections (Texts, Shortcuts, About, Notes, YouTube, AI, Read Aloud)
+- **Native Mac / iPhone:** 🟡 / 🟡 — Reading, Appearance, Workspaces, Library. Includes preferred Shepherd of Hermas edition. Text ordering and other settings sections remain open.
 - **Native files:** SettingsView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -661,7 +663,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/shell/{Onboarding,OnboardingModelStep}.tsx`, `src/mobile/onboarding/*`, `TasksPanel.tsx` (first-steps checklist, Mac only). 3. flags in store. 4. none. 5. `onboardingCompleted`. 6. different flows; no Tasks panel on iPhone. 7. Hints absent. 8. `Onboarding.maybeImportVault.test.ts`, `
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Onboarding not ported
+- **Native Mac / iPhone:** 🟡 / 🟡 — Getting started flow + replay; TipKit hints (Search, PiP, Ask follow-up) with Reset Hints (2026-11-20, ONBOARDING-2026-11-20.md); reader/editor hints open (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -670,8 +672,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/store/studyTrailSlice.ts` (1091), `src/platform/services/studyTrailService.ts` (1223), `electron/ipc/studyTrail.ts`, `src/components/studyTrail/*` (MapView, StudyTrailApp, …), `src/lib/studyTrail/arrivalEligibility.ts`, `src/mobile/trail/*`, migrations v28–40.
 - **Known original defects:** Several `stub` mentions inside trail components (grep) — INFERRED placeholders. Not in CLAUDE.md.
-- **Native Mac / iPhone:** ❌ / ❌ — Study Trail not ported (1223-line service)
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — Trail browsing, manual recording, lifecycle, editable stop and connection notes, explicit connections, and a navigable branch map using the legacy tables. Opt-in automatic chapter recording uses the original 1.2-second dwell. Automatic connections capture cross-reference jumps and inline Strong’s lookups. Search and manual ordering are available in the library. Trail Actions supports creating, assigning and removing tags from a trail, and tag names are searchable. A Sticky Notes sheet supports editing annotations and section headers and shows their anchor chapter. The map places saved section headers and annotations beside their stops. Context menus move notes between stops or remove their anchor. Sticky titles and bodies are searchable in the library and trail. Connection classification, prompts, and the full graph workspace remain open.
+- **Native files:** StudyTrailView.swift, StudyTrailService.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### U15 Tasks panel and first steps
@@ -679,7 +681,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** —
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / — — Tasks panel not ported
+- **Native Mac / iPhone:** 🟡 / 🟡 — Getting Started checklist with original completedStepIds + native detection, on both platforms (2026-11-20) (synced with the table row 2026-11-20)
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -688,8 +690,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/platform/services/{verseTagsService,tagGraphService}.ts`, `electron/ipc/{verseTags,tagGraph}.ts`, `src/components/tags/*`, `src/lib/{tagPalette,verseTagRanges,verseTagSearch,tagRefScan}.ts`, `src/mobile/study/TagPickerSheet.tsx`. 3. members expanded to `verse_tag_verse` index (rebuilt on sync a
 - **Known original defects:** —
-- **Native Mac / iPhone:** 🟡 / 🟡 — Verse tags (golden), chips, picker, #tag search. Missing tag manager / tag graph
-- **Native files:** VerseTagsService.swift, VerseTagViews.swift
+- **Native Mac / iPhone:** 🟡 / 🟡 — Verse tags (golden), chips, picker, #tag search, Tag Manager, and Tag Graph (see [TAG-GRAPH-2026-11-20](TAG-GRAPH-2026-11-20.md)).
+- **Native files:** VerseTagsService.swift, TagGraphService.swift, TagForceLayout.swift, VerseTagViews.swift, TagManagerView.swift, TagGraphView.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### U17 PDFs
@@ -697,8 +699,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/pdf/*`, `electron/ipc/pdf.ts`, `src/platform/services/pdfService.ts`, `src/lib/pdfjs.ts`, `src/platform/ios/bridgeExtras.ts` (`pdf`), iPhone `PdfLibraryPage` in `MobileApp.tsx`, Share Extension PDF intake.
 - **Known original defects:** Bytes never sync (documented). 8. none for pdf components; `bereanMigrations` v11/v46 only. 9. SW-UI with PDFKit (`PDFView`) — a strong native fit; highlights via `PDFAnnotation`. 10. Highlight geometry must map from pdf.js text-layer coordinates to PDFKit selections (INFERRED, medium). 11. C-DATA.
-- **Native Mac / iPhone:** ❌ / ❌ — PDFs not ported
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — Library (import/rename/delete/copy link, missing-file state + hash re-attach), PDFKit reader (page restore, highlights in the original normalised format, notes, bookmarks, outline, find, copy page link, Search Scripture from selection). See [PDF-READER-2026-11-20](PDF-READER-2026-11-20.md). Share Extension intake, `pdfFeatureEnabled` gate and bookmark-label editing remain.
+- **Native files:** BereanNotes/PdfService.swift, PdfGeometry.swift, apple/Shared/PdfViews.swift
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### U18 Berean Chat (notes-style chat)
@@ -706,8 +708,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/ailookup/*`, `src/mobile/chat/*`, `ios/App/BereanWidget/BereanChatWidget.swift`, `src/platform/services/aiChatsService.ts`, `docs/berean-chat.md`.
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Berean Chat not ported
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — conversations, Unfiled, pins/folders/replies/edit/delete, rich message rendering, search, per-conversation drafts and internal reference navigation implemented. Bounded Mac+iPhone interaction checks pass; failure/accessibility, original find/widget/standalone combinations remain open.
+- **Native files:** `apple/Shared/ChatViews.swift`, `BereanNotes/ChatsService.swift`, `BereanNotes/ChatReferenceLinks.swift`. See [actual checks and limits](PRESENTER-MESSAGES-POLISH-2026-11-20.md).
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### M01 YouTube browsing and playback
@@ -715,8 +717,8 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/components/youtube/{YouTubeTab(2763),YouTubeSecondaryPanel,TouchYouTubePlayer,TranscriptViewer}.tsx`, `electron/ipc/youtube.ts` (1428), `src/platform/services/{youtubeService,youtubeFetchService,youtubeIndexMerge}.ts`, `src/lib/{youtubeLayouts,youtubeSearch,youtubeTitle}.ts`, `BereanWebViewPlug
 - **Known original defects:** Scraping is brittle and a ToS exposure; CLAUDE.md claims a user-editable allowlist with add-channel prompt, but channels are hard-coded (VERIFIED). WebKit blocks programmatic PiP without a user gesture (iPhone doc). The `webviewTag: true` line carries a stale comment saying it is disabled in MAS.
-- **Native Mac / iPhone:** ❌ / ❌ — YouTube not ported
-- **Native files:** —
+- **Native Mac / iPhone:** 🟡 / 🟡 — WebKit YouTube tab (channels, browse, inline watch, state `{videoId,url}` persisted, Copy Timestamp/Video Link, Insert into open note in the original Markdown format). Missing: in-app feed scraping, split panels, transcripts, PiP automation.
+- **Native files:** `apple/Shared/YouTubeTabView.swift`
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
 ### M02 Picture-in-Picture
@@ -751,7 +753,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/lib/tts/{ttsEngine,ttsBackend,textPrep,extractSpokenText,nativeSpeechBackend}.ts`, `src/lib/tts/kokoro/*`, `src/hooks/{useTTSPlayback,useKokoroModelDownload}.ts`, `src/components/audio/*`, `electron/ipc/{ttsModel,ttsAudioCache}.ts`, `electron/{ttsModelManifest,ttsModelProtocol}.ts`, `src/mobile
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — Read Aloud not ported
+- **Native Mac / iPhone:** ❌ / ❌ — Read Aloud remains open. Owner requires original Kokoro/Berean Voices quality and rejected Apple voices on 2026-11-17.
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -931,7 +933,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Mac vs iPhone (original):** —
 - **Original files:** `src/lib/{deepLinks,deepLinkTarget}.ts`, `electron/main.ts` (line 1370), `src/platform/ios/deepLinks.ts`. 3. one router. 4. none. 5. grammar. 6. Universal Links not implemented. 7. none. 8. `deepLinks.test.ts`, `deepLinkDedupe.test.ts`. 9. SW-DATA router + `onOpenURL`. 10. Links already written into
 - **Known original defects:** —
-- **Native Mac / iPhone:** ❌ / ❌ — berean:// deep links not handled natively
+- **Native Mac / iPhone:** 🟡 / 🟡 — router handles verse, note, lexicon, video, pdf, search, trail, daily, workspace, session, chat; share not supported (no Share Extension). Production `berean://` registration waits for the release identity decision.
 - **Native files:** —
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
 
@@ -1060,3 +1062,288 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), Notes hom
 - **Native Mac / iPhone:** — / — — not started
 - **Native files:** 
 - **Acceptance:** the original workflow above completes natively on each applicable platform, exercised in the running app; data contracts unchanged (golden where a service exists).
+
+---
+
+## 2026-11-14 evening parity updates (Claude Code)
+
+Statuses below supersede the per-feature rows above where they conflict; evidence is in AUDIT-2026-11-14.md (section C/D rows) and
+HANDOFF.md "2026-11-14 evening checkpoint".
+
+| Area | Now native | Verified |
+|---|---|---|
+| Lexicon search / browse (D1) | Lexicon tab search view (All/Hebrew/Greek), palette "Search Lexicon", accent-free transliteration matching, reader "Look Up in Lexicon" | Mac live; iPhone simulator |
+| Lexicon entry (D2, D3, D17, D18, D19) | Strong's links in gloss/definition/derivation, Strong's context menu on Derived Terms, BDB Notes with expanded abbreviations, word replacer on lexicon prose, H853 explanation, Show All / Show Fewer occurrences, ‹ › + Search in the toolbar | Mac live (D19 build only) |
+| Psalm superscriptions (D5) | Title line above the first body verse for KJV/KJVA/Brenton (generated tables) | Mac live; iPhone simulator |
+| Annotation hide toggles (D6) | LXX / Enoch / Jubilees via the tab's `hiddenAnnotations` | Mac live |
+| Search (D7, D8, D9) | Search for selection (reader menu), ±1/±2 verse context, single-verse query → cross references | Mac live |
+| Palette (D22, D23) | Next/Previous Chapter, Show/Hide Strong's, typed-command ranking, Shift-Return = new tab | Mac live |
+| Daily notes | Long date titles with "Sabbath"; Notes Home Today's Note button | Mac live |
+| iPhone reader (I5, I14) | Hide-on-scroll capsule + dock; edge taps turn the chapter | iPhone simulator |
+| Workspaces (I21) | Icon picker (original Lucide names in `sessions.icon`) | Mac live; iPhone build |
+| Settings (I12) | iPhone Haptic Feedback toggle (`berean.haptics.enabled`) | build |
+| Mac pointer | Hand cursor on every native control | Mac live (`screencapture -C`) |
+
+### 2026-11-17 cursor and Notes navigation evidence
+
+Mac Settings Verse Numbers native switch reported settled hand/hand after dragging within it; preference was restored to on. Native switch hooks and SwiftUI enabled-state refresh are implemented. The stationary enabled-state path remains unverified. iPhone Notes home uses grouped scroll targets; opening lower recent notes and returning visibly restored the recent area with the final row clear of the dock. Idle touch-scroll retention and missing-recent fallback still need direct QA. Both Dev builds pass. N06 summary corrected from source evidence: both editors already call NoteVerseRefs.linkSpans when detection is enabled. N11 summary now matches its partial detailed status because Board remains open.
+
+### 2026-11-17 N06 completion evidence
+
+Native note-title completion after [[ is implemented on both platforms. Mac keyboard/pointer choice and Escape/query editing passed; iPhone touch insertion and separate Undo/Redo passed. Exact stored Markdown was verified in both QA libraries. Source helper covers UTF-16, code/escaped/closed triggers and stale selection. Mac following-typing undo coalescing remains open, along with Scripture/book autocomplete and broader accessibility/scroll/IME checks. N06 stays partial.
+
+### 2026-11-17 query/undo verification update
+
+Mac note completion Undo/Redo now separates following typing in the directly tested path. Notes query history and Lexicon query replacement/history passed live Mac checks; Lexicon query/language survived Simulator relaunch using legacy state keys. Calendar/History/Tags current-tab replacement and backward traversal passed. All 156 optimized package tests in 46 suites passed on simulator SQLite; app builds also pass. These scoped checks do not complete N06 book/Scripture autocomplete or the broader parity gates.
+
+### 2026-11-18 incremental evidence — S08/S13
+S13: actual mapped chapter availability now governs translation choices; unavailable saved columns retain repair controls, independent valid passage selection, disabled invalid FollowMain and filtered OpenInReader. Mac repair/close-last/Back/Forward checked, explicit gutter alignment and removed repeated per-verse menu chrome. iPhone compact/drag coverage remains open.
+S08: shared native background renderer restricts text selection/highlight fills to readable words per wrapped line. Mac live partial Mark13 selection/highlight and offscreen gutter/Strong’s/tag regression pass. iPhone word selection and tap multi-select checked, extended native handles and physical phone pending.
+
+### 2026-11-18 incremental evidence — Notes/calendar
+Daily-folder date discovery now includes a month grid with existing-note dots, month navigation, Today and date picker jump. Mac and iPhone existing-note reuse checked through the original daily identity path. Mac Checklist/Table are direct toolbar controls, native menu shortcuts retained. Formatting Undo/Redo is independent of preceding/following typing. iPhone fixed large Notes/folder heading verified after return; collapsing-title behavior is not implemented. Full native Kokoro engine remainsTODO.
+
+### 2026-11-18 incremental evidence — M05 groundwork
+Kokoro neural latency chunking and UTF16 verse/word alignment metadata now have native service parity against48TypeScript oracle cases.177sharedRelease tests and both app builds pass. Speech preparation, model/voice/cache integration, synthesis, streaming playback and native controls remain unfinished; M05 audio parity is not achieved.
+
+### 2026-11-18 incremental evidence — M05 preparation
+Spoken-only numeral/abbreviation/pronunciation/punctuation and tagged/plain replacement/UTF16 word-slot alignment now native, checked against original generated fixtures. Original plain speech-text/offset inconsistency fixed.179sharedtests,104originalTTS tests and both native builds pass. Native ONNX/phonemization/asset/audio integration and listening/device acceptance remain open; ReadAloud playback parity is not claimed.
+
+### 2026-11-18 — Native Scripture viewport persistence
+Implemented local bounded chapter/edition position persistence, including end/verse-relative/selection geometry; original allowlists agree. Actual MacQA and iPhone27 simulator deep relaunch restoration verified. Full cross-tab-type/history/edition/resize/device matrix remains partial. ReadAloud inference/playback remains unfinished.
+
+
+M05 partial18Nov: reproducible native phonemizer now matches original raw US/British IPA for32cases on each platform. Kokoro normalization/tokenizer, synthesis/playback/cancellation and listening still open; no app dependency added.
+
+18Nov note discovery regression resolved for tested Mac/iPhone paths: exact-title current-query results, rapid replacement and opening. Original FTS semantics retained. Other query/IME/metadata matrices remain partial.
+
+
+18Nov Notes titles wrap on both native platforms and preserve Return-to-body workflow and original single-line metadata; runtime checked on Mac and iPhone27 simulator. Broader accessibility/keyboard/Undo acceptance remains.
+
+
+18Nov M05 partial: original Kokoro English normalization and phonemes verified on both platforms (104comparisons each),184sharedtests and both builds pass. Backend dependency/resources remain probe-only; synthesis/playback/settings/cancel/word timing and quality/device/licensing gates unfinished. Owner reports chapter spinner/stutter/short-page gesture gaps; track as open.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.
+
+### 2026-11-18 — Prepared chapter-turn checkpoint
+Added16chapter read-only preparation cache, shared in-flight loads, actual-neighbor prefetch, outgoing viewport capture and atomic destination rows/annotations/selection for explicit turns. Both native builds pass; Mac history/selection and iPhone short-page cycle checked. Removed iPhone empty system glass circle when chrome tucks. Other navigation paths can still show loading; global frame pacing remains open. See latest HANDOFF for scope, exact evidence and queued CI status.
+
+### 2026-11-18 — Direct warm Scripture presentation
+Cached chapters and revision-scoped annotations now render directly for warm navigation; location-scoped selection/scroll targets prevent stale state. Native view reuse captures outgoing viewport;16entry cache protects visible chapter and coalesced waiters publish before returning. Both final native builds pass; Mac34step boundary/history test, local selection/highlight refresh, phone mapped Psalm return and tab restoration checked. Cold misses/frame pacing remain open. Prior-head CI cancelled before runner assignment due hosted macOS capacity; see HANDOFF for exact evidence and next work.
+
+### 2026-11-18 — Working tabs first on iPhone
+Tab overview now opens expanded and shows current tabs before creation/cleanup/archive controls and recent duplicates. Existing actions and optional compact detent remain. Simulator existing119→G5463→119 navigation preserves viewport; nine tabs unchanged. Final iOS build passes. See HANDOFF for exact evidence, remaining large-workspace/accessibility checks and hosted CI capacity cancellation.
+
+### 2026-11-18 — Passage preview prepares the reader
+Shared previews now reuse a bounded prepared chapter with separately retained raw rows, warming both Mac palette/CmdL and iPhoneGo destinations without changing excerpts or navigation semantics. Both builds and raw LXXPsalm 3 heading→bodyverse2 UI checks pass; current-tab reuse leaves13MacQA/9phone tabs unchanged. Fast submit before preview is ready can still be cold. See HANDOFF for oracle/evidence and remaining selection/performance work.
+
+
+### 2026-11-18 — Reader selection gesture checkpoint
+iPhone Scripture selection: targeted final-source simulator verification of rapid adjacent body2–4 selection/actions, number2+3 selection and single-toggle, native double-tap/longpress with exclusive native handles/menu, Strong's link and ordinary scroll. Clean Mac+iOS builds pass. Does not close hardware, VoiceOver, accessibility timing, every native selection action or frame-pacing parity.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+Reader responsiveness: independent annotation groups reuse unchanged query results; Mac live note/tag/highlight add/remove checked. iPhone short-page chapter pulls now retain intended START/END arrivals after native release, verified in a clean build. Mac sidebar navigation restored and tested through hide/show and history/selection roundtrip. Pin trailing rest position checked; physical hover, accessibility timing, frame pacing and cold-submit parity remain open.
+
+### 2026-11-18 reader presentation clarification
+Brenton Psalm title + first body now target a single displayed verse1, consistent with Bible Hub/BiblIndex body-first presentation; raw edition IDs remain unchanged for legacy notes/highlights/links. Current final verification pending (HANDOFF). LXX badge hover follows pin pattern. Full generic split/tab composition and Compare per-edition selection are still gaps, not completed parity.
+
+Latest verification: full Swift suite192tests/55suites PASS; focused Psalm suite8 PASS; slow-pull harness PASS. Both final ancillary-label builds PASS (/tmp/berean-psalm-label-consistency-{mac,ios}.log). Mac/simulator reader UI checks described in HANDOFF. Scope is body-first Brenton presentation with unchanged storage IDs, plus LXXbadge/native-menu/pull refinements; generic splits/cursor replacement and notes-generated reference-link semantics audit remain open.
+
+
+## 2026-11-18 — location input, native cursor ownership and iPhone verse taps
+
+- Mac ⌘L now owns keyboard focus before its field mounts, preserves early keys/paste, selects the current destination once, and replaces the current tab across Scripture, Search, Lexicon and Notes. QA verified the original tab identity, 13-tab count and unchanged note content/update time. Explicit Shift-Return creates a tab; closing it currently selects its neighbor, not necessarily its origin.
+- Removed global cursor swizzles/private toolbar hooks and forced hands. Native controls, text, links and dividers own their cursors. Source audit and builds passed; physical pointer-motion/flicker coverage remains open.
+- iPhone body taps use a passive touch observer: rapid verse1/2/5 accumulation, targeted deselection, native word double-tap, 400ms taps, 900ms long-press, scroll cancellation, chapter pull and inline Strong’s were exercised in the Simulator. The new pure reader-taps harness joins CI. Physical iPhone/VoiceOver and handle dragging remain unverified.
+- Added a 44pt accessible Close Study Panel control; final fresh-launch Simulator check dismissed the G2962 inspector. Restored Psalm 3 LXX, Strong’s OFF, no verse selection, 9 tabs. Both final local builds PASS: `/tmp/berean-study-close-final-mac.log` and `/tmp/berean-study-close-final-ios.log`.
+- Online rendering verified again: [Brenton Psalm 3](https://biblehub.com/sep/psalms/3.htm) combines the title and first body line as verse1. [Brenton Psalm51 / LXX50](https://biblehub.com/sep/psalms/51.htm) does the same for its longer title. Preserve Septuagint chapter numbering and raw stored IDs; display/copy/accessibility numbering follows the reader. Do not reinterpret persisted links or rewrite production data.
+- Next: per-edition Compare selection and whole-block dragging; generic all-tab split previews; physical cursor motion and Mac scroll/pull feel; note reference formatting/preferences; M05 Kokoro playback. These remain unfinished. Owner-only merge order #22 → #23 → draft #24 remains unchanged.
+
+
+## 2026-11-18 — corpus-wide Brenton rendering and combined verse compatibility
+
+The actual 151-Psalm corpus check found that stored LXX 115:4 contains both the cup and vows sentences, with no stored verse 5. The reader now labels that record 4–5, preserves all its words/annotation identity, resolves human-entered verse 5 to stored4, and maps KJV 116:14 to that existing record in Compare/flip. Verse6 and following keep their numbers. Labels, selected references, chapter export, partial copy and accessibility use the range. Raw persisted links, tag spans and note/highlight keys are not rewritten.
+
+Online witnesses: [Bible Hub Psalm 3](https://biblehub.com/sep/psalms/3.htm) and [MT51/LXX50](https://biblehub.com/sep/psalms/51.htm) combine superscription and first body as verse1. [eBible Brenton115](https://ebible.org/eng-Brenton/PSA115.htm) calls the second sentence4a; [Bible Hub MT116](https://biblehub.com/sep/psalms/116.htm) separates the two sentences at13–14. Reader 4–5 is the numeric presentation of that combined record, consistent with the chosen body-first convention, rather than a claim that every online edition uses identical labels. Keep actual LXX chapter numbering; do not substitute a site's MT chapter headings.
+
+Verification: all 195 shared tests/57 suites PASS in139.323 s from a temporary native-build source snapshot; all 120 package source/test/fixture SHA256 values were checked against the repository with zero mismatches. Log `/tmp/berean-online-brenton-final-suite.log`; manifest `/tmp/berean-online-psalter-source/source-sha256.json`. Initial corpus test correctly failed on115's gap and motivated the range fix. Direct checkout test attempts were interrupted only after diagnosing cloud-backed Git/build database waits; no caches or usage were reset.
+
+First range builds BOTH PASS: `/tmp/berean-brenton-range-final-{mac,ios}.log`. Fresh iPhone PID32126 verified Go 115:5→115:4–5, readable gutter label, both sentences selected, verse 6 unchanged and9 tabs. Selecting6 then exposed separate outlines at the missing stored5. Final source fixes drawing/reveal grouping by actual row order while still breaking at unselected rows or real rows without layout; persistence stays unchanged. Reader tap + adjacency harness PASS with immutable inputs `/tmp/berean-final-range-selection-checks` (explicit temporary module-cache path after a sandbox cache-write failure). Final grouping builds and Mac/iPhone UI checks subsequently PASS; see verified publication checkpoint below. Reference labels also coalesce adjacent displayed ranges without changing saved raw groups.
+
+The single4–6 outline, copy/reference labels and fixture restoration are now verified on both apps. Publish only the tested source and its checkpoint. Audit combined-record cross-reference aggregation and newly generated Markdown/link display vs raw IDs; original legacy links must keep their meaning. Generic all-tab split previews, per-edition Compare selection/whole-block drag, physical pointer/flicker, Mac scroll/pull feel and M05 playback remain open.
+
+
+### Verified publication checkpoint — source `8492a161`
+
+Both final grouping builds PASS (`/tmp/berean-brenton-group-final-mac.log`, `/tmp/berean-brenton-group-final-ios.log`). iPhone fresh PID33697 showed one outline around 4–5 + 6, correct targeted deselect/reselect and native Copy→Paste containing `Psalms 115:4-6 LXX`, range label4–5 and verse 6, without extra text/rows. Restored Psalm 3 LXX, no selection, Strong’s OFF, inspector closed,9 tabs. Mac fresh QA launch verified ⌘L115:5→115:4–5, Shift-click 6→one4–6 outline, Copy Reference→immediate ⌘L paste exactly `Psalms 115:4-6 LXX`, then restored Psalm 50:1 LXX (raw 3),13 tabs. Readonly DB confirms original tabID0456641d-da15-49d2-8620-cdf2b9d1f0bd/typeBible retained and GalleryQA07 content SHA256 AND updated_at unchanged.
+
+Full 195 shared tests/57 suites passed; after adding corpus-version coherence assertions, the 3 focused tests passed again (`/tmp/berean-brenton-corpus-coherence-final.log`). All120 package snapshot hashes matched repo. Tap + visual-adjacency harness passed. No application code changed after final builds/UI checks. Physical iPhone/VoiceOver, physical cursor-motion/flicker, full Mac scrolling performance and combined-record cross-reference aggregation remain open.
+
+Commits: faf8589d location focus/input;3c38eb5c native cursor ownership;819f9954 iPhone body taps/CI;59bbd436 accessible inspector close;8492a161 combined Brenton records/visual adjacency. The next docs commit records this checkpoint. Publish the complete checkpoint to **github**/native/reader-notes, existing draft24; compare remote head with local HEAD and read CI for that exact PR head. Prior74aeb6c5/CI44391471644 is historical evidence only. PR22/23/24 were rechecked OPEN,24draft/base native/m6-navigation; owner-only merge order unchanged. Do not merge or inherit old green checks.
+
+
+## 2026-11-19 — Scripture presentation parity increment
+
+Source739c5e41: native Mac/iPhone superscription + first body share a numbered verse group, iPhone title/body tapping selects it, adjacent group outlines and native word selection verified. Edition numbering differences are quiet metadata with on-demand explanations. See ONLINE-BRENTON.md for independent witnesses,4–5 normalization and edition boundary caveats. Both app builds and197 shared tests pass; font/accessibility variants remain open. This is not full Compare parity: per-column selection and lifted dragging remain undone. Cross-reference canonical source identity is still a confirmed correctness gap despite improved display metadata.
+
+
+## 2026-11-19 — native references, toolbar responsiveness and Strong’s continuity
+
+- 42d34bbe: additive native cross-reference APIs map verified stored LXX rows to canonical sources; correct chapter grouping and combined-record aggregation. Legacy service entry points/goldens remain intact. Classic/TSKe selected and chapter UI checked on both apps; structural unverified alignments remain open.
+- fce2b88e: native navigation ControlGroup replaces fixed-size HStack; measured Mac toolbar CPU loop resolved while retaining sidebar titlebar placement. Baseline99.5% CPU/AX20–40s → idle0–3.3%/AX0.1–0.4s. This supersedes prior automation-latency diagnosis; broader physical interaction checks remain.
+- 3bbecdea: native readers retain the visible body line when Strong’s toggles, preferring a visible selected verse and excluding inline metadata from anchor offsets. Mac selected/unselected and iPhone mid-chapter on/off verified; physical phone and full edge/width matrix pending.
+- Validation: full202 shared tests; final6 focused cross-reference checks include all151 Psalms source bounds. Fresh reader intent/reflow harness passes Unicode/metadata mapping and prior tap/adjacency checks. Both final native builds pass. See current HANDOFF for exact logs, QA restoration and remaining tasks; source corpus/production/sync/identities unchanged.
+
+
+## 2026-11-19 — Compare selection and floating actions (d6f7cced)
+
+Each edition now owns its selectable verse numbers and action target. Additive taps/Mac Shift use actual stored row order; selection itself does not change the anchor passage or history. Adjacent visible selected rows share one faint/dashed outline; stacked interleaved editions remain outside each other’s outlines. Reduced Motion pauses animation. The adaptive glass action bar reuses reader control styling and supports copy/highlight/tag/note/reference/reader/share/clear operations. iPhone dock safe-area clearance was verified after an initial hidden-bar failure. Mac Command-C was verified after fixing a focus-routing failure. Clearing and exiting Compare does not restore an old selection. Shared title rendering uses the Scripture font and folds source title newlines.
+
+Both local Dev builds and the expanded native reader harness pass. Mac LXX50/KJV51 copy and action destinations, Mac Shift group/Escape, and iPhone stacked selection/copy feedback/reader transfer/final dock gap/clear-exit passed. See HANDOFF for exact logs and QA restoration. No note contents/timestamps changed;4 Mac/9 iPhone tabs preserved. Prior baselinecce95bf0 CI44493859591 is green, including203 shared tests; this is not evidence for the new source’s pending CI.
+
+Remaining before full Compare parity: view-state retention across tabs/relaunch, independent/pinned/cross-chapter/duplicate/4-column/width/accessibility matrix, actual mutation-and-undo action checks, native word-copy precedence, body-tap selection, selected-line reveal, and whole-block drag previews/grab-anywhere. Generic arbitrary-tab splitting and Kokoro playback remain separate open work.
+
+
+## 2026-11-19 — Compare tab return and explicit location intent (3090db5c)
+
+A bounded local snapshot per open tab now restores the selected Compare column/edition/chapter, selected stored rows, focus and original Shift anchor across tab switches. Close/explicit Compare arrival clear the cache. It is observation-ignored memory, with no new persisted/synced fields; restart retention remains open. Incoming explicit references override old local selection, including same-chapter and repeated identical commands. A fresh jump revision also restores the requested scroll position. Ordinary Go deduplication still uses the original one-argument isShown match, which excludes Compare.
+
+Final Mac/iOS builds pass (`/tmp/berean-compare-intent-complete-{mac,ios}.log`), and expanded native harness passes retained-anchor and unavailable-row cases. Mac UI verified LXXGenesis12 → Notes → return retaining selection; new/repeated Go to KJVGenesis11 replaces it, and repeat Go moves from near-end offset back to verse11. iPhone verified KJVPsalm3v1 → existing G5463 → return retaining that edition/selection.4 Mac/9 iPhone tabs preserved; original QA passages restored and all7 Mac QA note contents/timestamps unchanged. Earlier repeated-command failure and intermediate method-reference compile errors were corrected, not counted as passes. Full independent/pinned/history/restart/4-column/accessibility coverage, native word-copy precedence and whole-block dragging remain open.
+
+
+## 2026-11-19 — Compare passage lift follow-up (7d365304)
+
+Native Mac drag sources now cover headers, verse-cell whitespace and independent panes, with a readable glass passage preview, faded source and destination wash. Reorder remaps edition selection/scroll caches without changing legacy column records. Aligned two-edition reorder in both directions, exact mid-chapter scroll retention, Escape cancellation and native word-copy precedence passed. Both local native builds pass. Preview is a reconstructed visible excerpt; system-owned ghost pixels and physical feel were not captured. Pinned independent attempts did not demonstrate a successful drop; keep that matrix,4-column/duplicate/narrow/accessibility and selection removal/action writes open. CUA requires a final destination click to complete the native drop in this environment; do not misdiagnose its pending session as a stuck app. See HANDOFF/CHANGELOG for exact evidence/restored QA and CI scope. Generic arbitrary-tab splitting remains planned only. Strong’s body-word reading continuity is delivered; long-verse/end/width/hardware checks remain.
+
+
+## 2026-11-19 — Compare Strong’s continuity (f0b8752e)
+
+Shared Compare scroll now follows a visible verse through Strong’s reflow, preferring visible selected focus; independent and stacked hosts also receive verse-based restoration. Deferred work yields to newer explicit navigation/current-tab/passage/Compare-mode changes. Main Reader retains the finer body-word position separately. Mac aligned UI verified verse8 retained on enabling and selected11 retained on disabling; final guarded Mac/iOS builds PASS. Guard race matrix, independent/stacked/iPhone runtime and full width/long-verse/hardware checks remain. Nested drag-source removal experiment did not establish a pinned-drop fix and was fully reverted; pinned native dragging remains open. See HANDOFF/CHANGELOG for exact logs, QA restoration and CI status.
+
+
+## 2026-11-19 — Notes formatting and context-menu follow-up
+
+347cf74a routes native inline formatting through a shared, source-preserving cell edit: confirmed table pipes/rules/padding remain intact; mixed cells toggle together; existing inline constructs keep their rendering/source rather than becoming malformed enclosing marks.9 focused regressions and all212 package tests pass. Mac whole-table bold/toggle/Undo/Redo and exact persisted source verified. Arbitrary nested marks and the separate colored multi-cell highlight adapter remain open.04079bdf shortens the iPhone preview and groups Share/Print/Export; simulator now shows the entire primary menu including Trash and its action worked. Both final native builds pass. iPhone grid rendering passed; iPhone formatting/Undo remains unverified because remote keyboard input changed text unexpectedly. All original7Mac/17iOS note contents/timestamps unchanged, synthetic notes in recoverable Trash, original passages restored/4Mac/9current-iPhone tabs. Read HANDOFF for logs, simulator container relocation, input failures and next gates; no production/sync/schema changes or merge.
+
+
+## 2026-11-19 — Multi-cell/multiline note highlights (8adef50b)
+
+Default/color/Remove Highlight now share one source-preserving edit across cells and paragraphs, including partial recolor/removal and mapped selection. Color application is idempotent; structural Markdown/line endings and existing code/links/other marks survive. Other marks remain protected rather than gaining nested styling. Escape atoms stay together even under partial selection (initial failed readable-text case corrected).20 focused tests and all223 package tests pass; both native builds pass. Mac actual6-run Blue→Undo/Redo→Green→Remove restored the exact original source and grid; synthetic note in recoverable Trash, original7 note hashes/timestamps and4workspace tabs unchanged. iPhone8ade runtime and full native partial/nested/width/hardware matrix remain open. See HANDOFF for exact logs, evidence limits and pending exact-head CI.
+
+
+## 2026-11-19 — Combined note rendering (09eb7d84 /6555fd0e)
+
+Existing strong/emphasis combinations now use Foundation source positions while custom marks/raw IDs remain source-preserving. Literal code and link destinations stay intact; the native punctuation-only mark fallback remains. Bounded thread-safe process cache avoids reparsing unchanged bodies; synthetic parser timing matches the old path after caching (not a whole-editor latency claim). Highlight backgrounds now exclude hidden glyphs; real Mac empty blue strip disappeared.9new tests,46focused and all232package tests pass; both final native builds pass. Mac combined styles/table, plain copy and Command-B round trip verified with exact source retained; synthetic note trashed, original7 note hashes/timestamps and4workspace tabs unchanged. Whole protected highlight runs can be cleared; unsupported partial nested edits remain unchanged and full rich-mark mutation parity remains open. iPhone runtime/physical/accessibility/large-note matrix and GFM escaped wiki-alias identity verification remain queued. See HANDOFF for exact logs and CI scope.
+
+## 2026-11-19 — iPhone formatting target survives Undo/Redo
+
+All iPhone programmatic note formatting uses the existing literal-source undo path with validated text/selection bounds. This fixes Redo collapsing selection and a subsequent format button inserting empty marks at the caret. Real simulator touch Bold→Undo→Redo→Bold and Highlight→Undo→Redo→Highlight restore the exact whole original table fixture; selected Prayer retains visible handles. iOS build passes (`/tmp/berean-note-selection-undo-ios.log`). Original17 notes unchanged,47active tabs retained, synthetic notes recoverably trashed. Mac/package unchanged; previous232tests/Mac build are baseline, not fresh checks. Broader multi-cell/combined-style/color/typing/IME/accessibility parity remains open. See HANDOFF for IDs and clipboard method.
+
+## 2026-11-19 — Combined formatting of visible note text
+
+Shared native formatting now adds styles to existing styled text and toggles exact marked runs independently, including bold+italic shared boundaries. It verifies plain text and prior style coverage before accepting the source edit. Mac and iPhone actual UI passed a selected table word through Bold→Italic, independent Bold removal, Undo and independent Italic removal; exact saved source confirmed.236tests and both SDK27.2 builds pass (HANDOFF has logs). Partial removal inside a larger mark, whole-table combined editing and broader rich-editor parity remain open. Table wiki-link normalization is deferred because actual legacy serialization proves an identity collision; see NOTE-TABLE-LINK-COMPATIBILITY.md.
+
+## 2026-11-19 — Remove note styles from part of a passage
+
+Native Notes now removes a style only from selected visible text while retaining surrounding formatting, including nested emphasis. Global visible-character/semantic validation protects neighbouring styles and link/code identities. Mac and iPhone live checks passed sequential Bold/Italic removal from Bravo inside a formatted table phrase, plus exact Undo/Redo and selection retention.240tests and both final SDK27.2 builds pass; HANDOFF contains logs, initial failures and cleanup evidence. Whole-cell/table mixed hidden-syntax edits and broader rich-editor parity remain open.
+
+## 2026-11-19 — Generic tab-split model groundwork
+
+Added process-local pane-tree edits/geometry, atomic layout undo and scoped/versioned tab-drag payload validation.8focused tests include484ordered tab-family/edge cases. Full248tests and both SDK27.2 builds pass (`/tmp/berean-pane-layout-*` logs). No split UI, drag target/type, app command routing or persistence is enabled; TAB-SPLIT-DESIGN.md specifies the next extraction and remaining gates. Separately, actual Mac Compare independent KJV10/LXX5 reading positions survived Strong’sON/OFF; exact intra-row position and broader matrices remain open. Original notes unchanged; HANDOFF has precise evidence.
+
+## 2026-11-19 — Explicit Mac tab content host
+
+MacRootView now delegates its current single document to MacTabContentHost(tabID:), preserving identity/toolbar/inspector behavior and handling a stale tab explicitly. Mac build and real Scripture/Notes/Calendar/History/Tags/Lexicon/Search checks pass; exact37original tabs and7original notes preserved. Shared248tests/iOS model-build baseline unchanged. Background-pane command/focus/toolbar/editor coordination and actual drag previews/splits remain unfinished; see TAB-SPLIT-DESIGN/HANDOFF.
+
+## 2026-11-19 — Pane selection and compact command-scope model
+
+Added focused-document replacement, visible-tab reuse, scoped/stale command-target checks and compact focused projection retaining the full split tree.13focused model tests pass (including484family/edge cases); full253tests and both SDK27.2 builds pass (`/tmp/berean-pane-focus-*` logs). Minimums now key on TAB ID so replacements use their own document constraints. AppModel command routing, pane environment, compact picker and visible splits remain unimplemented; this is model groundwork only. HANDOFF/TAB-SPLIT-DESIGN record the exact next bridge and validation.
+
+## 2026-11-19 — Reader annotation workflow
+
+Intentional visual departure from Electron: tags/note counts moved outside running Scripture into contextual study details. Tag search/add/member-removal implementations remain accessible there, and Compare opens the exact edition’s notes. Built-in Cross Refs unchanged; personal citation ↗ marker still needs calm unified treatment. Rendered acceptance and unverified cases in READER-ANNOTATION-DESIGN.md; no native-feature-complete claim.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+Native My Notes parity gains ordinary-note per-verse indicator index without altering the legacy indirect list/parser; preserves outgoing linked passages and range/chapter scope through contextual study route. Full auto verse/Strong’s settings/tracking audit still required by latest steering. All254tests/both builds pass; see reference-design evidence and FOLLOWUP-2026-11-19.md.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Notes scope/sort functionality preserved in simpler inline search menu; Notes-first display and personal annotations retained. Verified native saved-position lifecycle fix, independent of persistence format. Remaining automatic verse/Strong’s tracking/settings, Markdown/table/share/history, RTL and substring/lexicon highlight parity stays OPEN. Full255tests/both builds pass; rendered feature parity is limited to the named UI checks.
+
+### 2026-11-19 Notes preview/table follow-up
+
+Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.
+
+### 2026-11-19 sharing, BDB and navigation increment
+
+Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel verified); ordinary editor/list/bulk note sharing uses readable text, explicit Markdown copy/export retained. Version history spacing/preview polished (Mac preview verified). Native BDB selectable prose uses an explicit English paragraph base; Mac mixed Hebrew/English logical copy and iPhone word handles verified. Search substring marks and Lexicon bold+faint match backgrounds verified. Found/fixed iPhone New Tab sheet intent loss: explicit H1 created a separate tab, ordinary Go reused G5463; cleanup restored exact47IDs. Final builds pass; detailed limits/paths in HANDOFF and SHARING-AUDIT.md. New Compare→Reader viewport shift is OPEN; no all-scroll/no-Markdown/all-share/all-parity completion claim.
+
+### 2026-11-19 reader layout and reference tracking
+
+8f680362 fixes repeated Compare→Reader width-reflow shifts by retaining the immediate restoration intent through initial layout changes, yielding to input. Final no-trace UI roundtrips retain0.5418427726120034; physical smoothness/full races still open.03697661 restores original Strong’s detection preference on both apps; Mac explicit-link independence and iPhone OFF persistence/ON restoration verified. c8fbfe2e removes canonical-name/80-result loss of ordinary-note citations; real Jn3:17 MyNotes UI and90+note/edit/Trash/restore tests pass. Full256tests/both builds pass, original13/17notes/38/47IDs/tags unchanged. HANDOFF and NOTES-REFERENCE-PARITY.md provide precise remaining matrices; broader goal remains active.
+
+## 2026-11-19 — Personal lexicon Notes and simpler iPhone commands
+
+Implemented shared Lexicon My Notes backlinks using normalized bare IDs and actual lexicon destinations, preserving note-title wiki identities and excluding code/images/comments/unrelated URLs. Ephemeral off-main, revision-aware index has no result cap or schema change. Mac normalized/explicit-link/edit invalidation and iPhone existing-note/open/top-Back return verified. iPhone More now groups reading/chapter/tab/study commands with Settings directly reachable; tab previews use readable excerpts. Full 258 tests and both return-fix builds passed; final disclosure polish build logs and full evidence/limits are in HANDOFF. Physical scroll/hover, compact/history/performance/reference grammar, rich tables/all sharing/live panes/Kokoro remain open. Production data/identities untouched; review guard and active goal unchanged.
+
+## 2026-11-19 — Search/study/Compare/window follow-through
+
+Seven focused source commits now deliver the Mac chapter share anchor (actual open/cancel twice), aligned inline search controls and grouped Options (Exact phrase/reset checked), grouped Notes inspector with compact desktop chapter scope, searchable Shortcuts (action/modifier/no-results/clear checked), iPhone Compare body selection (LXX/KJVA/number-clear checked), persistent window inspector with settled native width retention and explicit sidebar240/panel320/window1000 minimums, and local cursor-region yielding at native dividers. Both apps build; latest Mac-only limits/cursor builds pass. Physical cursor/drag/first constrained Compare reflow/all-tab history/toolbar matrices remain open. See latest HANDOFF for exact evidence, failed width experiments, source commits and safe NEW controls QA profile. All16 fresh Mac notes/37IDs and17 iPhone notes/47IDs/tags unchanged. Do not restore the now-stale prior study QA baseline.
+
+## 2026-11-19 — Compare drag interaction increment
+
+Mac native Compare now lifts its rendered visible column using NSDraggingSession rather than a reconstructed preview. Independent KJVA/LXX reorder/restore, native move operation, Escape cancellation, passage picker and verse-selection actions verified. This is bounded interaction parity; pinned/aligned/stacked/Strong’s/text-selection/2x/physical feel matrix remains open. No iPhone runtime or data changes this increment. Both targets build; details in HANDOFF and NATIVE-COMPARE-DRAG.md.
+
+## 2026-11-19 — Repeated Compare drag correctness
+
+Source bbca520f fixes stale recognizer source identity after reorder, finishes the native gesture lifetime and masks stacked drag images to the actual source fragments. Real aligned/pinned consecutive moves, invalid-drop recovery, rendered Strong’s link and temporary three-column stacked reorder/return verified; both builds pass. Temporary column removed and reading states restored;16notes/37IDs/alltags unchanged. Blue verse-control image fidelity,2x/selected/text-selection/4column/race/physical cursor matrices remain open. Exact evidence in HANDOFF/NATIVE-COMPARE-DRAG.md. Previous718d9e2e CI44665586360 is green; new head’s checks are separate.
+
+## 2026-11-19 — Table-safe Notes and minimal iPhone keyboard controls
+
+713bd02e protects real note tables from paragraph/list/callout/nested-table edits and disables corresponding native controls.1b9a4074 groups the iPhone accessory into6prose/5table controls, keeps formatting in a native menu, provides contextual table operations/live cell navigation, direct keyboard dismissal, Undo/Redo availability and haptics preference support. Both final builds and265tests pass. Actual Mac shortcut/table/prose/Undo and iPhone row/column/format/Undo/Redo/navigation/heading checks passed. Original16Mac/17iPhone notes,37/47IDs/tags unchanged; disposable notes trashed/tabs closed. See HANDOFF/NOTES-KEYBOARD-AND-TABLES.md for exact scopes and open device/rich-edit matrices. d6422697 adds opt-in raw Compare diagnostics; direct pixels supersede the earlier missing-number preview interpretation. Latest owner marker/hover/replacer/auto-block requests remain OPEN in FOLLOWUP.
+
+## 2026-11-19 — Study markers and automatic dictionary blocks
+
+Automatic lexicon block presentation now implemented/tested on Mac+iPhone. Typed expansion remains distinct from presentation and tracking. Canonical Scripture-block recognition and noteScriptureBlock/threshold settings still missing. Word Replacer browser is implemented, individual/custom rule persistence/propagation is not. Marker preview covers personal citations, not all TSKe sources. See NOTES-AUTOMATIC-BLOCKS.md; do not close whole reference parity.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+Personal-note margin previews now resolve actual target passages, with reader-consistent LXX number/title handling. Actual two-passage and scroll-anchor checks passed. This is not all-source TSKe hover parity, continuous hover proof or all range/combined-record coverage. Automatic Scripture blocks still NOT delivered; draft scanner is documentation only, not app/package code.
+
+## 2026-11-19 — Verified Scripture blocks and iPhone Settings (7e8142f9)
+
+Both native editors now canonically verify and style copied Scripture without changing source, with original false/0.9 settings, cancellable/debounced bounded verification and complete LXX/range selection. iPhone Settings gains six native category routes. Full290sharedtests/finalMac+iOSbuilds PASS; actual Mac/Simulator source/Undo/settings/table/duplicate/rejection checks PASS. All owned fixtures trashed/extra tabs closed; existing19/24note-row hashes,37/47activeIDs/alltags preserved. See SCRIPTURE-BLOCKS-2026-11-19 and CURRENT-STATE for precise proof, runtime and limits. Full rich-import/read-only/index parity remainsOPEN. Next fix LXX attachment display, iPhone dock after editor removal and Mac viewport drift; no Apple voices/merge action. Broad migration remainsACTIVE.
+
+
+## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
+
+Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
+
+
+## 2026-11-20 — Presenter/Messages/iPhone polish checkpoint
+
+See [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md) for source commits, actual UI scenarios and precise limits. This increment improves U07/U09/U18, iPhoneS02/S04/S08/Q09 and tab previews; it does not mark those broad features complete. Full339 shared tests and both visual builds pass; original notes/tags/folders/active IDs preserved. Wider physical, accessibility, reference, failure and constrained/manual resize matrices remain open.
+
+
+## 2026-11-21 — Bounded follow-through, not full closure
+
+Presenter now follows reader typography/appearance and later scrolling despite retained selection (a4fcc429); pause holds effective color scheme until Resume. Mac actual follow/pause/font/number/theme cases pass. Compare focused-secondary source remains OPEN. Markdown image previews preserve trailing text/consecutive images (16067d57;2regressions;346shared tests); iPhone actual image flow and mid-paragraph image layout remain OPEN. Print custom fraction entry/accessibility and native theme menu names are implemented in da8aecce, with actual Mac/iPhone0.125→0.375 behavior; paper output/unknown-field runtime/custom-dark accent semantics need further checks.81938ff0 sanitizes presentation excerpts/replies and retains existing service summaries without rewriting raw Chat data; Mac owned fixture search/reply passes, iPhone matrix open. Detailed evidence: PRESENTER-REFINEMENT-2026-11-21.md.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.
+
+
+### Nov21 startup correction — ada385b1
+Supersedes reproduced startup selection-overwrite above: transient highlight snapshots no longer request focus; deliberate verse selection/clear/destination still does. Both builds PASS; actual fresh startup stays at savedverse7/selected1, explicitverse8 focuses8; original state restored. No persisted format/schema changes. Wider multi-window/paused/edition/history matrix remainsOPEN. Focused evidence has exact scope and next steps.
+
+
+### Nov21 confirmed history offset gap (OPEN)
+Finalada385b1 actualCmdLGenesis1:20/currenttab/Presenterfollow PASS. Back→Genesis1:1 returnsscroll0 rather than prior509pt/verse7. History snapshot keeps viewport but ignoredcache shadowsit, selectionobserver reveals1 and same-passage native viewportrestore is not triggered. Next fix needs scoped one-time restoration across bothadapters, not cache-only change. Full implementation/test packet in PRESENTER-REFINEMENT-2026-11-21.md. FinalQAselection/viewport restored; no extra tabs.

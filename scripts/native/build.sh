@@ -14,10 +14,11 @@ PROJECT="$ROOT/apple/Berean.xcodeproj"
 # Release mode: the golden suites walk every verse of several texts (≈30 s optimised vs minutes in debug).
 run_test() { swift test -c release --package-path "$ROOT/Packages/BereanKit" --scratch-path "$ROOT/build/apple/swiftpm"; }
 # BereanKit golden suites on an iOS Simulator (the platform SQLite there differs from macOS — B-15).
+# Release keeps exhaustive suites fast; @testable imports still need testability on package modules.
 run_ios_test() {
   local udid
   udid=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in sorted(d.items(), reverse=True) if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
-  (cd "$ROOT/Packages/BereanKit" && xcodebuild test -quiet -scheme BereanKit-Package -configuration Release \
+  (cd "$ROOT/Packages/BereanKit" && xcodebuild test -quiet -scheme BereanKit-Package -configuration Release ENABLE_TESTABILITY=YES \
     -destination "platform=iOS Simulator,id=$udid" -derivedDataPath "$ROOT/build/apple/DerivedData-ios-tests")
 }
 run_mac() {
@@ -43,5 +44,5 @@ case "${1:-all}" in
   mac) run_mac ;;
   ios) run_ios ;;
   all) run_test; run_mac; run_ios ;;
-  *) echo "usage: $0 test|mac|ios|all" >&2; exit 2 ;;
+  *) echo "usage: $0 test|ios-test|mac|ios|all" >&2; exit 2 ;;
 esac

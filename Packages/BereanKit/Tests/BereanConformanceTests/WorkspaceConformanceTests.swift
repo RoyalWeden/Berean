@@ -42,6 +42,43 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
     let g: JSObject
     init() throws { g = try Golden.load("tabs") }
 
+    @Test func disjointVerseSelectionStaysOnThisDevice() {
+        var state = JSObject()
+        state["verse"] = .number(3)
+        state["nativeSelectedVerses"] = .array([.number(1), .number(3)])
+        let split = TabFields.split(type: .bible, state: state)
+        #expect(split.sync["verse"] == .number(3))
+        #expect(split.sync["nativeSelectedVerses"] == nil)
+        #expect(split.local["nativeSelectedVerses"] == state["nativeSelectedVerses"])
+        #expect(TabFields.merge(type: .bible, sync: split.sync, local: split.local) == state)
+    }
+
+    @Test func notesFolderLocationSurvivesLocalPersistence() {
+        for location in [JSValue.null, js("all"), js("trash"), js("sys:verse"), js("folder-qa")] {
+            var state = JSObject()
+            state["noteId"] = .null
+            state["listFolderId"] = location
+            let split = TabFields.split(type: .note, state: state)
+            #expect(split.sync["listFolderId"] == nil)
+            #expect(split.local["listFolderId"] == location)
+            #expect(TabFields.merge(type: .note, sync: split.sync, local: split.local) == state)
+        }
+    }
+
+    @Test func lexiconQueryPersistsWithoutSyncingItsResultOffset() {
+        var state = JSObject()
+        state["strongsNum"] = .string("")
+        state["searchQuery"] = .string("god")
+        state["searchLang"] = .string("H")
+        state["searchScrollTop"] = .number(1793.3333333333333)
+        let split = TabFields.split(type: .lexicon, state: state)
+        #expect(split.sync["searchQuery"] == state["searchQuery"])
+        #expect(split.sync["searchLang"] == state["searchLang"])
+        #expect(split.sync["searchScrollTop"] == nil)
+        #expect(split.local["searchScrollTop"] == state["searchScrollTop"])
+        #expect(TabFields.merge(type: .lexicon, sync: split.sync, local: split.local) == state)
+    }
+
     @Test func splitMergeStable() {
         for c in g.arr("split") {
             let type = TabType(rawValue: c["type"]!.str)!
@@ -235,6 +272,37 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         }
     }
 
+    @Test func snapshotRepairsRepeatedAndMissingOrderIDs() throws {
+        let reader = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "John 1")
+        let note = Tab(id: "note", spaceId: .notes, type: "note", title: "Study note")
+        let session = Session(id: "study", name: "Study", tabs: [.scripture: [reader], .notes: [note]])
+        let saved = WorkspaceSnapshot.stateJSON(for: session, displayOrder: ["note", "gone", "note"])
+        #expect(WorkspaceSnapshot.parse(saved).displayOrder == ["note", "reader"])
+
+        var malformed = try #require(JSON.parse(saved).objectValue)
+        malformed["displayOrder"] = .array([.string("note"), .string("gone"), .string("note")])
+        let parsed = WorkspaceSnapshot.parse(JSON.stringifyString(.object(malformed)))
+        let restored = parsed.restoreSession(id: "snapshot", name: "Study", reservedIDs: []) { "fresh-id" }
+        #expect(restored.displayOrder == ["note", "reader"])
+    }
+
+    @Test func nativeUtilityTabsSurviveSnapshots() {
+        let reader = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "John 1")
+        let history = Tab(id: "history", spaceId: .search, type: "history", title: "History")
+        let calendar = Tab(id: "calendar", spaceId: .notes, type: "calendar", title: "Calendar")
+        let session = Session(id: "study", name: "Study",
+                              tabs: [.scripture: [reader], .search: [history], .notes: [calendar]],
+                              activeTabId: [.search: history.id, .notes: calendar.id])
+        let order = [history.id, reader.id, calendar.id]
+        let parsed = WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: session, displayOrder: order, preferredSpace: .search))
+        let restored = parsed.restoreSession(id: "snapshot", name: "Study", reservedIDs: [history.id]) { "history-copy" }
+        #expect(parsed.preferredSpace == .search)
+        #expect(restored.displayOrder == ["history-copy", reader.id, calendar.id])
+        #expect(restored.session.tabs(in: .search).map(\.tabType) == [.history])
+        #expect(restored.session.tabs(in: .notes) == [calendar])
+        #expect(restored.session.activeTabId[.search] == "history-copy")
+    }
+
     @Test func sessionRoundTrip() {
         let s = Session(id: "s1", name: "Study", icon: "book", tabs: [
             .scripture: [Tab(id: "t1", spaceId: .scripture, type: "bible", title: "John 3", state: JSValue(dictionaryLiteral: ("book", "John"), ("chapter", 3)).object)],
@@ -248,4 +316,111 @@ final class EventLog: @unchecked Sendable { var items: [DataChange] = [] }
         #expect(p.tabs(in: .notes).compactMap { Tab(jsObject: $0) } == s.tabs(in: .notes))
         #expect(WorkspaceSnapshot.sessionId("abc") == "ws:abc")
     }
+}
+
+@Test func restoringOneArchivedTabPreservesOtherRecords() throws {
+    let first = Tab(id: "first", spaceId: .scripture, type: "bible", title: "Jonah 1")
+    let last = Tab(id: "last", spaceId: .notes, type: "note", title: "Study note")
+    let future = try JSON.parse(#"{"id":"future","spaceId":"futureSpace","payload":{"newField":true}}"#)
+    let records: [JSValue] = [.object(first.jsObject), future, .object(last.jsObject)]
+    let group = ArchivedGroup(id: "group", label: "Jonah 1 and 2 more", archivedAt: 42,
+                              tabsJSON: JSON.stringifyString(.array(records)))
+    let remaining = try #require(group.afterRestoring(tabID: first.id))
+    #expect(remaining.id == group.id)
+    #expect(remaining.archivedAt == group.archivedAt)
+    #expect(try JSON.parse(remaining.tabsJSON) == .array([future, .object(last.jsObject)]))
+    #expect(remaining.afterRestoring(tabID: "missing") == remaining)
+
+    let afterBulk = try #require(group.afterRestoring(tabIDs: [first.id, last.id, "future"]))
+    #expect(try JSON.parse(afterBulk.tabsJSON) == .array([future]))
+    #expect(afterBulk.tabs.isEmpty)
+    #expect(afterBulk.label == "Archived tabs")
+
+    let plan = group.restorePlan(openTabIDs: [first.id])
+    #expect(plan.tabs.map(\.id) == [last.id])
+    let planRemainder = try #require(plan.remaining)
+    #expect(try JSON.parse(planRemainder.tabsJSON) == .array([future]))
+    let duplicateOnly = group.restorePlan(openTabIDs: [first.id], only: first.id)
+    #expect(duplicateOnly.tabs.isEmpty)
+    #expect(duplicateOnly.remaining == remaining)
+
+    let single = ArchivedGroup(id: "single", label: last.title, archivedAt: 42,
+                               tabsJSON: JSON.stringifyString(.array([.object(last.jsObject)])))
+    #expect(single.afterRestoring(tabID: last.id) == nil)
+}
+
+@Test func copiedTabsRedirectOnlyOriginsIncludedInTheCopy() {
+    let tab = Tab(id: "copied-lexicon", spaceId: .lexicon, type: "lexicon", title: "H3068",
+                  originTabId: "reader", originSpaceId: .scripture)
+    var expected = tab
+    expected.originTabId = "copied-reader"
+    #expect(tab.remappingOrigin(using: ["reader": "copied-reader"]) == expected)
+    #expect(tab.remappingOrigin(using: ["other": "copied-other"]) == tab)
+}
+
+@Test func restoredSnapshotKeepsUniqueTabsAndLocalRelationships() {
+    let reader = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "Jonah 1")
+    let duplicate = Tab(id: "reader", spaceId: .scripture, type: "bible", title: "Jonah 2")
+    let lexicon = Tab(id: "lexicon", spaceId: .lexicon, type: "lexicon", title: "H3068",
+                      originTabId: reader.id, originSpaceId: .scripture)
+    let source = Session(id: "source", name: "Study",
+                         tabs: [.scripture: [reader, duplicate], .lexicon: [lexicon]],
+                         activeTabId: [.scripture: reader.id, .lexicon: lexicon.id])
+    let parsed = WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: source, displayOrder: ["lexicon", "reader"]))
+    var generated = ["reserved", "reader-copy", "duplicate-copy"].makeIterator()
+    let restored = parsed.restoreSession(id: "snapshot", name: "Study", reservedIDs: ["reader", "reserved"]) {
+        generated.next()!
+    }
+
+    #expect(restored.session.tabs(in: .scripture).map(\.id) == ["reader-copy", "duplicate-copy"])
+    #expect(restored.session.activeTabId[.scripture] == "reader-copy")
+    #expect(restored.session.tabs(in: .lexicon).first?.originTabId == "reader-copy")
+    #expect(restored.displayOrder == ["lexicon", "reader-copy", "duplicate-copy"])
+}
+
+@Test func restoredSnapshotUsesOriginSpaceWhenIDsAreAmbiguous() {
+    let scripture = Tab(id: "shared", spaceId: .scripture, type: "bible", title: "Jonah 1")
+    let note = Tab(id: "shared", spaceId: .notes, type: "note", title: "Study note")
+    let lookup = Tab(id: "lookup", spaceId: .lexicon, type: "lexicon", title: "H3068",
+                     originTabId: note.id, originSpaceId: .notes)
+    let session = Session(id: "source", name: "Study", tabs: [
+        .scripture: [scripture], .notes: [note], .lexicon: [lookup]
+    ])
+    let parsed = WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil))
+    let result = parsed.restoreSession(id: "copy", name: "Study", reservedIDs: []) { "note-copy" }
+    #expect(result.session.tabs(in: .scripture).first?.id == "shared")
+    #expect(result.session.tabs(in: .notes).first?.id == "note-copy")
+    #expect(result.session.tabs(in: .lexicon).first?.originTabId == "note-copy")
+}
+
+@Test func snapshotRemembersPreferredSpaceWhenItHasTabs() {
+    let note = Tab(id: "note", spaceId: .notes, type: "note", title: "Study note")
+    let session = Session(id: "source", name: "Study", tabs: [.notes: [note]])
+    let saved = WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil, preferredSpace: .notes)
+    #expect(WorkspaceSnapshot.parse(saved).preferredSpace == .notes)
+    let emptySpace = WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil, preferredSpace: .scripture)
+    #expect(WorkspaceSnapshot.parse(emptySpace).preferredSpace == nil)
+    #expect(WorkspaceSnapshot.parse(WorkspaceSnapshot.stateJSON(for: session, displayOrder: nil)).preferredSpace == nil)
+}
+
+@Test func archivedTabsRestoreInEitherOrder() {
+    let original = ["a", "b", "c", "d", "e"]
+    for restoration in [["b", "d"], ["d", "b"]] {
+        let restored = restoration.reduce(["a", "c", "e", "new"]) { order, id in
+            TabPersistence.restoredDisplayOrder(tabID: id, current: order, archived: original)
+        }
+        #expect(restored == original + ["new"])
+    }
+}
+
+@Test func archivedTabsRestoreWithMissingNeighbors() {
+    #expect(TabPersistence.restoredDisplayOrder(tabID: "b", current: ["a", "new"], archived: ["a", "b", "c"])
+            == ["a", "b", "new"])
+    #expect(TabPersistence.restoredDisplayOrder(tabID: "b", current: ["new", "b"], archived: [])
+            == ["new", "b"])
+}
+
+@Test func displayOrderDiscardsStaleAndRepeatedIDs() {
+    #expect(TabPersistence.reconciledDisplayOrder(tabIDs: ["a", "b", "c"], stored: ["b", "gone", "b", "a"])
+            == ["b", "a", "c"])
 }

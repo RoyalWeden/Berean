@@ -18,8 +18,20 @@ import { buildHighlightsGolden } from '../../scripts/golden/highlights'
 import { buildWorkspacesGolden } from '../../scripts/golden/workspaces'
 import { buildNoteMarkdownGolden } from '../../scripts/golden/noteMarkdown'
 import { buildVerseTagsGolden } from '../../scripts/golden/verseTags'
+import { buildSpeechChunksGolden } from '../../scripts/golden/speechChunks'
+import { buildSpeechPreparationGolden } from '../../scripts/golden/speechPreparation'
+import { buildKokoroEnglishGolden } from '../../scripts/golden/kokoroEnglish'
 
 describe('golden corpus', () => {
+  it('kokoro-english.json matches the installed original Kokoro preprocessing', async () => {
+    expect(readFileSync(join(GOLDEN_DIR, 'kokoro-english.json'), 'utf8')).toBe(serializeGolden(await buildKokoroEnglishGolden()))
+  })
+  it('speech-preparation.json matches the original speech pipeline', () => {
+    expect(readFileSync(join(GOLDEN_DIR, 'speech-preparation.json'), 'utf8')).toBe(serializeGolden(buildSpeechPreparationGolden()))
+  })
+  it('speech-chunks.json matches the original Kokoro chunker', () => {
+    expect(readFileSync(join(GOLDEN_DIR, 'speech-chunks.json'), 'utf8')).toBe(serializeGolden(buildSpeechChunksGolden()))
+  })
   for (const f of buildGoldenCorpus()) {
     it(`${f.name}.json matches the TypeScript oracle`, () => {
       const path = join(GOLDEN_DIR, `${f.name}.json`)

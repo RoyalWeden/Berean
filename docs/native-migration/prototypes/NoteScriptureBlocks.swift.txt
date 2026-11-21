@@ -1,0 +1,135 @@
+// HISTORICAL UNTESTED DRAFT — superseded by compiled/tested source7e8142f9.
+// Kept for provenance; never copy over live NoteScriptureBlocks/NoteScriptureSelection.
+// UNTESTED PROTOTYPE — not compiled into either app. No canonical verification or editor integration yet.
+// Resume from NOTES-AUTOMATIC-BLOCKS.md; add tests and correct edition/Hermas handling before use.
+import Foundation
+import BereanReference
+
+/// Presentation candidates for the original editor’s single-line and numbered
+/// multiline Scripture blocks. A candidate must be verified against its passage
+/// before it is displayed; recognition alone never establishes that prose is Scripture.
+public struct NoteScriptureBlock: Equatable, Sendable {
+    public let range: NSRange
+    public let referenceRange: NSRange
+    public let reference: String
+    public let body: String
+    private let source: String
+
+    public func isCurrent(in text: String) -> Bool {
+        let text = text as NSString
+        return range.location >= 0 && range.length > 0 && range.location <= text.length
+            && range.length <= text.length - range.location && text.substring(with: range) == source
+    }
+
+    /// Ratio keys do not contain positions: editing elsewhere in the note can
+    /// move an already verified block without triggering another database lookup.
+    public var verificationKey: String {
+        reference.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            + "\u{0}" + Self.words(body).joined(separator: " ")
+    }
+
+    private static let numberedLine = try! NSRegularExpression(pattern: #"^[ \t]*[0-9]{1,3}(?:[–-][0-9]{1,3})?[ \t]+(.+)$"#)
+
+    private struct Line {
+        let raw: NSRange
+        let visible: String
+        let offsets: [Int]
+        let eligible: Bool
+    }
+
+    public static func candidates(in text: String) -> [Self] {
+        let source = text as NSString
+        let spans = MarkdownLiveSpans.spans(text)
+        var hidden = IndexSet(), excluded = IndexSet()
+        for span in spans where span.range.length > 0 && span.range.location >= 0
+            && span.range.location <= source.length && span.range.length <= source.length - span.range.location {
+            let positions = span.range.location..<NSMaxRange(span.range)
+            switch span.kind {
+            case .hidden: hidden.insert(integersIn: positions)
+            case .code, .codeBlock, .heading, .quote, .bullet, .task, .tableRow, .tableRule,
+                 .tableHeader, .rule, .image, .structure, .link, .wikilink:
+                excluded.insert(integersIn: positions)
+            default: break
+            }
+        }
+        var lines: [Line] = []
+        var offset = 0
+        while offset < source.length {
+            var next = 0, end = 0
+            source.getLineStart(nil, end: &next, contentsEnd: &end, for: NSRange(location: offset, length: 0))
+            let raw = NSRange(location: offset, length: end - offset)
+            var units: [UInt16] = [], offsets: [Int] = []
+            for i in offset..<end where !hidden.contains(i) {
+                units.append(source.character(at: i)); offsets.append(i)
+            }
+            lines.append(Line(raw: raw, visible: String(decoding: units, as: UTF16.self), offsets: offsets,
+                              eligible: !excluded.intersects(integersIn: offset..<end)))
+            guard next > offset else { break }
+            offset = next
+        }
+        func referencePrefix(_ line: Line) -> (range: NSRange, reference: String)? {
+            guard line.eligible, let ref = NoteVerseRefs.linkSpans(content: line.visible).first,
+                  ref.range.length > 0, NSMaxRange(ref.range) <= line.offsets.count,
+                  (line.visible as NSString).substring(to: ref.range.location).trimmingCharacters(in: .whitespaces).isEmpty,
+                  let parsed = Reference.parse(ref.reference), parsed.verse != nil else { return nil }
+            return ref
+        }
+        func bodyLine(_ line: Line) -> String? {
+            guard line.eligible, referencePrefix(line) == nil else { return nil }
+            let text = line.visible as NSString
+            guard let match = numberedLine.firstMatch(in: line.visible, range: NSRange(location: 0, length: text.length)) else { return nil }
+            return text.substring(with: match.range(at: 1))
+        }
+        var result: [Self] = []
+        var i = 0
+        while i < lines.count {
+            let line = lines[i]
+            guard let ref = referencePrefix(line) else { i += 1; continue }
+            let visible = line.visible as NSString
+            let remainder = visible.substring(from: NSMaxRange(ref.range)).trimmingCharacters(in: .whitespaces)
+            var end = i
+            let body: String
+            if !remainder.isEmpty {
+                body = remainder
+            } else {
+                var pieces: [String] = []
+                var next = i + 1
+                while next < lines.count {
+                    while next < lines.count, lines[next].eligible,
+                          lines[next].visible.trimmingCharacters(in: .whitespaces).isEmpty { next += 1 }
+                    guard next < lines.count, let piece = bodyLine(lines[next]) else { break }
+                    pieces.append(piece); end = next; next += 1
+                }
+                guard !pieces.isEmpty else { i += 1; continue }
+                body = pieces.joined(separator: "\n")
+            }
+            let range = NSRange(location: line.raw.location, length: NSMaxRange(lines[end].raw) - line.raw.location)
+            let first = line.offsets[ref.range.location]
+            let last = line.offsets[NSMaxRange(ref.range) - 1]
+            result.append(Self(range: range, referenceRange: NSRange(location: first, length: last - first + 1),
+                               reference: ref.reference, body: body, source: source.substring(with: range)))
+            i = end + 1
+        }
+        return result
+    }
+
+    /// Exact port of verseTextMatchRatio: multiset word overlap, not mere substring
+    /// matching. Repeated words consume actual occurrences; Strong’s IDs are ignored.
+    public static func matchRatio(candidate: String, actual: String) -> Double {
+        let candidate = words(candidate)
+        guard !candidate.isEmpty else { return 0 }
+        var counts: [String: Int] = [:]
+        for word in words(actual) { counts[word, default: 0] += 1 }
+        var hits = 0
+        for word in candidate where counts[word, default: 0] > 0 {
+            counts[word, default: 0] -= 1; hits += 1
+        }
+        return Double(hits) / Double(candidate.count)
+    }
+
+    private static func words(_ text: String) -> [String] {
+        text.lowercased().replacingOccurrences(of: #"[^a-z0-9\s]"#, with: " ", options: .regularExpression)
+            .split(whereSeparator: \.isWhitespace).map(String.init)
+            .filter { $0.range(of: #"^[hg][0-9]+$"#, options: .regularExpression) == nil }
+    }
+}

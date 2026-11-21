@@ -1,0 +1,14 @@
+{
+  "originHash" : "d4b369e9c7b3855160fc93af27b40f4522f4d6f36de0eb6798d136e7e1a14c6e",
+  "pins" : [
+    {
+      "identity" : "espeak-ng-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/espeak-ng/espeak-ng-spm.git",
+      "state" : {
+        "revision" : "fd28f6460cc4cdf631528c8e2f7bd825747aac5c"
+      }
+    }
+  ],
+  "version" : 3
+}

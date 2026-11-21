@@ -25,6 +25,46 @@ public struct ArchivedGroup: Equatable, Sendable, Identifiable {
     /// The archived tabs as stored (`tabs_json`), kept verbatim.
     public var tabsJSON: String
     public init(id: String, label: String, archivedAt: Int64, tabsJSON: String) { self.id = id; self.label = label; self.archivedAt = archivedAt; self.tabsJSON = tabsJSON }
+
+    public var tabs: [Tab] {
+        records.compactMap { $0.objectValue.flatMap(Tab.init(jsObject:)) }
+    }
+
+    private var records: [JSValue] {
+        (try? JSON.parse(tabsJSON))?.arrayValue ?? []
+    }
+
+    /// Existing live IDs count as restored without replacing the live tab.
+    public func restorePlan(openTabIDs: Set<String>, only tabID: String? = nil) -> (tabs: [Tab], remaining: ArchivedGroup?) {
+        let requested = tabs.filter { tabID == nil || $0.id == tabID }
+        var seen = openTabIDs
+        return (requested.filter { seen.insert($0.id).inserted },
+                afterRestoring(tabIDs: Set(requested.map(\.id))))
+    }
+
+    /// Remove only the restored record, preserving records this version cannot decode.
+    public func afterRestoring(tabID: String) -> ArchivedGroup? {
+        afterRestoring(tabIDs: [tabID])
+    }
+
+    public func afterRestoring(tabIDs: Set<String>) -> ArchivedGroup? {
+        let original = records
+        let remaining = original.filter { value in
+            guard let object = value.objectValue, let tab = Tab(jsObject: object) else { return true }
+            return !tabIDs.contains(tab.id)
+        }
+        guard remaining.count != original.count else { return self }
+        guard !remaining.isEmpty else { return nil }
+        var group = self
+        group.tabsJSON = JSON.stringifyString(.array(remaining))
+        if let first = group.tabs.first {
+            let title = first.title.isEmpty ? "Untitled" : first.title
+            group.label = remaining.count == 1 ? title : "\(title) and \(remaining.count - 1) more"
+        } else {
+            group.label = "Archived tabs"
+        }
+        return group
+    }
 }
 
 /// Port of src/store/tabPersistence.ts: workspace state ⇄ the synced `sessions` / `tabs` / `archived_groups` rows.
@@ -34,6 +74,25 @@ public enum TabPersistence {
         public var tabs: [String: String] = [:]
         public var display: [String: String] = [:]
         public init() {}
+    }
+
+    /// Keep the first position of each live tab, then append tabs missing from the saved order.
+    public static func reconciledDisplayOrder(tabIDs: [String], stored: [String]) -> [String] {
+        let live = Set(tabIDs)
+        var seen = Set<String>()
+        return (stored + tabIDs).filter { live.contains($0) && seen.insert($0).inserted }
+    }
+
+    /// Insert a restored tab beside a surviving neighbor without reordering open tabs.
+    public static func restoredDisplayOrder(tabID: String, current: [String], archived: [String]) -> [String] {
+        var order = current.filter { $0 != tabID }
+        guard let index = archived.firstIndex(of: tabID) else { return order + [tabID] }
+        let positions = Dictionary(order.enumerated().map { ($0.element, $0.offset) },
+                                   uniquingKeysWith: { first, _ in first })
+        let next = archived.dropFirst(index + 1).lazy.compactMap { positions[$0] }.first
+        let previous = archived.prefix(index).reversed().lazy.compactMap { positions[$0] }.first
+        order.insert(tabID, at: next ?? previous.map { $0 + 1 } ?? order.endIndex)
+        return order
     }
 
     /// `assignOrderKeys` — keep existing keys where they still increase; new keys only for moved ids.
@@ -85,10 +144,7 @@ public enum TabPersistence {
                 for (id, k) in assignOrderKeys(list.map(\.id), existing: previous.tabs) { keys.tabs[id] = k }
                 all += list
             }
-            let present = Set(all.map(\.id))
-            let stored = (displayOrders[s.id] ?? []).filter { present.contains($0) }
-            let seen = Set(stored)
-            let displayIds = stored + all.map(\.id).filter { !seen.contains($0) }
+            let displayIds = reconciledDisplayOrder(tabIDs: all.map(\.id), stored: displayOrders[s.id] ?? [])
             for (id, k) in assignOrderKeys(displayIds, existing: previous.display) { keys.display[id] = k }
             for t in all {
                 let type = t.tabType ?? .bible

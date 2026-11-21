@@ -23,14 +23,14 @@ import NotesBoardView from './NotesBoardView'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore, noteFocusModeActive } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
-import { bookChapterVerseLabel, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
+import { bookChapterVerseLabel, getTranslationForBook, parseDottedAttachment, resolveBookToken, verseRefDisplay } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import NotesHomePanel from './NotesHomePanel'
 import { orderedFolders } from './NoteContextMenu'
-import { isSystemNote, isDailyNote, dailyNoteDateKey, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
+import { isSystemNote, isDailyNote, dailyNoteDateKey, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
@@ -1292,24 +1292,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     fresh.setActiveSpace('scripture')
   }
 
-  function openVerseFromNote(verseRef: string) {
-    const parsed = parseVerseRef(verseRef)
-    if (!parsed) return
-    const store = useAppStore.getState()
-    store.createTab('bible')
-    const fresh = useAppStore.getState()
-    const scriptureTabId = fresh.activeTabId['scripture']
-    if (!scriptureTabId) return
-    const translation = (getTranslationForBook(parsed.bookId) ?? fresh.defaultBibleTranslation).toUpperCase()
-    if (activeNote) fresh.pushTabNav(scriptureTabId, { type: 'note', title: activeNote.title || 'Untitled', noteId: activeNote.id })
-    fresh.updateTabState('scripture', scriptureTabId, {
-      bookId: parsed.bookId, chapter: parsed.chapter,
-      targetVerse: parsed.verse, scrollPosition: 0, translation,
-      noteBack: null,
-    })
-    fresh.setActiveSpace('scripture')
-  }
-
   async function maybeSyncNote(noteId: string) {
     try {
       const vaultSyncEnabled = await window.settings.get('vaultSync')
@@ -1459,6 +1441,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (note) navigateToNote(note)
   }
 
+  const attachmentLinks = (activeNote?.verseRef ?? '').split(',').flatMap((part) => {
+    const destination = parseDottedAttachment(part)
+    return destination ? [{
+      label: verseRefDisplay(part, activeNote?.textId),
+      destination: { ...destination, forcedTranslation: activeNote?.textId },
+    }] : []
+  })
+
   function handleVerseRefClick(ref: ParsedRef) {
     // Always open in a brand-new scripture tab so the existing reading position is never clobbered.
     const store = useAppStore.getState()
@@ -1605,38 +1595,32 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                  title input right here (same value, different box) was confusing —
                  two places to rename the same thing, visible at once. */
               <div className="flex items-center gap-1.5 flex-1 min-w-0 self-stretch">
-                {activeNote.verseRef && parseVerseRef(activeNote.verseRef) ? (
-                  // Title text is a plain (draggable) span — NOT a <button>, which
-                  // the top-bar window-drag listener excludes, so a verse note's
-                  // header used to be undraggable in its blank space. The "open
-                  // scripture" affordance is the small icon button beside it.
-                  <>
-                    <span
-                      onClick={() => openVerseFromNote(activeNote.verseRef!)}
-                      title="Open scripture reference"
-                      className="no-drag text-subhead font-semibold truncate cursor-pointer text-text-primary hover:text-accent transition-colors min-w-0 max-w-[45%]"
-                    >
-                      {headerDisplayTitle(activeNote)}
-                    </span>
-                    <IconButton
-                      icon={ExternalLink}
-                      label="Open scripture reference"
-                      size={20}
-                      variant="ghost"
-                      className="no-drag"
-                      onClick={() => openVerseFromNote(activeNote.verseRef!)}
-                    />
-                    {/* The formatting bar's slot fills the rest of the bar (its blank part still moves the window). */}
-                    {formatSlotEl}
-                  </>
-                ) : (
-                  <>
-                    <span className="text-subhead font-semibold truncate text-text-secondary select-none min-w-0 max-w-[45%]">
-                      {headerDisplayTitle(activeNote)}
-                    </span>
-                    {formatSlotEl}
-                  </>
+                <span className="text-subhead font-semibold truncate text-text-secondary select-none min-w-0 max-w-[45%]">
+                  {headerDisplayTitle(activeNote)}
+                </span>
+                {attachmentLinks.length === 1 && (
+                  <IconButton
+                    icon={ExternalLink}
+                    label={`Open ${attachmentLinks[0].label} in Scripture`}
+                    size={20}
+                    variant="ghost"
+                    className="no-drag"
+                    onClick={() => handleVerseRefClick(attachmentLinks[0].destination)}
+                  />
                 )}
+                {attachmentLinks.length > 1 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <IconButton icon={ExternalLink} label="Scripture attachments" size={20} variant="ghost" className="no-drag" />
+                    </PopoverTrigger>
+                    <PopoverSurface align="start" innerClassName="p-1 min-w-[180px]" role="menu">
+                      {attachmentLinks.map(({ label, destination }, index) => (
+                        <MenuItem key={index} label={label} icon={ExternalLink} onClick={() => handleVerseRefClick(destination)} />
+                      ))}
+                    </PopoverSurface>
+                  </Popover>
+                )}
+                {formatSlotEl}
               </div>
             ) : (
               // The note's title lives in the document — the NoteDocTitle above the text, a daily

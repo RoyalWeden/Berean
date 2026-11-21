@@ -7,6 +7,28 @@ import BereanNotes
 final class EventStrings: @unchecked Sendable { var items: [String] = [] }
 
 @Suite("highlights golden") struct HighlightsConformanceTests {
+    @Test func applyingVerseColorPreservesExistingAndPartialHighlights() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let events = EventStrings()
+        let service = HighlightsService(db: db, onChange: { _, id, operation, _ in
+            events.items.append("\(operation):\(id ?? "")")
+        })
+        try service.toggle(bookId: "JON", chapter: 1, verse: 1, color: "blue", startChar: 0, endChar: 4)
+        try service.setVerseColor(bookId: "JON", chapter: 1, verse: 1, color: "yellow")
+        let before = try service.chapter("JON", 1)
+        try service.setVerseColor(bookId: "JON", chapter: 1, verse: 1, color: "yellow")
+        try service.setVerseColor(bookId: "JON", chapter: 1, verse: 2, color: "yellow")
+        let after = try service.chapter("JON", 1)
+        #expect(after[1] == before[1])
+        #expect(after[2]?.map(\.color) == ["yellow"])
+        #expect(events.items.count == 3)
+        try service.setVerseColor(bookId: "JON", chapter: 1, verse: 1, color: "green")
+        let recolored = try service.chapter("JON", 1)[1]
+        #expect(recolored?.first(where: { $0.startChar != nil }) == before[1]?.first(where: { $0.startChar != nil }))
+        #expect(recolored?.first(where: { $0.startChar == nil })?.color == "green")
+    }
+
     @Test func toggleScript() throws {
         let g = try Golden.load("highlights")
         let db = try SQLiteConnection(readWritePath: ":memory:", create: true)

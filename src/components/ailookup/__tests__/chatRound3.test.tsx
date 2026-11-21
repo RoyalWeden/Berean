@@ -22,6 +22,10 @@ const openInMain = vi.fn(async () => true)
 const at = '2026-10-18T16:41:04.019Z'
 
 beforeEach(async () => {
+  // Fixed conversation dates must stay in the expanded recent groups as the real calendar advances.
+  // Keep timers real: the StrictMode/composer tests below wait for asynchronous rendering.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-18T18:00:00.000Z'))
   const userDb = await migratedUserDb()
   svc = createAiChatsService(makeContext({ userDb }))
   const row = (id: string, title: string, msgs: unknown[], when: string) =>
@@ -50,7 +54,7 @@ beforeEach(async () => {
 })
 let root: Root | null = null
 let host: HTMLDivElement | null = null
-afterEach(() => { if (root) act(() => root!.unmount()); host?.remove(); root = null })
+afterEach(() => { if (root) act(() => root!.unmount()); host?.remove(); root = null; vi.useRealTimers() })
 const settle = () => act(async () => { for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 5)) })
 async function mountWindow() {
   host = document.createElement('div'); document.body.appendChild(host); root = createRoot(host)

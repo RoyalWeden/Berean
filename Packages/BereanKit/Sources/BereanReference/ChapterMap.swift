@@ -70,6 +70,97 @@ public enum ChapterMap {
         return [mapChapter(bookId, chapter, from: from, to: to)]
     }
 
+    /// Exact verse correspondences for editions whose Jonah chapter boundary differs.
+    public static func jonahCounterpart(chapter: Int, verse: Int, from: String, to: String) -> (chapter: Int, verse: Int)? {
+        if isKjv(from), isLxx(to) {
+            if chapter == 1, verse == 17 { return (2, 1) }
+            if chapter == 2, (1...10).contains(verse) { return (2, verse + 1) }
+        }
+        if isLxx(from), isKjv(to), chapter == 2 {
+            if verse == 1 { return (1, 17) }
+            if (2...11).contains(verse) { return (2, verse - 1) }
+        }
+        return nil
+    }
+
+    /// Verified verse runs across chapter boundaries in the bundled KJV and Brenton editions.
+    public static func verseCounterpart(_ bookId: String, chapter: Int, verse: Int, from: String, to: String)
+        -> (chapter: Int, verse: Int)? {
+        let forward = isKjv(from) && isLxx(to)
+        guard forward || (isLxx(from) && isKjv(to)) else { return nil }
+        let runs: [(kjvChapter: Int, kjvVerses: ClosedRange<Int>, lxxChapter: Int, lxxFirstVerse: Int)]
+        switch bookId.uppercased() {
+        case "JON": return jonahCounterpart(chapter: chapter, verse: verse, from: from, to: to)
+        case "PSA":
+            runs = [(9, 1...20, 9, 2), (10, 1...18, 9, 22),
+                    (114, 1...8, 113, 1), (115, 1...18, 113, 9),
+                    (116, 1...9, 114, 1), (116, 10...19, 115, 1),
+                    (147, 1...11, 146, 1), (147, 12...20, 147, 1)]
+        case "JOL": runs = [(2, 28...32, 3, 1)]
+        case "MAL": runs = [(4, 1...3, 3, 19), (4, 4...4, 3, 24), (4, 5...6, 3, 22)]
+        default: return nil
+        }
+        for run in runs {
+            if forward, chapter == run.kjvChapter, run.kjvVerses.contains(verse) {
+                return (run.lxxChapter, run.lxxFirstVerse + verse - run.kjvVerses.lowerBound)
+            }
+            let lxxLastVerse = run.lxxFirstVerse + run.kjvVerses.count - 1
+            if !forward, chapter == run.lxxChapter, (run.lxxFirstVerse...lxxLastVerse).contains(verse) {
+                return (run.kjvChapter, run.kjvVerses.lowerBound + verse - run.lxxFirstVerse)
+            }
+        }
+        return nil
+    }
+
+    /// A live comparison can synchronize equivalent chapters or a verified cross-chapter verse.
+    public static func synchronizedVerse(_ bookId: String, chapter: Int, verse: Int, from: String,
+                                         destinationChapter: Int, to: String) -> Int? {
+        if let exact = verseCounterpart(bookId, chapter: chapter, verse: verse, from: from, to: to) {
+            return exact.chapter == destinationChapter ? exact.verse : nil
+        }
+        let sourceCanonical = mapChapter(bookId, chapter, from: from, to: "kjva")
+        let destinationCanonical = mapChapter(bookId, destinationChapter, from: to, to: "kjva")
+        return sourceCanonical == destinationCanonical ? verse : nil
+    }
+
+    /// Reader metadata is deliberately separate from the legacy explanatory copy.
+    /// Keep the passage quiet; the full explanation is available on demand.
+    public static func readerNumberingSummary(_ bookId: String, _ chapter: Int, textId: String) -> String? {
+        guard readerNumberingNote(bookId, chapter, textId: textId) != nil else { return nil }
+        let book = bookId.uppercased()
+        let kjv = mapChapter(book, chapter, from: textId, to: "kjva")
+        switch book {
+        case "PSA":
+            switch chapter {
+            case 9: return "KJV Psalms 9–10"
+            case 113: return "KJV Psalms 114–115"
+            case 114: return "KJV Psalm 116:1–9"
+            case 115: return "KJV Psalm 116:10–19"
+            case 146: return "KJV Psalm 147:1–11"
+            case 147: return "KJV Psalm 147:12–20"
+            case 151: return "Additional Psalm"
+            default: return "KJV Psalm \(kjv)"
+            }
+        case "JER": return "KJV Jeremiah \(kjv)"
+        case "JOL":
+            if chapter == 2 { return "KJV Joel 2:1–27" }
+            return chapter == 3 ? "KJV Joel 2:28–32" : "KJV Joel \(kjv)"
+        case "MAL": return "KJV Malachi 3–4"
+        case "JON": return "Different chapter boundary"
+        default: return "About this edition"
+        }
+    }
+
+    public static func readerNumberingNote(_ bookId: String, _ chapter: Int, textId: String) -> String? {
+        if isLxx(textId), bookId.uppercased() == "JOL", chapter == 2 {
+            return "This Septuagint chapter contains KJV Joel 2:1–27. The remaining verses, KJV Joel 2:28–32, form Joel 3 in this edition."
+        }
+        if isLxx(textId), bookId.uppercased() == "JON", [1, 2].contains(chapter) {
+            return "KJV Jonah 1:17 is Jonah 2:1 in this Septuagint edition. The prayer that begins at KJV Jonah 2:1 begins here at Jonah 2:2."
+        }
+        return versificationNote(bookId, chapter, textId: textId)
+    }
+
     /// `versificationNote` — the explanatory note for an LXX chapter whose numbering differs.
     public static func versificationNote(_ bookId: String, _ chapter: Int, textId: String) -> String? {
         let book = bookId.uppercased()

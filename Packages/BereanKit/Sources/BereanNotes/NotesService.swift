@@ -156,6 +156,31 @@ public final class NotesService: @unchecked Sendable {
         return Array(rows.prefix(limit))
     }
 
+    /// Match Notes home filters against the full result set without loading note content a second time.
+    public func matchingNoteIDs(_ query: String, mode: NotesWordMode = .all) throws -> Set<String> {
+        let words = Self.cleanWords(query)
+        guard !words.isEmpty else { return [] }
+        // Like `search`, issue one query per prefix in Any Word mode.
+        let expressions = mode == .any
+            ? words.map { Self.ftsQuery($0, phrase: false) }
+            : [Self.ftsQuery(query, phrase: mode == .phrase)]
+        let sql = """
+            SELECT n.id FROM notes_fts
+            JOIN notes n ON n.rowid = notes_fts.rowid
+            WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
+            """
+        var ids = Set<String>()
+        for expression in expressions {
+            let rows = try db.query(sql, [.text(expression)])
+            ids.formUnion(rows.compactMap { $0["id"]?.string })
+        }
+        if words.contains(where: { $0.lowercased() == "untitled" }) {
+            let untitled = try db.query("SELECT id FROM notes WHERE (title = '' OR title IS NULL) AND deleted_at IS NULL")
+            ids.formUnion(untitled.compactMap { $0["id"]?.string })
+        }
+        return ids
+    }
+
     // MARK: verse / chapter (KJV and LXX cross-linked)
 
     static func tidClause(_ t: String) -> String { t == "kjva" ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'" }
@@ -202,6 +227,66 @@ public final class NotesService: @unchecked Sendable {
         return Self.stableSort(own + others, Self.refLess)
     }
 
+    /// Native inspector lookup for single, range and comma-separated attachments.
+    public func attachedNotes(_ bookId: String, _ chapter: Int, textId: String, verse: Int? = nil) throws -> [Note] {
+        var candidates = try byChapter(bookId, chapter, textId: textId)
+        let multi = try db.query("SELECT * FROM notes WHERE deleted_at IS NULL AND instr(verse_ref, ',') > 0 AND verse_ref LIKE ?",
+                                 [.text("%" + bookId + ".%")]).map(Self.note)
+        var seen = Set(candidates.map(\.id))
+        candidates += multi.filter { seen.insert($0.id).inserted }
+        let matches = candidates.filter {
+            Self.attachments($0, bookId: bookId, chapter: chapter, textId: textId).contains {
+                guard let verse else { return true }
+                guard let first = $0.verse else { return false }
+                return (first...($0.endVerse ?? first)).contains(verse)
+            }
+        }
+        return Self.stableSort(matches, verse == nil ? Self.refLess : { $0.createdAt < $1.createdAt })
+    }
+
+    public func coveringVerse(_ bookId: String, _ chapter: Int, _ verse: Int, textId: String) throws -> [Note] {
+        try attachedNotes(bookId, chapter, textId: textId, verse: verse)
+    }
+
+    public func coveringVerses(_ bookId: String, _ chapter: Int, _ verses: Set<Int>, textId: String) throws -> [Note] {
+        let matches = try attachedNotes(bookId, chapter, textId: textId).filter { note in
+            Self.attachments(note, bookId: bookId, chapter: chapter, textId: textId).contains { attachment in
+                guard let first = attachment.verse else { return false }
+                return verses.contains(where: (first...(attachment.endVerse ?? first)).contains)
+            }
+        }
+        return Self.stableSort(matches) { $0.createdAt < $1.createdAt }
+    }
+
+    /// Counts the same attachments the inspector displays, bounded by the installed chapter's verses.
+    public func coveringVerseCounts(_ bookId: String, _ chapter: Int, verses: Set<Int>, textId: String) throws -> [Int: Int] {
+        var counts: [Int: Int] = [:]
+        for note in try attachedNotes(bookId, chapter, textId: textId) {
+            let ranges = Self.attachments(note, bookId: bookId, chapter: chapter, textId: textId).compactMap { attachment in
+                attachment.verse.map { $0...(attachment.endVerse ?? $0) }
+            }
+            for verse in verses where ranges.contains(where: { $0.contains(verse) }) {
+                counts[verse, default: 0] += 1
+            }
+        }
+        return counts
+    }
+
+    static func attachments(_ note: Note, bookId: String, chapter: Int, textId: String)
+        -> [(bookId: String, chapter: Int, verse: Int?, endVerse: Int?)] {
+        let chapters: [Int]
+        if note.textId == textId {
+            chapters = [chapter]
+        } else if (textId == "kjva" && note.textId == "lxx") || (textId == "lxx" && note.textId == "kjva") {
+            chapters = ChapterMap.equivalentChapters(bookId, chapter, from: textId, to: note.textId)
+        } else {
+            return []
+        }
+        return (note.verseRef ?? "").split(separator: ",").compactMap {
+            Reference.parseNoteAttachment(String($0))
+        }.filter { $0.bookId == bookId && chapters.contains($0.chapter) }
+    }
+
     func verseRefs(_ bookId: String, _ chapter: Int, tid: String, param: String? = nil) throws -> [String] {
         let prefix = "\(bookId).\(chapter)."
         var params: [SQLiteValue] = [.text(prefix + "%"), .text(prefix + "%.%")]
@@ -228,6 +313,16 @@ public final class NotesService: @unchecked Sendable {
     // MARK: daily notes
 
     static let longDate: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMMM d, yyyy"; return f }()
+
+    /// `dailyNoteDisplayTitle` (dailyNoteUtils.ts): "Friday, November 13, 2026", with Saturday shown as "Sabbath".
+    public static func dailyDisplayTitle(_ dateKey: String) -> String? {
+        let p = dateKey.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3, let date = Calendar(identifier: .gregorian).date(from: DateComponents(year: p[0], month: p[1], day: p[2])) else { return nil }
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US"); f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "EEEE, MMMM d, yyyy"
+        let text = f.string(from: date)
+        return Calendar(identifier: .gregorian).component(.weekday, from: date) == 7 ? text.replacingOccurrences(of: "Saturday", with: "Sabbath") : text
+    }
 
     /// `dailyTitleDateKey` ("Daily — 2026-01-09" or the older "Daily — January 9, 2026").
     public static func dailyDateKey(_ title: String) -> String? {
@@ -380,19 +475,33 @@ public final class NotesService: @unchecked Sendable {
     /// Restores a version's content, first snapshotting the current content as `pre-restore` so it can be undone.
     @discardableResult
     public func restoreVersion(noteId: String, versionId: String) throws -> NoteRestoreResult {
-        guard let ver = try db.query("SELECT * FROM note_versions WHERE id = ?", [.text(versionId)]).first else { return .versionNotFound }
-        guard let cur = try db.query("SELECT title, content FROM notes WHERE id = ?", [.text(noteId)]).first else { return .noteNotFound }
-        let content = ver["content"]?.string ?? ""
-        if cur["content"]?.string != ver["content"]?.string {
+        try db.exec("BEGIN IMMEDIATE")
+        var committed = false
+        defer { if !committed { try? db.exec("ROLLBACK") } }
+
+        guard let ver = try db.query("SELECT note_id, content FROM note_versions WHERE id = ?", [.text(versionId)]).first else {
+            return .versionNotFound
+        }
+        guard let cur = try db.query("SELECT title, content FROM notes WHERE id = ? AND deleted_at IS NULL", [.text(noteId)]).first else {
+            return .noteNotFound
+        }
+        guard ver["note_id"]?.string == noteId else { return .versionNotFound }
+
+        let content = ver["content"]?.string
+        var snapshotID: String?
+        if cur["content"]?.string != content {
             let pre = uuid()
             try db.run("INSERT INTO note_versions (id, note_id, title, content, kind, created_at) VALUES (?, ?, ?, ?, 'pre-restore', ?)",
-                       [.text(pre), .text(noteId), cur["title"]?.string.map { .text($0) } ?? .null, Self.t(cur["content"]?.string), .integer(now())])
-            onChange("note_version", pre, "upsert")
+                       [.text(pre), .text(noteId), Self.t(cur["title"]?.string), Self.t(cur["content"]?.string), .integer(now())])
+            snapshotID = pre
         }
-        try db.run("UPDATE notes SET content = ?, updated_at = ? WHERE id = ?", [Self.t(ver["content"]?.string), .integer(now()), .text(noteId)])
+        try db.run("UPDATE notes SET content = ?, updated_at = ? WHERE id = ?", [Self.t(content), .integer(now()), .text(noteId)])
         try pruneVersions(noteId)
+        try db.exec("COMMIT")
+        committed = true
+        if let snapshotID { onChange("note_version", snapshotID, "upsert") }
         onChange("note", noteId, "upsert")
-        return .restored(content: content)
+        return .restored(content: content ?? "")
     }
 
     /// Keep everything from the last 7 days, then one (newest) per UTC day, always the newest and manual /

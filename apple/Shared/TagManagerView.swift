@@ -12,10 +12,35 @@ struct TagManagerView: View {
     @State private var deleting: VerseTagSummary?
     @State private var blocked: (VerseTagSummary, Int)?
     @State private var newTag = false
+    @AppStorage("tags.mode") private var mode = "list"
 
     var shown: [VerseTagSummary] { filter.isEmpty ? tags : tags.filter { $0.name.localizedCaseInsensitiveContains(filter) } }
 
     var body: some View {
+        Group {
+            if mode == "graph" { TagGraphView() } else { list }
+        }
+        .navigationTitle("Tags")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("View", selection: $mode) {
+                    Label("List", systemImage: "list.bullet").tag("list")
+                    Label("Graph", systemImage: "point.3.connected.trianglepath.dotted").tag("graph")
+                }
+                .pickerStyle(.segmented)
+                .labelStyle(.iconOnly)
+                .help("Show tags as a list or a graph")
+            }
+            ToolbarItem { Button { name = ""; newTag = true } label: { Label("New Tag", systemImage: "plus") }.help("New tag") }
+        }
+        .alert("New Tag", isPresented: $newTag) {
+            TextField("Name", text: $name)
+            Button("Create") { _ = try? app.verseTags?.create(name) }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private var list: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -29,7 +54,7 @@ struct TagManagerView: View {
                     ContentUnavailableView("No tags yet", systemImage: "tag", description: Text("Tag a verse from its verse menu (Tag Verse…), or create a tag here."))
                 }
                 ForEach(shown) { t in
-                    Button { app.openSearch("#\(t.name)") } label: {
+                    Button { app.openSearch("#\(t.name)", reuseTab: true) } label: {
                         HStack {
                             TagChip(name: t.name, color: t.color, slot: t.colorSlot)
                             Spacer()
@@ -37,7 +62,7 @@ struct TagManagerView: View {
                             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                         }.contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.interactivePlain)
                     .contextMenu { menu(t) }
                     #if os(iOS)
                     .swipeActions { Button("Delete", role: .destructive) { attemptDelete(t) } }
@@ -45,14 +70,7 @@ struct TagManagerView: View {
                 }
             }
         }
-        .navigationTitle("Tags")
-        .toolbar { ToolbarItem { Button { name = ""; newTag = true } label: { Label("New Tag", systemImage: "plus") }.help("New tag") } }
         .task(id: app.tagsRevision) { tags = (try? app.verseTags?.list()) ?? [] }
-        .alert("New Tag", isPresented: $newTag) {
-            TextField("Name", text: $name)
-            Button("Create") { _ = try? app.verseTags?.create(name) }
-            Button("Cancel", role: .cancel) {}
-        }
         .alert("Rename Tag", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $name)
             Button("Rename") { if let t = renaming, !name.trimmingCharacters(in: .whitespaces).isEmpty { _ = try? app.verseTags?.rename(t.id, to: name) }; renaming = nil }
@@ -74,7 +92,7 @@ struct TagManagerView: View {
     }
 
     @ViewBuilder func menu(_ t: VerseTagSummary) -> some View {
-        Button("Show Verses") { app.openSearch("#\(t.name)") }
+        Button("Show Verses") { app.openSearch("#\(t.name)", reuseTab: true) }
         Button("Rename…") { name = t.name; renaming = t }
         Menu("Colour") {
             ForEach(0..<VerseTagsService.slotCount, id: \.self) { slot in

@@ -43,6 +43,12 @@ public struct VerseTagSummary: Equatable, Sendable, Identifiable {
     public var graphX, graphY: Double?
     public var graphPinned: Bool
     public var memberCount, verseCount, chapterCount: Int
+    public init(id: String, name: String, color: String?, createdAt: Int64, colorSlot: Int?, graphX: Double?, graphY: Double?,
+                graphPinned: Bool, memberCount: Int, verseCount: Int, chapterCount: Int) {
+        self.id = id; self.name = name; self.color = color; self.createdAt = createdAt; self.colorSlot = colorSlot
+        self.graphX = graphX; self.graphY = graphY; self.graphPinned = graphPinned
+        self.memberCount = memberCount; self.verseCount = verseCount; self.chapterCount = chapterCount
+    }
 }
 
 public struct TagLite: Equatable, Sendable, Identifiable { public var id, name: String; public var color: String?; public var colorSlot: Int? }

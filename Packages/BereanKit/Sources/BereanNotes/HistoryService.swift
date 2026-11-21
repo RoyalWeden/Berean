@@ -36,8 +36,8 @@ public final class HistoryService: @unchecked Sendable {
 
     /// Adds an entry unless the newest entry is the same destination and less than 5 minutes old. Returns false when skipped.
     @discardableResult
-    public func add(_ e: HistoryEntry, maxEntries: Int? = nil) throws -> Bool {
-        if let last = try page(before: Int64.max, limit: 1).first, e.timestamp - last.timestamp < Self.dedupWindowMs, last.sameDestination(e) { return false }
+    public func add(_ e: HistoryEntry, maxEntries: Int? = nil, deduplicate: Bool = true) throws -> Bool {
+        if deduplicate, let last = try page(before: Int64.max, limit: 1).first, e.timestamp - last.timestamp < Self.dedupWindowMs, last.sameDestination(e) { return false }
         try db.run("""
             INSERT OR REPLACE INTO history (id, type, title, timestamp, session_id, session_name, book_id, chapter, verse,
               note_id, strongs_num, video_id, query, parent_id, import_source, import_count)
