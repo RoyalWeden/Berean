@@ -1014,6 +1014,19 @@ final class ReaderTextView: NSTextView {
     weak var coordinator: ChapterTextView.Coordinator?
     private let outlineMotion = ReaderOutlineMotion()
 
+    /// VoiceOver / assistive path to verse selection (clicking a verse is pointer-only). Acts on
+    /// the verse at the text cursor exactly like a click (toggle) or Shift-click (range).
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        [NSAccessibilityCustomAction(name: "Select or Deselect Verse") { [weak self] in self?.selectVerseAtCursor(extend: false) ?? false },
+         NSAccessibilityCustomAction(name: "Select Through Verse") { [weak self] in self?.selectVerseAtCursor(extend: true) ?? false }]
+    }
+
+    private func selectVerseAtCursor(extend: Bool) -> Bool {
+        guard let c = coordinator, let verse = c.verse(at: min(selectedRange().location, max(0, string.utf16.count - 1))) else { return false }
+        c.parent.onVerseClick(verse, extend)
+        return true
+    }
+
     func updateOutlineMotion() {
         let parent = coordinator?.parent
         outlineMotion.update(active: window != nil && parent?.animateOutline == true && parent?.selectedVerses.isEmpty == false) { [weak self] in

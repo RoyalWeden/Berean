@@ -103,3 +103,9 @@ Mac QA instance, driven only by AXPress (sidebar tabs, Pause/Resume) and View me
 | Note document (QA Image Note) | **Bug found:** inline image shown as `Cave 4 fragment|w360` text → fixed: `MarkdownText` now renders `data:` image lines (saved width, caption) — also improves every other Markdown preview. Re-verified: image + caption shown |
 
 Not covered: selecting a verse in the main reader while live (needs a pointer click in the reader); physical keyboard presses (see above).
+
+### Live verse selection + Mac reader accessibility actions (later, 2026-11-20)
+
+- Gap found: verse selection in the Mac reader was pointer-only (no per-verse accessibility path for VoiceOver). Added `accessibilityCustomActions` on `ReaderTextView`: **Select or Deselect Verse** (= click, toggles the verse at the text cursor) and **Select Through Verse** (= Shift-click range).
+- Verified click-free with AX (cursor via AXSelectedTextRange, action via its `Name:` action string): toggling verse 5 → tab "John 1:1, 5" and the live Presenter highlights both; deselect 1 + Select Through 8 → "John 1:5–8", Presenter scrolls to verse 5 and highlights 5–8. Selection restored to verse 1 afterwards.
+- Presenter matrix now covered except physical keyboard presses.
