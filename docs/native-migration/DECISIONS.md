@@ -712,3 +712,8 @@ Supersedes reproduced startup selection-overwrite above: transient highlight sna
 - Keep iPhone glass on the individual floating controls and hide the top scroll-edge effect where available. Adjust only the iPhone text inset. For Mac floating search, use the same immediate visibility state for content and title-bar scrims, with query focus requested on presentation.
 
 For a newly mounted Mac reader only, keep the completed history intent through the existing geometry-settling burst. The first valid application completes the model request once; later geometry corrections require no newer restore and cancel on native input. This fixes the reproduced +26-point cross-type drift without extending warm same-host restores or delaying presentation (7118fff8, actual repeated round trips checked).
+
+
+### 2026-11-21 — Compare focused-column audience (8ae5e4a6)
+
+Mac Presenter now uses a validated, atomic transient projection of the selected comparison column, including its actual edition/chapter, highlights and reading focus. Both platforms build; actual LXX Exodus 32:2 audience wording and pause → switch tab → resume pass. Shared layout/anchor decisions are consistent across available columns and widths. No persistence/schema changes. Mapped/availability/reorder/removal/clear/scroll matrices and full multi-column mirroring remain open. A separate tab-switch/pane-reflow drift remains open; do not claim all tab transitions preserve first-frame geometry. See PRESENTER-REFINEMENT-2026-11-21.md and CURRENT-STATE for exact QA state/evidence.

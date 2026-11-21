@@ -548,3 +548,8 @@ Finalada385b1 actualCmdLGenesis1:20/currenttab/Presenterfollow PASS. Back→Gene
 
 
 2026-11-21 follow-up — `7118fff8`: rebuilt Mac actual Scripture → G5485 → Back, then Forward/Back, restores the exact 446-point viewport through first native layout. User scrolling remains free. Cross-chapter Back also passed. See the focused history record for scope; missing-viewport/rapid/edition and first-frame matrices remain open. No desktop margin change.
+
+
+### 2026-11-21 — Compare focused-column audience (8ae5e4a6)
+
+Mac Presenter now uses a validated, atomic transient projection of the selected comparison column, including its actual edition/chapter, highlights and reading focus. Both platforms build; actual LXX Exodus 32:2 audience wording and pause → switch tab → resume pass. Shared layout/anchor decisions are consistent across available columns and widths. No persistence/schema changes. Mapped/availability/reorder/removal/clear/scroll matrices and full multi-column mirroring remain open. A separate tab-switch/pane-reflow drift remains open; do not claim all tab transitions preserve first-frame geometry. See PRESENTER-REFINEMENT-2026-11-21.md and CURRENT-STATE for exact QA state/evidence.

@@ -425,3 +425,8 @@ Finalada385b1 actualCmdLGenesis1:20/currenttab/Presenterfollow PASS. Back→Gene
 - iPhone Scripture has no full-width top edge blur and uses smaller phone-only insets; desktop widths/margins are unchanged. Final Simulator body-tap selection/deselection checked. Wider device/accessibility matrix remains open.
 - Mac palette now presents without its old 150ms fade, with shared immediate dimming and initial query focus. Immediate typing, Actions and outside dismissal checked; precise first-frame timing remains unmeasured.
 - Physical iPhone exit-watchdog cause remains open. Diagnostics now preserve full stacks and acknowledge dismissed reports locally, with save timing for further investigation. See CURRENT-STATE and the linked focused records for evidence and safe next steps.
+
+
+### 2026-11-21 — Compare focused-column audience (8ae5e4a6)
+
+Mac Presenter now uses a validated, atomic transient projection of the selected comparison column, including its actual edition/chapter, highlights and reading focus. Both platforms build; actual LXX Exodus 32:2 audience wording and pause → switch tab → resume pass. Shared layout/anchor decisions are consistent across available columns and widths. No persistence/schema changes. Mapped/availability/reorder/removal/clear/scroll matrices and full multi-column mirroring remain open. A separate tab-switch/pane-reflow drift remains open; do not claim all tab transitions preserve first-frame geometry. See PRESENTER-REFINEMENT-2026-11-21.md and CURRENT-STATE for exact QA state/evidence.
