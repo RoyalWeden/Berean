@@ -112,6 +112,9 @@ struct IOSChapterTextView: UIViewRepresentable {
         view.textContainerInset = UIEdgeInsets(top: 16, left: style.width.phoneInset, bottom: 10, right: style.width.phoneInset)
         view.linkTextAttributes = [.underlineStyle: NSUnderlineStyle([]).rawValue]
         view.alwaysBounceVertical = true
+        // Keep Scripture clear between floating controls; only the glass
+        // controls themselves should blur the words directly behind them.
+        if #available(iOS 26.0, *) { view.topEdgeEffect.isHidden = true }
         view.accessibilityLabel = "Scripture text"
         view.delegate = context.coordinator
         let touchStart = ChapterTouchStartObserver()

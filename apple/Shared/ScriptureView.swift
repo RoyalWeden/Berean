@@ -718,6 +718,7 @@ struct ScriptureView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+        .readerClearTopEdge()
         .onChange(of: editionFlipRequest) {
             guard !st.compareMode, let target = ChapterEdition(st).counterpart else { return }
             flipEdition(st, to: target)
@@ -2971,6 +2972,17 @@ struct VerseActionsMenu<Actions: View>: View {
 }
 
 #if os(iOS)
+private extension View {
+    @ViewBuilder
+    func readerClearTopEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            self
+        }
+    }
+}
+
 private extension ToolbarContent {
     /// The reader supplies its own fading glass; a system platter would stay
     /// visible as an empty circle after the controls tuck away.
