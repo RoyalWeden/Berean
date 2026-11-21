@@ -47,11 +47,14 @@ struct CustomReaderTheme: Identifiable, Equatable {
         #endif
     }
 
+    fileprivate var resolvedAccent: String {
+        accent.flatMap(Self.triple) ?? ReaderTheme.find(basedOn)?.light.accent ?? ReaderTheme.presets[0].light.accent
+    }
+
     /// A custom theme has one palette (the original resolves it once); used in light and dark.
     var asReaderTheme: ReaderTheme? {
         guard let bg = Self.triple(background), let text = Self.triple(text) else { return nil }
-        let accent = accent.flatMap(Self.triple) ?? ReaderTheme.find(basedOn)?.light.accent ?? "80 100 200"
-        let p = ReaderTheme.Palette(bg, accent, text)
+        let p = ReaderTheme.Palette(bg, resolvedAccent, text)
         return ReaderTheme(id: Self.prefix + id, label: name, family: "Custom", dark: p, light: p)
     }
 }
@@ -135,8 +138,14 @@ struct CustomThemesSection: View {
                             Text(theme.name)
                             Text("Based on \(ReaderTheme.find(theme.basedOn)?.label ?? "Default")").font(.caption).foregroundStyle(.secondary)
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(active ? .isSelected : [])
                         Spacer()
-                        if active { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                        if active {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
+                        }
                         Menu("Actions", systemImage: "ellipsis.circle") {
                             Button("Use", systemImage: "checkmark.circle") { app.themePreset = CustomReaderTheme.prefix + theme.id }
                             Button(editing == theme.id ? "Done Editing" : "Edit", systemImage: "slider.horizontal.3") { editing = editing == theme.id ? nil : theme.id }
@@ -145,13 +154,14 @@ struct CustomThemesSection: View {
                             Button("Delete", systemImage: "trash", role: .destructive) { app.deleteCustomTheme(theme.id) }
                         }
                         .labelStyle(.iconOnly).menuIndicator(.hidden).fixedSize()
+                        .accessibilityLabel("Actions for \(theme.name)")
                     }
                     if editing == theme.id {
                         ThemeNameField(id: theme.id, name: theme.name)
                         ColorPicker("Text", selection: colorBinding(theme, \.text, key: "text"), supportsOpacity: false)
                         ColorPicker("Background", selection: colorBinding(theme, \.background, key: "background"), supportsOpacity: false)
                         ColorPicker("Verse Numbers", selection: Binding(
-                            get: { ReaderTheme.color(theme.accent.flatMap(CustomReaderTheme.triple) ?? "80 100 200") },
+                            get: { ReaderTheme.color(theme.resolvedAccent) },
                             set: { app.updateCustomTheme(theme.id, ["accent": CustomReaderTheme.hex($0)]) }), supportsOpacity: false)
                     }
                 }
@@ -182,6 +192,7 @@ struct ThemeChip: View {
             .overlay { Text("Aa").font(.system(size: 9, weight: .semibold)).foregroundStyle(ReaderTheme.color(p.text)) }
             .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary.opacity(0.4)) }
             .frame(width: 22, height: 16)
+            .accessibilityHidden(true)
     }
 }
 

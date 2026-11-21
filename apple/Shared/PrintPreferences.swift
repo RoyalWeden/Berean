@@ -5,18 +5,20 @@ import BereanCore
 /// `printPaperSize`, `printFontSizePt`, `printFontFamily`, `printIncludeTitle`, `printColorMode`),
 /// applied by `printMarkup` to every print (notes, idiom reference book).
 struct PrintPreferences: Equatable, Sendable {
+    struct Margins: Equatable, Sendable {
+        var top = 1.0
+        var right = 1.0
+        var bottom = 1.0
+        var left = 1.0
+    }
+
     var marginPreset = "normal"                  // none | narrow | normal | wide | custom
-    var customMargins = (top: 1.0, right: 1.0, bottom: 1.0, left: 1.0)   // inches
+    var customMargins = Margins()                // inches
     var paperSize = "letter"                     // letter | a4 | legal
     var fontSizePt = 12.0
     var fontFamily = "system"                    // system | serif | sansserif
     var includeTitle = true
     var colorMode = "color"                      // color | grayscale
-
-    static func == (a: Self, b: Self) -> Bool {
-        a.marginPreset == b.marginPreset && a.customMargins == b.customMargins && a.paperSize == b.paperSize
-            && a.fontSizePt == b.fontSizePt && a.fontFamily == b.fontFamily && a.includeTitle == b.includeTitle && a.colorMode == b.colorMode
-    }
 
     /// The original presets (PRINT_PRESETS) and margin table (MARGIN_INCHES).
     static let presets: [(id: String, label: String, detail: String, margin: String, size: Double, family: String)] = [
@@ -56,7 +58,12 @@ struct PrintPreferences: Equatable, Sendable {
     init(settings all: [String: JSValue]) {
         if let v = all["printMarginPreset"]?.stringValue?.string { marginPreset = v }
         if let m = all["printCustomMargins"] {
-            customMargins = (m["top"]?.numberValue ?? 1, m["right"]?.numberValue ?? 1, m["bottom"]?.numberValue ?? 1, m["left"]?.numberValue ?? 1)
+            customMargins = Margins(
+                top: m["top"]?.numberValue ?? 1,
+                right: m["right"]?.numberValue ?? 1,
+                bottom: m["bottom"]?.numberValue ?? 1,
+                left: m["left"]?.numberValue ?? 1
+            )
         }
         if let v = all["printPaperSize"]?.stringValue?.string { paperSize = v }
         if let v = all["printFontSizePt"]?.numberValue { fontSizePt = min(18, max(8, v)) }
@@ -73,16 +80,34 @@ extension AppModel {
     var printPreferences: PrintPreferences {
         get { _ = printSettingsRevision; return PrintPreferences(settings: (try? settingsService?.all()) ?? [:]) }
         set {
-            saveSetting("printMarginPreset", .string(JSString(newValue.marginPreset)))
-            var m = JSObject()
-            m["top"] = .number(newValue.customMargins.top); m["right"] = .number(newValue.customMargins.right)
-            m["bottom"] = .number(newValue.customMargins.bottom); m["left"] = .number(newValue.customMargins.left)
-            saveSetting("printCustomMargins", .object(m))
-            saveSetting("printPaperSize", .string(JSString(newValue.paperSize)))
-            saveSetting("printFontSizePt", .number(newValue.fontSizePt))
-            saveSetting("printFontFamily", .string(JSString(newValue.fontFamily)))
-            saveSetting("printIncludeTitle", .bool(newValue.includeTitle))
-            saveSetting("printColorMode", .string(JSString(newValue.colorMode)))
+            let settings = (try? settingsService?.all()) ?? [:]
+            let previous = PrintPreferences(settings: settings)
+            if newValue.customMargins != previous.customMargins {
+                var margins = settings["printCustomMargins"]?.objectValue ?? JSObject()
+                margins["top"] = .number(newValue.customMargins.top)
+                margins["right"] = .number(newValue.customMargins.right)
+                margins["bottom"] = .number(newValue.customMargins.bottom)
+                margins["left"] = .number(newValue.customMargins.left)
+                saveSetting("printCustomMargins", .object(margins))
+            }
+            if newValue.marginPreset != previous.marginPreset {
+                saveSetting("printMarginPreset", .string(JSString(newValue.marginPreset)))
+            }
+            if newValue.paperSize != previous.paperSize {
+                saveSetting("printPaperSize", .string(JSString(newValue.paperSize)))
+            }
+            if newValue.fontSizePt != previous.fontSizePt {
+                saveSetting("printFontSizePt", .number(newValue.fontSizePt))
+            }
+            if newValue.fontFamily != previous.fontFamily {
+                saveSetting("printFontFamily", .string(JSString(newValue.fontFamily)))
+            }
+            if newValue.includeTitle != previous.includeTitle {
+                saveSetting("printIncludeTitle", .bool(newValue.includeTitle))
+            }
+            if newValue.colorMode != previous.colorMode {
+                saveSetting("printColorMode", .string(JSString(newValue.colorMode)))
+            }
             PrintPreferences.current = newValue
             printSettingsRevision += 1
         }
@@ -95,6 +120,35 @@ struct PrintSettingsSection: View {
 
     private func bind<T>(_ key: WritableKeyPath<PrintPreferences, T>) -> Binding<T> {
         Binding(get: { app.printPreferences[keyPath: key] }, set: { var p = app.printPreferences; p[keyPath: key] = $0; app.printPreferences = p })
+    }
+
+    private func marginStepper(_ title: LocalizedStringKey, _ key: WritableKeyPath<PrintPreferences, Double>, value: Double) -> some View {
+        let entry = Binding<Double>(get: { app.printPreferences[keyPath: key] }, set: { number in
+            guard number.isFinite else { return }
+            var prefs = app.printPreferences
+            prefs[keyPath: key] = min(4, max(0, number))
+            app.printPreferences = prefs
+        })
+        return HStack {
+            Text(title)
+            Spacer()
+            TextField("", value: entry, format: .number)
+                .labelsHidden()
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(width: 64)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(Text(title))
+                #if os(iOS)
+                .keyboardType(.decimalPad)
+                #endif
+            Text("in").foregroundStyle(.secondary).accessibilityHidden(true)
+            Stepper(value: bind(key), in: 0...4, step: 0.25) { EmptyView() }
+                .labelsHidden().fixedSize()
+                .accessibilityLabel(Text(title))
+                .accessibilityValue(Text("\(value.formatted()) inches"))
+        }
+        .accessibilityElement(children: .contain)
     }
 
     var body: some View {
@@ -113,16 +167,27 @@ struct PrintSettingsSection: View {
                             Text(preset.detail).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if active { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                        if active {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
                 .buttonStyle(.interactivePlain)
+                .accessibilityAddTraits(active ? .isSelected : [])
             }
         }
         Section {
             Picker("Margins", selection: bind(\.marginPreset)) {
                 Text("None").tag("none"); Text("Narrow").tag("narrow"); Text("Normal").tag("normal"); Text("Wide").tag("wide")
-                if prefs.marginPreset == "custom" { Text("Custom").tag("custom") }
+                Text("Custom").tag("custom")
+            }
+            if prefs.marginPreset == "custom" {
+                marginStepper("Top Margin", \.customMargins.top, value: prefs.customMargins.top)
+                marginStepper("Right Margin", \.customMargins.right, value: prefs.customMargins.right)
+                marginStepper("Bottom Margin", \.customMargins.bottom, value: prefs.customMargins.bottom)
+                marginStepper("Left Margin", \.customMargins.left, value: prefs.customMargins.left)
             }
             Stepper(value: bind(\.fontSizePt), in: 8...18, step: 1) { LabeledContent("Font Size", value: "\(Int(prefs.fontSizePt)) pt") }
             Picker("Font", selection: bind(\.fontFamily)) {
