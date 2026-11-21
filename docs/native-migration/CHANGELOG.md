@@ -2125,3 +2125,10 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 ### 2026-11-21 — Inspector lifetime and final history settling
 
 8252c91c validates the live inspector target across same-ID tab replacement and updates only its open state. Mac actual Lexicon/Search replacements retain the UUID and contain no leaked Scripture fields; inspector toggle works. 852a4767 corrects the final AppKit origin-only shift during newly mounted history restoration: repeated actual Search round trips preserve446 points, immediate user scrolling wins, and its new position survives history. Final Mac build passes; temporary diagnostics removed. Later changes are Mac-only; shared package unchanged since349-test pass. See TAB-LIFECYCLE-2026-11-21.md for trace, bounded evidence, current QA geometry and remaining accessibility/first-frame/history/Compare matrix. Earlier geometry readings were affected by AX divider adjustment; controlled no-write tab switching was stable. Do not close the broad reflow requirement from that narrow check.
+
+
+### 2026-11-21 — Actual verse rows in iPhone picker and active-tab chrome on Mac
+
+- `c39ca828` uses prepared Scripture rows and raw verse IDs in the compact iPhone picker. It exposes combined verse labels and enlarges the iOS clear and dismiss targets to 44 points. Simulator verified Exodus 32 omits 9 and opens 35, 1 Kings 14 shows 21–31 and opens 31, Psalm 115 shows 4–5 and opens stored verse 4, and Psalm 3 display verse 1 opens stored verse 2.
+- `d9da6c36` gives the active Mac Scripture tab ownership of the window title and toolbar. Return selected Jonah from the Compare popover. After Back and switching to Genesis, the window showed Genesis 1, one principal toolbar and no old Manage Translations control. A same-ID Strong’s query and Back also retained the Genesis viewport and toolbar.
+- Both final Dev builds passed. The final QA comparison preserved original note hashes, all 37 Mac and 47 iPhone active tab IDs, and the original Exodus Compare sync state. The recorded totals were 22 Mac and 26 iPhone notes. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)

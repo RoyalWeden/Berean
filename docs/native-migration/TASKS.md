@@ -558,3 +558,10 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 ### 2026-11-21 — Inspector lifetime and final history settling
 
 8252c91c validates the live inspector target across same-ID tab replacement and updates only its open state. Mac actual Lexicon/Search replacements retain the UUID and contain no leaked Scripture fields; inspector toggle works. 852a4767 corrects the final AppKit origin-only shift during newly mounted history restoration: repeated actual Search round trips preserve446 points, immediate user scrolling wins, and its new position survives history. Final Mac build passes; temporary diagnostics removed. Later changes are Mac-only; shared package unchanged since349-test pass. See TAB-LIFECYCLE-2026-11-21.md for trace, bounded evidence, current QA geometry and remaining accessibility/first-frame/history/Compare matrix. Earlier geometry readings were affected by AX divider adjustment; controlled no-write tab switching was stable. Do not close the broad reflow requirement from that narrow check.
+
+
+### Nov 21 — Passage picker and Mac toolbar
+
+- **VERIFIED (bounded)** iPhone Simulator showed the actual irregular LXX grid rows for Exodus 32, 1 Kings 14, Psalm 115 and Psalm 3. A tap at the outer edge of the expanded keyboard-dismiss target worked. Interactive software-keyboard dismissal and physical-device coverage remain open. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+- **VERIFIED (bounded)** Mac Compare Presenter showed the pinned Psalm 3 LXX secondary and returned to the primary after Clear. In synced Jonah, it showed LXX Jonah 2:1 aligned to KJV Jonah 1:17. Full mirroring and narrow, reorder and scroll matrices remain open. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+- **VERIFIED (bounded)** Mac main passage popover Return navigated in Compare. The subsequent Genesis tab switch and same-ID Strong’s search/Back restored one Genesis toolbar and the saved viewport. Mouse row activation remains inconclusive. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)

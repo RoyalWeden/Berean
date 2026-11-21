@@ -722,3 +722,9 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 ### 2026-11-21 — Inspector lifetime and final history settling
 
 8252c91c validates the live inspector target across same-ID tab replacement and updates only its open state. Mac actual Lexicon/Search replacements retain the UUID and contain no leaked Scripture fields; inspector toggle works. 852a4767 corrects the final AppKit origin-only shift during newly mounted history restoration: repeated actual Search round trips preserve446 points, immediate user scrolling wins, and its new position survives history. Final Mac build passes; temporary diagnostics removed. Later changes are Mac-only; shared package unchanged since349-test pass. See TAB-LIFECYCLE-2026-11-21.md for trace, bounded evidence, current QA geometry and remaining accessibility/first-frame/history/Compare matrix. Earlier geometry readings were affected by AX divider adjustment; controlled no-write tab switching was stable. Do not close the broad reflow requirement from that narrow check.
+
+
+### 2026-11-21 — Prepared verse rows and active Mac toolbar ownership
+
+- Drive the compact iPhone grid from prepared reader rows rather than row count. Use their display and accessibility labels and submit the stored verse identity directly. Give the iPhone clear and keyboard-dismiss controls 44-point targets and preserve Mac compact dimensions.
+- Own the Mac title in the active tab host. Gate reader toolbar registration and picker mutations by the live tab type, identity, mode and passage. Close old popovers as ownership changes. An initial visibility guard blocked Return submission as the popover dismissed. The final callback uses live ownership and the picker’s single-pick guard. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)

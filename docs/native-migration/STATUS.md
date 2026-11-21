@@ -490,3 +490,8 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 ### 2026-11-21 — Inspector lifetime and final history settling
 
 8252c91c validates the live inspector target across same-ID tab replacement and updates only its open state. Mac actual Lexicon/Search replacements retain the UUID and contain no leaked Scripture fields; inspector toggle works. 852a4767 corrects the final AppKit origin-only shift during newly mounted history restoration: repeated actual Search round trips preserve446 points, immediate user scrolling wins, and its new position survives history. Final Mac build passes; temporary diagnostics removed. Later changes are Mac-only; shared package unchanged since349-test pass. See TAB-LIFECYCLE-2026-11-21.md for trace, bounded evidence, current QA geometry and remaining accessibility/first-frame/history/Compare matrix. Earlier geometry readings were affected by AX divider adjustment; controlled no-write tab switching was stable. Do not close the broad reflow requirement from that narrow check.
+
+
+## 2026-11-21 — Passage picker and Mac toolbar
+
+Local source `d9da6c36` includes the iPhone prepared-row verse grid and Mac active-reader toolbar ownership. Both final Dev builds passed. Simulator verified four irregular LXX chapter grids and the expanded dismiss target. Mac verified the Compare → Genesis and Scripture → Strong’s → Back toolbar routes, plus bounded pinned and mapped Presenter behavior. Software-keyboard dismissal, Mac mouse row activation, and the wider Compare matrix remain open. Previous published `f6865f54` passed all three checks in CI 44940784658. Publication and CI for the new source are pending. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
