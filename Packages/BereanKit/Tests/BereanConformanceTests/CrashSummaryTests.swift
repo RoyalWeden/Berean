@@ -14,4 +14,51 @@ import Testing
         let round = try JSONDecoder().decode(CrashSummary.self, from: JSONEncoder().encode(s))
         #expect(round == s)
     }
+
+    @Test func fingerprintIgnoresJSONKeyOrderButPreservesFrameOrder() {
+        let original = CrashSummary(message: "EXC_CRASH (SIGKILL)", label: "Berean 1",
+                                    stack: #"{"frames":[{"image":"Berean","offset":1},{"offset":2}]}"#,
+                                    timestamp: Date(timeIntervalSince1970: 1_795_000_000))
+        var reordered = original
+        reordered.stack = #" { "frames": [ { "offset": 1, "image": "Berean" }, { "offset": 2 } ] } "#
+        #expect(original.fingerprint == reordered.fingerprint)
+        #expect(original.stack != reordered.stack)
+
+        reordered.stack = #"{"frames":[{"offset":2},{"offset":1,"image":"Berean"}]}"#
+        #expect(original.fingerprint != reordered.fingerprint)
+    }
+
+    @Test func fingerprintDistinguishesDiagnosticFieldsAndHandlesInvalidUnicodeText() {
+        let original = CrashSummary(message: "EXC_CRASH (SIGKILL) — 0x8BADF00D", label: "Berean 1",
+                                    stack: #"{"frames":["⚠️ λ ־あ" "#,
+                                    timestamp: Date(timeIntervalSince1970: 1_795_000_000))
+        let copy = original
+        #expect(copy.fingerprint == original.fingerprint)
+        #expect(original.fingerprint.count == 64)
+
+        var changed = original
+        changed.timestamp.addTimeInterval(0.001)
+        #expect(original.fingerprint != changed.fingerprint)
+        changed = original
+        changed.message = "EXC_CRASH (SIGKILL) — 0xDEAD10CC"
+        #expect(original.fingerprint != changed.fingerprint)
+        changed = original
+        changed.label = "Berean 2"
+        #expect(original.fingerprint != changed.fingerprint)
+        changed = original
+        changed.stack = #"{"frames":["⚠️ λ ־い" "#
+        #expect(original.fingerprint != changed.fingerprint)
+    }
+
+    @Test func completeLargeStackSurvivesStorageAndCopy() throws {
+        let frames = String(repeating: #"{"symbol":"Berean λ","offset":12345},"#, count: 900)
+        let stack = #"{"frames":["# + frames + #"{"symbol":"Final frame","offset":98765}]}"#
+        let summary = CrashSummary(message: "Watchdog", label: nil, stack: stack,
+                                   timestamp: Date(timeIntervalSince1970: 1_795_000_000))
+        let restored = try JSONDecoder().decode(CrashSummary.self, from: JSONEncoder().encode(summary))
+        #expect(stack.count > 20_000)
+        #expect(restored.stack == stack)
+        #expect(restored.details.contains(stack))
+        #expect(restored.fingerprint == summary.fingerprint)
+    }
 }

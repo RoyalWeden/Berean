@@ -2,11 +2,11 @@ import SwiftUI
 import MetricKit
 import BereanNotes
 
-/// Native counterpart of the original CrashReport notice: MetricKit delivers crash diagnostics on a
-/// later launch; the newest one is kept in this library's local defaults and shown once as
-/// "Berean recovered from a crash" with Copy Details / Dismiss. Nothing leaves the device.
+/// Shows the newest available MetricKit diagnostic locally. Dismissal acknowledges the report
+/// so MetricKit redelivery on a later launch does not bring the same notice back.
 @MainActor final class CrashReporter: NSObject, MXMetricManagerSubscriber {
     static let key = "nativeCrashReport"
+    private static let acknowledgedKey = "nativeAcknowledgedCrashReport"
     private weak var app: AppModel?
 
     init(app: AppModel) {
@@ -30,20 +30,30 @@ import BereanNotes
                                             reason: crash.terminationReason)
         let stack = String(data: crash.callStackTree.jsonRepresentation(), encoding: .utf8)
         return CrashSummary(message: message, label: "Berean \(meta.applicationBuildVersion) · \(meta.osVersion)",
-                            stack: stack.map { String($0.prefix(20_000)) }, timestamp: time)
+                            stack: stack, timestamp: time)
     }
 
     private func store(_ summary: CrashSummary?) {
-        guard let summary else { return }
+        guard let summary, !Self.isAcknowledged(summary) else { return }
+        if let current = app?.crashReport, summary.timestamp < current.timestamp { return }
         if let data = try? JSONEncoder().encode(summary) { UserLibrary.defaults.set(data, forKey: Self.key) }
         app?.crashReport = summary
     }
 
+    private static func isAcknowledged(_ summary: CrashSummary) -> Bool {
+        guard let acknowledged = UserLibrary.defaults.string(forKey: acknowledgedKey) else { return false }
+        return acknowledged == summary.fingerprint
+    }
+
     static func stored() -> CrashSummary? {
-        UserLibrary.defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(CrashSummary.self, from: $0) }
+        guard let data = UserLibrary.defaults.data(forKey: key),
+              let summary = try? JSONDecoder().decode(CrashSummary.self, from: data),
+              !isAcknowledged(summary) else { return nil }
+        return summary
     }
 
     static func dismiss(_ app: AppModel) {
+        if let summary = app.crashReport { UserLibrary.defaults.set(summary.fingerprint, forKey: acknowledgedKey) }
         UserLibrary.defaults.removeObject(forKey: key)
         app.crashReport = nil
     }
@@ -57,8 +67,10 @@ struct CrashReportBanner: View {
     var body: some View {
         if let crash = app.crashReport {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Berean recovered from a crash", systemImage: "exclamationmark.triangle.fill")
+                Label("Previous Berean termination", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout.weight(.semibold)).foregroundStyle(.red)
+                Text("Diagnostic date \(crash.timestamp.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption).foregroundStyle(.secondary)
                 if let label = crash.label { Text(label).font(.caption).foregroundStyle(.secondary) }
                 Text(crash.message).font(.caption).foregroundStyle(.secondary).lineLimit(3)
                 HStack {
@@ -77,6 +89,7 @@ struct CrashReportBanner: View {
             .padding(16)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .accessibilityElement(children: .contain)
+            .onChange(of: crash) { copied = false }
         }
     }
 }

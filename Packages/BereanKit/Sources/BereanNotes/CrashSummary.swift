@@ -1,15 +1,41 @@
+import CryptoKit
 import Foundation
 
-/// The "App recovered from a crash" notice (original CrashReport.tsx): a short summary plus the
-/// "Copy details" text. Built natively from a MetricKit crash diagnostic.
+/// A locally displayed MetricKit diagnostic with the full copyable report.
 public struct CrashSummary: Codable, Equatable, Sendable {
     public var message: String          // e.g. "EXC_BREAKPOINT (SIGTRAP)" or a termination reason
     public var label: String?           // where: app version / build
-    public var stack: String?           // symbolicated-or-raw frames, one per line
+    public var stack: String?           // structured stack JSON or raw stack text
     public var timestamp: Date
 
     public init(message: String, label: String?, stack: String?, timestamp: Date) {
         self.message = message; self.label = label; self.stack = stack; self.timestamp = timestamp
+    }
+
+    /// Local acknowledgement identity. Normalizing JSON affects identity only, leaving the
+    /// original report available to copy and preserving plain-text or incomplete older stacks.
+    public var fingerprint: String {
+        let normalizedStack = stack.map { stack in
+            let data = Data(stack.utf8)
+            guard let json = try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed),
+                  let sorted = try? JSONSerialization.data(withJSONObject: json, options: [.sortedKeys, .fragmentsAllowed]),
+                  let canonical = String(data: sorted, encoding: .utf8) else { return stack }
+            return canonical
+        }
+
+        var digest = SHA256()
+        for field in [String(timestamp.timeIntervalSinceReferenceDate.bitPattern), label, message, normalizedStack] {
+            guard let field else {
+                digest.update(data: Data([0]))
+                continue
+            }
+            digest.update(data: Data([1]))
+            let bytes = Data(field.utf8)
+            let length = UInt64(bytes.count).bigEndian
+            withUnsafeBytes(of: length) { digest.update(bufferPointer: $0) }
+            digest.update(data: bytes)
+        }
+        return digest.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     /// Same layout as the original's copied details.

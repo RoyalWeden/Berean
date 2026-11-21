@@ -1,6 +1,7 @@
 import SwiftUI
 import Foundation
 import Observation
+import OSLog
 import CoreGraphics
 import BereanCore
 import BereanSQLite
@@ -374,6 +375,8 @@ final class AppModel {
     private var lock: SingleInstanceLock?
     private var keys = TabPersistence.OrderKeyMaps()
     private var saveTask: Task<Void, Never>?
+    private let workspaceSaveSignposter = OSSignposter(subsystem: "com.berean.native", category: "WorkspacePersistence")
+    private let workspaceSaveLogger = Logger(subsystem: "com.berean.native", category: "WorkspacePersistence")
 
     init() {
         openLibrary(); loadBookCatalog(); evaluateOnboarding(); refreshIdiomsIfNeeded()
@@ -549,17 +552,39 @@ final class AppModel {
         }
     }
 
+    private func workspaceSaveStage<T>(_ name: StaticString, _ action: () throws -> T) rethrows -> T {
+        let interval = workspaceSaveSignposter.beginInterval(name)
+        defer { workspaceSaveSignposter.endInterval(name, interval) }
+        return try action()
+    }
+
     func saveNow() {
+        // An explicit lifecycle flush covers the queued debounce as well.
+        saveTask?.cancel()
+        saveTask = nil
         guard let svc = sessionsService else { return }
+        let started = ContinuousClock.now
+        let interval = workspaceSaveSignposter.beginInterval("Save workspace state")
+        defer {
+            workspaceSaveSignposter.endInterval("Save workspace state", interval)
+            let elapsed = started.duration(to: .now)
+            if elapsed >= .milliseconds(250) {
+                workspaceSaveLogger.warning("Workspace save exceeded 250ms: \(String(describing: elapsed), privacy: .public)")
+            }
+        }
         UserLibrary.defaults.set(currentSessionId, forKey: "currentSessionId")
-        let built = TabPersistence.buildSnapshot(sessions: sessions, displayOrders: displayOrders, archivedGroups: archivedGroups, previous: keys)
+        let built = workspaceSaveStage("Build workspace snapshot") {
+            TabPersistence.buildSnapshot(sessions: sessions, displayOrders: displayOrders, archivedGroups: archivedGroups, previous: keys)
+        }
         keys = built.keys
         do {
-            try svc.applySnapshot(built.snapshot)
-            for (sid, active) in built.localState {
-                var o = JSObject()
-                for sp in SpaceId.allCases { if let v = active[sp] { o[JSString(sp.rawValue)] = v.map { .string(JSString($0)) } ?? .null } }
-                try svc.setLocalState(sessionId: sid, activeTab: o)
+            _ = try workspaceSaveStage("Apply workspace snapshot") { try svc.applySnapshot(built.snapshot) }
+            try workspaceSaveStage("Save workspace local state") {
+                for (sid, active) in built.localState {
+                    var o = JSObject()
+                    for sp in SpaceId.allCases { if let v = active[sp] { o[JSString(sp.rawValue)] = v.map { .string(JSString($0)) } ?? .null } }
+                    try svc.setLocalState(sessionId: sid, activeTab: o)
+                }
             }
         } catch { libraryError = "Saving tabs failed: \(error)" }
     }
