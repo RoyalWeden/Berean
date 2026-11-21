@@ -86,3 +86,20 @@ Remaining: physical phone/software keyboard, Dynamic Type/VoiceOver/Reduce Trans
 - **Fix:** the Presenter publishes a `presenterZoom` focused scene value; while it is key, View shows **Larger Presenter Text (⌘=) / Smaller Presenter Text (⌘-) / Reset Presenter Text Size (⌘0)** outside the study-window-only group (main window keeps the Scripture items). The toolbar buttons no longer declare duplicate shortcuts. The menu writes through the `$scale` binding — a captured view copy and a raw UserDefaults write both failed to update the view (tried, recorded).
 - **Verified (Mac QA instance, menu by PID, screenshots of the Presenter window):** with Presenter key the menu lists the three Presenter items, all enabled; Larger 180→200 %, Smaller ×2 → 160 %, Reset → 160 % (left at the 160 % default). With the main window key, View still shows the Scripture text-size items.
 - Not exercised: physical key presses — another process cannot reliably activate the QA app (cooperative activation), so synthesized keystrokes may land in another app; the shortcuts are the enabled menu items' key equivalents.
+
+## Presenter chapter / focus / scale matrix (Claude Code, 2026-11-20)
+
+Mac QA instance, driven only by AXPress (sidebar tabs, Pause/Resume) and View menu items by PID; Presenter-window screenshots for each step.
+
+| Step | Result |
+|---|---|
+| John 1 at 200 % | Live, verse 1 focused, larger type |
+| Main window → Exodus 31 (saved verse 13) | Presenter follows, verse 13 focused at 200 %, Word Replacer applied (Yehovah) |
+| Pause, then main → John 1 | Presenter stays on Exodus 31 v13, title "Presenter — Paused" |
+| Resume | Jumps to John 1 v1 |
+| Smaller ×6 | 80 % floor, Smaller disabled |
+| Larger ×17 | 400 % ceiling; menu reports Larger disabled, Smaller/Reset enabled |
+| Reset | 160 % |
+| Note document (QA Image Note) | **Bug found:** inline image shown as `Cave 4 fragment|w360` text → fixed: `MarkdownText` now renders `data:` image lines (saved width, caption) — also improves every other Markdown preview. Re-verified: image + caption shown |
+
+Not covered: selecting a verse in the main reader while live (needs a pointer click in the reader); physical keyboard presses (see above).

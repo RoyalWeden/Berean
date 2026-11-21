@@ -1648,7 +1648,18 @@ struct MarkdownText: View {
 
     @ViewBuilder func block(_ line: String) -> some View {
         let t = line.trimmingCharacters(in: .whitespaces)
-        if let passage = standaloneScriptureLink(t) {
+        if let image = NoteImages.find(in: t).first, image.range.location == 0,
+           let data = NoteImages.dataURIBytes(image.source), let picture = PreviewImage(data: data) {
+            // Inline data: image line (saved width, caption) — the Presenter and previews used to
+            // show only the "alt|w360" text. Never fetches remote images.
+            VStack(alignment: .leading, spacing: 4) {
+                picture.image.resizable().scaledToFit()
+                    .frame(maxWidth: image.width.map { CGFloat($0) } ?? .infinity, alignment: .leading)
+                    .clipShape(.rect(cornerRadius: 6))
+                    .accessibilityLabel(image.alt.isEmpty ? "Image" : image.alt)
+                if !image.alt.isEmpty { Text(image.alt).font(.caption).foregroundStyle(.secondary) }
+            }
+        } else if let passage = standaloneScriptureLink(t) {
             Link(destination: passage.url) {
                 Label(passage.label, systemImage: "book")
                     .foregroundStyle(Color.accentColor)
@@ -2509,3 +2520,17 @@ struct NoteVersionHistoryView: View {
     }
 }
 
+
+/// A decoded inline note image for SwiftUI previews.
+struct PreviewImage {
+    let image: Image
+    init?(data: Data) {
+        #if os(macOS)
+        guard let ns = NSImage(data: data) else { return nil }
+        image = Image(nsImage: ns)
+        #else
+        guard let ui = UIImage(data: data) else { return nil }
+        image = Image(uiImage: ui)
+        #endif
+    }
+}
