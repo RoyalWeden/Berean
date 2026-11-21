@@ -1,3 +1,4 @@
+import TipKit
 import SwiftUI
 import BereanCore
 import BereanBible
@@ -268,6 +269,7 @@ struct CompareView: View {
             } else {
                 let visible = cols.filter { availableColumnIDs.contains($0.id) }
                 VStack(spacing: 0) {
+                    TipView(CompareTip()).padding(.horizontal, 12).padding(.top, 8)
                     unavailableColumns(cols)
                     if visible.isEmpty {
                         ContentUnavailableView("Choose a Passage", systemImage: "book",

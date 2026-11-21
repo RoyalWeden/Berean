@@ -2930,3 +2930,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Custom themes (original `customThemes`, `custom:<id>` selection) with editor in Settings → Appearance; verified on sim (create/rename/delete fallback), sim left at Default with no custom themes.
 - S14 Psalm 119 measured on the Mac reader too (≈19–23 ms, 4 runs; QA DB restored). Remaining S14: physical iPhone only.
 - Presenter zoom: ⌘=/⌘-/⌘0 were swallowed by the study-window-only (disabled) View group; now Presenter-specific View items via focused value (PRESENTER-MESSAGES-POLISH addendum), verified by menu; Psalm 119 Mac timing done. Remaining Presenter matrix: chapter/focus/scale combinations by hand.
+- Verse / highlight / compare hints (TipKit, ONBOARDING addendum), verified on sim. Remaining no-owner items: Presenter chapter/focus/scale combinations by hand; physical-iPhone Psalm 119.

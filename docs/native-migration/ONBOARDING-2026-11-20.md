@@ -12,3 +12,14 @@ Status: **IMPLEMENTED; iPhone VERIFIED, Mac built** (sheet path shares the view)
 - Verified on sim: the Search Berean hint appears above the search button on launch.
 - Added later: **Strong's numbers** (Mac reader toolbar toggle; retires once used) and **Format your note** (note Format menu, both platforms; retires once opened). TipKit shows one hint at a time, so these follow the Search hint (seen on sim: Search hint shown first on a note).
 - Not added: verse-click, highlight and compare hints (their anchors are inside the TextKit readers; iPhone's Strong's toggle is inside a menu).
+
+
+## Verse, highlight and compare hints (2026-11-20, later)
+
+The original §16 hints for "first verse number click", "first highlight selection" and "first compare view open", as TipKit tips (`BereanTips.swift`):
+- **VerseActionsTip** — popover on the floating verse action bar the first time verses are selected; retired by Clear Selection or using Highlight.
+- **HighlightTip** — popover on the Highlight button, ruled on a `verseSelected` event (≥ 2 selections) so it never shows together with the verse tip; text names the real word-range path (Highlight Selection from the text-selection menu, platform-specific wording).
+- **CompareTip** — inline TipView at the top of Compare the first time it opens.
+- All three reset with Settings → About → Reset Hints like the others.
+- Verified on iPhone sim E8B01B22 (screenshots): verse tip on first selection, highlight tip on the second, compare tip on Compare This Verse; Compare exited afterwards. Mac built (same shared code).
+- Known: TipKit `.immediate` frequency can show the Search tip at the same time as an inline tip until Go has been used once.

@@ -1150,6 +1150,8 @@ struct ScriptureView: View {
     @ViewBuilder func selectionBar(_ st: BibleState) -> some View {
         if !selection.isEmpty {
             adaptiveVerseActions(st)
+                .popoverTip(VerseActionsTip(), arrowEdge: .bottom)
+                .task { await HighlightTip.verseSelected.donate() }
                 .padding(.horizontal, ReaderFloatingControls.surfaceHorizontalPadding)
                 .padding(.vertical, ReaderFloatingControls.surfacePadding)
                 #if os(macOS)
@@ -1332,7 +1334,7 @@ struct ScriptureView: View {
     }
 
     private var clearSelectionButton: some View {
-        Button("Clear Selection", systemImage: "xmark") { clearVerseSelection() }
+        Button("Clear Selection", systemImage: "xmark") { VerseActionsTip().invalidate(reason: .actionPerformed); clearVerseSelection() }
             .buttonStyle(VerseActionButtonStyle())
             .accessibilityHint("Clears \(selectionLabel(state))")
             #if os(macOS)
@@ -1361,6 +1363,15 @@ struct ScriptureView: View {
     #endif
 
     @ViewBuilder private func highlightMenu(_ st: BibleState, iconOnly: Bool = true) -> some View {
+        highlightMenuBody(st, iconOnly: iconOnly)
+            .popoverTip(iconOnly ? HighlightTip() : nil, arrowEdge: .bottom)
+            .simultaneousGesture(TapGesture().onEnded {
+                HighlightTip().invalidate(reason: .actionPerformed)
+                VerseActionsTip().invalidate(reason: .actionPerformed)
+            })
+    }
+
+    @ViewBuilder private func highlightMenuBody(_ st: BibleState, iconOnly: Bool) -> some View {
         #if os(macOS)
         if iconOnly {
             VerseActionPopover(title: "Highlight", symbol: "highlighter", selection: selection,

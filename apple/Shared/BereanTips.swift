@@ -33,6 +33,34 @@ struct NoteFormatTip: Tip {
     var image: Image? { Image(systemName: "textformat") }
 }
 
+/// Original hint "first verse number click" → natively, the floating verse action bar.
+struct VerseActionsTip: Tip {
+    var title: Text { Text("Verse actions") }
+    var message: Text? { Text("Copy with the reference, highlight, tag, add a note or compare. Select more verses to act on them together.") }
+    var image: Image? { Image(systemName: "text.badge.checkmark") }
+}
+
+/// Original hint "first highlight selection". Waits for a second selection so it never
+/// competes with VerseActionsTip.
+struct HighlightTip: Tip {
+    static let verseSelected = Tips.Event(id: "verseSelected")
+    var title: Text { Text("Highlight") }
+    #if os(macOS)
+    var message: Text? { Text("Five colours for whole verses. To mark just a few words, select them and Control-click → Highlight Selection.") }
+    #else
+    var message: Text? { Text("Five colours for whole verses. To mark just a few words, touch and hold them, then choose Highlight Selection.") }
+    #endif
+    var image: Image? { Image(systemName: "highlighter") }
+    var rules: [Rule] { #Rule(Self.verseSelected) { $0.donations.count >= 2 } }
+}
+
+/// Original hint "first compare view open".
+struct CompareTip: Tip {
+    var title: Text { Text("Compare texts") }
+    var message: Text? { Text("Columns stay together while they show the same chapter. Use Add Another Passage… or a column's Choose Passage to compare different places.") }
+    var image: Image? { Image(systemName: "rectangle.split.2x1") }
+}
+
 @MainActor enum BereanTips {
     static let resetKey = "resetHintsOnLaunch"
     static func configure() {
