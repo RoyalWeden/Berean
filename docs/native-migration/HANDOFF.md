@@ -2916,3 +2916,10 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Stale parity rows fixed (U18 Ask Berean, N13 idiom hover/export).
 - Checks: `swift test -c release` 334 pass; Mac + iOS builds exit 0; verified on sim.
 - Open, no owner decision needed: Print/Export settings section, Custom Themes, reader/editor hints (need anchors in TextKit views), Psalm 119 timing (S14). Danger section (delete notes) deliberately not ported — needs an explicit decision.
+
+### 2026-11-20 ~17:05 — Claude Code: handover taken from Codex
+- Rebased onto Codex's e8bd6c08 (Messages references/multiline, Presenter pause, iPhone reader/picker/Go, inspector width) and pushed **544536df**: Settings → Print & Export (original print keys/presets applied to note printing; HISTORY-SETTINGS doc) and the Search hint retiring after Go.
+- Combined tree: Mac + iOS Dev builds pass; `swift test -c release` 340 tests / 89 suites pass.
+- Codex's ChatViews rework kept the Ask Berean answer-verse links (now via `openBereanLink` + `revealMainDocument`).
+- Separate runtimes: Claude sim E8B01B22 + Mac QA `claude-20261120`; never touch Codex's D0CC2F4C or `codex-controls-20261119`.
+- Next (from Codex's list + mine): Presenter keyboard/focus checks; Messages internal reference routing; printed notes missing inline images; reader/editor hints; Psalm 119 timing.

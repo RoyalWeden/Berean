@@ -1,5 +1,7 @@
 # Current native migration checkpoint
 
+> **Update 2026-11-20 ~17:05 Pacific, Claude Code:** Codex's 16:50 handover taken. Claude's checkout `/Users/roywe/Berean-native` (remote `origin` = GitHub) rebased onto Codex's e8bd6c08 and pushed **544536df** (Print & Export settings). Both Dev builds pass and **340 Swift Testing tests / 89 suites** pass on the combined tree. Claude's runtime is separate from Codex's: iPhone simulator **E8B01B22-30D0-4184-9D0D-B0A394817943** and Mac QA profile `claude-20261120`; Codex's D0CC2F4C simulator and `codex-controls-20261119` library are left untouched. Codex's notes below remain accurate for its own runtime and quality gates.
+
 Snapshot: **2026-11-20 15:25 Pacific**, Codex. Broad goal **ACTIVE**. **Pause by16:50 Pacific today / Nov21 00:50UTC**, and prepare final cleanup/handover by16:40. Claude resumes then. Do not work past the cutoff without a new owner instruction.
 
 ## Source and publication
