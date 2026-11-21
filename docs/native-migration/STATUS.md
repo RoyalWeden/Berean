@@ -500,3 +500,8 @@ Local source `d9da6c36` includes the iPhone prepared-row verse grid and Mac acti
 ## 2026-11-21 — Compare selection history
 
 Local source `50f00c76` preserves Compare selections per Back/Forward visit during the current session. Both Dev builds and the actual reader selection regression passed. Mac and iPhone Simulator verified the targeted routes. The narrow-layout viewport mismatch remains audited and open, alongside persisted Compare viewport and broader interaction coverage. All three checks passed at the previous published `e39b48a0` in CI 44943410767. Publication and CI for the new source are pending. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)
+
+
+## 2026-11-21 — Paused Compare columns checkpoint
+
+Local source6fbba670 keeps iPhone Compare side by side with horizontal overflow, compact matching headers/cells, tighter inline verse numbers, no per-verse ellipsis, and complete compact-row selection bounds. Global Close Column is e31b8d87. Shared layout arrivals preserve verified raw verse/source-grid identity instead of stale incompatible offsets. Final Mac+iOS builds pass. Actual iPhone horizontal/vertical scrolling, Sync off/on near10, close3→2, survivor retention and joined text-tap selection verified in bounded scope; final compact selection includes its first number. Mac final runtime, pinned→following and explicit-jump/rapid/accessibility checks remain open. Owner requested pause; not pushed. Next design request is Compare grouped naturally with passage picker. [Precise checkpoint](COMPARE-VIEWPORT-2026-11-21.md).

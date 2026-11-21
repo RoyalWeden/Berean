@@ -733,3 +733,8 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 ### 2026-11-21 — Compare selection belongs to the history visit
 
 Copy the matching Compare selection into the existing bounded session history entry. Capture the outgoing visit before installing the remapped destination cache. Restoration replaces or evicts the matching cache and uses a tab- and passage-scoped revision with the same helper for load and same-chapter returns. Explicit verse commands still clear or reseed selection. Reader selection has value equality. The history change leaves schemas, sync and persisted selection untouched. Keep viewport transfer separate so it can follow the actual rendered layout and be verified independently. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)
+
+
+## 2026-11-21 — Paused Compare columns checkpoint
+
+Local source6fbba670 keeps iPhone Compare side by side with horizontal overflow, compact matching headers/cells, tighter inline verse numbers, no per-verse ellipsis, and complete compact-row selection bounds. Global Close Column is e31b8d87. Shared layout arrivals preserve verified raw verse/source-grid identity instead of stale incompatible offsets. Final Mac+iOS builds pass. Actual iPhone horizontal/vertical scrolling, Sync off/on near10, close3→2, survivor retention and joined text-tap selection verified in bounded scope; final compact selection includes its first number. Mac final runtime, pinned→following and explicit-jump/rapid/accessibility checks remain open. Owner requested pause; not pushed. Next design request is Compare grouped naturally with passage picker. [Precise checkpoint](COMPARE-VIEWPORT-2026-11-21.md).

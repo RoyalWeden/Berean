@@ -571,3 +571,16 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 
 - **VERIFIED (bounded)** Compare Back/Forward remembers the selection for each visit during the current session. Mac passed swap, close to a single reader, Back/Forward, repeated visits with different selections, and explicit verse navigation followed by Back. iPhone Simulator passed secondary selection through swap and Back/Forward, then returned to the original unselected reader with nine tabs. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)
 - **OPEN** Reconcile the narrow layout’s reading-position transfer with the rendered mode and verify column removal and resize. Persisted Compare viewport, rapid navigation, accessibility and full Presenter mirroring remain open.
+
+
+### Nov 21 — Active Compare layout and owner correction
+
+- **IMPLEMENTED; bounded iPhone verification:** e31b8d87 adds Manage Translations → Close Column for every configured column, including offscreen/unavailable entries. The dirty viewport candidate preserves verse 5 when three independent following columns become two. Both candidate builds pass.
+- **OPEN / correction underway:** enabling Sync and returning a pinned column to Follow Main restore a wrong prior viewport. Carry the current logical verse into the new rendered layout and invalidate incompatible pixel offsets. Preserve existing selection-history behavior and explicit navigation priority.
+- **OWNER REQUIREMENT, not yet verified:** iPhone Compare remains side-by-side columns; extra columns move horizontally instead of stacking. Compact controls must leave verse text readable and retain selection/actions, aligned and pinned behavior. Desktop layout is unchanged.
+- **NEXT:** durable device-local Compare bookmarks (legacy verseNum/frac contract, destination validation before positional nested merge); per-visit viewport snapshots; synced chapter navigation among matching peers; independent/additive cross-column selection design. Do not close these from in-memory layout tests. Arbitrary typed-tab splits and full Presenter mirror remain separate requirements. [Current evidence](COMPARE-VIEWPORT-2026-11-21.md).
+
+
+## 2026-11-21 — Paused Compare columns checkpoint
+
+Local source6fbba670 keeps iPhone Compare side by side with horizontal overflow, compact matching headers/cells, tighter inline verse numbers, no per-verse ellipsis, and complete compact-row selection bounds. Global Close Column is e31b8d87. Shared layout arrivals preserve verified raw verse/source-grid identity instead of stale incompatible offsets. Final Mac+iOS builds pass. Actual iPhone horizontal/vertical scrolling, Sync off/on near10, close3→2, survivor retention and joined text-tap selection verified in bounded scope; final compact selection includes its first number. Mac final runtime, pinned→following and explicit-jump/rapid/accessibility checks remain open. Owner requested pause; not pushed. Next design request is Compare grouped naturally with passage picker. [Precise checkpoint](COMPARE-VIEWPORT-2026-11-21.md).

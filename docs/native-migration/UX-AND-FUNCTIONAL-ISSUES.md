@@ -446,3 +446,8 @@ Mac Presenter now uses a validated, atomic transient projection of the selected 
 ## 2026-11-21 — Compare Back/Forward selection loss
 
 **Verified on Mac and iPhone Simulator.** Mac Back through swap and close now restores the original LXX verse 3 selection. Two visits to the same order retain their distinct selections, and Back after an explicit jump restores the prior LXX selection. iPhone Back and Forward restore the selected KJVA verse 3 in each column order. The narrow Compare reading-position handoff remains open: its source can choose an anchor using a mode different from the rendered layout. Persisted Compare viewport, rapid navigation, accessibility and full mirroring still need coverage. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)
+
+
+## 2026-11-21 — Paused Compare columns checkpoint
+
+Local source6fbba670 keeps iPhone Compare side by side with horizontal overflow, compact matching headers/cells, tighter inline verse numbers, no per-verse ellipsis, and complete compact-row selection bounds. Global Close Column is e31b8d87. Shared layout arrivals preserve verified raw verse/source-grid identity instead of stale incompatible offsets. Final Mac+iOS builds pass. Actual iPhone horizontal/vertical scrolling, Sync off/on near10, close3→2, survivor retention and joined text-tap selection verified in bounded scope; final compact selection includes its first number. Mac final runtime, pinned→following and explicit-jump/rapid/accessibility checks remain open. Owner requested pause; not pushed. Next design request is Compare grouped naturally with passage picker. [Precise checkpoint](COMPARE-VIEWPORT-2026-11-21.md).

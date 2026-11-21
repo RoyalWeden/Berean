@@ -66,3 +66,7 @@ Owner explicitly requests no full-width top-bar blur on iPhone Scripture. Keep t
 ## 2026-11-21 — Faster desktop search and wider iPhone Scripture
 
 Owner observes titlebar dimming ahead of content and a slow floatingsearch open. Dim together in one presentation update; opening should feel immediate while retaining glass, autofocus, CmdLselection, outsideclick and Actions. Owner requests slightly reduced iPhoneScripturesidepadding so verses span wider; retain numbergutter/selectionoutline and distinctwidthpresets. Macreadingwidthunchanged.
+
+Owner clarification (2026-11-21): the reduced Scripture margins apply to iPhone only. Verified change 0d6c0ad3 changes phoneInset from 12/20/32 to 8/14/26; only IOSChapterTextView consumes it. Mac ChapterTextView still uses max(20, (width - macMaximum) / 2), with unchanged 920/760/600 width caps. Do not propagate the phone reduction to desktop. No desktop rollback was needed.
+
+Owner steering (2026-11-21): iPhone Compare must remain side-by-side columns, including narrow screens. Preserve column identity and useful reading width; allow horizontal movement for extra columns instead of vertically stacking editions/whole passages. Keep synchronized verse alignment, independent passage controls, selection/actions and accessibility intact.

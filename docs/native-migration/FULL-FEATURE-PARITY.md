@@ -1347,3 +1347,8 @@ Supersedes reproduced startup selection-overwrite above: transient highlight sna
 
 ### Nov21 confirmed history offset gap (OPEN)
 Finalada385b1 actualCmdLGenesis1:20/currenttab/Presenterfollow PASS. Back→Genesis1:1 returnsscroll0 rather than prior509pt/verse7. History snapshot keeps viewport but ignoredcache shadowsit, selectionobserver reveals1 and same-passage native viewportrestore is not triggered. Next fix needs scoped one-time restoration across bothadapters, not cache-only change. Full implementation/test packet in PRESENTER-REFINEMENT-2026-11-21.md. FinalQAselection/viewport restored; no extra tabs.
+
+
+## 2026-11-21 — Paused Compare columns checkpoint
+
+Local source6fbba670 keeps iPhone Compare side by side with horizontal overflow, compact matching headers/cells, tighter inline verse numbers, no per-verse ellipsis, and complete compact-row selection bounds. Global Close Column is e31b8d87. Shared layout arrivals preserve verified raw verse/source-grid identity instead of stale incompatible offsets. Final Mac+iOS builds pass. Actual iPhone horizontal/vertical scrolling, Sync off/on near10, close3→2, survivor retention and joined text-tap selection verified in bounded scope; final compact selection includes its first number. Mac final runtime, pinned→following and explicit-jump/rapid/accessibility checks remain open. Owner requested pause; not pushed. Next design request is Compare grouped naturally with passage picker. [Precise checkpoint](COMPARE-VIEWPORT-2026-11-21.md).
