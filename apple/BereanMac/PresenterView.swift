@@ -93,12 +93,14 @@ struct PresenterView: View {
             }
             ToolbarItemGroup {
                 ControlGroup {
-                    Button("Smaller", systemImage: "textformat.size.smaller") { scale = max(0.8, scale - 0.2) }
-                        .keyboardShortcut("-", modifiers: .command).disabled(scale <= 0.8)
+                    // ⌘- / ⌘= / ⌘0 live in View (presenterZoom focused value): the main menu's
+                    // Scripture text-size items owned those keys before the toolbar buttons.
+                    Button("Smaller", systemImage: "textformat.size.smaller") { setScale(scale - 0.2) }
+                        .disabled(scale <= PresenterZoom.range.lowerBound)
                     Text("\(Int((scale * 100).rounded()))%")
                         .font(.callout.monospacedDigit()).frame(minWidth: 42).accessibilityLabel("Text size")
-                    Button("Larger", systemImage: "textformat.size.larger") { scale = min(4, scale + 0.2) }
-                        .keyboardShortcut("=", modifiers: .command).disabled(scale >= 4)
+                    Button("Larger", systemImage: "textformat.size.larger") { setScale(scale + 0.2) }
+                        .disabled(scale >= PresenterZoom.range.upperBound)
                 }
                 .controlGroupStyle(.navigation)
                 Button(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill") {
@@ -115,7 +117,14 @@ struct PresenterView: View {
         }
         .onDisappear { app.presenterOpen = false }
         .task(id: request) { await load(request) }
+        // The menu calls this outside the view graph: write through the $scale binding (a
+        // captured struct copy didn't update the view, nor did a raw UserDefaults write).
+        .focusedSceneValue(\.presenterZoom, PresenterZoom(scale: scale, set: { [binding = $scale] v in
+            binding.wrappedValue = PresenterZoom.clamped(v)
+        }))
     }
+
+    private func setScale(_ value: Double) { scale = PresenterZoom.clamped(value) }
 
     @ViewBuilder private var audienceContent: some View {
         switch snapshot {

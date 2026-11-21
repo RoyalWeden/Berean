@@ -79,3 +79,10 @@ Verification:
 - Both apps restored to original reading tabs; iPhone Capture Keyboard OFF, no sheets/draft. All original notes/tags/folders and exact37/47 active tab IDs match the baselines. Local Chat fixtures remain: Mac Unfiled3, iPhone Unfiled6 plus4 in the owned conversation; no Chat Trash exists.
 
 Remaining: physical phone/software keyboard, Dynamic Type/VoiceOver/Reduce Transparency, iPad/rotation, external-link handoff, AI verse-button runtime and save/edit failure injection. Shorthand “Jude5” is not recognized by the existing note auto-link parser; typed navigation separately supports it. No legacy golden parser was changed. Broad Presenter zoom/focus and inspector first-presentation/resize gates remain open.
+
+## Presenter zoom shortcuts — root cause and fix (Claude Code, 2026-11-20)
+
+- **Root cause of the unproven "larger" shortcut:** the View menu's text-size items (⌘= / ⌘- / ⌘0, "Scripture Text Size") sit in a group with `.disabled(isStudyWindow != true)`. In the Presenter window those menu items were present but disabled, owning the key equivalents ahead of the toolbar buttons' own `.keyboardShortcut`s.
+- **Fix:** the Presenter publishes a `presenterZoom` focused scene value; while it is key, View shows **Larger Presenter Text (⌘=) / Smaller Presenter Text (⌘-) / Reset Presenter Text Size (⌘0)** outside the study-window-only group (main window keeps the Scripture items). The toolbar buttons no longer declare duplicate shortcuts. The menu writes through the `$scale` binding — a captured view copy and a raw UserDefaults write both failed to update the view (tried, recorded).
+- **Verified (Mac QA instance, menu by PID, screenshots of the Presenter window):** with Presenter key the menu lists the three Presenter items, all enabled; Larger 180→200 %, Smaller ×2 → 160 %, Reset → 160 % (left at the 160 % default). With the main window key, View still shows the Scripture text-size items.
+- Not exercised: physical key presses — another process cannot reliably activate the QA app (cooperative activation), so synthesized keystrokes may land in another app; the shortcuts are the enabled menu items' key equivalents.

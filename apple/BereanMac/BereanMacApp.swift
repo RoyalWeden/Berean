@@ -6,6 +6,8 @@ import BereanWorkspace
 struct BereanMacApp: App {
     @State private var app = AppModel()
     @FocusedValue(\.bereanStudyWindow) private var isStudyWindow
+    /// Set while the Presenter window is key: ⌘= / ⌘- / ⌘0 then size the audience text.
+    @FocusedValue(\.presenterZoom) private var presenterZoom
 
     init() {
         BereanTips.configure()
@@ -94,7 +96,18 @@ struct BereanMacApp: App {
                 }.disabled(isStudyWindow != true)
             }
             CommandGroup(before: .toolbar) {
+                // Presenter window key: its text-size items, outside the study-window-only group
+                // below (that group's .disabled used to swallow ⌘= / ⌘- / ⌘0 in the Presenter).
+                if let zoom = presenterZoom {
+                    Button("Larger Presenter Text") { zoom.set(zoom.scale + 0.2) }
+                        .keyboardShortcut("=").disabled(zoom.scale >= PresenterZoom.range.upperBound)
+                    Button("Smaller Presenter Text") { zoom.set(zoom.scale - 0.2) }
+                        .keyboardShortcut("-").disabled(zoom.scale <= PresenterZoom.range.lowerBound)
+                    Button("Reset Presenter Text Size") { zoom.set(PresenterZoom.standard) }
+                        .keyboardShortcut("0").disabled(abs(zoom.scale - PresenterZoom.standard) < 0.01)
+                }
                 Group {
+                    if presenterZoom == nil {
                     Button("Increase Scripture Text Size") {
                         app.fontSize = ScriptureTextSize.clamped(app.fontSize + 1)
                     }
@@ -108,6 +121,7 @@ struct BereanMacApp: App {
                     Button("Reset Scripture Text Size") { app.fontSize = ScriptureTextSize.standard }
                         .keyboardShortcut("0")
                         .disabled(app.fontSize == ScriptureTextSize.standard)
+                    }
                     Divider()
                     Button("Toggle Sidebar") { app.sidebarToggleRequest += 1 }.keyboardShortcut("s", modifiers: [.command, .control])
                     Toggle("Compare Texts", isOn: Binding(get: { app.activeReaderState?.compareMode ?? false },
@@ -151,5 +165,22 @@ extension FocusedValues {
     var bereanStudyWindow: Bool? {
         get { self[StudyWindowFocusKey.self] }
         set { self[StudyWindowFocusKey.self] = newValue }
+    }
+}
+
+/// Presenter text scale exposed to the menu bar while the Presenter window is key.
+struct PresenterZoom {
+    static let range: ClosedRange<Double> = 0.8...4
+    static let standard = 1.6
+    var scale: Double
+    var set: (Double) -> Void
+
+    static func clamped(_ value: Double) -> Double { (min(range.upperBound, max(range.lowerBound, value)) * 10).rounded() / 10 }
+}
+private struct PresenterZoomKey: FocusedValueKey { typealias Value = PresenterZoom }
+extension FocusedValues {
+    var presenterZoom: PresenterZoom? {
+        get { self[PresenterZoomKey.self] }
+        set { self[PresenterZoomKey.self] = newValue }
     }
 }
