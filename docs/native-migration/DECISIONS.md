@@ -747,3 +747,7 @@ Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage 
 ## 2026-11-21 — Verse clipboard contract
 
 Use the original copy layout across the native verse-text actions. A single whole verse uses one line, and multiple verses use a reference header and numbered body lines. Keep gaps in the reference and use the original LXX-only edition suffix. A genuine LXX Psalm superscription belongs to the displayed first verse, so whole-verse copy includes it. Omit generated missing-verse notices. Partial Copy with Reference uses the selected words, plain text selection remains plain, and reference-only actions emit only the reference. Cross-reference Copy retains its LXX-only verse-text rule. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md).
+
+## 2026-11-22 — Compare follows closed-reader navigation
+
+Shared CompareColumn now updates following saved columns on real reader passage changes even while Compare is closed. Pins, independent legacy columns, explicit replacements and history snapshots retain their behavior. Both builds, red-before/green-after isolated state probe, Mac close/navigation/reentry with Back/Forward, and iPhone mixed follower/independent reentry pass. Already-stranded ambiguous records remain preserved; use explicit Follow Main Passage. Physical/relaunch/expanded UI matrix and durable viewport work remain open. [Evidence and compatibility](COMPARE-REENTRY-2026-11-22.md).

@@ -2153,3 +2153,7 @@ Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage 
 ## 2026-11-21 — Verse-copy layout and LXX Psalm titles
 
 Reader and Compare copy, Scripture search hits, and applicable cross-reference and highlight copy paths use the shared verse clipboard formatter. A single verse puts its reference and body on one line. Multiple verses put the reference range first, followed by each selected verse on its own numbered line. Whole-verse LXX Psalm copy retains the attached superscription. Both Dev builds and six focused tests passed. Actual clipboard checks covered reader single/range/gapped copy on both platforms, Mac Compare and Scripture search, and iPhone Simulator Psalm 3. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md).
+
+## 2026-11-22 — Compare follows closed-reader navigation
+
+Shared CompareColumn now updates following saved columns on real reader passage changes even while Compare is closed. Pins, independent legacy columns, explicit replacements and history snapshots retain their behavior. Both builds, red-before/green-after isolated state probe, Mac close/navigation/reentry with Back/Forward, and iPhone mixed follower/independent reentry pass. Already-stranded ambiguous records remain preserved; use explicit Follow Main Passage. Physical/relaunch/expanded UI matrix and durable viewport work remain open. [Evidence and compatibility](COMPARE-REENTRY-2026-11-22.md).

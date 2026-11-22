@@ -460,3 +460,7 @@ Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage 
 ## 2026-11-21 — Single selected verse copied with a newline and number prefix
 
 **Fixed locally and verified on Mac and iPhone Simulator.** A single selected verse formerly copied as a reference header followed by a numbered body. Actual clipboard now contains the reference and body on one line. Consecutive and gapped selections retain the multiline layout. Additional passing clipboard cases cover Mac Compare, Mac Scripture search and iPhone LXX Psalm 3. Remaining entry points and partial-text gestures are tracked in S07 and IOS-FUNC-002. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md).
+
+## 2026-11-22 — Compare follows closed-reader navigation
+
+Shared CompareColumn now updates following saved columns on real reader passage changes even while Compare is closed. Pins, independent legacy columns, explicit replacements and history snapshots retain their behavior. Both builds, red-before/green-after isolated state probe, Mac close/navigation/reentry with Back/Forward, and iPhone mixed follower/independent reentry pass. Already-stranded ambiguous records remain preserved; use explicit Follow Main Passage. Physical/relaunch/expanded UI matrix and durable viewport work remain open. [Evidence and compatibility](COMPARE-REENTRY-2026-11-22.md).

@@ -514,3 +514,7 @@ Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage 
 ## 2026-11-21 — Native verse-copy checkpoint
 
 Both final Dev builds and six focused conformance tests passed for the local verse-copy changes. Actual clipboard reads passed for Mac and Simulator reader single/range/gapped selection, Mac Compare single/range and Scripture search, and Simulator LXX Psalm 3 title/body single/range. Individual native menu and partial-selection gesture checks remain open. The copy changes are outside published draft head `fe00494e` at this checkpoint. Broad migration remains active. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md).
+
+## 2026-11-22 — Compare follows closed-reader navigation
+
+Shared CompareColumn now updates following saved columns on real reader passage changes even while Compare is closed. Pins, independent legacy columns, explicit replacements and history snapshots retain their behavior. Both builds, red-before/green-after isolated state probe, Mac close/navigation/reentry with Back/Forward, and iPhone mixed follower/independent reentry pass. Already-stranded ambiguous records remain preserved; use explicit Follow Main Passage. Physical/relaunch/expanded UI matrix and durable viewport work remain open. [Evidence and compatibility](COMPARE-REENTRY-2026-11-22.md).

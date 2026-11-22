@@ -4,9 +4,9 @@
 
 ## Source and publication
 
-- Checkout `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`. Latest app source **d86f69b5**, shared verse clipboard fix on both platforms. Earlier source0819f846, phone margins3bb05740, Compare6fbba670/global-closee31b8d87 retained.
-- At this checkpoint source d86f69b5 is committed locally, documentation dirty, not yet pushed. Published **fe00494e**: CI44975267718 completed SUCCESS for native and legacy; security previously passed. Native CI Mac app-build step was skipped, so local Mac final build remains relevant. Old-head CI does not cover copy source. Next normal fast-forward publication to `github` only, then exact-head checks.
-- Draft24 verified OPEN/draft/base`native/m6-navigation`/headfe00494e. `origin` is owner-local. Owner-only merge22→23 after retarget/green→24. No merge/ready/retarget/force.
+- Checkout `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`. Latest app source **ef9beb91**, saved Compare followers during normal reading; copy fix **d86f69b5** on both platforms. Earlier source0819f846, phone margins3bb05740, Compare6fbba670/global-closee31b8d87 retained.
+- Source d86f69b5 + docs2d2a2fb2 published normally to github; clean immediately after push. Exact-head CI45054330257 now running/queued; no new-head green claim. Later dormant-follow source ef9beb91 locally committed; final docs/publication pending. Published **fe00494e**: CI44975267718 completed SUCCESS for native and legacy; security previously passed. Native CI Mac app-build step was skipped, so local Mac final build remains relevant. Old-head CI does not cover copy source. Normal publication remains `github` only; inspect exact-head checks.
+- Draft24 verified OPEN/draft/base`native/m6-navigation`/head2d2a2fb2. `origin` is owner-local. Owner-only merge22→23 after retarget/green→24. No merge/ready/retarget/force.
 
 ## Copy fix and verification
 
@@ -35,3 +35,13 @@
 2. Continue remaining copy UI entrypoint coverage and compatible dormant Compare reentry design, preserving pinned/independent legacy columns.
 3. Diagnose viewport/history/scrolling with measured geometry rather than timing hacks. Continue phone narrow/large-type/rotation/accessibility matrix.
 4. Keep implementing broader original parity and UX queue with continuous precise handoff notes. Do not mark the broad goal complete for this checkpoint.
+
+## Earlier in-progress notes, 10:20 PST — superseded by final checks below
+
+Source review found CompareColumn.followPassageChange requires both old/new Compare mode, so dormant matching followers miss reader navigation. Removing only that mode guard lets existing AppModel.update unchanged-column-array normalization run for actual anchor changes while Compare off. Pinned records remain byte-identical, legacy independent records become pinned, explicit column edits and history restores retain their own behavior. Cannot safely repair already-stale records with no recorded anchor; preserve rather than guess. Bounded agent owns CompareView-only guard and focused isolated regression probe; parent owns builds/UI/docs/publication. Mac final build session27119/logmac-compare-dormant-follow-build.log running, iOS sequential next.
+
+Additional actual final-copy-source iPhone Compare KJVA Psalm119 single1 and range1–2 pass exact one/three-line contract (`verse-copy-ios-compare-{single,multiple}-after.txt`). Returned to PSA3LXX ordinary reader/no selection/nine tabs; dormant three columns retained. Existing stale-Compare fixture must not be silently rewritten for QA; use UI history-reversible aligned fixture for new navigation test.
+
+## Completed dormant-follow checks, 10:26 PST
+
+Shared two-line guard fix committed **ef9beb91**. Both final Mac/iOS builds pass. Actual Mac EXO32Compare→off→Cmd-L33→on both33; Back/Forward three steps each restore reader/configuration states; returned Compare32. Actual iPhone explicit FollowMain first column3→Exit→main4→Compare first4, two independent LXX118 remain. Five Back restore exact original readerPSA3 and configured KJVA119/LXX118/LXX118thirdpinned. See [reentry evidence](COMPARE-REENTRY-2026-11-22.md). Mac owned process refreshed after exact argv verification; owner728 remains separate/untouched. iPhone final installed70014 advisory; container refreshed. Simulator terminate after install returned nothing-to-terminate (install already stopped it); launch succeeded, not app-crash evidence. Isolated state probe red-before/green-after; full GUI/physical/relaunch matrix not claimed. Final Mac returned GEN1selected1/Notes/offset0; iPhone clean originalPSA3. `compare-dormant-follow-final-data-check.json` retains all original rows, exact37/47IDs and22/26notes. No new notes/tabs.

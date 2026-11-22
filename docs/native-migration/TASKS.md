@@ -593,3 +593,7 @@ Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage 
 ## 2026-11-21 — Verse-copy verification and remaining acceptance
 
 The shared formatter is implemented locally. Final builds and six focused tests passed. Actual pasteboard evidence covers whole-verse reader copy on both platforms, Mac Compare and Scripture search, and grouped LXX Psalm 3 on iPhone. Retain runtime acceptance for individual context menus, cross-reference copy and copy-on-highlight, iPhone Compare/search copy, and native partial-text Copy with Reference across verse boundaries. The physical iPhone touch and accessibility matrix remains open. Verify exact-head CI after authorized publication and continue dormant Compare reentry and viewport/history work. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md).
+
+## 2026-11-22 — Compare follows closed-reader navigation
+
+Shared CompareColumn now updates following saved columns on real reader passage changes even while Compare is closed. Pins, independent legacy columns, explicit replacements and history snapshots retain their behavior. Both builds, red-before/green-after isolated state probe, Mac close/navigation/reentry with Back/Forward, and iPhone mixed follower/independent reentry pass. Already-stranded ambiguous records remain preserved; use explicit Follow Main Passage. Physical/relaunch/expanded UI matrix and durable viewport work remain open. [Evidence and compatibility](COMPARE-REENTRY-2026-11-22.md).
