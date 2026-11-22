@@ -1652,7 +1652,8 @@ struct ScriptureView: View {
                 .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
                 .popover(isPresented: numberingInfoPresented, arrowEdge: .bottom) { numberingInfoPanel }
             #else
-            HStack(spacing: 4) { passageControls(st) }
+            HStack(spacing: 2) { passageControls(st) }
+                .frame(maxWidth: 240)
                 .buttonStyle(.interactivePlain)
                 .padding(.horizontal, 8)
                 .glassEffectCompat(interactive: true)
@@ -1676,13 +1677,61 @@ struct ScriptureView: View {
             #endif
         }
         #if os(iOS)
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return }
+                let enabled = !BibleState(tab.state).showStrongs
+                StrongsTip().invalidate(reason: .actionPerformed)
+                app.update(tabId, recordHistory: false) { $0.state["showStrongs"] = .bool(enabled) }
+            } label: {
+                Image(systemName: "number")
+                    .foregroundStyle(st.showStrongs ? Color.accentColor : Color.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .glassEffectCompat(interactive: true)
+            .opacity(app.readerChromeHidden ? 0 : 1)
+            .offset(y: app.readerChromeHidden ? -12 : 0)
+            .allowsHitTesting(!app.readerChromeHidden)
+            .accessibilityHidden(app.readerChromeHidden)
+            .accessibilityLabel(st.showStrongs ? "Hide Strong's Numbers" : "Show Strong's Numbers")
+            .accessibilityAddTraits(st.showStrongs ? .isSelected : [])
+            .help("Show or hide Strong's numbers in the Scripture text")
+        }
+        .readerOwnGlassBackground()
+        if !st.compareMode {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    app.setReaderCompareMode(true, in: tabId)
+                } label: {
+                    Image(systemName: "rectangle.split.2x1")
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .glassEffectCompat(interactive: true)
+                .opacity(app.readerChromeHidden ? 0 : 1)
+                .offset(y: app.readerChromeHidden ? -12 : 0)
+                .allowsHitTesting(!app.readerChromeHidden)
+                .accessibilityHidden(app.readerChromeHidden)
+                .accessibilityLabel("Compare texts")
+            }
+            .readerOwnGlassBackground()
+        }
         if !st.compareMode, let target = editionAvailability?.counterpart(of: ChapterEdition(st)) {
             ToolbarItem(placement: .topBarTrailing) {
                 let isLxx = ChapterMap.isLxx(st.translation)
                 Button {
                     flipEdition(st, to: target)
                 } label: {
-                    Image(systemName: "arrow.left.arrow.right")
+                    Group {
+                        if isLxx {
+                            Text("LXX").font(.caption.weight(.semibold))
+                        } else {
+                            Image(systemName: "arrow.left.arrow.right")
+                        }
+                    }
                         .foregroundStyle(isLxx ? Color.accentColor : Color.primary)
                         .frame(width: 44, height: 44)
                         .contentShape(.rect)
@@ -1844,26 +1893,41 @@ struct ScriptureView: View {
             .clickableCursor(canStep(-1, from: st))
             #endif
             .disabled(!canStep(-1, from: st))
+        passagePickerButton(st)
+        Button { step(1) } label: { passageArrow("Next Chapter", "chevron.forward") }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
+            #if os(macOS)
+            .clickableCursor(canStep(1, from: st))
+            #endif
+            .disabled(!canStep(1, from: st))
+    }
+
+    private func passagePickerButton(_ st: BibleState) -> some View {
         Button { pickerShown.toggle() } label: {
+            #if os(iOS)
+            let title = Text(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
+                .font(.subheadline.weight(.semibold))
+            // The edition-switch button carries LXX when present, leaving the
+            // full two-line title for the passage and its chapter number.
+            let needsEditionLabel = ChapterMap.isLxx(st.translation) && !st.compareMode
+                && editionAvailability?.counterpart(of: ChapterEdition(st)) == nil
+            let edition = Text(needsEditionLabel ? " LXX" : "")
+                .font(.caption2.weight(.medium)).foregroundColor(.secondary)
+            Text("\(title)\(edition)")
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 44)
+            .contentShape(.rect)
+            #else
             HStack(spacing: 5) {
                 Text(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation))
                     .fontWeight(.semibold)
                     .lineLimit(1)
-                #if os(iOS)
-                if ChapterMap.isLxx(st.translation) {
-                    Text("LXX").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                }
-                #else
                 Text(textInfo(st.translation).short)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                #endif
             }
-            #if os(iOS)
-            .padding(.horizontal, 4)
-            .frame(minHeight: 44)
-            .contentShape(.rect)
             #endif
         }
         #if os(macOS)
@@ -1871,12 +1935,6 @@ struct ScriptureView: View {
         #endif
         .accessibilityLabel("\(Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)), \(textInfo(st.translation).name). Choose passage or text")
         .help("Choose book, chapter or text — search every text or see history")
-        Button { step(1) } label: { passageArrow("Next Chapter", "chevron.forward") }
-            .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).help("Next chapter (⌥⌘→)")
-            #if os(macOS)
-            .clickableCursor(canStep(1, from: st))
-            #endif
-            .disabled(!canStep(1, from: st))
     }
 
     @ViewBuilder private func passageArrow(_ title: String, _ symbol: String) -> some View {

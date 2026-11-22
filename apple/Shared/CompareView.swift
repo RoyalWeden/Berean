@@ -460,23 +460,16 @@ struct CompareView: View {
             if layout != .stacked { arrivingStackedAnchor = nil }
         }
         #if os(iOS)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            HStack(spacing: 2) {
-                manageTranslations(st, cols)
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .hoverEffect(.highlight)
-                Button("Exit Compare", systemImage: "xmark") {
-                    exitCompareKeepingColumns(st, columns: cols)
+        .toolbar {
+            if ownsCurrentCompareToolbar(passage) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    manageTranslations(st, cols)
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .tint(.accentColor)
+                        .accessibilityAddTraits(.isSelected)
                 }
-                .labelStyle(.iconOnly)
-                .frame(minWidth: 44, minHeight: 44)
-                .buttonStyle(.interactivePlain)
             }
-            .padding(.horizontal, 4)
-            .glassEffectCompat(interactive: true)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.horizontal, 16)
         }
         #endif
         #if os(macOS)
@@ -563,6 +556,10 @@ struct CompareView: View {
                 && !cols.contains { $0.text == text.id && $0.follows(st) }
         }
         return Menu {
+            #if os(iOS)
+            Button("Exit Compare", systemImage: "rectangle") { exitCompareKeepingColumns(st, columns: cols) }
+            Divider()
+            #endif
             if canShowIndependentPanes(width: compareWidth, count: cols.count) {
                 Toggle("Sync Scrolling", isOn: Binding(get: { syncScrolling }, set: { enabled in
                     setSyncScrolling(enabled)
@@ -629,6 +626,7 @@ struct CompareView: View {
     }
 
     private func exitCompareKeepingColumns(_ source: BibleState, columns: [CompareColumn]) {
+        guard ownsCurrentCompareToolbar(passageKey(source, columns)) else { return }
         if !comparisonSelectedRows.isEmpty {
             openComparisonSelection()
             return
@@ -640,6 +638,12 @@ struct CompareView: View {
                 ScriptureReadingPosition(offset: 0, verse: reading.verse, selectedVerses: selectedVerses(in: source))
         }
         app.update(tabId) { $0.state.remove("compareMode") }
+    }
+
+    private func ownsCurrentCompareToolbar(_ passage: String) -> Bool {
+        guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return false }
+        let current = BibleState(tab.state)
+        return current.compareMode && passageKey(current, CompareColumn.resolved(in: tab.state)) == passage
     }
 
     private func setSyncScrolling(_ enabled: Bool) {
