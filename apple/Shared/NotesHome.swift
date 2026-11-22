@@ -932,8 +932,26 @@ struct NotesHomeView: View {
 
     // MARK: rows
 
-    func preview(_ n: Note) -> String {
-        noteSearchPreview(n, query: searchRequest.text, mode: searchRequest.mode)
+    private func preview(_ note: Note) -> AttributedString {
+        let query = searchRequest.text
+        if !query.isEmpty {
+            let text = notePreviewExcerpt(note.content, singleLine: true)
+            let plain = String(text.characters)
+            let words = NotesService.cleanWords(query)
+            let terms = searchRequest.mode == .phrase ? [words.joined(separator: " ")] : words
+            if let match = terms.compactMap({ plain.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) })
+                .min(by: { $0.lowerBound < $1.lowerBound }) {
+                let start = plain.index(match.lowerBound, offsetBy: -30, limitedBy: plain.startIndex) ?? plain.startIndex
+                let end = plain.index(match.upperBound, offsetBy: 100, limitedBy: plain.endIndex) ?? plain.endIndex
+                if let lower = AttributedString.Index(start, within: text),
+                   let upper = AttributedString.Index(end, within: text) {
+                    return AttributedString(start == plain.startIndex ? "" : "…")
+                        + AttributedString(text[lower..<upper])
+                        + AttributedString(end == plain.endIndex ? "" : "…")
+                }
+            }
+        }
+        return notePreviewExcerpt(note.content, limit: 240, skippingFirstLineMatching: note.title)
     }
 
     static func dateLabel(_ ms: Int64) -> String {
@@ -1060,9 +1078,18 @@ struct NotesHomeView: View {
                     Image(systemName: "pin.fill").font(.caption).foregroundStyle(.orange)
                 }
             }
-            Text(searchRequest.text.isEmpty ? String(noteExcerptText(n.content).prefix(1200)) : preview(n))
-                .font(.subheadline).foregroundStyle(.secondary)
-                .lineLimit(4).frame(maxWidth: .infinity, alignment: .topLeading)
+            if searchRequest.text.isEmpty {
+                MarkdownText(n.content, maxBlocks: 5, interactive: false)
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(height: 88, alignment: .topLeading)
+                    .clipped()
+            } else {
+                Text(preview(n))
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .lineLimit(4).frame(maxWidth: .infinity, alignment: .topLeading)
+            }
             Spacer(minLength: 0)
             if let status = Self.statuses.first(where: { $0.id == n.status }) {
                 Text(status.label).font(.caption.weight(.medium)).foregroundStyle(status.color)
@@ -1153,7 +1180,7 @@ struct NotesHomeView: View {
                 Spacer(minLength: 0)
             } else {
                 ScrollView {
-                    MarkdownText(String(n.content.prefix(4_000)))
+                    MarkdownText(n.content, maxBlocks: 16)
                         .font(.callout)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }

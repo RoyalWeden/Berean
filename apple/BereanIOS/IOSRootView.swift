@@ -1270,6 +1270,7 @@ private struct TabCardPreview: View {
     @Environment(AppModel.self) private var app
     let tab: BereanWorkspace.Tab
     @State private var text = ""
+    @State private var noteSource: String?
     @State private var leading = ""
     private struct Request: Equatable {
         let tab: BereanWorkspace.Tab
@@ -1287,7 +1288,14 @@ private struct TabCardPreview: View {
             if !leading.isEmpty {
                 Text(leading).font(.caption.weight(.medium)).foregroundStyle(tab.tint)
             }
-            if !text.isEmpty {
+            if let noteSource, !noteSource.isEmpty {
+                MarkdownText(noteSource, maxBlocks: 4, interactive: false)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(height: 76, alignment: .topLeading)
+                    .clipped()
+            } else if !text.isEmpty {
                 Text(text)
                     .font(tab.tabType == .bible ? .system(.subheadline, design: .serif) : .subheadline)
                     .foregroundStyle(.secondary).lineSpacing(2).lineLimit(4)
@@ -1301,8 +1309,9 @@ private struct TabCardPreview: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: request) {
             let request = request
-            text = ""; leading = ""
+            text = ""; leading = ""; noteSource = nil
             var preview = "", caption = ""
+            var noteContent: String?
             switch tab.tabType {
             case .bible:
                 let state = BibleState(tab.state)
@@ -1319,7 +1328,7 @@ private struct TabCardPreview: View {
                 }
             case .note:
                 if let id = tab.state["noteId"]?.stringValue?.string, let note = try? app.notes?.one(id) {
-                    preview = noteExcerptText(note.content).replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+                    noteContent = note.content
                 }
             case .lexicon:
                 if let id = tab.state["strongsNum"]?.stringValue?.string, let entry = await app.lexicon.entry(id) {
@@ -1340,6 +1349,7 @@ private struct TabCardPreview: View {
             guard !Task.isCancelled, self.request == request else { return }
             leading = caption
             text = preview
+            noteSource = noteContent
         }
     }
 }

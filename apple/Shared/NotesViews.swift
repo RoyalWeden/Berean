@@ -19,7 +19,7 @@ struct NoteRowView: View {
                 Text(Date(timeIntervalSince1970: Double(note.updatedAt) / 1000), format: .dateTime.month(.abbreviated).day()).font(.caption).foregroundStyle(.secondary)
             }
             if let ref = note.verseRef { Text(verseLabel(ref, note.textId)).font(.caption).foregroundStyle(.tint) }
-            if !note.content.isEmpty { Text(noteExcerptText(note.content).prefix(200)).font(.callout).foregroundStyle(.secondary).lineLimit(2) }
+            if !note.content.isEmpty { Text(notePreviewExcerpt(note.content, limit: 200)).font(.callout).foregroundStyle(.secondary).lineLimit(2) }
         }
         .padding(.vertical, 2)
     }
@@ -1288,7 +1288,7 @@ struct NoteDetailView: View {
                         .labelStyle(.iconOnly).buttonStyle(.interactivePlain)
                         .frame(minWidth: 44, minHeight: 44)
                     }
-                    Text(noteExcerptText(prepared.replacement).prefix(240))
+                    Text(notePreviewExcerpt(prepared.replacement, limit: 240))
                         .font(.callout).foregroundStyle(.secondary).lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -1381,9 +1381,8 @@ struct NoteDetailView: View {
                                     Text(Reference.formatDottedVerseRef(reference, hermas: app.hermasEdition))
                                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                 }
-                                let excerpt = noteExcerptText(String(preview.content.prefix(2000)))
-                                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                                Text(excerpt.isEmpty ? "No content" : String(excerpt.prefix(400)))
+                                let excerpt = notePreviewExcerpt(preview.content, limit: 400)
+                                Text(excerpt.characters.isEmpty ? AttributedString("No content") : excerpt)
                                     .font(.callout).foregroundStyle(.secondary).lineLimit(3)
                             }
                             Spacer(minLength: 0)
@@ -1554,10 +1553,17 @@ struct NoteDetailView: View {
 struct MarkdownText: View {
     let source: String
     let expands: Bool
-    init(_ s: String, expands: Bool = true) { source = s; self.expands = expands }
+    let maxBlocks: Int?
+    let interactive: Bool
+    init(_ s: String, expands: Bool = true, maxBlocks: Int? = nil, interactive: Bool = true) {
+        source = s
+        self.expands = expands
+        self.maxBlocks = maxBlocks
+        self.interactive = interactive
+    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(NotePreviewBlock.parse(source).enumerated()), id: \.offset) { _, previewBlock in
+        VStack(alignment: .leading, spacing: interactive ? 8 : 4) {
+            ForEach(Array(NotePreviewBlock.parse(source, limit: maxBlocks).enumerated()), id: \.offset) { _, previewBlock in
                 switch previewBlock {
                 case .line(let line): block(line)
                 case .code(let lines):
@@ -1582,8 +1588,8 @@ struct MarkdownText: View {
                 Text(kind.label).fontWeight(.semibold)
                 if !title.isEmpty { inline(title).fontWeight(.semibold) }
             }
-            .accessibilityAddTraits(.isHeader)
-            if !body.isEmpty { MarkdownText(body) }
+            .accessibilityAddTraits(interactive ? .isHeader : [])
+            if !body.isEmpty { MarkdownText(body, maxBlocks: maxBlocks, interactive: interactive) }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1591,53 +1597,53 @@ struct MarkdownText: View {
         .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(kind.color.opacity(0.25)) }
     }
 
-    private func tableView(_ table: NotePreviewTable) -> some View {
-        ScrollView(.horizontal) {
-            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
-                ForEach(table.rows.indices, id: \.self) { row in
-                    GridRow {
-                        ForEach(table.alignments.indices, id: \.self) { column in
-                            let cell = inline(table.rows[row][column])
-                            cell
-                                .fontWeight(row == 0 ? .semibold : .regular)
-                                .multilineTextAlignment(table.alignments[column].text)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .frame(minWidth: 88, maxWidth: 240, alignment: table.alignments[column].frame)
-                                .gridColumnAlignment(table.alignments[column].frame.horizontal)
-                                .accessibilityAddTraits(row == 0 ? .isHeader : [])
-                            if column < table.alignments.count - 1 {
-                                Rectangle().fill(.quaternary)
-                                    .frame(width: 1)
-                                    .gridCellUnsizedAxes(.vertical)
-                                    .accessibilityHidden(true)
-                            }
+    @ViewBuilder private func tableView(_ table: NotePreviewTable) -> some View {
+        if interactive {
+            ScrollView(.horizontal) { tableGrid(table) }
+        } else {
+            tableGrid(table)
+        }
+    }
+
+    private func tableGrid(_ table: NotePreviewTable) -> some View {
+        Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+            ForEach(table.rows.indices, id: \.self) { row in
+                GridRow {
+                    ForEach(table.alignments.indices, id: \.self) { column in
+                        let cell = inline(table.rows[row][column])
+                        cell
+                            .fontWeight(row == 0 ? .semibold : .regular)
+                            .multilineTextAlignment(table.alignments[column].text)
+                            .padding(.horizontal, interactive ? 12 : 5)
+                            .padding(.vertical, interactive ? 8 : 3)
+                            .lineLimit(interactive ? nil : 1)
+                            .frame(minWidth: interactive ? 88 : 0, maxWidth: 240, alignment: table.alignments[column].frame)
+                            .gridColumnAlignment(table.alignments[column].frame.horizontal)
+                            .accessibilityAddTraits(interactive && row == 0 ? .isHeader : [])
+                        if column < table.alignments.count - 1 {
+                            Rectangle().fill(.quaternary)
+                                .frame(width: 1)
+                                .gridCellUnsizedAxes(.vertical)
+                                .accessibilityHidden(true)
                         }
                     }
-                    .background(row == 0 ? Color.secondary.opacity(0.10) : .clear)
-                    if row != table.rows.indices.last {
-                        Divider().gridCellUnsizedAxes(.horizontal)
-                    }
+                }
+                .background(row == 0 ? Color.secondary.opacity(0.10) : .clear)
+                if row != table.rows.indices.last {
+                    Divider().gridCellUnsizedAxes(.horizontal)
                 }
             }
-            .background(.background)
-            .clipShape(.rect(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary) }
         }
+        .background(.background)
+        .clipShape(.rect(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary) }
         .accessibilityLabel("Table")
     }
 
     func inline(_ s: String) -> Text {
-        var text = AttributedString()
-        for (var segment, highlight) in notePreviewInline(s) {
-            if let highlight {
-                segment.backgroundColor = Color.highlight(highlight).opacity(0.35)
-                segment.foregroundColor = .primary
-            }
-            text += segment
-        }
-        return Text(text)
+        Text(styledNotePreviewInline(s, interactive: interactive))
     }
+
     private func standaloneScriptureLink(_ line: String) -> (label: String, url: URL)? {
         guard let parsed = try? AttributedString(markdown: line, options: .init(interpretedSyntax: .inlineOnly)),
               let url = parsed.runs.first?.link,
@@ -1649,7 +1655,7 @@ struct MarkdownText: View {
     @ViewBuilder func block(_ line: String) -> some View {
         let t = line.trimmingCharacters(in: .whitespaces)
         let leading = NoteImages.leadingImage(in: t)
-        if let image = leading?.image,
+        if interactive, let image = leading?.image,
            image.source.lowercased().hasPrefix("https://") || image.source.lowercased().hasPrefix("http://"),
            let url = URL(string: image.source) {
             // Remote image line in a read-only preview (Presenter etc.).
@@ -1666,7 +1672,7 @@ struct MarkdownText: View {
                 if !image.alt.isEmpty { Text(image.alt).font(.caption).foregroundStyle(.secondary) }
                 if let remainder = leading?.remainder, !remainder.trimmingCharacters(in: .whitespaces).isEmpty {
                     if NoteImages.leadingImage(in: remainder.trimmingCharacters(in: .whitespaces)) != nil {
-                        MarkdownText(remainder, expands: expands)
+                        MarkdownText(remainder, expands: expands, maxBlocks: maxBlocks, interactive: interactive)
                     } else {
                         inline(remainder)
                     }
@@ -1684,13 +1690,13 @@ struct MarkdownText: View {
                 if !image.alt.isEmpty { Text(image.alt).font(.caption).foregroundStyle(.secondary) }
                 if let remainder = leading?.remainder, !remainder.trimmingCharacters(in: .whitespaces).isEmpty {
                     if NoteImages.leadingImage(in: remainder.trimmingCharacters(in: .whitespaces)) != nil {
-                        MarkdownText(remainder, expands: expands)
+                        MarkdownText(remainder, expands: expands, maxBlocks: maxBlocks, interactive: interactive)
                     } else {
                         inline(remainder)
                     }
                 }
             }
-        } else if let passage = standaloneScriptureLink(t) {
+        } else if interactive, let passage = standaloneScriptureLink(t) {
             Link(destination: passage.url) {
                 Label(passage.label, systemImage: "book")
                     .foregroundStyle(Color.accentColor)
@@ -1701,10 +1707,20 @@ struct MarkdownText: View {
             .clickableCursor()
             #endif
             .accessibilityLabel("Open \(passage.label) in Scripture")
-        } else if t.hasPrefix("### ") { inline(String(t.dropFirst(4))).font(.title3.bold()) }
-        else if t.hasPrefix("## ") { inline(String(t.dropFirst(3))).font(.title2.bold()) }
-        else if t.hasPrefix("# ") { inline(String(t.dropFirst(2))).font(.title.bold()) }
-        else if t.hasPrefix(">") { HStack(spacing: 8) { RoundedRectangle(cornerRadius: 1).fill(.secondary).frame(width: 3); inline(String(t.drop { $0 == ">" || $0 == " " })).foregroundStyle(.secondary) } }
+        } else if let heading = notePreviewHeading(t) {
+            let font: Font = interactive
+                ? (heading.level == 1 ? .title : heading.level == 2 ? .title2 : .title3)
+                : .subheadline
+            inline(heading.text).font(font.bold()).accessibilityAddTraits(interactive ? .isHeader : [])
+        }
+        else if t.hasPrefix(">") {
+            inline(String(t.drop { $0 == ">" || $0.isWhitespace }))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 11)
+                .overlay(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 1).fill(.secondary).frame(width: 3)
+                }
+        }
         else if let item = NotePreviewListItem(line) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let checked = item.checked {
@@ -1718,7 +1734,7 @@ struct MarkdownText: View {
             }
             .padding(.leading, CGFloat(item.indent) * 12)
         }
-        else if t == "---" || t == "***" { Divider() }
+        else if notePreviewRule(t) { Divider() }
         else if t.isEmpty { Spacer().frame(height: 2) }
         else { inline(line) }
     }
@@ -1841,7 +1857,7 @@ private enum NotePreviewBlock {
         return body.first == " " ? body.dropFirst() : body
     }
 
-    static func parse(_ source: String) -> [Self] {
+    static func parse(_ source: String, limit: Int? = nil) -> [Self] {
         let normalized = source.replacingOccurrences(of: "\r\n", with: "\n")
         let lines = normalized.components(separatedBy: "\n")
         var recoveredRules = Set<Int>()
@@ -1859,9 +1875,20 @@ private enum NotePreviewBlock {
         }
         var blocks: [Self] = []
         var index = 0
-        while index < lines.count {
+        while index < lines.count, limit.map({ blocks.count < $0 }) ?? true {
             let line = lines[index]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if limit != nil, blocks.isEmpty, trimmed.isEmpty {
+                index += 1
+                continue
+            }
+            if trimmed.hasSuffix("-->"), trimmed.hasPrefix("<!--") {
+                let comment = trimmed.dropFirst(4).dropLast(3).trimmingCharacters(in: .whitespaces)
+                if comment.hasPrefix("berean:") || comment.hasPrefix("/berean:") {
+                    index += 1
+                    continue
+                }
+            }
             if let mark = trimmed.first, mark == "`" || mark == "~" {
                 let length = trimmed.prefix { $0 == mark }.count
                 if length >= 3, mark == "~" || !trimmed.dropFirst(length).contains(mark) {
@@ -1873,7 +1900,7 @@ private enum NotePreviewBlock {
                             index += 1
                             break
                         }
-                        code.append(lines[index])
+                        if limit.map({ code.count < $0 }) ?? true { code.append(lines[index]) }
                         index += 1
                     }
                     blocks.append(.code(code))
@@ -1910,7 +1937,7 @@ private enum NotePreviewBlock {
                            recoveredRules.contains(index + 1) || rule.allSatisfy({ NotePreviewTable.alignment($0) != nil }) {
                             break
                         }
-                        table.rows.append(row)
+                        if limit.map({ table.rows.count < $0 }) ?? true { table.rows.append(row) }
                         index += 1
                     }
                     blocks.append(.table(table))
@@ -1922,6 +1949,87 @@ private enum NotePreviewBlock {
         }
         return blocks
     }
+}
+
+private func notePreviewHeading(_ line: String) -> (level: Int, text: String)? {
+    let marks = line.prefix { $0 == "#" }
+    guard (1...6).contains(marks.count),
+          line.dropFirst(marks.count).first?.isWhitespace == true else { return nil }
+    let text = line.dropFirst(marks.count).trimmingCharacters(in: .whitespaces)
+    return (marks.count, text.replacingOccurrences(of: #"\s+#+$"#, with: "", options: .regularExpression))
+}
+
+private func notePreviewRule(_ line: String) -> Bool {
+    let marks = line.filter { !$0.isWhitespace }
+    guard marks.count >= 3, let mark = marks.first, "-*_".contains(mark) else { return false }
+    return marks.allSatisfy { $0 == mark }
+}
+
+/// Compact previews keep inline formatting while fitting inside a line-limited label.
+func notePreviewExcerpt(
+    _ source: String,
+    limit: Int? = nil,
+    singleLine: Bool = false,
+    skippingFirstLineMatching title: String? = nil
+) -> AttributedString {
+    var result = AttributedString()
+    func append(_ text: AttributedString) {
+        guard text.characters.contains(where: { !$0.isWhitespace }) else { return }
+        if result.characters.isEmpty, let title,
+           String(text.characters).trimmingCharacters(in: .whitespacesAndNewlines) == title { return }
+        if !result.characters.isEmpty { result += AttributedString(singleLine ? " " : "\n") }
+        result += text
+    }
+
+    for block in NotePreviewBlock.parse(source) {
+        switch block {
+        case .line(let line):
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let heading = notePreviewHeading(trimmed) {
+                var text = styledNotePreviewInline(heading.text, interactive: false)
+                for run in text.runs.map({ ($0.range, $0.inlinePresentationIntent ?? []) }) {
+                    text[run.0].inlinePresentationIntent = run.1.union(.stronglyEmphasized)
+                }
+                append(text)
+            } else if notePreviewRule(trimmed) {
+                continue
+            } else if let item = NotePreviewListItem(line) {
+                append(AttributedString(item.printMarker + " ") + styledNotePreviewInline(item.content, interactive: false))
+            } else {
+                let content = trimmed.hasPrefix(">") ? String(trimmed.drop { $0 == ">" || $0.isWhitespace }) : trimmed
+                append(styledNotePreviewInline(content, interactive: false))
+            }
+        case .code(let lines):
+            for line in lines {
+                var code = AttributedString(line)
+                code.inlinePresentationIntent = .code
+                append(code)
+                if let limit, result.characters.count >= limit { break }
+            }
+        case .table(let table):
+            for row in table.rows {
+                var text = AttributedString()
+                for cell in row where !cell.isEmpty {
+                    if !text.characters.isEmpty { text += AttributedString(" · ") }
+                    text += styledNotePreviewInline(cell, interactive: false)
+                }
+                append(text)
+                if let limit, result.characters.count >= limit { break }
+            }
+        case .callout(let kind, let title, let body):
+            var label = AttributedString(kind.label)
+            label.inlinePresentationIntent = .stronglyEmphasized
+            if !title.isEmpty { label += AttributedString(" — ") + styledNotePreviewInline(title, interactive: false) }
+            append(label)
+            append(notePreviewExcerpt(body, limit: limit, singleLine: singleLine))
+        }
+        if let limit, result.characters.count >= limit { break }
+    }
+    if let limit, result.characters.count > limit {
+        let end = result.characters.index(result.startIndex, offsetBy: limit)
+        return AttributedString(result[..<end]) + AttributedString("…")
+    }
+    return result
 }
 
 /// Compact note rows read across the cells of a table, leaving its Markdown intact.
@@ -1942,7 +2050,7 @@ func noteExcerptText(_ source: String) -> String {
         case .table(let table):
             return table.rows.map { row in
                 row.map { cell in
-                    notePreviewInline(cell).map { String($0.0.characters) }.joined()
+                    notePreviewInline(cell).map { String($0.text.characters) }.joined()
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                 }.filter { !$0.isEmpty }.joined(separator: " · ")
             }.joined(separator: "\n")
@@ -1950,41 +2058,99 @@ func noteExcerptText(_ source: String) -> String {
     }.joined(separator: "\n")
 }
 
-/// Feed the editor's custom highlight syntax through Foundation Markdown without
-/// breaking emphasis or links that span a highlight boundary.
-private func notePreviewInline(_ source: String) -> [(AttributedString, String?)] {
+private enum NotePreviewMark {
+    case highlight(String)
+    case underline
+    case wikiLink
+    case image
+}
+
+private struct NotePreviewRun {
+    let text: AttributedString
+    let marks: [NotePreviewMark]
+}
+
+private func styledNotePreviewInline(_ source: String, interactive: Bool = true) -> AttributedString {
+    var result = AttributedString()
+    for run in notePreviewInline(source) {
+        var text = run.text
+        if !interactive, text.runs.contains(where: { $0.link != nil }) {
+            for link in text.runs.filter({ $0.link != nil }).map(\.range) {
+                text[link].link = nil
+                text[link].foregroundColor = .accentColor
+            }
+        }
+        for mark in run.marks {
+            switch mark {
+            case .highlight(let color):
+                text.backgroundColor = Color.highlight(color).opacity(0.35)
+                text.foregroundColor = .primary
+            case .underline:
+                text.underlineStyle = .single
+            case .wikiLink:
+                text.foregroundColor = .accentColor
+            case .image:
+                break
+            }
+        }
+        result += text
+    }
+    return result
+}
+
+/// Replace the editor's custom delimiters during Markdown parsing so standard
+/// emphasis can still span the boundaries of a note-specific mark.
+private func notePreviewInline(_ source: String) -> [NotePreviewRun] {
     func parse(_ text: String) -> AttributedString {
         (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(text)
     }
 
-    guard source.contains("==") || source.contains("<mark class=\"hl-") else { return [(parse(source), nil)] }
-    let candidates = MarkdownLiveSpans.spans(source).compactMap { span -> (NSRange, String?)? in
-        if case .highlight(let color) = span.kind { return (span.range, color) }
-        return nil
-    }.sorted { $0.0.location < $1.0.location }
-    var highlights: [(NSRange, String?)] = []
-    var previousEnd = 0
-    for (range, color) in candidates {
-        let prefixLength = color.map { "<mark class=\"hl-\($0)\">".utf16.count } ?? 2
-        let suffixLength = color == nil ? 2 : 7
-        guard range.location - prefixLength >= previousEnd else { continue }
-        highlights.append((range, color))
-        previousEnd = NSMaxRange(range) + suffixLength
+    guard source.contains("==") || source.contains("<mark class=\"hl-") ||
+            source.contains("<u>") || source.contains("[[") || source.contains("![") else {
+        return [NotePreviewRun(text: parse(source), marks: [])]
     }
-    guard !highlights.isEmpty else { return [(parse(source), nil)] }
+    let spans = MarkdownLiveSpans.spans(source)
+    let hidden = spans.filter { $0.kind == .hidden }
+    let hiddenByEnd = Dictionary(grouping: hidden, by: { $0.range.upperBound })
+    let hiddenByStart = Dictionary(grouping: hidden, by: { $0.range.location })
+    var marks: [NotePreviewMark] = []
+    var edits: [(range: NSRange, token: String)] = []
+    var usedDelimiters = Set<NSRange>()
+    var prefix = "\u{E000}"
+    while source.contains(prefix) { prefix += "\u{E001}" }
+    let suffix = "\u{E002}"
+    let sourceText = source as NSString
+    for span in spans {
+        let mark: NotePreviewMark
+        let opening: String
+        let closing: String
+        switch span.kind {
+        case .highlight(let color):
+            mark = .highlight(color ?? "yellow")
+            opening = color.map { "<mark class=\"hl-\($0)\">" } ?? "=="
+            closing = color == nil ? "==" : "</mark>"
+        case .underline: (mark, opening, closing) = (.underline, "<u>", "</u>")
+        case .wikilink: (mark, opening, closing) = (.wikiLink, "[[", "]]")
+        case .image: (mark, opening, closing) = (.image, "![", ")")
+        default: continue
+        }
+        guard let before = hiddenByEnd[span.range.location]?.first(where: {
+            sourceText.substring(with: $0.range).hasPrefix(opening)
+        }), let after = hiddenByStart[span.range.upperBound]?.first(where: {
+            sourceText.substring(with: $0.range).hasSuffix(closing)
+        }), !usedDelimiters.contains(before.range), !usedDelimiters.contains(after.range) else { continue }
+        marks.append(mark)
+        edits.append((before.range, prefix + String(marks.count) + suffix))
+        edits.append((after.range, prefix + String(-marks.count) + suffix))
+        usedDelimiters.insert(before.range)
+        usedDelimiters.insert(after.range)
+    }
+    guard !edits.isEmpty else { return [NotePreviewRun(text: parse(source), marks: [])] }
 
-    // Private-use characters survive inline Markdown parsing and never enter the saved note.
-    var marker = "\u{E000}"
-    while source.contains(marker) { marker += "\u{E001}" }
-    let opening = marker + "\u{E002}"
-    let closing = marker + "\u{E003}"
     let marked = NSMutableString(string: source)
-    for (range, color) in highlights.reversed() {
-        let prefix = color.map { "<mark class=\"hl-\($0)\">" } ?? "=="
-        let suffix = color == nil ? "==" : "</mark>"
-        marked.replaceCharacters(in: NSRange(location: NSMaxRange(range), length: suffix.utf16.count), with: closing)
-        marked.replaceCharacters(in: NSRange(location: range.location - prefix.utf16.count, length: prefix.utf16.count), with: opening)
+    for edit in edits.sorted(by: { $0.range.location > $1.range.location }) {
+        marked.replaceCharacters(in: edit.range, with: edit.token)
     }
     let parsed = parse(marked as String)
     let plain = String(parsed.characters)
@@ -1994,19 +2160,23 @@ private func notePreviewInline(_ source: String) -> [(AttributedString, String?)
         return AttributedString(parsed[start..<end])
     }
 
-    var result: [(AttributedString, String?)] = []
+    var runs: [NotePreviewRun] = []
+    var activeMarks: [Int] = []
     var cursor = plain.startIndex
-    for (_, color) in highlights {
-        guard let open = plain.range(of: opening, range: cursor..<plain.endIndex),
-              let close = plain.range(of: closing, range: open.upperBound..<plain.endIndex),
-              let before = segment(cursor..<open.lowerBound),
-              let highlighted = segment(open.upperBound..<close.lowerBound) else { return [(parse(source), nil)] }
-        result.append((before, nil))
-        result.append((highlighted, color ?? "yellow"))
-        cursor = close.upperBound
+    while let start = plain.range(of: prefix, range: cursor..<plain.endIndex),
+          let end = plain.range(of: suffix, range: start.upperBound..<plain.endIndex),
+          let index = Int(plain[start.upperBound..<end.lowerBound]) {
+        if let text = segment(cursor..<start.lowerBound), !text.characters.isEmpty {
+            runs.append(NotePreviewRun(text: text, marks: activeMarks.map { marks[$0 - 1] }))
+        }
+        if index > 0 { activeMarks.append(index) }
+        else { activeMarks.removeAll { $0 == -index } }
+        cursor = end.upperBound
     }
-    if let tail = segment(cursor..<plain.endIndex) { result.append((tail, nil)) }
-    return result
+    if let text = segment(cursor..<plain.endIndex), !text.characters.isEmpty {
+        runs.append(NotePreviewRun(text: text, marks: activeMarks.map { marks[$0 - 1] }))
+    }
+    return runs
 }
 
 /// Print markup is built only from parsed text. Raw HTML and resource URLs in notes are never loaded.
@@ -2085,7 +2255,8 @@ private enum NotePrintMarkup {
     }
 
     private static func inline(_ source: String) -> String {
-        notePreviewInline(source).map { text, highlight in
+        notePreviewInline(source).map { piece in
+            let text = piece.text
             let rendered = text.runs.map { run in
                 var value = escape(String(text[run.range].characters))
                 if let intent = run.inlinePresentationIntent {
@@ -2097,8 +2268,14 @@ private enum NotePrintMarkup {
                 if run.link != nil { value = "<u>\(value)</u>" }
                 return value
             }.joined()
-            guard let highlight else { return rendered }
-            return "<span style=\"background-color: \(backgrounds[highlight] ?? "#fff0a3")\">\(rendered)</span>"
+            return piece.marks.reduce(rendered) { value, mark in
+                switch mark {
+                case .highlight(let color):
+                    return "<span style=\"background-color: \(backgrounds[color] ?? "#fff0a3")\">\(value)</span>"
+                case .underline, .wikiLink: return "<u>\(value)</u>"
+                case .image: return value
+                }
+            }
         }.joined()
     }
 
