@@ -501,8 +501,10 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             if text == "\n", range == textView.selectedRange, range.length == 0, textView.markedTextRange == nil {
                 let wiki = NoteWikiLinkCompletion.detect(in: textView.text, selection: range)
                 let reference = wiki == nil ? NoteReferenceCompletion.detect(in: textView.text, selection: range) : nil
+                let slash = wiki == nil && reference == nil ? NoteSlashCompletion.detect(in: textView.text, selection: range) : nil
                 if ((wiki != nil && wiki == publishedWikiLinkQuery)
-                    || (reference != nil && reference == publishedReferenceCompletion)),
+                    || (reference != nil && reference == publishedReferenceCompletion)
+                    || (slash != nil && slash == publishedSlashCompletion)),
                    parent.onWikiLinkCommand(.accept) { return false }
             }
             guard let dash = NoteAutoEmDash.dashRange(in: textView.text as NSString, range: range, replacement: text),

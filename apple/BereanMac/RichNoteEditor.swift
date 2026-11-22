@@ -368,10 +368,12 @@ struct RichNoteEditor: NSViewRepresentable {
             guard !textView.hasMarkedText() else { return false }
             let wiki = NoteWikiLinkCompletion.detect(in: textView.string, selection: textView.selectedRange())
             let reference = wiki == nil ? NoteReferenceCompletion.detect(in: textView.string, selection: textView.selectedRange()) : nil
+            let slash = wiki == nil && reference == nil ? NoteSlashCompletion.detect(in: textView.string, selection: textView.selectedRange()) : nil
             // A key can arrive before the coalesced query notification. Let normal
             // editing continue rather than accepting an older result and losing Return.
             guard (wiki != nil && wiki == publishedWikiLinkQuery)
-                    || (reference != nil && reference == publishedReferenceCompletion) else { return false }
+                    || (reference != nil && reference == publishedReferenceCompletion)
+                    || (slash != nil && slash == publishedSlashCompletion) else { return false }
             let command: NoteWikiLinkCommand
             switch commandSelector {
             case #selector(NSResponder.moveUp(_:)): command = .up
