@@ -16,6 +16,8 @@ public struct StudyTrailService {
         public let chapter: Int
         public let translation: String?
         public let subnote: String?
+        /// Original v36 user-marked topic break (`is_topic_break`): a "New topic" divider above this stop.
+        public var isTopicBreak: Bool = false
     }
 
     public struct Connection: Identifiable, Sendable {
@@ -305,14 +307,14 @@ public struct StudyTrailService {
 
     public func stops(in trailId: String) throws -> [Stop] {
         let rows = try db.query("""
-            SELECT id, book_id, chapter, translation, cached_subnote
+            SELECT id, book_id, chapter, translation, cached_subnote, is_topic_break
             FROM trail_nodes WHERE trail_session_id = ? ORDER BY order_index, id
             """, [.text(trailId)])
         return rows.compactMap { row in
             guard let id = row["id"]?.string, let book = row["book_id"]?.string,
                   let chapter = row["chapter"]?.int else { return nil }
             return Stop(id: id, bookId: book, chapter: chapter, translation: row["translation"]?.string,
-                        subnote: row["cached_subnote"]?.string)
+                        subnote: row["cached_subnote"]?.string, isTopicBreak: row["is_topic_break"]?.int == 1)
         }
     }
 
@@ -568,6 +570,51 @@ public struct StudyTrailService {
             UPDATE trail_nodes SET anchor_ended_at = MAX(anchor_started_at, ?)
             WHERE trail_session_id = ? AND anchor_ended_at IS NULL
             """, [time, trail])
+    }
+
+    // MARK: topic breaks / moving stops (port of setNodeTopicBreak / moveNodes)
+
+    @discardableResult
+    public func setTopicBreak(_ isBreak: Bool, stopId: String) throws -> Bool {
+        try db.run("UPDATE trail_nodes SET is_topic_break = ? WHERE id = ?", [.integer(isBreak ? 1 : 0), .text(stopId)]).changes == 1
+    }
+
+    /// Moves stops (with every connection hanging off them, chained ones included) into
+    /// `targetId`, slotted in by time; both sides are renumbered.
+    @discardableResult
+    public func moveStops(_ stopIds: [String], to targetId: String, at time: Int64) throws -> Bool {
+        guard !stopIds.isEmpty else { return false }
+        return try transaction {
+            guard try db.query("SELECT id FROM trail_sessions WHERE id = ?", [.text(targetId)]).first != nil else { return false }
+            var sources = Set<String>()
+            var frontier: [String] = []
+            for id in stopIds {
+                if let source = try db.query("SELECT trail_session_id FROM trail_nodes WHERE id = ?", [.text(id)]).first?["trail_session_id"]?.string {
+                    sources.insert(source)
+                }
+                frontier += try db.query("SELECT id FROM trail_connections WHERE from_node_id = ?", [.text(id)]).compactMap { $0["id"]?.string }
+            }
+            var connections = Set(frontier)
+            while !frontier.isEmpty {
+                var next: [String] = []
+                for id in frontier {
+                    for row in try db.query("SELECT id FROM trail_connections WHERE from_connection_id = ?", [.text(id)]) {
+                        if let child = row["id"]?.string, connections.insert(child).inserted { next.append(child) }
+                    }
+                }
+                frontier = next
+            }
+            for id in stopIds {
+                try db.run("UPDATE trail_nodes SET trail_session_id = ?, order_index = COALESCE(anchor_started_at, order_index) WHERE id = ?",
+                           [.text(targetId), .text(id)])
+            }
+            for id in connections {
+                try db.run("UPDATE trail_connections SET trail_session_id = ? WHERE id = ?", [.text(targetId), .text(id)])
+            }
+            try db.run("UPDATE trail_sessions SET updated_at = ? WHERE id = ?", [.integer(time), .text(targetId)])
+            for trail in sources.union([targetId]) { try renumberStops(trail) }
+            return true
+        }
     }
 
     // MARK: merge / split (port of studyTrailService.ts mergeSessions / splitSession)

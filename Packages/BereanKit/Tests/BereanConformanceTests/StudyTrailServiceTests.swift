@@ -252,3 +252,24 @@ import Testing
     #expect(try db.query("SELECT id FROM trail_sessions WHERE id = '__loose_stops__'").count == 1)
     #expect(try trail.stops(in: "s").map(\.id) == ["a2", "a3", "l1"])
 }
+
+@Test func movesStopsWithChainedConnectionsAndMarksTopicBreaks() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    try db.exec("""
+        INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES ('a', 'A', 'ended', 1, 1), ('b', 'B', 'ended', 1, 1);
+        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at)
+        VALUES ('a1', 'a', 'GEN', 1, 0, 10), ('a2', 'a', 'GEN', 2, 1, 30), ('b1', 'b', 'EXO', 1, 0, 20);
+        INSERT INTO trail_connections (id, trail_session_id, from_node_id, from_connection_id, to_kind, to_strongs_num, clarity_tier, created_at)
+        VALUES ('c1', 'a', 'a2', NULL, 'lexicon', 'H1', 1, 31), ('c2', 'a', 'a1', 'c1', 'lexicon', 'H2', 1, 32), ('c3', 'a', 'a1', NULL, 'lexicon', 'H3', 1, 11);
+        """)
+    let trail = StudyTrailService(db: db)
+    #expect(try trail.setTopicBreak(true, stopId: "a2"))
+    #expect(try trail.stops(in: "a").map(\.isTopicBreak) == [false, true])
+    #expect(try trail.moveStops(["a2"], to: "b", at: 40))
+    #expect(try trail.stops(in: "b").map(\.id) == ["b1", "a2"])          // slotted in by time
+    #expect(try trail.stops(in: "a").map(\.id) == ["a1"])
+    #expect(try db.query("SELECT id FROM trail_connections WHERE trail_session_id = 'b' ORDER BY id").compactMap { $0["id"]?.string } == ["c1", "c2"])
+    #expect(try db.query("SELECT order_index FROM trail_nodes WHERE id = 'a2'").first?["order_index"]?.int == 1)
+    #expect(try !trail.moveStops(["a1"], to: "missing", at: 41))
+}

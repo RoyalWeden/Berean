@@ -312,6 +312,7 @@ private struct StudyTrailStopsView: View {
     }
     let trail: StudyTrailService.Trail
     let reloadTrails: () -> Void
+    @State private var otherTrails: [StudyTrailService.Trail] = []
 
     init(query: String, trail: StudyTrailService.Trail, reloadTrails: @escaping () -> Void) {
         _query = State(initialValue: query)
@@ -446,6 +447,7 @@ private struct StudyTrailStopsView: View {
             } else if !visibleStops.isEmpty {
                 Section("Stops") {
                     ForEach(visibleStops) { stop in
+                        if stop.isTopicBreak { topicBreakDivider }
                         stopRow(stop, editable: true)
                     }
                 }
@@ -628,10 +630,45 @@ private struct StudyTrailStopsView: View {
             if editable { editNoteButton(.stop(stop)) }
         }
         .contextMenu {
-            // Original "Split here": this stop and everything after it become a new paused trail.
-            if editable, stops.first?.id != stop.id {
-                Button("Split Here", systemImage: "scissors") { splitHere(stop) }
+            if editable {
+                // Original v36 topic break: a "New topic" divider above this stop.
+                Button(stop.isTopicBreak ? "Remove Topic Break" : "Mark as New Topic",
+                       systemImage: stop.isTopicBreak ? "minus" : "text.line.first.and.arrowtriangle.forward") {
+                    stopAction { try $0.setTopicBreak(!stop.isTopicBreak, stopId: stop.id) }
+                }
+                if !otherTrails.isEmpty {
+                    Menu("Move to Trail", systemImage: "arrow.right.doc.on.clipboard") {
+                        ForEach(otherTrails) { target in
+                            Button(target.name.isEmpty ? "Untitled Trail" : target.name) {
+                                stopAction { try $0.moveStops([stop.id], to: target.id, at: StudyTrailView.now()) }
+                                reloadTrails()
+                            }
+                        }
+                    }
+                }
+                // Original "Split here": this stop and everything after it become a new paused trail.
+                if stops.first?.id != stop.id {
+                    Button("Split Here", systemImage: "scissors") { splitHere(stop) }
+                }
             }
+        }
+    }
+
+    private var topicBreakDivider: some View {
+        HStack(spacing: 8) {
+            Text("New Topic").font(.caption.weight(.bold)).textCase(.uppercase).foregroundStyle(.tint)
+            Rectangle().fill(.tint.opacity(0.35)).frame(height: 1)
+        }
+        .listRowSeparator(.hidden)
+        .accessibilityLabel("New topic")
+    }
+
+    private func stopAction(_ body: (StudyTrailService) throws -> Bool) {
+        do {
+            guard let service = app.studyTrailService, try body(service) else { return }
+            load()
+        } catch {
+            actionMessage = "The trail could not be changed."
         }
     }
 
@@ -732,6 +769,7 @@ private struct StudyTrailStopsView: View {
             let loadedStops = try service.stops(in: trail.id)
             connections = try service.connections(in: trail.id)
             stickies = try service.stickies(in: trail.id)
+            otherTrails = try service.trails().filter { $0.id != trail.id }
             stops = loadedStops
             loadFailed = false
         } catch {
