@@ -313,6 +313,9 @@ private struct StudyTrailStopsView: View {
     let trail: StudyTrailService.Trail
     let reloadTrails: () -> Void
     @State private var otherTrails: [StudyTrailService.Trail] = []
+    /// Original marquee multi-select → native selection mode for moving several stops at once.
+    @State private var selectingStops = false
+    @State private var selectedStops = Set<String>()
 
     init(query: String, trail: StudyTrailService.Trail, reloadTrails: @escaping () -> Void) {
         _query = State(initialValue: query)
@@ -323,7 +326,12 @@ private struct StudyTrailStopsView: View {
     var body: some View {
         Group {
             if presentation == .map { mapContent }
-            else { listContent }
+            else {
+                listContent
+                    #if os(iOS)
+                    .environment(\.editMode, .constant(selectingStops ? .active : .inactive))
+                    #endif
+            }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
@@ -381,6 +389,8 @@ private struct StudyTrailStopsView: View {
                 draftTrailName = trail.name
                 renamingTrail = true
             }
+            Button("Select Stops", systemImage: "checkmark.circle") { presentation = .list; selectingStops = true }
+                .disabled(stops.count < 1)
             Button("Tags", systemImage: "tag") { showsTags = true }
             Button("Sticky Notes", systemImage: "note.text") { showsStickies = true }
             Button(trail.recap?.isEmpty == false ? "Edit Recap" : "Add Recap", systemImage: "text.alignleft") {
@@ -424,7 +434,7 @@ private struct StudyTrailStopsView: View {
         let visibleStops = matchingStops
         let visibleConnections = matchingConnections
         let showConnect = !searchActive && !stops.isEmpty && currentDestination != nil
-        return List {
+        return List(selection: $selectedStops) {
             if let recap = trail.recap, !recap.isEmpty, matches(recap) {
                 Section("Recap") {
                     MarkdownText(recap)
@@ -445,11 +455,17 @@ private struct StudyTrailStopsView: View {
             } else if !searchActive && stops.isEmpty {
                 Text("No stops in this trail.").foregroundStyle(.secondary)
             } else if !visibleStops.isEmpty {
-                Section("Stops") {
+                Section {
                     ForEach(visibleStops) { stop in
-                        if stop.isTopicBreak { topicBreakDivider }
-                        stopRow(stop, editable: true)
+                        // The divider shares its stop's row so selection mode only offers real stops.
+                        VStack(alignment: .leading, spacing: 10) {
+                            if stop.isTopicBreak { topicBreakDivider }
+                            stopRow(stop, editable: true)
+                        }
+                        .tag(stop.id)
                     }
+                } header: {
+                    if selectingStops { selectionBar } else { Text("Stops") }
                 }
             }
             if !visibleStickies.isEmpty {
@@ -523,6 +539,7 @@ private struct StudyTrailStopsView: View {
             ForEach(displayedStops) { node in
                 let notes = stickiesByAnchor[node.id, default: []]
                 Section {
+                    if node.stop.isTopicBreak { topicBreakDivider }
                     ForEach(notes.filter { $0.kind == .section }) { mapSticky($0) }
                     stopRow(node.stop, editable: false)
                     ForEach(notes.filter { $0.kind == .annotation }) { mapSticky($0) }
@@ -626,8 +643,9 @@ private struct StudyTrailStopsView: View {
                 }
             }
             .buttonStyle(.borderless)
+            .allowsHitTesting(!(editable && selectingStops))
             Spacer()
-            if editable { editNoteButton(.stop(stop)) }
+            if editable && !selectingStops { editNoteButton(.stop(stop)) }
         }
         .contextMenu {
             if editable {
@@ -652,6 +670,29 @@ private struct StudyTrailStopsView: View {
                 }
             }
         }
+    }
+
+    private var selectionBar: some View {
+        HStack {
+            Text(selectedStops.isEmpty ? "Select stops" : "\(selectedStops.count) selected")
+            Spacer()
+            Menu("Move to Trail") {
+                ForEach(otherTrails) { target in
+                    Button(target.name.isEmpty ? "Untitled Trail" : target.name) {
+                        let ids = stops.map(\.id).filter(selectedStops.contains)
+                        stopAction { try $0.moveStops(ids, to: target.id, at: StudyTrailView.now()) }
+                        reloadTrails()
+                        selectedStops = []
+                        selectingStops = false
+                    }
+                }
+            }
+            .disabled(selectedStops.isEmpty || otherTrails.isEmpty)
+            Button("Done") { selectedStops = []; selectingStops = false }
+                .fontWeight(.semibold)
+        }
+        .textCase(nil)
+        .font(.subheadline)
     }
 
     private var topicBreakDivider: some View {
