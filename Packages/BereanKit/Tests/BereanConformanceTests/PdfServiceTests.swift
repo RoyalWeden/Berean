@@ -37,7 +37,10 @@ import BereanWorkspace
         #expect(try svc.bookmarks("p1") == [b])
         try svc.removeBookmark(b.id)
         #expect(try svc.bookmarks("p1").isEmpty)
-        try svc.addBookmark("p1", page: 1, label: "")
+        let blank = try svc.addBookmark("p1", page: 1, label: "")
+        try svc.renameBookmark(blank.id, label: "Prologue")
+        #expect(try svc.bookmarks("p1").first?.label == "Prologue")
+        #expect(log.items.last == DataChange(entity: "pdf_bookmark", id: blank.id, op: "upsert"))
 
         #expect(try svc.deleteRow("p1") == "p1.pdf")
         #expect(try svc.highlights("p1").isEmpty && svc.bookmarks("p1").isEmpty && svc.get("p1") == nil)

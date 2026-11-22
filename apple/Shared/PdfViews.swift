@@ -294,6 +294,9 @@ struct PdfReaderView: View {
     @State private var controller = PdfReaderController()
     @State private var highlights: [PdfHighlight] = []
     @State private var bookmarks: [PdfBookmark] = []
+    enum BookmarkEdit: Equatable { case new(page: Int), rename(id: String, page: Int) }
+    @State private var bookmarkEditing: BookmarkEdit?
+    @State private var bookmarkDraft = ""
     @State private var showsSidebar = false
     @State private var sidebarMode = "outline"
     @State private var findShown = false
@@ -335,6 +338,22 @@ struct PdfReaderView: View {
             highlights = (try? app.pdfs?.highlights(pdfId)) ?? []
             bookmarks = (try? app.pdfs?.bookmarks(pdfId)) ?? []
             loaded = true
+        }
+        .alert(bookmarkEditing.map { if case .new = $0 { "Bookmark Page" } else { "Rename Bookmark" } } ?? "",
+               isPresented: Binding(get: { bookmarkEditing != nil }, set: { if !$0 { bookmarkEditing = nil } })) {
+            TextField("Label", text: $bookmarkDraft)
+            Button("Cancel", role: .cancel) { bookmarkEditing = nil }
+            Button("Save") { saveBookmark() }
+        }
+    }
+
+    private func saveBookmark() {
+        guard let edit = bookmarkEditing else { return }
+        bookmarkEditing = nil
+        let trimmed = bookmarkDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch edit {
+        case .new(let page): try? app.pdfs?.addBookmark(pdfId, page: page, label: trimmed.isEmpty ? "Page \(page)" : trimmed)
+        case .rename(let id, let page): try? app.pdfs?.renameBookmark(id, label: trimmed.isEmpty ? "Page \(page)" : trimmed)
         }
     }
 
@@ -397,7 +416,11 @@ struct PdfReaderView: View {
 
     private func toggleBookmark() {
         if let b = bookmarks.first(where: { $0.page == controller.currentPage }) { try? app.pdfs?.removeBookmark(b.id) }
-        else { try? app.pdfs?.addBookmark(pdfId, page: controller.currentPage, label: "") }
+        else {
+            // Original: asks for a label, defaulting to "Page N".
+            bookmarkDraft = "Page \(controller.currentPage)"
+            bookmarkEditing = .new(page: controller.currentPage)
+        }
     }
 
     private func attach() {
@@ -501,7 +524,13 @@ struct PdfReaderView: View {
                                 .contentShape(.rect)
                         }
                         .buttonStyle(.interactivePlain)
-                        .contextMenu { Button("Remove Bookmark", role: .destructive) { try? app.pdfs?.removeBookmark(b.id) } }
+                        .contextMenu {
+                            Button("Rename", systemImage: "pencil") {
+                                bookmarkDraft = b.label.isEmpty ? "Page \(b.page)" : b.label
+                                bookmarkEditing = .rename(id: b.id, page: b.page)
+                            }
+                            Button("Remove Bookmark", systemImage: "trash", role: .destructive) { try? app.pdfs?.removeBookmark(b.id) }
+                        }
                     }
                 case "highlights":
                     if highlights.isEmpty { Text("Select text in the PDF and choose a colour to highlight it.").foregroundStyle(.secondary) }
