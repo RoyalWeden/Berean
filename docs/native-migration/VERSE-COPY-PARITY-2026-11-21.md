@@ -37,3 +37,5 @@ Restored Mac GEN1selected1/Notes via Cmd-L, current offset0, seven tabs; iPhone 
 ## Additional iPhone Compare acceptance
 
 Actual final-copy-source Compare KJVA Psalm119 single1 and range1–2 pass exact one/three-line output, including active Word Replacer (`Yehovah`). Evidence `verse-copy-ios-compare-single-after.txt` and `verse-copy-ios-compare-multiple-after.txt`. Returned ordinary PSA3LXX/no selection/Compareoff/nine tabs. Source d86f69b5/docs2d2a2fb2 now published; exact-headCI45054330257 started, not yet complete.
+
+Additional Mac lexicon occurrence Copy Verse Matthew5:12 verified full body inline, no edition suffix, then Cmd-L cross-type history Back returned GEN1selected1/seven tabs. `verse-copy-mac-lexicon-after.txt`. The parallel extra iPhone lexicon check remains INCONCLUSIVE: invalid AX menu item, coordinate fallback/public clipboard equality could be shared Mac clipboard; later user-changed-app notification and Matthew5:12 reader fixture mean no reliable click attribution. Do not claim iPhone lexicon context Copy passed from this evidence. Prior iPhone reader/Compare checks remain valid.

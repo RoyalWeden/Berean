@@ -88,3 +88,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [iPhone controls/top spacing](IOS-READER-CONTROLS-2026-11-21.md): direct Strong’s, long-title/arrows/LXX refinements, measured gap investigation and exact runtime evidence. [Checkpoint history Nov21](CHECKPOINT-HISTORY-2026-11-21.md) archives superseded current-state text.
 
 - [Compare reentry](COMPARE-REENTRY-2026-11-22.md): dormant follower alignment, preserved pins/legacy independence, red/green probe and actual Mac+iPhone history checks.
+
+- [Rich note previews](NOTE-PREVIEWS-2026-11-22.md): latest owner direction, original preview comparison, native rendering work and verification.
