@@ -1290,6 +1290,8 @@ private struct TabCardPreview: View {
             }
             if let noteSource, !noteSource.isEmpty {
                 MarkdownText(noteSource, maxBlocks: 4, interactive: false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(String(notePreviewExcerpt(noteSource, limit: 400).characters))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

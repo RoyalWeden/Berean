@@ -1080,6 +1080,8 @@ struct NotesHomeView: View {
             }
             if searchRequest.text.isEmpty {
                 MarkdownText(n.content, maxBlocks: 5, interactive: false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(String(notePreviewExcerpt(n.content, limit: 400).characters))
                     .font(.subheadline).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .fixedSize(horizontal: false, vertical: true)
