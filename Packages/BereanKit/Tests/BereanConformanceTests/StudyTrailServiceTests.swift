@@ -273,3 +273,16 @@ import Testing
     #expect(try db.query("SELECT order_index FROM trail_nodes WHERE id = 'a2'").first?["order_index"]?.int == 1)
     #expect(try !trail.moveStops(["a1"], to: "missing", at: 41))
 }
+
+@Test func storesFoldStateLikeTheOriginal() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    let trail = StudyTrailService(db: db)
+    try trail.setCollapsed(true, scope: "branch", key: "node:a1", at: 5)
+    try trail.setCollapsed(true, scope: "branch", key: "c1", at: 6)
+    try trail.setCollapsed(true, scope: "branch", key: "c1", at: 7)          // upsert, no duplicate
+    #expect(try trail.collapsedKeys() == ["branch:node:a1", "branch:c1"])
+    try trail.setCollapsed(false, scope: "branch", key: "c1", at: 8)
+    #expect(try trail.collapsedKeys() == ["branch:node:a1"])
+    #expect(try db.query("SELECT COUNT(*) AS n FROM trail_collapse").first?["n"]?.int == 1)   // expanded = no row
+}

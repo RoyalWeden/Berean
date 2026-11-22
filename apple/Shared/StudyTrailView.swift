@@ -313,6 +313,7 @@ private struct StudyTrailStopsView: View {
     let trail: StudyTrailService.Trail
     let reloadTrails: () -> Void
     @State private var otherTrails: [StudyTrailService.Trail] = []
+    @State private var collapsedKeys = Set<String>()
     /// Original marquee multi-select → native selection mode for moving several stops at once.
     @State private var selectingStops = false
     @State private var selectedStops = Set<String>()
@@ -543,8 +544,11 @@ private struct StudyTrailStopsView: View {
                     ForEach(notes.filter { $0.kind == .section }) { mapSticky($0) }
                     stopRow(node.stop, editable: false)
                     ForEach(notes.filter { $0.kind == .annotation }) { mapSticky($0) }
-                    ForEach(node.branches.filter { matchedStops.contains(node.id) || retained.contains($0.id) }) { branch in
-                        mapBranch(branch)
+                    if !node.branches.isEmpty && !searchActive { stopFoldRow(node) }
+                    ForEach(node.branches.filter {
+                        (matchedStops.contains(node.id) || retained.contains($0.id)) && (searchActive || !isFolded($0, in: node))
+                    }) { branch in
+                        mapBranch(branch, children: node.branches.contains { $0.connection.parentId == branch.id })
                     }
                 }
             }
@@ -618,14 +622,55 @@ private struct StudyTrailStopsView: View {
         return retained
     }
 
-    private func mapBranch(_ branch: StudyTrailService.MapConnection) -> some View {
+    private func mapBranch(_ branch: StudyTrailService.MapConnection, children: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "arrow.turn.down.right")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
+            if children {
+                // Original map: a branch with branches of its own folds them away (remembered).
+                let folded = collapsedKeys.contains("branch:\(branch.id)")
+                Button { setFold(!folded, key: branch.id) } label: {
+                    Image(systemName: folded ? "chevron.right" : "chevron.down")
+                        .font(.caption.weight(.semibold)).frame(width: 16)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(folded ? "Show branches" : "Hide branches")
+            } else {
+                Image(systemName: "arrow.turn.down.right")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
             connectionRow(branch.connection, showOrigin: false)
         }
         .padding(.leading, CGFloat(min(branch.depth, 4)) * 18)
+    }
+
+    /// "▾ N connections" under a stop on the map; folds them all (original key `node:<stopId>`).
+    private func stopFoldRow(_ node: StudyTrailService.MapStop) -> some View {
+        let folded = collapsedKeys.contains("branch:node:\(node.id)")
+        return Button { setFold(!folded, key: "node:\(node.id)") } label: {
+            Label("\(node.branches.count) \(node.branches.count == 1 ? "connection" : "connections")",
+                  systemImage: folded ? "chevron.right" : "chevron.down")
+                .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityHint(folded ? "Shows this stop's connections" : "Hides this stop's connections")
+    }
+
+    private func isFolded(_ branch: StudyTrailService.MapConnection, in node: StudyTrailService.MapStop) -> Bool {
+        if collapsedKeys.contains("branch:node:\(node.id)") { return true }
+        let parents = Dictionary(node.branches.map { ($0.id, $0.connection.parentId) }, uniquingKeysWith: { a, _ in a })
+        var current = branch.connection.parentId
+        var seen = Set<String>()
+        while let id = current, seen.insert(id).inserted {
+            if collapsedKeys.contains("branch:\(id)") { return true }
+            current = parents[id] ?? nil
+        }
+        return false
+    }
+
+    private func setFold(_ folded: Bool, key: String) {
+        // Optimistic, like the original: the fold is instant; a failed write just isn't remembered.
+        if folded { collapsedKeys.insert("branch:\(key)") } else { collapsedKeys.remove("branch:\(key)") }
+        try? app.studyTrailService?.setCollapsed(folded, scope: "branch", key: key, at: StudyTrailView.now())
     }
 
     private func stopRow(_ stop: StudyTrailService.Stop, editable: Bool) -> some View {
@@ -811,6 +856,7 @@ private struct StudyTrailStopsView: View {
             connections = try service.connections(in: trail.id)
             stickies = try service.stickies(in: trail.id)
             otherTrails = try service.trails().filter { $0.id != trail.id }
+            collapsedKeys = (try? service.collapsedKeys()) ?? []
             stops = loadedStops
             loadFailed = false
         } catch {

@@ -572,6 +572,28 @@ public struct StudyTrailService {
             """, [time, trail])
     }
 
+    // MARK: fold state (port of getCollapse / setCollapse — shared `trail_collapse` rows)
+
+    /// Collapsed keys as "scope:key" (e.g. "branch:node:<stopId>", "branch:<connectionId>").
+    public func collapsedKeys() throws -> Set<String> {
+        Set(try db.query("SELECT scope, key FROM trail_collapse WHERE collapsed = 1").compactMap { row in
+            guard let scope = row["scope"]?.string, let key = row["key"]?.string else { return nil }
+            return "\(scope):\(key)"
+        })
+    }
+
+    /// Expanded is the default, so expanding deletes the row (original behaviour).
+    public func setCollapsed(_ collapsed: Bool, scope: String, key: String, at time: Int64) throws {
+        if collapsed {
+            try db.run("""
+                INSERT INTO trail_collapse (scope, key, collapsed, updated_at) VALUES (?, ?, 1, ?)
+                ON CONFLICT(scope, key) DO UPDATE SET collapsed = 1, updated_at = excluded.updated_at
+                """, [.text(scope), .text(key), .integer(time)])
+        } else {
+            try db.run("DELETE FROM trail_collapse WHERE scope = ? AND key = ?", [.text(scope), .text(key)])
+        }
+    }
+
     // MARK: topic breaks / moving stops (port of setNodeTopicBreak / moveNodes)
 
     @discardableResult
