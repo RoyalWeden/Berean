@@ -39,3 +39,9 @@ Actual rebuilt final iPhone: searched existing table fixture, opened it without 
 Final original-data verification `rich-note-previews-final-data-check.json`: all original note/settings/chat/tag row hashes retained, exact37Mac/47iPhone active tab IDs,22/26notes. No notes/tabs created or content edited. Mac Notes layout restored List and Notesroot before selecting GEN1selected1/Notes/offset0. Other checkout/owner app, physical device, schemas, sync and identities untouched.
 
 Remaining: physical phone/VoiceOver and large type, broad imported Markdown dialects/very large documents, deeper wiki-link interactions in full previews. Invalid unmatched literal markup remains text; no source data is silently repaired. Already-stranded Compare records and viewport/read-aloud/Presenter parity remain separate open work.
+
+Final callsite refinement after7ccbc3ca: expose a readable rich-derived excerpt on noninteractive gallery/tab thumbnails rather than repeated generic Table accessibility labels, retaining the parent button. No visible layout or data change. Both builds/runtime scope to be recorded after completion. Published4dd0331b CI45055062507 completed SUCCESS for native+legacy; this validates earlier copy/Compare source, not rich-preview changes.
+
+## Final label source26dfced7
+
+Both final label builds pass (`mac/ios-rich-note-preview-labels-build.log`). Actual installed final iPhone table thumbnail reports **button(selected)** with readable description “Table QA / Item · Value / Test row · 42”, replacing repeated generic Table labels; this is AX inspection, not a VoiceOver session. Returned Notesroot/clearedsearch and prior Matthew5:12selected12/visible11/nine tabs/no sheet. Final source26dfced7 follows7ccbc3ca; Mac runtime remains visual candidate before trait/label-only refinements while final Mac build covers them. Earlier original-row data check covers identical no-edit fixtures; no new note/tab or content edit during final label check.

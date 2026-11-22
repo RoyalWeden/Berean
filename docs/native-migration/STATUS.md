@@ -522,3 +522,5 @@ Shared CompareColumn now updates following saved columns on real reader passage 
 ## 2026-11-22 — Rich note previews on both platforms
 
 Source7ccbc3ca replaces flat snippets with rich attributed rows and bounded document thumbnails for gallery/iPhone tabs. Valid Markdown stays hidden; headings, links, wiki aliases, underlines, highlights, lists/callouts and table grids render; code remains literal. No note storage/editor rewrite. Final both builds and10focused parser checks pass. Actual Mac gallery/history and iPhone peek/table-tab/tap verified; final iPhone thumbnail retains button role. Original row hashes/37+47IDs/22+26notes pass. Physical/VoiceOver/large-type/imported-dialect/performance matrix remains open. [Detailed evidence](NOTE-PREVIEWS-2026-11-22.md).
+
+Final rich-thumbnail refinement26dfced7: both builds pass; actual iPhone table card retains button role and reads Item/Value/Testrow/42 rather than repeated generic Table labels. Native VoiceOver remains unverified. See rich-preview evidence.
