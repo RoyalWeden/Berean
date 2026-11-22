@@ -1037,7 +1037,11 @@ struct IOSChapterTextView: UIViewRepresentable {
             case "strongs":
                 let id = String(url.absoluteString.dropFirst("strongs:".count))
                 let verse = verseRanges.first { NSLocationInRange(textItem.range.location, $0.value) }?.key
-                return UIAction { [weak self] _ in self?.parent.onStrongs(id, verse) }
+                return UIAction { [weak self] _ in
+                    // Already opened instantly by the reader tap (tapVerse); don't open it twice.
+                    if let last = self?.lastStrongsTap, last.id == id, ProcessInfo.processInfo.systemUptime - last.time < 1.5 { return }
+                    self?.parent.onStrongs(id, verse)
+                }
             case "berean-tag":
                 let fields = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
                 guard let name = fields?.first(where: { $0.name == "name" })?.value else { return nil }
@@ -1218,7 +1222,12 @@ struct IOSChapterTextView: UIViewRepresentable {
         private enum ReaderTap {
             case verse(Int, marker: Bool)
             case chapterStep(Int)
+            /// Strong's link: opened by the reader's own tap on touch-up — UIKit's link
+            /// activation waited out long-press/double-tap disambiguation first (owner: "instant").
+            case strongs(String, verse: Int?)
         }
+        /// The last Strong's link opened by the reader tap, so UIKit's later link action skips it.
+        private var lastStrongsTap: (id: String, time: TimeInterval)?
 
         private func characterAtTap(_ point: CGPoint, in view: UITextView) -> Int? {
             let container = view.textContainer
@@ -1239,6 +1248,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             let character = characterAtTap(point, in: view)
             if let character,
                let link = view.textStorage.attribute(.link, at: character, effectiveRange: nil) {
+                if let url = link as? URL, url.scheme == "strongs" {
+                    let id = String(url.absoluteString.dropFirst("strongs:".count))
+                    return .strongs(id, verse: verseRanges.first { NSLocationInRange(character, $0.value) }?.key)
+                }
                 guard let url = link as? URL, url.scheme == "berean-verse",
                       let verse = Int(url.absoluteString.dropFirst("berean-verse:".count)) else { return nil }
                 return .verse(verse, marker: true)
@@ -1324,6 +1337,9 @@ struct IOSChapterTextView: UIViewRepresentable {
                 bodyTapIntent.marker(verse: verse, point: gesture.location(in: view.window), time: pendingTapTimestamp)
                 toggleVerse(verse, in: view)
             case let .chapterStep(step): parent.onStep(step)
+            case let .strongs(id, verse):
+                lastStrongsTap = (id, ProcessInfo.processInfo.systemUptime)
+                parent.onStrongs(id, verse)
             }
         }
 

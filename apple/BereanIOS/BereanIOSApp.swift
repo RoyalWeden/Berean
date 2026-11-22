@@ -20,6 +20,7 @@ struct BereanIOSApp: App {
                 .onChange(of: app.notesRevision) { SpotlightIndex.scheduleRefresh(app) }
                 .onChange(of: app.savedWorkspaces.count) { SpotlightIndex.scheduleRefresh(app) }
                 .onChange(of: app.defaultText) { SpotlightIndex.scheduleRefresh(app) }
+                .onChange(of: app.sessions.map(\.name)) { SpotlightIndex.scheduleRefresh(app) }
         }
     }
 }

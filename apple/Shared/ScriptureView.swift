@@ -1682,6 +1682,10 @@ struct ScriptureView: View {
                 .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
                 .popover(isPresented: numberingInfoPresented, arrowEdge: .bottom) { numberingInfoPanel }
             #else
+            // One centred row with one spacing — Strong's · passage · Compare (· KJV/LXX) — so the
+            // gaps are equal on every iPhone width and chapter (they used to depend on the bar edges).
+            HStack(spacing: Self.readerBarSpacing) {
+            strongsBarButton(st)
             HStack(spacing: 2) { passageControls(st) }
                 .frame(maxWidth: 240)
                 .buttonStyle(.interactivePlain)
@@ -1704,79 +1708,11 @@ struct ScriptureView: View {
                     }
                     .presentationDetents([.large])
                 }
+            trailingBarButtons(st)
+            }
             #endif
         }
         #if os(iOS)
-        ToolbarItem(placement: .topBarLeading) {
-            Button {
-                guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return }
-                let enabled = !BibleState(tab.state).showStrongs
-                StrongsTip().invalidate(reason: .actionPerformed)
-                app.update(tabId, recordHistory: false) { $0.state["showStrongs"] = .bool(enabled) }
-            } label: {
-                Image(systemName: "number")
-                    .foregroundStyle(st.showStrongs ? Color.accentColor : Color.primary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.interactivePlain)
-            .glassEffectCompat(interactive: true)
-            .opacity(app.readerChromeHidden ? 0 : 1)
-            .offset(y: app.readerChromeHidden ? -12 : 0)
-            .allowsHitTesting(!app.readerChromeHidden)
-            .accessibilityHidden(app.readerChromeHidden)
-            .accessibilityLabel(st.showStrongs ? "Hide Strong's Numbers" : "Show Strong's Numbers")
-            .accessibilityAddTraits(st.showStrongs ? .isSelected : [])
-            .help("Show or hide Strong's numbers in the Scripture text")
-        }
-        .readerOwnGlassBackground()
-        if !st.compareMode {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    app.setReaderCompareMode(true, in: tabId)
-                } label: {
-                    Image(systemName: "rectangle.split.2x1")
-                        .frame(width: 44, height: 44)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.interactivePlain)
-                .glassEffectCompat(interactive: true)
-                .opacity(app.readerChromeHidden ? 0 : 1)
-                .offset(y: app.readerChromeHidden ? -12 : 0)
-                .allowsHitTesting(!app.readerChromeHidden)
-                .accessibilityHidden(app.readerChromeHidden)
-                .accessibilityLabel("Compare texts")
-            }
-            .readerOwnGlassBackground()
-        }
-        if !st.compareMode, let target = editionAvailability?.counterpart(of: ChapterEdition(st)) {
-            ToolbarItem(placement: .topBarTrailing) {
-                let isLxx = ChapterMap.isLxx(st.translation)
-                Button {
-                    flipEdition(st, to: target)
-                } label: {
-                    Group {
-                        if isLxx {
-                            Text("LXX").font(.caption.weight(.semibold))
-                        } else {
-                            Image(systemName: "arrow.left.arrow.right")
-                        }
-                    }
-                        .foregroundStyle(isLxx ? Color.accentColor : Color.primary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.interactivePlain)
-                .glassEffectCompat(interactive: true)
-                .opacity(app.readerChromeHidden ? 0 : 1)
-                .offset(y: app.readerChromeHidden ? -12 : 0)
-                .allowsHitTesting(!app.readerChromeHidden)
-                .accessibilityHidden(app.readerChromeHidden)
-                .accessibilityLabel("Switch to \(textInfo(target.text).name)")
-                .accessibilityAddTraits(isLxx ? .isSelected : [])
-            }
-            .readerOwnGlassBackground()
-        }
         #else
         let hasText = st.compareMode || (loadedChapter == chapterKey(st) && !verses.isEmpty)
         ToolbarItemGroup {
@@ -2447,6 +2383,81 @@ extension ScriptureView {
             return rendered
         }
     }
+
+    #if os(iOS)
+    static let readerBarSpacing: CGFloat = 10
+
+    @ViewBuilder func strongsBarButton(_ st: BibleState) -> some View {
+            Button {
+                guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible else { return }
+                let enabled = !BibleState(tab.state).showStrongs
+                StrongsTip().invalidate(reason: .actionPerformed)
+                app.update(tabId, recordHistory: false) { $0.state["showStrongs"] = .bool(enabled) }
+            } label: {
+                Image(systemName: "number")
+                    .foregroundStyle(st.showStrongs ? Color.accentColor : Color.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.interactivePlain)
+            .glassEffectCompat(interactive: true)
+            .opacity(app.readerChromeHidden ? 0 : 1)
+            .offset(y: app.readerChromeHidden ? -12 : 0)
+            .allowsHitTesting(!app.readerChromeHidden)
+            .accessibilityHidden(app.readerChromeHidden)
+            .accessibilityLabel(st.showStrongs ? "Hide Strong's Numbers" : "Show Strong's Numbers")
+            .accessibilityAddTraits(st.showStrongs ? .isSelected : [])
+            .help("Show or hide Strong's numbers in the Scripture text")
+    }
+
+    @ViewBuilder func trailingBarButtons(_ st: BibleState) -> some View {
+        if !st.compareMode {
+            Group {
+                Button {
+                    app.setReaderCompareMode(true, in: tabId)
+                } label: {
+                    Image(systemName: "rectangle.split.2x1")
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .glassEffectCompat(interactive: true)
+                .opacity(app.readerChromeHidden ? 0 : 1)
+                .offset(y: app.readerChromeHidden ? -12 : 0)
+                .allowsHitTesting(!app.readerChromeHidden)
+                .accessibilityHidden(app.readerChromeHidden)
+                .accessibilityLabel("Compare texts")
+            }
+        }
+        if !st.compareMode, let target = editionAvailability?.counterpart(of: ChapterEdition(st)) {
+            Group {
+                let isLxx = ChapterMap.isLxx(st.translation)
+                Button {
+                    flipEdition(st, to: target)
+                } label: {
+                    Group {
+                        if isLxx {
+                            Text("LXX").font(.caption.weight(.semibold))
+                        } else {
+                            Image(systemName: "arrow.left.arrow.right")
+                        }
+                    }
+                        .foregroundStyle(isLxx ? Color.accentColor : Color.primary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.interactivePlain)
+                .glassEffectCompat(interactive: true)
+                .opacity(app.readerChromeHidden ? 0 : 1)
+                .offset(y: app.readerChromeHidden ? -12 : 0)
+                .allowsHitTesting(!app.readerChromeHidden)
+                .accessibilityHidden(app.readerChromeHidden)
+                .accessibilityLabel("Switch to \(textInfo(target.text).name)")
+                .accessibilityAddTraits(isLxx ? .isSelected : [])
+            }
+        }
+    }
+    #endif
 
     /// Reading theme page colour (original themePreset), nothing for Default.
     @ViewBuilder var readingThemeBackground: some View {
