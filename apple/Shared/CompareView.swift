@@ -52,8 +52,8 @@ struct CompareColumn: Identifiable {
     }
 
     static func followPassageChange(_ value: JSValue?, from old: BibleState, to new: BibleState) -> JSValue? {
-        guard old.compareMode, new.compareMode,
-              old.bookId != new.bookId || old.chapter != new.chapter || old.translation != new.translation,
+        // Keep saved followers aligned during reader navigation while Compare is off.
+        guard old.bookId != new.bookId || old.chapter != new.chapter || old.translation != new.translation,
               let records = value?.arrayValue else { return value }
         return .array(records.enumerated().map { index, value in
             guard var record = value.objectValue,
