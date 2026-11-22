@@ -570,6 +570,61 @@ public struct StudyTrailService {
             """, [time, trail])
     }
 
+    // MARK: merge / split (port of studyTrailService.ts mergeSessions / splitSession)
+
+    /// Moves every stop, connection and sticky of `fromId` into `intoId`, renumbers, and drops the
+    /// emptied trail (the structural loose-stops bucket is emptied, never deleted).
+    @discardableResult
+    public func merge(_ fromId: String, into intoId: String, at time: Int64) throws -> Bool {
+        guard fromId != intoId else { return false }
+        return try transaction {
+            guard try db.query("SELECT id FROM trail_sessions WHERE id = ?", [.text(intoId)]).first != nil,
+                  try db.query("SELECT id FROM trail_sessions WHERE id = ?", [.text(fromId)]).first != nil else { return false }
+            for table in ["trail_nodes", "trail_connections", "trail_notes"] {
+                try db.run("UPDATE \(table) SET trail_session_id = ? WHERE trail_session_id = ?", [.text(intoId), .text(fromId)])
+            }
+            try renumberStops(intoId)
+            if fromId != "__loose_stops__" { try db.run("DELETE FROM trail_sessions WHERE id = ?", [.text(fromId)]) }
+            try db.run("UPDATE trail_sessions SET updated_at = ? WHERE id = ?", [.integer(time), .text(intoId)])
+            return true
+        }
+    }
+
+    /// Everything from `stopId` onward (by order_index) becomes a new paused trail `newId`;
+    /// connections follow their own stop, stickies their anchor stop. Returns false if the stop
+    /// isn't in `trailId`.
+    @discardableResult
+    public func split(_ trailId: String, at stopId: String, newId: String, name: String?, at time: Int64) throws -> Bool {
+        try transaction {
+            guard let pivot = try db.query("SELECT order_index FROM trail_nodes WHERE id = ? AND trail_session_id = ?",
+                                           [.text(stopId), .text(trailId)]).first?["order_index"] else { return false }
+            let title = name.map { String($0.drop(while: \.isWhitespace).reversed().drop(while: \.isWhitespace).reversed()) } ?? ""
+            try db.run("INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES (?, ?, 'paused', ?, ?)",
+                       [.text(newId), .text(title.isEmpty ? "Split session" : title), .integer(time), .integer(time)])
+            try db.run("UPDATE trail_nodes SET trail_session_id = ? WHERE trail_session_id = ? AND order_index >= ?",
+                       [.text(newId), .text(trailId), pivot])
+            try db.run("""
+                UPDATE trail_connections SET trail_session_id = ?
+                WHERE trail_session_id = ? AND from_node_id IN (SELECT id FROM trail_nodes WHERE trail_session_id = ?)
+                """, [.text(newId), .text(trailId), .text(newId)])
+            try db.run("""
+                UPDATE trail_notes SET trail_session_id = ?
+                WHERE trail_session_id = ? AND anchor_node_id IN (SELECT id FROM trail_nodes WHERE trail_session_id = ?)
+                """, [.text(newId), .text(trailId), .text(newId)])
+            try renumberStops(trailId)
+            try renumberStops(newId)
+            return true
+        }
+    }
+
+    private func renumberStops(_ trailId: String) throws {
+        let rows = try db.query("SELECT id FROM trail_nodes WHERE trail_session_id = ? ORDER BY anchor_started_at, order_index", [.text(trailId)])
+        for (index, row) in rows.enumerated() {
+            guard let id = row["id"] else { continue }
+            try db.run("UPDATE trail_nodes SET order_index = ? WHERE id = ?", [.integer(Int64(index)), id])
+        }
+    }
+
     private func transaction<T>(_ body: () throws -> T) throws -> T {
         try db.exec("BEGIN IMMEDIATE")
         do {

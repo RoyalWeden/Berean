@@ -216,3 +216,39 @@ import Testing
     #expect(try db.query("SELECT key FROM trail_collapse WHERE key = 'section'").isEmpty)
     #expect(try service.stickies(in: "first").map(\.id) == ["loose"])
 }
+
+@Test func mergesAndSplitsTrailsLikeTheOriginal() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    try db.exec("""
+        INSERT INTO trail_sessions (id, name, status, created_at, updated_at)
+        VALUES ('a', 'A', 'ended', 1, 1), ('b', 'B', 'ended', 1, 1), ('__loose_stops__', 'Loose stops', 'live', 1, 1);
+        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at)
+        VALUES ('a1', 'a', 'GEN', 1, 0, 10), ('a2', 'a', 'GEN', 2, 1, 20), ('a3', 'a', 'GEN', 3, 2, 30),
+               ('b1', 'b', 'EXO', 1, 0, 15), ('l1', '__loose_stops__', 'LEV', 1, 0, 40);
+        INSERT INTO trail_connections (id, trail_session_id, from_node_id, to_kind, to_strongs_num, clarity_tier, created_at)
+        VALUES ('c2', 'a', 'a2', 'lexicon', 'H1', 1, 21), ('c1', 'a', 'a1', 'lexicon', 'H2', 1, 11);
+        """)
+    let trail = StudyTrailService(db: db)
+
+    // Split at a2: a2, a3 and the connection off a2 move to the new paused trail.
+    #expect(try trail.split("a", at: "a2", newId: "s", name: "  ", at: 50))
+    #expect(try db.query("SELECT name, status FROM trail_sessions WHERE id = 's'").first?["name"] == .text("Split session"))
+    #expect(try trail.stops(in: "s").map(\.id) == ["a2", "a3"])
+    #expect(try trail.stops(in: "a").map(\.id) == ["a1"])
+    #expect(try db.query("SELECT trail_session_id FROM trail_connections WHERE id = 'c2'").first?["trail_session_id"] == .text("s"))
+    #expect(try db.query("SELECT trail_session_id FROM trail_connections WHERE id = 'c1'").first?["trail_session_id"] == .text("a"))
+    #expect(try !trail.split("a", at: "b1", newId: "x", name: nil, at: 51))   // stop not in that trail
+
+    // Merge b into a: b's stop joins a in time order, b is deleted.
+    #expect(try trail.merge("b", into: "a", at: 60))
+    #expect(try trail.stops(in: "a").map(\.id) == ["a1", "b1"])
+    #expect(try db.query("SELECT order_index FROM trail_nodes WHERE id = 'b1'").first?["order_index"]?.int == 1)
+    #expect(try db.query("SELECT id FROM trail_sessions WHERE id = 'b'").isEmpty)
+    #expect(try !trail.merge("a", into: "a", at: 61))
+
+    // Merging out of the loose bucket empties it but keeps the row.
+    #expect(try trail.merge("__loose_stops__", into: "s", at: 70))
+    #expect(try db.query("SELECT id FROM trail_sessions WHERE id = '__loose_stops__'").count == 1)
+    #expect(try trail.stops(in: "s").map(\.id) == ["a2", "a3", "l1"])
+}

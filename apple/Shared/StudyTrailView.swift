@@ -15,6 +15,7 @@ struct StudyTrailView: View {
     @State private var showNewTrail = false
     @State private var newTrailName = ""
     @State private var errorMessage: String?
+    @State private var pendingMerge: (from: StudyTrailService.Trail, into: StudyTrailService.Trail)?
     @State private var path: [TrailRoute] = []
     @State private var query = ""
     @State private var index: [IndexedTrailItem]?
@@ -91,6 +92,14 @@ struct StudyTrailView: View {
             )) {
                 Button("OK") { errorMessage = nil }
             } message: { Text(errorMessage ?? "") }
+            .confirmationDialog(pendingMerge.map { "Merge “\($0.from.name)” into “\($0.into.name)”?" } ?? "",
+                                isPresented: Binding(get: { pendingMerge != nil }, set: { if !$0 { pendingMerge = nil } }),
+                                titleVisibility: .visible) {
+                Button("Merge") { if let m = pendingMerge { merge(m.from, into: m.into) }; pendingMerge = nil }
+                Button("Cancel", role: .cancel) { pendingMerge = nil }
+            } message: {
+                Text("Its stops, connections and sticky notes move into the other trail, and this trail is removed. You can split it apart again at any stop.")
+            }
         }
         .task {
             load()
@@ -156,8 +165,27 @@ struct StudyTrailView: View {
                         Button("Move Down", systemImage: "arrow.down") { moveTrail(trail.id, .later) }
                             .disabled(trail.id == trails.last?.id)
                     }
+                    // Original "Merge into": one-way, names the target explicitly (split back with Split Here).
+                    let targets = trails.filter { $0.id != trail.id }
+                    if !targets.isEmpty, app.studyTrailRecording?.trailID != trail.id {
+                        Menu("Merge Into", systemImage: "arrow.triangle.merge") {
+                            ForEach(targets) { target in
+                                Button(target.name.isEmpty ? "Untitled Trail" : target.name) { pendingMerge = (trail, target) }
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private func merge(_ from: StudyTrailService.Trail, into target: StudyTrailService.Trail) {
+        do {
+            guard let service = app.studyTrailService,
+                  try service.merge(from.id, into: target.id, at: Int64(Date().timeIntervalSince1970 * 1000)) else { return }
+            load()
+        } catch {
+            errorMessage = "The trails could not be merged."
         }
     }
 
@@ -598,6 +626,26 @@ private struct StudyTrailStopsView: View {
             .buttonStyle(.borderless)
             Spacer()
             if editable { editNoteButton(.stop(stop)) }
+        }
+        .contextMenu {
+            // Original "Split here": this stop and everything after it become a new paused trail.
+            if editable, stops.first?.id != stop.id {
+                Button("Split Here", systemImage: "scissors") { splitHere(stop) }
+            }
+        }
+    }
+
+    private func splitHere(_ stop: StudyTrailService.Stop) {
+        do {
+            guard let service = app.studyTrailService,
+                  try service.split(trail.id, at: stop.id, newId: UUID().uuidString.lowercased(),
+                                    name: "\(trail.name.isEmpty ? "Untitled Trail" : trail.name) (from \(stopLabel(stop)))",
+                                    at: StudyTrailView.now()) else { return }
+            load()
+            reloadTrails()
+            actionMessage = "Stops from \(stopLabel(stop)) on are now a separate trail."
+        } catch {
+            actionMessage = "The trail could not be split."
         }
     }
 
