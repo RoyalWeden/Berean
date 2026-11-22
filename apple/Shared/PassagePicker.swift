@@ -434,6 +434,31 @@ struct PassagePicker: View {
                     }
                 }
             }
+        } else if compact {
+            // iPhone: books as a compact 3-column grid (owner: less scrolling, esp. KJV + Apocrypha's 80+ books).
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
+                        ForEach(sections, id: \.0) { s in
+                            Section {
+                                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+                                    ForEach(s.1, id: \.id) { b in bookTile(b).id(b.id) }
+                                }
+                                .padding(.horizontal, 12)
+                            } header: {
+                                if !s.0.isEmpty {
+                                    Text(s.0).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 16).padding(.vertical, 6)
+                                        .background(.background)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .onAppear { proxy.scrollTo(currentBook, anchor: .center) }
+            }
         } else {
             ScrollViewReader { proxy in
                 List {
@@ -458,6 +483,30 @@ struct PassagePicker: View {
                 .onAppear { proxy.scrollTo(currentBook, anchor: .center) }
             }
         }
+    }
+
+    private func bookTile(_ b: BookRow) -> some View {
+        let current = b.id == currentBook && text == textId
+        return Button { open(b, in: text) } label: {
+            VStack(spacing: 1) {
+                Text(b.name)
+                    .font(.subheadline.weight(current ? .semibold : .regular))
+                    .lineLimit(2).minimumScaleFactor(0.8).multilineTextAlignment(.center)
+                if b.chaptersCount > 1 {
+                    Text("\(b.chaptersCount)").font(.caption2).monospacedDigit()
+                        .foregroundStyle(current ? AnyShapeStyle(.white.opacity(0.85)) : AnyShapeStyle(.tertiary))
+                }
+            }
+            .foregroundStyle(current ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .padding(.horizontal, 4)
+            .background(current ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary.opacity(0.6)),
+                        in: .rect(cornerRadius: 8))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityLabel(b.chaptersCount > 1 ? "\(b.name), \(b.chaptersCount) chapters" : b.name)
+        .accessibilityAddTraits(current ? .isSelected : [])
     }
 
     private func chapterButton(_ chapter: Int, in book: BookRow) -> some View {
