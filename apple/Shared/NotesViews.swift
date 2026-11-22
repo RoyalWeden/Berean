@@ -58,6 +58,8 @@ struct NoteFormatRequest: Equatable {
         case link(String, selection: NSRange?)
         case wikiLink(NoteWikiLinkCompletion, String)
         case referenceBlock(NoteReferenceCompletion, String)
+        /// Slash command: replace the "/query" trigger with Markdown (caret offset inside it).
+        case slash(NoteSlashCompletion, String, Int)
         case highlight(String?)
         case removeHighlight
         case inlineCode
@@ -611,6 +613,9 @@ struct NoteDetailView: View {
     @State private var wikiLinkAnchor = CGRect.zero
     @State private var wikiLinkPreview: Note?
     @State private var referenceCompletion: NoteReferenceCompletion?
+    @State private var slashCompletion: NoteSlashCompletion?
+    @State private var dismissedSlashCompletion: NoteSlashCompletion?
+    @State private var slashSelection = 0
     @State private var dismissedReferenceCompletion: NoteReferenceCompletion?
     private struct PreparedReference {
         let completion: NoteReferenceCompletion
@@ -723,6 +728,7 @@ struct NoteDetailView: View {
                     noteEditor
                         .overlay(alignment: .topLeading) { wikiLinkSuggestions }
                         .overlay(alignment: .topLeading) { referenceSuggestion }
+                        .overlay(alignment: .topLeading) { slashSuggestions }
                         .task(id: referenceCompletion) { await prepareReference() }
                         .task(id: scriptureBlockInput) { await prepareScriptureBlocks(scriptureBlockInput) }
                 }
@@ -1089,6 +1095,7 @@ struct NoteDetailView: View {
                        spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                        onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                        onReferenceCompletion: receiveReferenceCompletion,
+                       onSlashCompletion: receiveSlashCompletion,
                        onTableContext: { editingTable = $0 },
                        onWikiLinkCommand: handleCompletionCommand, onLink: openLink)
             .focused($focus, equals: .body)
@@ -1099,6 +1106,7 @@ struct NoteDetailView: View {
                           spellCheck: app.noteSpellCheck, formatRequest: formatRequest,
                           onWikiLinkQuery: receiveWikiLinkQuery, onWikiLinkAnchor: { wikiLinkAnchor = $0 },
                           onReferenceCompletion: receiveReferenceCompletion,
+                          onSlashCompletion: receiveSlashCompletion,
                        onTableContext: { editingTable = $0 },
                           onWikiLinkCommand: handleCompletionCommand,
                           onInsertLink: { showLinkPrompt(selection: $0) }, onLink: openLink)
@@ -1191,6 +1199,84 @@ struct NoteDetailView: View {
            !referenceSuggestionEnabled(completion) { formatRequest = nil }
     }
 
+    private func receiveSlashCompletion(_ completion: NoteSlashCompletion?) {
+        guard let completion else { slashCompletion = nil; dismissedSlashCompletion = nil; return }
+        guard completion != dismissedSlashCompletion else { return }
+        if completion.query != slashCompletion?.query { slashSelection = 0 }
+        slashCompletion = completion
+    }
+
+    /// Original slash menu: remove the trigger, then apply the block command.
+    private func runSlashCommand(_ command: NoteSlashCommand) {
+        guard let slash = slashCompletion else { return }
+        dismissedSlashCompletion = slash; slashCompletion = nil
+        let follow: NoteFormatRequest.Action?
+        switch command.effect {
+        case .text(let markdown, let caret):
+            formatRequest = NoteFormatRequest(action: .slash(slash, markdown, caret)); return
+        case .heading(let level): follow = .heading(level)
+        case .list(let style): follow = .list(style == "numbered" ? .numbered : style == "checklist" ? .checklist : .bullet)
+        case .callout(let kind): follow = NoteCalloutKind(rawValue: kind).map { .callout($0) }
+        case .table: follow = .insertTable
+        case .image: follow = nil
+        }
+        formatRequest = NoteFormatRequest(action: .slash(slash, "", 0))
+        if command.effect == .image {
+            NoteImageInput.chooseImage { markdown in
+                if let markdown { formatRequest = NoteFormatRequest(action: .insertImage(markdown)) }
+            }
+            return
+        }
+        guard let follow else { return }
+        // A separate request on the next turn, after the trigger removal has been applied.
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(60)) {
+            formatRequest = NoteFormatRequest(action: follow)
+        }
+    }
+
+    @ViewBuilder private var slashSuggestions: some View {
+        if let slash = slashCompletion, wikiLinkQuery == nil {
+            let commands = NoteSlashCommand.matching(slash.query)
+            if !commands.isEmpty {
+                GeometryReader { geometry in
+                    let width = min(280.0, geometry.size.width)
+                    let height = min(CGFloat(commands.count) * 40 + 30, min(330, max(74, geometry.size.height - 12)))
+                    let below = wikiLinkAnchor.maxY + 6
+                    let y = below + height <= geometry.size.height ? below : max(0, wikiLinkAnchor.minY - height - 6)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Insert Block").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).frame(height: 30)
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                VStack(spacing: 0) {
+                                    ForEach(Array(commands.enumerated()), id: \.element.id) { index, command in
+                                        Button { runSlashCommand(command) } label: {
+                                            Label(command.label, systemImage: command.symbol)
+                                                .lineLimit(1).frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+                                                .padding(.horizontal, 12).contentShape(.rect)
+                                                .background(index == min(slashSelection, commands.count - 1) ? Color.primary.opacity(0.08) : .clear,
+                                                            in: .rect(cornerRadius: 8))
+                                        }
+                                        .buttonStyle(.interactivePlain)
+                                        .onHover { if $0 { slashSelection = index } }
+                                        .id(command.id)
+                                    }
+                                }
+                            }
+                            .onChange(of: slashSelection) { _, i in
+                                if commands.indices.contains(i) { proxy.scrollTo(commands[i].id) }
+                            }
+                        }
+                    }
+                    .frame(width: width, height: height)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 12))
+                    .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(.separator) }
+                    .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                    .offset(x: min(max(0, wikiLinkAnchor.minX), max(0, geometry.size.width - width)), y: y)
+                }
+            }
+        }
+    }
+
     private func receiveReferenceCompletion(_ completion: NoteReferenceCompletion?) {
         guard let completion else {
             referenceCompletion = nil; dismissedReferenceCompletion = nil; preparedReference = nil
@@ -1251,6 +1337,17 @@ struct NoteDetailView: View {
 
     private func handleCompletionCommand(_ command: NoteWikiLinkCommand) -> Bool {
         if wikiLinkQuery != nil { return handleWikiLinkCommand(command) }
+        if let slash = slashCompletion {
+            let commands = NoteSlashCommand.matching(slash.query)
+            switch command {
+            case .dismiss: dismissedSlashCompletion = slash; slashCompletion = nil; return true
+            case .up: slashSelection = max(0, slashSelection - 1); return !commands.isEmpty
+            case .down: slashSelection = min(max(0, commands.count - 1), slashSelection + 1); return !commands.isEmpty
+            case .accept:
+                guard !commands.isEmpty else { return false }
+                runSlashCommand(commands[min(slashSelection, commands.count - 1)]); return true
+            }
+        }
         guard let completion = referenceCompletion else { return false }
         switch command {
         case .dismiss:

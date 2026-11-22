@@ -22,6 +22,7 @@ struct RichNoteEditor: NSViewRepresentable {
     var onWikiLinkQuery: (NoteWikiLinkCompletion?) -> Void = { _ in }
     var onWikiLinkAnchor: (CGRect) -> Void = { _ in }
     var onReferenceCompletion: (NoteReferenceCompletion?) -> Void = { _ in }
+    var onSlashCompletion: (NoteSlashCompletion?) -> Void = { _ in }
     var onTableContext: (Bool) -> Void = { _ in }
     var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
@@ -92,6 +93,10 @@ struct RichNoteEditor: NSViewRepresentable {
                     guard !editor.hasMarkedText(),
                           let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), replacement: replacement) else { return }
                     editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection, actionName: "Insert Reference Block")
+                case .slash(let completion, let replacement, let caret):
+                    guard !editor.hasMarkedText(),
+                          let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), replacement: replacement, caretOffset: caret) else { return }
+                    editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection)
                 case .highlight(let color): editor.setHighlight(color)
                 case .removeHighlight:
                     if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {
@@ -132,6 +137,7 @@ struct RichNoteEditor: NSViewRepresentable {
         private var wikiLinkQueryPending = false
         private var publishedWikiLinkQuery: NoteWikiLinkCompletion?
         private var publishedReferenceCompletion: NoteReferenceCompletion?
+        private var publishedSlashCompletion: NoteSlashCompletion?
         private var publishedTableContext = false
 
         private var remoteImageObserver: NSObjectProtocol?
@@ -318,7 +324,11 @@ struct RichNoteEditor: NSViewRepresentable {
                     editor.window?.firstResponder === editor && !editor.hasMarkedText() && query == nil
                         ? NoteReferenceCompletion.detect(in: editor.string, selection: editor.selectedRange()) : nil
                 }
-                if query != nil || reference != nil, let editor = self.textView,
+                let slash = self.textView.flatMap { editor in
+                    editor.window?.firstResponder === editor && !editor.hasMarkedText() && query == nil && reference == nil
+                        ? NoteSlashCompletion.detect(in: editor.string, selection: editor.selectedRange()) : nil
+                }
+                if query != nil || reference != nil || slash != nil, let editor = self.textView,
                    let window = editor.window, let scroll = editor.enclosingScrollView {
                     let screenRect = editor.firstRect(forCharacterRange: editor.selectedRange(), actualRange: nil)
                     let rect = scroll.convert(window.convertFromScreen(screenRect), from: nil)
@@ -342,6 +352,10 @@ struct RichNoteEditor: NSViewRepresentable {
                 if reference != self.publishedReferenceCompletion {
                     self.publishedReferenceCompletion = reference
                     self.parent.onReferenceCompletion(reference)
+                }
+                if slash != self.publishedSlashCompletion {
+                    self.publishedSlashCompletion = slash
+                    self.parent.onSlashCompletion(slash)
                 }
             }
         }
