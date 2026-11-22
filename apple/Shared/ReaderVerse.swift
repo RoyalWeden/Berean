@@ -427,9 +427,9 @@ enum ScriptureWidth: String, CaseIterable {
     /// iPhone text insets only; desktop reading widths use macMaximum.
     var phoneInset: CGFloat {
         switch self {
-        case .wide: 8
-        case .normal: 14
-        case .narrow: 26
+        case .wide: 6
+        case .normal: 10
+        case .narrow: 22
         }
     }
 }
