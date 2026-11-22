@@ -991,19 +991,22 @@ struct ScriptureSearchView: View {
     }
 
     @ViewBuilder private func resultActions(_ hit: ScriptureHit, passage: ResolvedPassage, marks: [Highlight]) -> some View {
-        let reference = referenceForCopy(passage.label, textId: hit.textId)
+        let verse = SharedScriptureVerse(passage: passage, text: hit.text, tagged: hit.textTagged,
+                                         bible: app.bible, clipboard: app.verseClipboard(textId: hit.textId))
         Button("Open Verse", systemImage: "book") { openResult(hit, passage: passage) }
         Button("Open in New Tab", systemImage: "plus.square") { openResult(hit, passage: passage, reuseTab: false) }
         Button("Copy Verse", systemImage: "doc.on.doc") {
-            Clipboard.copy("\(reference) \(displayText(hit))")
-            AccessibilityNotification.Announcement("Verse copied").post()
+            Task {
+                Clipboard.copy(await verse.formattedText())
+                AccessibilityNotification.Announcement("Verse copied").post()
+            }
         }
         Button("Copy Reference", systemImage: "number") {
-            Clipboard.copy(reference)
+            Clipboard.copy(verse.reference)
             AccessibilityNotification.Announcement("Reference copied").post()
         }
         // Original ResultActionSheet: share the verse and start a note on it without leaving the results.
-        ShareLink(item: "\(reference) \(displayText(hit))") { Label("Share Verse…", systemImage: "square.and.arrow.up") }
+        ShareLink(item: verse, preview: SharePreview(verse.reference)) { Label("Share Verse…", systemImage: "square.and.arrow.up") }
         Divider()
         Button("Add Note", systemImage: "square.and.pencil") {
             _ = app.newNote(verseRef: "\(hit.bookId).\(hit.chapter).\(hit.verseNum)", textId: hit.textId)

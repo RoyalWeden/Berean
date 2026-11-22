@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import BereanBible
 
 /// Observe touchdown without competing with scrolling, links, selection or pinch.
 /// A fast pan may be recognized only after much of its travel has occurred.
@@ -1146,8 +1147,10 @@ struct IOSChapterTextView: UIViewRepresentable {
             let reference = parent.reference(first.0.verse, last.0.verse)
             let displayedNumbers = Dictionary(uniqueKeysWithValues: parent.verses.map { ($0.verse, $0.readerVerseLabel) })
             let copyWithReference = UIAction(title: "Copy with Reference", image: UIImage(systemName: "number")) { _ in
-                let lines = portions.map { "\(displayedNumbers[$0.0.verse] ?? String($0.0.verse)) \($0.1.trimmingCharacters(in: .whitespacesAndNewlines))" }
-                Clipboard.copy(([reference] + lines).joined(separator: "\n"))
+                let lines = portions.map { piece, text in
+                    VerseClipboard.Line(number: displayedNumbers[piece.verse] ?? String(piece.verse), text: text)
+                }
+                Clipboard.copy(VerseClipboard.passage(reference: reference, verses: lines))
             }
             let highlight = UIMenu(title: "Highlight Selection", image: UIImage(systemName: "highlighter"),
                                    children: highlightColors.map { color in

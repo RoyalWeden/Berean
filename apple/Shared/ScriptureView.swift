@@ -356,30 +356,69 @@ struct ChapterTagTarget: Identifiable {
 }
 
 struct SharedVerseSelection: Transferable {
-    let reference: String
+    let label: String
     let rows: [ChapterVerseRow]
-    let textId: String
-    let replacerEnabled: Bool
-    let rules: [WordReplacerRule]
-    var hideSuppliedWords = false
+    let clipboard: VerseClipboard
+
+    var reference: String { clipboard.reference(label) }
 
     var fileName: String {
         reference.replacingOccurrences(of: ":", with: " ") + ".txt"
     }
 
-    var formattedText: String {
-        ([reference] + rows.map { row in
-            let text = VerseDisplay.text(row.text, tagged: row.textTagged, textId: textId,
-                                         replacerEnabled: replacerEnabled, rules: rules, hideSuppliedWords: hideSuppliedWords)
-            let title = textId == "lxx" ? row.title.map { $0.replacingOccurrences(of: "\n", with: " ") + " " } ?? "" : ""
-            return "\(row.readerVerseLabel) \(title)\(text)"
-        }).joined(separator: "\n")
-    }
+    var formattedText: String { clipboard.passage(label, rows: rows) }
 
     static var transferRepresentation: some TransferRepresentation {
         ProxyRepresentation(exporting: { (selection: Self) in selection.formattedText })
             .suggestedFileName { $0.fileName }
     }
+}
+
+/// Search and occurrence rows carry raw text. In Psalms, resolve the complete displayed
+/// row before copying so a hit on the title can include its attached body and vice versa.
+struct SharedScriptureVerse: Transferable {
+    let passage: ResolvedPassage
+    let row: ChapterVerseRow
+    let bible: BibleService
+    let clipboard: VerseClipboard
+
+    init(passage: ResolvedPassage, text: String, tagged: String?, bible: BibleService, clipboard: VerseClipboard) {
+        self.passage = passage
+        self.row = ChapterVerseRow(bookId: passage.bookId, chapter: passage.chapter, verseNum: passage.verse ?? 1,
+                                   text: text, textTagged: tagged, title: nil)
+        self.bible = bible
+        self.clipboard = clipboard
+    }
+
+    var reference: String { clipboard.reference(passage.label) }
+
+    func formattedText() async -> String {
+        if row.bookId == "PSA" {
+            let raw = await bible.queryChapter(row.bookId, row.chapter, textId: clipboard.textId)
+            let prepared = clipboard.readerRows(raw, bookId: row.bookId, chapter: row.chapter,
+                                                from: row.verseNum, through: row.verseNum)
+            if !prepared.isEmpty { return clipboard.passage(passage.label, rows: prepared) }
+        }
+        return clipboard.passage(passage.label, rows: [row])
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation(exporting: { (verse: Self) async throws -> String in await verse.formattedText() })
+    }
+}
+
+extension AppModel {
+    func verseClipboard(textId: String, hiddenAnnotations: Set<String> = []) -> VerseClipboard {
+        VerseClipboard(textId: textId, replacerEnabled: wordReplacerEnabled, rules: wordReplacerRules,
+                       hiddenAnnotations: hiddenAnnotations)
+    }
+}
+
+/// One chapter and edition per native verse selection. Keep the display numbering even when storage IDs differ.
+func clipboardSelectionLabel(_ rows: [ChapterVerseRow], textId: String) -> String {
+    guard let first = rows.first else { return "" }
+    return ResolvedPassage(textId: textId, bookId: first.bookId, chapter: first.chapter, verse: first.verseNum,
+                           verseGroups: consecutiveVerseRuns(Set(rows.map(\.verseNum)))).label
 }
 
 extension ChapterVerseRow {
@@ -394,23 +433,20 @@ extension ChapterVerseRow {
 }
 
 private struct SharedScriptureChapter: Transferable {
-    let reference: String
+    let label: String
     let bookId: String
     let chapter: Int
-    let textId: String
-    let replacerEnabled: Bool
-    let rules: [WordReplacerRule]
     let bible: BibleService
-    let hiddenAnnotations: Set<String>
+    let clipboard: VerseClipboard
+
+    var reference: String { clipboard.reference(label) }
 
     func formattedText() async throws -> String {
+        let textId = clipboard.textId
         let rows = await bible.queryChapter(bookId, chapter, textId: textId)
         guard !rows.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
         let prepared = PsalmSuperscription.apply(rows, textId: textId, bookId: bookId, chapter: chapter)
-        let visibleRows = prepared.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: textId) }
-        return SharedVerseSelection(reference: reference, rows: visibleRows, textId: textId,
-                                    replacerEnabled: replacerEnabled, rules: rules,
-                                    hideSuppliedWords: hiddenAnnotations.contains(AnnotationFilters.kjvaSuppliedWords)).formattedText
+        return clipboard.passage(label, rows: prepared, wholeChapter: true)
     }
 
     static var transferRepresentation: some TransferRepresentation {
@@ -421,7 +457,7 @@ private struct SharedScriptureChapter: Transferable {
     }
 }
 
-func referenceForCopy(_ label: String, textId: String) -> String {
+func editionMarkedReference(_ label: String, textId: String) -> String {
     let text = textId.lowercased()
     if ChapterMap.isKjv(text) || ChapterMap.isLxx(text) {
         return "\(label) \(textInfo(text).short)"
@@ -440,11 +476,11 @@ struct ChapterExportActions: View {
 
     var body: some View {
         let chapterLabel = Reference.readerChapterLabel(state.bookId, state.chapter, textId: state.translation)
-        let reference = chapterLabel + (state.translation == "lxx" ? " LXX" : "")
         let hidden = Set((app.findTab(tabId)?.state["hiddenAnnotations"]?.arrayValue ?? []).compactMap { $0.stringValue?.string })
-        let chapter = SharedScriptureChapter(reference: reference, bookId: state.bookId, chapter: state.chapter,
-                                            textId: state.translation, replacerEnabled: app.wordReplacerEnabled,
-                                            rules: app.wordReplacerRules, bible: app.bible, hiddenAnnotations: hidden)
+        let clipboard = app.verseClipboard(textId: state.translation, hiddenAnnotations: hidden)
+        let chapter = SharedScriptureChapter(label: chapterLabel, bookId: state.bookId, chapter: state.chapter,
+                                            bible: app.bible, clipboard: clipboard)
+        let reference = chapter.reference
         Button("Copy Chapter", systemImage: "doc.on.doc") {
             Task {
                 do {
@@ -457,7 +493,7 @@ struct ChapterExportActions: View {
         }
         .disabled(!hasText)
         Button("Copy Chapter Reference", systemImage: "number") {
-            Clipboard.copy(referenceForCopy(chapterLabel, textId: state.translation))
+            Clipboard.copy(reference)
             AccessibilityNotification.Announcement("Reference copied").post()
         }
         if let url = DeepLink.nativeDevPassageURL(bookId: state.bookId, chapter: state.chapter, textId: state.translation) {
@@ -1113,15 +1149,14 @@ struct ScriptureView: View {
     private func selectionText(_ state: BibleState, plain: Bool = false) -> String? {
         let rows = selectedRows
         guard !rows.isEmpty else { return nil }
-        if plain { return rows.map { clipboardVerseText($0, state) }.joined(separator: " ") }
-        return shareSelection(state, rows: rows).formattedText
+        let selection = shareSelection(state, rows: rows)
+        if plain { return rows.map(selection.clipboard.body).joined(separator: " ") }
+        return selection.formattedText
     }
 
     private func shareSelection(_ state: BibleState, rows: [ChapterVerseRow]) -> SharedVerseSelection {
-        SharedVerseSelection(reference: selectionLabel(state) + (state.translation == "lxx" ? " LXX" : ""),
-                             rows: rows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: state.translation) },
-                             textId: state.translation, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
-                             hideSuppliedWords: hideKJVASuppliedWords)
+        SharedVerseSelection(label: clipboardSelectionLabel(rows, textId: state.translation), rows: rows,
+                             clipboard: app.verseClipboard(textId: state.translation, hiddenAnnotations: hiddenAnnotations))
     }
 
     @ViewBuilder private func selectedVerseExportActions(_ state: BibleState, onComplete: @escaping () -> Void = {}) -> some View {
@@ -1179,7 +1214,7 @@ struct ScriptureView: View {
     }
 
     private func selectionReference(_ state: BibleState) -> String {
-        referenceForCopy(selectionLabel(state), textId: state.translation)
+        VerseClipboard.reference(clipboardSelectionLabel(selectedRows, textId: state.translation), textId: state.translation)
     }
 
 
@@ -1507,12 +1542,7 @@ struct ScriptureView: View {
             finishHistoryRestore: finishHistoryRestore,
             savePosition: { app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: $0) },
             findRequest: findRequest,
-            reference: { first, last in
-                let suffix = st.translation == "lxx" ? " LXX" : ""
-                let label = ResolvedPassage(textId: st.translation, bookId: st.bookId, chapter: st.chapter,
-                                            verse: first, endVerse: first == last ? nil : last).label
-                return label + suffix
-            },
+            reference: { VerseClipboard.reference(copyRangeLabel(st, first: $0, last: $1), textId: st.translation) },
             onStrongs: { id, verse in showLexicon(id, verse: verse) },
             onOpenStrongsTab: { id, verse in showLexicon(id, verse: verse, newTab: true) },
             onNotes: { openInspector("notes", verse: $0) },
@@ -1837,11 +1867,10 @@ struct ScriptureView: View {
         let hidden = hiddenAnnotations
         let replacer = app.wordReplacerEnabled
         let replacerKey = app.wordReplacerKey
-        let reference = Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)
-            + (st.translation == "lxx" ? " LXX" : "")
-        let chapter = SharedScriptureChapter(reference: reference, bookId: st.bookId, chapter: st.chapter,
-                                            textId: st.translation, replacerEnabled: replacer,
-                                            rules: app.wordReplacerRules, bible: app.bible, hiddenAnnotations: hidden)
+        let label = Reference.readerChapterLabel(st.bookId, st.chapter, textId: st.translation)
+        let chapter = SharedScriptureChapter(label: label, bookId: st.bookId, chapter: st.chapter,
+                                            bible: app.bible,
+                                            clipboard: app.verseClipboard(textId: st.translation, hiddenAnnotations: hidden))
         chapterShareTask = Task {
             do {
                 let text = try await chapter.formattedText()
@@ -2098,7 +2127,7 @@ struct ScriptureView: View {
             Label("Share Verse…", systemImage: "square.and.arrow.up")
         }
         Button("Copy Reference", systemImage: "number") {
-            perform { Clipboard.copy(referenceForCopy(label, textId: st.translation)) }
+            perform { Clipboard.copy(VerseClipboard.reference(label, textId: st.translation)) }
         }
         Button("Tag Verse…") {
             perform {
@@ -2170,17 +2199,14 @@ struct ScriptureView: View {
         hiddenAnnotations.contains(AnnotationFilters.kjvaSuppliedWords)
     }
 
-    private func clipboardVerseText(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
-        let visible = verse.hidingTextAnnotations(hiddenAnnotations, textId: state.translation)
-        return VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: state.translation,
-                          replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
-                          hideSuppliedWords: hideKJVASuppliedWords)
+    private func copyRangeLabel(_ state: BibleState, first: Int, last: Int) -> String {
+        ResolvedPassage(textId: state.translation, bookId: state.bookId, chapter: state.chapter,
+                        verse: first, endVerse: last).label
     }
 
     private func verseWithReference(_ verse: ChapterVerseRow, _ state: BibleState) -> String {
-        let label = verse.readerReferenceLabel(textId: state.translation)
-        let suffix = state.translation == "lxx" ? " LXX" : ""
-        return "\(label)\(suffix) \(clipboardVerseText(verse, state))"
+        let clipboard = app.verseClipboard(textId: state.translation, hiddenAnnotations: hiddenAnnotations)
+        return clipboard.passage(verse.readerReferenceLabel(textId: state.translation), rows: [verse])
     }
 
     func copy(_ verse: ChapterVerseRow, _ state: BibleState) {
@@ -2622,7 +2648,6 @@ extension ScriptureView {
     func macReader(_ st: BibleState, actionClearance: CGFloat, titleBarClearance: CGFloat) -> some View {
         let rv = readerVerses(st)
         let header = ChapterMap.readerNumberingSummary(st.bookId, st.chapter, textId: st.translation).map { [$0] } ?? []
-        let suffix = st.translation == "lxx" ? " LXX" : ""
         return ChapterTextView(
             passageId: "\(st.translation)|\(st.bookId)|\(st.chapter)",
             header: header,
@@ -2648,7 +2673,13 @@ extension ScriptureView {
             finishHistoryRestore: finishHistoryRestore,
             savePosition: { app.saveScripturePosition(tabId: tabId, edition: ChapterEdition(st), position: $0) },
             selectedVerseCopyText: { plain in selectionText(st, plain: plain) },
-            rangeReference: { a, b in "\(referenceChapterLabel(st)):\(a)\(a == b ? "" : "-\(b)")\(suffix)" },
+            rangeCopyText: { numbers, plain in
+                let rows = verses.filter { numbers.contains($0.verseNum) }
+                guard let first = rows.first, let last = rows.last else { return nil }
+                let clipboard = app.verseClipboard(textId: st.translation, hiddenAnnotations: hiddenAnnotations)
+                if plain { return rows.map(clipboard.body).joined(separator: " ") }
+                return clipboard.passage(copyRangeLabel(st, first: first.verseNum, last: last.verseNum), rows: rows)
+            },
             verseMenu: { verseNSMenu($0, st) },
             tagMenu: { name, v in tagNSMenu(name, verse: v, st) },
             strongsTooltips: st.showStrongs ? strongsTooltips : [:],
@@ -2723,7 +2754,7 @@ extension ScriptureView {
         }
         m.addItem(ClosureMenuItem(selection.contains(n) ? "Deselect Verse" : "Select Verse", image: "checkmark.circle") { verseClick(n, shift: false) })
         m.addItem(ClosureMenuItem("Copy Verse", image: "doc.on.doc") { copy(v, st) })
-        m.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy(referenceForCopy(label, textId: st.translation)) })
+        m.addItem(ClosureMenuItem("Copy Reference", image: "number") { Clipboard.copy(VerseClipboard.reference(label, textId: st.translation)) })
         let hl = NSMenuItem(title: "Highlight", action: nil, keyEquivalent: ""); hl.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil)
         let sub = NSMenu()
         for color in highlightColors {

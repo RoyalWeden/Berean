@@ -677,7 +677,8 @@ struct LexiconEntryView: View {
                                key: OccurrenceKey, expanded: Bool) -> some View {
         let passage = ResolvedPassage(textId: occurrence.textId, bookId: occurrence.bookId,
                                       chapter: occurrence.chapter, verse: occurrence.verseNum)
-        let reference = passage.label + (passage.textId == "lxx" ? " LXX" : "")
+        let verse = SharedScriptureVerse(passage: passage, text: occurrence.text, tagged: occurrence.textTagged,
+                                         bible: app.bible, clipboard: app.verseClipboard(textId: passage.textId))
         return Button {
             openOccurrence(passage, key: key)
         } label: {
@@ -707,12 +708,14 @@ struct LexiconEntryView: View {
             Divider()
             if !preview.words.isEmpty {
                 Button("Copy Verse", systemImage: "doc.on.doc") {
-                    Clipboard.copy(reference + " " + preview.words.joined(separator: " "))
-                    AccessibilityNotification.Announcement("Verse copied").post()
+                    Task {
+                        Clipboard.copy(await verse.formattedText())
+                        AccessibilityNotification.Announcement("Verse copied").post()
+                    }
                 }
             }
             Button("Copy Reference", systemImage: "number") {
-                Clipboard.copy(reference)
+                Clipboard.copy(verse.reference)
                 AccessibilityNotification.Announcement("Reference copied").post()
             }
         }
@@ -1467,7 +1470,7 @@ struct CrossRefsView: View {
                     openReference(passage, fromVerse: fromVerse)
                 } label: {
                     HStack {
-                        Text(passage.textId == "kjva" ? passage.label : referenceForCopy(passage.label, textId: passage.textId))
+                        Text(passage.textId == "kjva" ? passage.label : editionMarkedReference(passage.label, textId: passage.textId))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.accentColor)
                         Spacer(minLength: 4)
@@ -1534,17 +1537,15 @@ struct CrossRefsView: View {
         Button("Open", systemImage: "arrow.up.right") {
             openReference(passage, fromVerse: fromVerse)
         }
-        let reference = referenceForCopy(passage.label, textId: passage.textId)
+        let clipboard = app.verseClipboard(textId: passage.textId)
         Button("Copy", systemImage: "doc.on.doc") {
             Task {
-                var copied = reference
+                var copied = clipboard.reference(passage.label)
                 if passage.textId == "lxx", let first = passage.verse {
-                    let rows = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
-                    let text = rows.filter { (first...max(first, passage.endVerse ?? first)).contains($0.verseNum) }
-                        .map { VerseDisplay.text($0.text, tagged: nil, textId: passage.textId,
-                                                 replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules) }
-                        .joined(separator: " ")
-                    if !text.isEmpty { copied += " " + text }
+                    let raw = await app.bible.queryChapter(passage.bookId, passage.chapter, textId: passage.textId)
+                    let rows = clipboard.readerRows(raw, bookId: passage.bookId, chapter: passage.chapter,
+                                                    from: first, through: passage.endVerse ?? first)
+                    copied = clipboard.passage(passage.label, rows: rows)
                 }
                 Clipboard.copy(copied)
                 AccessibilityNotification.Announcement("Reference copied").post()

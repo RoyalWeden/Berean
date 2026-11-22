@@ -262,7 +262,7 @@ struct ChapterTextView: NSViewRepresentable {
     var finishHistoryRestore: (ScriptureHistoryRestore, ScriptureReadingPosition?) -> Void = { _, _ in }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
     var selectedVerseCopyText: (Bool) -> String?
-    var rangeReference: (Int, Int) -> String        // first, last → "John 3:16-18"
+    var rangeCopyText: (Set<Int>, Bool) -> String?
     var verseMenu: (Int) -> NSMenu
     var tagMenu: (String, Int?) -> NSMenu           // tag name, verse (nil = chapter tag)
     var strongsTooltips: [String: String] = [:]
@@ -1056,12 +1056,9 @@ struct ChapterTextView: NSViewRepresentable {
             if r.length == 0 {
                 return parent.selectedVerseCopyText(plain)
             }
-            let vs = verses(in: r)
-            if vs.count <= 1 && !plain { return plainText(r) }
-            let texts = vs.compactMap { v in parent.verses.first { $0.verse == v } }
-            if plain { return vs.count <= 1 ? plainText(r) : texts.map(\.displayText).joined(separator: " ") }
-            let head = parent.rangeReference(vs.first!, vs.last!)
-            return ([head] + texts.map { "\($0.verse) \($0.displayText)" }).joined(separator: "\n")
+            let touched = Set(verses(in: r))
+            if touched.count <= 1 { return plainText(r) }
+            return parent.rangeCopyText(touched, plain)
         }
     }
 }

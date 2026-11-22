@@ -1437,18 +1437,15 @@ struct CompareView: View {
         .help("Select verse \(row.readerVerseLabel) · \(textInfo(column.text).short)")
     }
     @ViewBuilder private func comparisonVerseActions(_ row: ChapterVerseRow, column: CompareColumn) -> some View {
-        let reference = comparisonVerseReference(row, column: column)
+        let label = row.readerReferenceLabel(textId: column.text)
+        let clipboard = app.verseClipboard(textId: column.text, hiddenAnnotations: hiddenAnnotations)
         let copyVerse = {
-            let visible = row.hidingTextAnnotations(hiddenAnnotations, textId: column.text)
-            let text = VerseDisplay.text(visible.text, tagged: visible.textTagged, textId: column.text,
-                                         replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
-                                         hideSuppliedWords: hideSuppliedWords)
-            Clipboard.copy("\(reference) \(text)")
+            Clipboard.copy(clipboard.passage(label, rows: [row]))
             AccessibilityNotification.Announcement("Verse copied").post()
         }
         Button("Copy Verse", systemImage: "doc.on.doc", action: copyVerse)
         Button("Copy Reference", systemImage: "number") {
-            Clipboard.copy(reference)
+            Clipboard.copy(clipboard.reference(label))
             AccessibilityNotification.Announcement("Reference copied").post()
         }
         if let url = DeepLink.nativeDevPassageURL(bookId: row.bookId, chapter: row.chapter,
@@ -1482,7 +1479,7 @@ struct CompareView: View {
         Button("Tag Verse…", systemImage: "tag") {
             let verse = Double(row.verseNum)
             let range = TagRange(bookId: row.bookId, chapter: Double(row.chapter), spans: [(verse, verse)])
-            tagging = VerseTagTarget(range: range, label: reference)
+            tagging = VerseTagTarget(range: range, label: comparisonVerseReference(row, column: column))
         }
         Button("Cross References", systemImage: "arrow.triangle.branch") {
             openReader(row, in: column, inspector: "crossrefs")
@@ -1495,7 +1492,7 @@ struct CompareView: View {
 
     private func comparisonVerseReference(_ row: ChapterVerseRow, column: CompareColumn) -> String {
         let label = row.readerReferenceLabel(textId: column.text)
-        return referenceForCopy(label, textId: column.text)
+        return editionMarkedReference(label, textId: column.text)
     }
 
     private func comparisonVerseBody(_ row: ChapterVerseRow, column: CompareColumn, state: BibleState, showsControls: Bool = true, dimsDragSource: Bool = true) -> some View {
@@ -1755,11 +1752,10 @@ struct CompareView: View {
     }
 
     private var comparisonShare: SharedVerseSelection? {
-        guard let target = selectedPassage, !comparisonSelectedRows.isEmpty else { return nil }
-        return SharedVerseSelection(reference: referenceForCopy(comparisonSelectionLabel, textId: target.edition.text),
-                                    rows: comparisonSelectedRows.map { $0.hidingTextAnnotations(hiddenAnnotations, textId: target.edition.text) },
-                                    textId: target.edition.text, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
-                                    hideSuppliedWords: hideSuppliedWords)
+        let rows = comparisonSelectedRows
+        guard let target = selectedPassage, !rows.isEmpty else { return nil }
+        return SharedVerseSelection(label: clipboardSelectionLabel(rows, textId: target.edition.text), rows: rows,
+                                    clipboard: app.verseClipboard(textId: target.edition.text, hiddenAnnotations: hiddenAnnotations))
     }
 
     private var comparisonSelectionRange: TagRange? {
@@ -1873,9 +1869,9 @@ struct CompareView: View {
             }
             #endif
             Menu {
-                if let target = selectedPassage {
+                if let share = comparisonShare {
                     Button("Copy Reference", systemImage: "number") {
-                        Clipboard.copy(referenceForCopy(comparisonSelectionLabel, textId: target.edition.text))
+                        Clipboard.copy(share.reference)
                     }
                 }
                 #if os(macOS)
