@@ -69,4 +69,28 @@ import BereanNotes
             index.deleteSearchableItems(withDomainIdentifiers: [domainBooks]) { _ in index.indexSearchableItems(books) { _ in } }
         }
     }
+
+    #if DEBUG
+    /// Debug-only check (launch with `--spotlight-selftest`): queries this app's own index a few
+    /// seconds after the launch refresh and logs what each domain contains — the simulator's
+    /// system Spotlight UI doesn't reliably surface app results.
+    static func selfTestIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("--spotlight-selftest") else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            let context = CSSearchQueryContext()
+            context.fetchAttributes = ["title", "contentDescription", "domainIdentifier"]
+            let query = CSSearchQuery(queryString: "domainIdentifier == \"sessions\" || domainIdentifier == \"notes\"", queryContext: context)
+            var found: [String] = []
+            query.foundItemsHandler = { items in
+                found += items.map { "\($0.domainIdentifier ?? "?") | \($0.attributeSet.title ?? "") | \($0.uniqueIdentifier)" }
+            }
+            query.completionHandler = { error in
+                NSLog("SPOTLIGHT-SELFTEST %d items %@", found.count, error.map { "\($0)" } ?? "ok")
+                for line in found { NSLog("SPOTLIGHT-SELFTEST %@", line) }
+            }
+            query.start()
+        }
+    }
+    #endif
 }

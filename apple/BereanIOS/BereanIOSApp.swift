@@ -16,7 +16,12 @@ struct BereanIOSApp: App {
                         app.openNativeDevURL(url)
                     }
                 }
-                .task { SpotlightIndex.refresh(app) }
+                .task {
+                    SpotlightIndex.refresh(app)
+                    #if DEBUG
+                    SpotlightIndex.selfTestIfRequested()
+                    #endif
+                }
                 .onChange(of: app.notesRevision) { SpotlightIndex.scheduleRefresh(app) }
                 .onChange(of: app.savedWorkspaces.count) { SpotlightIndex.scheduleRefresh(app) }
                 .onChange(of: app.defaultText) { SpotlightIndex.scheduleRefresh(app) }
