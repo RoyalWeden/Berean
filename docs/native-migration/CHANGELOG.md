@@ -2149,3 +2149,7 @@ Local source6fbba670 keeps iPhone Compare side by side with horizontal overflow,
 ## 2026-11-21 — Discoverable iPhone reading controls
 
 Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage in the existing top row, removing the extra44pt Compare band. Both chapter arrows always remain; long names wrap in two lines, LXX appears on the edition-switch button. Actual Simulator Song of Solomon1LXX full-title/Strong’s on-off/lexicon lookup/CompareExit passes; build scopes and remaining375pt/VoiceOver/physical checks are in [focused evidence](IOS-READER-CONTROLS-2026-11-21.md). The ordinary changing foreground gap remains OPEN (measured AEL case stable; no inset hack). Source3bb05740 further widens iPhone-only text with6/10/22pt insets; desktop widths unchanged. Rejected arrow-hiding and separate-LXX-row candidates were not committed. Broad migration active.
+
+## 2026-11-21 — Verse-copy layout and LXX Psalm titles
+
+Reader and Compare copy, Scripture search hits, and applicable cross-reference and highlight copy paths use the shared verse clipboard formatter. A single verse puts its reference and body on one line. Multiple verses put the reference range first, followed by each selected verse on its own numbered line. Whole-verse LXX Psalm copy retains the attached superscription. Both Dev builds and six focused tests passed. Actual clipboard checks covered reader single/range/gapped copy on both platforms, Mac Compare and Scripture search, and iPhone Simulator Psalm 3. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md).

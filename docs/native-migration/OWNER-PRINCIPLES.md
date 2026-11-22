@@ -76,3 +76,5 @@ Owner resumed 2026-11-21: iPhone Strong’s must be easy to discover, preferably
 Owner correction (same resumed session): adding Strong’s and Compare must NOT hide previous/next chapter buttons on iPhone. Keep both arrows visible; adapt the title instead. Supersedes the uncommitted ViewThatFits toolbar fallback that hid arrows.
 
 Owner clarified “wider margins” means wider verse text, with less space at the edges. iPhone-only width presets now use6/10/22pt side insets (previous8/14/26). Desktop width caps920/760/600 and native inset formula remain unchanged.
+
+Owner explicit copy contract (both Mac and iPhone): audit all verse-copy actions against original. Single verse puts reference and verse text on one line. Multiple verses put book/chapter/verse range on first line and each verse on its own following line; preserve fuller original semantics for ranges/gaps/editions and rendering preferences. Do not treat this as iPhone-only.
