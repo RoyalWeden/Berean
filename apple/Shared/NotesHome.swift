@@ -42,7 +42,8 @@ struct NotesHomeView: View {
     @State private var browseOptions = BrowseOptions()
     @State private var searchResult: SearchResult?
     @AppStorage("notesHomeSort") private var sort = "modified"        // modified | created | name
-    @AppStorage("nativeNotesHomeLayout") private var layout = "list"       // device-local list | gallery
+    @AppStorage("nativeNotesHomeLayout") private var layout = "list"       // device-local list | gallery | board
+    @State private var boardTarget: String?
     @AppStorage("nativeNotesCollapsedSections") private var collapsedSectionsData = Data()
     @AppStorage("nativeNotesExpandedFolders") private var expandedFoldersData = Data()
     @AppStorage("notesHomeGrouping") private var grouping = "none"    // none | status | folder | type
@@ -821,10 +822,14 @@ struct NotesHomeView: View {
                             }
                         }
                     }
-                    ForEach(visibleSections) { section in
-                        collapsibleSectionHeading(section.title, id: "notes:" + section.id, count: section.notes.count,
-                                                  selectedCount: section.notes.filter { selectedNotes.contains($0.id) }.count)
-                        if !isSectionCollapsed("notes:" + section.id) { noteCollection(section.notes) }
+                    if layout == "board" {
+                        statusBoard(visibleSections.flatMap(\.notes))
+                    } else {
+                        ForEach(visibleSections) { section in
+                            collapsibleSectionHeading(section.title, id: "notes:" + section.id, count: section.notes.count,
+                                                      selectedCount: section.notes.filter { selectedNotes.contains($0.id) }.count)
+                            if !isSectionCollapsed("notes:" + section.id) { noteCollection(section.notes) }
+                        }
                     }
                     if loadedNotes && visibleCount == 0 && hasFilters {
                         ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
@@ -967,6 +972,7 @@ struct NotesHomeView: View {
         Picker("Layout", selection: $layout) {
             Label("List", systemImage: "list.bullet").tag("list")
             Label("Gallery", systemImage: "square.grid.2x2").tag("gallery")
+            Label("Board", systemImage: "rectangle.split.3x1").tag("board")
         }
         .pickerStyle(.menu)
         Picker("Sort", selection: $sort) { Text("Date Edited").tag("modified"); Text("Date Created").tag("created"); Text("Title").tag("name") }
@@ -1044,6 +1050,60 @@ struct NotesHomeView: View {
         [GridItem(.adaptive(minimum: 150), spacing: 14, alignment: .top)]
         #endif
     }
+
+    /// Original NotesBoardView: a kanban lane per status (canonical order/colours); notes without a
+    /// status stay off the board; dropping a card on another lane sets its status.
+    private func statusBoard(_ notes: [Note]) -> some View {
+        ScrollView(.horizontal) {
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(Self.statuses, id: \.id) { status in
+                    let lane = notes.filter { $0.status == status.id }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Circle().fill(status.color).frame(width: 8, height: 8)
+                            Text(status.label).font(.subheadline.weight(.semibold))
+                            Text("\(lane.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isHeader)
+                        if lane.isEmpty {
+                            Text("Drop notes here").font(.caption).foregroundStyle(.tertiary)
+                                .frame(maxWidth: .infinity, minHeight: 60)
+                                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+                        }
+                        ForEach(lane) { note in
+                            noteRow(note, gallery: true)
+                                .draggable(note.id)
+                                .id("note:" + note.id)
+                        }
+                    }
+                    .frame(width: Self.boardLaneWidth, alignment: .top)
+                    .padding(8)
+                    .background(boardTarget == status.id ? Color.accentColor.opacity(0.12) : .clear, in: .rect(cornerRadius: 12))
+                    .dropDestination(for: String.self) { ids, _ in
+                        for id in ids where notes.contains(where: { $0.id == id && $0.status != status.id }) {
+                            _ = try? app.notes?.update(id, .init(status: .some(status.id)))
+                        }
+                        return !ids.isEmpty
+                    } isTargeted: { boardTarget = $0 ? status.id : (boardTarget == status.id ? nil : boardTarget) }
+                }
+            }
+            .padding(.vertical, 8)
+        }
+        .scrollTargetLayout()
+        .overlay(alignment: .top) {
+            if notes.allSatisfy({ ($0.status ?? "").isEmpty }) && !notes.isEmpty {
+                Text("The board shows notes with a status. Set one from a note's Status menu.")
+                    .font(.callout).foregroundStyle(.secondary).padding(.top, 140)
+            }
+        }
+    }
+
+    #if os(macOS)
+    static let boardLaneWidth: CGFloat = 240
+    #else
+    static let boardLaneWidth: CGFloat = 200
+    #endif
 
     @ViewBuilder private func noteCollection(_ notes: [Note], searchPosition: SearchPosition? = nil) -> some View {
         if layout == "gallery" {
