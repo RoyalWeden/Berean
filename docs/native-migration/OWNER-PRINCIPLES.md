@@ -70,3 +70,9 @@ Owner observes titlebar dimming ahead of content and a slow floatingsearch open.
 Owner clarification (2026-11-21): the reduced Scripture margins apply to iPhone only. Verified change 0d6c0ad3 changes phoneInset from 12/20/32 to 8/14/26; only IOSChapterTextView consumes it. Mac ChapterTextView still uses max(20, (width - macMaximum) / 2), with unchanged 920/760/600 width caps. Do not propagate the phone reduction to desktop. No desktop rollback was needed.
 
 Owner steering (2026-11-21): iPhone Compare must remain side-by-side columns, including narrow screens. Preserve column identity and useful reading width; allow horizontal movement for extra columns instead of vertically stacking editions/whole passages. Keep synchronized verse alignment, independent passage controls, selection/actions and accessibility intact.
+
+Owner resumed 2026-11-21: iPhone Strong’s must be easy to discover, preferably to the left of the passage picker. Audit excessive top gaps that change after app foregrounding. Long book/chapter names must remain readable with the available controls; avoid crowded or tiny text. These requests are iOS-only.
+
+Owner correction (same resumed session): adding Strong’s and Compare must NOT hide previous/next chapter buttons on iPhone. Keep both arrows visible; adapt the title instead. Supersedes the uncommitted ViewThatFits toolbar fallback that hid arrows.
+
+Owner clarified “wider margins” means wider verse text, with less space at the edges. iPhone-only width presets now use6/10/22pt side insets (previous8/14/26). Desktop width caps920/760/600 and native inset formula remain unchanged.

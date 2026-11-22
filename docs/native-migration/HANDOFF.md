@@ -17,11 +17,13 @@ The former mixed current-summary block has been [archived verbatim](CHECKPOINT-H
 <!-- AI CONTINUITY END -->
 
 <!-- BEGIN CURRENT CHECKPOINT -->
-- **PAUSED at owner's request, 2026-11-21 ~12:51 PST.** Latest local source6fbba670 plus e31b8d87; not pushed. Draft24 published354e5d90/all3checksPASS44945186621 does not cover these commits. Read the paused section of [CURRENT-STATE](CURRENT-STATE.md) first.
-- iPhone Compare stays in side-by-side columns with horizontal overflow, compact headers, tighter verse text/number rows, no per-verse ellipsis, outline including first verse number. Shared viewport arrival fixes replace stale offsets during layout changes. Both final builds pass. Actual iPhone columns/horizontal swipe/Sync off-on/close3→2/text-tap joined selection pass in bounded scope. Final compact first-number outline verified. [Evidence and remaining checks](COMPARE-VIEWPORT-2026-11-21.md).
-- **Next requested UX:** integrate Compare control nicely with the regular passage picker; not implemented. Finish final Mac runtime, pinned→following/explicit jump/history/accessibility/width checks; durable Compare positions and full Presenter remain open. Owner asks tighter gaps and no needless verse menus. Desktop Scripture margins remain unchanged.
-- iPhone safely left ordinary Psalm118LXX reader/no selection/Compare/sheet,9tabs; three configured columns retained, third pinned. Psalm3 baseline not restored. Mac QA Genesis1selected1/Notes/446/source50f00c76 untouched. Final original hashes and exact37/47IDs,22/26notes pass. No workers/builds remain running. Preserve dirty/unpublished work, owner app and review guards. Resume only when owner requests.
+- **ACTIVE again, 2026-11-21 resumed session ~18:14 PST.** Owner resumed pause. Latest local source0819f846, margins3bb05740, Compare6fbba670/e31b8d87. Not yet pushed; last live remote draft24 remains354e5d90/all3green44945186621. Read [CURRENT-STATE](CURRENT-STATE.md) for actual publication/runtime next steps; archived paused text is historical.
+- **New iPhone UX:** direct Strong’s left of picker, Compare/Manage in same toolbar row, both chapter arrows always visible, full two-line book/chapter name, LXX on edition-switch button, wider verse text (phone-only6/10/22). Actual long LXX title/Strong’s on-off/lookup/CompareExit verified, both build scopes recorded. [Detailed evidence and failed iterations](IOS-READER-CONTROLS-2026-11-21.md). Do not restore arrow-hiding fallback or separate LXX third line.
+- Known Compare extra44pt top row removed; ordinary foreground-changing gap not reproduced in measured AEL case and remains OPEN. No inset hacks; temp diagnostics removed. Physical/375pt/large-type/VoiceOver and broader matrix open. Mac Scripture margins/control layout unchanged.
+- iPhone51249 advisory: Song1LXX/Strongsoff/no selection/Compare/sheet,9tabs;3PSAcomparisonfixturecolumns retained. Mac42518 exact QA profile, Genesis1selected1/Notes/446, oldrunning50f00c76; owner728 untouched. Original hashes/37/47IDs/22/26notes pass. Reverify live state before acting.
+- **Next:** normal github publication/exact-head CI, final Mac Compare runtime, compatible dormant Compare reentry semantics, then durable viewport/history/synced-navigation and broader parity. Presenter/Messages access remains an exploratory design follow-up. No merges/retarget/ready/force, production/sync/schema/identity changes, Apple voices or resets. Keep continuous notes and broad goal active.
 <!-- END CURRENT CHECKPOINT -->
+
 
 
 ## Historical implementation log — dated evidence, not current state

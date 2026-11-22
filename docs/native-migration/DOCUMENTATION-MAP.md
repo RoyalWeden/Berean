@@ -84,3 +84,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [iPhone watchdog investigation](IOS-WATCHDOG-2026-11-21.md): supplied physical report, matched symbols, diagnostic fixes, clear top edge and unresolved hardware gates.
 
 - [Tab lifecycle and inspector continuity, Nov 21](TAB-LIFECYCLE-2026-11-21.md): same-ID live inspector callback guard, corrected interpretation of AX divider geometry, final AppKit offset-only drift and active native trace/correction evidence.
+
+- [iPhone controls/top spacing](IOS-READER-CONTROLS-2026-11-21.md): direct Strong’s, long-title/arrows/LXX refinements, measured gap investigation and exact runtime evidence. [Checkpoint history Nov21](CHECKPOINT-HISTORY-2026-11-21.md) archives superseded current-state text.
