@@ -222,7 +222,7 @@ struct LexiconEntryView: View {
     }
 
     /// Definition / derivation text with Strong's cross-references as links (⌘-click opens a new tab on the Mac).
-    private func linkedText(_ text: String, lang: Character) -> Text {
+    private func linkedText(_ text: String, lang: Character) -> some View {
         var out = AttributedString()
         for token in StrongsRefTokens.tokens(text, lang: lang) {
             switch token {
@@ -235,7 +235,18 @@ struct LexiconEntryView: View {
                 out += a
             }
         }
-        return Text(markFind(out))
+        let marked = markFind(out)
+        return Group {
+            #if os(macOS)
+            if marked.runs.contains(where: { $0.link != nil }) {
+                ReferenceLinkText(text: marked)
+            } else {
+                Text(marked).textSelection(.enabled)
+            }
+            #else
+            Text(marked).textSelection(.enabled)
+            #endif
+        }
     }
 
     /// Context menu for a Strong's number (original StrongsContextMenu.tsx).
@@ -315,9 +326,9 @@ struct LexiconEntryView: View {
                             Button("Copy \(e.strongsNum) with Gloss", systemImage: "doc.on.doc") { copyToPasteboard(entrySummary(e)) }
                             Button("Copy \(e.lemma)", systemImage: "character") { copyToPasteboard(e.lemma) }
                         }
-                        if !e.gloss.isEmpty { linkedText(displayGloss(e), lang: e.strongsNum.first ?? "H").font(.headline).textSelection(.enabled).environment(\.openURL, lexiconLinkAction).id(FindSection.gloss) }
-                        if !e.definition.isEmpty { section("Definition") { linkedText(replaced(e.definition), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }.id(FindSection.definition) }
-                        if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }.id(FindSection.derivation) }
+                        if !e.gloss.isEmpty { linkedText(displayGloss(e), lang: e.strongsNum.first ?? "H").font(.headline).environment(\.openURL, lexiconLinkAction).id(FindSection.gloss) }
+                        if !e.definition.isEmpty { section("Definition") { linkedText(replaced(e.definition), lang: e.strongsNum.first ?? "H").environment(\.openURL, lexiconLinkAction) }.id(FindSection.definition) }
+                        if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").environment(\.openURL, lexiconLinkAction) }.id(FindSection.derivation) }
                         if !e.extendedDef.isEmpty, !compact {
                             if e.strongsNum.hasPrefix("H") {
                                 section("BDB Notes") { BdbSelectableText(text: replaced(e.extendedDef), findQuery: findShown ? findQuery : "").frame(maxWidth: .infinity, alignment: .leading) }.id(FindSection.extended)

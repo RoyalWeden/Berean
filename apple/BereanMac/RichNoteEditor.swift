@@ -260,6 +260,7 @@ struct RichNoteEditor: NSViewRepresentable {
             storage.endEditing()
             if let lm = tv.layoutManager { lm.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil); lm.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil) }
             tv.typingAttributes = [.font: body, .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
+            tv.window?.invalidateCursorRects(for: tv)
         }
 
         func addTrait(_ trait: NSFontTraitMask, _ r: NSRange, _ storage: NSTextStorage) {
@@ -429,7 +430,7 @@ struct RichNoteEditor: NSViewRepresentable {
 }
 
 /// The editor's text view: Markdown-aware formatting commands, copy/paste and drawing of multi-character labels.
-final class NoteTextView: NSTextView {
+final class NoteTextView: ReferenceCursorTextView {
     weak var coordinator: RichNoteEditor.Coordinator?
     static let markdownType = NSPasteboard.PasteboardType("com.berean.note-markdown")
     private var imageRestylePending = false
@@ -470,10 +471,9 @@ final class NoteTextView: NSTextView {
     }
 
     override func resetCursorRects() {
-        super.resetCursorRects()
-        if let frame = activeImageFrame() {
-            addCursorRect(NoteTableLayout.handleRect(for: frame.rect), cursor: .frameResize(position: .bottomRight, directions: .all))
-        }
+        let handle = activeImageFrame().map { NoteTableLayout.handleRect(for: $0.rect) }
+        registerTextCursorRects(excluding: handle)
+        if let handle { addCursorRect(handle, cursor: .frameResize(position: .bottomRight, directions: .all)) }
     }
 
     override func mouseDown(with event: NSEvent) {

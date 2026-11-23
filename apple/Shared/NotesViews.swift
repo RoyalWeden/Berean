@@ -1732,7 +1732,7 @@ struct MarkdownText: View {
                     .foregroundStyle(kind.color)
                     .accessibilityHidden(true)
                 Text(kind.label).fontWeight(.semibold)
-                if !title.isEmpty { inline(title).fontWeight(.semibold) }
+                if !title.isEmpty { inline(title, semibold: true) }
             }
             .accessibilityAddTraits(interactive ? .isHeader : [])
             if !body.isEmpty { MarkdownText(body, maxBlocks: maxBlocks, interactive: interactive) }
@@ -1756,9 +1756,8 @@ struct MarkdownText: View {
             ForEach(table.rows.indices, id: \.self) { row in
                 GridRow {
                     ForEach(table.alignments.indices, id: \.self) { column in
-                        let cell = inline(table.rows[row][column])
+                        let cell = inline(table.rows[row][column], semibold: row == 0)
                         cell
-                            .fontWeight(row == 0 ? .semibold : .regular)
                             .multilineTextAlignment(table.alignments[column].text)
                             .padding(.horizontal, interactive ? 12 : 5)
                             .padding(.vertical, interactive ? 8 : 3)
@@ -1786,8 +1785,25 @@ struct MarkdownText: View {
         .accessibilityLabel("Table")
     }
 
-    func inline(_ s: String) -> Text {
-        Text(styledNotePreviewInline(s, interactive: interactive))
+    @ViewBuilder private func inline(_ s: String, semibold: Bool = false, secondary: Bool = false) -> some View {
+        let text = styledNotePreviewInline(s, interactive: interactive)
+        #if os(macOS)
+        if text.runs.contains(where: { $0.link != nil }) {
+            ReferenceLinkText(text: text, color: secondary ? .secondaryLabelColor : .labelColor, semibold: semibold)
+        } else {
+            if secondary {
+                Text(text).fontWeight(semibold ? .semibold : nil).foregroundStyle(.secondary)
+            } else {
+                Text(text).fontWeight(semibold ? .semibold : nil)
+            }
+        }
+        #else
+        if secondary {
+            Text(text).fontWeight(semibold ? .semibold : nil).foregroundStyle(.secondary)
+        } else {
+            Text(text).fontWeight(semibold ? .semibold : nil)
+        }
+        #endif
     }
 
     private func standaloneScriptureLink(_ line: String) -> (label: String, url: URL)? {
@@ -1843,16 +1859,18 @@ struct MarkdownText: View {
                 }
             }
         } else if interactive, let passage = standaloneScriptureLink(t) {
+            #if os(macOS)
+            ReferenceLinkText(text: styledNotePreviewInline(t), scriptureLabel: passage.label)
+                .padding(.vertical, 4)
+            #else
             Link(destination: passage.url) {
                 Label(passage.label, systemImage: "book")
                     .foregroundStyle(Color.accentColor)
                     .padding(.vertical, 4)
                     .contentShape(.rect)
             }
-            #if os(macOS)
-            .clickableCursor()
-            #endif
             .accessibilityLabel("Open \(passage.label) in Scripture")
+            #endif
         } else if let heading = notePreviewHeading(t) {
             let font: Font = interactive
                 ? (heading.level == 1 ? .title : heading.level == 2 ? .title2 : .title3)
@@ -1860,8 +1878,7 @@ struct MarkdownText: View {
             inline(heading.text).font(font.bold()).accessibilityAddTraits(interactive ? .isHeader : [])
         }
         else if t.hasPrefix(">") {
-            inline(String(t.drop { $0 == ">" || $0.isWhitespace }))
-                .foregroundStyle(.secondary)
+            inline(String(t.drop { $0 == ">" || $0.isWhitespace }), secondary: true)
                 .padding(.leading, 11)
                 .overlay(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 1).fill(.secondary).frame(width: 3)

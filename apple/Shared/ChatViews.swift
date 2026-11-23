@@ -348,6 +348,9 @@ struct ChatThreadView: View {
                                     Text(r["text"]?.stringValue?.string ?? "").font(.callout).foregroundStyle(.primary).lineLimit(3)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                #if os(macOS)
+                                .modifier(MessageCitationHover())
+                                #endif
                             }
                             .buttonStyle(.interactivePlain)
                         }
@@ -521,6 +524,20 @@ struct ChatThreadView: View {
         } catch { saveError = "Your edit is still open. " + error.localizedDescription }
     }
 }
+
+#if os(macOS)
+private struct MessageCitationHover: ViewModifier {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(.rect)
+            .background(Color.accentColor.opacity(hovered && isEnabled ? 0.10 : 0), in: .rect(cornerRadius: 4))
+            .onHover { hovered = $0 }
+    }
+}
+#endif
 
 /// A single quiet glass group, with an opaque accessibility fallback.
 private struct ChatComposerSurface: ViewModifier {
