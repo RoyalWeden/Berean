@@ -77,10 +77,10 @@ private struct TaggedSearchResultRow: View {
                 }
                 Spacer(minLength: 0)
             }
+            .padding(.horizontal, 6)
             .padding(.vertical, 4)
-            .contentShape(.rect)
         }
-        .buttonStyle(.interactivePlain)
+        .buttonStyle(SearchResultButtonStyle())
         .task(id: app.wordReplacerKey) {
             guard let verse = passage.verse else { return }
             let row = await app.bible.queryVerse(passage.bookId, passage.chapter, verse, textId: passage.textId)
@@ -766,6 +766,7 @@ struct ScriptureSearchView: View {
                             .background(Color.accentColor.opacity(0.25), in: .capsule)
                     }
                     .buttonStyle(.interactivePlain)
+                    .optionHover(active: true)
                     .accessibilityLabel("Clear \(textInfo(focusText).name) result filter")
                     .help("Show results from all editions in scope")
                 }
@@ -777,6 +778,7 @@ struct ScriptureSearchView: View {
                                 .background(Color.secondary.opacity(0.12), in: .capsule)
                         }
                         .buttonStyle(.interactivePlain)
+                        .optionHover()
                         .help("Show only \(textInfo(id).name)")
                     }
                 }
@@ -977,9 +979,10 @@ struct ScriptureSearchView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(.rect)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
                 }
-                .buttonStyle(.interactivePlain)
+                .buttonStyle(SearchResultButtonStyle())
                 .contextMenu {
                     resultActions(h, passage: passage, marks: marks)
                 }
@@ -1085,8 +1088,13 @@ struct ScriptureSearchView: View {
             } else {
                 Section("Recent searches") {
                     ForEach(recent, id: \.self) { q in
-                        Button { field = q; submit() } label: { Label(q, systemImage: "clock.arrow.circlepath").frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect) }
-                            .buttonStyle(.interactivePlain)
+                        Button { field = q; submit() } label: {
+                            Label(q, systemImage: "clock.arrow.circlepath")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                        }
+                        .buttonStyle(SearchResultButtonStyle())
                     }
                     Button("Clear Recent Searches", role: .destructive) { SearchHistory.clear(); field = field + "" }
                 }
@@ -1229,6 +1237,36 @@ struct BookFilterField: View {
                 }
             }
         }
+    }
+}
+
+struct SearchResultButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    #if os(macOS)
+    @State private var hovered = false
+    #endif
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 7)
+        configuration.label
+            .opacity(enabled ? 1 : 0.45)
+            .background(Color.primary.opacity(backgroundOpacity(pressed: configuration.isPressed)), in: shape)
+            .contentShape(.interaction, .rect)
+            #if os(macOS)
+            .onHover { hovered = $0 }
+            #else
+            .contentShape(.hoverEffect, shape)
+            .hoverEffect(.highlight, isEnabled: enabled)
+            #endif
+    }
+
+    private func backgroundOpacity(pressed: Bool) -> Double {
+        guard enabled else { return 0 }
+        if pressed { return 0.15 }
+        #if os(macOS)
+        if hovered { return 0.09 }
+        #endif
+        return 0
     }
 }
 

@@ -144,10 +144,8 @@ struct LexiconSearchView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                         .padding(.horizontal, 10).padding(.vertical, 6)
-                        .contentShape(.rect)
-                        .optionHover()
                     }
-                    .buttonStyle(.interactivePlain)
+                    .buttonStyle(SearchResultButtonStyle())
                     .id(e.strongsNum)
                     .contextMenu {
                         Button("Open in New Tab", systemImage: "plus.square.on.square") { app.openLexicon(e.strongsNum) }
