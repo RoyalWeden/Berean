@@ -2163,3 +2163,20 @@ Shared CompareColumn now updates following saved columns on real reader passage 
 Source7ccbc3ca replaces flat snippets with rich attributed rows and bounded document thumbnails for gallery/iPhone tabs. Valid Markdown stays hidden; headings, links, wiki aliases, underlines, highlights, lists/callouts and table grids render; code remains literal. No note storage/editor rewrite. Final both builds and10focused parser checks pass. Actual Mac gallery/history and iPhone peek/table-tab/tap verified; final iPhone thumbnail retains button role. Original row hashes/37+47IDs/22+26notes pass. Physical/VoiceOver/large-type/imported-dialect/performance matrix remains open. [Detailed evidence](NOTE-PREVIEWS-2026-11-22.md).
 
 Final rich-thumbnail refinement26dfced7: both builds pass; actual iPhone table card retains button role and reads Item/Value/Testrow/42 rather than repeated generic Table labels. Native VoiceOver remains unverified. See rich-preview evidence.
+
+### 2026-11-22 23:30 PST — Parity + QA session (Claude Code) — VERIFIED (sim/Mac QA), PUSHED
+- **Agent/session context:** Claude Code continuing the HANDOFF goal on `native/reader-notes` (draft PR #24), alongside Codex's commits (rich previews, compare alignment, verse copy) which were pulled first.
+- **Repository/worktree/branch and SHA before:** `/Users/roywe/Berean-native` `native/reader-notes` at `1b58c644`; after: `13e25712`.
+- **Code changed / behavior delivered (each commit verified before the next):**
+  - Owner requests: instant Strong's taps on iPhone (reader tap owns `strongs:` links); one-row equal-spacing iPhone reader top bar; compact 3-column iPhone book picker. Owner's iPhone 16e has Berean Native Dev installed via `npm run native:ios:device`.
+  - Study Trail: merge / split (mergeSessions/splitSession), Move to Trail + topic breaks (moveNodes/setNodeTopicBreak), multi-stop Select → Move, Map folding on shared `trail_collapse` keys.
+  - Notes: Board layout (status lanes, drag to change status); slash-command menu (original SLASH_COMMANDS with native equivalents; Mac arrow/Return routing fix); wide tables shrink-to-fit / no-wrap grid (was breaking); substituted-marker resume across TextKit glyph chunks (stray "]" after task boxes).
+  - PDFs: bookmark label prompt ("Page N") + Rename. Spotlight: tab sessions indexed (Debug `--spotlight-selftest` query verified).
+  - Lexicon: Mac BDB Notes no longer overlap Derived Terms; entry sections are VoiceOver headings.
+  - Chat: VoiceOver reads who/when first + Reply/Copy/Delete actions; plain-language `SQLiteError` descriptions; delete failures reported.
+- **Commands and results:** `npm run native:build:ios` / `native:build:mac` exit 0 after every change; `swift test -c release` 357 tests / 92 suites pass (new: StudyTrail merge/split/move/fold, NoteSlashCompletion, PdfService rename).
+- **Data touched:** isolated Dev only — sim E8B01B22 (`com.berean.native.ios.dev`) and Mac QA profile `claude-20261120`; every QA fixture (trails, notes, PDF, highlights, chat message, statuses, layout pref) removed or restored afterwards. No production data, no iCloud.
+- **Known failures, regressions and their fixes:** YouTube in-app mini player (M02 stand-in) trapped in `_WebKit_SwiftUI` when re-hosting a `WebPage` → fully reverted and documented (YOUTUBE-TAB doc).
+- **Branch / commit / PR / CI link:** `native/reader-notes` → draft PR #24 (owner merges).
+- **Documentation/parity rows updated:** FULL-FEATURE-PARITY S02, S04, S11, S14, H02, N03, N04, N05, N11, Q04, U14, U17, U18, A04, A05; OWNER-DECISIONS-BRIEF-2026-11-22.md; APP-INTENTS, NOTE-IMAGES, PRESENTER-MESSAGES-POLISH, S14 and YOUTUBE-TAB docs; HANDOFF bullets.
+- **Next exact action and its prerequisites:** owner device checklist (Psalm 119, VoiceOver, Siri/Shortcuts) and the six decisions in OWNER-DECISIONS-BRIEF-2026-11-22.md; Read Aloud remains Codex's.
