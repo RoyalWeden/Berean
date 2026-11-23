@@ -1134,6 +1134,7 @@ struct LexiconEntryView: View {
     @ViewBuilder func section<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption.weight(.semibold)).textCase(.uppercase).foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)   // VoiceOver heading rotor jumps between entry sections
             content()
         }
     }

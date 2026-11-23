@@ -2953,3 +2953,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - S11 pinch-to-resize verified on sim (multi-touch 'mt [a, b] 0.1 [c, d] 0.8': 16→30, 30→12, clamped); fontSize restored to 16.
 - Q04 Mac lexicon search rows + Hebrew/Greek filter verified in the QA instance (AX palette + AXRadioButton press); tab closed.
 - Q04 Mac: lexicon in-tab back verified; FIXED Mac BDB Notes overlap (BdbSelectableText sizeThatFits now always measures at a real width + fills the section). Verified H7462 before/after.
+- Q04 accessibility audit (sim AX tree) + section titles marked as headers in lexicon entries.
