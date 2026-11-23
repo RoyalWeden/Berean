@@ -2964,3 +2964,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Mac checklist/callout rendering while typing checked in QA (per-PID keys); QA note removed.
 - M02 mini-player attempt REVERTED (re-hosting a WebPage after a second WebView traps in WebKit); documented in YOUTUBE-TAB doc with the viable design (one persistent root player view).
 - Psalm 119 device timing DONE (iPhone 16e: render 11 ms, on screen 31 ms; sim confirmed same 13,965-char chapter). Clean builds reinstalled on sim + phone.
+- 2026-11-22 end state: every handoff item Claude can do unattended is done. S15 Find in chapter is ✅/✅ (not open). M02 auto-PiP: four approaches tried and reverted (YOUTUBE-TAB doc); the only remaining route is a root-level persistent player redesign — waiting on owner go-ahead. Everything else is owner-gated: VoiceOver + Siri/Shortcuts on device, and the six decisions in OWNER-DECISIONS-BRIEF-2026-11-22.md. Read Aloud = Codex.
