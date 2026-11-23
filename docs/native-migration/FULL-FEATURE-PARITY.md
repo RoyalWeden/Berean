@@ -1377,3 +1377,8 @@ Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage 
 
 
 Nov23 final follow-up: owner rejected excerpts with too little context. Final source `6fc04d7e` keeps bounded surrounding phrases; actual rebuilt Mac H776 confirms readable context and visible matches. Final Mac/iOS context builds and372package tests passed. iPhone snippet and broader interaction checks remain open; see CLAUDE-AUDIT-2026-11-23.md.
+
+
+## Nov23 — per-visit Compare reading positions
+
+Source `d349bf41` records immutable passage-scoped viewport maps in in-tab history, reruns same-mounted restoration and protects saved bookmarks from early/stale callbacks. Both native builds and extracted snapshot probe pass. Actual Mac independent Compare→lexicon→Back retains logical verses; two separate visits to the same Exodus32 comparison remain distinct through Back/Forward. Exact independent intra-row pixels, durable restart storage, iPhone history runtime and aligned/stacked/rapid/selection matrices remain OPEN. See COMPARE-VIEWPORT-2026-11-21.md and COMPARE-PERSISTENCE-NEXT-2026-11-23.md. No sync/schema/identity changes; original QA rows and37/47active tab IDs preserved. Broad migration ACTIVE.

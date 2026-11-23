@@ -92,3 +92,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Rich note previews](NOTE-PREVIEWS-2026-11-22.md): latest owner direction, original preview comparison, native rendering work and verification.
 
 - [Claude change audit, Nov23](CLAUDE-AUDIT-2026-11-23.md): full34commit/30file coverage, continuity corrections, concrete findings/fixes and verification.
+
+- [Compare durable-position next packet](COMPARE-PERSISTENCE-NEXT-2026-11-23.md): unfinished storage/identity plan, per-visit priority rules, both-platform tests and exact intra-row requirement after d349bf41.
