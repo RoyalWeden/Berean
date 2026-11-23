@@ -39,6 +39,77 @@ struct CompareViewportTests {
         #expect(CompareViewports.position(in: reloaded, scope: scope) == anchor)
     }
 
+    @Test func independentPrecisionRoundTripsLocallyAndClearsOnSemanticUpdate() throws {
+        let address = try destination()
+        let a = CompareBookmarkColumn(id: UUID(), destination: address)
+        let b = CompareBookmarkColumn(id: UUID(), destination: address)
+        let scope = CompareBookmarkScope.independent(a)
+        let layout = String(repeating: "a", count: 64)
+        let precision = try #require(CompareBookmarkPrecision(crop: 23.5, rowHeight: 72, layout: layout))
+        let anchor = try #require(CompareBookmarkAnchor(verse: 7, precision: precision))
+        let saved = CompareViewports.updating(JSObject(), scope: scope, position: anchor)
+        let split = TabFields.split(type: .bible, state: saved)
+        #expect(split.sync[CompareViewports.field] == nil)
+        let local = try #require(try JSON.parse(JSON.stableJSON(.object(split.local))).objectValue)
+        let reloaded = TabFields.merge(type: .bible, sync: split.sync, local: local)
+        #expect(CompareViewports.position(in: reloaded, scope: scope) == anchor)
+        #expect(CompareViewports.position(in: reloaded, scope: .independent(b)) == nil)
+
+        let aligned = CompareBookmarkScope.aligned(source: address, columns: [a, b])
+        #expect(CompareViewports.updating(saved, scope: aligned, position: anchor) == saved)
+        let stacked = CompareBookmarkScope.stacked(source: address, columns: [a, b])
+        let stackedPrecision = try #require(CompareBookmarkAnchor(verse: 7, columnID: a.id, precision: precision))
+        #expect(CompareViewports.updating(saved, scope: stacked, position: stackedPrecision) == saved)
+
+        let semantic = try #require(CompareBookmarkAnchor(verse: 7))
+        let cleared = CompareViewports.updating(reloaded, scope: scope, position: semantic)
+        #expect(CompareViewports.position(in: cleared, scope: scope) == semantic)
+        #expect(!JSON.stableJSON(.object(cleared)).contains("\"precision\""))
+    }
+
+    @Test func independentHistoryVisitKeepsItsOwnCropAndCanBeEmpty() throws {
+        let layout = String(repeating: "a", count: 64)
+        let oldCrop = try #require(CompareBookmarkPrecision(crop: 5, rowHeight: 72, layout: layout))
+        let newCrop = try #require(CompareBookmarkPrecision(crop: 40, rowHeight: 72, layout: layout))
+        let earlier = try #require(CompareBookmarkAnchor(verse: 7, precision: oldCrop))
+        let latest = try #require(CompareBookmarkAnchor(verse: 7, precision: newCrop))
+        let arrival = try #require(CompareBookmarkAnchor(verse: 8))
+        let fallback = try #require(CompareBookmarkAnchor(verse: 1))
+
+        #expect(CompareViewports.independentPosition(visit: .history(earlier), arrival: arrival,
+                                                    durable: latest, fallback: fallback) == earlier)
+        #expect(CompareViewports.independentPosition(visit: .history(nil), arrival: arrival,
+                                                    durable: latest, fallback: fallback) == nil)
+        #expect(CompareViewports.independentPosition(visit: .ordinary, arrival: arrival,
+                                                    durable: latest, fallback: fallback) == arrival)
+        #expect(CompareViewports.independentPosition(visit: .ordinary, arrival: nil,
+                                                    durable: latest, fallback: fallback) == latest)
+    }
+
+    @Test func malformedPrecisionRetainsSemanticAnchorAndReflowDiscardsCrop() throws {
+        let address = try destination()
+        let scope = CompareBookmarkScope.independent(.init(id: UUID(), destination: address))
+        let layout = String(repeating: "b", count: 64)
+        let precision = try #require(CompareBookmarkPrecision(crop: -12, rowHeight: 80, layout: layout))
+        #expect(precision.correction(layout: layout, rowHeight: 80.25, currentCrop: 20) == -32)
+        #expect(precision.correction(layout: layout, rowHeight: 82, currentCrop: 20) == nil)
+        #expect(precision.correction(layout: String(repeating: "c", count: 64), rowHeight: 80, currentCrop: 20) == nil)
+        #expect(precision.correction(layout: layout, rowHeight: 80, currentCrop: .infinity) == nil)
+        #expect(CompareBookmarkPrecision(crop: .nan, rowHeight: 80, layout: layout) == nil)
+        #expect(CompareBookmarkPrecision(crop: 81, rowHeight: 80, layout: layout) == nil)
+        #expect(CompareBookmarkPrecision(crop: 20, rowHeight: .infinity, layout: layout) == nil)
+
+        let source = try #require(CompareBookmarkAnchor(verse: 5, precision: precision))
+        var saved = CompareViewports.updating(JSObject(), scope: scope, position: source)
+        var records = try #require(saved[CompareViewports.field]?.objectValue)
+        let entry = try #require(records.entries.first)
+        var record = try #require(entry.value.objectValue)
+        record["precision"] = ["crop": 200, "rowHeight": 80, "layout": "malformed"]
+        records[entry.key] = .object(record)
+        saved[CompareViewports.field] = .object(records)
+        #expect(CompareViewports.position(in: saved, scope: scope) == CompareBookmarkAnchor(verse: 5))
+    }
+
     @Test func sameDestinationColumnsStaySeparateAndSharedScopesRequireMatchingConfiguration() throws {
         let address = try destination()
         let nextChapter = try destination(2)

@@ -1,3 +1,4 @@
+import CryptoKit
 import TipKit
 import SwiftUI
 import BereanCore
@@ -9,6 +10,356 @@ import BereanWorkspace
 #if os(macOS)
 import AppKit
 #endif
+
+
+private enum CompareIndependentScrollOrigin: Equatable {
+    case restore, jump, peer, user
+}
+
+private struct CompareIndependentScrollCommand: Equatable {
+    var id = UUID()
+    let anchor: CompareBookmarkAnchor
+    let origin: CompareIndependentScrollOrigin
+}
+
+private struct CompareIndependentRowFrame: Equatable {
+    let verse: Int
+    let minY: CGFloat
+    let height: CGFloat
+
+    var crossesTop: Bool { minY <= 0 && minY + height > 0 }
+}
+
+private struct CompareIndependentMeasurements: Equatable {
+    struct Target: Equatable {
+        let stamp: UUID
+        let row: CompareIndependentRowFrame
+    }
+
+    struct Content: Equatable {
+        let frame: CGRect
+        let viewportHeight: CGFloat
+    }
+
+    var content: Content?
+    var top: CompareIndependentRowFrame?
+    var target: Target?
+}
+
+private struct CompareIndependentMeasurementKey: PreferenceKey {
+    static let defaultValue = CompareIndependentMeasurements()
+
+    static func reduce(value: inout Value, nextValue: () -> Value) {
+        let next = nextValue()
+        if let content = next.content { value.content = content }
+        if let target = next.target { value.target = target }
+        if let row = next.top {
+            if let top = value.top {
+                if row.crossesTop ? (!top.crossesTop || row.minY > top.minY)
+                    : (!top.crossesTop && row.minY < top.minY) {
+                    value.top = row
+                }
+            } else {
+                value.top = row
+            }
+        }
+    }
+}
+
+/// The scroll binding and restoration request belong to one pane. Measurements
+/// move independently of Compare's observable state and only the top row and a
+/// pending target publish frames. The content origin and row frames are reduced
+/// together so they describe the same layout pass.
+private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
+    let rows: [ChapterVerseRow]
+    let compact: Bool
+    let bottomMargin: CGFloat
+    let renderingKey: String
+    let scope: Scope
+    let jumpRevision: UUID?
+    let currentJump: () -> CompareIndependentScrollCommand?
+    let peer: CompareIndependentScrollCommand?
+    let isCurrent: () -> Bool
+    let initialAnchor: () -> CompareBookmarkAnchor?
+    let observe: (CompareBookmarkAnchor, CompareIndependentScrollOrigin) -> Void
+    let userPhase: (Bool) -> Void
+    let beganWheel: () -> Void
+    @ViewBuilder let row: (ChapterVerseRow) -> Row
+
+    @Environment(\.displayScale) private var displayScale
+    @State private var position = ScrollPosition(idType: Int.self)
+    @State private var coordinate = UUID()
+    @State private var pending: Placement?
+    @State private var reading = Reading()
+
+    private struct Placement: Equatable {
+        var stamp = UUID()
+        let command: CompareIndependentScrollCommand
+        var correction: Correction?
+        var corrections = 0
+        var atStart = false
+    }
+
+    private struct Correction: Equatable {
+        let fromOffset: CGFloat
+        let fromCrop: CGFloat
+    }
+
+    private struct NativeViewport: Equatable {
+        let offset: CGFloat
+        let end: CGFloat
+
+        init(_ geometry: ScrollGeometry) {
+            offset = geometry.contentOffset.y + geometry.contentInsets.top
+            end = max(0, geometry.contentSize.height + geometry.contentInsets.top
+                      + geometry.contentInsets.bottom - geometry.containerSize.height)
+        }
+    }
+
+    @MainActor private final class Reading {
+        var current = false
+        var user = false
+        var wheelUntil: TimeInterval = 0
+        var latestMeasurement: CompareIndependentMeasurements?
+        var nativeViewport: NativeViewport?
+        var settledStamp: UUID?
+        var lastJump: UUID?
+        var lastAnchor: CompareBookmarkAnchor?
+        var fingerprint: (key: String, width: CGFloat, scale: CGFloat, value: String)?
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                if rows.isEmpty {
+                    Text("No Text in This Passage").foregroundStyle(.secondary)
+                }
+                ForEach(rows, id: \.verseNum) { item in
+                    row(item)
+                        .id(item.verseNum)
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(key: CompareIndependentMeasurementKey.self,
+                                                       value: measurement(for: item.verseNum, geometry: geometry))
+                            }
+                            .allowsHitTesting(false)
+                        }
+                }
+            }
+            .scrollTargetLayout()
+            .padding(compact ? 8 : 16)
+            .background {
+                GeometryReader { geometry in
+                    let space = NamedCoordinateSpace.named(coordinate)
+                    Color.clear.preference(key: CompareIndependentMeasurementKey.self,
+                        value: .init(content: .init(frame: geometry.frame(in: space),
+                                                   viewportHeight: geometry.bounds(of: space)?.height ?? 0)))
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .coordinateSpace(name: coordinate)
+        .contentMargins(.bottom, bottomMargin, for: .scrollContent)
+        .scrollPosition($position, anchor: .top)
+        .onScrollGeometryChange(for: NativeViewport.self) { NativeViewport($0) } action: { _, viewport in
+            reading.nativeViewport = viewport
+            if pending != nil, let measured = reading.latestMeasurement {
+                didMeasure(measured)
+            }
+        }
+        .onPreferenceChange(CompareIndependentMeasurementKey.self) { measured in
+            didMeasure(measured)
+        }
+        .onScrollPhaseChange { _, phase in
+            guard reading.current, isCurrent() else { return }
+            switch phase {
+            case .interacting, .decelerating:
+                if !reading.user {
+                    beginUserScroll()
+                    reading.user = true
+                    userPhase(true)
+                }
+            case .idle:
+                if reading.user, let latest = reading.latestMeasurement { didMeasure(latest) }
+                reading.user = false
+                userPhase(false)
+            default: break
+            }
+        }
+        #if os(macOS)
+        .background {
+            CompareWheelRegion {
+                guard reading.current, isCurrent() else { return }
+                beginUserScroll()
+                reading.wheelUntil = ProcessInfo.processInfo.systemUptime + 0.25
+                beganWheel()
+            }
+            .allowsHitTesting(false)
+        }
+        #endif
+        .onChange(of: jumpRevision) {
+            guard reading.current, isCurrent(), let jump = currentJump(), reading.lastJump != jump.id else { return }
+            place(jump)
+        }
+        .onChange(of: peer) {
+            guard reading.current, isCurrent(), let peer, !reading.user,
+                  ProcessInfo.processInfo.systemUptime > reading.wheelUntil,
+                  pending?.command.origin != .jump || pending?.stamp == reading.settledStamp else { return }
+            place(peer)
+        }
+        .onChange(of: renderingKey) {
+            guard reading.current, isCurrent(), !reading.user else { return }
+            if let pending, pending.command.origin == .jump, pending.stamp != reading.settledStamp { return }
+            if let anchor = reading.lastAnchor, let semantic = CompareBookmarkAnchor(verse: anchor.verse) {
+                place(.init(anchor: semantic, origin: .restore))
+            }
+        }
+        .task(id: scope) {
+            reading.current = false
+            reading.lastAnchor = nil
+            reading.latestMeasurement = nil
+            reading.settledStamp = nil
+            reading.user = false
+            reading.wheelUntil = 0
+            pending = nil
+            await Task.yield()
+            guard !Task.isCancelled, isCurrent() else { return }
+            reading.current = true
+            if let jump = currentJump(), reading.lastJump != jump.id {
+                place(jump)
+            } else if let anchor = initialAnchor() {
+                place(.init(anchor: anchor, origin: .restore))
+            } else if let verse = rows.first?.verseNum,
+                      let anchor = CompareBookmarkAnchor(verse: verse) {
+                let top = CompareIndependentScrollCommand(anchor: anchor, origin: .restore)
+                place(top, atStart: true)
+            }
+        }
+        .onDisappear {
+            reading.current = false
+        }
+    }
+
+    private func measurement(for verse: Int, geometry: GeometryProxy) -> CompareIndependentMeasurements {
+        let frame = geometry.frame(in: .named(coordinate))
+        guard frame.minY.isFinite, frame.height.isFinite, frame.height > 0 else { return .init() }
+        let row = CompareIndependentRowFrame(verse: verse, minY: frame.minY, height: frame.height)
+        let top = row.crossesTop || (0...32).contains(row.minY) ? row : nil
+        let target = pending.flatMap {
+            $0.command.anchor.verse == verse ? CompareIndependentMeasurements.Target(stamp: $0.stamp, row: row) : nil
+        }
+        return .init(top: top, target: target)
+    }
+
+    private func place(_ command: CompareIndependentScrollCommand, atStart: Bool = false) {
+        if command.origin == .jump { reading.lastJump = command.id }
+        // SwiftUI's logical ID jump materializes the requested lazy row. The
+        // exact correction, when supported by fresh measurements, follows it.
+        reading.user = false
+        reading.wheelUntil = 0
+        reading.settledStamp = nil
+        pending = Placement(command: command, atStart: atStart)
+        if atStart {
+            position.scrollTo(edge: .top)
+        } else {
+            position.scrollTo(id: command.anchor.verse, anchor: .top)
+        }
+    }
+
+    private func beginUserScroll() {
+        if pending != nil { pending = nil }
+        reading.settledStamp = nil
+    }
+
+    private func layoutFingerprint(width: CGFloat) -> String {
+        if let fingerprint = reading.fingerprint, fingerprint.key == renderingKey,
+           fingerprint.width == width, fingerprint.scale == displayScale {
+            return fingerprint.value
+        }
+        let key = JSON.stableJSON([.string(JSString(renderingKey)), .number(Double(width)), .number(Double(displayScale))])
+        let fingerprint = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        reading.fingerprint = (renderingKey, width, displayScale, fingerprint)
+        return fingerprint
+    }
+
+    private func didMeasure(_ measured: CompareIndependentMeasurements) {
+        guard reading.current, isCurrent(), let content = measured.content,
+              content.frame.width > 0, content.frame.width.isFinite, content.frame.minY.isFinite,
+              content.frame.height.isFinite, content.viewportHeight.isFinite,
+              displayScale > 0, displayScale.isFinite else { return }
+        if let jump = currentJump(), jump.id != reading.lastJump {
+            place(jump)
+            return
+        }
+        reading.latestMeasurement = measured
+        let origin = content.frame
+        let fingerprint = layoutFingerprint(width: origin.width)
+        if pending != nil, position.isPositionedByUser {
+            beginUserScroll()
+        }
+        if var placement = pending {
+            guard let target = measured.target, target.stamp == placement.stamp,
+                  let native = reading.nativeViewport, native.offset.isFinite, native.end.isFinite else { return }
+            let tolerance = 1 / displayScale
+            let current = -origin.minY
+            let rowCrop = -target.row.minY
+            // SwiftUI can publish an estimated frame for a lazy row before the
+            // ID request reaches it. A point request needs a live viewport
+            // sample, and the initial ID needs to reach the top or a scroll edge.
+            guard abs(current - native.offset) <= max(1, tolerance) else { return }
+            if placement.corrections == 0, !placement.atStart, abs(rowCrop) > max(2, tolerance) {
+                let visible = target.row.minY < content.viewportHeight
+                    && target.row.minY + target.row.height > 0
+                let atLeadingRow = target.row.verse == rows.first?.verseNum
+                    && native.offset <= tolerance && (0...32).contains(target.row.minY)
+                guard visible, native.offset >= native.end - tolerance || atLeadingRow else { return }
+            }
+            if let last = placement.correction,
+               abs(last.fromOffset - native.offset) <= tolerance,
+               abs(last.fromCrop - rowCrop) <= tolerance {
+                return
+            }
+            let cropCorrection = placement.command.anchor.precision?.correction(
+                layout: fingerprint, rowHeight: Double(target.row.height), currentCrop: Double(rowCrop))
+            let relativeCorrection = cropCorrection ?? Double(-rowCrop)
+            // Native offset and row geometry now describe the same placement.
+            // Adding the remaining row delta corrects for lazy-layout drift.
+            let proposed = placement.atStart ? 0 : native.offset + CGFloat(relativeCorrection)
+            let requested = min(native.end, max(0, proposed))
+            if proposed.isFinite, abs(relativeCorrection) > Double(tolerance),
+               abs(requested - native.offset) > tolerance, placement.corrections < 3 {
+                placement.corrections += 1
+                placement.correction = Correction(fromOffset: native.offset, fromCrop: rowCrop)
+                placement.stamp = UUID()
+                position.scrollTo(y: requested)
+                pending = placement
+                return
+            }
+            guard placement.stamp != reading.settledStamp else { return }
+            reading.settledStamp = placement.stamp
+            // Keep the target measurable for later lazy re-estimation. A newer
+            // command, scope change or genuine user scroll drops this placement.
+            publish(measured.top ?? target.row, fingerprint: fingerprint, origin: placement.command.origin)
+            return
+        }
+        guard let row = measured.top, origin.minY <= 1 / displayScale else { return }
+        if reading.user || position.isPositionedByUser
+            || ProcessInfo.processInfo.systemUptime <= reading.wheelUntil {
+            publish(row, fingerprint: fingerprint, origin: .user)
+        } else if reading.lastAnchor == nil {
+            publish(row, fingerprint: fingerprint, origin: .restore)
+        }
+    }
+
+    private func publish(_ row: CompareIndependentRowFrame, fingerprint: String, origin: CompareIndependentScrollOrigin) {
+        let crop = (-row.minY * displayScale).rounded() / displayScale
+        let precision = CompareBookmarkPrecision(crop: Double(crop), rowHeight: Double(row.height), layout: fingerprint)
+        guard let anchor = CompareBookmarkAnchor(verse: row.verse, precision: precision),
+              anchor != reading.lastAnchor || origin == .peer else { return }
+        reading.lastAnchor = anchor
+        observe(anchor, origin)
+    }
+}
 
 /// A persisted Compare column. Keep the raw object so older clients retain their metadata.
 struct CompareColumn: Identifiable {
@@ -247,7 +598,7 @@ struct CompareView: View {
     @State private var editingColumn: CompareColumn?
     @State private var tagging: VerseTagTarget?
     @State private var independentVisibleVerses: [Int: Int] = [:]
-    @State private var visibleIndependentRows: [Int: Set<Int>] = [:]
+    @State private var independentScrollCommands: [Int: CompareIndependentScrollCommand] = [:]
     @State private var visibleStackedVerses: [Int: Set<Int>] = [:]
     @State private var scrollingColumn: Int?
     #if os(macOS)
@@ -258,15 +609,13 @@ struct CompareView: View {
     @State private var columnViewportArrival: ColumnViewportArrival?
     @State private var arrivingAlignedAnchor: (passage: String, verse: Int)?
     @State private var arrivingAlignedOffset: (passage: String, offset: CGFloat)?
-    @State private var arrivingIndependentAnchors: (passage: String, verses: [Int: Int])?
+    @State private var arrivingIndependentAnchors: (passage: String, anchors: [Int: CompareBookmarkAnchor])?
     @State private var sharedScrollPosition = ScrollPosition()
     @State private var restoredSharedScroll: SharedViewportScope?
-    @State private var restoredIndependentScroll: [Int: ViewportScope] = [:]
     @State private var sharedUserScroll: SharedViewportScope?
     #if os(macOS)
     @State private var sharedWheelDriver: (scope: SharedViewportScope, deadline: TimeInterval)?
     #endif
-    @State private var independentUserScroll: [Int: ViewportScope] = [:]
 
     private struct ViewportScope: Equatable {
         let passage: String
@@ -332,6 +681,7 @@ struct CompareView: View {
         let viewport: ViewportScope
         var passage: String { viewport.passage }
         let verses: [Int: Int]
+        let independent: [Int: CompareBookmarkAnchor]
         let preferredColumns: [Int]
         let alignedVerse: Int?
         let alignedOffset: CGFloat?
@@ -949,20 +1299,81 @@ struct CompareView: View {
         }
     }
 
-    private func independentBookmarkVerse(for column: CompareColumn) -> Int? {
-        guard let identity = column.bookmarkColumn,
-              let anchor = app.compareBookmarkPosition(for: tabId, scope: .independent(identity)),
-              independentRows[column.id]?.contains(where: { $0.verseNum == anchor.verse }) == true else { return nil }
-        return anchor.verse
+    private func independentVisitKey(_ column: CompareColumn, passage: String) -> AppModel.CompareIndependentVisitKey? {
+        column.bookmarkColumn.map { .init(passage: passage, column: $0) }
     }
 
-    private func saveIndependentBookmark(_ verse: Int, column: CompareColumn, scope: ViewportScope) {
-        guard isCurrentViewport(scope, layout: .independent), restoredIndependentScroll[column.id] == scope,
-              independentRows[column.id]?.contains(where: { $0.verseNum == verse }) == true,
-              let bookmarkColumn = column.bookmarkColumn,
-              columns.first(where: { $0.id == column.id })?.bookmarkColumn == bookmarkColumn,
-              let anchor = CompareBookmarkAnchor(verse: verse) else { return }
-        app.recordCompareBookmark(for: tabId, scope: .independent(bookmarkColumn), anchor: anchor)
+    private func initialIndependentAnchor(_ column: CompareColumn, scope: ViewportScope) -> CompareBookmarkAnchor? {
+        let rows = independentRows[column.id] ?? []
+        let key = columnScrollKey(column.id, passage: scope.passage)
+        let cached = app.compareColumnScrollVerses[tabId]?[key]
+        let visit = independentVisitKey(column, passage: scope.passage).flatMap {
+            app.compareIndependentVisitPositions[tabId]?[$0]
+        }
+        let durable = column.bookmarkColumn.flatMap {
+            app.compareBookmarkPosition(for: tabId, scope: .independent($0))
+        }
+        let arrival = arrivingIndependentAnchors?.passage == scope.passage
+            ? arrivingIndependentAnchors?.anchors[column.id] : nil
+        if arrival != nil { arrivingIndependentAnchors?.anchors.removeValue(forKey: column.id) }
+        func checked(_ anchor: CompareBookmarkAnchor?) -> CompareBookmarkAnchor? {
+            guard let anchor, rows.contains(where: { $0.verseNum == anchor.verse }) else { return nil }
+            return anchor
+        }
+        func semantic(_ verse: Int?) -> CompareBookmarkAnchor? {
+            checked(verse.flatMap { CompareBookmarkAnchor(verse: $0) })
+        }
+        let history: CompareViewports.IndependentVisit = scope.historyRevision == nil
+            ? .ordinary : .history(checked(visit) ?? semantic(cached))
+        let fallback = checked(visit) ?? semantic(cached)
+            ?? semantic(selectedRows(in: column, source: state).first?.verseNum)
+            ?? semantic(column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) })
+        return CompareViewports.independentPosition(visit: history, arrival: checked(arrival),
+                                                    durable: checked(durable), fallback: fallback)
+    }
+
+    private func observeIndependentAnchor(_ anchor: CompareBookmarkAnchor, column: CompareColumn,
+                                          scope: ViewportScope, origin: CompareIndependentScrollOrigin) {
+        guard ownsIndependentColumn(column, scope: scope) else { return }
+        if origin == .user, app.scriptureJumpRequest?.tabID == tabId {
+            app.scriptureJumpRequest = nil
+        }
+        let verse = anchor.verse
+        let previous = independentVisibleVerses[column.id]
+        if previous != verse { independentVisibleVerses[column.id] = verse }
+        let key = columnScrollKey(column.id, passage: scope.passage)
+        app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
+        if let visit = independentVisitKey(column, passage: scope.passage) {
+            app.rememberCompareIndependentVisit(anchor, for: tabId, key: visit)
+            if origin == .user || origin == .peer {
+                app.recordCompareBookmark(for: tabId, scope: .independent(visit.column), anchor: anchor)
+            }
+        }
+        guard origin == .user, previous != verse, syncScrolling, drivesScrollSync(column.id) else { return }
+        for destination in columns where destination.id != column.id && destination.book == column.book {
+            guard let mapped = PsalmSuperscription.synchronizedVerse(column.book, chapter: column.chapter, verse: verse,
+                                from: column.text, destinationChapter: destination.chapter, to: destination.text),
+                  let match = correspondingVerse(mapped, in: destination),
+                  independentVisibleVerses[destination.id] != match,
+                  let target = CompareBookmarkAnchor(verse: match) else { continue }
+            independentScrollCommands[destination.id] = .init(anchor: target, origin: .peer)
+        }
+    }
+
+    private func ownsIndependentColumn(_ column: CompareColumn, scope: ViewportScope) -> Bool {
+        isCurrentViewport(scope, layout: .independent)
+            && columns.contains { $0.id == column.id && $0.historyKey == column.historyKey
+                && $0.bookmarkColumn == column.bookmarkColumn }
+    }
+
+    private func independentRenderingKey(compact: Bool) -> String {
+        let properties: JSValue = [
+            "compare-independent-layout-1", .number(scriptureFontSize), .number(Double(app.lineSpacing)),
+            .string(JSString(app.scriptureFontFamily)), .bool(compact), .bool(state.showStrongs), .bool(showVerseNumbers),
+            .array(hiddenAnnotations.sorted().map { .string(JSString($0)) }),
+            app.wordReplacerEnabled ? app.wordReplacerRuleSet.stored : .bool(false),
+        ]
+        return JSON.stableJSON(properties)
     }
 
     private func saveSharedBookmark(context: SharedViewportScope, layout: ComparisonLayout, scope: CompareBookmarkScope?) {
@@ -1167,6 +1578,7 @@ struct CompareView: View {
         let spacing: CGFloat = 12
         #endif
         let scope = viewportScope(passage)
+        let renderingKey = independentRenderingKey(compact: compact)
         let taskScope = ViewportTaskScope(viewport: scope, ready: isCurrentLoadedLayout(.independent, passage: passage))
         return HStack(spacing: spacing) {
             ForEach(columns) { column in
@@ -1174,92 +1586,41 @@ struct CompareView: View {
                     independentHeader(column, columns: columns, compact: compact)
                         .padding(.horizontal, compact ? 4 : 12)
                     Divider()
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 12) {
-                                independentVerses(column, compact: compact, independentPassage: passage)
-                            }
-                            .scrollTargetLayout()
-                            .padding(compact ? 8 : 16)
-                        }
-                        .contentMargins(.bottom, comparisonActionClearance, for: .scrollContent)
-                        .scrollPosition(id: independentPosition(for: column, scope: scope), anchor: .top)
-                        .onChange(of: app.scriptureJumpRequest?.revision) {
-                            guard isCurrentViewport(scope, layout: .independent), isCurrentCompareJump(state),
-                                  let target = independentJumpTarget(column, source: state) else { return }
-                            proxy.scrollTo(target, anchor: .top)
-                        }
-                        .onChange(of: state.showStrongs) { _, enabled in
-                            guard let verse = independentVisibleVerses[column.id] ?? visibleIndependentRows[column.id]?.min() else { return }
-                            let jumpRevision = app.scriptureJumpRequest?.revision
-                            Task { @MainActor in
-                                await Task.yield()
-                                guard self.state.compareMode, app.scriptureJumpRequest?.revision == jumpRevision,
-                                      self.state.showStrongs == enabled,
-                                      isCurrentViewport(scope, layout: .independent),
-                                      restoredIndependentScroll[column.id] == scope else { return }
-                                proxy.scrollTo(verse, anchor: .top)
-                            }
-                        }
-                        .onScrollPhaseChange { _, phase in
-                            guard isCurrentViewport(scope, layout: .independent) else { return }
-                            switch phase {
-                            case .interacting, .decelerating:
-                                independentUserScroll[column.id] = scope
+                    CompareIndependentViewport(
+                        rows: independentRows[column.id] ?? [], compact: compact, bottomMargin: comparisonActionClearance,
+                        renderingKey: renderingKey, scope: taskScope,
+                        jumpRevision: app.scriptureJumpRequest?.revision,
+                        currentJump: {
+                            let source = self.state
+                            guard let request = app.scriptureJumpRequest, isCurrentCompareJump(source),
+                                  let target = independentJumpTarget(column, source: source),
+                                  let anchor = CompareBookmarkAnchor(verse: target) else { return nil }
+                            return .init(id: request.revision, anchor: anchor, origin: .jump)
+                        },
+                        peer: independentScrollCommands[column.id],
+                        isCurrent: { ownsIndependentColumn(column, scope: scope) },
+                        initialAnchor: { initialIndependentAnchor(column, scope: scope) },
+                        observe: { observeIndependentAnchor($0, column: column, scope: scope, origin: $1) },
+                        userPhase: { scrolling in
+                            if scrolling {
                                 scrollingColumn = column.id
                                 lastScrolledColumn = column.id
-                            case .idle:
-                                if independentUserScroll[column.id] == scope {
-                                    independentUserScroll[column.id] = nil
-                                    if let verse = visibleIndependentRows[column.id]?.min() ?? independentVisibleVerses[column.id] {
-                                        saveIndependentBookmark(verse, column: column, scope: scope)
-                                    }
-                                }
-                                if scrollingColumn == column.id { scrollingColumn = nil }
-                            default: break
+                            } else if scrollingColumn == column.id {
+                                scrollingColumn = nil
                             }
+                        },
+                        beganWheel: {
+                            #if os(macOS)
+                            wheelDriver = (ProcessInfo.processInfo.systemUptime + 0.25, column.id)
+                            lastScrolledColumn = column.id
+                            #endif
                         }
-                        #if os(macOS)
-                        .background {
-                            CompareWheelRegion {
-                                guard isCurrentViewport(scope, layout: .independent) else { return }
-                                wheelDriver = (ProcessInfo.processInfo.systemUptime + 0.25, column.id)
-                                lastScrolledColumn = column.id
-                            }
-                            .allowsHitTesting(false)
-                        }
-                        #endif
-                        .id(column.label)
-                        .task(id: taskScope) {
-                            guard taskScope.ready, isCurrentViewport(scope, layout: .independent) else { return }
-                            restoredIndependentScroll[column.id] = nil
-                            await Task.yield()
-                            guard !Task.isCancelled, isCurrentViewport(scope, layout: .independent) else { return }
-                            let key = columnScrollKey(column.id, passage: passage)
-                            let bookmark = arrivingIndependentAnchors?.passage == passage
-                                ? arrivingIndependentAnchors?.verses[column.id] : nil
-                            let cached = app.compareColumnScrollVerses[tabId]?[key]
-                            let verse: Int?
-                            if scope.historyRevision != nil {
-                                verse = cached ?? independentRows[column.id]?.first?.verseNum
-                            } else {
-                                verse = bookmark ?? independentBookmarkVerse(for: column)
-                                    ?? independentVisibleVerses[column.id] ?? cached
-                                    ?? selectedRows(in: column, source: state).first?.verseNum
-                                    ?? column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) }
-                            }
-                            if bookmark != nil { arrivingIndependentAnchors?.verses.removeValue(forKey: column.id) }
-                            let current = self.state
-                            if isCurrentCompareJump(current) {
-                                if let target = independentJumpTarget(column, source: current) {
-                                    proxy.scrollTo(target, anchor: .top)
-                                }
-                            } else if let verse {
-                                proxy.scrollTo(verse, anchor: .top)
-                            }
-                            restoredIndependentScroll[column.id] = scope
-                        }
+                    ) { row in
+                        independentVerseRow(row, column: column, compact: compact,
+                                            selected: selectionNumbers(in: column).contains(row.verseNum))
                     }
+                    .id(column.bookmarkColumn)
+
                 }
                 #if os(macOS)
                 .frame(width: columnWidth(column, columns: columns, space: space))
@@ -1290,54 +1651,6 @@ struct CompareView: View {
         guard column.follows(source), let verse = source.verse,
               let mapped = mappedVerse(verse, in: column, source: source) else { return nil }
         return correspondingVerse(mapped, in: column)
-    }
-
-    private func independentPosition(for column: CompareColumn, scope: ViewportScope) -> Binding<Int?> {
-        Binding(get: {
-            guard restoredIndependentScroll[column.id] == scope else { return nil }
-            return independentVisibleVerses[column.id]
-        }, set: { verse in
-            guard isCurrentViewport(scope, layout: .independent),
-                  restoredIndependentScroll[column.id] == scope else { return }
-            independentVisibleVerses[column.id] = verse
-            if app.activeTab?.id == tabId, let verse {
-                let key = columnScrollKey(column.id, passage: scope.passage)
-                app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
-                if independentUserScroll[column.id] == scope || drivesScrollSync(column.id) {
-                    saveIndependentBookmark(verse, column: column, scope: scope)
-                }
-            }
-        })
-    }
-
-    private func updateIndependentVisibility(_ verse: Int, column: CompareColumn, scope: ViewportScope, visible: Bool) {
-        guard isCurrentViewport(scope, layout: .independent) else { return }
-        if visible {
-            visibleIndependentRows[column.id, default: []].insert(verse)
-        } else {
-            visibleIndependentRows[column.id]?.remove(verse)
-        }
-        guard restoredIndependentScroll[column.id] == scope,
-              let top = visibleIndependentRows[column.id]?.min() else { return }
-        // A native scrollbar can move the visible rows without publishing a new bound target.
-        let key = columnScrollKey(column.id, passage: scope.passage)
-        app.compareColumnScrollVerses[tabId, default: [:]][key] = top
-        if independentUserScroll[column.id] == scope || drivesScrollSync(column.id) {
-            saveIndependentBookmark(top, column: column, scope: scope)
-        }
-        guard syncScrolling, drivesScrollSync(column.id) else { return }
-        for destination in columns where destination.id != column.id && destination.book == column.book {
-            guard let mapped = PsalmSuperscription.synchronizedVerse(column.book, chapter: column.chapter, verse: top,
-                                                             from: column.text, destinationChapter: destination.chapter,
-                                                             to: destination.text),
-                  let match = correspondingVerse(mapped, in: destination) else { continue }
-            if independentVisibleVerses[destination.id] != match {
-                independentVisibleVerses[destination.id] = match
-            }
-            // The peer movement belongs to this genuine user scroll too, even
-            // though its own ScrollView only receives a programmed target.
-            saveIndependentBookmark(match, column: destination, scope: scope)
-        }
     }
 
     private func drivesScrollSync(_ column: Int) -> Bool {
@@ -1603,7 +1916,7 @@ struct CompareView: View {
     }
 
     @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false,
-                                                stackedPassage: String? = nil, independentPassage: String? = nil) -> some View {
+                                                stackedPassage: String? = nil) -> some View {
         if let verses = independentRows[column.id], !verses.isEmpty {
             let bookmarkScope = stackedPassage == nil ? nil : sharedBookmarkScope(.stacked)
             let selected = selectionNumbers(in: column)
@@ -1620,15 +1933,6 @@ struct CompareView: View {
                         }
                         .onDisappear {
                             trackStackedVerse(row.verseNum, columnID: column.id, scope: scope, bookmarkScope: bookmarkScope, visible: false)
-                        }
-                } else if let independentPassage {
-                    let scope = viewportScope(independentPassage)
-                    content
-                        .onScrollVisibilityChange(threshold: 0.2) { visible in
-                            updateIndependentVisibility(row.verseNum, column: column, scope: scope, visible: visible)
-                        }
-                        .onDisappear {
-                            updateIndependentVisibility(row.verseNum, column: column, scope: scope, visible: false)
                         }
                 } else {
                     content
@@ -2451,7 +2755,7 @@ struct CompareView: View {
             ?? column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) }
         let verse: Int?
         if layout == .independent {
-            verse = independentVisibleVerses[column.id] ?? visibleIndependentRows[column.id]?.min() ?? saved
+            verse = independentVisibleVerses[column.id] ?? saved
         } else {
             verse = visibleStackedVerses[column.id]?.min() ?? saved ?? independentRows[column.id]?.first?.verseNum
         }
@@ -2596,7 +2900,7 @@ struct CompareView: View {
 
     private func resetViewportTracking() {
         independentVisibleVerses = [:]
-        visibleIndependentRows = [:]
+        independentScrollCommands = [:]
         visibleStackedVerses = [:]
         visibleAlignedVerses = []
         scrollingColumn = nil
@@ -2607,21 +2911,26 @@ struct CompareView: View {
         #endif
         sharedScrollPosition = ScrollPosition()
         restoredSharedScroll = nil
-        restoredIndependentScroll = [:]
         sharedUserScroll = nil
-        independentUserScroll = [:]
     }
 
     private func captureColumnViewport(from oldPassage: String, to newPassage: String, layout: ComparisonLayout,
                                        survivors: [(source: CompareColumn, target: CompareColumn)],
                                        preservingAlignedOffset: Bool) -> ColumnViewportArrival {
         var independentAnchors: [Int: Int] = [:]
+        var preciseArrivals: [Int: CompareBookmarkAnchor] = [:]
         var preferredColumns: [Int] = []
         for (source, target) in survivors {
             guard let reading = readingAnchor(in: source, passage: oldPassage, layout: layout),
                   reading.chapter == target.chapter else { continue }
             independentAnchors[target.id] = reading.verse
             if layout == .independent {
+                if source.bookmarkColumn == target.bookmarkColumn,
+                   let key = independentVisitKey(source, passage: oldPassage),
+                   let anchor = app.compareIndependentVisitPositions[tabId]?[key],
+                   anchor.verse == reading.verse {
+                    preciseArrivals[target.id] = anchor
+                }
                 if source.id == lastScrolledColumn {
                     preferredColumns.insert(target.id, at: 0)
                 } else {
@@ -2631,7 +2940,8 @@ struct CompareView: View {
                 preferredColumns.append(target.id)
             }
         }
-        return ColumnViewportArrival(viewport: viewportScope(newPassage), verses: independentAnchors, preferredColumns: preferredColumns,
+        return ColumnViewportArrival(viewport: viewportScope(newPassage), verses: independentAnchors,
+            independent: preciseArrivals, preferredColumns: preferredColumns,
             alignedVerse: layout == .aligned ? visibleAlignedVerses.min() : nil,
             alignedOffset: layout == .aligned && preservingAlignedOffset ? app.compareScrollOffsets[tabId]?["aligned|" + oldPassage] : nil)
     }
@@ -2655,7 +2965,10 @@ struct CompareView: View {
         }
         switch destinationLayout ?? comparisonLayout(visible, source: source, width: compareWidth) {
         case .independent:
-            if !verses.isEmpty { arrivingIndependentAnchors = (passage, verses) }
+            let anchors = verses.compactMapValues { CompareBookmarkAnchor(verse: $0) }.merging(
+                arrival.independent.filter { verses[$0.key] == $0.value.verse }
+            ) { _, precise in precise }
+            if !anchors.isEmpty { arrivingIndependentAnchors = (passage, anchors) }
         case .aligned:
             let key = "aligned|" + passage
             if let offset = arrival.alignedOffset {

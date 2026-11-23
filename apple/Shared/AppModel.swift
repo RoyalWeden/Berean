@@ -950,6 +950,7 @@ final class AppModel {
     func close(_ tabId: String) {
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
+        compareIndependentVisitPositions.removeValue(forKey: tabId)
         pendingCompareBookmarks.removeValue(forKey: tabId)
         compareBookmarkRecords.removeValue(forKey: tabId)
         compareSelections.removeValue(forKey: tabId)
@@ -1122,7 +1123,8 @@ final class AppModel {
                 if let saved = compareSelections[tab.id], saved.passage == passage { compareSelection = saved }
                 compareViewport = CompareViewportSnapshot(passage: passage,
                     offsets: compareScrollOffsets[tab.id, default: [:]],
-                    verses: compareColumnScrollVerses[tab.id, default: [:]])
+                    verses: compareColumnScrollVerses[tab.id, default: [:]],
+                    independent: compareIndependentVisitPositions[tab.id, default: [:]])
             } else if let position = scriptureReadingPositions[tab.id]?[chapter]?.persisted,
                       position != ReaderViewports.position(in: tab.state, chapter: chapter) {
                 snapshot.state = ReaderViewports.updating(tab.state, chapter: chapter, position: position)
@@ -1195,9 +1197,11 @@ final class AppModel {
                 let passage = CompareColumn.passageKey(state, CompareColumn.resolved(in: location.tab.state))
                 if let viewport = location.compareViewport, viewport.passage == passage {
                     let restored = viewport.restoring(offsets: compareScrollOffsets[id, default: [:]],
-                                                      verses: compareColumnScrollVerses[id, default: [:]])
+                                                      verses: compareColumnScrollVerses[id, default: [:]],
+                                                      independent: compareIndependentVisitPositions[id, default: [:]])
                     compareScrollOffsets[id] = restored.offsets
                     compareColumnScrollVerses[id] = restored.verses
+                    compareIndependentVisitPositions[id] = restored.independent
                 }
                 compareHistoryRestore = CompareHistoryRestore(tabID: id, passage: passage)
             } else {
@@ -1228,6 +1232,25 @@ final class AppModel {
     @ObservationIgnored var historyBrowseOptions: [String: HistoryView.BrowseOptions] = [:]
     @ObservationIgnored var compareScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var compareColumnScrollVerses: [String: [String: Int]] = [:]
+    struct CompareIndependentVisitKey: Hashable {
+        let passage: String
+        let column: CompareBookmarkColumn
+    }
+
+    // Each history entry owns a value snapshot, so old destination caches can
+    // be discarded without losing any visits still on Back or Forward.
+    nonisolated private static let compareIndependentVisitCapacity = 96
+    @ObservationIgnored private(set) var compareIndependentVisitPositions: [String: [CompareIndependentVisitKey: CompareBookmarkAnchor]] = [:]
+
+    func rememberCompareIndependentVisit(_ anchor: CompareBookmarkAnchor, for tabId: String, key: CompareIndependentVisitKey) {
+        if compareIndependentVisitPositions[tabId]?[key] == nil,
+           let existing = compareIndependentVisitPositions[tabId], existing.count >= Self.compareIndependentVisitCapacity,
+           let stale = existing.keys.first(where: { $0.passage != key.passage }) ?? existing.keys.first {
+            compareIndependentVisitPositions[tabId]?.removeValue(forKey: stale)
+        }
+        compareIndependentVisitPositions[tabId, default: [:]][key] = anchor
+    }
+
     @ObservationIgnored var compareSelections: [String: CompareSelectionSnapshot] = [:]
     // Live semantic bookmarks stay out of SwiftUI observation while scrolling.
     // The bounded field is folded into local tab state once the existing save
@@ -1254,15 +1277,14 @@ final class AppModel {
         guard activeTab?.id == tabId, let tab = findTab(tabId),
               validCompareBookmarkScope(scope, in: tab),
               compareBookmarkPosition(for: tabId, scope: scope) != anchor else { return }
-        switch scope {
-        case .independent, .aligned:
-            guard anchor.columnID == nil else { return }
-        case .stacked(_, let columns):
-            guard columns.contains(where: { $0.id == anchor.columnID }) else { return }
-        }
+        guard scope.accepts(anchor) else { return }
         compareBookmarkOrder &+= 1
         pendingCompareBookmarks[tabId, default: [:]][scope] = PendingCompareBookmark(anchor: anchor, order: compareBookmarkOrder)
-        scheduleSave()
+        // Pixel samples can arrive each frame; the queued save drains the
+        // newest values without rebuilding its timer on every sample.
+        if anchor.precision == nil || saveTask == nil {
+            scheduleSave()
+        }
     }
 
     private func validCompareBookmarkScope(_ scope: CompareBookmarkScope, in tab: BereanWorkspace.Tab) -> Bool {
@@ -1324,19 +1346,29 @@ final class AppModel {
         let passage: String
         let offsets: [String: CGFloat]
         let verses: [String: Int]
+        let independent: [CompareIndependentVisitKey: CompareBookmarkAnchor]
 
-        init(passage: String, offsets: [String: CGFloat], verses: [String: Int]) {
+        init(passage: String, offsets: [String: CGFloat], verses: [String: Int],
+             independent: [CompareIndependentVisitKey: CompareBookmarkAnchor]) {
             self.passage = passage
             self.offsets = offsets.filter { Self.hasOffsetKey($0.key, for: passage) }
             self.verses = verses.filter { Self.hasColumnKey($0.key, for: passage) }
+            self.independent = independent.filter { $0.key.passage == passage }
         }
 
         // A visit with no bookmark clears the destination's later bookmark.
-        func restoring(offsets: [String: CGFloat], verses: [String: Int]) -> (offsets: [String: CGFloat], verses: [String: Int]) {
+        func restoring(offsets: [String: CGFloat], verses: [String: Int],
+                       independent: [CompareIndependentVisitKey: CompareBookmarkAnchor])
+            -> (offsets: [String: CGFloat], verses: [String: Int], independent: [CompareIndependentVisitKey: CompareBookmarkAnchor]) {
             let otherOffsets = offsets.filter { !Self.hasOffsetKey($0.key, for: passage) }
             let otherVerses = verses.filter { !Self.hasColumnKey($0.key, for: passage) }
+            let remaining = max(0, AppModel.compareIndependentVisitCapacity - self.independent.count)
+            let otherIndependent = independent.lazy.filter { $0.key.passage != passage }.prefix(remaining)
+            var restoredIndependent = self.independent
+            for (key, anchor) in otherIndependent { restoredIndependent[key] = anchor }
             return (otherOffsets.merging(self.offsets) { _, restored in restored },
-                    otherVerses.merging(self.verses) { _, restored in restored })
+                    otherVerses.merging(self.verses) { _, restored in restored },
+                    restoredIndependent)
         }
 
         private static func hasOffsetKey(_ key: String, for passage: String) -> Bool {
@@ -1364,6 +1396,7 @@ final class AppModel {
             !$0.key.hasPrefix("aligned|" + prefix) && !$0.key.hasPrefix("stacked|" + prefix)
         }
         compareColumnScrollVerses[tabId] = compareColumnScrollVerses[tabId]?.filter { !$0.key.hasPrefix(prefix) }
+        compareIndependentVisitPositions[tabId] = compareIndependentVisitPositions[tabId]?.filter { !$0.key.passage.hasPrefix(prefix) }
     }
     @ObservationIgnored var lexiconScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var lexiconSearchPositions: [String: [LexiconSearchView.ScrollContext: CGFloat]] = [:]

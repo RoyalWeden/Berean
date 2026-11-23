@@ -54,13 +54,49 @@ public enum CompareBookmarkScope: Hashable, Sendable {
         return JSString(JSON.stableJSON([layout, source.key, .array(columns.map(\.key))]))
     }
 
-    fileprivate func accepts(_ anchor: CompareBookmarkAnchor) -> Bool {
+    public func accepts(_ anchor: CompareBookmarkAnchor) -> Bool {
         switch self {
-        case .independent, .aligned:
+        case .independent:
             return anchor.columnID == nil
+        case .aligned:
+            return anchor.columnID == nil && anchor.precision == nil
         case .stacked(_, let columns):
-            return columns.contains { $0.id == anchor.columnID }
+            return anchor.precision == nil && columns.contains { $0.id == anchor.columnID }
         }
+    }
+}
+
+/// The viewport's top edge relative to a raw row. A small negative crop
+/// represents leading padding or the gap immediately before the row.
+public struct CompareBookmarkPrecision: Equatable, Sendable {
+    public let crop: Double
+    public let rowHeight: Double
+    public let layout: String
+
+    public init?(crop: Double, rowHeight: Double, layout: String) {
+        guard (1...100_000).contains(rowHeight), (-32...rowHeight).contains(crop),
+              layout.utf8.count == 64, layout.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else {
+            return nil
+        }
+        self.crop = crop
+        self.rowHeight = rowHeight
+        self.layout = layout
+    }
+
+    public func correction(layout: String, rowHeight: Double, currentCrop: Double) -> Double? {
+        guard self.layout == layout, abs(self.rowHeight - rowHeight) <= 0.5,
+              currentCrop.isFinite else { return nil }
+        return crop - currentCrop
+    }
+
+    fileprivate init?(json: JSObject) {
+        guard let crop = json["crop"]?.numberValue, let rowHeight = json["rowHeight"]?.numberValue,
+              let layout = json["layout"]?.stringValue?.string else { return nil }
+        self.init(crop: crop, rowHeight: rowHeight, layout: layout)
+    }
+
+    fileprivate var json: JSValue {
+        ["crop": .number(crop), "rowHeight": .number(rowHeight), "layout": .string(JSString(layout))]
     }
 }
 
@@ -70,10 +106,13 @@ public struct CompareBookmarkAnchor: Equatable, Sendable {
     public let verse: Int
     public let columnID: UUID?
 
-    public init?(verse: Int, columnID: UUID? = nil) {
+    public let precision: CompareBookmarkPrecision?
+
+    public init?(verse: Int, columnID: UUID? = nil, precision: CompareBookmarkPrecision? = nil) {
         guard (0...999_999).contains(verse) else { return nil }
         self.verse = verse
         self.columnID = columnID
+        self.precision = precision
     }
 
     fileprivate init?(json: JSObject) {
@@ -82,7 +121,7 @@ public struct CompareBookmarkAnchor: Equatable, Sendable {
             guard let id = CompareViewports.parseColumnID(value) else { return nil }
             self.init(verse: verse, columnID: id)
         } else {
-            self.init(verse: verse)
+            self.init(verse: verse, precision: json["precision"]?.objectValue.flatMap(CompareBookmarkPrecision.init(json:)))
         }
     }
 }
@@ -92,6 +131,21 @@ public enum CompareViewports {
     public static let columnIDField = "nativeColumnID"
     public static let capacity = 24
     private static let maxOrder: Double = 1_000_000_000_000
+
+    public enum IndependentVisit: Equatable, Sendable {
+        case ordinary
+        case history(CompareBookmarkAnchor?)
+    }
+
+    /// Explicit requests are handled by the live pane and supersede this
+    /// destination choice. A historical visit may deliberately have no anchor.
+    public static func independentPosition(visit: IndependentVisit, arrival: CompareBookmarkAnchor?,
+                                           durable: CompareBookmarkAnchor?, fallback: CompareBookmarkAnchor?) -> CompareBookmarkAnchor? {
+        switch visit {
+        case .history(let anchor): return anchor
+        case .ordinary: return arrival ?? durable ?? fallback
+        }
+    }
 
     public static func columnID(in record: JSObject) -> UUID? {
         record[columnIDField].flatMap(parseColumnID)
@@ -157,6 +211,7 @@ public enum CompareViewports {
             }
             record["order"] = .number(nextOrder)
             record["verse"] = .number(Double(position.verse))
+            record["precision"] = position.precision?.json
             record["columnID"] = position.columnID.map { .string(JSString($0.uuidString)) }
             positions[key] = .object(record)
         }

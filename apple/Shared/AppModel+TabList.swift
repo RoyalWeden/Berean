@@ -342,7 +342,8 @@ extension AppModel {
             let chapter = ChapterEdition(reader).key
             guard scriptureReadingPositions[a]?[chapter] == scriptureReadingPositions[b]?[chapter] else { return false }
             return !reader.compareMode || (compareScrollOffsets[a] == compareScrollOffsets[b]
-                && compareColumnScrollVerses[a] == compareColumnScrollVerses[b])
+                && compareColumnScrollVerses[a] == compareColumnScrollVerses[b]
+                && compareIndependentVisitPositions[a] == compareIndependentVisitPositions[b])
         case .search:
             return searchVisibleRows[a] == searchVisibleRows[b] && searchResultAnchors[a] == searchResultAnchors[b]
         case .lexicon:
