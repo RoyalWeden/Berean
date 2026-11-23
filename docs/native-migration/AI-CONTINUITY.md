@@ -43,6 +43,19 @@ If a linked file is missing in another checkout, verify whether it is behind the
 
 ## Required checkpoint packet
 
+### Checkpoint reconciliation before every handover
+
+This applies equally to Claude Code, Codex and delegated workers. Record significant code changes, tests, failures and owner steering when they occur. A handover is incomplete until the primary worker has reconciled all of the following:
+
+1. Update the **top current checkpoint in HANDOFF.md and CURRENT-STATE.md together**. Historical appendices cannot stand in for current summaries.
+2. Compare them with live branch/head, latest app-source commit, dirty/staged/untracked files, published review head and exact-head checks. Separate source verification from later documentation commits.
+3. Record actual runtime/library/device ownership and fixture changes. If unavailable, label the old state historical/unverified rather than retaining a stale PID or reading position as current.
+4. Link a focused evidence/work log listing changed behavior, checks and failures, remaining unverified cases, live jobs and the next executable step. Delegates return this packet; the primary worker incorporates it before ending its turn.
+5. Reconcile TASKS, parity/issues and owner decisions. Preserve unresolved Codex/Claude/owner items. Do not replace the ready queue with “everything is owner-gated” unless every remaining item has been inspected and its actual gate identified. A past accepted stopping point is historical after the owner resumes work; standing data/signing/sync restrictions remain.
+6. Confirm documentation updates are saved and included in the stated publication. If writing or publishing fails, record the fallback path and exact failure. Never claim notes were updated based on intent alone.
+
+Use the compact template below for every handover. Keep an in-progress packet when work is unfinished; do not wait for the implementation or CI to be perfect before leaving durable notes.
+
 Before handing off or stopping, leave all of the following, even if work is unfinished:
 
 - Actor and timestamp; repo/worktree, branch, source commit, exact dirty/staged/untracked files and who owns them. Clearly separate a code commit from a later documentation-only head.

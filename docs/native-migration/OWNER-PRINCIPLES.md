@@ -80,3 +80,7 @@ Owner clarified “wider margins” means wider verse text, with less space at t
 Owner explicit copy contract (both Mac and iPhone): audit all verse-copy actions against original. Single verse puts reference and verse text on one line. Multiple verses put book/chapter/verse range on first line and each verse on its own following line; preserve fuller original semantics for ranges/gaps/editions and rendering preferences. Do not treat this as iPhone-only.
 
 - 2026-11-22: Note previews must render rich content rather than Markdown source, on Mac and iPhone. Keep code styling where intended; preserve note storage and editing compatibility.
+
+- 2026-11-23: Audit all new Claude work and fix poor behavior/quality. Every AI must continuously record results in HANDOFF and CURRENT-STATE together; historical appends alone do not keep the current handoff usable.
+
+- 2026-11-23: Lexicon occurrence excerpts must keep the highlighted match visible, including narrow Scripture sidepanels. Make Study Trail and Messages easy to access on both apps without clutter or routine new tabs. KJVA passage picker opens at books (currentbook highlighted), with faster access across OT/NT/Apocrypha; single-book texts retain direct chapter access.

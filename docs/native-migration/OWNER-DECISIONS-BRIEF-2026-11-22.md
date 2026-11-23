@@ -1,6 +1,6 @@
 # Owner decisions brief — what's still blocking parity (2026-11-22, Claude Code)
 
-Everything else on the handoff that could be finished without the owner is done or verified. The remaining parity gaps are each waiting on one of the decisions below (or on a device check). Each entry: what it unblocks, the options, a recommendation. Nothing here has been started; none of it is approved.
+This brief lists decisions and device checks that need owner input. It is not the complete technical backlog: consult CURRENT-STATE, TASKS and the parity/issues documents for remaining implementation and verification work. Each entry: what it unblocks, the options, a recommendation. Nothing here has been started; none of it is approved.
 
 ## 1. Share Extension + App Group (A03, U17 PDF intake)
 - **Unblocks:** "Share to Berean" from Safari/Files/Photos (text, links, PDFs) on iPhone; PDF intake into the PDF library.

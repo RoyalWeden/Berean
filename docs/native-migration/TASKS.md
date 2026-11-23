@@ -54,6 +54,14 @@
 | M10-03 | Owner-approved staged launch | M9 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M10; add exact tests/PR. |
 | M10-04 | Legacy Apple retirement after stability | M9 gate or independently safe | TODO | See `EXECUTION-PLAYBOOK.md` M10; add exact tests/PR. |
 
+## 2026-11-23 — audit follow-up queue
+
+- **Verified in Mac and iPhone Simulator** — Open the KJVA picker at Books and use New Testament and Apocrypha, including the Sirach prologue. Open Study Trail and Messages from the Mac sidebar and iPhone More with no new tab.
+- **Ready for runtime QA** — Open a lexicon occurrence with a late match in narrow and full panes. Check the visible match and confirm Copy Verse still returns the full verse. Six helper cases passed in the package suite.
+- **Ready for runtime QA** — Check slash completion from the Mac and iPhone hardware keyboard, one Undo, focus and selection after editing, Board bulk visible-card scope, and wide-cell visibility. Full horizontal editing of wide tables remains open.
+- **Ready for runtime QA** — Exercise Study Trail branch and sticky moves, active-recording guards, and failed moves retaining selection. Check PDF bookmark save and rename failure recovery, Messages read and delete failure recovery and accessibility actions, and system Spotlight refresh after changing a tab title or destination.
+- **Ready engineering queue** — Restore Compare viewport per history visit, then continue reader scroll, full Presenter, Read Aloud, and original-app parity work. [Audit evidence and open checks](CLAUDE-AUDIT-2026-11-23.md)
+
 ## Feature parity implementation ledger
 One row per ID from `03-FEATURE-INVENTORY.md` section K / playbook Appendix A (105 rows, generated 2026-11-07). Deferred/abandoned legacy features are NOT_APPLICABLE until the owner says otherwise. The sync wire primitives ported in M1 (hashes, HLC, journal, order keys) are infrastructure for S-/D- sync rows, not feature parity by themselves.
 
@@ -603,3 +611,6 @@ Shared CompareColumn now updates following saved columns on real reader passage 
 Source7ccbc3ca replaces flat snippets with rich attributed rows and bounded document thumbnails for gallery/iPhone tabs. Valid Markdown stays hidden; headings, links, wiki aliases, underlines, highlights, lists/callouts and table grids render; code remains literal. No note storage/editor rewrite. Final both builds and10focused parser checks pass. Actual Mac gallery/history and iPhone peek/table-tab/tap verified; final iPhone thumbnail retains button role. Original row hashes/37+47IDs/22+26notes pass. Physical/VoiceOver/large-type/imported-dialect/performance matrix remains open. [Detailed evidence](NOTE-PREVIEWS-2026-11-22.md).
 
 Final rich-thumbnail refinement26dfced7: both builds pass; actual iPhone table card retains button role and reads Item/Value/Testrow/42 rather than repeated generic Table labels. Native VoiceOver remains unverified. See rich-preview evidence.
+
+
+Nov23 final follow-up: owner rejected excerpts with too little context. Final source `6fc04d7e` keeps bounded surrounding phrases; actual rebuilt Mac H776 confirms readable context and visible matches. Final Mac/iOS context builds and372package tests passed. iPhone snippet and broader interaction checks remain open; see CLAUDE-AUDIT-2026-11-23.md.

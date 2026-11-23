@@ -16,6 +16,19 @@ These historical inventory counts predate the later dated implementation entries
 
 Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace/tab buildup, sunrise-aware daily notes (N12), iPhone cross-verse touch QA (S07/H02), remaining Notes home parity (N11), advanced note structures (N04/N05), PDFs/YouTube/Read Aloud/Ask Berean (U17, M01, M05, G01).
 
+## 2026-11-23 — Claude audit follow-up
+
+| Feature | Verified update | Open acceptance |
+|---|---|---|
+| S02 / S09 — Passage picker | Mac and iPhone Simulator opened KJVA Books with the current book highlighted and exercised New Testament and Apocrypha navigation, including the Sirach prologue. | Wider translation and physical-device matrix. |
+| Q04 — Lexicon | Six package tests passed for match-centered excerpts. | Check late matches in narrow and full panes and full-verse copy in the running apps. |
+| N03 / N04 / N05 / N11 — Notes | Built validated single-undo slash edits, iPhone hardware slash-menu routing, visible-card Board bulk selection, and wrapping that keeps wide cells visible. | Keyboard, undo, Board and table runtime checks. Full horizontal editing of wide tables remains open. |
+| U14 / U18 — Study Trail and Messages | Mac sidebar and iPhone More opened both destinations without creating tabs. Package tests passed with Study Trail service guards and recursive move and split coverage. | Trail mutation and failure UI, Messages scope and error recovery, and accessibility actions. |
+| U17 — PDFs | Built a bookmark-label sheet that preserves input on an error. | Verify failure, draft retention, and retry in the running apps. |
+| A04 — Spotlight | Built Spotlight session-title refresh for content changes. | Verify system Spotlight updates in the running iPhone app. |
+
+Both native builds and the full 370-test package run passed. Existing parity gaps remain open. [Audit evidence](CLAUDE-AUDIT-2026-11-23.md)
+
 ## Index
 
 | ID | Feature | Original status | Mac | iPhone | Pri | Native state / next |
@@ -1361,3 +1374,6 @@ Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage 
 2026-11-22 Compare follow acceptance: saved following columns now track passage changes while Compare is closed on both platforms. Actual Mac Back/Forward and iPhone mixed independent/following reentry pass; historical ambiguous records, durable viewports and broader matrix remain open. [Focused evidence](COMPARE-REENTRY-2026-11-22.md).
 
 2026-11-22 rich note previews source7ccbc3ca: both apps use rich rows/cards, iPhone tab thumbnails and peeks retain table grids rather than raw Markdown. Mac gallery/history and iPhone table peek/tab/tap checked; final button role verified, both builds and10focused checks pass. Remaining physical/accessibility/content matrix is in [focused evidence](NOTE-PREVIEWS-2026-11-22.md). No full Notes parity claim.
+
+
+Nov23 final follow-up: owner rejected excerpts with too little context. Final source `6fc04d7e` keeps bounded surrounding phrases; actual rebuilt Mac H776 confirms readable context and visible matches. Final Mac/iOS context builds and372package tests passed. iPhone snippet and broader interaction checks remain open; see CLAUDE-AUDIT-2026-11-23.md.

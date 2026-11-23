@@ -2180,3 +2180,15 @@ Final rich-thumbnail refinement26dfced7: both builds pass; actual iPhone table c
 - **Branch / commit / PR / CI link:** `native/reader-notes` → draft PR #24 (owner merges).
 - **Documentation/parity rows updated:** FULL-FEATURE-PARITY S02, S04, S11, S14, H02, N03, N04, N05, N11, Q04, U14, U17, U18, A04, A05; OWNER-DECISIONS-BRIEF-2026-11-22.md; APP-INTENTS, NOTE-IMAGES, PRESENTER-MESSAGES-POLISH, S14 and YOUTUBE-TAB docs; HANDOFF bullets.
 - **Next exact action and its prerequisites:** owner device checklist (Psalm 119, VoiceOver, Siri/Shortcuts) and the six decisions in OWNER-DECISIONS-BRIEF-2026-11-22.md; Read Aloud remains Codex's.
+
+## 2026-11-23 — Claude audit fixes and verification
+
+- KJVA’s picker opens in Books with the current book highlighted and Old Testament, New Testament, and Apocrypha sections. Mac and iPhone Simulator exercised New Testament, Apocrypha, and the Sirach prologue. Both also opened Study Trail and Messages from their visible app controls without adding tabs.
+- Lexicon result excerpts center on the first matched word. Six matching-window regression tests passed. Spotlight refreshes session results when indexed titles or destinations change.
+- Study Trail moves and splits carry recursive connected stops and anchored sticky notes. All-stale moves are no-ops. Move, split, and merge guard the active recording anchor. Merge preserves tags and manual recaps. Failed bulk moves keep the selection.
+- Notes slash commands validate and apply each substitution as a single undoable edit. iPhone routes hardware keyboard input in the slash menu. Board bulk actions use visible cards, and wide tables wrap to keep cell content visible.
+- The PDF bookmark label sheet retains its draft and displays save errors. Messages preserves the scope and displayed content on failed reads, reports delete failures, and exposes Edit as an accessibility action for editable messages.
+- Final local Mac and iPhone Simulator builds and 370 package tests passed (366 conformance and 4 core Swift Testing tests). Runtime checks still include lexicon excerpts, Notes keyboard and Undo, Board interactions, PDF failure recovery, and Study Trail and Messages mutations and accessibility. See [audit evidence](CLAUDE-AUDIT-2026-11-23.md).
+
+
+Nov23 final follow-up: owner rejected excerpts with too little context. Final source `6fc04d7e` keeps bounded surrounding phrases; actual rebuilt Mac H776 confirms readable context and visible matches. Final Mac/iOS context builds and372package tests passed. iPhone snippet and broader interaction checks remain open; see CLAUDE-AUDIT-2026-11-23.md.

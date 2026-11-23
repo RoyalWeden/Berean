@@ -3,6 +3,13 @@
 > Initialized 2026-11-07 from verified Git, CI and test evidence. Every claim here was checked in the
 > session that wrote it; re-verify against live Git before relying on it after a gap.
 
+## 2026-11-23 Claude audit checkpoint
+
+- The migration remains active. Draft PR #24 targets `native/m6-navigation`. Its three passing checks apply to the published baseline `50732392`. The audit changes are local and uncommitted.
+- Local verified-source builds passed for Mac and iPhone Simulator. The verified-source package run passed 366 conformance tests and 4 core tests, all using Swift Testing. Logs are under `build/apple/qa-evidence/20261123/`: `mac-claude-audit-verified-build.log`, `ios-claude-audit-verified-build.log`, and `full-package-verified-tests.log`.
+- Recent UI runs verified KJVA Books and its New Testament and Apocrypha navigation through the Sirach prologue, plus direct Study Trail and Messages access from the Mac sidebar and iPhone More without tab creation. Lexicon, Notes, PDF, and mutation and accessibility acceptance remain open. [Audit coverage and evidence](CLAUDE-AUDIT-2026-11-23.md)
+- Compare history must still restore each visit’s viewport. Reader scroll, full Presenter behavior, Read Aloud, and the broader original-app parity queue remain active. [Current task queue](TASKS.md)
+
 ## Current review branch — 2026-11-12
 
 - Isolated clone: `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`, based on #23 at `670f5b6`. See HANDOFF for latest checks and merge order.
@@ -530,3 +537,6 @@ Final rich-thumbnail refinement26dfced7: both builds pass; actual iPhone table c
 - Branch `native/reader-notes` at `13e25712` (draft PR #24). Builds green on both platforms; 357 BereanKit tests pass.
 - Delivered today: see CHANGELOG 2026-11-22 23:30 entry (Study Trail tools, Notes Board + slash menu + wide tables + checklist fix, PDF bookmark labels, Spotlight sessions, lexicon/chat accessibility and fixes, owner's iPhone requests).
 - Remaining parity is owner-gated: OWNER-DECISIONS-BRIEF-2026-11-22.md (Share Extension, widget, Dev-container iCloud sync, Ask Berean model modes, vault sync, Danger delete) plus a 15-minute device checklist. Read Aloud = Codex.
+
+
+Nov23 final follow-up: owner rejected excerpts with too little context. Final source `6fc04d7e` keeps bounded surrounding phrases; actual rebuilt Mac H776 confirms readable context and visible matches. Final Mac/iOS context builds and372package tests passed. iPhone snippet and broader interaction checks remain open; see CLAUDE-AUDIT-2026-11-23.md.

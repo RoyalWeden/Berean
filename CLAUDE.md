@@ -4,6 +4,8 @@
 >
 > The rest of this document retains the existing Electron/Capacitor desktop baseline and setup guidance. Preserve legacy compatibility, but verify current checkout/runtime paths through the native handoff rather than blindly applying historical locations or pre-migration assumptions. Latest direct owner instructions and higher-priority environment instructions still take precedence.
 
+**Required for Claude Code as well as Codex:** keep the top current checkpoint in HANDOFF.md and CURRENT-STATE.md synchronized throughout the work. A historical log entry at the end of HANDOFF.md is additional evidence, not a replacement for either current summary. Record meaningful code/test results and failures immediately, and reconcile source revision, dirty files, app/data ownership, live checks and next work before a final reply, pause or handover. Follow the [checkpoint contract](docs/native-migration/AI-CONTINUITY.md#checkpoint-reconciliation-before-every-handover). Do not mark the whole queue finished merely because one feature batch is done.
+
 ---
 
 ## Table of Contents

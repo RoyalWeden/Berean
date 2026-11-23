@@ -90,3 +90,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Compare reentry](COMPARE-REENTRY-2026-11-22.md): dormant follower alignment, preserved pins/legacy independence, red/green probe and actual Mac+iPhone history checks.
 
 - [Rich note previews](NOTE-PREVIEWS-2026-11-22.md): latest owner direction, original preview comparison, native rendering work and verification.
+
+- [Claude change audit, Nov23](CLAUDE-AUDIT-2026-11-23.md): full34commit/30file coverage, continuity corrections, concrete findings/fixes and verification.

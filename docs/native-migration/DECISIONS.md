@@ -755,3 +755,11 @@ Shared CompareColumn now updates following saved columns on real reader passage 
 ## 2026-11-22 — Rich note previews on both platforms
 
 Source7ccbc3ca replaces flat snippets with rich attributed rows and bounded document thumbnails for gallery/iPhone tabs. Valid Markdown stays hidden; headings, links, wiki aliases, underlines, highlights, lists/callouts and table grids render; code remains literal. No note storage/editor rewrite. Final both builds and10focused parser checks pass. Actual Mac gallery/history and iPhone peek/table-tab/tap verified; final iPhone thumbnail retains button role. Original row hashes/37+47IDs/22+26notes pass. Physical/VoiceOver/large-type/imported-dialect/performance matrix remains open. [Detailed evidence](NOTE-PREVIEWS-2026-11-22.md).
+
+## 2026-11-23 — Audit engineering decisions
+
+- Study Trail merge preserves tags and manually written recaps. Move and split carry descendant connections and anchored sticky notes. Keep historical pause intervals as recorded and guard the active recording anchor. An interleaved merge has no guaranteed inverse through Split.
+- Slash completion validates the source range and applies its text and formatting in one undoable edit. Board bulk operations share the displayed card set. Wide tables wrap as an interim content-preserving layout while horizontal grid editing remains open. [Audit coverage](CLAUDE-AUDIT-2026-11-23.md)
+
+
+Nov23 final follow-up: owner rejected excerpts with too little context. Final source `6fc04d7e` keeps bounded surrounding phrases; actual rebuilt Mac H776 confirms readable context and visible matches. Final Mac/iOS context builds and372package tests passed. iPhone snippet and broader interaction checks remain open; see CLAUDE-AUDIT-2026-11-23.md.
