@@ -29,3 +29,6 @@ Earlier Mac trace build 67284 and iOS build 4321 succeeded. The picker was then 
 The Mac audit restored the Thursday November 19 note tab and the Search “voicejoy” return target. Jeremiah 33 and the LXX-left/KJV-right Compare fixture were preserved for the separate geometry follow-up. Original IDs and content hashes were unchanged. Two owned Mac fixtures, including the earlier slash-command fixture, and one owned iPhone fixture are in recoverable Trash.
 
 Continuous pointer movement and flicker, VoiceOver operation, the hover/focus/disabled matrix in light and dark appearance, and Lexicon Command-click still require runtime verification.
+
+## Additional Lexicon check before the scheduled phone build
+Actual Mac G5485 derivation renders Greek and its G5463 reference cleanly, with no visible Markdown. Activating the native AX link opens G5463 in the same tab; Back restores G5485. A modified AX activation cannot prove physical Command-click semantics. A coordinate attempt hit a different control due screenshot scaling, so it is not application failure evidence. Dismissed the unrelated palette, closed only the newly created Lexicon tab, restored the original seven tabs and Search “voice of joy.” Physical Command-click remains open.
