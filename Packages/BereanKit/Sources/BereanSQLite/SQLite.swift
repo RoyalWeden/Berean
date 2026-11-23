@@ -1,3 +1,4 @@
+import Foundation
 import SQLite3
 
 /// Minimal SQLite access over the system library (ADR-0006). Read-only bundled corpora first;
@@ -23,6 +24,20 @@ public struct SQLiteError: Error, Equatable, Sendable, CustomStringConvertible {
     public let code: Int32
     public let message: String
     public var description: String { "SQLite error \(code): \(message)" }
+}
+
+extension SQLiteError: LocalizedError {
+    /// Plain-language text for alerts ("The operation couldn't be completed. (SQLiteError error 1.)" before).
+    public var errorDescription: String? {
+        let primary = code & 0xFF
+        let lower = message.lowercased()
+        if primary == 5 || primary == 6 || lower.contains("locked") || lower.contains("busy") {
+            return "Berean’s library is busy right now. Try again in a moment."
+        }
+        if primary == 13 || lower.contains("full") { return "There isn’t enough free storage on this device." }
+        if primary == 8 || lower.contains("readonly") || lower.contains("read-only") { return "Berean’s library can’t be changed right now (it is read-only)." }
+        return "Berean’s library couldn’t save the change (\(message))."
+    }
 }
 
 /// One connection. Not thread-safe by itself: owners confine it (an actor or a serial queue).

@@ -255,7 +255,7 @@ struct ChatThreadView: View {
         .searchable(text: $search, prompt: "Search messages")
         #endif
         .task(id: "\(app.chatsRevision)|\(search)") { reload() }
-        .alert("Message Couldn’t Be Saved", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+        .alert(saveError?.hasPrefix("The message wasn’t deleted") == true ? "Message Couldn’t Be Deleted" : "Message Couldn’t Be Saved", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
             Button("OK") { saveError = nil }
         } message: { Text(saveError ?? "Your message is still in the composer. Try again.") }
     }
@@ -307,7 +307,7 @@ struct ChatThreadView: View {
                     // VoiceOver: the long-press menu's actions, without the long press.
                     .accessibilityAction(named: "Reply") { replyTo = .init(chat: chat, message: m); composerFocused = true }
                     .accessibilityAction(named: "Copy") { Clipboard.copy(m.content.isEmpty ? m.preview : m.content) }
-                    .accessibilityAction(named: "Delete") { try? app.chats?.deleteMessage(chatId: chat.id, messageId: m.id); reload() }
+                    .accessibilityAction(named: "Delete") { deleteMessage(chat, m) }
             }
             if m.kind == .aiReply, let verses = m.raw["results"]?.arrayValue, !verses.isEmpty {
                 // Verses the answer found (original results / visibleCount), as tappable references.
@@ -353,7 +353,7 @@ struct ChatThreadView: View {
                 Button("Edit", systemImage: "pencil") { editText = m.content; editing = .init(chat: chat, message: m) }
             }
             Divider()
-            Button("Delete", systemImage: "trash", role: .destructive) { try? app.chats?.deleteMessage(chatId: chat.id, messageId: m.id); reload() }
+            Button("Delete", systemImage: "trash", role: .destructive) { deleteMessage(chat, m) }
         }
     }
 
@@ -463,6 +463,16 @@ struct ChatThreadView: View {
             reload()
         } catch {
             saveError = "Your message is still in the composer. " + error.localizedDescription
+        }
+    }
+
+    /// Deleting used to ignore failures; now a failed delete says so and the message stays.
+    private func deleteMessage(_ chat: ChatsService.Chat, _ m: ChatsService.Message) {
+        do {
+            try app.chats?.deleteMessage(chatId: chat.id, messageId: m.id)
+            reload()
+        } catch {
+            saveError = "The message wasn’t deleted. " + error.localizedDescription
         }
     }
 
