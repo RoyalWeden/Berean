@@ -56,7 +56,40 @@ class ReferenceCursorTextView: NSTextView {
 
 /// SwiftUI's selectable Text can give its selection cursor priority over links.
 /// Keep both selection and link hit testing on the same native text layout.
-struct ReferenceLinkText: NSViewRepresentable {
+struct ReferenceLinkText: View {
+    let text: AttributedString
+    var color: NSColor = .labelColor
+    var semibold = false
+    var scriptureLabel: String? = nil
+
+    var body: some View {
+        ReferenceBaselineLayout {
+            ReferenceLinkTextView(text: text, color: color, semibold: semibold, scriptureLabel: scriptureLabel)
+            Text(text).fontWeight(semibold ? .semibold : nil)
+                .hidden().accessibilityHidden(true).allowsHitTesting(false)
+        }
+    }
+}
+
+private struct ReferenceBaselineLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews[0].sizeThatFits(proposal)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews[0].place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(bounds.size))
+    }
+
+    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
+                           subviews: Subviews, cache: inout ()) -> CGFloat? {
+        // SwiftUI does not forward the NSTextView's first baseline through
+        // NSViewRepresentable. Measure the equivalent SwiftUI text for alignment.
+        guard guide == .firstTextBaseline else { return nil }
+        return subviews[1].dimensions(in: .init(width: bounds.width, height: nil))[guide]
+    }
+}
+
+private struct ReferenceLinkTextView: NSViewRepresentable {
     let text: AttributedString
     var color: NSColor = .labelColor
     var semibold = false

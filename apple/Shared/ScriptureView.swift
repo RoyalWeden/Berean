@@ -2218,10 +2218,20 @@ struct VerseRowView: View {
     @AppStorage("showRedLetters") private var showRedLetters = true
 
     var body: some View {
-        Text(attributed)
+        let text = attributed
+        Group {
+            #if os(macOS)
+            if text.runs.contains(where: { $0.link != nil }) {
+                ReferenceLinkText(text: text)
+            } else {
+                Text(text).textSelection(.enabled)
+            }
+            #else
+            Text(text).textSelection(.enabled)
+            #endif
+        }
             .font(ScriptureFont.font(family, size: fontSize))
             .lineSpacing(lineSpacing)
-            .textSelection(.enabled)
             .padding(.vertical, 2)
     }
 

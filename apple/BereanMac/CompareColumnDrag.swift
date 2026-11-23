@@ -177,8 +177,9 @@ struct CompareDragRegion: NSViewRepresentable {
     }
 }
 
-/// AppKit recognizes the lift while SwiftUI/native controls retain their ordinary
-/// click and text-selection behavior. No window-wide mouse monitor or cursor warp.
+/// Delay single-click delivery until the lift recognizer yields. NSTextView
+/// otherwise enters its own selection tracking loop before the column can lift.
+/// Double-click selection and ordinary clicks still pass through on failure.
 struct CompareColumnPan: NSGestureRecognizerRepresentable {
     let controller: CompareColumnDragController
     let began: (String) -> Void
@@ -191,7 +192,7 @@ struct CompareColumnPan: NSGestureRecognizerRepresentable {
     func makeNSGestureRecognizer(context: Context) -> ColumnLiftRecognizer {
         let recognizer = ColumnLiftRecognizer()
         recognizer.delegate = context.coordinator
-        recognizer.delaysPrimaryMouseButtonEvents = false
+        recognizer.delaysPrimaryMouseButtonEvents = true
         updateNSGestureRecognizer(recognizer, context: context)
         return recognizer
     }
