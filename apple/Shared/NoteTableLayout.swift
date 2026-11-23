@@ -32,6 +32,8 @@ final class NoteTableLayout: NSLayoutManager {
         let range: NSRange
         let boundaries: [Int]
         let dividers: [CGFloat]
+        /// Row kept on one line (too wide even after shrinking): draw the column grid, not the wrapped fallback.
+        var clipped = false
         let header: Bool
         let hasBody: Bool
         let lastCellInset: CGFloat
@@ -117,9 +119,12 @@ final class NoteTableLayout: NSLayoutManager {
     private(set) var imageStyledWidth: CGFloat = 0
     var hasImages: Bool { !imageSlots.isEmpty }
 
-    /// True when images exist and were sized for a noticeably different text width.
+    /// Set when a table was shrunk/clipped for the current width, so a width change restyles.
+    private(set) var tablesScaledForWidth = false
+
+    /// True when images (or width-fitted tables) exist and were sized for a different text width.
     func imagesNeedRestyle(forAvailable available: CGFloat) -> Bool {
-        hasImages && available > 40 && abs(available - imageStyledWidth) > 1
+        (hasImages || tablesScaledForWidth) && available > 40 && abs(available - imageStyledWidth) > 1
     }
 
     func styleImages(in storage: NSTextStorage, available: CGFloat) {
@@ -230,9 +235,12 @@ final class NoteTableLayout: NSLayoutManager {
 
     func styleTables(
         in storage: NSTextStorage, spans: [MarkdownLiveSpans.Span],
-        paragraph: NSParagraphStyle, hidden: inout IndexSet
+        paragraph: NSParagraphStyle, hidden: inout IndexSet, available: CGFloat = 0
     ) {
         rows = []
+        tablesScaledForWidth = false
+        // Before first layout the container width can be 0 or effectively unbounded.
+        let width = available > 40 && available < 4000 ? available : Self.fallbackWidth
         let source = storage.string as NSString
         let lines = spans.filter { $0.kind == .tableHeader || $0.kind == .tableRule || $0.kind == .tableRow }
         var index = 0
@@ -271,24 +279,59 @@ final class NoteTableLayout: NSLayoutManager {
                     hidden.insert(integersIn: end..<cell.upperBound)
                 }
             }
-            let cellWidths = group.map { _, cells in
-                cells.map { cell -> CGFloat in
-                    let displayed = NSMutableAttributedString(attributedString: storage.attributedSubstring(from: cell))
-                    for markers in hidden.rangeView(of: cell.location..<cell.upperBound).reversed() {
-                        displayed.deleteCharacters(in: NSRange(location: markers.lowerBound - cell.location, length: markers.count))
+            func measureCells() -> [[CGFloat]] {
+                group.map { _, cells in
+                    cells.map { cell -> CGFloat in
+                        let displayed = NSMutableAttributedString(attributedString: storage.attributedSubstring(from: cell))
+                        for markers in hidden.rangeView(of: cell.location..<cell.upperBound).reversed() {
+                            displayed.deleteCharacters(in: NSRange(location: markers.lowerBound - cell.location, length: markers.count))
+                        }
+                        return ceil(displayed.size().width)
                     }
-                    return ceil(displayed.size().width)
                 }
             }
+            var cellWidths = measureCells()
             let alignmentFactors: [CGFloat] = MarkdownLiveSpans.tableCells(in: source, range: rule.range).map {
                 let marker = source.substring(with: $0).trimmingCharacters(in: .whitespaces)
                 if marker.hasPrefix(":"), marker.hasSuffix(":") { return 0.5 }
                 return marker.hasSuffix(":") ? 1 : 0
             }
-            let columns = headerCells.indices.map { column in
+            var columns = headerCells.indices.map { column in
                 max(40, cellWidths.map { $0[column] }.max() ?? 0)
             }
+            // Wide tables: rows are single text lines aligned by padded pipes, so when the
+            // columns before the last no longer fit, rows wrapped mid-table and the grid broke
+            // (iPhone, 8-column table). Shrink this table's text to fit (≥ 65 %), and if it still
+            // can't fit, stop rows wrapping so the grid stays intact (the right edge clips).
+            let pipeEstimate = storage.attributedSubstring(from: NSRange(location: row.range.location, length: 1)).size().width
+            var fontScale: CGFloat = 1
+            func leadingWidth(_ cols: [CGFloat]) -> CGFloat {
+                cols.dropLast().reduce(0) { $0 + $1 + 18 * fontScale + pipeEstimate } + 9 * fontScale
+            }
+            var clipRows = false
+            tablesScaledForWidth = true   // any table depends on the width (restyle when it changes)
+            if leadingWidth(columns) > width - 90 {
+                let total = columns.reduce(0) { $0 + $1 + 18 + pipeEstimate }
+                let scale = max(0.65, min(1, (width - 4) / max(1, total)))
+                fontScale = scale
+                if scale < 1 {
+                    for (range, _) in group {
+                        let line = source.lineRange(for: range)
+                        storage.enumerateAttribute(.font, in: line) { value, run, _ in
+                            #if os(macOS)
+                            if let font = value as? NSFont { storage.addAttribute(.font, value: font.withSize(font.pointSize * scale), range: run) }
+                            #else
+                            if let font = value as? UIFont { storage.addAttribute(.font, value: font.withSize(font.pointSize * scale), range: run) }
+                            #endif
+                        }
+                    }
+                    cellWidths = measureCells()
+                    columns = headerCells.indices.map { column in max(40 * scale, cellWidths.map { $0[column] }.max() ?? 0) }
+                }
+                clipRows = leadingWidth(columns) > width - 90
+            }
             let rowStyle = paragraph.mutableCopy() as! NSMutableParagraphStyle
+            if clipRows { rowStyle.lineBreakMode = .byClipping }
             rowStyle.paragraphSpacing = 0
             rowStyle.lineSpacing = 0
 
@@ -299,7 +342,7 @@ final class NoteTableLayout: NSLayoutManager {
             #endif
             let delimiterText = storage.attributedSubstring(from: NSRange(location: row.range.location, length: 1))
             let pipeSize = delimiterText.size()
-            let cellInset: CGFloat = 9
+            let cellInset: CGFloat = 9 * fontScale
             rowStyle.minimumLineHeight = ceil(pipeSize.height) + 12
             let pipeWidth = pipeSize.width
             var dividers: [CGFloat] = [0]
@@ -330,9 +373,11 @@ final class NoteTableLayout: NSLayoutManager {
                         storage.addAttribute(.font, value: font, range: pipe)
                     }
                 }
-                rows.append(Row(range: range, boundaries: boundaries, dividers: dividers,
-                                header: offset == 0, hasBody: group.count > 1,
-                                lastCellInset: dividers[dividers.count - 2] + cellInset))
+                var styled = Row(range: range, boundaries: boundaries, dividers: dividers,
+                                 header: offset == 0, hasBody: group.count > 1,
+                                 lastCellInset: dividers[dividers.count - 2] + cellInset)
+                styled.clipped = clipRows
+                rows.append(styled)
             }
 
             let ruleStyle = NSMutableParagraphStyle()
@@ -417,7 +462,7 @@ final class NoteTableLayout: NSLayoutManager {
                 let x = row.dividers.map { start + $0 }
                 let earlierColumnsFit = glyphs.dropLast().allSatisfy { NSLocationInRange($0, fragment) }
                     && row.lastCellInset <= line.width - 90
-                guard earlierColumnsFit || (NSLocationInRange(last, fragment) && x.last! <= line.maxX) else {
+                guard earlierColumnsFit || row.clipped || (NSLocationInRange(last, fragment) && x.last! <= line.maxX) else {
                     // Keep wrapped text together visually as one table row. Use the
                     // full line fragment so adjacent rows share their outer edges.
                     let lastLine = lineFragmentRect(forGlyphAt: last, effectiveRange: nil)

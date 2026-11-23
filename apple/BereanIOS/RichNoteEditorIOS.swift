@@ -452,7 +452,8 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             (tv.layoutManager as? NoteTableLayout)?.styleReferenceBlocks(in: storage, spans: spans,
                 scriptureBlocks: parent.scriptureBlocks, paragraph: para,
                 headingAttributes: [.font: font(size, .semibold)])
-            (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden)
+            (tv.layoutManager as? NoteTableLayout)?.styleTables(in: storage, spans: spans, paragraph: para, hidden: &hidden,
+                                                                 available: tv.textContainer.size.width - 2 * tv.textContainer.lineFragmentPadding)
             (tv.layoutManager as? NoteTableLayout)?.styleImages(in: storage, available: tv.textContainer.size.width - 2 * tv.textContainer.lineFragmentPadding)
             // Null glyphs still participate in TextKit background geometry.
             // Highlight only visible text, not hidden delimiters or destinations.
