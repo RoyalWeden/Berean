@@ -42,3 +42,8 @@ Status: **IMPLEMENTED (partial); iPhone VERIFIED (sim); Mac built** (no Mac clic
 - `BereanNotes/YouTubeLink.swift` (tested): youtu.be / watch / shorts / embed / live links with `t=` or `start=` (`754`, `754s`, `12m34s`, `1h2m5s`); rejects channel pages and look-alike hosts.
 - Notes: tapping/clicking a YouTube link (e.g. an inserted timestamp link) opens it in Berean's YouTube tab at that moment instead of the browser. Verified on sim: typed `[Matthew 0:08](https://youtu.be/7PZjoIgdows?t=8)` in a note → tap → YouTube tab with the video.
 - Together with "Insert into note" (timestamp link) this covers the original M03 loop: link a moment from a video into a note, and jump back to it from the note.
+
+
+## 2026-11-22 — in-app mini player attempt (reverted)
+
+Tried a native stand-in for auto-PiP: leaving a playing YouTube tab moved the same `WebPage` into a floating 16:9 mini player (phone-width layout scaled down and cropped to the video strip; playback resumed after the move). Showing it worked — the video kept playing over John 1 — but **handing the page back to the tab trapped inside `_WebKit_SwiftUI` (EXC_BREAKPOINT in `PlatformViewRepresentableAdaptor.makeViewProvider`) every time**, even with no removal animation and a 600 ms gap. Ordinary tab switches re-attach pages fine; a page that has been hosted by a second `WebView` can't be re-attached. Reverted completely (nothing shipped). A working version needs a single persistent player view at the root that is repositioned between tab and corner, never re-hosted.
