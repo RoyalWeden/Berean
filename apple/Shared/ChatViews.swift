@@ -303,6 +303,11 @@ struct ChatThreadView: View {
                     .foregroundStyle(.primary)
                     .background(mine ? Color.accentColor.opacity(0.13) : Color.secondary.opacity(0.09), in: .rect(cornerRadius: 22))
                     .frame(maxWidth: 560, alignment: mine ? .trailing : .leading)
+                    .accessibilitySortPriority(1)
+                    // VoiceOver: the long-press menu's actions, without the long press.
+                    .accessibilityAction(named: "Reply") { replyTo = .init(chat: chat, message: m); composerFocused = true }
+                    .accessibilityAction(named: "Copy") { Clipboard.copy(m.content.isEmpty ? m.preview : m.content) }
+                    .accessibilityAction(named: "Delete") { try? app.chats?.deleteMessage(chatId: chat.id, messageId: m.id); reload() }
             }
             if m.kind == .aiReply, let verses = m.raw["results"]?.arrayValue, !verses.isEmpty {
                 // Verses the answer found (original results / visibleCount), as tappable references.
@@ -334,8 +339,13 @@ struct ChatThreadView: View {
                 if m.editedAt != nil { Text("Edited") }
             }
             .font(.caption2).foregroundStyle(.secondary)
+            // Read who/when first, as one phrase, then the message (was three loose fragments after it).
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(messageMetaLabel(m, note: note))
+            .accessibilitySortPriority(2)
         }
         .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)
+        .accessibilityElement(children: .contain)
         .contextMenu {
             Button("Reply", systemImage: "arrowshape.turn.up.left") { replyTo = .init(chat: chat, message: m); composerFocused = true }
             Button("Copy", systemImage: "doc.on.doc") { Clipboard.copy(m.content.isEmpty ? m.preview : m.content) }
@@ -345,6 +355,12 @@ struct ChatThreadView: View {
             Divider()
             Button("Delete", systemImage: "trash", role: .destructive) { try? app.chats?.deleteMessage(chatId: chat.id, messageId: m.id); reload() }
         }
+    }
+
+    private func messageMetaLabel(_ m: ChatsService.Message, note: Bool) -> String {
+        let who = note ? "You" : (m.kind == .aiReply ? "Berean" : "You asked Berean")
+        let time = Date(timeIntervalSince1970: m.time / 1000).formatted(date: .omitted, time: .shortened)
+        return [who, time, m.editedAt != nil ? "edited" : nil].compactMap { $0 }.joined(separator: ", ")
     }
 
     private var composer: some View {

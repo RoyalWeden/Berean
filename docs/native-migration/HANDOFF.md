@@ -2958,3 +2958,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - H02 iPhone partial highlight write + relaunch reopen verified (John 1:1 'beginning', chars 7–16); test highlight removed.
 - N04 wide tables: FIXED grid breakage (NoteTableLayout.styleTables gets the available width with a pre-layout fallback; shrink to fit ≥65 %, else no-wrap rows marked clipped so drawBackground uses the column grid, not the wrapped fallback; tables now trigger width restyle). Sim-verified; test note removed.
 - N04 wide tables also verified on Mac QA (12 columns); QA note removed.
+- U18 Chat accessibility: message meta grouped + read first; Reply/Copy/Delete VoiceOver actions (sim AX verified).
