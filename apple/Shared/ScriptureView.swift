@@ -1956,6 +1956,11 @@ struct ScriptureView: View {
             if recordHistory && moved { visited = s }
         }
         if let passage {
+            if passage.verse != nil, let tab = app.findTab(tabId) {
+                // A picker/Go destination is navigation, unlike selecting a
+                // verse in place. Stage it before a lifecycle save or restore.
+                app.requestScriptureJump(in: tabId, to: ChapterEdition(BibleState(tab.state)))
+            }
             app.recordRecent(textId: passage.textId, bookId: passage.bookId, chapter: passage.chapter,
                              verse: passage.verse, endVerse: passage.endVerse, verseGroups: passage.verseGroups)
         } else if let v = visited { app.recordRecent(textId: v.translation, bookId: v.bookId, chapter: v.chapter, verse: v.verse, endVerse: v.endVerse) }

@@ -1441,6 +1441,18 @@ struct CompareView: View {
         return nil
     }
 
+    private func scrollAligned(to verse: Int, proxy: ScrollViewProxy) {
+        #if os(iOS)
+        // The first row follows the column headers. Restoring that row at the
+        // viewport edge would scroll the headers and opening lines under chrome.
+        if verse == rows.keys.min() {
+            sharedScrollPosition.scrollTo(edge: .top)
+            return
+        }
+        #endif
+        proxy.scrollTo(verse, anchor: .top)
+    }
+
     private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn], passage: String) -> some View {
         let key = "aligned|" + passage
         let scope = viewportScope(passage)
@@ -1450,7 +1462,7 @@ struct CompareView: View {
                 if isCurrentCompareJump(current) {
                     arrivingAlignedAnchor = nil
                     arrivingAlignedOffset = nil
-                    if let verse = current.verse { proxy.scrollTo(verse, anchor: .top) }
+                    if let verse = current.verse { scrollAligned(to: verse, proxy: proxy) }
                 } else if scope.historyRevision != nil {
                     sharedScrollPosition.scrollTo(y: 0)
                 } else if let transfer = arrivingAlignedOffset, transfer.passage == passage {
@@ -1459,15 +1471,15 @@ struct CompareView: View {
                 } else if let bookmark = arrivingAlignedAnchor, bookmark.passage == passage {
                     arrivingAlignedAnchor = nil
                     let target = rows.keys.filter { $0 >= bookmark.verse }.min() ?? rows.keys.max()
-                    if let target { proxy.scrollTo(target, anchor: .top) }
+                    if let target { scrollAligned(to: target, proxy: proxy) }
                 } else if let bookmarkScope = sharedBookmarkScope(.aligned),
                           let bookmark = app.compareBookmarkPosition(for: tabId, scope: bookmarkScope),
                           rows[bookmark.verse] != nil {
-                    proxy.scrollTo(bookmark.verse, anchor: .top)
+                    scrollAligned(to: bookmark.verse, proxy: proxy)
                 } else if let offset = app.compareScrollOffsets[tabId]?[key] {
                     sharedScrollPosition.scrollTo(y: offset)
                 } else if let verse = current.verse {
-                    proxy.scrollTo(verse, anchor: .top)
+                    scrollAligned(to: verse, proxy: proxy)
                 }
             }) {
                 #if os(iOS)
@@ -1483,7 +1495,7 @@ struct CompareView: View {
             .onChange(of: app.scriptureJumpRequest?.revision) {
                 guard isCurrentViewport(scope, layout: .aligned), isCurrentCompareJump(state),
                       let verse = state.verse else { return }
-                proxy.scrollTo(verse, anchor: .top)
+                scrollAligned(to: verse, proxy: proxy)
             }
             .onChange(of: state.showStrongs) { _, enabled in
                 // A fixed pixel offset points at a different verse after inline
@@ -1497,7 +1509,7 @@ struct CompareView: View {
                           self.state.showStrongs == enabled,
                           isCurrentViewport(scope, layout: .aligned),
                           restoredSharedScroll == SharedViewportScope(key: key, viewport: scope) else { return }
-                    proxy.scrollTo(verse, anchor: .top)
+                    scrollAligned(to: verse, proxy: proxy)
                 }
             }
             .onChange(of: state.verse) { _, verse in
@@ -1506,7 +1518,7 @@ struct CompareView: View {
                 if !isCurrentCompareJump(self.state),
                    (scope.historyRevision != nil || arrivingAlignedAnchor?.passage == passage
                     || arrivingAlignedOffset?.passage == passage) { return }
-                proxy.scrollTo(verse, anchor: .top)
+                scrollAligned(to: verse, proxy: proxy)
             }
         }
     }
