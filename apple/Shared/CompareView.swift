@@ -123,6 +123,7 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
         var latestMeasurement: CompareIndependentMeasurements?
         var nativeViewport: NativeViewport?
         var settledStamp: UUID?
+        var acknowledgedCorrection: UUID?
         var lastJump: UUID?
         var lastAnchor: CompareBookmarkAnchor?
         var fingerprint: (key: String, width: CGFloat, scale: CGFloat, value: String)?
@@ -219,6 +220,7 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
             reading.lastAnchor = nil
             reading.latestMeasurement = nil
             reading.settledStamp = nil
+            reading.acknowledgedCorrection = nil
             reading.user = false
             reading.wheelUntil = 0
             pending = nil
@@ -234,6 +236,17 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
                 let top = CompareIndependentScrollCommand(anchor: anchor, origin: .restore)
                 place(top, atStart: true)
             }
+        }
+        .task(id: pending?.stamp) {
+            guard let placement = pending, placement.correction != nil else { return }
+            // The updated placement stamp asks the row to publish another
+            // layout sample. Wait until SwiftUI processes that change before
+            // retrying a point command that the ID placement may supersede.
+            await Task.yield()
+            guard !Task.isCancelled, reading.current, isCurrent(),
+                  pending?.stamp == placement.stamp else { return }
+            reading.acknowledgedCorrection = placement.stamp
+            if let measured = reading.latestMeasurement { didMeasure(measured) }
         }
         .onDisappear {
             reading.current = false
@@ -258,6 +271,7 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
         reading.user = false
         reading.wheelUntil = 0
         reading.settledStamp = nil
+        reading.acknowledgedCorrection = nil
         pending = Placement(command: command, atStart: atStart)
         if atStart {
             position.scrollTo(edge: .top)
@@ -269,6 +283,7 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
     private func beginUserScroll() {
         if pending != nil { pending = nil }
         reading.settledStamp = nil
+        reading.acknowledgedCorrection = nil
     }
 
     private func layoutFingerprint(width: CGFloat) -> String {
@@ -281,6 +296,7 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
         reading.fingerprint = (renderingKey, width, displayScale, fingerprint)
         return fingerprint
     }
+
 
     private func didMeasure(_ measured: CompareIndependentMeasurements) {
         guard reading.current, isCurrent(), let content = measured.content,
@@ -317,7 +333,7 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
             if let last = placement.correction,
                abs(last.fromOffset - native.offset) <= tolerance,
                abs(last.fromCrop - rowCrop) <= tolerance {
-                return
+                guard reading.acknowledgedCorrection == placement.stamp else { return }
             }
             let cropCorrection = placement.command.anchor.precision?.correction(
                 layout: fingerprint, rowHeight: Double(target.row.height), currentCrop: Double(rowCrop))
@@ -331,6 +347,7 @@ private struct CompareIndependentViewport<Scope: Equatable, Row: View>: View {
                 placement.corrections += 1
                 placement.correction = Correction(fromOffset: native.offset, fromCrop: rowCrop)
                 placement.stamp = UUID()
+                reading.acknowledgedCorrection = nil
                 position.scrollTo(y: requested)
                 pending = placement
                 return
@@ -389,6 +406,12 @@ struct CompareColumn: Identifiable {
         self.text = text
         book = anchor.bookId
         chapter = ChapterMap.mapChapter(book, anchor.chapter, from: anchor.translation, to: text)
+    }
+
+    func mappedVerse(_ verse: Int, from source: BibleState) -> Int? {
+        guard let mapped = PsalmSuperscription.verseCounterpart(source.bookId, chapter: source.chapter, verse: verse,
+                                                               from: source.translation, to: text) else { return verse }
+        return mapped.chapter == chapter ? mapped.verse : nil
     }
 
     func follows(_ anchor: BibleState) -> Bool {
@@ -859,6 +882,9 @@ struct CompareView: View {
         }
         .onChange(of: loadedComparisonLayout) { _, layout in
             guard let layout else { return }
+            if isCurrentLoadedPassage(passage) {
+                app.rememberCompareVisitLayout(for: tabId, independent: layout == .independent)
+            }
             if layout != .aligned {
                 arrivingAlignedAnchor = nil
                 arrivingAlignedOffset = nil
@@ -1304,6 +1330,7 @@ struct CompareView: View {
     }
 
     private func initialIndependentAnchor(_ column: CompareColumn, scope: ViewportScope) -> CompareBookmarkAnchor? {
+        app.rememberCompareVisitLayout(for: tabId, independent: true)
         let rows = independentRows[column.id] ?? []
         let key = columnScrollKey(column.id, passage: scope.passage)
         let cached = app.compareColumnScrollVerses[tabId]?[key]
@@ -1323,12 +1350,19 @@ struct CompareView: View {
         func semantic(_ verse: Int?) -> CompareBookmarkAnchor? {
             checked(verse.flatMap { CompareBookmarkAnchor(verse: $0) })
         }
-        let history: CompareViewports.IndependentVisit = scope.historyRevision == nil
-            ? .ordinary : .history(checked(visit) ?? semantic(cached))
+        let selectedVisit: CompareViewports.IndependentVisit
+        if scope.historyRevision != nil {
+            selectedVisit = .history(checked(visit) ?? semantic(cached))
+        } else if let identity = column.bookmarkColumn, let activeVisit = app.compareActiveVisit(for: tabId) {
+            let anchor = activeVisit[identity]
+            selectedVisit = .active(checked(anchor) ?? semantic(anchor.flatMap { correspondingVerse($0.verse, in: column) }))
+        } else {
+            selectedVisit = .ordinary
+        }
         let fallback = checked(visit) ?? semantic(cached)
             ?? semantic(selectedRows(in: column, source: state).first?.verseNum)
             ?? semantic(column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) })
-        return CompareViewports.independentPosition(visit: history, arrival: checked(arrival),
+        return CompareViewports.independentPosition(visit: selectedVisit, arrival: checked(arrival),
                                                     durable: checked(durable), fallback: fallback)
     }
 
@@ -1345,6 +1379,9 @@ struct CompareView: View {
         app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
         if let visit = independentVisitKey(column, passage: scope.passage) {
             app.rememberCompareIndependentVisit(anchor, for: tabId, key: visit)
+            if origin != .restore {
+                app.recordCompareActiveVisitPane(anchor, for: tabId, column: visit.column)
+            }
             if origin == .user || origin == .peer {
                 app.recordCompareBookmark(for: tabId, scope: .independent(visit.column), anchor: anchor)
             }
@@ -1910,9 +1947,7 @@ struct CompareView: View {
     }
 
     private func mappedVerse(_ verse: Int, in column: CompareColumn, source: BibleState) -> Int? {
-        guard let mapped = PsalmSuperscription.verseCounterpart(source.bookId, chapter: source.chapter, verse: verse,
-                                                       from: source.translation, to: column.text) else { return verse }
-        return mapped.chapter == column.chapter ? mapped.verse : nil
+        column.mappedVerse(verse, from: source)
     }
 
     @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false,

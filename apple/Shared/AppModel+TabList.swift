@@ -343,7 +343,8 @@ extension AppModel {
             guard scriptureReadingPositions[a]?[chapter] == scriptureReadingPositions[b]?[chapter] else { return false }
             return !reader.compareMode || (compareScrollOffsets[a] == compareScrollOffsets[b]
                 && compareColumnScrollVerses[a] == compareColumnScrollVerses[b]
-                && compareIndependentVisitPositions[a] == compareIndependentVisitPositions[b])
+                && compareIndependentVisitPositions[a] == compareIndependentVisitPositions[b]
+                && compareActiveVisit(for: a) == compareActiveVisit(for: b))
         case .search:
             return searchVisibleRows[a] == searchVisibleRows[b] && searchResultAnchors[a] == searchResultAnchors[b]
         case .lexicon:

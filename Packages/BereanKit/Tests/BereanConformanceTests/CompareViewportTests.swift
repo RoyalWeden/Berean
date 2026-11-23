@@ -86,6 +86,97 @@ struct CompareViewportTests {
                                                     durable: latest, fallback: fallback) == latest)
     }
 
+    @Test func stagedActiveVisitSurvivesSaveBeforeLayoutAndKeepsItsUnmovedPeer() throws {
+        let address = try destination()
+        let left = CompareBookmarkColumn(id: UUID(), destination: address)
+        let right = CompareBookmarkColumn(id: UUID(), destination: address)
+        let context = try #require(CompareActiveVisitContext(source: address, columns: [left, right], syncScrolling: false))
+        let layout = String(repeating: "d", count: 64)
+        let crop = try #require(CompareBookmarkPrecision(crop: 33, rowHeight: 70, layout: layout))
+        let older = try #require(CompareBookmarkAnchor(verse: 6, precision: crop))
+        let latest = try #require(CompareBookmarkAnchor(verse: 19))
+        let otherPane = try #require(CompareBookmarkAnchor(verse: 9, precision: crop))
+
+        let position = CompareViewports.updating(JSObject(), scope: .independent(left), position: latest)
+        let staged = CompareViewports.settingActiveVisit(in: position, context: context, anchors: [left: older, right: otherPane])
+        let split = TabFields.split(type: .bible, state: staged)
+        #expect(split.sync[CompareViewports.field] == nil)
+        let local = try #require(try JSON.parse(JSON.stableJSON(.object(split.local))).objectValue)
+        let reloaded = TabFields.merge(type: .bible, sync: split.sync, local: local)
+        let panes = try #require(CompareViewports.activeVisit(in: reloaded, context: context))
+        #expect(panes == [left: older, right: otherPane])
+        #expect(CompareViewports.position(in: reloaded, scope: .independent(left)) == latest)
+        #expect(CompareViewports.independentPosition(visit: .active(panes[left]), arrival: nil,
+                                                    durable: latest, fallback: nil) == older)
+
+        let explicitJump = try #require(CompareBookmarkAnchor(verse: 24))
+        let afterJump = CompareViewports.updatingActiveVisit(in: reloaded, context: context, anchors: [left: explicitJump])
+        let jumpedPanes = try #require(CompareViewports.activeVisit(in: afterJump, context: context))
+        #expect(jumpedPanes == [left: explicitJump, right: otherPane])
+        #expect(CompareViewports.independentPosition(visit: .active(jumpedPanes[left]), arrival: nil,
+                                                    durable: latest, fallback: nil) == explicitJump)
+        #expect(CompareViewports.position(in: afterJump, scope: .independent(left)) == latest)
+    }
+
+    @Test func activeVisitDistinguishesEmptyFromAbsentAndRejectsIncompatibleSettings() throws {
+        let address = try destination()
+        let another = try destination(2)
+        let left = CompareBookmarkColumn(id: UUID(), destination: address)
+        let right = CompareBookmarkColumn(id: UUID(), destination: address)
+        let replacement = CompareBookmarkColumn(id: UUID(), destination: address)
+        let moved = CompareBookmarkColumn(id: left.id, destination: another)
+        let anchor = try #require(CompareBookmarkAnchor(verse: 15))
+        let context = try #require(CompareActiveVisitContext(source: address, columns: [left, right], syncScrolling: false))
+        let state = CompareViewports.updating(JSObject(), scope: .independent(left), position: anchor)
+        let empty = CompareViewports.settingActiveVisit(in: state, context: context, anchors: [:])
+        #expect(CompareViewports.activeVisit(in: state, context: context) == nil)
+        #expect(CompareViewports.activeVisit(in: empty, context: context)?.isEmpty == true)
+        #expect(CompareViewports.independentPosition(visit: .active(nil), arrival: nil, durable: anchor, fallback: anchor) == nil)
+        #expect(CompareViewports.independentPosition(visit: .active(nil), arrival: anchor, durable: nil, fallback: nil) == anchor)
+        #expect(CompareViewports.independentPosition(visit: .history(nil), arrival: anchor, durable: nil, fallback: nil) == nil)
+        #expect(CompareViewports.clearingActiveVisit(in: empty) == state)
+
+        let mismatches = [
+            CompareActiveVisitContext(source: another, columns: [left, right], syncScrolling: false),
+            CompareActiveVisitContext(source: address, columns: [left, right], syncScrolling: true),
+            CompareActiveVisitContext(source: address, columns: [left, right], syncScrolling: false, pinnedColumnIDs: [left.id]),
+            CompareActiveVisitContext(source: address, columns: [right, left], syncScrolling: false),
+            CompareActiveVisitContext(source: address, columns: [replacement, right], syncScrolling: false),
+            CompareActiveVisitContext(source: address, columns: [moved, right], syncScrolling: false),
+        ]
+        for candidate in mismatches {
+            let candidate = try #require(candidate)
+            #expect(CompareViewports.activeVisit(in: empty, context: candidate) == nil)
+        }
+        #expect(CompareActiveVisitContext(source: address, columns: [left, left], syncScrolling: false) == nil)
+    }
+
+    @Test func activeVisitDoesNotConsumeDestinationCapacityOrResurrectEvictedPositions() throws {
+        let address = try destination()
+        let left = CompareBookmarkColumn(id: UUID(), destination: address)
+        let context = try #require(CompareActiveVisitContext(source: address, columns: [left], syncScrolling: false))
+        let old = try #require(CompareBookmarkAnchor(verse: 3))
+        let latest = try #require(CompareBookmarkAnchor(verse: 21))
+        let history = CompareViewports.settingActiveVisit(in: JSObject(), context: context, anchors: [left: old])
+        let historicalState = CompareViewports.updating(history, scope: .independent(left), position: old)
+
+        var current = historicalState
+        var currentScopes: [CompareBookmarkScope] = []
+        for _ in 1...CompareViewports.capacity {
+            let scope = CompareBookmarkScope.independent(.init(id: UUID(), destination: address))
+            currentScopes.append(scope)
+            current = CompareViewports.updating(current, scope: scope, position: latest)
+        }
+        let merged = CompareViewports.merging(current: current, into: historicalState)
+        #expect(CompareViewports.activeVisit(in: merged, context: context) == [left: old])
+        #expect(CompareViewports.position(in: merged, scope: .independent(left)) == nil)
+        #expect(currentScopes.allSatisfy { CompareViewports.position(in: merged, scope: $0) == latest })
+        let cleared = CompareViewports.clearingActiveVisit(in: merged)
+        let reopening = CompareViewports.merging(current: cleared, into: historicalState)
+        #expect(!CompareViewports.hasActiveVisit(in: reopening))
+        #expect(currentScopes.allSatisfy { CompareViewports.position(in: reopening, scope: $0) == latest })
+    }
+
     @Test func malformedPrecisionRetainsSemanticAnchorAndReflowDiscardsCrop() throws {
         let address = try destination()
         let scope = CompareBookmarkScope.independent(.init(id: UUID(), destination: address))

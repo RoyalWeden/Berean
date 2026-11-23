@@ -951,6 +951,7 @@ final class AppModel {
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
         compareIndependentVisitPositions.removeValue(forKey: tabId)
+        compareVisitLayouts.removeValue(forKey: tabId)
         pendingCompareBookmarks.removeValue(forKey: tabId)
         compareBookmarkRecords.removeValue(forKey: tabId)
         compareSelections.removeValue(forKey: tabId)
@@ -1089,6 +1090,11 @@ final class AppModel {
                                        bookId: passage.bookId, chapter: passage.chapter, verse: passage.verse, query: payload)
                 }
             }
+            if Self.independentVisitContext(in: before) != Self.independentVisitContext(in: after) {
+                compareVisitLayouts.removeValue(forKey: tabId)
+                clearCompareActiveVisit(for: tabId, state: after.state)
+                if compareHistoryRestore?.tabID == tabId { compareHistoryRestore = nil }
+            }
             scheduleSave(); return
         }
     }
@@ -1121,10 +1127,21 @@ final class AppModel {
             if state.compareMode {
                 let passage = CompareColumn.passageKey(state, CompareColumn.resolved(in: tab.state))
                 if let saved = compareSelections[tab.id], saved.passage == passage { compareSelection = saved }
+                var independent = compareIndependentVisitPositions[tab.id, default: [:]]
+                let context = Self.independentVisitContext(in: tab)
+                let active = context.flatMap { CompareViewports.activeVisit(in: snapshot.state, context: $0) }
+                if let active {
+                    for (column, anchor) in active {
+                        let key = CompareIndependentVisitKey(passage: passage, column: column)
+                        if independent[key] == nil { independent[key] = anchor }
+                    }
+                }
+                let observed = compareVisitLayouts[tab.id]
+                let independentLayout = observed?.context == context ? observed?.independent : nil
                 compareViewport = CompareViewportSnapshot(passage: passage,
+                    independentContext: (independentLayout ?? (active != nil)) ? context : nil,
                     offsets: compareScrollOffsets[tab.id, default: [:]],
-                    verses: compareColumnScrollVerses[tab.id, default: [:]],
-                    independent: compareIndependentVisitPositions[tab.id, default: [:]])
+                    verses: compareColumnScrollVerses[tab.id, default: [:]], independent: independent)
             } else if let position = scriptureReadingPositions[tab.id]?[chapter]?.persisted,
                       position != ReaderViewports.position(in: tab.state, chapter: chapter) {
                 snapshot.state = ReaderViewports.updating(tab.state, chapter: chapter, position: position)
@@ -1186,6 +1203,9 @@ final class AppModel {
             }
         }
         guard sessions[sessionIndex].replaceTabContent(id, with: destination) != nil else { return }
+        let independentContext = Self.independentVisitContext(in: destination)
+        compareVisitLayouts.removeValue(forKey: id)
+        var stagedIndependent = false
         scriptureHistoryRestore = nil
         compareHistoryRestore = nil
         compareSelections[id] = location.compareSelection
@@ -1194,16 +1214,31 @@ final class AppModel {
         if location.tab.tabType == .bible {
             let state = BibleState(location.tab.state)
             if state.compareMode {
-                let passage = CompareColumn.passageKey(state, CompareColumn.resolved(in: location.tab.state))
-                if let viewport = location.compareViewport, viewport.passage == passage {
-                    let restored = viewport.restoring(offsets: compareScrollOffsets[id, default: [:]],
-                                                      verses: compareColumnScrollVerses[id, default: [:]],
-                                                      independent: compareIndependentVisitPositions[id, default: [:]])
-                    compareScrollOffsets[id] = restored.offsets
-                    compareColumnScrollVerses[id] = restored.verses
-                    compareIndependentVisitPositions[id] = restored.independent
-                }
+                let columns = CompareColumn.resolved(in: location.tab.state)
+                let passage = CompareColumn.passageKey(state, columns)
+                let viewport = location.compareViewport.flatMap { $0.passage == passage ? $0 : nil }
+                    ?? CompareViewportSnapshot(passage: passage, independentContext: nil, offsets: [:], verses: [:], independent: [:])
+                let restored = viewport.restoring(offsets: compareScrollOffsets[id, default: [:]],
+                                                  verses: compareColumnScrollVerses[id, default: [:]],
+                                                  independent: compareIndependentVisitPositions[id, default: [:]])
+                compareScrollOffsets[id] = restored.offsets
+                compareColumnScrollVerses[id] = restored.verses
+                compareIndependentVisitPositions[id] = restored.independent
                 compareHistoryRestore = CompareHistoryRestore(tabID: id, passage: passage)
+                // Stage the selected visit before the pane measures anything.
+                // An immediate lifecycle save must already reopen this visit.
+                if let context = independentContext, viewport.independentContext == context {
+                    var anchors: [CompareBookmarkColumn: CompareBookmarkAnchor] = [:]
+                    for column in columns {
+                        guard let identity = column.bookmarkColumn else { continue }
+                        let key = CompareIndependentVisitKey(passage: passage, column: identity)
+                        let verse = viewport.verses[passage + "|column:\(column.id)"]
+                        anchors[identity] = viewport.independent[key] ?? verse.flatMap { CompareBookmarkAnchor(verse: $0) }
+                    }
+                    cacheCompareBookmarkState(CompareViewports.settingActiveVisit(in: destination.state, context: context,
+                                                                                 anchors: anchors), for: id)
+                    stagedIndependent = true
+                }
             } else {
                 let edition = ChapterEdition(state)
                 let position = ReaderViewports.position(in: location.tab.state, chapter: edition.key).map(ScriptureReadingPosition.init)
@@ -1215,6 +1250,9 @@ final class AppModel {
         }
         notesBrowseOptions[id] = location.notesOptions
         noteListReturnTabs[id] = location.notesReturnTab
+        if !stagedIndependent {
+            clearCompareActiveVisit(for: id, state: destination.state)
+        }
         if location.tab.tabType == .lexicon {
             lexiconSearches[id] = (location.tab.state["searchQuery"]?.stringValue?.string ?? "",
                                   location.tab.state["searchLang"]?.stringValue?.string ?? "all")
@@ -1263,14 +1301,69 @@ final class AppModel {
     @ObservationIgnored private var pendingCompareBookmarks: [String: [CompareBookmarkScope: PendingCompareBookmark]] = [:]
     @ObservationIgnored private var compareBookmarkRecords: [String: JSObject] = [:]
 
+    @ObservationIgnored private var compareVisitLayouts: [String: (context: CompareActiveVisitContext, independent: Bool)] = [:]
+
+    func rememberCompareVisitLayout(for tabId: String, independent: Bool) {
+        guard activeTab?.id == tabId, let tab = findTab(tabId),
+              let context = Self.independentVisitContext(in: tab) else { return }
+        compareVisitLayouts[tabId] = (context, independent)
+    }
+
+    private static func independentVisitContext(in tab: BereanWorkspace.Tab) -> CompareActiveVisitContext? {
+        guard tab.tabType == .bible else { return nil }
+        let state = BibleState(tab.state)
+        guard state.compareMode,
+              let source = CompareBookmarkDestination(textID: state.translation, bookID: state.bookId, chapter: state.chapter)
+        else { return nil }
+        let columns = CompareColumn.resolved(in: tab.state)
+        let identities = columns.compactMap(\.bookmarkColumn)
+        guard identities.count == columns.count else { return nil }
+        let pinned = Set(columns.filter(\.isPinned).compactMap { $0.bookmarkColumn?.id })
+        return CompareActiveVisitContext(source: source, columns: identities,
+                                         syncScrolling: tab.state["compareSyncScroll"]?.boolValue ?? true,
+                                         pinnedColumnIDs: pinned)
+    }
+
+    private func compareBookmarkState(_ original: JSObject, for tabId: String) -> JSObject {
+        guard let records = compareBookmarkRecords[tabId] else { return original }
+        var state = original
+        state[CompareViewports.field] = records.isEmpty ? nil : .object(records)
+        return state
+    }
+
+    private func cacheCompareBookmarkState(_ state: JSObject, for tabId: String) {
+        compareBookmarkRecords[tabId] = state[CompareViewports.field]?.objectValue ?? JSObject()
+    }
+
+    func compareActiveVisit(for tabId: String) -> [CompareBookmarkColumn: CompareBookmarkAnchor]? {
+        guard let tab = findTab(tabId) else { return nil }
+        let state = compareBookmarkState(tab.state, for: tabId)
+        guard CompareViewports.hasActiveVisit(in: state), let context = Self.independentVisitContext(in: tab) else { return nil }
+        return CompareViewports.activeVisit(in: state, context: context)
+    }
+
+    func recordCompareActiveVisitPane(_ anchor: CompareBookmarkAnchor, for tabId: String, column: CompareBookmarkColumn) {
+        guard activeTab?.id == tabId, let tab = findTab(tabId) else { return }
+        let state = compareBookmarkState(tab.state, for: tabId)
+        guard CompareViewports.hasActiveVisit(in: state), let context = Self.independentVisitContext(in: tab),
+              context.columns.contains(column), let anchors = CompareViewports.activeVisit(in: state, context: context),
+              anchors[column] != anchor else { return }
+        cacheCompareBookmarkState(
+            CompareViewports.updatingActiveVisit(in: state, context: context, anchors: [column: anchor]), for: tabId)
+        if saveTask == nil { scheduleSave() }
+    }
+
+    private func clearCompareActiveVisit(for tabId: String, state: JSObject) {
+        let state = compareBookmarkState(state, for: tabId)
+        if CompareViewports.hasActiveVisit(in: state) {
+            cacheCompareBookmarkState(CompareViewports.clearingActiveVisit(in: state), for: tabId)
+        }
+    }
+
     func compareBookmarkPosition(for tabId: String, scope: CompareBookmarkScope) -> CompareBookmarkAnchor? {
         guard let tab = findTab(tabId), validCompareBookmarkScope(scope, in: tab) else { return nil }
         if let pending = pendingCompareBookmarks[tabId]?[scope] { return pending.anchor }
-        var state = tab.state
-        if let records = compareBookmarkRecords[tabId] {
-            state[CompareViewports.field] = records.isEmpty ? nil : .object(records)
-        }
-        return CompareViewports.position(in: state, scope: scope)
+        return CompareViewports.position(in: compareBookmarkState(tab.state, for: tabId), scope: scope)
     }
 
     func recordCompareBookmark(for tabId: String, scope: CompareBookmarkScope, anchor: CompareBookmarkAnchor) {
@@ -1307,17 +1400,14 @@ final class AppModel {
     }
 
     private func applyingCompareBookmarks(in original: JSObject, tabID: String) -> JSObject {
-        var state = original
-        if let records = compareBookmarkRecords[tabID] {
-            state[CompareViewports.field] = records.isEmpty ? nil : .object(records)
-        }
+        var state = compareBookmarkState(original, for: tabID)
         if let pending = pendingCompareBookmarks[tabID] {
             for (scope, value) in pending.sorted(by: { $0.value.order < $1.value.order }) {
                 state = CompareViewports.updating(state, scope: scope, position: value.anchor)
             }
         }
         // Remember even an empty map so history cannot resurrect an evicted bookmark.
-        compareBookmarkRecords[tabID] = state[CompareViewports.field]?.objectValue ?? JSObject()
+        cacheCompareBookmarkState(state, for: tabID)
         pendingCompareBookmarks.removeValue(forKey: tabID)
         return state
     }
@@ -1344,13 +1434,15 @@ final class AppModel {
     }
     private struct CompareViewportSnapshot: Equatable {
         let passage: String
+        let independentContext: CompareActiveVisitContext?
         let offsets: [String: CGFloat]
         let verses: [String: Int]
         let independent: [CompareIndependentVisitKey: CompareBookmarkAnchor]
 
-        init(passage: String, offsets: [String: CGFloat], verses: [String: Int],
+        init(passage: String, independentContext: CompareActiveVisitContext?, offsets: [String: CGFloat], verses: [String: Int],
              independent: [CompareIndependentVisitKey: CompareBookmarkAnchor]) {
             self.passage = passage
+            self.independentContext = independentContext
             self.offsets = offsets.filter { Self.hasOffsetKey($0.key, for: passage) }
             self.verses = verses.filter { Self.hasColumnKey($0.key, for: passage) }
             self.independent = independent.filter { $0.key.passage == passage }
@@ -2193,12 +2285,41 @@ final class AppModel {
         }
     }
 
+    private func stageIndependentCompareJump(in tabID: String, to chapter: ChapterEdition) {
+        guard let tab = findTab(tabID), let context = Self.independentVisitContext(in: tab) else { return }
+        let source = BibleState(tab.state)
+        guard ChapterEdition(source) == chapter, let verse = source.verse else { return }
+        let columns = CompareColumn.resolved(in: tab.state)
+        if context.syncScrolling && columns.allSatisfy({ $0.follows(source) }) { return }
+        if let observed = compareVisitLayouts[tabID], observed.context == context, !observed.independent { return }
+        let state = compareBookmarkState(tab.state, for: tabID)
+        let active = CompareViewports.activeVisit(in: state, context: context)
+        var anchors: [CompareBookmarkColumn: CompareBookmarkAnchor] = [:]
+        var stagedJump = false
+        for column in columns {
+            guard let identity = column.bookmarkColumn else { continue }
+            if column.follows(source), let mapped = column.mappedVerse(verse, from: source),
+               let anchor = CompareBookmarkAnchor(verse: mapped) {
+                anchors[identity] = anchor
+                stagedJump = true
+            } else if active == nil {
+                anchors[identity] = compareBookmarkPosition(for: tabID, scope: .independent(identity))
+            }
+        }
+        guard stagedJump else { return }
+        if compareHistoryRestore?.tabID == tabID { compareHistoryRestore = nil }
+        cacheCompareBookmarkState(
+            CompareViewports.updatingActiveVisit(in: state, context: context, anchors: anchors), for: tabID)
+        if saveTask == nil { scheduleSave() }
+    }
+
     func requestScriptureJump(in tabID: String, to chapter: ChapterEdition) {
         if scriptureHistoryRestore?.tabID == tabID { scriptureHistoryRestore = nil }
         scriptureReadingPositions[tabID]?.removeValue(forKey: chapter.key)
         update(tabID, recordHistory: false) {
             $0.state = ReaderViewports.updating($0.state, chapter: chapter.key, position: nil)
         }
+        stageIndependentCompareJump(in: tabID, to: chapter)
         scriptureJumpRequest = (tabID, chapter, UUID())
     }
 }
