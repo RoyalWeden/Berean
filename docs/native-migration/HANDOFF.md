@@ -2963,3 +2963,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - N03 checklist QA + FIXED glyph-substitution resume across TextKit chunks (stray ']' after task boxes / any substituted marker) in both editors; horn restored.
 - Mac checklist/callout rendering while typing checked in QA (per-PID keys); QA note removed.
 - M02 mini-player attempt REVERTED (re-hosting a WebPage after a second WebView traps in WebKit); documented in YOUTUBE-TAB doc with the viable design (one persistent root player view).
+- Psalm 119 device timing DONE (iPhone 16e: render 11 ms, on screen 31 ms; sim confirmed same 13,965-char chapter). Clean builds reinstalled on sim + phone.

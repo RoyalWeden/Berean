@@ -33,7 +33,7 @@ Everything else on the handoff that could be finished without the owner is done 
 - Deliberately not ported without a decision. **Recommendation:** port as in the original but behind a typed confirmation, or omit permanently — owner's call.
 
 ## Device checklist (owner, ~15 min, Berean Native Dev on the iPhone)
-1. Psalm 119: open it and note whether it appears instantly (sim/Mac measured ≈ 20 ms).
+1. ~~Psalm 119~~ — **measured on the iPhone 16e 2026-11-22** (temporary timing build, removed afterwards): 13,965 characters, render 11 ms, layout < 1 ms, on screen by the next run loop at 31 ms. Simulator, same chapter: 6–9 ms render, 50–129 ms to next run loop. Nothing left for the owner here.
 2. VoiceOver: verses read one by one, double-tap selects, "Verse Actions" action; lexicon section headings in the rotor.
 3. Siri/Shortcuts: "Open Berean Native Dev to a passage" / Shortcuts app → Berean actions (the links behind them are verified).
 4. Physical keyboard (optional): `/` then Return in a note picks a block.
