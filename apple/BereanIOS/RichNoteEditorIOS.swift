@@ -480,6 +480,18 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             var newProps = Array(UnsafeBufferPointer(start: props, count: n))
             var newGlyphs = Array(UnsafeBufferPointer(start: glyphs, count: n))
             var changed = false, pending: [UniChar] = [], subLeft = 0
+            // TextKit can regenerate glyphs starting inside a substituted run (e.g. at the "]"
+            // of a task box after an edit). Pick up that run so its tail stays hidden — it used to
+            // draw as "☐ ]".
+            if n > 0 {
+                let first = charIndexes[0]
+                for back in 1...24 where first - back >= 0 {
+                    if let sub = substitutions[first - back], back < sub.len {
+                        pending = Array(Array(sub.glyph.utf16).dropFirst(back)); subLeft = sub.len - back
+                        break
+                    }
+                }
+            }
             for i in 0..<n {
                 let ci = charIndexes[i]
                 if let sub = substitutions[ci] { pending = Array(sub.glyph.utf16); subLeft = sub.len }

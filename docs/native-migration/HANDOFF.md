@@ -2960,3 +2960,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - N04 wide tables also verified on Mac QA (12 columns); QA note removed.
 - U18 Chat accessibility: message meta grouped + read first; Reply/Copy/Delete VoiceOver actions (sim AX verified).
 - U18 failure matrix: send-while-locked verified (alert + draft kept, retry saves); SQLiteError LocalizedError plain wording (busy/storage/read-only); message delete failures now alert. Test message removed.
+- N03 checklist QA + FIXED glyph-substitution resume across TextKit chunks (stray ']' after task boxes / any substituted marker) in both editors; horn restored.
