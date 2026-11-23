@@ -577,6 +577,7 @@ final class AppModel {
         saveTask = nil
         guard let svc = sessionsService else { return }
         flushCompareBookmarks()
+        flushSearchViewports()
         let started = ContinuousClock.now
         let interval = workspaceSaveSignposter.beginInterval("Save workspace state")
         defer {
@@ -948,6 +949,11 @@ final class AppModel {
     }
 
     func close(_ tabId: String) {
+        searchViewportRecords.removeValue(forKey: tabId)
+        currentSearchVisits.removeValue(forKey: tabId)
+        searchVisibleRows.removeValue(forKey: tabId)
+        searchResultAnchors.removeValue(forKey: tabId)
+        if searchHistoryRevision?.tabID == tabId { searchHistoryRevision = nil }
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
         compareIndependentVisitPositions.removeValue(forKey: tabId)
@@ -1095,6 +1101,13 @@ final class AppModel {
                 clearCompareActiveVisit(for: tabId, state: after.state)
                 if compareHistoryRestore?.tabID == tabId { compareHistoryRestore = nil }
             }
+            if before.tabType == .search, after.tabType == .search,
+               SearchViewports.configuration(in: before.state) != SearchViewports.configuration(in: after.state) {
+                currentSearchVisits.removeValue(forKey: tabId)
+                if let record = searchViewportRecords[tabId] ?? SearchViewports.record(in: after.state) {
+                    searchViewportRecords[tabId] = SearchViewports.settingActive(nil, in: record)
+                }
+            }
             scheduleSave(); return
         }
     }
@@ -1107,6 +1120,7 @@ final class AppModel {
         var notesReturnTab: String?
         var compareSelection: CompareSelectionSnapshot?
         var compareViewport: CompareViewportSnapshot?
+        var searchViewport: SearchViewportVisit?
     }
 
     private enum TabHistoryEntry: Equatable {
@@ -1121,6 +1135,19 @@ final class AppModel {
         }
         var compareSelection: CompareSelectionSnapshot?
         var compareViewport: CompareViewportSnapshot?
+        var searchViewport: SearchViewportVisit?
+        if tab.tabType == .search {
+            let configuration = SearchViewports.configuration(in: tab.state)
+            let record = searchViewportRecords[tab.id] ?? SearchViewports.record(in: tab.state)
+            if let record {
+                searchViewportRecords[tab.id] = record
+                snapshot.state = SearchViewports.installing(record, in: tab.state)
+            }
+            let live = currentSearchVisits[tab.id]
+            let active = record.flatMap(SearchViewports.active)
+            searchViewport = [live, active].compactMap { $0 }.first { $0.configuration == configuration }
+                ?? SearchViewportVisit(configuration: configuration, context: nil, row: nil)
+        }
         if tab.tabType == .bible {
             let state = BibleState(tab.state)
             let chapter = ChapterEdition(state).key
@@ -1159,7 +1186,7 @@ final class AppModel {
         }
         return TabHistoryLocation(tab: snapshot, notesOptions: notesBrowseOptions[tab.id],
                                   notesReturnTab: noteListReturnTabs[tab.id], compareSelection: compareSelection,
-                                  compareViewport: compareViewport)
+                                  compareViewport: compareViewport, searchViewport: searchViewport)
     }
 
     /// Explicit location editing keeps this tab's identity, pin and sidebar position,
@@ -1202,7 +1229,25 @@ final class AppModel {
                 destination.state = CompareViewports.merging(current: bookmarks, into: destination.state)
             }
         }
+        var stagedSearch: JSObject?
+        if destination.tabType == .search {
+            let latest = searchViewportRecords[id] ?? findTab(id).flatMap { SearchViewports.record(in: $0.state) } ?? JSObject()
+            let configuration = SearchViewports.configuration(in: destination.state)
+            let visit = location.searchViewport.flatMap { $0.configuration == configuration ? $0 : nil }
+                ?? SearchViewportVisit(configuration: configuration, context: nil, row: nil)
+            let record = SearchViewports.settingActive(visit, in: latest)
+            destination.state = SearchViewports.installing(record, in: destination.state)
+            stagedSearch = record
+        }
         guard sessions[sessionIndex].replaceTabContent(id, with: destination) != nil else { return }
+        currentSearchVisits.removeValue(forKey: id)
+        if let stagedSearch {
+            searchResultAnchors.removeValue(forKey: id)
+            searchViewportRecords[id] = stagedSearch
+            searchHistoryRevision = (id, UUID())
+        } else if searchHistoryRevision?.tabID == id {
+            searchHistoryRevision = nil
+        }
         let independentContext = Self.independentVisitContext(in: destination)
         compareVisitLayouts.removeValue(forKey: id)
         var stagedIndependent = false
@@ -1527,6 +1572,65 @@ final class AppModel {
     var scriptureJumpRequest: (tabID: String, chapter: ChapterEdition, revision: UUID)?
     var scriptureHistoryRestore: ScriptureHistoryRestore?
     @ObservationIgnored var scriptureEditionSources: [String: (source: ChapterEdition, target: ChapterEdition, position: ScriptureReadingPosition?)] = [:]
+    @ObservationIgnored private var searchViewportRecords: [String: JSObject] = [:]
+    @ObservationIgnored private var currentSearchVisits: [String: SearchViewportVisit] = [:]
+    var searchHistoryRevision: (tabID: String, revision: UUID)?
+
+    func isCurrentSearchViewport(tabId: String, context: ScriptureSearchScrollContext) -> Bool {
+        guard let tab = activeTab, tab.id == tabId, tab.tabType == .search else { return false }
+        return SearchViewports.configuration(in: tab.state) == context.configuration
+    }
+
+    func searchViewportAnchor(tabId: String, context: ScriptureSearchScrollContext) -> SearchViewportVisit? {
+        guard let tab = findTab(tabId),
+              let record = searchViewportRecords[tabId] ?? SearchViewports.record(in: tab.state) else { return nil }
+        return SearchViewports.restoration(in: record, configuration: context.configuration, context: context.persistenceKey)
+    }
+
+    func rememberSearchViewport(tabId: String, context: ScriptureSearchScrollContext, row: String?,
+                                alignment: SearchViewportAlignment = .top, persist: Bool) {
+        guard isCurrentSearchViewport(tabId: tabId, context: context),
+              let visit = SearchViewportVisit(configuration: context.configuration, context: context.persistenceKey,
+                                               row: row, alignment: alignment) else { return }
+        currentSearchVisits[tabId] = visit
+        guard persist, let tab = findTab(tabId) else { return }
+        if alignment == .top {
+            if row != nil, searchVisibleRows[tabId]?[context] == nil,
+               let remembered = searchVisibleRows[tabId], remembered.count >= SearchViewports.capacity,
+               let expired = remembered.keys.first {
+                searchVisibleRows[tabId]?.removeValue(forKey: expired)
+            }
+            if let row {
+                searchVisibleRows[tabId, default: [:]][context] = row
+            } else {
+                searchVisibleRows[tabId]?.removeValue(forKey: context)
+            }
+        }
+        let record = searchViewportRecords[tabId] ?? SearchViewports.record(in: tab.state) ?? JSObject()
+        let updated = alignment == .center ? SearchViewports.settingActive(visit, in: record)
+            : SearchViewports.updating(record, visit: visit)
+        guard updated != record else { return }
+        searchViewportRecords[tabId] = updated
+        if saveTask == nil { scheduleSave() }
+    }
+
+    private func flushSearchViewports() {
+        guard !searchViewportRecords.isEmpty else { return }
+        for workspace in sessions.indices {
+            guard var tabs = sessions[workspace].tabs[.search] else { continue }
+            var changed = false
+            for index in tabs.indices {
+                guard tabs[index].tabType == .search, let record = searchViewportRecords[tabs[index].id] else { continue }
+                let state = SearchViewports.installing(record, in: tabs[index].state)
+                if state != tabs[index].state {
+                    tabs[index].state = state
+                    changed = true
+                }
+            }
+            if changed { sessions[workspace].tabs[.search] = tabs }
+        }
+    }
+
     @ObservationIgnored var searchResultAnchors: [String: [ScriptureSearchScrollContext: String]] = [:]
     @ObservationIgnored var notesSearchOffsets: [String: [NotesHomeView.SearchPosition: CGFloat]] = [:]
     @ObservationIgnored var notesSearchReturnRows: [String: [NotesHomeView.SearchPosition: String]] = [:]

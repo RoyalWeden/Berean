@@ -4,6 +4,7 @@ import BereanBible
 import BereanText
 import BereanReference
 import BereanNotes
+import BereanWorkspace
 
 @MainActor
 private final class SearchHighlightCache {
@@ -96,36 +97,81 @@ private struct TaggedSearchResultRow: View {
 private struct SearchResultScrollRestoration: ViewModifier {
     @Environment(AppModel.self) private var app
     @State private var position = ScrollPosition(idType: String.self)
+    @State private var restored: Scope?
+    @State private var atTop = true
     let tabId: String
     let context: ScriptureSearchScrollContext?
     let containsRow: (String) -> Bool
 
+    private struct Scope: Equatable {
+        let context: ScriptureSearchScrollContext
+        let historyRevision: UUID?
+    }
+
     func body(content: Content) -> some View {
+        let revision = app.searchHistoryRevision
+        let scope = context.map { Scope(context: $0, historyRevision: revision?.tabID == tabId ? revision?.revision : nil) }
         content
             .scrollPosition($position, anchor: .top)
-            .task(id: context) {
-                guard let context else { return }
+            .task(id: scope) {
+                restored = nil
+                guard let scope else { return }
                 await Task.yield()
-                guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
+                let current = app.searchHistoryRevision
+                guard !Task.isCancelled, app.isCurrentSearchViewport(tabId: tabId, context: scope.context),
+                      scope.historyRevision == (current?.tabID == tabId ? current?.revision : nil) else { return }
+                let context = scope.context
                 let pending = app.searchResultAnchors[tabId]?[context]
+                if let pending, !containsRow(pending) {
+                    app.searchResultAnchors[tabId]?.removeValue(forKey: context)
+                }
+                let saved = app.searchViewportAnchor(tabId: tabId, context: context)
+                let row: String?
+                let alignment: SearchViewportAlignment
                 if let pending, containsRow(pending) {
-                    position.scrollTo(id: pending, anchor: .center)
+                    row = pending
+                    alignment = .center
+                } else if let saved, let savedRow = saved.row, containsRow(savedRow) {
+                    row = savedRow
+                    alignment = saved.alignment
                 } else {
-                    if pending != nil { app.searchResultAnchors[tabId]?.removeValue(forKey: context) }
-                    if let remembered = app.searchVisibleRows[tabId]?[context], containsRow(remembered) {
-                        position.scrollTo(id: remembered, anchor: .top)
-                    }
+                    row = nil
+                    alignment = .top
+                }
+                if let row {
+                    position.scrollTo(id: row, anchor: alignment == .center ? .center : .top)
+                } else {
+                    position.scrollTo(edge: .top)
+                }
+                app.rememberSearchViewport(tabId: tabId, context: context, row: row, alignment: alignment, persist: false)
+                restored = scope
+            }
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top <= 1
+            } action: { _, reachedTop in
+                atTop = reachedTop
+                if reachedTop, position.isPositionedByUser {
+                    capture(nil, atTop: true, in: scope)
                 }
             }
-            .onScrollPhaseChange { old, new in
-                guard old != .idle, new == .idle, old != .animating || position.isPositionedByUser,
-                      app.activeTab?.id == tabId,
-                      let visibleRow = position.viewID(type: String.self), let context,
-                      containsRow(visibleRow) else { return }
-                // A manual scroll replaces the return anchor; Forward/Back alone does not.
-                app.searchResultAnchors[tabId]?.removeValue(forKey: context)
-                app.searchVisibleRows[tabId, default: [:]][context] = visibleRow
+            .onChange(of: position.viewID(type: String.self)) { _, row in
+                guard position.isPositionedByUser else { return }
+                capture(row, atTop: atTop, in: scope)
             }
+            .onScrollPhaseChange { old, new in
+                guard new == .idle, old == .interacting || old == .decelerating || position.isPositionedByUser else { return }
+                capture(position.viewID(type: String.self), atTop: atTop, in: scope)
+            }
+    }
+
+    private func capture(_ row: String?, atTop: Bool, in scope: Scope?) {
+        let current = app.searchHistoryRevision
+        guard let scope, restored == scope, atTop || row.map(containsRow) == true,
+              app.isCurrentSearchViewport(tabId: tabId, context: scope.context),
+              scope.historyRevision == (current?.tabID == tabId ? current?.revision : nil) else { return }
+        let context = scope.context
+        app.searchResultAnchors[tabId]?.removeValue(forKey: context)
+        app.rememberSearchViewport(tabId: tabId, context: context, row: atTop ? nil : row, persist: true)
     }
 }
 
@@ -166,6 +212,8 @@ struct ScriptureSearchScrollContext: Hashable {
     let edition: String?
     let sort: String
     let grouping: String
+    let configuration: String
+    let persistenceKey: String
 }
 
 /// The Search tab: one field, an obvious scope (All Texts by default — every installed text), readable results.
@@ -294,6 +342,7 @@ struct ScriptureSearchView: View {
         }
         .navigationTitle(query.isEmpty ? "Search" : "Search: \(query)")
         #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showOptions) {
             NavigationStack {
                 ScrollView {
@@ -601,7 +650,7 @@ struct ScriptureSearchView: View {
             return ResolvedPassage(textId: edition, bookId: chapter.book, chapter: chapter.number, verse: verse)
         }
         let rowsToShow = passages.map { TaggedSearchResult(passage: $0) }
-        let context = app.activeTab?.id == tabId && loadedTagIDs == filter.ids && !rowsToShow.isEmpty
+        let context = app.activeTab?.id == tabId && request.tagMembershipReady && !rowsToShow.isEmpty
             ? scrollContext : nil
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -612,7 +661,7 @@ struct ScriptureSearchView: View {
                 }
                 ForEach(rowsToShow, id: \.id) { result in
                     TaggedSearchResultRow(passage: result.passage) {
-                        app.searchResultAnchors[tabId, default: [:]][scrollContext] = result.id
+                        rememberResultReturn(result.id)
                         app.visitScripture(result.passage, returningTo: tabId)
                     }
                     .padding(.horizontal, 16).padding(.vertical, 6)
@@ -840,6 +889,12 @@ struct ScriptureSearchView: View {
                 if hasActiveOptions { Button("Reset Options", action: resetOptions) }
             }
         } else {
+            let groups = self.groups
+            let scrollContext = self.scrollContext
+            let context = app.activeTab?.id == tabId && !searchPending ? scrollContext : nil
+            let rowIDs = Set(groups.flatMap { group in
+                group.hits.map(resultID) + (grouping == "none" ? [] : ["group:" + group.title])
+            })
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -877,7 +932,7 @@ struct ScriptureSearchView: View {
                                 Button("\(group.title) — \(group.hits.count)") {
                                     let id = "group:" + group.title
                                     app.searchResultAnchors[tabId]?.removeValue(forKey: scrollContext)
-                                    app.searchVisibleRows[tabId, default: [:]][scrollContext] = id
+                                    app.rememberSearchViewport(tabId: tabId, context: scrollContext, row: id, persist: true)
                                     withAnimation(.snappy) { proxy.scrollTo(id, anchor: .top) }
                                 }
                             }
@@ -896,13 +951,7 @@ struct ScriptureSearchView: View {
                         .help("Jump to a \(grouping == "book" ? "book" : "text") in the results")
                     }
                 }
-                .modifier(SearchResultScrollRestoration(tabId: tabId, context: restorationContext,
-                                                        containsRow: { id in
-                                                            if id.hasPrefix("group:") {
-                                                                return grouping != "none" && groups.contains { "group:" + $0.title == id }
-                                                            }
-                                                            return shown.contains { resultID($0) == id }
-                                                        }))
+                .modifier(SearchResultScrollRestoration(tabId: tabId, context: context, containsRow: rowIDs.contains))
             }
             .id(scrollContext)
         }
@@ -926,21 +975,39 @@ struct ScriptureSearchView: View {
     }
 
     private var scrollContext: ScriptureSearchScrollContext {
-        ScriptureSearchScrollContext(request: request, testament: testament, edition: focusText,
-                                     sort: sort, grouping: grouping)
-    }
-
-    private var restorationContext: ScriptureSearchScrollContext? {
-        guard app.activeTab?.id == tabId, !searchPending, !shown.isEmpty else { return nil }
-        return scrollContext
+        let request = request
+        let configuration = SearchViewports.configuration(in: state)
+        let identity: JSValue = [
+            "native-search-results-v1", .string(JSString(configuration)),
+            .array(request.texts.map { .string(JSString($0)) }),
+            .string(JSString(request.mode.rawValue)),
+            .array(request.books.map { .string(JSString($0)) }),
+            .array(request.tagIDs.map { .string(JSString($0)) }), .bool(request.matchAllTags),
+            .number(Double(resultContext)), .string(JSString(app.defaultText)),
+            request.replacer ? app.wordReplacerRuleSet.stored : .bool(false),
+        ]
+        return ScriptureSearchScrollContext(request: request, testament: testament, edition: focusText,
+                                            sort: sort, grouping: grouping, configuration: configuration,
+                                            persistenceKey: SearchViewports.fingerprint(identity))
     }
 
     private func resultID(_ hit: ScriptureHit) -> String {
         "\(hit.textId)|\(hit.bookId)|\(hit.chapter)|\(hit.verseNum)"
     }
 
+    private func rememberResultReturn(_ row: String) {
+        let context = scrollContext
+        if app.searchResultAnchors[tabId]?[context] == nil,
+           let saved = app.searchResultAnchors[tabId], saved.count >= SearchViewports.capacity,
+           let expired = saved.keys.first {
+            app.searchResultAnchors[tabId]?.removeValue(forKey: expired)
+        }
+        app.searchResultAnchors[tabId, default: [:]][context] = row
+        app.rememberSearchViewport(tabId: tabId, context: context, row: row, alignment: .center, persist: true)
+    }
+
     private func openResult(_ hit: ScriptureHit, passage: ResolvedPassage, reuseTab: Bool = true) {
-        app.searchResultAnchors[tabId, default: [:]][scrollContext] = resultID(hit)
+        rememberResultReturn(resultID(hit))
         app.visitScripture(passage, reuseTab: reuseTab, returningTo: tabId)
     }
 
