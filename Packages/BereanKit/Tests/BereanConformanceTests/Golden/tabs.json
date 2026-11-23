@@ -2,7 +2,7 @@
  "format": 1,
  "generator": "scripts/golden/tabs.ts",
  "sources": {
-  "src/platform/sync/tabFields.ts": "1dc4080cedf09427cbf3bad6a615c4661b6d7856e5d9e87df6beb50fdd47d3e3",
+  "src/platform/sync/tabFields.ts": "0029153aa3b387f7693e683733dcd4185c0e96d4242458d7b3e8510160f047e0",
   "src/store/tabPersistence.ts": "f84cafd273a396fb89b5dcb10ab72c498600100ebb2dfda7750719684eb882f7",
   "src/platform/services/sessionsService.ts": "2c7cf23a3146e863a078d1679c42189516f1cdd26f41a7f749a0b5d564d7e772",
   "scripts/golden/tabs.ts": "2b50278a6bd5a488a1b89ae0c94d3ad254fa9abd6cfe374d8d016bf4c1079bf1"

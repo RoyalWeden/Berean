@@ -61,6 +61,21 @@ describe('tab state split (sync vs local)', () => {
     expect(merged.compareColumns).toEqual([{ textId: 'kjva', bookId: 'DEU', chapter: 5, scrollPos: { verseNum: 3, frac: 0 } }, { textId: 'lxx', bookId: 'DEU', chapter: 5 }])
   })
 
+  it('native Compare bookmarks stay local while column identity and legacy scrolling round trip', () => {
+    const nativeColumnID = '44AF06B4-5CD0-490E-963A-8DACE6D1C021'
+    const column = { textId: 'lxx', bookId: 'JON', chapter: 1, nativeColumnID, scrollPos: { verseNum: 4, frac: 0.25 } }
+    const state = { bookId: 'JON', chapter: 1, compareMode: true, compareColumns: [column] }
+    const bookmarkKey = JSON.stringify(['independent', [nativeColumnID, ['lxx', 'JON', 1]]])
+    const nativeComparePositions = { [bookmarkKey]: { verse: 7, order: 1 } }
+    const before = splitTabState('bible', state as unknown as TabState)
+    const after = splitTabState('bible', { ...state, nativeComparePositions } as unknown as TabState)
+    expect(stableJson(after.sync)).toBe(stableJson(before.sync))
+    expect(after.sync.compareColumns).toEqual([{ textId: 'lxx', bookId: 'JON', chapter: 1, nativeColumnID }])
+    expect(after.local).toEqual({ ...before.local, nativeComparePositions })
+    expect(after.local.compareColumns).toEqual([{ scrollPos: column.scrollPos }])
+    expect(mergeTabState('bible', after.sync, after.local)).toEqual({ ...state, nativeComparePositions })
+  })
+
   it('stableJson is key-order independent and drops undefined', () => {
     expect(stableJson({ b: 1, a: { d: undefined, c: 2 } })).toBe(stableJson({ a: { c: 2 }, b: 1 }))
   })

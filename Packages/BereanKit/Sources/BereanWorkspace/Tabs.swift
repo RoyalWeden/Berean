@@ -61,7 +61,7 @@ public enum TabFields {
         .calendar: ["month", "selected"],
     ]
     static let local: [TabType: [String]] = [
-        .bible: ["nativeSelectedVerses", "nativeReaderPositions", "scrollPosition", "rightPanelOpen", "rightPanelWidth", "bottomPanelHeight", "rightPanelNoteCursor",
+        .bible: ["nativeSelectedVerses", "nativeReaderPositions", "nativeComparePositions", "scrollPosition", "rightPanelOpen", "rightPanelWidth", "bottomPanelHeight", "rightPanelNoteCursor",
                  "rightPanelNoteFocused", "rightPanelExpandAll", "rightPanelExpandAllB", "rightPanelScrollTop", "rightPanelScrollTopB",
                  "rightPanelScrollTops", "rightPanelScrollTopsB",
                  "rightPanelNoteCursorB", "rightPanelNoteFocusedB", "searchScrollTop", "searchScrollAnchor", "searchSortDirection", "searchPreview"],

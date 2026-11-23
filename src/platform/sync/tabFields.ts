@@ -30,7 +30,7 @@ const SYNC_FIELDS: Record<TabType, readonly string[]> = {
 
 const LOCAL_FIELDS: Record<TabType, readonly string[]> = {
   bible: [
-    'nativeReaderPositions', 'scrollPosition', 'rightPanelOpen', 'rightPanelWidth', 'bottomPanelHeight', 'rightPanelNoteCursor',
+    'nativeReaderPositions', 'nativeComparePositions', 'scrollPosition', 'rightPanelOpen', 'rightPanelWidth', 'bottomPanelHeight', 'rightPanelNoteCursor',
     'rightPanelNoteFocused', 'rightPanelExpandAll', 'rightPanelExpandAllB', 'rightPanelScrollTop', 'rightPanelScrollTopB',
     'rightPanelScrollTops', 'rightPanelScrollTopsB',
     'rightPanelNoteCursorB', 'rightPanelNoteFocusedB', 'searchScrollTop', 'searchScrollAnchor', 'searchSortDirection', 'searchPreview',
