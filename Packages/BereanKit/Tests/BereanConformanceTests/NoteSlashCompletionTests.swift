@@ -14,6 +14,18 @@ import BereanNotes
         #expect(NoteSlashCompletion.detect(in: "/", selection: NSRange(location: 1, length: 0))?.query == "")
     }
 
+    @Test func preservesCodeAndTableSource() {
+        func detect(_ text: String, at position: Int? = nil) -> NoteSlashCompletion? {
+            NoteSlashCompletion.detect(in: text, selection: NSRange(location: position ?? text.utf16.count, length: 0))
+        }
+        #expect(detect("~~~swift\n/code") == nil)
+        #expect(detect("~~~swift\na()\n~~~\n/quote")?.query == "quote")
+        #expect(detect("\t/code") == nil)
+        let table = "| A | B |\n| --- | --- |\n| /code | Cell |"
+        #expect(detect(table, at: NSMaxRange((table as NSString).range(of: "/code"))) == nil)
+        #expect(detect("😀 /h")?.range == NSRange(location: 3, length: 2))
+    }
+
     @Test func editValidatesTriggerAndPlacesCaret() {
         let text = "x\n/code"
         let c = NoteSlashCompletion.detect(in: text, selection: NSRange(location: 7, length: 0))!

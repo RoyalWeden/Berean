@@ -7,6 +7,7 @@ struct NotesFolderScrollContext: Hashable {
     let location: String?
     let sort: String
     let grouping: String
+    let layout: String
     let type: String
     let status: String
 }
@@ -787,7 +788,7 @@ struct NotesHomeView: View {
     }
 
     private var folderScrollContext: NotesFolderScrollContext {
-        NotesFolderScrollContext(location: location, sort: sort, grouping: grouping,
+        NotesFolderScrollContext(location: location, sort: sort, grouping: grouping, layout: layout,
                                  type: browseOptions.typeFilter.rawValue, status: browseOptions.statusFilter)
     }
 
@@ -795,8 +796,13 @@ struct NotesHomeView: View {
         let context = folderScrollContext
         let subs = isUserFolder ? folders.filter { $0.parentId == location } : []
         let visibleSections = sections
-        let expandedNotes = visibleSections.filter { !isSectionCollapsed("notes:" + $0.id) }.flatMap(\.notes)
-        let visibleCount = visibleSections.reduce(0) { $0 + $1.notes.count }
+        let folderNotes = visibleSections.flatMap(\.notes)
+        let statusIDs = Set(Self.statuses.map(\.id))
+        let boardNotes = layout == "board" ? folderNotes.filter { $0.status.map(statusIDs.contains) ?? false } : []
+        let visibleNotes = layout == "board" ? boardNotes : folderNotes
+        let expandedNotes = layout == "board" ? boardNotes
+            : visibleSections.filter { !isSectionCollapsed("notes:" + $0.id) }.flatMap(\.notes)
+        let visibleCount = visibleNotes.count
         return GeometryReader { geometry in
         ScrollViewReader { proxy in
             ScrollView {
@@ -823,7 +829,7 @@ struct NotesHomeView: View {
                         }
                     }
                     if layout == "board" {
-                        statusBoard(visibleSections.flatMap(\.notes))
+                        if !boardNotes.isEmpty { statusBoard(boardNotes) }
                     } else {
                         ForEach(visibleSections) { section in
                             collapsibleSectionHeading(section.title, id: "notes:" + section.id, count: section.notes.count,
@@ -831,7 +837,16 @@ struct NotesHomeView: View {
                             if !isSectionCollapsed("notes:" + section.id) { noteCollection(section.notes) }
                         }
                     }
-                    if loadedNotes && visibleCount == 0 && hasFilters {
+                    if loadedNotes && layout == "board" && boardNotes.isEmpty && !folderNotes.isEmpty {
+                        ContentUnavailableView {
+                            Label("No notes with a status", systemImage: "rectangle.split.3x1")
+                        } description: {
+                            Text("Set a note’s status in List or Gallery to show it on the board.")
+                        } actions: {
+                            Button("Show List") { layout = "list" }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: max(220, geometry.size.height - 36))
+                    } else if loadedNotes && visibleCount == 0 && hasFilters {
                         ContentUnavailableView("No matching notes", systemImage: "line.3.horizontal.decrease.circle")
                             .frame(maxWidth: .infinity, minHeight: subs.isEmpty ? max(0, geometry.size.height - 36 - (location == "sys:daily" ? 56 : 0)) : 220)
                     } else if loadedNotes && visibleCount == 0 && location == "sys:daily" {
@@ -849,7 +864,7 @@ struct NotesHomeView: View {
                 .scrollTargetLayout()
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if selecting { bulkBar(visibleSections.flatMap(\.notes), selectable: expandedNotes) }
+                if selecting { bulkBar(visibleNotes, selectable: expandedNotes) }
             }
             .scrollPosition(id: $visibleFolderRow, anchor: .top)
             .task(id: loadedNotes ? context : nil) {
@@ -859,7 +874,7 @@ struct NotesHomeView: View {
                 guard !Task.isCancelled, app.activeTab?.id == tabId else { return }
                 if let saved = app.notesFolderPositions[tabId]?[context] {
                     let collapsedSection = visibleSections.first { section in
-                        isSectionCollapsed("notes:" + section.id) && section.notes.contains { "note:" + $0.id == saved }
+                        layout != "board" && isSectionCollapsed("notes:" + section.id) && section.notes.contains { "note:" + $0.id == saved }
                     }
                     let hiddenFolder = isSectionCollapsed("subfolders") && subs.contains { "folder:" + $0.id == saved }
                     let target = collapsedSection.map { sectionAnchor("notes:" + $0.id) }
@@ -875,6 +890,7 @@ struct NotesHomeView: View {
         }
         }
         .id(context)
+        .onChange(of: layout) { _, _ in selectedNotes = [] }
         #if os(macOS)
         .background(Color(nsColor: .windowBackgroundColor))
         #endif
@@ -1072,31 +1088,34 @@ struct NotesHomeView: View {
                                 .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
                         }
                         ForEach(lane) { note in
-                            noteRow(note, gallery: true)
-                                .draggable(note.id)
-                                .id("note:" + note.id)
+                            Group {
+                                if selecting { noteRow(note, gallery: true) }
+                                else { noteRow(note, gallery: true).draggable(note.id) }
+                            }
+                            .id("note:" + note.id)
                         }
                     }
                     .frame(width: Self.boardLaneWidth, alignment: .top)
                     .padding(8)
                     .background(boardTarget == status.id ? Color.accentColor.opacity(0.12) : .clear, in: .rect(cornerRadius: 12))
                     .dropDestination(for: String.self) { ids, _ in
-                        for id in ids where notes.contains(where: { $0.id == id && $0.status != status.id }) {
-                            _ = try? app.notes?.update(id, .init(status: .some(status.id)))
+                        guard !selecting, let store = app.notes else { return false }
+                        let moving = Set(ids).intersection(notes.lazy.filter { $0.status != status.id }.map(\.id))
+                        guard !moving.isEmpty else { return false }
+                        var moved = false
+                        app.attempt("Couldn’t update the note status") {
+                            for id in moving {
+                                _ = try store.update(id, .init(status: .some(status.id)))
+                                moved = true
+                            }
                         }
-                        return !ids.isEmpty
+                        return moved
                     } isTargeted: { boardTarget = $0 ? status.id : (boardTarget == status.id ? nil : boardTarget) }
                 }
             }
             .padding(.vertical, 8)
         }
         .scrollTargetLayout()
-        .overlay(alignment: .top) {
-            if notes.allSatisfy({ ($0.status ?? "").isEmpty }) && !notes.isEmpty {
-                Text("The board shows notes with a status. Set one from a note's Status menu.")
-                    .font(.callout).foregroundStyle(.secondary).padding(.top, 140)
-            }
-        }
     }
 
     #if os(macOS)

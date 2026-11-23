@@ -16,8 +16,10 @@ public struct NoteSlashCompletion: Equatable, Sendable {
         source.getLineStart(&lineStart, end: nil, contentsEnd: &lineEnd, for: NSRange(location: selection.location, length: 0))
         guard selection.location <= lineEnd else { return nil }
         let prefix = source.substring(with: NSRange(location: lineStart, length: selection.location - lineStart))
-        guard !prefix.hasPrefix("    "), !insideFence(source, before: lineStart),
-              let match = trigger.firstMatch(in: prefix, range: NSRange(location: 0, length: (prefix as NSString).length)) else { return nil }
+        guard let match = trigger.firstMatch(in: prefix, range: NSRange(location: 0, length: (prefix as NSString).length)),
+              !prefix.hasPrefix("    "), !prefix.hasPrefix("\t"),
+              !insideFence(source, before: lineStart),
+              NoteInlineFormat.allowsParagraphStyle(in: source, selection: selection) else { return nil }
         let query = (prefix as NSString).substring(with: match.range(at: 1))
         let slash = match.range(at: 0)
         // The match may include no leading whitespace (lookbehind), so it starts at "/".
@@ -27,7 +29,9 @@ public struct NoteSlashCompletion: Equatable, Sendable {
     /// Validates the trigger is still in place and returns the edit replacing it.
     public func edit(in text: String, selection: NSRange, replacement: String, caretOffset: Int) -> NoteWikiLinkEdit? {
         let source = text as NSString
-        guard NSMaxRange(range) <= source.length, source.substring(with: range) == "/" + query,
+        guard range.location >= 0, range.location <= source.length,
+              range.length >= 0, range.length <= source.length - range.location,
+              source.substring(with: range) == "/" + query,
               selection.location == NSMaxRange(range), selection.length == 0 else { return nil }
         let caret = range.location + min(max(0, caretOffset), (replacement as NSString).length)
         return NoteWikiLinkEdit(range: range, replacement: replacement, selection: NSRange(location: caret, length: 0))
@@ -36,7 +40,7 @@ public struct NoteSlashCompletion: Equatable, Sendable {
     private static func insideFence(_ source: NSString, before location: Int) -> Bool {
         var fences = 0
         source.substring(to: location).enumerateLines { line, _ in
-            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") { fences += 1 }
+            if MarkdownLiveSpans.fence.firstMatch(in: line, range: NSRange(location: 0, length: line.utf16.count)) != nil { fences += 1 }
         }
         return fences % 2 == 1
     }

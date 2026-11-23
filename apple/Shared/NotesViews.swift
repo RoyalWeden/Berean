@@ -58,8 +58,8 @@ struct NoteFormatRequest: Equatable {
         case link(String, selection: NSRange?)
         case wikiLink(NoteWikiLinkCompletion, String)
         case referenceBlock(NoteReferenceCompletion, String)
-        /// Slash command: replace the "/query" trigger with Markdown (caret offset inside it).
-        case slash(NoteSlashCompletion, String, Int)
+        /// Slash command: validate the trigger and apply the complete edit together.
+        case slash(NoteSlashCompletion, NoteSlashCommand.Effect, image: String? = nil)
         case highlight(String?)
         case removeHighlight
         case inlineCode
@@ -280,6 +280,67 @@ func noteTableInsertion(in text: NSString, selection: NSRange)
     let table = ["|  |  |", "| --- | --- |", "|  |  |"].joined(separator: newline)
     return (NSRange(location: offset, length: length), prefix + table + suffix,
             NSRange(location: offset + prefix.utf16.count + 2, length: 0))
+}
+
+/// Compose trigger removal and formatting into one localized, undoable source edit.
+func noteSlashEdit(in text: String, selection: NSRange, completion: NoteSlashCompletion,
+                   effect: NoteSlashCommand.Effect, image: String?)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    guard NoteSlashCompletion.detect(in: text, selection: selection) == completion else { return nil }
+    let working = NSMutableString(string: text)
+    working.deleteCharacters(in: completion.range)
+    let caret = NSRange(location: completion.range.location, length: 0)
+    let formatting: (range: NSRange, replacement: String, selection: NSRange)?
+    switch effect {
+    case .text(let markdown, let offset):
+        if markdown.isEmpty { return (completion.range, "", caret) }
+        var lineStart = 0, lineEnd = 0
+        working.getLineStart(&lineStart, end: nil, contentsEnd: &lineEnd, for: caret)
+        let before = working.substring(with: NSRange(location: lineStart, length: caret.location - lineStart))
+        let leading = before.trimmingCharacters(in: .whitespaces).isEmpty ? "" : "\n\n"
+        let trailing = markdown.hasPrefix("> ") || markdown.hasSuffix("\n") || caret.location == lineEnd ? "" : "\n"
+        guard let edit = completion.edit(in: text, selection: selection, replacement: leading + markdown + trailing,
+                                         caretOffset: leading.utf16.count + offset) else { return nil }
+        return (edit.range, edit.replacement, edit.selection)
+    case .heading(let level):
+        formatting = noteHeadingEdit(in: working, selection: caret, level: level)
+            ?? emptyNoteBlock(in: working, caret: caret, marker: String(repeating: "#", count: level) + " ")
+    case .list(let style):
+        let listStyle: NoteListStyle = style == "numbered" ? .numbered : style == "checklist" ? .checklist : .bullet
+        let marker = switch listStyle {
+        case .bullet: "- "
+        case .numbered: "1. "
+        case .checklist: "- [ ] "
+        }
+        formatting = noteListEdit(in: working, selection: caret, style: listStyle)
+            ?? emptyNoteBlock(in: working, caret: caret, marker: marker)
+    case .callout(let kind):
+        formatting = NoteCalloutKind(rawValue: kind).flatMap { noteCalloutEdit(in: working, selection: caret, kind: $0) }
+    case .table:
+        formatting = noteTableInsertion(in: working, selection: caret)
+    case .image:
+        guard let image else { return nil }
+        let at = NoteImageInput.insertionPoint(in: working, at: caret.location)
+        let block = NoteImageInput.block(image, in: working, at: at)
+        formatting = (NSRange(location: at, length: 0), block, NSRange(location: at + block.utf16.count, length: 0))
+    }
+    guard let formatting else { return nil }
+
+    let start = min(caret.location, formatting.range.location)
+    let end = max(caret.location, NSMaxRange(formatting.range))
+    let covered = NSRange(location: start, length: end - start)
+    let sourceRange = NSRange(location: start, length: covered.length + completion.range.length)
+    let range = NSRange(location: formatting.range.location - start, length: formatting.range.length)
+    let replacement = (working.substring(with: covered) as NSString).replacingCharacters(in: range, with: formatting.replacement)
+    return (sourceRange, replacement, formatting.selection)
+}
+
+private func emptyNoteBlock(in source: NSString, caret: NSRange, marker: String)
+    -> (range: NSRange, replacement: String, selection: NSRange)? {
+    // A blank paragraph before another line may be skipped by the toolbar formatters.
+    let line = source.lineRange(for: caret)
+    guard source.substring(with: line).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    return (caret, marker, NSRange(location: caret.location + marker.utf16.count, length: 0))
 }
 
 func noteTableContext(in text: NSString, selection: NSRange)
@@ -1206,31 +1267,19 @@ struct NoteDetailView: View {
         slashCompletion = completion
     }
 
-    /// Original slash menu: remove the trigger, then apply the block command.
     private func runSlashCommand(_ command: NoteSlashCommand) {
         guard let slash = slashCompletion else { return }
-        dismissedSlashCompletion = slash; slashCompletion = nil
-        let follow: NoteFormatRequest.Action?
-        switch command.effect {
-        case .text(let markdown, let caret):
-            formatRequest = NoteFormatRequest(action: .slash(slash, markdown, caret)); return
-        case .heading(let level): follow = .heading(level)
-        case .list(let style): follow = .list(style == "numbered" ? .numbered : style == "checklist" ? .checklist : .bullet)
-        case .callout(let kind): follow = NoteCalloutKind(rawValue: kind).map { .callout($0) }
-        case .table: follow = .insertTable
-        case .image: follow = nil
-        }
-        formatRequest = NoteFormatRequest(action: .slash(slash, "", 0))
+        dismissedSlashCompletion = slash
+        slashCompletion = nil
         if command.effect == .image {
+            let source = content
+            let target = noteId
             NoteImageInput.chooseImage { markdown in
-                if let markdown { formatRequest = NoteFormatRequest(action: .insertImage(markdown)) }
+                guard let markdown, loadedId == target, content == source else { return }
+                formatRequest = NoteFormatRequest(action: .slash(slash, .image, image: markdown))
             }
-            return
-        }
-        guard let follow else { return }
-        // A separate request on the next turn, after the trigger removal has been applied.
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(60)) {
-            formatRequest = NoteFormatRequest(action: follow)
+        } else {
+            formatRequest = NoteFormatRequest(action: .slash(slash, command.effect))
         }
     }
 

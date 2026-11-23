@@ -83,10 +83,11 @@ struct RichNoteEditorIOS: UIViewRepresentable {
                     guard tv.markedTextRange == nil,
                           let edit = completion.edit(in: tv.text ?? "", selection: tv.selectedRange, replacement: replacement) else { return }
                     tv.applyWikiLinkEdit(edit)
-                case .slash(let completion, let replacement, let caret):
+                case .slash(let completion, let effect, let image):
                     guard tv.markedTextRange == nil,
-                          let edit = completion.edit(in: tv.text ?? "", selection: tv.selectedRange, replacement: replacement, caretOffset: caret) else { return }
-                    tv.applyWikiLinkEdit(edit)
+                          let edit = noteSlashEdit(in: tv.text ?? "", selection: tv.selectedRange,
+                                                   completion: completion, effect: effect, image: image) else { return }
+                    tv.applyFormatEdit(edit)
                 case .highlight(let color): tv.setHighlight(color)
                 case .removeHighlight: tv.removeHighlight()
                 case .inlineCode: tv.toggleInlineCode()
@@ -510,15 +511,22 @@ struct RichNoteEditorIOS: UIViewRepresentable {
             return n
         }
 
+        func handleSlashCommand(_ command: NoteWikiLinkCommand, in editor: UITextView) -> Bool {
+            guard editor.markedTextRange == nil,
+                  let publishedSlashCompletion,
+                  publishedSlashCompletion == NoteSlashCompletion.detect(in: editor.text, selection: editor.selectedRange)
+            else { return false }
+            return parent.onWikiLinkCommand(command)
+        }
+
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
             if text == "\n", range == textView.selectedRange, range.length == 0, textView.markedTextRange == nil {
                 let wiki = NoteWikiLinkCompletion.detect(in: textView.text, selection: range)
                 let reference = wiki == nil ? NoteReferenceCompletion.detect(in: textView.text, selection: range) : nil
-                let slash = wiki == nil && reference == nil ? NoteSlashCompletion.detect(in: textView.text, selection: range) : nil
                 if ((wiki != nil && wiki == publishedWikiLinkQuery)
-                    || (reference != nil && reference == publishedReferenceCompletion)
-                    || (slash != nil && slash == publishedSlashCompletion)),
+                    || (reference != nil && reference == publishedReferenceCompletion)),
                    parent.onWikiLinkCommand(.accept) { return false }
+                if wiki == nil, reference == nil, handleSlashCommand(.accept, in: textView) { return false }
             }
             guard let dash = NoteAutoEmDash.dashRange(in: textView.text as NSString, range: range, replacement: text),
                   let start = textView.position(from: textView.beginningOfDocument, offset: dash.location),
@@ -708,7 +716,24 @@ final class NoteUITextView: UITextView {
         scrollRangeToVisible(destination)
     }
 
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let unhandled = presses.filter { press in
+            guard let key = press.key,
+                  key.modifierFlags.intersection([.shift, .control, .alternate, .command]).isEmpty else { return true }
+            let command: NoteWikiLinkCommand
+            switch key.keyCode {
+            case .keyboardUpArrow: command = .up
+            case .keyboardDownArrow: command = .down
+            case .keyboardEscape: command = .dismiss
+            default: return true
+            }
+            return coordinator?.handleSlashCommand(command, in: self) != true
+        }
+        if !unhandled.isEmpty { super.pressesBegan(unhandled, with: event) }
+    }
+
     override func insertText(_ text: String) {
+        if text == "\n", coordinator?.handleSlashCommand(.accept, in: self) == true { return }
         guard text == "\n", markedTextRange == nil,
               let edit = noteBlockReturnEdit(in: (self.text ?? "") as NSString, selection: selectedRange) else {
             super.insertText(text)
@@ -786,7 +811,7 @@ final class NoteUITextView: UITextView {
         applyFormatEdit(noteListEdit(in: (text ?? "") as NSString, selection: selectedRange, style: style))
     }
 
-    private func applyFormatEdit(_ edit: (range: NSRange, replacement: String, selection: NSRange)?) {
+    fileprivate func applyFormatEdit(_ edit: (range: NSRange, replacement: String, selection: NSRange)?) {
         guard let edit else { return }
         replaceMarkdownLiterally(edit.range, with: edit.replacement, select: edit.selection)
     }

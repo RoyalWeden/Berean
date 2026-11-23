@@ -93,10 +93,11 @@ struct RichNoteEditor: NSViewRepresentable {
                     guard !editor.hasMarkedText(),
                           let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), replacement: replacement) else { return }
                     editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection, actionName: "Insert Reference Block")
-                case .slash(let completion, let replacement, let caret):
+                case .slash(let completion, let effect, let image):
                     guard !editor.hasMarkedText(),
-                          let edit = completion.edit(in: editor.string, selection: editor.selectedRange(), replacement: replacement, caretOffset: caret) else { return }
-                    editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection)
+                          let edit = noteSlashEdit(in: editor.string, selection: editor.selectedRange(),
+                                                   completion: completion, effect: effect, image: image) else { return }
+                    editor.replaceSource(edit.range, with: edit.replacement, select: edit.selection, actionName: "Insert Note Block")
                 case .highlight(let color): editor.setHighlight(color)
                 case .removeHighlight:
                     if let edit = noteRemoveHighlightEdit(in: editor.string as NSString, selection: editor.selectedRange()) {

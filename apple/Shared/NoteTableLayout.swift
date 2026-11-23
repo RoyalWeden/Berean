@@ -32,8 +32,6 @@ final class NoteTableLayout: NSLayoutManager {
         let range: NSRange
         let boundaries: [Int]
         let dividers: [CGFloat]
-        /// Row kept on one line (too wide even after shrinking): draw the column grid, not the wrapped fallback.
-        var clipped = false
         let header: Bool
         let hasBody: Bool
         let lastCellInset: CGFloat
@@ -299,39 +297,29 @@ final class NoteTableLayout: NSLayoutManager {
             var columns = headerCells.indices.map { column in
                 max(40, cellWidths.map { $0[column] }.max() ?? 0)
             }
-            // Wide tables: rows are single text lines aligned by padded pipes, so when the
-            // columns before the last no longer fit, rows wrapped mid-table and the grid broke
-            // (iPhone, 8-column table). Shrink this table's text to fit (≥ 65 %), and if it still
-            // can't fit, stop rows wrapping so the grid stays intact (the right edge clips).
+            // Fit moderately wide tables. Keep natural-size wrapped rows when fitting the
+            // whole table would make the text too small.
             let pipeEstimate = storage.attributedSubstring(from: NSRange(location: row.range.location, length: 1)).size().width
             var fontScale: CGFloat = 1
-            func leadingWidth(_ cols: [CGFloat]) -> CGFloat {
-                cols.dropLast().reduce(0) { $0 + $1 + 18 * fontScale + pipeEstimate } + 9 * fontScale
-            }
-            var clipRows = false
-            tablesScaledForWidth = true   // any table depends on the width (restyle when it changes)
-            if leadingWidth(columns) > width - 90 {
-                let total = columns.reduce(0) { $0 + $1 + 18 + pipeEstimate }
-                let scale = max(0.65, min(1, (width - 4) / max(1, total)))
+            tablesScaledForWidth = true
+            let total = columns.reduce(0) { $0 + $1 + 18 + pipeEstimate }
+            let scale = min(1, (width - 4) / max(1, total))
+            if scale >= 0.85, scale < 1 {
                 fontScale = scale
-                if scale < 1 {
-                    for (range, _) in group {
-                        let line = source.lineRange(for: range)
-                        storage.enumerateAttribute(.font, in: line) { value, run, _ in
-                            #if os(macOS)
-                            if let font = value as? NSFont { storage.addAttribute(.font, value: font.withSize(font.pointSize * scale), range: run) }
-                            #else
-                            if let font = value as? UIFont { storage.addAttribute(.font, value: font.withSize(font.pointSize * scale), range: run) }
-                            #endif
-                        }
+                for (range, _) in group {
+                    let line = source.lineRange(for: range)
+                    storage.enumerateAttribute(.font, in: line) { value, run, _ in
+                        #if os(macOS)
+                        if let font = value as? NSFont { storage.addAttribute(.font, value: font.withSize(font.pointSize * scale), range: run) }
+                        #else
+                        if let font = value as? UIFont { storage.addAttribute(.font, value: font.withSize(font.pointSize * scale), range: run) }
+                        #endif
                     }
-                    cellWidths = measureCells()
-                    columns = headerCells.indices.map { column in max(40 * scale, cellWidths.map { $0[column] }.max() ?? 0) }
                 }
-                clipRows = leadingWidth(columns) > width - 90
+                cellWidths = measureCells()
+                columns = headerCells.indices.map { column in max(40 * scale, cellWidths.map { $0[column] }.max() ?? 0) }
             }
             let rowStyle = paragraph.mutableCopy() as! NSMutableParagraphStyle
-            if clipRows { rowStyle.lineBreakMode = .byClipping }
             rowStyle.paragraphSpacing = 0
             rowStyle.lineSpacing = 0
 
@@ -373,11 +361,9 @@ final class NoteTableLayout: NSLayoutManager {
                         storage.addAttribute(.font, value: font, range: pipe)
                     }
                 }
-                var styled = Row(range: range, boundaries: boundaries, dividers: dividers,
-                                 header: offset == 0, hasBody: group.count > 1,
-                                 lastCellInset: dividers[dividers.count - 2] + cellInset)
-                styled.clipped = clipRows
-                rows.append(styled)
+                rows.append(Row(range: range, boundaries: boundaries, dividers: dividers,
+                                header: offset == 0, hasBody: group.count > 1,
+                                lastCellInset: dividers[dividers.count - 2] + cellInset))
             }
 
             let ruleStyle = NSMutableParagraphStyle()
@@ -462,7 +448,7 @@ final class NoteTableLayout: NSLayoutManager {
                 let x = row.dividers.map { start + $0 }
                 let earlierColumnsFit = glyphs.dropLast().allSatisfy { NSLocationInRange($0, fragment) }
                     && row.lastCellInset <= line.width - 90
-                guard earlierColumnsFit || row.clipped || (NSLocationInRange(last, fragment) && x.last! <= line.maxX) else {
+                guard earlierColumnsFit || (NSLocationInRange(last, fragment) && x.last! <= line.maxX) else {
                     // Keep wrapped text together visually as one table row. Use the
                     // full line fragment so adjacent rows share their outer edges.
                     let lastLine = lineFragmentRect(forGlyphAt: last, effectiveRange: nil)
