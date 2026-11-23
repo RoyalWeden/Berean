@@ -19,11 +19,11 @@ The former mixed current-summary block has been [archived verbatim](CHECKPOINT-H
 <!-- AI CONTINUITY END -->
 
 <!-- BEGIN CURRENT CHECKPOINT -->
-- **ACTIVE, Nov23 Codex audit.** Claude50732392 baseline reviewed (34commits/30files); audit source committed locally through `6fc04d7e`; documentation commit and publication next. Read [CURRENT-STATE](CURRENT-STATE.md) and [file coverage/evidence](CLAUDE-AUDIT-2026-11-23.md). Other Claudecheckout untouched. Draft24 remainsOPEN/draft/base native/m6-navigation; oldgreen45195098164 covers50732392 only.
+- **ACTIVE, Nov23 Codex audit.** Claude50732392 baseline reviewed (34commits/30files); source through `6fc04d7e` and audit docs `ce013c65` published to github; follow-up docs record this checkpoint. Read [CURRENT-STATE](CURRENT-STATE.md) and [file coverage/evidence](CLAUDE-AUDIT-2026-11-23.md). Other Claudecheckout untouched. Draft24 remainsOPEN/draft/base native/m6-navigation; CI45237638956 atce013c65: legacy/securityPASS, nativeQUEUED; not allgreen.
 - **Delivered locally:** KJVA opensBOOKS+OT/NT/Apoc/currenthighlight; visibleStudyTrail/Messages bothplatforms; match-centered lexicon excerpts; Trailbranch/sticky/tag/recap/live-anchor safeguards; atomicNotes slash/Boardvisiblebulk/contentpreservingtablewrap; PDFlabelerrorretention; Chat scopedread/accessibility; Spotlightindexedtitleupdates. Bothcurrentdocs must stay synchronized continuously; historicalappend alone insufficient.
 - **Verified:** bothnativebuilds and370packagetestsPASS; actualMac+iPhone picker/access, Sirachprologue, sameoriginalreader/tabcounts retained; MaccompactH776matchedword+fullCopyPASS. Owner says snippets too short: revised source retains more preceding context; final Mac GUI confirms readable phrases and visible highlights, both builds and372testsPASS. iPhone snippet runtime remains unverified. SeeCURRENT for exactlogs/ownership/failures.
 - Sourceworkerscompleted/stopped. OnlyisolatedMacQA/ownedD0CCsim used. No production/sync/schema/IDs/signing/physicalphonewrites, Applevoices,resets,merge/ready/retarget/force. Dev-iClouddeferred; Presenter stashpreserved. All watched original content hashes and active tab ID sets unchanged in both QA libraries.
-- **Next:** commit updated documentation, pushgithub and check exact head; retainGo modal/NotesUndoBoard/PDFsheet/accessibility gaps. Then continueCompareviewport/scroll/Presenter/readaloud/parityqueue; broadgoalACTIVE andnotallowner-gated.
+- **Next:** check exact published-head native CI when queued runner becomes available; iPhone Go→Trail/chat→Messages PASS; retain NotesUndoBoard/PDFsheet/iPhone snippet/accessibility gaps. Then continueCompareviewport/scroll/Presenter/readaloud/parityqueue; broadgoalACTIVE andnotallowner-gated.
 <!-- END CURRENT CHECKPOINT -->
 
 

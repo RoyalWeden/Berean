@@ -4,8 +4,8 @@
 
 ## Source and review
 
-- Repo `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch native/reader-notes. Baseline clean1b58c644 safely fast-forwarded to Claude50732392 (34commits/30files). Audit source is committed locally through `6fc04d7e`; documentation remains dirty until the next documentation commit. Publication and exact-head checks pending. Othercheckout `/Users/roywe/Berean-native` read-only/untouched.
-- Draft24 OPEN/draft/base native/m6-navigation at50732392; its three green checks45195098164 cover baseline only. Publish github only; origin owner-local. Owner-only merge order22→23 after retarget/green→24; no merge/ready/retarget/force.
+- Repo `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch native/reader-notes. Baseline clean1b58c644 safely fast-forwarded to Claude50732392 (34commits/30files). Source commits `ca7d0a8c`, `04febca1`, `6fc04d7e` and audit documentation `ce013c65` are published to github. The next documentation-only commit records this checkpoint; verify live head on resume. Othercheckout `/Users/roywe/Berean-native` read-only/untouched.
+- Draft24 OPEN/draft/base native/m6-navigation at published ce013c65. Exact-head CI45237638956: legacy Typecheck/lint/test/build PASS, native job QUEUED, security PASS when checked. Do not report all CI green. Publish github only; origin owner-local. Owner-only merge order22→23 after retarget/green→24; no merge/ready/retarget/force.
 - All source workers completed/stopped. Notes/data slices integrated and centrally reviewed; reader delegate returned no evidence and was stopped, primary reviewed that slice. Doc worker only owns dated CHANGELOG/STATUS/TASKS/FULL-FEATURE-PARITY/DECISIONS additions. Preserve all dirty work.
 
 ## Implemented and verified scope
@@ -24,6 +24,10 @@
 ## Next executable work
 
 1. Source verified and committed: ca7d0a8c Trail/PDF,04febca1 Notes,6fc04d7e navigation/lexicon. Keep documentation/current pair synchronized.
-2. Commit focused source/docs, normalgithubpush, inspect exactnewheadCI; synchronize both current summaries before final reply/handover.
-3. Runtime Go→StudyTrail/Messages, Notes slashUndo/Board, PDFlabel/failure, iPhonesnippets/accessibility remain pending; do not claim allGUI tested.
+2. Verify exact published-head native CI when a runner is available; current native job queued, legacy/security passed. Reconcile current pair after new work.
+3. iPhone Go→StudyTrail and chat alias→Messages runtime PASS. Notes slashUndo/Board, PDFlabel/failure, iPhone snippets/accessibility remain pending; do not claim allGUI tested.
 4. Continue durableCompare/pervisitviewport, knownscroll/foreground gaps, Presenter/readaloud and broader parity. Technicalqueue is not allowner-gated. SeeTASKS/audit.
+
+## Current runtime handover details
+
+The Mac QA process was relaunched from the final context build with `--qa-library --qa-profile codex-controls-20261119`; exact othercheckoutPID2506 left untouched. Runtime log `mac-context-runtime.log`, launch handle34774 (check before assuming live). Mac remains Genesis1selected1, Notes inspector,7Study workspace tabs;37activeIDs library-wide. iPhone D0CC still runs the earlier audit build before the final context-only change, Matthew5selected12,9workspace tabs/47library-wide; both final apps built, physicalphone untouched. The final context build has not been installed on iPhone. UI Go/More tests performed no content writes.
