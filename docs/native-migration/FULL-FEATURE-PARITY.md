@@ -62,7 +62,7 @@ Largest open gaps (priority order): Study Trail (U14), sync (A01/H06), workspace
 | N14 | BibleGateway notes importer | implemented (Mac only; contradicts CLAUDE.md) | ❌ | — | P3 | BibleGateway importer (Mac) not ported |
 | N15 | e-Sword import | implemented (Mac only) | ✅ | — | P3 | File → Import from e-Sword… with review (2026-11-20, ESWORD-IMPORT-2026-11-20.md) |
 | H01 | Storage | implemented | ✅ | ✅ | — | Highlights service golden-verified |
-| H02 | Verse, word and selection highlights; offsets and anchoring | implemented | ✅ | 🟡 | P2 | Both readers map text selections into existing stored character offsets. Mac partial selection previously verified; iPhone write/reopen needs touch QA. |
+| H02 | Verse, word and selection highlights; offsets and anchoring | implemented | ✅ | 🟡 | P2 | Both readers map text selections into existing stored character offsets. Mac partial selection previously verified; iPhone verified 2026-11-22 with real touches on the sim: long-press “beginning” in John 1:1 → Highlight Selection → Green stored as start_char 7 / end_char 16 (original offsets), and after relaunch only that word is tinted. |
 | H03 | Colours and categories | partial | ✅ | ✅ | — | 5 colours |
 | H04 | Note and tag indicators on verses | implemented | ✅ | 🟡 | — | Note dots + tag chips (Mac); iPhone note dots, tag chips in rows |
 | H05 | Cross-translation highlights | absent (documented in CLAUDE.md §15 as a setting) — deferred | — | — | — | Deferred in original |

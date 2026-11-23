@@ -2955,3 +2955,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - Q04 Mac: lexicon in-tab back verified; FIXED Mac BDB Notes overlap (BdbSelectableText sizeThatFits now always measures at a real width + fills the section). Verified H7462 before/after.
 - Q04 accessibility audit (sim AX tree) + section titles marked as headers in lexicon entries.
 - OWNER-DECISIONS-BRIEF-2026-11-22.md: the six decisions still blocking parity (Share Extension/App Group, widget, Dev-container iCloud sync, Ask Berean model modes, vault sync, Danger delete) with options + recommendations, and a 15-min device checklist.
+- H02 iPhone partial highlight write + relaunch reopen verified (John 1:1 'beginning', chars 7–16); test highlight removed.
