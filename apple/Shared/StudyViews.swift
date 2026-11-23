@@ -695,7 +695,8 @@ struct LexiconEntryView: View {
                         .accessibilityHidden(true)
                 }
                 Text(markFind(highlighted(preview, expanded: expanded))).font(.callout).foregroundStyle(.secondary)
-                    .lineLimit(expanded ? nil : 3)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
             .padding(.vertical, 4)
@@ -1117,22 +1118,20 @@ struct LexiconEntryView: View {
     }
 
     private func highlighted(_ preview: OccurrencePreview, expanded: Bool) -> AttributedString {
-        let window = expanded ? nil : VerseDisplay.matchingWordWindow(
-            preview.words.joined(separator: " "), matchIndices: Array(preview.matches),
-            leadingCharacters: compact ? 56 : 72)
-        let words = window?.text.split(whereSeparator: \.isWhitespace) ?? preview.words
-        let matches = window.map { Set($0.indices) } ?? preview.matches
-        var out = AttributedString()
-        for (index, word) in words.enumerated() {
-            if index > 0 { out += AttributedString(" ") }
-            var text = AttributedString(String(word))
-            if matches.contains(index) {
+        let window = expanded ? preview.words.indices : VerseDisplay.matchingWordWindow(
+            wordCount: preview.words.count, matchIndices: preview.matches, maximumWords: compact ? 14 : 20)
+        var out = AttributedString(window.lowerBound > 0 ? "… " : "")
+        for index in window {
+            if index > window.lowerBound { out += AttributedString(" ") }
+            var text = AttributedString(String(preview.words[index]))
+            if preview.matches.contains(index) {
                 text.font = .callout.bold()
                 text.foregroundColor = .primary
                 text.backgroundColor = Color.yellow.opacity(0.30)
             }
             out += text
         }
+        if window.upperBound < preview.words.count { out += AttributedString(" …") }
         return out
     }
 

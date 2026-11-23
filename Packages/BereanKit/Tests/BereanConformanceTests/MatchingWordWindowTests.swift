@@ -3,63 +3,41 @@ import BereanText
 
 @Suite("Match-centered occurrence excerpts")
 struct MatchingWordWindowTests {
-    @Test func finalWordKeepsAReadablePhrase() {
-        let text = "And Cush begat Nimrod: he began to be mighty upon the earth."
-        let result = VerseDisplay.matchingWordWindow(text, matchIndices: [11], leadingCharacters: 56)
-        #expect(result?.text == "… he began to be mighty upon the earth.")
-        #expect(result?.indices == [8])
+    @Test(arguments: [14, 20])
+    func earlyMatchUsesRemainingSpaceForFollowingWords(budget: Int) {
+        let range = VerseDisplay.matchingWordWindow(wordCount: 40, matchIndices: [1], maximumWords: budget)
+        #expect(range == 0..<budget)
     }
 
-    @Test func compactContextStillKeepsLateMatchNearStart() {
-        let text = (0..<40).map { "word\($0)" }.joined(separator: " ")
-        let result = VerseDisplay.matchingWordWindow(text, matchIndices: [35], leadingCharacters: 56)
-        #expect(result?.text.hasPrefix("… word28 ") == true)
-        #expect(result?.indices == [8])
-        #expect(result?.text.hasSuffix("word39") == true)
+    @Test(arguments: [14, 20])
+    func middleMatchHasContextOnBothSides(budget: Int) {
+        let range = VerseDisplay.matchingWordWindow(wordCount: 40, matchIndices: [22, 14, 50, -1], maximumWords: budget)
+        #expect(range == 10..<(10 + budget))
+        #expect(range.contains(14))
+        #expect(range.contains(22))
     }
 
-    @Test func narrowPaneStartsWithLateMatch() {
-        let text = (0..<40).map { "word\($0)" }.joined(separator: " ")
-        let result = VerseDisplay.matchingWordWindow(text, matchIndices: [35], leadingCharacters: 0)
-        #expect(result?.text.hasPrefix("… word35 ") == true)
-        #expect(result?.indices == [1])
-        #expect(result?.text.contains("word0 ") == false)
+    @Test(arguments: [14, 20])
+    func endMatchUsesRemainingSpaceForPrecedingWords(budget: Int) {
+        let range = VerseDisplay.matchingWordWindow(wordCount: 40, matchIndices: [39], maximumWords: budget)
+        #expect(range == (40 - budget)..<40)
     }
 
-    @Test func shortVersesAlsoKeepTheirMatchVisible() {
-        let text = "An unusually elaborate beginning before the highlighted word"
-        #expect(text.utf16.count < 160)
-        let result = VerseDisplay.matchingWordWindow(text, matchIndices: [7], leadingCharacters: 0)
-        #expect(result?.text == "… word")
-        #expect(result?.indices == [1])
+    @Test func shortVerseKeepsAllContextAroundFinalWord() {
+        let words = "And Cush begat Nimrod: he began to be mighty upon the earth.".split(separator: " ")
+        let range = VerseDisplay.matchingWordWindow(wordCount: words.count, matchIndices: [11])
+        #expect(range == words.indices)
+        #expect(words[range].last == "earth.")
     }
 
-    @Test func sortAndValidateMatchesBeforeRebasing() {
-        let text = (0..<30).map { "word\($0)" }.joined(separator: " ")
-        let result = VerseDisplay.matchingWordWindow(text, matchIndices: [12, -1, 5, 200], leadingCharacters: 0)
-        #expect(result?.text.hasPrefix("… word5 ") == true)
-        #expect(result?.indices == [1, 8])
-        #expect(result?.text.hasSuffix(" …") == true)
+    @Test func missingOrInvalidMatchesUseBeginningOfVerse() {
+        #expect(VerseDisplay.matchingWordWindow(wordCount: 40, matchIndices: []) == 0..<14)
+        #expect(VerseDisplay.matchingWordWindow(wordCount: 40, matchIndices: [-1, 40]) == 0..<14)
     }
 
-    @Test func leadingContextIsBoundedByCharacters() {
-        let text = "small extraordinarilylongcontextword target following"
-        let result = VerseDisplay.matchingWordWindow(text, matchIndices: [2], leadingCharacters: 18)
-        #expect(result?.text == "… target following")
-        #expect(result?.indices == [1])
-    }
-
-    @Test func absentMatchesAndCompleteShortVersesNeedNoWindow() {
-        #expect(VerseDisplay.matchingWordWindow("one two", matchIndices: []) == nil)
-        #expect(VerseDisplay.matchingWordWindow("one two", matchIndices: [-1, 2]) == nil)
-        #expect(VerseDisplay.matchingWordWindow("target following", matchIndices: [0]) == nil)
-    }
-
-    @Test func boundsAndWhitespaceDoNotMoveTheMatch() {
-        let result = VerseDisplay.matchingWordWindow("before\n\ttarget after", matchIndices: [1],
-                                                    leadingCharacters: -1, maximumWords: 1)
-        #expect(result?.text == "… target …")
-        #expect(result?.indices == [1])
-        #expect(VerseDisplay.matchingWordWindow("before target", matchIndices: [1], maximumWords: .max) == nil)
+    @Test func emptyVerseAndExtremeBudgetsStayInBounds() {
+        #expect(VerseDisplay.matchingWordWindow(wordCount: 0, matchIndices: [0]) == 0..<0)
+        #expect(VerseDisplay.matchingWordWindow(wordCount: 3, matchIndices: [1], maximumWords: 0) == 1..<2)
+        #expect(VerseDisplay.matchingWordWindow(wordCount: 3, matchIndices: [1], maximumWords: .max) == 0..<3)
     }
 }
