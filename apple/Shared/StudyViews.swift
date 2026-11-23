@@ -694,7 +694,7 @@ struct LexiconEntryView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 }
-                Text(markFind(highlighted(preview))).font(.callout).foregroundStyle(.secondary)
+                Text(markFind(highlighted(preview, expanded: expanded))).font(.callout).foregroundStyle(.secondary)
                     .lineLimit(expanded ? nil : 3)
             }
             .frame(maxWidth: .infinity, minHeight: entryControlHeight, alignment: .leading)
@@ -1116,12 +1116,17 @@ struct LexiconEntryView: View {
         return OccurrencePreview(words: words, matches: matches, renderings: renderings)
     }
 
-    private func highlighted(_ preview: OccurrencePreview) -> AttributedString {
+    private func highlighted(_ preview: OccurrencePreview, expanded: Bool) -> AttributedString {
+        let window = expanded ? nil : VerseDisplay.matchingWordWindow(
+            preview.words.joined(separator: " "), matchIndices: Array(preview.matches),
+            leadingCharacters: compact ? 56 : 72)
+        let words = window?.text.split(whereSeparator: \.isWhitespace) ?? preview.words
+        let matches = window.map { Set($0.indices) } ?? preview.matches
         var out = AttributedString()
-        for (index, word) in preview.words.enumerated() {
+        for (index, word) in words.enumerated() {
             if index > 0 { out += AttributedString(" ") }
             var text = AttributedString(String(word))
-            if preview.matches.contains(index) {
+            if matches.contains(index) {
                 text.font = .callout.bold()
                 text.foregroundColor = .primary
                 text.backgroundColor = Color.yellow.opacity(0.30)

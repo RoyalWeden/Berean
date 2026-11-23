@@ -522,6 +522,7 @@ struct CommandPalette: View {
             ("Today's Note", "calendar", { inNewTab in app.openTodayDailyNote(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("Calendar", "calendar", { inNewTab in app.openCalendar(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("Notes", "tray.full", { inNewTab in app.openNotesHome(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
+            ("Study Trail", "point.topleft.down.to.point.bottomright.curvepath", { _ in app.showStudyTrail = true }),
             ("History", "clock", { inNewTab in app.openHistory(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("Tags", "tag", { inNewTab in app.openTags(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
             ("PDFs", "doc.richtext", { inNewTab in app.openPdfLibrary(newTab: inNewTab, preferActiveTab: preferActiveTab) }),
@@ -531,7 +532,7 @@ struct CommandPalette: View {
         ]
         #if os(macOS)
         commands += [
-            ("Berean Chat", "bubble.left.and.text.bubble.right", { _ in openWindow(id: "chat") }),
+            ("Messages", "bubble.left.and.text.bubble.right", { _ in openWindow(id: "chat") }),
             ("Show Presenter", "rectangle.on.rectangle", { _ in openWindow(id: "presenter") }),
             ("Ask Berean", "sparkle.magnifyingglass", { _ in app.askBereanShown = true }),
         ]
@@ -554,12 +555,11 @@ struct CommandPalette: View {
             ]
         }
         var leading: [Item] = []
-        for (t, sym, run) in commands where trimmed.isEmpty || t.localizedCaseInsensitiveContains(trimmed) {
+        for (t, sym, run) in commands where CommandSearch.matches(trimmed, title: t) {
             let item = Item(id: "cmd-\(t)", group: "Commands", title: t, detail: "", symbol: sym, run: run)
             // Typing a command's name (or its start, 3+ letters) means the command: it goes first, so Return runs it
             // instead of searching Scripture for those words. A passage ("Go to") still wins over a command.
-            let lower = t.lowercased(), q = trimmed.lowercased()
-            if !q.isEmpty, lower == q || (q.count >= 3 && lower.hasPrefix(q)) { leading.append(item) } else { out.append(item) }
+            if CommandSearch.isPreferred(trimmed, title: t) { leading.append(item) } else { out.append(item) }
         }
         if !trimmed.isEmpty, StrongsId.normalize(trimmed) == nil, !trimmed.contains(where: \.isNumber),
            trimmed.split(separator: " ").count <= 2 {

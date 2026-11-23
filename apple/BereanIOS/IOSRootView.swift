@@ -412,6 +412,10 @@ struct IOSRootView: View {
                     }
                 }
             }
+            Section {
+                Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
+                Button("Messages", systemImage: "bubble.left.and.text.bubble.right") { app.chatShown = true }
+            }
             if let tab = app.activeTab {
                 Section {
                     Menu("Tab Actions", systemImage: "square.on.square") {
@@ -435,14 +439,12 @@ struct IOSRootView: View {
             }
             Section {
                 Menu("Study Tools", systemImage: "books.vertical") {
-                    Button("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath") { app.showStudyTrail = true }
                     Button("Ask Berean", systemImage: "sparkle.magnifyingglass") { app.askBereanShown = true }
                     Button("Getting Started", systemImage: "checklist") { app.gettingStartedShown = true }
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
                     Button("Tags", systemImage: "tag") { app.openTags() }
                     Button("PDFs", systemImage: "doc.richtext") { app.openPdfLibrary() }
                     Button("YouTube", systemImage: "play.rectangle") { app.openYouTube() }
-                    Button("Berean Chat", systemImage: "bubble.left.and.text.bubble.right") { app.chatShown = true }
                 }
                 Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
             }

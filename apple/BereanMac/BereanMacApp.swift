@@ -36,7 +36,7 @@ struct BereanMacApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
-        Window("Berean Chat", id: "chat") {
+        Window("Messages", id: "chat") {
             ChatView().environment(app).defaultAppStorage(UserLibrary.defaults).preferredColorScheme(app.colorScheme)
                 .focusedSceneValue(\.bereanStudyWindow, false)
                 .frame(minWidth: 620, minHeight: 420)
@@ -138,6 +138,7 @@ struct BereanMacApp: App {
                 Group {
                     Button("History") { app.openHistory() }.keyboardShortcut("y")
                     Button("Study Trail") { app.showStudyTrail = true }
+                    Button("Messages") { app.chatWindowRequest += 1 }
                     Button("Getting Started Checklist") { app.gettingStartedShown = true }
                     Button("Ask Berean…") { app.askBereanShown = true }
                     Button("Calendar") { app.openCalendar() }

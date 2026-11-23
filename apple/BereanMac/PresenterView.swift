@@ -340,7 +340,7 @@ struct PresenterCommand: View {
     var body: some View {
         Button("Show Presenter") { openWindow(id: "presenter") }
             .keyboardShortcut("b", modifiers: [.command, .shift])
-        Button("Berean Chat") { openWindow(id: "chat") }
+        Button("Messages") { openWindow(id: "chat") }
             .keyboardShortcut("c", modifiers: [.command, .control])
         PiPCommand()
     }

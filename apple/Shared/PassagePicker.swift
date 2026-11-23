@@ -79,6 +79,7 @@ struct PassagePicker: View {
     @State private var didPick = false
     @State private var query = ""
     @State private var books: [BookRow] = []
+    @State private var chosenBookSection: String?
     @State private var catalog: [CatalogBook] = []
     @State private var openBook: BookRow?
     @State private var chapters: [Int] = []
@@ -130,7 +131,14 @@ struct PassagePicker: View {
             let requestedText = request.text
             let choice = request.choice
             let initial = loadedRequest == nil
-            let bookID = choice?.textId == requestedText ? choice?.book.id : (openBook?.id ?? (initial ? currentBook : nil))
+            let bookID: String?
+            if choice?.textId == requestedText {
+                bookID = choice?.book.id
+            } else if requestedText == "kjva" {
+                bookID = nil
+            } else {
+                bookID = openBook?.id ?? (initial ? currentBook : nil)
+            }
             let newBooks = await app.books(for: requestedText)
             let book = newBooks.count == 1 ? newBooks.first : newBooks.first { $0.id == bookID }
             let newChapters: [Int]
@@ -319,6 +327,7 @@ struct PassagePicker: View {
     private func selectText(_ id: String) {
         chapterPreviewID = nil
         searchFocused = false
+        if id != text { chosenBookSection = nil }
         chosenText = id
         bookChoice = nil
         verseGrid = nil
@@ -350,6 +359,7 @@ struct PassagePicker: View {
         chapterPreviewID = nil
         searchFocused = false
         verseGrid = nil
+        if match.textId != text { chosenBookSection = nil }
         chosenText = match.textId
         bookChoice = match
         query = ""
@@ -434,54 +444,110 @@ struct PassagePicker: View {
                     }
                 }
             }
-        } else if compact {
-            // iPhone: books as a compact 3-column grid (owner: less scrolling, esp. KJV + Apocrypha's 80+ books).
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
-                        ForEach(sections, id: \.0) { s in
-                            Section {
-                                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
-                                    ForEach(s.1, id: \.id) { b in bookTile(b).id(b.id) }
-                                }
-                                .padding(.horizontal, 12)
-                            } header: {
-                                if !s.0.isEmpty {
-                                    Text(s.0).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 16).padding(.vertical, 6)
-                                        .background(.background)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-                .onAppear { proxy.scrollTo(currentBook, anchor: .center) }
-            }
         } else {
-            ScrollViewReader { proxy in
-                List {
-                    ForEach(sections, id: \.0) { s in
-                        Section {
-                            ForEach(s.1, id: \.id) { b in
-                                Button { open(b, in: text) } label: {
-                                    HStack {
-                                        Text(b.name).fontWeight(b.id == currentBook ? .semibold : .regular)
-                                        Spacer()
-                                        Text(b.chaptersCount == 1 ? "" : "\(b.chaptersCount)").font(.caption).foregroundStyle(.tertiary).monospacedDigit()
-                                    }.contentShape(.rect)
-                                }
-                                .buttonStyle(.interactivePlain).id(b.id)
+            VStack(spacing: 0) {
+                if let activeBookSection {
+                    bookSectionPicker(selection: activeBookSection)
+                }
+                ScrollViewReader { proxy in
+                    bookList
+                        .id(activeBookSection)
+                        .onAppear {
+                            if text == textId, displayedBookSections.contains(where: { $0.1.contains { $0.id == currentBook } }) {
+                                proxy.scrollTo(currentBook, anchor: .center)
                             }
+                        }
+                }
+            }
+        }
+    }
+
+    private var activeBookSection: String? {
+        guard text == "kjva", sections.count > 1 else { return nil }
+        if let chosenBookSection, sections.contains(where: { $0.0 == chosenBookSection }) { return chosenBookSection }
+        if text == textId, let current = sections.first(where: { $0.1.contains { $0.id == currentBook } }) {
+            return current.0
+        }
+        return sections.first?.0
+    }
+
+    private var displayedBookSections: [(String, [BookRow])] {
+        guard let activeBookSection else { return sections }
+        return sections.filter { $0.0 == activeBookSection }
+    }
+
+    private func bookSectionPicker(selection: String) -> some View {
+        Picker("Book section", selection: Binding(get: { selection }, set: { section in
+            if compact { searchFocused = false }
+            chosenBookSection = section
+        })) {
+            ForEach(sections, id: \.0) { title, _ in
+                let label = switch title {
+                case "Old Testament": "OT"
+                case "New Testament": "NT"
+                default: title
+                }
+                Text(label).accessibilityLabel(title).tag(title)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder private var bookList: some View {
+        if compact {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
+                    ForEach(displayedBookSections, id: \.0) { title, rows in
+                        Section {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+                                ForEach(rows, id: \.id) { book in bookTile(book).id(book.id) }
+                            }
+                            .padding(.horizontal, 12)
                         } header: {
-                            if !s.0.isEmpty { Text(s.0) }
+                            if activeBookSection == nil, !title.isEmpty {
+                                Text(title).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 16).padding(.vertical, 6)
+                                    .background(.background)
+                            }
                         }
                     }
                 }
-                .listStyle(.sidebar)
-                .onAppear { proxy.scrollTo(currentBook, anchor: .center) }
+                .padding(.vertical, 8)
             }
+            #if os(iOS)
+            .scrollDismissesKeyboard(.interactively)
+            #endif
+        } else {
+            List {
+                ForEach(displayedBookSections, id: \.0) { title, rows in
+                    Section {
+                        ForEach(rows, id: \.id) { book in
+                            let current = book.id == currentBook && text == textId
+                            Button { open(book, in: text) } label: {
+                                HStack {
+                                    Text(book.name).fontWeight(current ? .semibold : .regular)
+                                    Spacer()
+                                    Text(book.chaptersCount == 1 ? "" : "\(book.chaptersCount)")
+                                        .font(.caption).foregroundStyle(.tertiary).monospacedDigit()
+                                }
+                                .padding(.vertical, 4)
+                                .background(current ? Color.accentColor.opacity(0.14) : .clear, in: .rect(cornerRadius: 6))
+                                .contentShape(.rect)
+                            }
+                            .buttonStyle(.interactivePlain)
+                            .accessibilityAddTraits(current ? .isSelected : [])
+                            .id(book.id)
+                        }
+                    } header: {
+                        if activeBookSection == nil, !title.isEmpty { Text(title) }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
         }
     }
 
@@ -555,6 +621,12 @@ struct PassagePicker: View {
         for b in books {
             let title = textInfo(text).section == "Other writings" ? "" : Self.sectionTitle(b.testament)
             if out.last?.0 == title { out[out.count - 1].1.append(b) } else { out.append((title, [b])) }
+        }
+        if text == "kjva" {
+            let order = ["Old Testament", "New Testament", "Apocrypha"]
+            return out.sorted { lhs, rhs in
+                (order.firstIndex(of: lhs.0) ?? order.count) < (order.firstIndex(of: rhs.0) ?? order.count)
+            }
         }
         return out
     }

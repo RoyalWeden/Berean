@@ -136,6 +136,34 @@ public enum VerseDisplay {
             .filter { $0.utf16.count >= 4 }
     }
 
+    /// A compact occurrence excerpt that never leaves a late match behind a line limit.
+    /// Unlike the legacy search window, short verses can also need clipping in a narrow pane.
+    /// Matching/filtering and clipboard actions must continue to use the complete verse.
+    public static func matchingWordWindow(_ text: String, matchIndices: [Int],
+                                          leadingCharacters: Int = 18, maximumWords: Int = 14)
+        -> (text: String, indices: [Int])? {
+        let words = text.split(whereSeparator: \.isWhitespace)
+        let matches = matchIndices.filter { words.indices.contains($0) }.sorted()
+        guard let first = matches.first else { return nil }
+        var start = first
+        var used = 0
+        // Keep a readable phrase before end-of-verse matches, while bounding the
+        // amount of text that can push the match below a compact row's line limit.
+        while start > 0, first - start < min(7, max(1, maximumWords) - 1) {
+            let count = words[start - 1].count + (used == 0 ? 0 : 1)
+            guard used + count <= max(0, leadingCharacters) else { break }
+            used += count
+            start -= 1
+        }
+        let count = min(words.count, max(1, maximumWords))
+        let end = min(words.count, max(first + 1, start + count))
+        guard start > 0 || end < words.count else { return nil }
+        let prefix = start > 0 ? 1 : 0
+        let excerpt = (start > 0 ? ["…"] : []) + words[start..<end].map(String.init)
+            + (end < words.count ? ["…"] : [])
+        return (excerpt.joined(separator: " "), matches.filter { $0 < end }.map { $0 - start + prefix })
+    }
+
     /// `getWordWindow` — a 14-word window around the first match for long verses (nil = show all).
     public static func wordWindow(_ text: String, matchIndices: [Int]) -> (text: String, indices: [Int])? {
         guard let firstMatch = matchIndices.first, text.utf16.count >= 160 else { return nil }

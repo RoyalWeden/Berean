@@ -50,7 +50,7 @@ struct ChatView: View {
                     ForEach(loose) { row($0, folders: folders) }
                 }
             }
-            .navigationTitle("Berean Chat")
+            .navigationTitle("Messages")
             #if os(iOS)
             .searchable(text: $search, prompt: "Find a conversation")
             .listStyle(.insetGrouped)
@@ -255,24 +255,52 @@ struct ChatThreadView: View {
         .searchable(text: $search, prompt: "Search messages")
         #endif
         .task(id: "\(app.chatsRevision)|\(search)") { reload() }
-        .alert(saveError?.hasPrefix("The message wasn’t deleted") == true ? "Message Couldn’t Be Deleted" : "Message Couldn’t Be Saved", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+        .alert(messageErrorTitle, isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
             Button("OK") { saveError = nil }
         } message: { Text(saveError ?? "Your message is still in the composer. Try again.") }
     }
 
+    private var messageErrorTitle: String {
+        if saveError?.hasPrefix("The message wasn’t deleted") == true { return "Message Couldn’t Be Deleted" }
+        if saveError?.hasPrefix("Messages couldn’t be loaded") == true { return "Messages Couldn’t Be Loaded" }
+        return "Message Couldn’t Be Saved"
+    }
+
     private func reload() {
-        guard let svc = app.chats else { return }
-        destinations = ((try? svc.all()) ?? []).filter { !$0.isUnfiled }
-        if destinationID != ChatsService.unfiledId && !destinations.contains(where: { $0.id == destinationID }) {
-            destinationID = ChatsService.unfiledId
+        guard let svc = app.chats else {
+            saveError = "Messages couldn’t be loaded. The message library is unavailable."
+            return
         }
-        if let chatId, let c = try? svc.chat(chatId) {
-            title = c.title
-            let needle = search.lowercased()
-            items = c.messages.filter { needle.isEmpty || $0.content.lowercased().contains(needle) || $0.preview.lowercased().contains(needle) }.map { .init(chat: c, message: $0) }
-        } else {
-            title = "All Messages"
-            items = (try? svc.stream(search: search)) ?? []
+        do {
+            let loadedDestinations = try svc.all().filter { !$0.isUnfiled }
+            let loadedTitle: String
+            let loadedItems: [ChatsService.StreamItem]
+            if let chatId {
+                guard let conversation = try svc.chat(chatId) else {
+                    items = []
+                    title = "Conversation Unavailable"
+                    saveError = "Messages couldn’t be loaded. This conversation is no longer available."
+                    return
+                }
+                loadedTitle = conversation.title
+                let needle = search.lowercased()
+                loadedItems = conversation.messages.filter {
+                    needle.isEmpty || $0.content.lowercased().contains(needle) || $0.preview.lowercased().contains(needle)
+                }.map { .init(chat: conversation, message: $0) }
+            } else {
+                loadedTitle = "All Messages"
+                loadedItems = try svc.stream(search: search)
+            }
+            destinations = loadedDestinations
+            if destinationID != ChatsService.unfiledId && !destinations.contains(where: { $0.id == destinationID }) {
+                destinationID = ChatsService.unfiledId
+            }
+            title = loadedTitle
+            items = loadedItems
+        } catch {
+            // Retain the displayed conversation and destination on a transient
+            // read failure instead of silently switching to All Messages.
+            saveError = "Messages couldn’t be loaded. " + error.localizedDescription
         }
     }
 
@@ -304,10 +332,6 @@ struct ChatThreadView: View {
                     .background(mine ? Color.accentColor.opacity(0.13) : Color.secondary.opacity(0.09), in: .rect(cornerRadius: 22))
                     .frame(maxWidth: 560, alignment: mine ? .trailing : .leading)
                     .accessibilitySortPriority(1)
-                    // VoiceOver: the long-press menu's actions, without the long press.
-                    .accessibilityAction(named: "Reply") { replyTo = .init(chat: chat, message: m); composerFocused = true }
-                    .accessibilityAction(named: "Copy") { Clipboard.copy(m.content.isEmpty ? m.preview : m.content) }
-                    .accessibilityAction(named: "Delete") { deleteMessage(chat, m) }
             }
             if m.kind == .aiReply, let verses = m.raw["results"]?.arrayValue, !verses.isEmpty {
                 // Verses the answer found (original results / visibleCount), as tappable references.
@@ -346,6 +370,12 @@ struct ChatThreadView: View {
         }
         .frame(maxWidth: .infinity, alignment: mine ? .trailing : .leading)
         .accessibilityElement(children: .contain)
+        .accessibilityActions {
+            Button("Reply") { replyTo = .init(chat: chat, message: m); composerFocused = true }
+            Button("Copy") { Clipboard.copy(m.content.isEmpty ? m.preview : m.content) }
+            if note { Button("Edit") { editText = m.content; editing = .init(chat: chat, message: m) } }
+            Button("Delete") { deleteMessage(chat, m) }
+        }
         .contextMenu {
             Button("Reply", systemImage: "arrowshape.turn.up.left") { replyTo = .init(chat: chat, message: m); composerFocused = true }
             Button("Copy", systemImage: "doc.on.doc") { Clipboard.copy(m.content.isEmpty ? m.preview : m.content) }
@@ -468,8 +498,12 @@ struct ChatThreadView: View {
 
     /// Deleting used to ignore failures; now a failed delete says so and the message stays.
     private func deleteMessage(_ chat: ChatsService.Chat, _ m: ChatsService.Message) {
+        guard let service = app.chats else {
+            saveError = "The message wasn’t deleted. The message library is unavailable."
+            return
+        }
         do {
-            try app.chats?.deleteMessage(chatId: chat.id, messageId: m.id)
+            try service.deleteMessage(chatId: chat.id, messageId: m.id)
             reload()
         } catch {
             saveError = "The message wasn’t deleted. " + error.localizedDescription

@@ -156,6 +156,7 @@ struct GoSheet: View {
                                   reuseTab: !newTab, verseGroups: passage.verseGroups ?? [])
             }),
             ("Notes", "note.text", .orange, { app.openNotesHome(newTab: newTab) }),
+            ("Study Trail", "point.topleft.down.to.point.bottomright.curvepath", .blue, { app.showStudyTrail = true }),
             ("History", "clock", .secondary, { app.openHistory(newTab: newTab) }),
             ("Lexicon", "character.book.closed", .green, { app.openLexiconSearch(newTab: newTab) }),
             ("New Note", "square.and.pencil", .orange, { app.newNote() }),
@@ -165,14 +166,14 @@ struct GoSheet: View {
             ("YouTube", "play.rectangle", .secondary, { app.openYouTube(newTab: newTab) }),
         ]
         #if os(iOS)
-        out.append(("Berean Chat", "bubble.left.and.text.bubble.right", .blue, { app.chatShown = true }))
+        out.insert(("Messages", "bubble.left.and.text.bubble.right", .blue, { app.chatShown = true }), at: 3)
         out.append(("Ask Berean", "sparkle.magnifyingglass", .purple, { app.askBereanShown = true }))
         #endif
         return out
     }
 
     @ViewBuilder private var results: some View {
-        let commands = destinations.filter { $0.title.localizedCaseInsensitiveContains(trimmed) }
+        let commands = destinations.filter { CommandSearch.matches(trimmed, title: $0.title) }
         if !commands.isEmpty {
             Section("Commands") {
                 ForEach(commands, id: \.title) { d in

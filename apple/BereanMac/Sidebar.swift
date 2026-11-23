@@ -70,6 +70,25 @@ struct BereanSidebar: View {
             if let undoArchiveID, let group = app.archivedGroups.first(where: { $0.id == undoArchiveID }) {
                 archiveNotice(group)
             }
+            Divider().padding(.horizontal, 12)
+            HStack(spacing: 2) {
+                Button { app.showStudyTrail = true } label: {
+                    Label("Study Trail", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .contentShape(.rect)
+                }
+                .help("Open Study Trail")
+                Button { app.chatWindowRequest += 1 } label: {
+                    Label("Messages", systemImage: "bubble.left.and.text.bubble.right")
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .contentShape(.rect)
+                }
+                .help("Open Messages (⌃⌘C)")
+            }
+            .font(.callout)
+            .lineLimit(1)
+            .buttonStyle(SidebarRowButtonStyle())
+            .padding(.horizontal, 8).padding(.vertical, 6)
         }
         .background {
             Rectangle().fill(.regularMaterial)
