@@ -2957,3 +2957,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - OWNER-DECISIONS-BRIEF-2026-11-22.md: the six decisions still blocking parity (Share Extension/App Group, widget, Dev-container iCloud sync, Ask Berean model modes, vault sync, Danger delete) with options + recommendations, and a 15-min device checklist.
 - H02 iPhone partial highlight write + relaunch reopen verified (John 1:1 'beginning', chars 7–16); test highlight removed.
 - N04 wide tables: FIXED grid breakage (NoteTableLayout.styleTables gets the available width with a pre-layout fallback; shrink to fit ≥65 %, else no-wrap rows marked clipped so drawBackground uses the column grid, not the wrapped fallback; tables now trigger width restyle). Sim-verified; test note removed.
+- N04 wide tables also verified on Mac QA (12 columns); QA note removed.
