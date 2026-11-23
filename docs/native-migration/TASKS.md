@@ -645,3 +645,14 @@ Next slice: Mac-only delayed preview over existing actual link glyphs, anchored 
 
 ### Nov23 reference follow-through — implemented versus remaining
 Mac Notes Strong’s preview is implemented in12d2e360 and passes actual-helper geometry and real isolated AppKit lifecycle tests; physical pointer dwell/flicker and overlapping-control checks remain open. Mac Compare linked verse cursor bridge and first-baseline correction are implemented in09e34b1d, with actual independent body-drag move, normal Strong’s/verse-number clicks, text selection and context-menu evidence. Wider layouts and mixed-script live matrices remain open. Both platform builds pass; this slice adds Mac interactions without changing iPhone presentation. Continue the separate iPhone active-history and shared scroll/title queue. See NOTES-HOVER-COMPARE-2026-11-23.md.
+
+
+### Nov 23 — Search visits and Compare openings
+
+- **VERIFIED (bounded)** Mac Search cold and centered/top history, iPhone Simulator settled cold and centered return, inline title spacing and Return keyboard dismissal. **OPEN** first-frame flash, recent/cross-reference lists, pixel/filter/race and accessibility cases, and iPhone centered/top history. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md)
+- **VERIFIED (bounded)** iPhone independent Compare older-visit and one-pane cold, same-chapter explicit picker and aligned opening headers. **OPEN** aligned/stacked older-visit cold history and wider accessibility. [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md)
+
+### Nov23 source-confirmed Search parity follow-ups
+- Bulk book selection/clear per text or section: Electron desktop `ScriptureSearchView.tsx` around1593–1653 and mobile `BooksFilterView.tsx`28–71 support this; native `ScriptureSearchView.swift`1237–1305 is individual-only. Use existing catalog and `bookIds`, preserve independently selected books elsewhere when clearing a work. Verify matching results and history/fingerprint changes on both apps.
+- Collapsible result groups: Electron `ScriptureSearchView.tsx`934–945/1837 onward hides rows while retaining heading/count; native907–923 has static headings. Keep hidden-row bookmark fallback explicit, preserve counts, group jump and result centering, and avoid silently adding synced state.
+- Reverse Scripture/relevance order: Electron873–895/1290 onward supports direction; native580–585/778–784 exposes only Scripture order and Best match first. Include direction in validated viewport identity and reset behavior; verify first/last and Back/Forward. These are source-audited gaps, not runtime implementation claims.

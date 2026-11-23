@@ -79,6 +79,8 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 
 - [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md): irregular iPhone verse rows, Mac toolbar ownership, mapped Compare Presenter checks and remaining input coverage.
 - [Compare history evidence](COMPARE-HISTORY-2026-11-21.md): session-local per-visit selection, Mac and iPhone Simulator routes, and the open narrow viewport-transfer audit.
+- [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md) — local result anchors and active visits, Mac and iPhone Simulator coverage, and open viewport cases.
+- [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md) — independent older-visit cold restore, explicit picker jump and aligned opening headers.
 - [Same-chapter history viewport restoration](HISTORY-VIEWPORT-RESTORATION-2026-11-21.md): current Back/Forward fix, ownership, required UI matrix and evidence.
 
 - [iPhone watchdog investigation](IOS-WATCHDOG-2026-11-21.md): supplied physical report, matched symbols, diagnostic fixes, clear top edge and unresolved hardware gates.

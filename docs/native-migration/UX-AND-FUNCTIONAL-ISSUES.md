@@ -479,3 +479,8 @@ Clement/Hermas picker label issue is fixed and visually verified on both platfor
 
 ### Nov23 — Native reference preview and Compare interaction follow-through
 12d2e360 adds a350ms read-only Strong’s preview in the Mac Notes editor, using actual link glyphs and cancellable Lexicon lookup. Actual isolated AppKit lifecycle tests pass; physical pointer dwell remains unverified.09e34b1d gives linked Compare verses native cursor regions, correct first-baseline alignment, and whole-column lift before native text capture. Actual independent Compare drag/drop, normal Strong’s/number clicks, word selection and context menus pass. See NOTES-HOVER-COMPARE-2026-11-23.md for exact evidence, environment failures and remaining cases. No production/sync/schema or note-source change.
+
+
+## November 23 — Search return and Compare continuity
+
+Verified Mac Search cold and distinct centered/top history and iPhone settled cold, centered return and stable inline title spacing. The iPhone first-frame flash, recent/cross-reference lists, pixel/filter/race and accessibility cases remain open. Compare independent cold and opening headers passed in the tested paths. Older aligned/stacked cold history remains open. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md) [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md)

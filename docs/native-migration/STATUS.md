@@ -559,3 +559,11 @@ Picker labels, rich-reference Mac cursors, search-row feedback and independent C
 
 ### Nov23 — Native reference preview and Compare interaction follow-through
 12d2e360 adds a350ms read-only Strong’s preview in the Mac Notes editor, using actual link glyphs and cancellable Lexicon lookup. Actual isolated AppKit lifecycle tests pass; physical pointer dwell remains unverified.09e34b1d gives linked Compare verses native cursor regions, correct first-baseline alignment, and whole-column lift before native text capture. Actual independent Compare drag/drop, normal Strong’s/number clicks, word selection and context menus pass. See NOTES-HOVER-COMPARE-2026-11-23.md for exact evidence, environment failures and remaining cases. No production/sync/schema or note-source change.
+
+
+## November 23 — Search viewport and picker/Compare follow-through
+
+Committed source `c5074a08` follows `81292f65`. Mac Search and iPhone Simulator passed the scoped cold and return paths. Final iPhone inline title and keyboard dismissal passed. Owner-folder Mac, signed iPhone and Simulator builds are verified at c5074a08; strict Mac/device signatures and Dev identity/no-cloud-group checks passed. Search first-frame flash and aligned/stacked cold history remain open. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md) [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md)
+
+## Nov23 Search and picker build receipt
+Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **c5074a08** all PASS. Strict Mac/device signatures PASS; Dev identities and absence of iCloud/App Group entitlements verified. Artifacts remain under `build/apple/DerivedData/Build/Products`, ready for the owner’s usual commands. Evidence: `owner-search-ready-artifacts.json` and `owner-search-{mac,iphone,simulator}-ready.log` in ignored Nov23 QA evidence. Independent source review and 16 Search/Compare focused tests PASS (`owner-search-source-review-tests.log`). The running owner Mac app was left untouched. No additional physical install, launch or provisioning update. Later documentation-only commits do not change these binaries.

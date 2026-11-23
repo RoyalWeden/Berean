@@ -2225,3 +2225,9 @@ Evidence: ignored `owner-ready-1326-artifacts.json`, `phone-1326-install.json`, 
 
 ### Nov23 — Native reference preview and Compare interaction follow-through
 12d2e360 adds a350ms read-only Strong’s preview in the Mac Notes editor, using actual link glyphs and cancellable Lexicon lookup. Actual isolated AppKit lifecycle tests pass; physical pointer dwell remains unverified.09e34b1d gives linked Compare verses native cursor regions, correct first-baseline alignment, and whole-column lift before native text capture. Actual independent Compare drag/drop, normal Strong’s/number clicks, word selection and context menus pass. See NOTES-HOVER-COMPARE-2026-11-23.md for exact evidence, environment failures and remaining cases. No production/sync/schema or note-source change.
+
+
+### November 23 — Search keeps its place across return and cold open
+
+- `c5074a08` restores Search visits and their centered or top placement and uses the inline Search title on iPhone. Mac and iPhone Simulator checks passed within the scoped runtime paths. iPhone can briefly show the top before settling. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md)
+- `81292f65` sends explicit picker verse jumps in the current chapter and restores aligned Compare opening headers. iPhone Simulator verified both columns at the requested verse after cold open and the headers below floating controls. [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md)
