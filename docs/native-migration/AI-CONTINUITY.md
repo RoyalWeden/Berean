@@ -69,6 +69,10 @@ Before handing off or stopping, leave all of the following, even if work is unfi
 
 Use labels such as **IMPLEMENTED**, **VERIFIED** (with scope), **UNVERIFIED**, **OPEN**, **BLOCKED** and **SUPERSEDED**. Untested code, prototypes and QA instrumentation are not delivered parity. Do not erase failed attempts or report a no-tests/empty run as success.
 
+### Install-ready usage handoff
+
+Before handing work back to the owner for use, prepare and verify the final candidate in `/Users/roywe/Berean-native` using the [install-ready checklist](INSTALL-READY-HANDOFF.md). Record the owner checkout revision, the build and artifact checks for each platform, and any concrete blocker in both current checkpoints. Finish with simple Terminal commands for Mac and iPhone. Apply this before usage handoffs prompted by context or usage limits as well.
+
 ### Compact handover template
 
 Use this as a checklist, not a substitute for evidence or the full queue:

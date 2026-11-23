@@ -8,6 +8,8 @@
 
 ---
 
+Before every native usage handoff, prepare and verify the owner’s development build in `/Users/roywe/Berean-native`. Follow the [install-ready checklist](docs/native-migration/INSTALL-READY-HANDOFF.md) and include the Mac and iPhone Terminal commands in the final reply.
+
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)

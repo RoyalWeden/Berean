@@ -1,12 +1,14 @@
 # Current owner principles
 
-Curated from the owner’s direct instructions through2026-11-19. Read with [AI-CONTINUITY](AI-CONTINUITY.md). This is a living decision record: add new instructions and explicit supersessions, preserve the reason for a change, and verify implementation separately in [TASKS](TASKS.md)/[parity](FULL-FEATURE-PARITY.md). These principles do not mean every feature is finished.
+Curated from the owner’s direct instructions through 2026-11-23. Read with [AI-CONTINUITY](AI-CONTINUITY.md). This is a living decision record: add new instructions and explicit supersessions, preserve the reason for a change, and verify implementation separately in [TASKS](TASKS.md)/[parity](FULL-FEATURE-PARITY.md). These principles do not mean every feature is finished.
 
 ## Mission and continuity
 
 Build substantial actual native Swift improvements in **both macOS and iPhone**, preserving the original Electron/Capacitor functionality and data compatibility. Better native workflows are welcome; recreating clutter or bad behavior is not mandatory pixel parity. Keep the legacy apps buildable. Do not substitute another Claude prompt or an audit for implementation. Work iteratively for sustained periods, test real interactions, and keep durable notes for every successor AI. HANDOFF is the one entry point the owner gives Claude.
 
 Protect production data/sync/identities and existing review guards. The owner permits ordinary reversible implementation/testing/pushing draft work; do not keep stopping to ask whether to continue. Do not merge under that broad permission. Do not claim completion, verification or background work that evidence does not establish. No quota resets.
+
+**Install-ready handoff (2026-11-23).** Every AI must prepare and verify the native Dev build in `/Users/roywe/Berean-native` before handing the work back to the owner for use. The final reply gives simple Terminal commands for Mac and iPhone. Follow the [install-ready checklist](INSTALL-READY-HANDOFF.md) and report any platform that remains blocked or unverified.
 
 ## Reading and native controls
 

@@ -38,9 +38,13 @@ grep -q "PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE" apple/Config/BereanIOS.xcconfig ||
 python3 scripts/native/gen_xcodeproj.py >/dev/null
 xcodebuild -project apple/Berean.xcodeproj -scheme BereanIOS -configuration Debug \
   -destination "id=$UDID" -derivedDataPath build/apple/DerivedData \
-  -allowProvisioningUpdates build 2>&1 | grep -E "error:|warning: .*[Pp]rovision|BUILD (SUCCEEDED|FAILED)" || true
+  -allowProvisioningUpdates build 2>&1 | awk '/error:|warning: .*[Pp]rovision|BUILD (SUCCEEDED|FAILED)/' || {
+  BUILD_RESULT=$?
+  echo "Build failed — see above. If it mentions provisioning, sign in to your Apple account in Xcode ▸ Settings ▸ Accounts." >&2
+  exit "$BUILD_RESULT"
+}
 APP="build/apple/DerivedData/Build/Products/Debug-iphoneos/BereanIOS.app"
-[[ -d "$APP" ]] || { echo "Build failed — see above. If it mentions provisioning, open apple/Berean.xcodeproj once in Xcode and sign in to your Apple account (Xcode ▸ Settings ▸ Accounts)."; exit 1; }
+[[ -d "$APP" ]] || { echo "Build finished without the expected iPhone app: $APP" >&2; exit 1; }
 ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
 [[ "$ID" == "$BUNDLE" ]] || { echo "Refusing to install: built bundle id is $ID"; exit 1; }
 if codesign -d --entitlements - "$APP" 2>/dev/null | grep -qE "icloud|application-groups"; then echo "Refusing: the build has iCloud/App Group entitlements"; exit 1; fi
