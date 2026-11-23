@@ -92,7 +92,12 @@ struct PassagePicker: View {
     var bookMatches: [CatalogBook] {
         guard !trimmed.isEmpty else { return [] }
         let q = trimmed.lowercased()
-        let hits = catalog.filter { $0.book.name.lowercased().contains(q) || $0.book.shortName.lowercased().hasPrefix(q) || $0.book.id.lowercased().hasPrefix(q) }
+        let hits = catalog.filter { match in
+            match.book.name.lowercased().contains(q)
+                || match.book.shortName.lowercased().hasPrefix(q)
+                || match.book.id.lowercased().hasPrefix(q)
+                || Self.pickerBookName(match.book, in: match.textId).lowercased().contains(q)
+        }
         func rank(_ c: CatalogBook) -> (Int, Int, Int) {
             (c.textId == text ? 0 : 1, c.book.name.lowercased().hasPrefix(q) ? 0 : 1,
              c.textId == app.hermasEdition.rawValue ? 0 : 1)
@@ -234,7 +239,8 @@ struct PassagePicker: View {
                         ForEach(bookMatches) { m in
                             Button { choose(m) } label: {
                                 HStack {
-                                    Text(m.book.name)
+                                    Text(Self.pickerBookName(m.book, in: m.textId))
+                                        .accessibilityLabel(m.book.name)
                                     Spacer()
                                     Text(textInfo(m.textId).short).font(.caption).foregroundStyle(.secondary)
                                 }.contentShape(.rect)
@@ -424,7 +430,8 @@ struct PassagePicker: View {
                             .help("Back to the book list (⌘←)")
                     }
                     Spacer()
-                    Text(b.name).font(.headline).lineLimit(1)
+                    Text(Self.pickerBookName(b, in: text)).font(.headline).lineLimit(1)
+                        .accessibilityLabel(b.name)
                 }.padding(10)
                 Divider()
                 ScrollViewReader { proxy in
@@ -529,7 +536,9 @@ struct PassagePicker: View {
                             let current = book.id == currentBook && text == textId
                             Button { open(book, in: text) } label: {
                                 HStack {
-                                    Text(book.name).fontWeight(current ? .semibold : .regular)
+                                    Text(Self.pickerBookName(book, in: text))
+                                        .fontWeight(current ? .semibold : .regular)
+                                        .accessibilityLabel(book.name)
                                     Spacer()
                                     Text(book.chaptersCount == 1 ? "" : "\(book.chaptersCount)")
                                         .font(.caption).foregroundStyle(.tertiary).monospacedDigit()
@@ -555,7 +564,7 @@ struct PassagePicker: View {
         let current = b.id == currentBook && text == textId
         return Button { open(b, in: text) } label: {
             VStack(spacing: 1) {
-                Text(b.name)
+                Text(Self.pickerBookName(b, in: text))
                     .font(.subheadline.weight(current ? .semibold : .regular))
                     .lineLimit(2).minimumScaleFactor(0.8).multilineTextAlignment(.center)
                 if b.chaptersCount > 1 {
@@ -573,6 +582,24 @@ struct PassagePicker: View {
         .buttonStyle(.interactivePlain)
         .accessibilityLabel(b.chaptersCount > 1 ? "\(b.name), \(b.chaptersCount) chapters" : b.name)
         .accessibilityAddTraits(current ? .isSelected : [])
+    }
+
+    private static func pickerBookName(_ book: BookRow, in textId: String) -> String {
+        switch (textId, book.id) {
+        case ("recog_clement", _) where book.id.hasPrefix("RCL"):
+            if let number = Int(book.id.dropFirst(3)), (1...10).contains(number) {
+                return "Book \(number)"
+            }
+            return book.name
+        case ("hermas", "HER_VIS"), ("hermas_taylor", "HER_VIS"):
+            return "Visions"
+        case ("hermas", "HER_MAN"), ("hermas_taylor", "HER_MAN"):
+            return "Mandates"
+        case ("hermas", "HER_SIM"), ("hermas_taylor", "HER_SIM"):
+            return "Similitudes"
+        default:
+            return book.name
+        }
     }
 
     private func chapterButton(_ chapter: Int, in book: BookRow) -> some View {
