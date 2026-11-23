@@ -1387,3 +1387,9 @@ Source `d349bf41` records immutable passage-scoped viewport maps in in-tab histo
 ## Nov23 — durable semantic Compare bookmarks
 
 `5f83fd65`/`ccab93fc` add bounded device-local anchors keyed by stable column identity and passage, preserving exact per-visit history priority. `e17c1762` keeps column metadata in legacy Compare and persists identical-destination reorders. Both native builds,377sharedtests,5802legacytests, typecheck and lint pass. Actual Mac independent/aligned cold and swapped-column cold; iPhone aligned cold and distinct-visit Back/Forward pass. Exact independent intra-row positions, Mac stacked/iPhone independent and wider jump/reflow/accessibility matrices remain OPEN. No schema/signing/corpus/production writes; watched QA original content and37/47activeIDs retained. [Architecture, failures and exact evidence](COMPARE-DURABLE-2026-11-23.md). Broad migration ACTIVE.
+
+## 2026-11-23 — Scoped verification extension
+- Compare independent per-column within-verse restoration: IMPLEMENTED. VERIFIED Mac exactcoldfractions+distinct Back/Forward and owned iPhone partial3/4 cold visual replay. Layout-mismatch semantic fallback has focused model tests; full runtime reflow/rapid/accessibility matrix OPEN. Cold-afterolderBack activevisit persistence OPEN and required.
+- Lexicon occurrence excerpts: IMPLEMENTED shared Mac/iPhone single wrapping word range. VERIFIED compact/fullMac and narrowfulliPhone context/highlight; focused6tests/9cases. iPhonecompact visual matrix OPEN. Fullcopy/Find source preserved, no new clipboard runtime claim.
+- Rich Notes slash atomicUndo/contexttable: VERIFIED bothplatform runtime; wide-table/IME/VoiceOver/Board/PDF matrix OPEN. See Notes packet; no new Notes source this slice.
+- Native install handoff: every AI must verify owner-folder artifacts and end with Mac/iPhone commands. Mac/devicebuild and strictsignature checks PASS; physical installation/behavior remains owner/device testing scope.

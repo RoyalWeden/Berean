@@ -468,3 +468,8 @@ Shared CompareColumn now updates following saved columns on real reader passage 
 ## 2026-11-22 — Rich note previews on both platforms
 
 Source7ccbc3ca replaces flat snippets with rich attributed rows and bounded document thumbnails for gallery/iPhone tabs. Valid Markdown stays hidden; headings, links, wiki aliases, underlines, highlights, lists/callouts and table grids render; code remains literal. No note storage/editor rewrite. Final both builds and10focused parser checks pass. Actual Mac gallery/history and iPhone peek/table-tab/tap verified; final iPhone thumbnail retains button role. Original row hashes/37+47IDs/22+26notes pass. Physical/VoiceOver/large-type/imported-dialect/performance matrix remains open. [Detailed evidence](NOTE-PREVIEWS-2026-11-22.md).
+
+## 2026-11-23 — Owner lexicon context regression and Compare precision
+- Owner reported lexicon rows sometimes barely show words. FIXED shared bounded context+natural wrapping, removing second linecutoff. Actual1Chr1:10 compactH776 now fullsentence with earthhighlight; longerfulltab/iPhone rows retain useful context. Scoped remainingcompactphone check in lexicon packet.
+- Independent Compare first cold candidate overshot16pt after lazy re-estimation. FIXED using agreeing native/row geometry and bounded correction. Mac exactcoldfractions+Back/Forward and iPhone partialverse cold PASS. Preserve original failure evidence.
+- StillOPEN: cold quit afterolderBack needs activevisit persistence separate from latestdestination bookmarks; mainreader fraction drift on tabreturn; full gesture/reflow/cursor/accessibility/parity matrix.

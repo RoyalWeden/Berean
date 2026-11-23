@@ -96,3 +96,10 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Compare durable-position next packet](COMPARE-PERSISTENCE-NEXT-2026-11-23.md): unfinished storage/identity plan, per-visit priority rules, both-platform tests and exact intra-row requirement after d349bf41.
 
 - [Durable Compare bookmarks](COMPARE-DURABLE-2026-11-23.md): implemented local semantic anchors, stable metadata/legacy compatibility, exact test failures/reruns, actual Mac+iPhone cold/history/reorder checks and remaining precision/UI gates.
+
+- [Notes slash runtime checks](NOTES-SLASH-RUNTIME-2026-11-23.md): actual Mac/iPhone heading/table/keyboard/Undo evidence, recoverable owned fixtures and remaining editor scope.
+
+- [Install-ready usage handoff](INSTALL-READY-HANDOFF.md): required owner checkout preparation, fresh Mac/device build evidence and final Terminal commands for every AI.
+
+- [Independent Compare precision](COMPARE-PRECISION-2026-11-23.md): optional rowcrop model, measured lazy-layout correction, Mac/iPhone runtime evidence and required activevisit persistence follow-up.
+- [Readable lexicon excerpts](LEXICON-EXCERPTS-2026-11-23.md): owner regression, bounded wrapping context and platform verification.

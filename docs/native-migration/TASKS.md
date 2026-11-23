@@ -624,3 +624,9 @@ Source `d349bf41` records immutable passage-scoped viewport maps in in-tab histo
 ## Nov23 — durable semantic Compare bookmarks
 
 `5f83fd65`/`ccab93fc` add bounded device-local anchors keyed by stable column identity and passage, preserving exact per-visit history priority. `e17c1762` keeps column metadata in legacy Compare and persists identical-destination reorders. Both native builds,377sharedtests,5802legacytests, typecheck and lint pass. Actual Mac independent/aligned cold and swapped-column cold; iPhone aligned cold and distinct-visit Back/Forward pass. Exact independent intra-row positions, Mac stacked/iPhone independent and wider jump/reflow/accessibility matrices remain OPEN. No schema/signing/corpus/production writes; watched QA original content and37/47activeIDs retained. [Architecture, failures and exact evidence](COMPARE-DURABLE-2026-11-23.md). Broad migration ACTIVE.
+
+## 2026-11-23 — Precision/readable excerpts/install-ready checkpoint
+- IMPLEMENTED/VERIFIED scope: independent Compare within-verse Mac cold+Back/Forward and iPhone cold partial3/4; shared lexicon readable wrapping context; install helper real failure propagation. Final fullnative378tests/95suites PASS; fresh owner Mac/device builds PASS. See focused packets for platform limits and retained failures.
+- REQUIRED NEXT: local active-visit pointer for cold quit after olderBack (separate latestdestination map); test intentionalempty visits, beforepane-settle quit, onepane updated/otherhistorical, staleIDs and destination retention.
+- OPEN: Compare reflow/fonts/rapid/newjump/syncpeer/stacked/accessibility matrix, iPhonecompact lexicon visual check, mainreader return fraction drift, physical/IME/VoiceOver/widetables/Board/PDF checks, Presenter/read-aloud/splits/original parity queue.
+- HANDOFF gate: final verified Mac/iPhone builds in /Users/roywe/Berean-native plus simple commands. All AIs must update topHANDOFF AND CURRENT-STATE continuously.

@@ -17,10 +17,10 @@ Before every usage handoff, prepare the final development build in `/Users/roywe
 
 ## Owner Terminal commands
 
-**Mac**
+**Mac** — quit the running Berean Native Dev first so the new executable opens.
 
 ```sh
-cd /Users/roywe/Berean-native && open -n "$PWD/build/apple/DerivedData/Build/Products/Debug/BereanMac.app"
+cd /Users/roywe/Berean-native && open "$PWD/build/apple/DerivedData/Build/Products/Debug/BereanMac.app"
 ```
 
 **iPhone** — connect, unlock and trust the intended iPhone before running the command.
