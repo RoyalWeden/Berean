@@ -38,9 +38,21 @@ import BereanWorkspace
         try svc.removeBookmark(b.id)
         #expect(try svc.bookmarks("p1").isEmpty)
         let blank = try svc.addBookmark("p1", page: 1, label: "")
-        try svc.renameBookmark(blank.id, label: "Prologue")
-        #expect(try svc.bookmarks("p1").first?.label == "Prologue")
+        clock.t = 6_000
+        #expect(try svc.renameBookmark(blank.id, label: "Prologue"))
+        var renamed = blank
+        renamed.label = "Prologue"
+        #expect(try svc.bookmarks("p1") == [renamed])
+        #expect(try db.query("SELECT updated_at FROM pdf_bookmarks").first?["updated_at"]?.int == 6_000)
         #expect(log.items.last == DataChange(entity: "pdf_bookmark", id: blank.id, op: "upsert"))
+
+        let eventsAfterRename = log.items.count
+        #expect(try !svc.renameBookmark("missing", label: "Unknown"))
+        try db.exec("PRAGMA query_only = ON")
+        #expect(throws: SQLiteError.self) { try svc.renameBookmark(blank.id, label: "Blocked") }
+        try db.exec("PRAGMA query_only = OFF")
+        #expect(try svc.bookmarks("p1") == [renamed])
+        #expect(log.items.count == eventsAfterRename)
 
         #expect(try svc.deleteRow("p1") == "p1.pdf")
         #expect(try svc.highlights("p1").isEmpty && svc.bookmarks("p1").isEmpty && svc.get("p1") == nil)

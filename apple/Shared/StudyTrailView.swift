@@ -98,7 +98,7 @@ struct StudyTrailView: View {
                 Button("Merge") { if let m = pendingMerge { merge(m.from, into: m.into) }; pendingMerge = nil }
                 Button("Cancel", role: .cancel) { pendingMerge = nil }
             } message: {
-                Text("Its stops, connections and sticky notes move into the other trail, and this trail is removed. You can split it apart again at any stop.")
+                Text("Its stops, connections, sticky notes, tags and summaries move into the other trail. The source trail is removed; this does not preserve two separately recorded timelines.")
             }
         }
         .task {
@@ -165,7 +165,7 @@ struct StudyTrailView: View {
                         Button("Move Down", systemImage: "arrow.down") { moveTrail(trail.id, .later) }
                             .disabled(trail.id == trails.last?.id)
                     }
-                    // Original "Merge into": one-way, names the target explicitly (split back with Split Here).
+                    // Name the destination explicitly. A split cannot undo an interleaved merge.
                     let targets = trails.filter { $0.id != trail.id }
                     if !targets.isEmpty, app.studyTrailRecording?.trailID != trail.id {
                         Menu("Merge Into", systemImage: "arrow.triangle.merge") {
@@ -180,12 +180,20 @@ struct StudyTrailView: View {
     }
 
     private func merge(_ from: StudyTrailService.Trail, into target: StudyTrailService.Trail) {
+        guard app.studyTrailRecording?.trailID != from.id else {
+            errorMessage = "Stop recording this trail before merging it."
+            return
+        }
         do {
             guard let service = app.studyTrailService,
-                  try service.merge(from.id, into: target.id, at: Int64(Date().timeIntervalSince1970 * 1000)) else { return }
+                  try service.merge(from.id, into: target.id, at: Int64(Date().timeIntervalSince1970 * 1000)) else {
+                errorMessage = "One of these trails is no longer available."
+                load()
+                return
+            }
             load()
         } catch {
-            errorMessage = "The trails could not be merged."
+            errorMessage = "The trails could not be merged. \(error.localizedDescription)"
         }
     }
 
@@ -539,16 +547,17 @@ private struct StudyTrailStopsView: View {
             }
             ForEach(displayedStops) { node in
                 let notes = stickiesByAnchor[node.id, default: []]
+                let parentIDs = Set(node.branches.compactMap { $0.connection.parentId })
                 Section {
                     if node.stop.isTopicBreak { topicBreakDivider }
                     ForEach(notes.filter { $0.kind == .section }) { mapSticky($0) }
                     stopRow(node.stop, editable: false)
                     ForEach(notes.filter { $0.kind == .annotation }) { mapSticky($0) }
                     if !node.branches.isEmpty && !searchActive { stopFoldRow(node) }
-                    ForEach(node.branches.filter {
-                        (matchedStops.contains(node.id) || retained.contains($0.id)) && (searchActive || !isFolded($0, in: node))
+                    ForEach(unfoldedBranches(in: node).filter {
+                        matchedStops.contains(node.id) || retained.contains($0.id)
                     }) { branch in
-                        mapBranch(branch, children: node.branches.contains { $0.connection.parentId == branch.id })
+                        mapBranch(branch, children: parentIDs.contains(branch.id))
                     }
                 }
             }
@@ -629,9 +638,12 @@ private struct StudyTrailStopsView: View {
                 let folded = collapsedKeys.contains("branch:\(branch.id)")
                 Button { setFold(!folded, key: branch.id) } label: {
                     Image(systemName: folded ? "chevron.right" : "chevron.down")
-                        .font(.caption.weight(.semibold)).frame(width: 16)
+                        .font(.caption.weight(.semibold))
+                        .frame(minWidth: foldControlSize, minHeight: foldControlSize)
+                        .contentShape(.rect)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.interactivePlain)
+                .optionHover()
                 .accessibilityLabel(folded ? "Show branches" : "Hide branches")
             } else {
                 Image(systemName: "arrow.turn.down.right")
@@ -650,27 +662,52 @@ private struct StudyTrailStopsView: View {
             Label("\(node.branches.count) \(node.branches.count == 1 ? "connection" : "connections")",
                   systemImage: folded ? "chevron.right" : "chevron.down")
                 .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: foldControlSize, alignment: .leading)
+                .contentShape(.rect)
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.interactivePlain)
+        .optionHover()
         .accessibilityHint(folded ? "Shows this stop's connections" : "Hides this stop's connections")
     }
 
-    private func isFolded(_ branch: StudyTrailService.MapConnection, in node: StudyTrailService.MapStop) -> Bool {
-        if collapsedKeys.contains("branch:node:\(node.id)") { return true }
-        let parents = Dictionary(node.branches.map { ($0.id, $0.connection.parentId) }, uniquingKeysWith: { a, _ in a })
-        var current = branch.connection.parentId
-        var seen = Set<String>()
-        while let id = current, seen.insert(id).inserted {
-            if collapsedKeys.contains("branch:\(id)") { return true }
-            current = parents[id] ?? nil
+    private var foldControlSize: CGFloat {
+        #if os(iOS)
+        44
+        #else
+        24
+        #endif
+    }
+
+    /// The map service emits depth-first pre-order. Scan it once, retaining the
+    /// folded branch itself so its disclosure remains available, including for
+    /// imported cycles that the service has broken into a displayable tree.
+    private func unfoldedBranches(in node: StudyTrailService.MapStop) -> [StudyTrailService.MapConnection] {
+        if searchActive { return node.branches }
+        if collapsedKeys.contains("branch:node:\(node.id)") { return [] }
+        var hiddenBelow: Int?
+        var visible: [StudyTrailService.MapConnection] = []
+        for branch in node.branches {
+            if let depth = hiddenBelow {
+                if branch.depth > depth { continue }
+                hiddenBelow = nil
+            }
+            visible.append(branch)
+            if collapsedKeys.contains("branch:\(branch.id)") { hiddenBelow = branch.depth }
         }
-        return false
+        return visible
     }
 
     private func setFold(_ folded: Bool, key: String) {
-        // Optimistic, like the original: the fold is instant; a failed write just isn't remembered.
-        if folded { collapsedKeys.insert("branch:\(key)") } else { collapsedKeys.remove("branch:\(key)") }
-        try? app.studyTrailService?.setCollapsed(folded, scope: "branch", key: key, at: StudyTrailView.now())
+        do {
+            guard let service = app.studyTrailService else {
+                actionMessage = "The trail library is unavailable."
+                return
+            }
+            try service.setCollapsed(folded, scope: "branch", key: key, at: StudyTrailView.now())
+            if folded { collapsedKeys.insert("branch:\(key)") } else { collapsedKeys.remove("branch:\(key)") }
+        } catch {
+            actionMessage = "The connection view could not be saved. \(error.localizedDescription)"
+        }
     }
 
     private func stopRow(_ stop: StudyTrailService.Stop, editable: Bool) -> some View {
@@ -703,8 +740,9 @@ private struct StudyTrailStopsView: View {
                     Menu("Move to Trail", systemImage: "arrow.right.doc.on.clipboard") {
                         ForEach(otherTrails) { target in
                             Button(target.name.isEmpty ? "Untitled Trail" : target.name) {
-                                stopAction { try $0.moveStops([stop.id], to: target.id, at: StudyTrailView.now()) }
-                                reloadTrails()
+                                if stopAction({ try $0.moveStops([stop.id], to: target.id, at: StudyTrailView.now()) }) {
+                                    reloadTrails()
+                                }
                             }
                         }
                     }
@@ -725,10 +763,11 @@ private struct StudyTrailStopsView: View {
                 ForEach(otherTrails) { target in
                     Button(target.name.isEmpty ? "Untitled Trail" : target.name) {
                         let ids = stops.map(\.id).filter(selectedStops.contains)
-                        stopAction { try $0.moveStops(ids, to: target.id, at: StudyTrailView.now()) }
-                        reloadTrails()
-                        selectedStops = []
-                        selectingStops = false
+                        if stopAction({ try $0.moveStops(ids, to: target.id, at: StudyTrailView.now()) }) {
+                            reloadTrails()
+                            selectedStops = []
+                            selectingStops = false
+                        }
                     }
                 }
             }
@@ -749,12 +788,18 @@ private struct StudyTrailStopsView: View {
         .accessibilityLabel("New topic")
     }
 
-    private func stopAction(_ body: (StudyTrailService) throws -> Bool) {
+    @discardableResult
+    private func stopAction(_ body: (StudyTrailService) throws -> Bool) -> Bool {
         do {
-            guard let service = app.studyTrailService, try body(service) else { return }
+            guard let service = app.studyTrailService, try body(service) else {
+                actionMessage = "The selected trail items are no longer available."
+                return false
+            }
             load()
+            return true
         } catch {
-            actionMessage = "The trail could not be changed."
+            actionMessage = "The trail could not be changed. \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -768,7 +813,7 @@ private struct StudyTrailStopsView: View {
             reloadTrails()
             actionMessage = "Stops from \(stopLabel(stop)) on are now a separate trail."
         } catch {
-            actionMessage = "The trail could not be split."
+            actionMessage = "The trail could not be split. \(error.localizedDescription)"
         }
     }
 

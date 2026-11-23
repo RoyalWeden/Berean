@@ -297,6 +297,19 @@ struct PdfReaderView: View {
     enum BookmarkEdit: Equatable { case new(page: Int), rename(id: String, page: Int) }
     @State private var bookmarkEditing: BookmarkEdit?
     @State private var bookmarkDraft = ""
+    @State private var bookmarkError: String?
+    @FocusState private var bookmarkLabelFocused: Bool
+
+    private enum BookmarkError: LocalizedError {
+        case libraryUnavailable, bookmarkMissing
+
+        var errorDescription: String? {
+            switch self {
+            case .libraryUnavailable: "The PDF library is unavailable."
+            case .bookmarkMissing: "This bookmark no longer exists."
+            }
+        }
+    }
     @State private var showsSidebar = false
     @State private var sidebarMode = "outline"
     @State private var findShown = false
@@ -339,21 +352,81 @@ struct PdfReaderView: View {
             bookmarks = (try? app.pdfs?.bookmarks(pdfId)) ?? []
             loaded = true
         }
-        .alert(bookmarkEditing.map { if case .new = $0 { "Bookmark Page" } else { "Rename Bookmark" } } ?? "",
-               isPresented: Binding(get: { bookmarkEditing != nil }, set: { if !$0 { bookmarkEditing = nil } })) {
-            TextField("Label", text: $bookmarkDraft)
-            Button("Cancel", role: .cancel) { bookmarkEditing = nil }
-            Button("Save") { saveBookmark() }
+        #if os(iOS)
+        .sheet(isPresented: bookmarkPresentation(while: !showsSidebar)) { bookmarkEditor }
+        #else
+        .sheet(isPresented: bookmarkPresentation(while: true)) { bookmarkEditor }
+        #endif
+    }
+
+    private func bookmarkPresentation(while active: Bool) -> Binding<Bool> {
+        Binding(get: { active && bookmarkEditing != nil }, set: { if active && !$0 { bookmarkEditing = nil } })
+    }
+
+    private var bookmarkEditor: some View {
+        NavigationStack {
+            Form {
+                TextField("Label", text: $bookmarkDraft)
+                    .focused($bookmarkLabelFocused)
+                    .onSubmit(saveBookmark)
+                if let bookmarkError {
+                    Text(bookmarkError)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle(bookmarkEditing.map { if case .new = $0 { "Bookmark Page" } else { "Rename Bookmark" } } ?? "")
+            #if os(iOS)
+            .toolbarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { bookmarkEditing = nil }
+                        .keyboardShortcut(.cancelAction)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: saveBookmark)
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
         }
+        #if os(macOS)
+        .frame(minWidth: 360, minHeight: 170)
+        #else
+        .presentationDetents([.medium, .large])
+        #endif
+        .onAppear { bookmarkLabelFocused = true }
+    }
+
+    private func editBookmark(_ edit: BookmarkEdit, label: String) {
+        bookmarkDraft = label
+        bookmarkError = nil
+        bookmarkEditing = edit
     }
 
     private func saveBookmark() {
         guard let edit = bookmarkEditing else { return }
-        bookmarkEditing = nil
         let trimmed = bookmarkDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch edit {
-        case .new(let page): try? app.pdfs?.addBookmark(pdfId, page: page, label: trimmed.isEmpty ? "Page \(page)" : trimmed)
-        case .rename(let id, let page): try? app.pdfs?.renameBookmark(id, label: trimmed.isEmpty ? "Page \(page)" : trimmed)
+        do {
+            guard let service = app.pdfs else { throw BookmarkError.libraryUnavailable }
+            switch edit {
+            case .new(let page): try service.addBookmark(pdfId, page: page, label: trimmed.isEmpty ? "Page \(page)" : trimmed)
+            case .rename(let id, let page):
+                guard try service.renameBookmark(id, label: trimmed.isEmpty ? "Page \(page)" : trimmed) else {
+                    throw BookmarkError.bookmarkMissing
+                }
+            }
+            bookmarkEditing = nil
+        } catch {
+            bookmarkError = error.localizedDescription
+        }
+    }
+
+    private func removeBookmark(_ id: String) {
+        app.attempt("Couldn’t remove the bookmark") {
+            guard let service = app.pdfs else { throw BookmarkError.libraryUnavailable }
+            try service.removeBookmark(id)
         }
     }
 
@@ -374,7 +447,13 @@ struct PdfReaderView: View {
             #if os(macOS)
             .inspector(isPresented: $showsSidebar) { sidebar.inspectorColumnWidth(min: 220, ideal: 260, max: 360) }
             #else
-            .sheet(isPresented: $showsSidebar) { NavigationStack { sidebar.navigationTitle(record.title).toolbarTitleDisplayMode(.inline) }.presentationDetents([.medium, .large]) }
+            .sheet(isPresented: $showsSidebar) {
+                NavigationStack {
+                    sidebar.navigationTitle(record.title).toolbarTitleDisplayMode(.inline)
+                }
+                .presentationDetents([.medium, .large])
+                .sheet(isPresented: bookmarkPresentation(while: true)) { bookmarkEditor }
+            }
             #endif
             .toolbar { toolbar(record) }
             .alert("Highlight Note", isPresented: Binding(get: { noteEditing != nil }, set: { if !$0 { noteEditing = nil } })) {
@@ -415,11 +494,11 @@ struct PdfReaderView: View {
     private var isBookmarked: Bool { bookmarks.contains { $0.page == controller.currentPage } }
 
     private func toggleBookmark() {
-        if let b = bookmarks.first(where: { $0.page == controller.currentPage }) { try? app.pdfs?.removeBookmark(b.id) }
-        else {
-            // Original: asks for a label, defaulting to "Page N".
-            bookmarkDraft = "Page \(controller.currentPage)"
-            bookmarkEditing = .new(page: controller.currentPage)
+        let page = controller.currentPage
+        if let bookmark = bookmarks.first(where: { $0.page == page }) {
+            removeBookmark(bookmark.id)
+        } else {
+            editBookmark(.new(page: page), label: "Page \(page)")
         }
     }
 
@@ -526,10 +605,9 @@ struct PdfReaderView: View {
                         .buttonStyle(.interactivePlain)
                         .contextMenu {
                             Button("Rename", systemImage: "pencil") {
-                                bookmarkDraft = b.label.isEmpty ? "Page \(b.page)" : b.label
-                                bookmarkEditing = .rename(id: b.id, page: b.page)
+                                editBookmark(.rename(id: b.id, page: b.page), label: b.label.isEmpty ? "Page \(b.page)" : b.label)
                             }
-                            Button("Remove Bookmark", systemImage: "trash", role: .destructive) { try? app.pdfs?.removeBookmark(b.id) }
+                            Button("Remove Bookmark", systemImage: "trash", role: .destructive) { removeBookmark(b.id) }
                         }
                     }
                 case "highlights":

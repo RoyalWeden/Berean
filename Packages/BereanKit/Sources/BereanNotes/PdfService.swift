@@ -171,9 +171,12 @@ public final class PdfService: @unchecked Sendable {
     }
 
     /// Renames a bookmark (the original stores "Page N" when no label is given).
-    public func renameBookmark(_ id: String, label: String) throws {
-        try db.run("UPDATE pdf_bookmarks SET label = ?, updated_at = ? WHERE id = ?", [.text(label), .integer(now()), .text(id)])
+    @discardableResult
+    public func renameBookmark(_ id: String, label: String) throws -> Bool {
+        guard try db.run("UPDATE pdf_bookmarks SET label = ?, updated_at = ? WHERE id = ?",
+                         [.text(label), .integer(now()), .text(id)]).changes == 1 else { return false }
         onChange("pdf_bookmark", id, "upsert")
+        return true
     }
 
     public func removeBookmark(_ id: String) throws {

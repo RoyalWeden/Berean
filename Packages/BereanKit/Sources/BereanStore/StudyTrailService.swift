@@ -1,3 +1,4 @@
+import Foundation
 import BereanSQLite
 
 /// Uses the existing Study Trail tables. The caller owns and serializes the connection.
@@ -89,8 +90,15 @@ public struct StudyTrailService {
         case pause, resume, finish
     }
 
-    public enum TrailError: Error {
-        case emptyName
+    public enum TrailError: LocalizedError {
+        case emptyName, activeAnchor
+
+        public var errorDescription: String? {
+            switch self {
+            case .emptyName: "Enter a name for the trail."
+            case .activeAnchor: "Pause recording before moving the current stop."
+            }
+        }
     }
 
     private let db: SQLiteConnection
@@ -601,38 +609,39 @@ public struct StudyTrailService {
         try db.run("UPDATE trail_nodes SET is_topic_break = ? WHERE id = ?", [.integer(isBreak ? 1 : 0), .text(stopId)]).changes == 1
     }
 
-    /// Moves stops (with every connection hanging off them, chained ones included) into
-    /// `targetId`, slotted in by time; both sides are renumbered.
+    /// Moves stops along with their connections and anchored stickies into `targetId`
+    /// in chronological order and renumbers the affected trails.
     @discardableResult
     public func moveStops(_ stopIds: [String], to targetId: String, at time: Int64) throws -> Bool {
         guard !stopIds.isEmpty else { return false }
         return try transaction {
             guard try db.query("SELECT id FROM trail_sessions WHERE id = ?", [.text(targetId)]).first != nil else { return false }
             var sources = Set<String>()
-            var frontier: [String] = []
             for id in stopIds {
-                if let source = try db.query("SELECT trail_session_id FROM trail_nodes WHERE id = ?", [.text(id)]).first?["trail_session_id"]?.string {
-                    sources.insert(source)
+                guard let stop = try db.query("""
+                    SELECT n.trail_session_id, n.anchor_ended_at, s.status
+                    FROM trail_nodes n JOIN trail_sessions s ON s.id = n.trail_session_id WHERE n.id = ?
+                    """, [.text(id)]).first,
+                      let source = stop["trail_session_id"]?.string, source != targetId else { continue }
+                if source != "__loose_stops__", stop["status"] == .text("live"), stop["anchor_ended_at"] == .null {
+                    throw TrailError.activeAnchor
                 }
-                frontier += try db.query("SELECT id FROM trail_connections WHERE from_node_id = ?", [.text(id)]).compactMap { $0["id"]?.string }
-            }
-            var connections = Set(frontier)
-            while !frontier.isEmpty {
-                var next: [String] = []
-                for id in frontier {
-                    for row in try db.query("SELECT id FROM trail_connections WHERE from_connection_id = ?", [.text(id)]) {
-                        if let child = row["id"]?.string, connections.insert(child).inserted { next.append(child) }
-                    }
-                }
-                frontier = next
-            }
-            for id in stopIds {
+                sources.insert(source)
+                try db.run("""
+                    WITH RECURSIVE moved(id) AS (
+                        SELECT id FROM trail_connections WHERE from_node_id = ? AND trail_session_id = ?
+                        UNION
+                        SELECT child.id FROM trail_connections child JOIN moved ON child.from_connection_id = moved.id
+                        WHERE child.trail_session_id = ?
+                    )
+                    UPDATE trail_connections SET trail_session_id = ? WHERE id IN (SELECT id FROM moved)
+                    """, [.text(id), .text(source), .text(source), .text(targetId)])
+                try db.run("UPDATE trail_notes SET trail_session_id = ? WHERE anchor_node_id = ? AND trail_session_id = ?",
+                           [.text(targetId), .text(id), .text(source)])
                 try db.run("UPDATE trail_nodes SET trail_session_id = ?, order_index = COALESCE(anchor_started_at, order_index) WHERE id = ?",
                            [.text(targetId), .text(id)])
             }
-            for id in connections {
-                try db.run("UPDATE trail_connections SET trail_session_id = ? WHERE id = ?", [.text(targetId), .text(id)])
-            }
+            guard !sources.isEmpty else { return false }
             try db.run("UPDATE trail_sessions SET updated_at = ? WHERE id = ?", [.integer(time), .text(targetId)])
             for trail in sources.union([targetId]) { try renumberStops(trail) }
             return true
@@ -647,14 +656,35 @@ public struct StudyTrailService {
     public func merge(_ fromId: String, into intoId: String, at time: Int64) throws -> Bool {
         guard fromId != intoId else { return false }
         return try transaction {
-            guard try db.query("SELECT id FROM trail_sessions WHERE id = ?", [.text(intoId)]).first != nil,
-                  try db.query("SELECT id FROM trail_sessions WHERE id = ?", [.text(fromId)]).first != nil else { return false }
+            let target = SQLiteValue.text(intoId), source = SQLiteValue.text(fromId)
+            guard let targetRow = try db.query("SELECT recap_text FROM trail_sessions WHERE id = ?", [target]).first,
+                  let sourceRow = try db.query("SELECT name, status, recap_text, recap_user_edited FROM trail_sessions WHERE id = ?", [source]).first else { return false }
+            if fromId != "__loose_stops__", sourceRow["status"] == .text("live"),
+               try db.query("SELECT id FROM trail_nodes WHERE trail_session_id = ? AND anchor_ended_at IS NULL LIMIT 1", [source]).first != nil {
+                throw TrailError.activeAnchor
+            }
             for table in ["trail_nodes", "trail_connections", "trail_notes"] {
-                try db.run("UPDATE \(table) SET trail_session_id = ? WHERE trail_session_id = ?", [.text(intoId), .text(fromId)])
+                try db.run("UPDATE \(table) SET trail_session_id = ? WHERE trail_session_id = ?", [target, source])
             }
             try renumberStops(intoId)
-            if fromId != "__loose_stops__" { try db.run("DELETE FROM trail_sessions WHERE id = ?", [.text(fromId)]) }
-            try db.run("UPDATE trail_sessions SET updated_at = ? WHERE id = ?", [.integer(time), .text(intoId)])
+            if fromId != "__loose_stops__" {
+                try db.run("""
+                    INSERT INTO trail_tag_members (tag_id, trail_session_id, created_at)
+                    SELECT tag_id, ?, created_at FROM trail_tag_members WHERE trail_session_id = ?
+                    ON CONFLICT(tag_id, trail_session_id) DO NOTHING
+                    """, [target, source])
+                try db.run("DELETE FROM trail_tag_members WHERE trail_session_id = ?", [source])
+                if sourceRow["recap_user_edited"]?.int == 1,
+                   let recap = sourceRow["recap_text"]?.string, !recap.isEmpty {
+                    let existing = targetRow["recap_text"]?.string ?? ""
+                    let title = sourceRow["name"]?.string ?? ""
+                    let combined = existing.isEmpty ? recap : "\(existing)\n\nFrom \(title.isEmpty ? "Untitled Trail" : title)\n\n\(recap)"
+                    try db.run("UPDATE trail_sessions SET recap_text = ?, recap_user_edited = 1 WHERE id = ?",
+                               [.text(combined), target])
+                }
+                try db.run("DELETE FROM trail_sessions WHERE id = ?", [source])
+            }
+            try db.run("UPDATE trail_sessions SET updated_at = ? WHERE id = ?", [.integer(time), target])
             return true
         }
     }
@@ -667,15 +697,28 @@ public struct StudyTrailService {
         try transaction {
             guard let pivot = try db.query("SELECT order_index FROM trail_nodes WHERE id = ? AND trail_session_id = ?",
                                            [.text(stopId), .text(trailId)]).first?["order_index"] else { return false }
+            if trailId != "__loose_stops__", try db.query("""
+                SELECT n.id FROM trail_nodes n JOIN trail_sessions s ON s.id = n.trail_session_id
+                WHERE s.id = ? AND s.status = 'live' AND n.anchor_ended_at IS NULL AND n.order_index >= ?
+                LIMIT 1
+                """, [.text(trailId), pivot]).first != nil {
+                throw TrailError.activeAnchor
+            }
             let title = name.map { String($0.drop(while: \.isWhitespace).reversed().drop(while: \.isWhitespace).reversed()) } ?? ""
             try db.run("INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES (?, ?, 'paused', ?, ?)",
                        [.text(newId), .text(title.isEmpty ? "Split session" : title), .integer(time), .integer(time)])
             try db.run("UPDATE trail_nodes SET trail_session_id = ? WHERE trail_session_id = ? AND order_index >= ?",
                        [.text(newId), .text(trailId), pivot])
             try db.run("""
-                UPDATE trail_connections SET trail_session_id = ?
-                WHERE trail_session_id = ? AND from_node_id IN (SELECT id FROM trail_nodes WHERE trail_session_id = ?)
-                """, [.text(newId), .text(trailId), .text(newId)])
+                WITH RECURSIVE moved(id) AS (
+                    SELECT id FROM trail_connections
+                    WHERE trail_session_id = ? AND from_node_id IN (SELECT id FROM trail_nodes WHERE trail_session_id = ?)
+                    UNION
+                    SELECT child.id FROM trail_connections child JOIN moved ON child.from_connection_id = moved.id
+                    WHERE child.trail_session_id = ?
+                )
+                UPDATE trail_connections SET trail_session_id = ? WHERE id IN (SELECT id FROM moved)
+                """, [.text(trailId), .text(newId), .text(trailId), .text(newId)])
             try db.run("""
                 UPDATE trail_notes SET trail_session_id = ?
                 WHERE trail_session_id = ? AND anchor_node_id IN (SELECT id FROM trail_nodes WHERE trail_session_id = ?)

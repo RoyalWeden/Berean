@@ -228,6 +228,12 @@ import Testing
                ('b1', 'b', 'EXO', 1, 0, 15), ('l1', '__loose_stops__', 'LEV', 1, 0, 40);
         INSERT INTO trail_connections (id, trail_session_id, from_node_id, to_kind, to_strongs_num, clarity_tier, created_at)
         VALUES ('c2', 'a', 'a2', 'lexicon', 'H1', 1, 21), ('c1', 'a', 'a1', 'lexicon', 'H2', 1, 11);
+        INSERT INTO trail_connections (id, trail_session_id, from_node_id, from_connection_id, to_kind, to_strongs_num, clarity_tier, created_at)
+        VALUES ('child', 'a', 'a1', 'c2', 'lexicon', 'H3', 1, 22),
+               ('grandchild', 'a', 'a1', 'child', 'lexicon', 'H4', 1, 23),
+               ('unrelated', 'a', 'a1', 'c1', 'lexicon', 'H5', 1, 12);
+        INSERT INTO trail_notes (id, trail_session_id, anchor_node_id, created_at, updated_at)
+        VALUES ('move', 'a', 'a2', 21, 21), ('keep', 'a', 'a1', 11, 11);
         """)
     let trail = StudyTrailService(db: db)
 
@@ -236,8 +242,12 @@ import Testing
     #expect(try db.query("SELECT name, status FROM trail_sessions WHERE id = 's'").first?["name"] == .text("Split session"))
     #expect(try trail.stops(in: "s").map(\.id) == ["a2", "a3"])
     #expect(try trail.stops(in: "a").map(\.id) == ["a1"])
-    #expect(try db.query("SELECT trail_session_id FROM trail_connections WHERE id = 'c2'").first?["trail_session_id"] == .text("s"))
-    #expect(try db.query("SELECT trail_session_id FROM trail_connections WHERE id = 'c1'").first?["trail_session_id"] == .text("a"))
+    let splitConnections = try trail.connections(in: "s")
+    #expect(splitConnections.map(\.id) == ["c2", "child", "grandchild"])
+    #expect(splitConnections.map(\.parentId) == [nil, "c2", "child"])
+    #expect(try trail.connections(in: "a").map(\.id) == ["c1", "unrelated"])
+    #expect(try trail.stickies(in: "s").map(\.id) == ["move"])
+    #expect(try trail.stickies(in: "a").map(\.id) == ["keep"])
     #expect(try !trail.split("a", at: "b1", newId: "x", name: nil, at: 51))   // stop not in that trail
 
     // Merge b into a: b's stop joins a in time order, b is deleted.
@@ -262,6 +272,8 @@ import Testing
         VALUES ('a1', 'a', 'GEN', 1, 0, 10), ('a2', 'a', 'GEN', 2, 1, 30), ('b1', 'b', 'EXO', 1, 0, 20);
         INSERT INTO trail_connections (id, trail_session_id, from_node_id, from_connection_id, to_kind, to_strongs_num, clarity_tier, created_at)
         VALUES ('c1', 'a', 'a2', NULL, 'lexicon', 'H1', 1, 31), ('c2', 'a', 'a1', 'c1', 'lexicon', 'H2', 1, 32), ('c3', 'a', 'a1', NULL, 'lexicon', 'H3', 1, 11);
+        INSERT INTO trail_notes (id, trail_session_id, anchor_node_id, created_at, updated_at)
+        VALUES ('move', 'a', 'a2', 31, 31), ('keep', 'a', 'a1', 11, 11), ('unanchored', 'a', NULL, 12, 12);
         """)
     let trail = StudyTrailService(db: db)
     #expect(try trail.setTopicBreak(true, stopId: "a2"))
@@ -271,7 +283,12 @@ import Testing
     #expect(try trail.stops(in: "a").map(\.id) == ["a1"])
     #expect(try db.query("SELECT id FROM trail_connections WHERE trail_session_id = 'b' ORDER BY id").compactMap { $0["id"]?.string } == ["c1", "c2"])
     #expect(try db.query("SELECT order_index FROM trail_nodes WHERE id = 'a2'").first?["order_index"]?.int == 1)
+    #expect(try trail.stickies(in: "b").map(\.id) == ["move"])
+    #expect(try trail.stickies(in: "b").first?.anchorID == "a2")
+    #expect(try Set(trail.stickies(in: "a").map(\.id)) == ["keep", "unanchored"])
     #expect(try !trail.moveStops(["a1"], to: "missing", at: 41))
+    #expect(try !trail.moveStops(["stale", "a2"], to: "b", at: 42))
+    #expect(try db.query("SELECT updated_at FROM trail_sessions WHERE id = 'b'").first?["updated_at"]?.int == 40)
 }
 
 @Test func storesFoldStateLikeTheOriginal() throws {
@@ -285,4 +302,67 @@ import Testing
     try trail.setCollapsed(false, scope: "branch", key: "c1", at: 8)
     #expect(try trail.collapsedKeys() == ["branch:node:a1"])
     #expect(try db.query("SELECT COUNT(*) AS n FROM trail_collapse").first?["n"]?.int == 1)   // expanded = no row
+}
+
+@Test func activeRecordingStopStaysUntilTheTrailIsPaused() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    let trail = StudyTrailService(db: db)
+    try trail.start(name: "Recording", id: "source", at: 1)
+    try trail.start(name: "Destination", id: "target", at: 2)
+    try trail.recordStop(trailId: "source", id: "first", bookId: "GEN", chapter: 1, translation: "kjva", at: 3)
+    try trail.recordStop(trailId: "source", id: "active", bookId: "GEN", chapter: 2, translation: "kjva", at: 4)
+    #expect(throws: StudyTrailService.TrailError.activeAnchor) {
+        try trail.moveStops(["first", "active"], to: "target", at: 5)
+    }
+    #expect(throws: StudyTrailService.TrailError.activeAnchor) {
+        try trail.split("source", at: "first", newId: "new", name: nil, at: 6)
+    }
+    #expect(throws: StudyTrailService.TrailError.activeAnchor) {
+        try trail.merge("source", into: "target", at: 6)
+    }
+    #expect(try trail.stops(in: "source").map(\.id) == ["first", "active"])
+    #expect(try trail.stops(in: "target").isEmpty)
+    #expect(try !trail.trails().contains { $0.id == "new" })
+    #expect(try db.query("SELECT anchor_ended_at FROM trail_nodes WHERE id = 'active'").first?["anchor_ended_at"] == .null)
+    #expect(try trail.transition(.pause, trailId: "source", at: 7, intervalId: "pause"))
+    #expect(try trail.split("source", at: "active", newId: "new", name: nil, at: 8))
+    #expect(try trail.stops(in: "new").map(\.id) == ["active"])
+}
+
+@Test func mergingPreservesTagsAndManualRecapsTransactionally() throws {
+    let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    try Migrator.migrate(db)
+    try db.exec("""
+        INSERT INTO trail_sessions (id, name, status, recap_text, recap_user_edited, created_at, updated_at)
+        VALUES ('a', 'Source', 'ended', 'My recap', 1, 1, 1),
+               ('b', 'Target', 'ended', 'Existing recap', 0, 1, 1),
+               ('c', 'Empty', 'ended', NULL, 0, 1, 1);
+        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at)
+        VALUES ('stop', 'a', 'GEN', 1, 0, 1);
+        INSERT INTO trail_tags (id, name, created_at) VALUES ('wisdom', 'Wisdom', 1), ('faith', 'Faith', 1);
+        INSERT INTO trail_tag_members (tag_id, trail_session_id, created_at)
+        VALUES ('wisdom', 'a', 2), ('wisdom', 'b', 3), ('faith', 'a', 4);
+        CREATE TRIGGER reject_trail_delete BEFORE DELETE ON trail_sessions
+        BEGIN SELECT RAISE(ABORT, 'test failure'); END;
+        """)
+    let trail = StudyTrailService(db: db)
+    #expect(throws: SQLiteError.self) { try trail.merge("a", into: "b", at: 5) }
+    #expect(try trail.stops(in: "a").map(\.id) == ["stop"])
+    #expect(try trail.tags(for: "a").filter(\.assigned).map(\.id).sorted() == ["faith", "wisdom"])
+    #expect(try trail.tags(for: "b").filter(\.assigned).map(\.id) == ["wisdom"])
+    #expect(try trail.trails().first { $0.id == "b" }?.recap == "Existing recap")
+
+    try db.exec("DROP TRIGGER reject_trail_delete")
+    #expect(try trail.merge("a", into: "b", at: 6))
+    let combined = "Existing recap\n\nFrom Source\n\nMy recap"
+    #expect(try trail.trails().first { $0.id == "b" }?.recap == combined)
+    #expect(try db.query("SELECT recap_user_edited FROM trail_sessions WHERE id = 'b'").first?["recap_user_edited"]?.int == 1)
+    let tags = try db.query("SELECT tag_id, trail_session_id, created_at FROM trail_tag_members ORDER BY tag_id")
+    #expect(tags.map { $0["trail_session_id"]?.string } == ["b", "b"])
+    #expect(tags.map { $0["created_at"]?.int } == [4, 3])
+
+    #expect(try trail.merge("b", into: "c", at: 7))
+    #expect(try trail.trails().first { $0.id == "c" }?.recap == combined)
+    #expect(try db.query("SELECT recap_user_edited FROM trail_sessions WHERE id = 'c'").first?["recap_user_edited"]?.int == 1)
 }
