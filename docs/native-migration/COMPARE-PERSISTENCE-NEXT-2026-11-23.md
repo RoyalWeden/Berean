@@ -1,6 +1,6 @@
 # Compare persistence — executable next packet (Nov23)
 
-Broad goal ACTIVE. Start with HANDOFF/CURRENT-STATE and verify live source. Per-visit memory restoration is source `d349bf41`; this packet describes unfinished work, not implemented persistence.
+Broad goal ACTIVE. Start with HANDOFF/CURRENT-STATE and verify live source. **Update:** semantic storage is now implemented in5f83fd65/ccab93fc/e17c1762; [actual evidence and remaining matrices](COMPARE-DURABLE-2026-11-23.md). The original design below is retained as rationale, not a claim it is still entirely unimplemented. Exact independent intra-row anchors and the listed remaining UI checks are next. Do not reimplement the new helper or replace stable IDs with indices.
 
 ## Requirements and current design evidence
 
@@ -24,3 +24,7 @@ Global History's SQL Compare entries currently describe destinations and log bef
 ## Other ready verification
 
 iPhone final per-visit build must still be installed and exercised on owned D0CC. Existing owned iPhone active reader remains Matthew5selected12/9tabs; final context app PID23044, Strong’s off, study panel closed. There is an existing Psalm23 Compare tab in another workspace (`f70b7e6e-67b6-4c4c-90a8-45d0cfe103c5`); use UI to inspect it or create an explicitly owned disposable QA tab, then restore original ID set. No direct DB writes or other-device fallback.
+
+## Remaining after semantic storage implementation
+
+Implement precise independent intra-row/fraction anchors with geometry/reflow validation. Verify Mac stacked and iPhone independent cold restart, synced independent peers, duplicate same-destination reorder/drag, explicit same-chapter jumps, rapid reversal/resize and accessibility. Keep exact per-visit priority/latest-map retention. Global SQL History exact historical viewport after restart remains separate. Current original reader setups are restored; use CURRENT for live source/runtime ownership rather than this packet's older candidate PIDs.

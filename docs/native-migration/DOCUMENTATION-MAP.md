@@ -94,3 +94,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Claude change audit, Nov23](CLAUDE-AUDIT-2026-11-23.md): full34commit/30file coverage, continuity corrections, concrete findings/fixes and verification.
 
 - [Compare durable-position next packet](COMPARE-PERSISTENCE-NEXT-2026-11-23.md): unfinished storage/identity plan, per-visit priority rules, both-platform tests and exact intra-row requirement after d349bf41.
+
+- [Durable Compare bookmarks](COMPARE-DURABLE-2026-11-23.md): implemented local semantic anchors, stable metadata/legacy compatibility, exact test failures/reruns, actual Mac+iPhone cold/history/reorder checks and remaining precision/UI gates.

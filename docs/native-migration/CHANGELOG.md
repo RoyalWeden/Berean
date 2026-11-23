@@ -2197,3 +2197,8 @@ Nov23 final follow-up: owner rejected excerpts with too little context. Final so
 ## Nov23 — per-visit Compare reading positions
 
 Source `d349bf41` records immutable passage-scoped viewport maps in in-tab history, reruns same-mounted restoration and protects saved bookmarks from early/stale callbacks. Both native builds and extracted snapshot probe pass. Actual Mac independent Compare→lexicon→Back retains logical verses; two separate visits to the same Exodus32 comparison remain distinct through Back/Forward. Exact independent intra-row pixels, durable restart storage, iPhone history runtime and aligned/stacked/rapid/selection matrices remain OPEN. See COMPARE-VIEWPORT-2026-11-21.md and COMPARE-PERSISTENCE-NEXT-2026-11-23.md. No sync/schema/identity changes; original QA rows and37/47active tab IDs preserved. Broad migration ACTIVE.
+
+
+## Nov23 — durable semantic Compare bookmarks
+
+`5f83fd65`/`ccab93fc` add bounded device-local anchors keyed by stable column identity and passage, preserving exact per-visit history priority. `e17c1762` keeps column metadata in legacy Compare and persists identical-destination reorders. Both native builds,377sharedtests,5802legacytests, typecheck and lint pass. Actual Mac independent/aligned cold and swapped-column cold; iPhone aligned cold and distinct-visit Back/Forward pass. Exact independent intra-row positions, Mac stacked/iPhone independent and wider jump/reflow/accessibility matrices remain OPEN. No schema/signing/corpus/production writes; watched QA original content and37/47activeIDs retained. [Architecture, failures and exact evidence](COMPARE-DURABLE-2026-11-23.md). Broad migration ACTIVE.
