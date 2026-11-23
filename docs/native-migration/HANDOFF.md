@@ -2951,3 +2951,4 @@ Idioms: see [IDIOMS-2026-11-20](IDIOMS-2026-11-20.md). The BibleGateway importer
 - NEXT (paused at usage limit, 2026-11-22): A05 — sim has only ShortcutsActions (no Shortcuts app), so run the 4 App Intents (OpenScripture/SearchBerean/OpenDailyNote/OpenWorkspace) on a device or via an in-app Debug invoker. Other open: physical-iPhone Psalm 119 + VoiceOver pass; owner decisions (Share Extension, widget, iCloud sync, AI models, vault); Read Aloud = Codex.
 - A05 intent routes verified on sim (open/search/daily/workspace-unknown); only Siri/Shortcuts system invocation remains (device). Sim reset to John 1 KJVA (the earlier 'back to John 1' openurl had raced app launch — fixed directly in the tab row).
 - S11 pinch-to-resize verified on sim (multi-touch 'mt [a, b] 0.1 [c, d] 0.8': 16→30, 30→12, clamped); fontSize restored to 16.
+- Q04 Mac lexicon search rows + Hebrew/Greek filter verified in the QA instance (AX palette + AXRadioButton press); tab closed.
