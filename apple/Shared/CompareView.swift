@@ -87,6 +87,12 @@ struct CompareColumn: Identifiable {
         ]
     }
 
+    var bookmarkColumn: CompareBookmarkColumn? {
+        guard let id = CompareViewports.columnID(in: record),
+              let destination = CompareBookmarkDestination(textID: text, bookID: book, chapter: chapter) else { return nil }
+        return CompareBookmarkColumn(id: id, destination: destination)
+    }
+
     var historyKey: String { destinationKey + (isPinned ? ":pinned" : "") }
 
     var destinationKey: String { "\(text):\(book):\(chapter)" }
@@ -251,10 +257,16 @@ struct CompareView: View {
     @State private var visibleAlignedVerses: Set<Int> = []
     @State private var columnViewportArrival: ColumnViewportArrival?
     @State private var arrivingAlignedAnchor: (passage: String, verse: Int)?
+    @State private var arrivingAlignedOffset: (passage: String, offset: CGFloat)?
     @State private var arrivingIndependentAnchors: (passage: String, verses: [Int: Int])?
     @State private var sharedScrollPosition = ScrollPosition()
     @State private var restoredSharedScroll: SharedViewportScope?
     @State private var restoredIndependentScroll: [Int: ViewportScope] = [:]
+    @State private var sharedUserScroll: SharedViewportScope?
+    #if os(macOS)
+    @State private var sharedWheelDriver: (scope: SharedViewportScope, deadline: TimeInterval)?
+    #endif
+    @State private var independentUserScroll: [Int: ViewportScope] = [:]
 
     private struct ViewportScope: Equatable {
         let passage: String
@@ -410,6 +422,12 @@ struct CompareView: View {
             if let presentationFocus, presentationFocus.anchor != anchor { self.presentationFocus = nil }
         }
         #endif
+        .onChange(of: app.activeTab?.id == tabId, initial: true) { _, active in
+            if active { materializeBookmarkColumns() }
+        }
+        .onChange(of: app.findTab(tabId)?.state["compareColumns"]) {
+            materializeBookmarkColumns()
+        }
         .task(id: Set(cols.map(ColumnBook.init))) {
             let books = Set(cols.map(ColumnBook.init))
             var numbers = chapterNumbers.filter { books.contains($0.key) }
@@ -479,17 +497,22 @@ struct CompareView: View {
             if current.historyRevision != nil {
                 columnViewportArrival = nil
                 arrivingAlignedAnchor = nil
+                arrivingAlignedOffset = nil
                 arrivingIndependentAnchors = nil
                 arrivingStackedAnchor = nil
             }
             if columnViewportArrival?.passage != passage { columnViewportArrival = nil }
             if arrivingAlignedAnchor?.passage != passage { arrivingAlignedAnchor = nil }
+            if arrivingAlignedOffset?.passage != passage { arrivingAlignedOffset = nil }
             if arrivingIndependentAnchors?.passage != passage { arrivingIndependentAnchors = nil }
             if arrivingStackedAnchor?.passage != passage { arrivingStackedAnchor = nil }
         }
         .onChange(of: loadedComparisonLayout) { _, layout in
             guard let layout else { return }
-            if layout != .aligned { arrivingAlignedAnchor = nil }
+            if layout != .aligned {
+                arrivingAlignedAnchor = nil
+                arrivingAlignedOffset = nil
+            }
             if layout != .independent { arrivingIndependentAnchors = nil }
             if layout != .stacked { arrivingStackedAnchor = nil }
         }
@@ -704,6 +727,7 @@ struct CompareView: View {
     private func comparisonGrid(_ st: BibleState, _ cols: [CompareColumn], passage: String) -> some View {
         let available = availableColumnIDs
         let scope = viewportScope(passage)
+        let bookmarkScope = sharedBookmarkScope(.aligned)
         #if os(macOS)
         let space = compareWidth - 48 - 18 * CGFloat(cols.count - 1)
         #endif
@@ -761,10 +785,10 @@ struct CompareView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id(v)
                 .onScrollVisibilityChange(threshold: 0.2) { visible in
-                    trackAlignedVerse(v, scope: scope, visible: visible)
+                    trackAlignedVerse(v, scope: scope, bookmarkScope: bookmarkScope, visible: visible)
                 }
                 .onDisappear {
-                    trackAlignedVerse(v, scope: scope, visible: false)
+                    trackAlignedVerse(v, scope: scope, bookmarkScope: bookmarkScope, visible: false)
                 }
             }
         }
@@ -778,6 +802,7 @@ struct CompareView: View {
     private func stackedComparison(_ state: BibleState, _ columns: [CompareColumn], passage: String) -> some View {
         let available = availableColumnIDs
         let scope = viewportScope(passage)
+        let bookmarkScope = sharedBookmarkScope(.aligned)
         return LazyVStack(alignment: .leading, spacing: 14) {
             // Headers share one container: as siblings their column ids (0, 1, …) collided with the verse rows'
             // `.id(verse)` and verse 1 vanished, leaving a gap under the headers.
@@ -816,10 +841,10 @@ struct CompareView: View {
                 }
                 .id(verse)
                 .onScrollVisibilityChange(threshold: 0.2) { visible in
-                    trackAlignedVerse(verse, scope: scope, visible: visible)
+                    trackAlignedVerse(verse, scope: scope, bookmarkScope: bookmarkScope, visible: visible)
                 }
                 .onDisappear {
-                    trackAlignedVerse(verse, scope: scope, visible: false)
+                    trackAlignedVerse(verse, scope: scope, bookmarkScope: bookmarkScope, visible: false)
                 }
             }
         }
@@ -858,7 +883,8 @@ struct CompareView: View {
                             if !remaining.isEmpty, remaining.allSatisfy({ !availableColumnIDs.contains($0.id) }) {
                                 // Keep the repair UI instead of opening another
                                 // unavailable saved chapter as a single reader.
-                                app.update(tabId) { $0.state["compareColumns"] = .array(remaining.map { .object($0.record) }) }
+                                let records = CompareViewports.repairColumnIDs(in: remaining.map(\.record))
+                                app.update(tabId) { $0.state["compareColumns"] = .array(records.map(JSValue.object)) }
                             } else {
                                 setColumns(remaining)
                             }
@@ -892,6 +918,81 @@ struct CompareView: View {
         }
     }
 
+    private func materializeBookmarkColumns() {
+        guard let tab = app.activeTab, tab.id == tabId, tab.tabType == .bible,
+              BibleState(tab.state).compareMode else { return }
+        var configured = tab.state
+        if configured["compareColumns"]?.arrayValue?.contains(where: {
+            $0.objectValue?["textId"]?.stringValue != nil
+        }) != true {
+            var records = CompareColumn.resolved(in: configured).map { JSValue.object($0.record) }
+            records.append(contentsOf: configured["compareColumns"]?.arrayValue ?? [])
+            configured["compareColumns"] = .array(records)
+        }
+        let repaired = CompareViewports.repairColumnIDs(in: configured)
+        guard let columns = repaired["compareColumns"], columns != tab.state["compareColumns"] else { return }
+        app.update(tabId, recordHistory: false) { $0.state["compareColumns"] = columns }
+    }
+
+    private func sharedBookmarkScope(_ layout: ComparisonLayout) -> CompareBookmarkScope? {
+        let source = state
+        guard let destination = CompareBookmarkDestination(textID: source.translation, bookID: source.bookId,
+                                                           chapter: source.chapter) else { return nil }
+        let configured = columns
+        let bookmarkColumns = configured.compactMap(\.bookmarkColumn)
+        guard bookmarkColumns.count == configured.count,
+              Set(bookmarkColumns.map(\.id)).count == bookmarkColumns.count else { return nil }
+        switch layout {
+        case .aligned: return .aligned(source: destination, columns: bookmarkColumns)
+        case .stacked: return .stacked(source: destination, columns: bookmarkColumns)
+        case .independent: return nil
+        }
+    }
+
+    private func independentBookmarkVerse(for column: CompareColumn) -> Int? {
+        guard let identity = column.bookmarkColumn,
+              let anchor = app.compareBookmarkPosition(for: tabId, scope: .independent(identity)),
+              independentRows[column.id]?.contains(where: { $0.verseNum == anchor.verse }) == true else { return nil }
+        return anchor.verse
+    }
+
+    private func saveIndependentBookmark(_ verse: Int, column: CompareColumn, scope: ViewportScope) {
+        guard isCurrentViewport(scope, layout: .independent), restoredIndependentScroll[column.id] == scope,
+              independentRows[column.id]?.contains(where: { $0.verseNum == verse }) == true,
+              let bookmarkColumn = column.bookmarkColumn,
+              columns.first(where: { $0.id == column.id })?.bookmarkColumn == bookmarkColumn,
+              let anchor = CompareBookmarkAnchor(verse: verse) else { return }
+        app.recordCompareBookmark(for: tabId, scope: .independent(bookmarkColumn), anchor: anchor)
+    }
+
+    private func saveSharedBookmark(context: SharedViewportScope, layout: ComparisonLayout, scope: CompareBookmarkScope?) {
+        guard restoredSharedScroll == context, isCurrentViewport(context.viewport, layout: layout),
+              let scope, scope == sharedBookmarkScope(layout) else { return }
+        let anchor: CompareBookmarkAnchor?
+        switch layout {
+        case .aligned:
+            guard let verse = visibleAlignedVerses.min(), rows[verse] != nil else { return }
+            anchor = CompareBookmarkAnchor(verse: verse)
+        case .stacked:
+            guard let target = topStackedVerse(in: columns),
+                  let columnID = columns.first(where: { $0.id == target.columnID })?.bookmarkColumn?.id else { return }
+            anchor = CompareBookmarkAnchor(verse: target.verse, columnID: columnID)
+        case .independent:
+            return
+        }
+        if let anchor { app.recordCompareBookmark(for: tabId, scope: scope, anchor: anchor) }
+    }
+
+    private func topStackedVerse(in columns: [CompareColumn]) -> StackedVerseTarget? {
+        for column in columns {
+            if let verse = visibleStackedVerses[column.id]?.min(),
+               independentRows[column.id]?.contains(where: { $0.verseNum == verse }) == true {
+                return StackedVerseTarget(columnID: column.id, verse: verse)
+            }
+        }
+        return nil
+    }
+
     private func alignedComparison(_ state: BibleState, _ columns: [CompareColumn], passage: String) -> some View {
         let key = "aligned|" + passage
         let scope = viewportScope(passage)
@@ -900,15 +1001,25 @@ struct CompareView: View {
                 let current = self.state
                 if isCurrentCompareJump(current) {
                     arrivingAlignedAnchor = nil
+                    arrivingAlignedOffset = nil
                     if let verse = current.verse { proxy.scrollTo(verse, anchor: .top) }
+                } else if scope.historyRevision != nil {
+                    sharedScrollPosition.scrollTo(y: 0)
+                } else if let transfer = arrivingAlignedOffset, transfer.passage == passage {
+                    arrivingAlignedOffset = nil
+                    sharedScrollPosition.scrollTo(y: transfer.offset)
                 } else if let bookmark = arrivingAlignedAnchor, bookmark.passage == passage {
                     arrivingAlignedAnchor = nil
                     let target = rows.keys.filter { $0 >= bookmark.verse }.min() ?? rows.keys.max()
                     if let target { proxy.scrollTo(target, anchor: .top) }
+                } else if let bookmarkScope = sharedBookmarkScope(.aligned),
+                          let bookmark = app.compareBookmarkPosition(for: tabId, scope: bookmarkScope),
+                          rows[bookmark.verse] != nil {
+                    proxy.scrollTo(bookmark.verse, anchor: .top)
+                } else if let offset = app.compareScrollOffsets[tabId]?[key] {
+                    sharedScrollPosition.scrollTo(y: offset)
                 } else if let verse = current.verse {
                     proxy.scrollTo(verse, anchor: .top)
-                } else if scope.historyRevision != nil {
-                    sharedScrollPosition.scrollTo(y: 0)
                 }
             }) {
                 #if os(iOS)
@@ -944,7 +1055,9 @@ struct CompareView: View {
             .onChange(of: state.verse) { _, verse in
                 guard isCurrentViewport(scope, layout: .aligned), let verse,
                       restoredSharedScroll == SharedViewportScope(key: key, viewport: scope) else { return }
-                if arrivingAlignedAnchor?.passage == passage, !isCurrentCompareJump(self.state) { return }
+                if !isCurrentCompareJump(self.state),
+                   (scope.historyRevision != nil || arrivingAlignedAnchor?.passage == passage
+                    || arrivingAlignedOffset?.passage == passage) { return }
                 proxy.scrollTo(verse, anchor: .top)
             }
         }
@@ -965,6 +1078,7 @@ struct CompareView: View {
                                                       initialJump: @escaping () -> Void,
                                                       @ViewBuilder content: () -> Content) -> some View {
         let scope = SharedViewportScope(key: key, viewport: viewportScope(passage))
+        let bookmarkScope = sharedBookmarkScope(layout)
         let taskScope = ViewportTaskScope(viewport: scope.viewport, ready: isCurrentLoadedLayout(layout, passage: passage))
         return ScrollView(content: content)
             .contentMargins(.bottom, comparisonActionClearance, for: .scrollContent)
@@ -974,19 +1088,53 @@ struct CompareView: View {
             } action: { _, offset in
                 guard isCurrentViewport(scope.viewport, layout: layout), restoredSharedScroll == scope else { return }
                 app.compareScrollOffsets[tabId, default: [:]][key] = offset
+                if isSharedUserScroll(scope) {
+                    saveSharedBookmark(context: scope, layout: layout, scope: bookmarkScope)
+                }
+            }
+            #if os(macOS)
+            .background {
+                CompareWheelRegion {
+                    guard restoredSharedScroll == scope, isCurrentViewport(scope.viewport, layout: layout) else { return }
+                    sharedWheelDriver = (scope, ProcessInfo.processInfo.systemUptime + 0.25)
+                }
+                .allowsHitTesting(false)
+            }
+            #endif
+            .onScrollPhaseChange { _, phase in
+                guard restoredSharedScroll == scope, isCurrentViewport(scope.viewport, layout: layout) else { return }
+                if phase == .interacting || phase == .decelerating {
+                    sharedUserScroll = scope
+                } else if phase == .idle, sharedUserScroll == scope {
+                    sharedUserScroll = nil
+                    saveSharedBookmark(context: scope, layout: layout, scope: bookmarkScope)
+                }
             }
             .task(id: taskScope) {
                 guard taskScope.ready, isCurrentViewport(scope.viewport, layout: layout) else { return }
                 restoredSharedScroll = nil
+                sharedUserScroll = nil
+                #if os(macOS)
+                sharedWheelDriver = nil
+                #endif
                 await Task.yield()
                 guard !Task.isCancelled, isCurrentViewport(scope.viewport, layout: layout) else { return }
-                if let offset = app.compareScrollOffsets[tabId]?[key], !isCurrentCompareJump(state) {
+                if scope.viewport.historyRevision != nil, !isCurrentCompareJump(state),
+                   let offset = app.compareScrollOffsets[tabId]?[key] {
                     sharedScrollPosition.scrollTo(y: offset)
                 } else {
                     initialJump()
                 }
                 restoredSharedScroll = scope
             }
+    }
+
+    private func isSharedUserScroll(_ scope: SharedViewportScope) -> Bool {
+        #if os(macOS)
+        if let sharedWheelDriver, sharedWheelDriver.scope == scope,
+           ProcessInfo.processInfo.systemUptime <= sharedWheelDriver.deadline { return true }
+        #endif
+        return sharedUserScroll == scope
     }
 
     private func isCurrentLoadedPassage(_ passage: String) -> Bool {
@@ -999,12 +1147,15 @@ struct CompareView: View {
         isCurrentLoadedPassage(passage) && loadedComparisonLayout == layout
     }
 
-    private func trackAlignedVerse(_ verse: Int, scope: ViewportScope, visible: Bool) {
+    private func trackAlignedVerse(_ verse: Int, scope: ViewportScope, bookmarkScope: CompareBookmarkScope?, visible: Bool) {
         guard isCurrentViewport(scope, layout: .aligned) else { return }
         if visible {
             visibleAlignedVerses.insert(verse)
         } else {
             visibleAlignedVerses.remove(verse)
+        }
+        if let context = restoredSharedScroll, context.viewport == scope, isSharedUserScroll(context) {
+            saveSharedBookmark(context: context, layout: .aligned, scope: bookmarkScope)
         }
     }
 
@@ -1053,10 +1204,17 @@ struct CompareView: View {
                         .onScrollPhaseChange { _, phase in
                             guard isCurrentViewport(scope, layout: .independent) else { return }
                             switch phase {
-                            case .interacting:
+                            case .interacting, .decelerating:
+                                independentUserScroll[column.id] = scope
                                 scrollingColumn = column.id
                                 lastScrolledColumn = column.id
                             case .idle:
+                                if independentUserScroll[column.id] == scope {
+                                    independentUserScroll[column.id] = nil
+                                    if let verse = visibleIndependentRows[column.id]?.min() ?? independentVisibleVerses[column.id] {
+                                        saveIndependentBookmark(verse, column: column, scope: scope)
+                                    }
+                                }
                                 if scrollingColumn == column.id { scrollingColumn = nil }
                             default: break
                             }
@@ -1080,13 +1238,16 @@ struct CompareView: View {
                             let key = columnScrollKey(column.id, passage: passage)
                             let bookmark = arrivingIndependentAnchors?.passage == passage
                                 ? arrivingIndependentAnchors?.verses[column.id] : nil
-                            let historyRestore = scope.historyRevision != nil
-                            let recentVerse = historyRestore ? nil : independentVisibleVerses[column.id]
-                            let verse = bookmark ?? recentVerse
-                                ?? app.compareColumnScrollVerses[tabId]?[key]
-                                ?? selectedRows(in: column, source: state).first?.verseNum
-                                ?? column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) }
-                                ?? (historyRestore ? independentRows[column.id]?.first?.verseNum : nil)
+                            let cached = app.compareColumnScrollVerses[tabId]?[key]
+                            let verse: Int?
+                            if scope.historyRevision != nil {
+                                verse = cached ?? independentRows[column.id]?.first?.verseNum
+                            } else {
+                                verse = bookmark ?? independentBookmarkVerse(for: column)
+                                    ?? independentVisibleVerses[column.id] ?? cached
+                                    ?? selectedRows(in: column, source: state).first?.verseNum
+                                    ?? column.legacyScrollVerse.flatMap { correspondingVerse($0, in: column) }
+                            }
                             if bookmark != nil { arrivingIndependentAnchors?.verses.removeValue(forKey: column.id) }
                             let current = self.state
                             if isCurrentCompareJump(current) {
@@ -1142,6 +1303,9 @@ struct CompareView: View {
             if app.activeTab?.id == tabId, let verse {
                 let key = columnScrollKey(column.id, passage: scope.passage)
                 app.compareColumnScrollVerses[tabId, default: [:]][key] = verse
+                if independentUserScroll[column.id] == scope || drivesScrollSync(column.id) {
+                    saveIndependentBookmark(verse, column: column, scope: scope)
+                }
             }
         })
     }
@@ -1158,6 +1322,9 @@ struct CompareView: View {
         // A native scrollbar can move the visible rows without publishing a new bound target.
         let key = columnScrollKey(column.id, passage: scope.passage)
         app.compareColumnScrollVerses[tabId, default: [:]][key] = top
+        if independentUserScroll[column.id] == scope || drivesScrollSync(column.id) {
+            saveIndependentBookmark(top, column: column, scope: scope)
+        }
         guard syncScrolling, drivesScrollSync(column.id) else { return }
         for destination in columns where destination.id != column.id && destination.book == column.book {
             guard let mapped = PsalmSuperscription.synchronizedVerse(column.book, chapter: column.chapter, verse: top,
@@ -1167,6 +1334,9 @@ struct CompareView: View {
             if independentVisibleVerses[destination.id] != match {
                 independentVisibleVerses[destination.id] = match
             }
+            // The peer movement belongs to this genuine user scroll too, even
+            // though its own ScrollView only receives a programmed target.
+            saveIndependentBookmark(match, column: destination, scope: scope)
         }
     }
 
@@ -1200,21 +1370,31 @@ struct CompareView: View {
         let scope = viewportScope(passage)
         return ScrollViewReader { proxy in
             restoredCompareScroll(key: key, passage: passage, layout: .stacked, initialJump: {
-                if isCurrentCompareJump(self.state), let target = stackedSelectionTarget(in: columns, state: self.state) {
+                if isCurrentCompareJump(self.state) {
                     arrivingStackedAnchor = nil
-                    proxy.scrollTo(target, anchor: .top)
+                    if let target = stackedSelectionTarget(in: columns, state: self.state) {
+                        proxy.scrollTo(target, anchor: .top)
+                    }
                     return
                 }
-                if let bookmark = arrivingStackedAnchor, bookmark.passage == passage {
+                if scope.historyRevision != nil {
+                    sharedScrollPosition.scrollTo(y: 0)
+                } else if let bookmark = arrivingStackedAnchor, bookmark.passage == passage {
                     arrivingStackedAnchor = nil
                     proxy.scrollTo(bookmark.target, anchor: .top)
+                } else if let bookmarkScope = sharedBookmarkScope(.stacked),
+                          let bookmark = app.compareBookmarkPosition(for: tabId, scope: bookmarkScope),
+                          let id = bookmark.columnID,
+                          let column = self.columns.first(where: { $0.bookmarkColumn?.id == id }),
+                          independentRows[column.id]?.contains(where: { $0.verseNum == bookmark.verse }) == true {
+                    proxy.scrollTo(StackedVerseTarget(columnID: column.id, verse: bookmark.verse), anchor: .top)
+                } else if let offset = app.compareScrollOffsets[tabId]?[key] {
+                    sharedScrollPosition.scrollTo(y: offset)
                 } else if let column = columns.first(where: { $0.id == lastScrolledColumn }),
                           let verse = app.compareColumnScrollVerses[tabId]?[columnScrollKey(column.id, passage: passage)] {
                     proxy.scrollTo(StackedVerseTarget(columnID: column.id, verse: verse), anchor: .top)
                 } else if let target = stackedSelectionTarget(in: columns, state: state) {
                     proxy.scrollTo(target, anchor: .top)
-                } else if scope.historyRevision != nil {
-                    sharedScrollPosition.scrollTo(y: 0)
                 }
             }) {
                 independentComparison(columns, passage: passage)
@@ -1225,11 +1405,7 @@ struct CompareView: View {
                 proxy.scrollTo(target, anchor: .top)
             }
             .onChange(of: state.showStrongs) { _, enabled in
-                let target = columns.compactMap { column -> StackedVerseTarget? in
-                    guard let verse = visibleStackedVerses[column.id]?.min() else { return nil }
-                    return StackedVerseTarget(columnID: column.id, verse: verse)
-                }.first
-                guard let target, (app.compareScrollOffsets[tabId]?["stacked|" + passage] ?? 0) > 1 else { return }
+                guard let target = topStackedVerse(in: columns), (app.compareScrollOffsets[tabId]?["stacked|" + passage] ?? 0) > 1 else { return }
                 let jumpRevision = app.scriptureJumpRequest?.revision
                 Task { @MainActor in
                     await Task.yield()
@@ -1429,6 +1605,7 @@ struct CompareView: View {
     @ViewBuilder private func independentVerses(_ column: CompareColumn, compact: Bool = false,
                                                 stackedPassage: String? = nil, independentPassage: String? = nil) -> some View {
         if let verses = independentRows[column.id], !verses.isEmpty {
+            let bookmarkScope = stackedPassage == nil ? nil : sharedBookmarkScope(.stacked)
             let selected = selectionNumbers(in: column)
             ForEach(verses, id: \.verseNum) { row in
                 let isSelected = selected.contains(row.verseNum)
@@ -1439,10 +1616,10 @@ struct CompareView: View {
                     content
                         .id(StackedVerseTarget(columnID: column.id, verse: row.verseNum))
                         .onScrollVisibilityChange(threshold: 0.2) { visible in
-                            trackStackedVerse(row.verseNum, columnID: column.id, scope: scope, visible: visible)
+                            trackStackedVerse(row.verseNum, columnID: column.id, scope: scope, bookmarkScope: bookmarkScope, visible: visible)
                         }
                         .onDisappear {
-                            trackStackedVerse(row.verseNum, columnID: column.id, scope: scope, visible: false)
+                            trackStackedVerse(row.verseNum, columnID: column.id, scope: scope, bookmarkScope: bookmarkScope, visible: false)
                         }
                 } else if let independentPassage {
                     let scope = viewportScope(independentPassage)
@@ -1462,12 +1639,16 @@ struct CompareView: View {
         }
     }
 
-    private func trackStackedVerse(_ verse: Int, columnID: Int, scope: ViewportScope, visible: Bool) {
+    private func trackStackedVerse(_ verse: Int, columnID: Int, scope: ViewportScope,
+                                   bookmarkScope: CompareBookmarkScope?, visible: Bool) {
         guard isCurrentViewport(scope, layout: .stacked) else { return }
         if visible {
             visibleStackedVerses[columnID, default: []].insert(verse)
         } else {
             visibleStackedVerses[columnID]?.remove(verse)
+        }
+        if let context = restoredSharedScroll, context.viewport == scope, isSharedUserScroll(context) {
+            saveSharedBookmark(context: context, layout: .stacked, scope: bookmarkScope)
         }
     }
 
@@ -2351,7 +2532,8 @@ struct CompareView: View {
         }
         let remappedSelection = preserveReadingPositions(for: cols)
         app.update(tabId) { tab in
-            tab.state["compareColumns"] = .array(cols.map { .object($0.record) })
+            let records = CompareViewports.repairColumnIDs(in: cols.map(\.record))
+            tab.state["compareColumns"] = .array(records.map(JSValue.object))
         }
         // update records the outgoing history entry from the old selection.
         if let remappedSelection { app.compareSelections[tabId] = remappedSelection }
@@ -2421,10 +2603,13 @@ struct CompareView: View {
         lastScrolledColumn = nil
         #if os(macOS)
         wheelDriver = nil
+        sharedWheelDriver = nil
         #endif
         sharedScrollPosition = ScrollPosition()
         restoredSharedScroll = nil
         restoredIndependentScroll = [:]
+        sharedUserScroll = nil
+        independentUserScroll = [:]
     }
 
     private func captureColumnViewport(from oldPassage: String, to newPassage: String, layout: ComparisonLayout,
@@ -2457,6 +2642,7 @@ struct CompareView: View {
         columnViewportArrival = nil
         arrivingIndependentAnchors = nil
         arrivingAlignedAnchor = nil
+        arrivingAlignedOffset = nil
         arrivingStackedAnchor = nil
         if let jump = app.scriptureJumpRequest, jump.tabID == tabId, jump.chapter == ChapterEdition(source) { return }
         let available = availableColumnIDs
@@ -2473,7 +2659,7 @@ struct CompareView: View {
         case .aligned:
             let key = "aligned|" + passage
             if let offset = arrival.alignedOffset {
-                app.compareScrollOffsets[tabId, default: [:]][key] = offset
+                arrivingAlignedOffset = (passage, offset)
             } else if let verse = arrival.alignedVerse ?? alignedViewportVerse(for: arrival.preferredColumns,
                                                                                 verses: verses, columns: visible, source: source) {
                 app.compareScrollOffsets[tabId]?.removeValue(forKey: key)

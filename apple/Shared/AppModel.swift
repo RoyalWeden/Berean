@@ -576,6 +576,7 @@ final class AppModel {
         saveTask?.cancel()
         saveTask = nil
         guard let svc = sessionsService else { return }
+        flushCompareBookmarks()
         let started = ContinuousClock.now
         let interval = workspaceSaveSignposter.beginInterval("Save workspace state")
         defer {
@@ -949,6 +950,8 @@ final class AppModel {
     func close(_ tabId: String) {
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
+        pendingCompareBookmarks.removeValue(forKey: tabId)
+        compareBookmarkRecords.removeValue(forKey: tabId)
         compareSelections.removeValue(forKey: tabId)
         if compareHistoryRestore?.tabID == tabId { compareHistoryRestore = nil }
         studyVerseFocus.removeValue(forKey: tabId)
@@ -1106,6 +1109,9 @@ final class AppModel {
 
     private func historyLocation(_ tab: BereanWorkspace.Tab) -> TabHistoryLocation {
         var snapshot = tab
+        if tab.tabType == .bible {
+            snapshot.state = applyingCompareBookmarks(in: tab.state, tabID: tab.id)
+        }
         var compareSelection: CompareSelectionSnapshot?
         var compareViewport: CompareViewportSnapshot?
         if tab.tabType == .bible {
@@ -1170,7 +1176,14 @@ final class AppModel {
     }
 
     private func restoreLocation(_ location: TabHistoryLocation, for id: String) {
-        guard sessions[sessionIndex].replaceTabContent(id, with: location.tab) != nil else { return }
+        var destination = location.tab
+        if let current = findTab(id) {
+            let bookmarks = applyingCompareBookmarks(in: current.state, tabID: id)
+            if destination.tabType == .bible {
+                destination.state = CompareViewports.merging(current: bookmarks, into: destination.state)
+            }
+        }
+        guard sessions[sessionIndex].replaceTabContent(id, with: destination) != nil else { return }
         scriptureHistoryRestore = nil
         compareHistoryRestore = nil
         compareSelections[id] = location.compareSelection
@@ -1216,6 +1229,97 @@ final class AppModel {
     @ObservationIgnored var compareScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var compareColumnScrollVerses: [String: [String: Int]] = [:]
     @ObservationIgnored var compareSelections: [String: CompareSelectionSnapshot] = [:]
+    // Live semantic bookmarks stay out of SwiftUI observation while scrolling.
+    // The bounded field is folded into local tab state once the existing save
+    // debounce settles, and synchronously when a lifecycle flush is requested.
+    private struct PendingCompareBookmark {
+        let anchor: CompareBookmarkAnchor
+        let order: UInt64
+    }
+    @ObservationIgnored private var compareBookmarkOrder: UInt64 = 0
+    @ObservationIgnored private var pendingCompareBookmarks: [String: [CompareBookmarkScope: PendingCompareBookmark]] = [:]
+    @ObservationIgnored private var compareBookmarkRecords: [String: JSObject] = [:]
+
+    func compareBookmarkPosition(for tabId: String, scope: CompareBookmarkScope) -> CompareBookmarkAnchor? {
+        guard let tab = findTab(tabId), validCompareBookmarkScope(scope, in: tab) else { return nil }
+        if let pending = pendingCompareBookmarks[tabId]?[scope] { return pending.anchor }
+        var state = tab.state
+        if let records = compareBookmarkRecords[tabId] {
+            state[CompareViewports.field] = records.isEmpty ? nil : .object(records)
+        }
+        return CompareViewports.position(in: state, scope: scope)
+    }
+
+    func recordCompareBookmark(for tabId: String, scope: CompareBookmarkScope, anchor: CompareBookmarkAnchor) {
+        guard activeTab?.id == tabId, let tab = findTab(tabId),
+              validCompareBookmarkScope(scope, in: tab),
+              compareBookmarkPosition(for: tabId, scope: scope) != anchor else { return }
+        switch scope {
+        case .independent, .aligned:
+            guard anchor.columnID == nil else { return }
+        case .stacked(_, let columns):
+            guard columns.contains(where: { $0.id == anchor.columnID }) else { return }
+        }
+        compareBookmarkOrder &+= 1
+        pendingCompareBookmarks[tabId, default: [:]][scope] = PendingCompareBookmark(anchor: anchor, order: compareBookmarkOrder)
+        scheduleSave()
+    }
+
+    private func validCompareBookmarkScope(_ scope: CompareBookmarkScope, in tab: BereanWorkspace.Tab) -> Bool {
+        guard tab.tabType == .bible else { return false }
+        let state = BibleState(tab.state)
+        guard state.compareMode,
+              let source = CompareBookmarkDestination(textID: state.translation, bookID: state.bookId, chapter: state.chapter) else { return false }
+        let resolved = CompareColumn.resolved(in: tab.state)
+        let columns = resolved.compactMap { column -> CompareBookmarkColumn? in
+            guard let id = CompareViewports.columnID(in: column.record),
+                  let destination = CompareBookmarkDestination(textID: column.text, bookID: column.book, chapter: column.chapter) else { return nil }
+            return CompareBookmarkColumn(id: id, destination: destination)
+        }
+        guard columns.count == resolved.count, Set(columns.map(\.id)).count == columns.count else { return false }
+        switch scope {
+        case .independent(let column): return columns.contains(column)
+        case .aligned(let anchor, let configured), .stacked(let anchor, let configured):
+            return anchor == source && configured == columns
+        }
+    }
+
+    private func applyingCompareBookmarks(in original: JSObject, tabID: String) -> JSObject {
+        var state = original
+        if let records = compareBookmarkRecords[tabID] {
+            state[CompareViewports.field] = records.isEmpty ? nil : .object(records)
+        }
+        if let pending = pendingCompareBookmarks[tabID] {
+            for (scope, value) in pending.sorted(by: { $0.value.order < $1.value.order }) {
+                state = CompareViewports.updating(state, scope: scope, position: value.anchor)
+            }
+        }
+        // Remember even an empty map so history cannot resurrect an evicted bookmark.
+        compareBookmarkRecords[tabID] = state[CompareViewports.field]?.objectValue ?? JSObject()
+        pendingCompareBookmarks.removeValue(forKey: tabID)
+        return state
+    }
+
+    private func flushCompareBookmarks() {
+        // History capture can drain the pending queue into the ignored records
+        // before the next save. Include those records in the lifecycle flush too.
+        let pendingIDs = Set(pendingCompareBookmarks.keys).union(compareBookmarkRecords.keys)
+        guard !pendingIDs.isEmpty else { return }
+        for workspace in sessions.indices {
+            for space in SpaceId.allCases {
+                guard var tabs = sessions[workspace].tabs[space] else { continue }
+                var changed = false
+                for index in tabs.indices where pendingIDs.contains(tabs[index].id) {
+                    let state = applyingCompareBookmarks(in: tabs[index].state, tabID: tabs[index].id)
+                    if tabs[index].tabType == .bible, state != tabs[index].state {
+                        tabs[index].state = state
+                        changed = true
+                    }
+                }
+                if changed { sessions[workspace].tabs[space] = tabs }
+            }
+        }
+    }
     private struct CompareViewportSnapshot: Equatable {
         let passage: String
         let offsets: [String: CGFloat]
