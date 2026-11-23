@@ -86,3 +86,5 @@ Owner explicit copy contract (both Mac and iPhone): audit all verse-copy actions
 - 2026-11-23: Audit all new Claude work and fix poor behavior/quality. Every AI must continuously record results in HANDOFF and CURRENT-STATE together; historical appends alone do not keep the current handoff usable.
 
 - 2026-11-23: Lexicon occurrence excerpts must keep the highlighted match visible, including narrow Scripture sidepanels. Make Study Trail and Messages easy to access on both apps without clutter or routine new tabs. KJVA passage picker opens at books (currentbook highlighted), with faster access across OT/NT/Apocrypha; single-book texts retain direct chapter access.
+
+- 2026-11-23 follow-up: Passage picker uses concise work-relative names forRecognitions ofClement books (Book1,Book2,etc.) andHermas sections, without changingcanonicalreferences/identities. Auditreferencehovercursors inNotes/Messages andallrelatedrichtext: linkedpassages shouldshowlinkaffordance, ordinaryeditable/selectabletextretainsIbeam. AdvancedScripturesearch andsimilarclickableresultrows need clearrestrainedhoverfeedback.

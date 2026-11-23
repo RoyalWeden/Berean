@@ -553,3 +553,6 @@ Source `d349bf41` records immutable passage-scoped viewport maps in in-tab histo
 
 ## 2026-11-23 — Active precision and owner build readiness
 Source b3b60497/e61ebfaa/ecec1418 adds mandatory install-ready continuity, readable lexicon excerpts and independent Compare rowcrop restoration. Actual two-platform runtime checks documented in COMPARE-PRECISION-2026-11-23.md, LEXICON-EXCERPTS-2026-11-23.md and NOTES-SLASH-RUNTIME-2026-11-23.md. Fullnative378tests/95suites PASS. Owner-folder Mac and signed physical-device builds PASS; final simulator check PASS; documentation/publication being finalized. No physical install or production/sync change. Broad migration ACTIVE; cold-afterolderBack and wider parity remain executable engineering. Start current HANDOFF/CURRENT rather than this dated evidence.
+
+## Nov23 continuation — focused native improvements
+Picker labels, rich-reference Mac cursors, search-row feedback and independent Compare active-history persistence are implemented through 7b694f3c. Full native suite381/95 and focused Compare11 pass; both native platforms compile. Actual Mac/iPhone picker and Mac rich-link interactions pass. Mac independent cold replay is within one display pixel. Physical hover, iPhone active-history and aligned/stacked restoration remain open; see CURRENT-STATE for the live install/build receipt and HANDOFF for the next work.
