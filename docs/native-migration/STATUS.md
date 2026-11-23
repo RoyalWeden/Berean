@@ -556,3 +556,6 @@ Source b3b60497/e61ebfaa/ecec1418 adds mandatory install-ready continuity, reada
 
 ## Nov23 continuation — focused native improvements
 Picker labels, rich-reference Mac cursors, search-row feedback and independent Compare active-history persistence are implemented through 7b694f3c. Full native suite381/95 and focused Compare11 pass; both native platforms compile. Actual Mac/iPhone picker and Mac rich-link interactions pass. Mac independent cold replay is within one display pixel. Physical hover, iPhone active-history and aligned/stacked restoration remain open; see CURRENT-STATE for the live install/build receipt and HANDOFF for the next work.
+
+### Nov23 — Native reference preview and Compare interaction follow-through
+12d2e360 adds a350ms read-only Strong’s preview in the Mac Notes editor, using actual link glyphs and cancellable Lexicon lookup. Actual isolated AppKit lifecycle tests pass; physical pointer dwell remains unverified.09e34b1d gives linked Compare verses native cursor regions, correct first-baseline alignment, and whole-column lift before native text capture. Actual independent Compare drag/drop, normal Strong’s/number clicks, word selection and context menus pass. See NOTES-HOVER-COMPARE-2026-11-23.md for exact evidence, environment failures and remaining cases. No production/sync/schema or note-source change.
