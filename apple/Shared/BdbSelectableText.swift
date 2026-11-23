@@ -95,8 +95,12 @@ struct BdbSelectableText: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
-        guard let width = proposal.width, width > 0, let container = nsView.textContainer,
-              let layout = nsView.layoutManager else { return nil }
+        // Always answer with a real width: returning nil for an unspecified width made SwiftUI fall
+        // back to NSTextView's narrow intrinsic size, so the notes wrapped into a thin column taller
+        // than their reserved height and overlapped Derived Terms (Mac H7462).
+        let proposed = proposal.width.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        let width = proposed ?? (nsView.bounds.width > 40 ? nsView.bounds.width : 560)
+        guard let container = nsView.textContainer, let layout = nsView.layoutManager else { return nil }
         container.containerSize = CGSize(width: width, height: .greatestFiniteMagnitude)
         layout.ensureLayout(for: container)
         return CGSize(width: width, height: ceil(layout.usedRect(for: container).height))

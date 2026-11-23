@@ -320,7 +320,7 @@ struct LexiconEntryView: View {
                         if !e.derivation.isEmpty { section("Derivation") { linkedText(replaced(e.derivation), lang: e.strongsNum.first ?? "H").textSelection(.enabled).environment(\.openURL, lexiconLinkAction) }.id(FindSection.derivation) }
                         if !e.extendedDef.isEmpty, !compact {
                             if e.strongsNum.hasPrefix("H") {
-                                section("BDB Notes") { BdbSelectableText(text: replaced(e.extendedDef), findQuery: findShown ? findQuery : "") }.id(FindSection.extended)
+                                section("BDB Notes") { BdbSelectableText(text: replaced(e.extendedDef), findQuery: findShown ? findQuery : "").frame(maxWidth: .infinity, alignment: .leading) }.id(FindSection.extended)
                             } else {
                                 section("Extended") { Text(markFind(AttributedString(replaced(e.extendedDef)))).textSelection(.enabled) }.id(FindSection.extended)
                             }
