@@ -950,7 +950,7 @@ final class AppModel {
         compareScrollOffsets.removeValue(forKey: tabId)
         compareColumnScrollVerses.removeValue(forKey: tabId)
         compareSelections.removeValue(forKey: tabId)
-        if compareSelectionHistoryRestore?.tabID == tabId { compareSelectionHistoryRestore = nil }
+        if compareHistoryRestore?.tabID == tabId { compareHistoryRestore = nil }
         studyVerseFocus.removeValue(forKey: tabId)
         dailyTimelinePositions.removeValue(forKey: tabId)
         // Closing the tab on screen selects its neighbour in the sidebar list (below, else above).
@@ -1060,6 +1060,12 @@ final class AppModel {
             }
             if recordHistory, locationChanged {
                 if scriptureHistoryRestore?.tabID == tabId { scriptureHistoryRestore = nil }
+                if let restore = compareHistoryRestore, restore.tabID == tabId {
+                    let state = BibleState(after.state)
+                    if !state.compareMode || restore.passage != CompareColumn.passageKey(state, CompareColumn.resolved(in: after.state)) {
+                        compareHistoryRestore = nil
+                    }
+                }
                 if let saved = after.state["nativeSelectedVerses"], saved == before.state["nativeSelectedVerses"],
                    Self.selectionLocation(before) != Self.selectionLocation(after) {
                     sessions[sessionIndex].tabs[sp]![idx].state.remove("nativeSelectedVerses")
@@ -1090,6 +1096,7 @@ final class AppModel {
         var notesOptions: NotesHomeView.BrowseOptions?
         var notesReturnTab: String?
         var compareSelection: CompareSelectionSnapshot?
+        var compareViewport: CompareViewportSnapshot?
     }
 
     private enum TabHistoryEntry: Equatable {
@@ -1100,12 +1107,16 @@ final class AppModel {
     private func historyLocation(_ tab: BereanWorkspace.Tab) -> TabHistoryLocation {
         var snapshot = tab
         var compareSelection: CompareSelectionSnapshot?
+        var compareViewport: CompareViewportSnapshot?
         if tab.tabType == .bible {
             let state = BibleState(tab.state)
             let chapter = ChapterEdition(state).key
             if state.compareMode {
                 let passage = CompareColumn.passageKey(state, CompareColumn.resolved(in: tab.state))
                 if let saved = compareSelections[tab.id], saved.passage == passage { compareSelection = saved }
+                compareViewport = CompareViewportSnapshot(passage: passage,
+                    offsets: compareScrollOffsets[tab.id, default: [:]],
+                    verses: compareColumnScrollVerses[tab.id, default: [:]])
             } else if let position = scriptureReadingPositions[tab.id]?[chapter]?.persisted,
                       position != ReaderViewports.position(in: tab.state, chapter: chapter) {
                 snapshot.state = ReaderViewports.updating(tab.state, chapter: chapter, position: position)
@@ -1122,7 +1133,8 @@ final class AppModel {
             snapshot.state["searchScrollTop"] = .number(Double(offset))
         }
         return TabHistoryLocation(tab: snapshot, notesOptions: notesBrowseOptions[tab.id],
-                                  notesReturnTab: noteListReturnTabs[tab.id], compareSelection: compareSelection)
+                                  notesReturnTab: noteListReturnTabs[tab.id], compareSelection: compareSelection,
+                                  compareViewport: compareViewport)
     }
 
     /// Explicit location editing keeps this tab's identity, pin and sidebar position,
@@ -1144,7 +1156,7 @@ final class AppModel {
                                               originTabId: origin?.id, originSpaceId: origin?.spaceId)
         guard sessions[sessionIndex].replaceTabContent(current.id, with: destination) != nil else { return false }
         if scriptureHistoryRestore?.tabID == current.id { scriptureHistoryRestore = nil }
-        if compareSelectionHistoryRestore?.tabID == current.id { compareSelectionHistoryRestore = nil }
+        if compareHistoryRestore?.tabID == current.id { compareHistoryRestore = nil }
         backStack[current.id, default: []].append(.location(previous))
         if backStack[current.id]!.count > tabNavMaxStack { backStack[current.id]!.removeFirst() }
         forwardStack[current.id] = []
@@ -1160,7 +1172,7 @@ final class AppModel {
     private func restoreLocation(_ location: TabHistoryLocation, for id: String) {
         guard sessions[sessionIndex].replaceTabContent(id, with: location.tab) != nil else { return }
         scriptureHistoryRestore = nil
-        compareSelectionHistoryRestore = nil
+        compareHistoryRestore = nil
         compareSelections[id] = location.compareSelection
         if scriptureJumpRequest?.tabID == id { scriptureJumpRequest = nil }
         scriptureEditionSources.removeValue(forKey: id)
@@ -1168,7 +1180,13 @@ final class AppModel {
             let state = BibleState(location.tab.state)
             if state.compareMode {
                 let passage = CompareColumn.passageKey(state, CompareColumn.resolved(in: location.tab.state))
-                compareSelectionHistoryRestore = CompareSelectionHistoryRestore(tabID: id, passage: passage)
+                if let viewport = location.compareViewport, viewport.passage == passage {
+                    let restored = viewport.restoring(offsets: compareScrollOffsets[id, default: [:]],
+                                                      verses: compareColumnScrollVerses[id, default: [:]])
+                    compareScrollOffsets[id] = restored.offsets
+                    compareColumnScrollVerses[id] = restored.verses
+                }
+                compareHistoryRestore = CompareHistoryRestore(tabID: id, passage: passage)
             } else {
                 let edition = ChapterEdition(state)
                 let position = ReaderViewports.position(in: location.tab.state, chapter: edition.key).map(ScriptureReadingPosition.init)
@@ -1198,17 +1216,45 @@ final class AppModel {
     @ObservationIgnored var compareScrollOffsets: [String: [String: CGFloat]] = [:]
     @ObservationIgnored var compareColumnScrollVerses: [String: [String: Int]] = [:]
     @ObservationIgnored var compareSelections: [String: CompareSelectionSnapshot] = [:]
-    struct CompareSelectionHistoryRestore: Equatable {
+    private struct CompareViewportSnapshot: Equatable {
+        let passage: String
+        let offsets: [String: CGFloat]
+        let verses: [String: Int]
+
+        init(passage: String, offsets: [String: CGFloat], verses: [String: Int]) {
+            self.passage = passage
+            self.offsets = offsets.filter { Self.hasOffsetKey($0.key, for: passage) }
+            self.verses = verses.filter { Self.hasColumnKey($0.key, for: passage) }
+        }
+
+        // A visit with no bookmark clears the destination's later bookmark.
+        func restoring(offsets: [String: CGFloat], verses: [String: Int]) -> (offsets: [String: CGFloat], verses: [String: Int]) {
+            let otherOffsets = offsets.filter { !Self.hasOffsetKey($0.key, for: passage) }
+            let otherVerses = verses.filter { !Self.hasColumnKey($0.key, for: passage) }
+            return (otherOffsets.merging(self.offsets) { _, restored in restored },
+                    otherVerses.merging(self.verses) { _, restored in restored })
+        }
+
+        private static func hasOffsetKey(_ key: String, for passage: String) -> Bool {
+            key == "aligned|" + passage || key == "stacked|" + passage
+        }
+
+        private static func hasColumnKey(_ key: String, for passage: String) -> Bool {
+            key.hasPrefix(passage + "|column:")
+        }
+    }
+
+    struct CompareHistoryRestore: Equatable {
         let tabID: String
         let passage: String
         let revision = UUID()
     }
-    var compareSelectionHistoryRestore: CompareSelectionHistoryRestore?
+    var compareHistoryRestore: CompareHistoryRestore?
 
     /// Explicit verse commands jump to the requested selection. Ordinary Compare visits restore scrolling.
     func prepareCompareJump(in tabId: String, edition: ChapterEdition) {
         compareSelections.removeValue(forKey: tabId)
-        if compareSelectionHistoryRestore?.tabID == tabId { compareSelectionHistoryRestore = nil }
+        if compareHistoryRestore?.tabID == tabId { compareHistoryRestore = nil }
         let prefix = edition.key + "|"
         compareScrollOffsets[tabId] = compareScrollOffsets[tabId]?.filter {
             !$0.key.hasPrefix("aligned|" + prefix) && !$0.key.hasPrefix("stacked|" + prefix)
