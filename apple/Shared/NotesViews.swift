@@ -1158,7 +1158,8 @@ struct NoteDetailView: View {
                        onReferenceCompletion: receiveReferenceCompletion,
                        onSlashCompletion: receiveSlashCompletion,
                        onTableContext: { editingTable = $0 },
-                       onWikiLinkCommand: handleCompletionCommand, onLink: openLink)
+                       onWikiLinkCommand: handleCompletionCommand, onLink: openLink,
+                       referenceContext: noteId, onReferencePreview: referencePreview)
             .focused($focus, equals: .body)
         #else
         RichNoteEditorIOS(text: $content, fontFamily: app.notesFontFamily, detectVerseReferences: app.noteVerseRefsEnabled,
@@ -1174,6 +1175,17 @@ struct NoteDetailView: View {
             .focused($focus, equals: .body)
         #endif
     }
+
+    #if os(macOS)
+    private func referencePreview(_ url: URL) async -> NoteReferencePreview? {
+        guard case .lexicon(let number) = DeepLink.parse(url.absoluteString, hermas: app.hermasEdition),
+              let entry = await app.lexicon.entry(number) else { return nil }
+        let detail = entry.gloss + (entry.definition.isEmpty ? "" : "\n\n" + entry.definition)
+        return NoteReferencePreview(title: "\(entry.strongsNum)  \(entry.lemma)",
+                                    subtitle: entry.transliteration,
+                                    detail: app.wordReplacerEnabled ? WordReplacer.apply(detail, rules: app.wordReplacerRules) : detail)
+    }
+    #endif
 
     private func prepareScriptureBlocks(_ input: ScriptureBlockInput) async {
         guard input.enabled else { scriptureBlocks = []; return }

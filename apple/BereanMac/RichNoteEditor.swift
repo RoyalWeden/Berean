@@ -26,6 +26,8 @@ struct RichNoteEditor: NSViewRepresentable {
     var onTableContext: (Bool) -> Void = { _ in }
     var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
+    var referenceContext = ""
+    var onReferencePreview: @MainActor (URL) async -> NoteReferencePreview? = { _ in nil }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -51,6 +53,8 @@ struct RichNoteEditor: NSViewRepresentable {
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.delegate = context.coordinator
         tv.coordinator = context.coordinator
+        tv.referenceHover.editor = tv
+        tv.referenceHover.resolve = onReferencePreview
         tv.setAccessibilityLabel("Note text")
         // Link colour comes from the styled runs (task boxes keep their accent / secondary tint); this only adds the hand.
         tv.linkTextAttributes = [.cursor: NSCursor.pointingHand]
@@ -63,7 +67,12 @@ struct RichNoteEditor: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
+        tv.referenceHover.observe(scroll)
         return scroll
+    }
+
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        (scroll.documentView as? NoteTextView)?.referenceHover.stop()
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
@@ -72,6 +81,7 @@ struct RichNoteEditor: NSViewRepresentable {
             || c.parent.detectStrongsReferences != detectStrongsReferences
             || c.parent.scriptureBlocks != scriptureBlocks || c.parent.hermasEdition != hermasEdition
             || c.parent.fontFamily != fontFamily || c.parent.fontSize != fontSize
+            || c.parent.referenceContext != referenceContext
         let spellingSettingChanged = c.parent.spellCheck != spellCheck
         let previousRequest = c.parent.formatRequest
         c.parent = self
@@ -122,6 +132,7 @@ struct RichNoteEditor: NSViewRepresentable {
             }
         }
         guard let tv = c.textView else { return }
+        tv.referenceHover.resolve = onReferencePreview
         if spellingSettingChanged { tv.isContinuousSpellCheckingEnabled = spellCheck }
         let contentChanged = tv.string != text && !c.editing
         if contentChanged { tv.string = text }
@@ -155,6 +166,7 @@ struct RichNoteEditor: NSViewRepresentable {
 
         func restyle() {
             guard let tv = textView, let storage = tv.textStorage else { return }
+            tv.referenceHover.cancel()
             let text = tv.string
             let size = parent.fontSize
             let body = ScriptureFont.nativeFont(parent.fontFamily, size: size)
@@ -432,11 +444,14 @@ struct RichNoteEditor: NSViewRepresentable {
 /// The editor's text view: Markdown-aware formatting commands, copy/paste and drawing of multi-character labels.
 final class NoteTextView: ReferenceCursorTextView {
     weak var coordinator: RichNoteEditor.Coordinator?
+    let referenceHover = NoteReferenceHover()
+    private var referenceTracking: NSTrackingArea?
     static let markdownType = NSPasteboard.PasteboardType("com.berean.note-markdown")
     private var imageRestylePending = false
 
     /// Images reserve height for the width they were sized at; re-fit them when the column resizes.
     override func setFrameSize(_ newSize: NSSize) {
+        if newSize != frame.size { referenceHover.cancel() }
         super.setFrameSize(newSize)
         guard let layout = layoutManager as? NoteTableLayout, let container = textContainer else { return }
         let available = container.size.width - 2 * container.lineFragmentPadding
@@ -447,6 +462,30 @@ final class NoteTextView: ReferenceCursorTextView {
             self?.coordinator?.restyle()
         }
     }
+
+    // MARK: reference previews
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let referenceTracking { removeTrackingArea(referenceTracking) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        referenceTracking = area
+        addTrackingArea(area)
+    }
+
+    override func mouseEntered(with event: NSEvent) { referenceHover.moved(to: convert(event.locationInWindow, from: nil)) }
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        referenceHover.moved(to: convert(event.locationInWindow, from: nil))
+    }
+    override func mouseExited(with event: NSEvent) { referenceHover.cancel() }
+    override func viewDidHide() { super.viewDidHide(); referenceHover.cancel() }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        referenceHover.observeWindow(window)
+    }
+    override func keyDown(with event: NSEvent) { referenceHover.cancel(); super.keyDown(with: event) }
 
     // MARK: image resize handle
 
@@ -477,6 +516,7 @@ final class NoteTextView: ReferenceCursorTextView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        referenceHover.cancel()
         let point = convert(event.locationInWindow, from: nil)
         guard let layout = imageLayout, let frame = activeImageFrame(),
               NoteTableLayout.handleRect(for: frame.rect).insetBy(dx: -4, dy: -4).contains(point) else {
