@@ -4,11 +4,11 @@
 
 ## Source and review
 
-Working repo `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`. Committed: `b3b60497` install-ready contract/device failure guard, `e61ebfaa` readable lexicon excerpts, `ecec1418` independent Compare precision. Final documentation reconciliation is being committed; preserve newer edits. No source workers remain editing.
+Working repo `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`. Committed: `b3b60497` install-ready contract/device failure guard, `e61ebfaa` readable lexicon excerpts, `ecec1418` independent Compare precision. Source and evidence checkpoint published through d8c3959b; any later documentation-only receipt has identical app source. Preserve newer edits. No source workers remain editing.
 
 Owner explicitly requires verified builds in `/Users/roywe/Berean-native` before every usage/context handoff, plus simple final Mac/iPhone Terminal commands. See [install-ready checklist](INSTALL-READY-HANDOFF.md). Owner folder was clean at50732392, verified ancestor, then fast-forwarded to ecec1418 after local fetch. Existing signing preserved. Fresh Mac, signed physical-device and iOS Simulator builds PASS from that folder, with correct Dev identities; strict Mac/device signatures and no iCloud/AppGroup entitlements verified. Full native suite378tests/95suites PASS. No physical phone install/launch, provisioning update, production/sync data or signing change. The earlier blanket “other checkout untouched” rule is superseded only for authorized safe source/build staging.
 
-Live review check: PR22 OPEN/base main; PR23 OPEN/base native/m7-export; PR24 OPEN/draft/base native/m6-navigation. Published b9c0e388 has all three checks SUCCESS. This is historical evidence for that source; current publication is pending this checkpoint commit; inspect live exact-head checks after push. Push github only, never owner-local origin. Owner-only merge sequence22→23 after correct retarget+green→24; no merge, ready, retarget or force.
+Live review check: PR22 OPEN/base main; PR23 OPEN/base native/m7-export; PR24 OPEN/draft/base native/m6-navigation. Published b9c0e388 has all three checks SUCCESS. This is historical evidence for that source; d8c3959b publication verified: legacy check IN_PROGRESS, native QUEUED, security SUCCESS at inspection. Later documentation receipts require their own exact-head inspection; no new CI green claim. Push github only, never owner-local origin. Owner-only merge sequence22→23 after correct retarget+green→24; no merge, ready, retarget or force.
 
 ## Delivered and verified scope
 
@@ -34,6 +34,6 @@ Final read-only `lexicon-compare-final-data-check.json`: every watched original 
 
 ## Next executable work
 
-1. Publish/reconcile this documentation checkpoint and owner-folder docs, inspect exact-head CI; give the verified simple Mac/iPhone commands. Final artifacts are built from ecec1418; later docs-only commits require no code rebuild. Do not confuse prior CI green with current revision.
+1. Inspect latest exact-head CI and continue required engineering below. Source/evidence through d8c3959b pushed to github and staged into clean owner folder; final documentation receipt preserves the same app source. Final artifacts are built from ecec1418; later docs-only commits require no code rebuild. Do not confuse prior CI green with current revision.
 2. Required engineering: cold quit immediately after Back to an older visit still needs a local active-visit pointer, separate from latest destination bookmarks. Detailed bounded design/tests are in the precision packet. This is not owner-gated.
 3. Extend Compare reflow/rapid/jump/synced peer/duplicate reorder/stacked/accessibility matrices; continue main-reader scroll/foreground, Notes wide tables/IME/Board/PDF, Presenter/Messages/read-aloud and original-app parity. Broad migration remains active.

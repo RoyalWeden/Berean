@@ -30,3 +30,6 @@ cd /Users/roywe/Berean-native && npm run native:ios:device
 ```
 
 If multiple iPhones are connected, append `-- <device-id>` using the verified device ID. The helper builds, installs and launches Berean Native Dev. Prepare the owner checkout and verify device readiness before presenting this as ready to run.
+
+## Verified Nov23 handoff receipt
+Owner checkout safely advanced from clean50732392 to appsourceecec1418 and documentationd8c3959b; later documentation-only receipt does not alter app source. Fresh Mac, physical-iPhone and Simulator builds PASS; strict Mac/device signatures and DevIDs/noiCloudOrAppGroup PASS. Full native suite378tests/95suites PASS. Artifacts are in the paths above. No physical installation/launch or provisioning update. Both current checkpoints record logs and remaining work; exact-head CI was still pending at publication. Reverify live folder/workers before future updates.
