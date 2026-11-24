@@ -584,7 +584,7 @@ struct PassagePicker: View {
         .accessibilityAddTraits(current ? .isSelected : [])
     }
 
-    private static func pickerBookName(_ book: BookRow, in textId: String) -> String {
+    static func pickerBookName(_ book: BookRow, in textId: String) -> String {
         switch (textId, book.id) {
         case ("recog_clement", _) where book.id.hasPrefix("RCL"):
             if let number = Int(book.id.dropFirst(3)), (1...10).contains(number) {

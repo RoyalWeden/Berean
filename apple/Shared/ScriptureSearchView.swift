@@ -96,12 +96,31 @@ private struct TaggedSearchResultRow: View {
 
 private struct SearchResultScrollRestoration: ViewModifier {
     @Environment(AppModel.self) private var app
-    @State private var position = ScrollPosition(idType: String.self)
+    @State private var position: ScrollPosition
     @State private var restored: Scope?
     @State private var atTop = true
     let tabId: String
     let context: ScriptureSearchScrollContext?
     let containsRow: (String) -> Bool
+
+    @MainActor
+    init(model: AppModel, tabId: String, context: ScriptureSearchScrollContext?, containsRow: @escaping (String) -> Bool) {
+        self.tabId = tabId
+        self.context = context
+        self.containsRow = containsRow
+        // Start a newly mounted result list at its validated destination. The
+        // task below still handles history changes in an already mounted list.
+        var initial = ScrollPosition(idType: String.self, edge: .top)
+        if let context, model.isCurrentSearchViewport(tabId: tabId, context: context) {
+            if let pending = model.searchResultAnchors[tabId]?[context], containsRow(pending) {
+                initial = ScrollPosition(id: pending, anchor: .center)
+            } else if let saved = model.searchViewportAnchor(tabId: tabId, context: context),
+                      let row = saved.row, containsRow(row) {
+                initial = ScrollPosition(id: row, anchor: saved.alignment == .center ? .center : .top)
+            }
+        }
+        _position = State(initialValue: initial)
+    }
 
     private struct Scope: Equatable {
         let context: ScriptureSearchScrollContext
@@ -304,10 +323,13 @@ struct ScriptureSearchView: View {
     private var focusText: String? { state["nativeSearchFocusText"]?.stringValue?.string }
 
     func set(_ key: String, _ v: JSValue?) {
+        // Reading the computed focus inside update would reenter sessions while
+        // its tab has exclusive inout access (including when focus is nil).
+        let previousFocus = focusText
         app.update(tabId, recordHistory: false) { tab in
             tab.state[key] = v
-            if key == "scopeTexts", let focusText,
-               let editions = v?.arrayValue, !editions.contains(.string(JSString(focusText))) {
+            if key == "scopeTexts", let previousFocus,
+               let editions = v?.arrayValue, !editions.contains(.string(JSString(previousFocus))) {
                 tab.state.remove("nativeSearchFocusText")
             }
         }
@@ -671,9 +693,9 @@ struct ScriptureSearchView: View {
             }
             .scrollTargetLayout()
         }
-        .modifier(SearchResultScrollRestoration(tabId: tabId, context: context,
+        .modifier(SearchResultScrollRestoration(model: app, tabId: tabId, context: context,
                                                 containsRow: { id in rowsToShow.contains { $0.id == id } }))
-        .id(scrollContext)
+        .id(request.tagMembershipReady ? scrollContext : nil)
     }
 
     // MARK: running
@@ -951,9 +973,9 @@ struct ScriptureSearchView: View {
                         .help("Jump to a \(grouping == "book" ? "book" : "text") in the results")
                     }
                 }
-                .modifier(SearchResultScrollRestoration(tabId: tabId, context: context, containsRow: rowIDs.contains))
+                .modifier(SearchResultScrollRestoration(model: app, tabId: tabId, context: context, containsRow: rowIDs.contains))
             }
-            .id(scrollContext)
+            .id(searchPending ? nil : scrollContext)
         }
     }
 
@@ -1235,6 +1257,22 @@ private struct SearchOptionsPickerStyle: ViewModifier {
 }
 
 struct BookFilterField: View {
+    private enum Group: Hashable {
+        case bible(String)
+        case work(String)
+
+        init(_ entry: CatalogBook) {
+            self = textInfo(entry.textId).section == "Bible" ? .bible(entry.book.testament) : .work(entry.textId)
+        }
+
+        var title: String {
+            switch self {
+            case .bible(let testament): PassagePicker.sectionTitle(testament)
+            case .work(let textId): textInfo(textId).name
+            }
+        }
+    }
+
     @Environment(AppModel.self) private var app
     let selected: [String]
     let editions: Set<String>
@@ -1242,68 +1280,188 @@ struct BookFilterField: View {
     let onChange: ([String]) -> Void
     @State private var text = ""
     @State private var browsing = false
+    @State private var expandedGroups: Set<Group> = []
+    @State private var showingSelected = false
 
-    private var matches: [String] {
-        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard browsing || !query.isEmpty else { return [] }
-        let excluded = Set(selected)
-        var seen = Set<String>()
-        return app.bookCatalog.compactMap { entry in
-            let book = entry.book
-            guard editions.contains(entry.textId), testament == "all" || book.testament == testament,
-                  !excluded.contains(book.id), query.isEmpty
-                    || book.name.localizedStandardContains(query)
-                    || book.shortName.localizedStandardContains(query),
-                  seen.insert(book.id).inserted else { return nil }
-            return book.id
+    private var scopedBooks: [CatalogBook] {
+        app.bookCatalog.filter {
+            editions.contains($0.textId) && (testament == "all" || $0.book.testament == testament)
         }
     }
 
     var body: some View {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let books = scopedBooks
+        let matches = query.isEmpty ? [] : quickMatches(books, query: query)
         VStack(alignment: .leading, spacing: 6) {
-            if !selected.isEmpty {
-                FlowLayout(spacing: 4) {
-                    ForEach(selected, id: \.self) { id in
-                        Button { onChange(selected.filter { $0 != id }) } label: {
-                            Label(Reference.bookName(id), systemImage: "xmark").font(.caption).labelStyle(.titleAndIcon)
-                                .padding(.horizontal, 7).padding(.vertical, 3).background(Color.accentColor.opacity(0.18), in: .capsule)
-                        }.buttonStyle(.interactivePlain)
-                            .optionHover()
-                    }
-                }
-            }
+            if !selected.isEmpty { selectedBooks }
             Button(browsing ? "Hide Book List" : "Browse Books", systemImage: "list.bullet") {
                 browsing.toggle()
             }
             .buttonStyle(OptionButtonStyle(active: browsing))
             .accessibilityValue(browsing ? "Expanded" : "Collapsed")
-            let available = matches
             TextField("Find a book", text: $text)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("Find a book")
                 .onSubmit {
-                    if let id = available.first {
-                        onChange(selected + [id])
-                        text = ""
+                    if let first = matches.first { quickAdd(first.book.id) }
+                }
+            if !query.isEmpty {
+                if matches.isEmpty { noBooks }
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(browsing ? matches : Array(matches.prefix(6))) { entry in
+                        Button { quickAdd(entry.book.id) } label: {
+                            Text(Reference.bookName(entry.book.id))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(OptionButtonStyle())
                     }
                 }
-            if available.isEmpty, browsing || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("No matching books").font(.caption).foregroundStyle(.secondary)
+            } else if browsing {
+                if books.isEmpty { noBooks }
+                bookGroups(books)
             }
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(browsing ? available : Array(available.prefix(6)), id: \.self) { id in
+        }
+    }
+
+    private var selectedBooks: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                if selected.count > 6 {
                     Button {
-                        onChange(selected + [id])
-                        text = ""
+                        showingSelected.toggle()
                     } label: {
-                        Text(Reference.bookName(id))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(.rect)
+                        Label("\(selected.count) selected", systemImage: showingSelected ? "chevron.down" : "chevron.right")
                     }
+                    .buttonStyle(OptionButtonStyle(active: showingSelected))
+                    .accessibilityValue(showingSelected ? "Expanded" : "Collapsed")
+                }
+                Spacer(minLength: 0)
+                Button("Clear all") { onChange([]) }
                     .buttonStyle(OptionButtonStyle())
+                    .accessibilityLabel("Clear all selected books")
+            }
+            .font(.caption)
+            if selected.count <= 6 || showingSelected {
+                FlowLayout(spacing: 4) {
+                    ForEach(selected, id: \.self) { id in
+                        let name = Reference.bookName(id)
+                        Button { onChange(selected.filter { $0 != id }) } label: {
+                            Label(name, systemImage: "xmark").font(.caption)
+                                .padding(.horizontal, 7).padding(.vertical, 3).background(Color.accentColor.opacity(0.18), in: .capsule)
+                        }
+                        .buttonStyle(.interactivePlain)
+                        .optionHover()
+                        .accessibilityLabel("Remove \(name)")
+                    }
                 }
             }
         }
+    }
+
+    private var noBooks: some View {
+        Text("No matching books").font(.caption).foregroundStyle(.secondary)
+    }
+
+    private func quickMatches(_ books: [CatalogBook], query: String) -> [CatalogBook] {
+        var seen = Set(selected)
+        return books.filter { entry in
+            let book = entry.book
+            return (book.name.localizedStandardContains(query) || book.shortName.localizedStandardContains(query))
+                && seen.insert(book.id).inserted
+        }
+    }
+
+    private func quickAdd(_ id: String) {
+        onChange(selected + [id])
+        text = ""
+    }
+
+    private func bookGroups(_ books: [CatalogBook]) -> some View {
+        // Bible editions share canonical book IDs. Show each scoped Bible book once in catalog order.
+        var seenBibleIDs = Set<String>()
+        let groupBooks = books.filter { entry in
+            guard case .bible = Group(entry) else { return true }
+            return seenBibleIDs.insert(entry.book.id).inserted
+        }
+        let groups = Dictionary(grouping: groupBooks, by: Group.init)
+        var seen = Set<Group>()
+        let order = groupBooks.map(Group.init).filter { seen.insert($0).inserted }
+        let selectedIDs = Set(selected)
+        return LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(order, id: \.self) { group in
+                let entries = groups[group, default: []]
+                if case .work = group, entries.count == 1, let entry = entries.first {
+                    bookRow(entry, title: group.title, isSelected: selectedIDs.contains(entry.book.id))
+                } else {
+                    bookGroup(group, entries: entries, selectedIDs: selectedIDs)
+                }
+            }
+        }
+    }
+
+    private func bookGroup(_ group: Group, entries: [CatalogBook], selectedIDs: Set<String>) -> some View {
+        let ids = entries.map(\.book.id)
+        let count = selectedIDs.intersection(ids).count
+        let expanded = expandedGroups.contains(group)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                Button {
+                    if expanded { expandedGroups.remove(group) } else { expandedGroups.insert(group) }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(group.title)
+                            Text("\(count) of \(ids.count) selected").font(.caption2).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(OptionButtonStyle(active: expanded))
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                if count < ids.count {
+                    Button("Select all") { onChange(selected + ids.filter { !selectedIDs.contains($0) }) }
+                        .font(.caption)
+                        .buttonStyle(OptionButtonStyle())
+                        .accessibilityLabel("Select all in \(group.title)")
+                }
+                if count > 0 {
+                    let groupIDs = Set(ids)
+                    Button("Clear") { onChange(selected.filter { !groupIDs.contains($0) }) }
+                        .font(.caption)
+                        .buttonStyle(OptionButtonStyle())
+                        .accessibilityLabel("Clear selected books in \(group.title)")
+                }
+            }
+            .font(.subheadline)
+            if expanded {
+                ForEach(entries) { entry in
+                    bookRow(entry, title: PassagePicker.pickerBookName(entry.book, in: entry.textId),
+                            isSelected: selectedIDs.contains(entry.book.id))
+                }
+                .padding(.leading, 14)
+            }
+        }
+    }
+
+    private func bookRow(_ entry: CatalogBook, title: String, isSelected: Bool) -> some View {
+        let id = entry.book.id
+        return Button {
+            onChange(isSelected ? selected.filter { $0 != id } : selected + [id])
+        } label: {
+            HStack {
+                Text(title)
+                Spacer(minLength: 0)
+                if isSelected { Image(systemName: "checkmark").foregroundStyle(.tint) }
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(OptionButtonStyle())
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
