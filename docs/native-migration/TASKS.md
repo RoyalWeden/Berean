@@ -656,3 +656,12 @@ Mac Notes Strong’s preview is implemented in12d2e360 and passes actual-helper 
 - Bulk book selection/clear per text or section: Electron desktop `ScriptureSearchView.tsx` around1593–1653 and mobile `BooksFilterView.tsx`28–71 support this; native `ScriptureSearchView.swift`1237–1305 is individual-only. Use existing catalog and `bookIds`, preserve independently selected books elsewhere when clearing a work. Verify matching results and history/fingerprint changes on both apps.
 - Collapsible result groups: Electron `ScriptureSearchView.tsx`934–945/1837 onward hides rows while retaining heading/count; native907–923 has static headings. Keep hidden-row bookmark fallback explicit, preserve counts, group jump and result centering, and avoid silently adding synced state.
 - Reverse Scripture/relevance order: Electron873–895/1290 onward supports direction; native580–585/778–784 exposes only Scripture order and Best match first. Include direction in validated viewport identity and reset behavior; verify first/last and Back/Forward. These are source-audited gaps, not runtime implementation claims.
+
+### Nov23 late owner priority — visible iPhone Find
+Owner reports Find is hidden/offscreen while searching, especially iOS. Current iPhone implementation uses system UITextView Find at the bottom rather than Mac floatingbar. ActualD0CC querykingdom onMatthew5 showed5matches andNext2/5, butnativeFindcompeteswithdock andselectedverseactions; hardwaresoftwarekeyboard/fullsize/rotation notyetverified. Implement safe-area top sibling bar belowpassagetoolbar, independent of scrolling/keyboard/dock; realmatches/movement/clearclose/NoMatches, preservingselection/copy/readersmoothness. Bothplatformbuildandruntimebeforeclaim. SharedUI+IOSengineinprogress, Macplacementpreserved.
+
+
+### Nov 23 — Find visibility and Search bulk filters
+
+- **VERIFIED (bounded)** iPhone chapter Find above the reader with software keyboard shown and hidden, match navigation, chapter refresh, close and retained verse selection. Mac Find passed its existing route. **OPEN** physical iPhone and wider layout/text/accessibility matrix. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md)
+- **VERIFIED (bounded)** Mac/iPhone grouped selection and scope crash retests. **OPEN** continuous first paint and broader filter and accessibility checks. [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)

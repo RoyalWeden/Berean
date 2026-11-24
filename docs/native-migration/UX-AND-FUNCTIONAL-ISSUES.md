@@ -484,3 +484,8 @@ Clement/Hermas picker label issue is fixed and visually verified on both platfor
 ## November 23 — Search return and Compare continuity
 
 Verified Mac Search cold and distinct centered/top history and iPhone settled cold, centered return and stable inline title spacing. The iPhone first-frame flash, recent/cross-reference lists, pixel/filter/race and accessibility cases remain open. Compare independent cold and opening headers passed in the tested paths. Older aligned/stacked cold history remains open. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md) [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md)
+
+
+## November 23 — iPhone Find and Search scope switching
+
+Verified visible iPhone Simulator Find with either software-keyboard state and preserved verse selection. Scope switching passed after the fix for the iPhone Bible scope crash. Wider Find and continuous Search first-paint checks remain open. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md) [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)

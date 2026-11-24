@@ -792,3 +792,8 @@ Compare linked verses use native text layout for cursor and selection consistenc
 ### November 23 — Search visits and result context
 
 Keep bounded device-local Search row bookmarks in the existing filters object and separately store the active visit. Use canonical fingerprints for configuration and rendered context. Use centered alignment for result return and an explicit rowless visit for the actual top edge, preserving older centered visits. iPhone Search uses an inline navigation title to keep the settled field position through result return. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md)
+
+
+### November 23 — Chapter Find and scoped book groups
+
+Use a top iPhone Find surface with separate temporary match highlighting so the bottom dock and text or verse selection retain their existing roles. Group Search by canonical scoped book ID for Bible editions and by work for other texts. Capture edition focus before exclusive tab update. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md) [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)

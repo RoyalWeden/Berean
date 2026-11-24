@@ -567,3 +567,11 @@ Committed source `c5074a08` follows `81292f65`. Mac Search and iPhone Simulator 
 
 ## Nov23 Search and picker build receipt
 Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **c5074a08** all PASS. Strict Mac/device signatures PASS; Dev identities and absence of iCloud/App Group entitlements verified. Artifacts remain under `build/apple/DerivedData/Build/Products`, ready for the owner’s usual commands. Evidence: `owner-search-ready-artifacts.json` and `owner-search-{mac,iphone,simulator}-ready.log` in ignored Nov23 QA evidence. Independent source review and 16 Search/Compare focused tests PASS (`owner-search-source-review-tests.log`). The running owner Mac app was left untouched. No additional physical install, launch or provisioning update. Later documentation-only commits do not change these binaries.
+
+
+## November 23 — Find visibility and Search book groups
+
+Source `0fe0b88a` follows `4141ad1a`. iPhone Simulator chapter Find and Mac/iPhone Search book-filter routes passed. Source is published to draft #24. Final data checks passed, and new owner builds are pending. Search continuous first paint and the wider Find matrix remain open. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md) [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)
+
+## November 24 — final Find install-ready checkpoint
+Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **b496e3bf** all PASS. Strict Mac/device signatures PASS; all three Dev platform identities and absence of iCloud/App Group entitlements verified. The two new Find drawing isolation warnings are absent; older TextKit drawGlyphs warnings remain. Receipt `owner-find-ready-artifacts.json` and `owner-find-{mac,iphone,simulator}-ready.log` are under ignored Nov23 QA evidence; earlier0fe logs are retained separately. No additional physical installation, launch, provisioning or signing change. Later documentation-only commits do not alter these binaries.

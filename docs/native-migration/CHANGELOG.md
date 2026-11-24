@@ -2231,3 +2231,9 @@ Evidence: ignored `owner-ready-1326-artifacts.json`, `phone-1326-install.json`, 
 
 - `c5074a08` restores Search visits and their centered or top placement and uses the inline Search title on iPhone. Mac and iPhone Simulator checks passed within the scoped runtime paths. iPhone can briefly show the top before settling. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md)
 - `81292f65` sends explicit picker verse jumps in the current chapter and restores aligned Compare opening headers. iPhone Simulator verified both columns at the requested verse after cold open and the headers below floating controls. [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md)
+
+
+### November 23 — iPhone Find visibility and Search book groups
+
+- `0fe0b88a` moves iPhone chapter Find above the reader, with match navigation and highlighting independent of the selected verse. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md)
+- `4141ad1a` adds grouped book selection, Return quick-add and scope crash protection. Its saved-position seed passed sampled cold starts. [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)

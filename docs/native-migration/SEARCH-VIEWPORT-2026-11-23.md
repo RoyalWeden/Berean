@@ -28,3 +28,12 @@ The iPhone first-frame flash remains open. Continue distinct centered/top iPhone
 
 ## Additional parity audit
 The read-only Electron/native comparison identified bulk book selection per section, collapsible result groups and reverse order as separate follow-ups. TASKS records exact source targets and acceptance checks. They are not part of c5074a08. The in-tab Back/Forward stack itself remains memory-only: cold quitting after replacing a Search tab with another type does not persist that history stack. This slice persists the active Search visit when the tab is Search, not an entire durable navigation history.
+
+- Search first-frame experiment: initialize a newly mounted result list with the already validated pending/saved row and alignment; retain task-based mounted history restoration and all existing capture guards. Parse passes, runtime/build pending; no instant-paint claim.
+
+- **Runtime failure found:** iPhone Search scope→Bible crashed (Nov23 14:30:31), Swift exclusivity violation: set callback read computed focusText→findTab→sessions while app.update held tab inout. Parent captures focus before mutation; rebuilt verification pending. Preserve crash report path/evidence in SEARCH-VIEWPORT. Group select27NT + quick-addPsalms + ClearNT producedonlyPsalms/1resultPASS oncandidatebeforefix.
+Crash report: `/Users/roywe/Library/Logs/DiagnosticReports/BereanIOS-2026-11-23-143031.ips`; PID60526. Main fault stack Swift exclusivity→AppModel.sessions getter→session→findTab→ScriptureSearchView.state→focusText→set callback→AppModel.update. This path predates the grouped picker; do not attribute it to position-seeding without evidence.
+
+### First-paint follow-up
+
+Commit `4141ad1a` seeds the list’s initial position from a validated saved row after the matching results are ready. A manual-bottom cold replay showed the same bottom in the first two sampled CUA screenshots and after settling. Continuous first paint remains open. [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)
