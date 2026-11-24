@@ -497,12 +497,14 @@ struct IOSChapterTextView: UIViewRepresentable {
 
         override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
             super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
-            guard let reader, !reader.findHighlight.isEmpty, let container = textContainers.first,
+            guard let reader, let container = textContainers.first,
                   let context = UIGraphicsGetCurrentContext() else { return }
+            let highlights = MainActor.assumeIsolated { reader.findHighlight }
+            guard !highlights.isEmpty else { return }
             context.saveGState()
             defer { context.restoreGState() }
             UIColor.systemYellow.withAlphaComponent(0.4).setFill()
-            for range in reader.findHighlight {
+            for range in highlights {
                 let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
                 let visible = NSIntersectionRange(glyphs, glyphsToShow)
                 guard visible.length > 0 else { continue }
