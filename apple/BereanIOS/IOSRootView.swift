@@ -375,6 +375,7 @@ struct IOSRootView: View {
                 Section {
                     if !st.compareMode {
                         Button("Find in Chapter", systemImage: "magnifyingglass") { findRequest += 1 }
+                            .keyboardShortcut("f", modifiers: .command)
                         let source = ChapterEdition(st)
                         if let target = alternateEdition, target == source.counterpart {
                             Button("Switch to \(textInfo(target.text).short)", systemImage: "arrow.left.arrow.right") {

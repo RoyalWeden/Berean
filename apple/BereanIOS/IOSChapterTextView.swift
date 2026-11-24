@@ -62,7 +62,8 @@ struct IOSChapterTextView: UIViewRepresentable {
     var isHistoryRestoreCurrent: (UUID?) -> Bool = { _ in true }
     var finishHistoryRestore: (ScriptureHistoryRestore, ScriptureReadingPosition?) -> Void = { _, _ in }
     var savePosition: (ScriptureReadingPosition) -> Void = { _ in }
-    var findRequest: Int
+    var findQuery = ""
+    var onFindRefresh: (String, Int, Int) -> Void = { _, _, _ in }
     var reference: (Int, Int) -> String
     var onStrongs: (String, Int?) -> Void
     var onOpenStrongsTab: (String, Int?) -> Void
@@ -106,9 +107,12 @@ struct IOSChapterTextView: UIViewRepresentable {
             guard let coordinator, let view else { return nil }
             return coordinator.readingPosition(in: view, preferred: preferred)
         }
+        positionReader.find = { [weak coordinator = context.coordinator, weak view] query, step in
+            guard let coordinator, let view else { return (0, 0) }
+            return coordinator.find(query, step: step, in: view)
+        }
         view.isEditable = false
         view.isSelectable = true
-        view.isFindInteractionEnabled = true
         view.backgroundColor = .clear
         view.textContainerInset = UIEdgeInsets(top: 16, left: style.width.phoneInset, bottom: 10, right: style.width.phoneInset)
         view.linkTextAttributes = [.underlineStyle: NSUnderlineStyle([]).rawValue]
@@ -170,7 +174,6 @@ struct IOSChapterTextView: UIViewRepresentable {
 
     func updateUIView(_ view: ReaderTextView, context: Context) {
         let coordinator = context.coordinator
-        let shouldFind = coordinator.parent.findRequest != findRequest
         let previous = coordinator.parent
         if previous.passageId != passageId, let position = coordinator.readingPosition(in: view) {
             // A warm replacement keeps the same UITextView, so dismantle won't
@@ -178,15 +181,11 @@ struct IOSChapterTextView: UIViewRepresentable {
             DispatchQueue.main.async { previous.savePosition(position) }
         }
         coordinator.parent = self
-        if shouldFind {
-            DispatchQueue.main.async { [weak view] in
-                view?.findInteraction?.presentFindNavigator(showingReplace: false)
-            }
-        }
         let key = Key(header: header, tags: chapterTags.map { TagKey(name: $0.name, color: $0.color, slot: $0.slot) }, chapterStudy: chapterStudy,
                       verses: verses, style: style, dark: colorScheme == .dark)
         view.updateOutlineMotion()
         let samePassage = coordinator.passageId == passageId
+        let rerender = key != coordinator.key || !samePassage
         let previousSelection = coordinator.renderedSelection
         let revealSelection = samePassage && !selectedVerses.subtracting(previousSelection).isEmpty
         if view.contentInset.bottom != actionClearance {
@@ -205,7 +204,7 @@ struct IOSChapterTextView: UIViewRepresentable {
             let y = wasAtChapterEnd ? bottom : min(max(previousOffset.y, -inset.top), bottom)
             view.setContentOffset(CGPoint(x: previousOffset.x, y: y), animated: false)
         }
-        if key != coordinator.key || !samePassage {
+        if rerender {
             let previousOffset = view.contentOffset
             let selection = view.selectedRange
             let oldText = view.text
@@ -219,6 +218,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 view.textContainerInset.left = style.width.phoneInset
                 view.textContainerInset.right = style.width.phoneInset
             }
+            coordinator.findHighlight.removeAll()
             view.attributedText = coordinator.render(key.dark)
             view.setNeedsLayout()
 
@@ -301,6 +301,9 @@ struct IOSChapterTextView: UIViewRepresentable {
                 coordinator.restoreReadingPosition(position, in: view)
                 if let restore { coordinator.parent.finishHistoryRestore(restore, coordinator.readingPosition(in: view)) }
             }
+        }
+        if rerender {
+            coordinator.refreshFindAfterRender(in: view, samePassage: samePassage)
         }
         if scrollTarget == nil { coordinator.lastTarget = nil }
         if let target = scrollTarget, let range = coordinator.verseRanges[target] {
@@ -492,6 +495,24 @@ struct IOSChapterTextView: UIViewRepresentable {
         weak var reader: Coordinator?
         weak var view: ReaderTextView?
 
+        override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
+            super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+            guard let reader, !reader.findHighlight.isEmpty, let container = textContainers.first,
+                  let context = UIGraphicsGetCurrentContext() else { return }
+            context.saveGState()
+            defer { context.restoreGState() }
+            UIColor.systemYellow.withAlphaComponent(0.4).setFill()
+            for range in reader.findHighlight {
+                let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+                let visible = NSIntersectionRange(glyphs, glyphsToShow)
+                guard visible.length > 0 else { continue }
+                enumerateEnclosingRects(forGlyphRange: visible, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                                        in: container) { rect, _ in
+                    UIBezierPath(roundedRect: rect.offsetBy(dx: origin.x, dy: origin.y), cornerRadius: 2).fill()
+                }
+            }
+        }
+
         override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
             defer { super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin) }
             guard let reader, let container = textContainers.first,
@@ -522,6 +543,100 @@ struct IOSChapterTextView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
+        private var findQuery = ""
+        private var findIndex = 0
+        private var findMatches: [[NSRange]] = []
+        fileprivate var findHighlight: [NSRange] = []
+
+        private func chapterMatches(_ query: String, in storage: NSTextStorage) -> [[NSRange]] {
+            guard !query.isEmpty else { return [] }
+            let source = storage.string as NSString
+            var matches: [[NSRange]] = []
+            for body in bodyRanges.values.sorted(by: { $0.location < $1.location }) where body.length > 0 {
+                let words = NSMutableString(string: "")
+                var runs: [(display: NSRange, source: NSRange)] = []
+                storage.enumerateAttribute(Self.skip, in: body) { decoration, range, _ in
+                    guard decoration == nil else { return }
+                    runs.append((NSRange(location: words.length, length: range.length), range))
+                    words.append(source.substring(with: range))
+                }
+                var cursor = 0
+                while cursor < words.length {
+                    let hit = words.range(of: query, options: [.caseInsensitive, .diacriticInsensitive],
+                                          range: NSRange(cursor..<words.length))
+                    guard hit.location != NSNotFound, hit.length > 0 else { break }
+                    matches.append(runs.compactMap { run in
+                        let part = NSIntersectionRange(hit, run.display)
+                        guard part.length > 0 else { return nil }
+                        return NSRange(location: run.source.location + part.location - run.display.location, length: part.length)
+                    })
+                    cursor = hit.upperBound
+                }
+            }
+            return matches
+        }
+
+        private func refreshFindHighlight(in view: UITextView) -> (current: Int, total: Int) {
+            let previous = findHighlight
+            findHighlight = findMatches.indices.contains(findIndex) ? findMatches[findIndex] : []
+            // Extra scroll room lets a first-line match clear the floating bar.
+            let clearance: CGFloat = findHighlight.isEmpty ? 0 : 64
+            if view.contentInset.top != clearance { view.contentInset.top = clearance }
+            for range in previous + findHighlight where range.upperBound <= view.textStorage.length {
+                view.layoutManager.invalidateDisplay(forCharacterRange: range)
+            }
+            return (findHighlight.isEmpty ? 0 : findIndex + 1, findMatches.count)
+        }
+
+        private func revealFindMatch(in view: UITextView) {
+            guard let range = findHighlight.first else { return }
+            layoutChapter(in: view)
+            let layout = view.layoutManager
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            guard glyphs.length > 0 else { return }
+            let line = layout.lineFragmentUsedRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+            let inset = view.adjustedContentInset
+            let visibleHeight = max(0, view.bounds.height - inset.top - inset.bottom)
+            let desired = line.minY + view.textContainerInset.top - inset.top - visibleHeight * 0.4
+            let bottom = max(-inset.top, view.contentSize.height + inset.bottom - view.bounds.height)
+            view.setContentOffset(CGPoint(x: view.contentOffset.x, y: min(max(desired, -inset.top), bottom)), animated: false)
+        }
+
+        func find(_ query: String, step: Int, in view: UITextView) -> (current: Int, total: Int) {
+            guard passageId == parent.passageId else { return (0, 0) }
+            if query != findQuery {
+                findQuery = query
+                findMatches = chapterMatches(query, in: view.textStorage)
+                let top = readingAnchor(in: view).flatMap { bodyRanges[$0.verse]?.location } ?? 0
+                findIndex = findMatches.firstIndex { ($0.first?.location ?? 0) >= top } ?? 0
+            } else if !findMatches.isEmpty {
+                findIndex = (findIndex + step + findMatches.count) % findMatches.count
+            }
+            let result = refreshFindHighlight(in: view)
+            revealFindMatch(in: view)
+            return result
+        }
+
+        func refreshFindAfterRender(in view: ReaderTextView, samePassage: Bool) {
+            let query = parent.findQuery
+            if !samePassage || query != findQuery { findIndex = 0 }
+            findQuery = query
+            findMatches = chapterMatches(query, in: view.textStorage)
+            findIndex = min(findIndex, max(0, findMatches.count - 1))
+            let result = refreshFindHighlight(in: view)
+            guard !query.isEmpty else { return }
+            let passage = parent.passageId
+            view.afterViewportLayout { [weak self, weak view] in
+                guard let self, let view, view.window != nil, passageId == passage, parent.passageId == passage,
+                      findQuery == query, parent.findQuery == query, findMatches.count == result.total,
+                      (findHighlight.isEmpty ? 0 : findIndex + 1) == result.current else { return }
+                if !samePassage, parent.historyRestore == nil, parent.scrollTarget == nil {
+                    revealFindMatch(in: view)
+                }
+                parent.onFindRefresh(query, result.current, result.total)
+            }
+        }
+
         struct ReadingAnchor {
             let verse: Int
             let offsetFromTop: CGFloat
