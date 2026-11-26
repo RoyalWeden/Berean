@@ -801,3 +801,8 @@ Use a top iPhone Find surface with separate temporary match highlighting so the 
 ### November 26 — Anchor the study popover to the marker glyph
 
 Use TextKit attachment bounds for both the rounded hover surface and popover anchor. The input-client rectangle placed the arrow above the observed marker. Keep preview reads lazy, linked passages first and note excerpts as fallback. Use native motion preferences and the isolated Option-click route for card geometry and content checks. [Study indicator evidence](VERSE-STUDY-INDICATORS-2026-11-26.md)
+
+
+### November 26 — Platform picker layout and shared Compare geometry
+
+Select the desktop picker layout on Mac at the shared picker boundary and keep chapter-preview eligibility independent of layout. Store shared Compare crops alongside semantic row identity and validate compatible measured geometry before correction. Keep the active visit distinct from the latest destination. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)

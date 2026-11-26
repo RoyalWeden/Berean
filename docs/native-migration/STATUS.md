@@ -1,6 +1,6 @@
 # Berean Native Migration — Live Status
 
-Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare implementation remains uncommitted/runtime pending; do not mark parity complete.
+Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare source2bb1670d is committed with scoped Mac older-visit/cold precision proof. iPhone precise replay and the wider matrix remain open; do not mark broad parity complete.
 
 > Initialized 2026-11-07 from verified Git, CI and test evidence. Every claim here was checked in the
 > session that wrote it; re-verify against live Git before relying on it after a gap.
@@ -577,3 +577,8 @@ Source `0fe0b88a` follows `4141ad1a`. iPhone Simulator chapter Find and Mac/iPho
 
 ## November 24 — final Find install-ready checkpoint
 Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **b496e3bf** all PASS. Strict Mac/device signatures PASS; all three Dev platform identities and absence of iCloud/App Group entitlements verified. The two new Find drawing isolation warnings are absent; older TextKit drawGlyphs warnings remain. Receipt `owner-find-ready-artifacts.json` and `owner-find-{mac,iphone,simulator}-ready.log` are under ignored Nov23 QA evidence; earlier0fe logs are retained separately. No additional physical installation, launch, provisioning or signing change. Later documentation-only commits do not alter these binaries.
+
+
+## November 26 — Desktop picker and shared Compare precision
+
+Committed source through `2bb1670d`. Mac picker and aligned/stacked cold restore, iPhone compact picker, and original data checks passed as scoped. Full shared tests passed 390 across 96 suites. Final owner Mac/signed-iPhone/Simulator builds and signatures PASS; iPhone precise shared restore remains pending. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)

@@ -13,7 +13,7 @@ Use isolated branches/worktrees for parallel code work. Do not edit another work
 | ID | Owner | State | Result / scope |
 |---|---|---|---|
 | DX-01 | Codex | Partial verified, wider cases open | Mac reader width-aware restoration; prove measured same-verse crop across width changes and same-width exact points. Temporary QA traces must be removed before final builds. |
-| DX-02 | Codex | Active | Aligned/stacked Compare active visits, qualified warm coordinates, explicit-jump precedence and review regressions. Both apps need real UI checks. |
+| DX-02 | Codex | Mac core cases verified; wider matrix open | Committed precise aligned/stacked older visits and cold crops; iPhone precise A/B/cold, reflow, interruption, empty and duplicate cases remain. |
 | DX-03 | Codex | Implemented Mac slice; wider checks open | Improve verse note/cross-reference/tag indicators, hover preview alignment and fluid native appearance without interrupting reading. Owner reaffirmed Nov26. |
 | CC-01 | Claude Code | Blocked: Claude signed out | Add both directions of Search result order on Mac and iPhone. See implementation brief below. |
 | CC-02 | Claude Code | Ready after CC-01 | Add collapsible Search result groups, keeping counts, group jumps and hidden-row restoration coherent. Same files as CC-01: run sequentially. |
@@ -52,3 +52,8 @@ Codex continuously replenishes the Claude-ready queue and records dispatch outco
 ## November 26 dispatch evidence
 
 CC-01 isolated worktree created at `/Users/roywe/Documents/ChatGPT/Berean/claude-worktrees/search-order`, branch `native/claude-search-order-20261126`, base b4db91b8. Restricted file-tools-only Claude Sonnet launch attempted; session `89306171-0a74-4173-9ed5-f801336db4e9` ended immediately with **Not logged in · Please run /login**, zero model tokens and no file edits. No live Claude task. CC-01 stays assigned to Claude, awaiting its normal login; no reset or credential change attempted. CC-02/03 remain prepared. Codex continues DX-01/02/03.
+
+
+## November 26 Codex checkpoint
+
+Desktop picker and shared Compare source are committed in `90e2b88b` and `2bb1670d`. Continue bounded iPhone precise cold replay, Mac reflow/interruption/empty/header/duplicate cases and Compare Edit picker. Owner Mac/signed-iPhone/Simulator builds and artifact checks PASS at2bb1670d. CC-01 remains assigned to Claude, blocked at normal sign-in, with no active Claude worker. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)

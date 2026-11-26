@@ -2241,3 +2241,9 @@ Evidence: ignored `owner-ready-1326-artifacts.json`, `phone-1326-install.json`, 
 ### November 26 — Mac verse study indicators
 
 - Draw a rounded hover surface and anchor the native study popover to the marker glyph. The popover follows Reduce Motion. Attached and indirect note excerpts supplement linked passages, with a three-item limit and duplicate source notes omitted. Corrected anchor and excerpt runtime checks are pending. [Study indicator evidence](VERSE-STUDY-INDICATORS-2026-11-26.md)
+
+
+### November 26 — Desktop passage picker and shared Compare cold restore
+
+- `90e2b88b` keeps Mac passage pickers in the three-column book browser and preserves Notes verse preview. Mac regular, Compare Add and Notes routes and the compact iPhone route passed bounded runtime checks. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md)
+- `2bb1670d` retains aligned and stacked Compare positions across restart, including the older visit chosen with Back. Mac exact stacked and within-one-pixel aligned replay passed. [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)

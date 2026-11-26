@@ -1,6 +1,6 @@
 # UX and functional issue register (native apps)
 
-Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare implementation remains uncommitted/runtime pending; do not mark parity complete.
+Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare source2bb1670d is committed with scoped Mac older-visit/cold precision proof. iPhone precise replay and the wider matrix remain open; do not mark broad parity complete.
 
 Stable IDs; issues are never deleted — fixed ones stay with their evidence.
 
@@ -491,3 +491,8 @@ Verified Mac Search cold and distinct centered/top history and iPhone settled co
 ## November 23 — iPhone Find and Search scope switching
 
 Verified visible iPhone Simulator Find with either software-keyboard state and preserved verse selection. Scope switching passed after the fix for the iPhone Bible scope crash. Wider Find and continuous Search first-paint checks remain open. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md) [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)
+
+
+## November 26 — Desktop picker layout and Compare crop restoration
+
+Mac Compare Add and Notes open the tested desktop passage picker routes. Mac stacked and aligned older-visit cold restoration passed, with the newer destination preserved separately. iPhone precise crop and broader reflow and interruption remain open. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)

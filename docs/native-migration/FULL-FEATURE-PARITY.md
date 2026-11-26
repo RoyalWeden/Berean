@@ -1,6 +1,6 @@
 # Full feature parity — original Berean (Electron Mac + Capacitor iPhone) vs native (SwiftUI/AppKit/UIKit)
 
-Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare implementation remains uncommitted/runtime pending; do not mark parity complete.
+Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare source2bb1670d is committed with scoped Mac older-visit/cold precision proof. iPhone precise replay and the wider matrix remain open; do not mark broad parity complete.
 
 Authoritative feature-by-feature record (owner request 2026-11-12). Keyed by the audit's feature IDs (`docs/native-migration-audit/03-FEATURE-INVENTORY.md`).
 Original behaviour, files and platform differences are quoted from the audit. Native status was verified in this repository and, where noted, in the running apps.
@@ -1398,3 +1398,9 @@ Source `d349bf41` records immutable passage-scoped viewport maps in in-tab histo
 
 ### Nov23 reference follow-through — implemented versus remaining
 Mac Notes Strong’s preview is implemented in12d2e360 and passes actual-helper geometry and real isolated AppKit lifecycle tests; physical pointer dwell/flicker and overlapping-control checks remain open. Mac Compare linked verse cursor bridge and first-baseline correction are implemented in09e34b1d, with actual independent body-drag move, normal Strong’s/verse-number clicks, text selection and context-menu evidence. Wider layouts and mixed-script live matrices remain open. Both platform builds pass; this slice adds Mac interactions without changing iPhone presentation. Continue the separate iPhone active-history and shared scroll/title queue. See NOTES-HOVER-COMPARE-2026-11-23.md.
+
+
+### November 26 — S02/S13 desktop picker and shared Compare precision
+
+- S02: Mac regular, Compare Add and Notes routes use the desktop browser. iPhone compact passage selection passed. Compare Edit runtime remains open. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md)
+- S13: Mac aligned and stacked older-visit cold geometry passed. Keep the iPhone precision and broader reflow/interruption/empty/header/duplicate cases open. [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)

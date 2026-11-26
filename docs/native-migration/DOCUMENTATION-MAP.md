@@ -109,3 +109,6 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Readable lexicon excerpts](LEXICON-EXCERPTS-2026-11-23.md): owner regression, bounded wrapping context and platform verification.
 
 - [Shared Codex and Claude work queue](AI-WORK-QUEUE.md): owner-mandated continuous delegation, ownership, ready briefs and dispatch evidence.
+
+- [Shared Compare precision](COMPARE-SHARED-PRECISION-2026-11-26.md): older active visits vs latest destinations, crop wire compatibility, actual Mac aligned/stacked proof, simulator touch limit, remaining matrix and fixture cleanup.
+- [Desktop passage picker](DESKTOP-PASSAGE-PICKER-2026-11-26.md): platform separation, book visibility, Mac Notes verse-grid flow and scoped UI acceptance.

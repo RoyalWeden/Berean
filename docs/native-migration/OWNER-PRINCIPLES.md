@@ -88,3 +88,6 @@ Owner explicit copy contract (both Mac and iPhone): audit all verse-copy actions
 - 2026-11-23: Lexicon occurrence excerpts must keep the highlighted match visible, including narrow Scripture sidepanels. Make Study Trail and Messages easy to access on both apps without clutter or routine new tabs. KJVA passage picker opens at books (currentbook highlighted), with faster access across OT/NT/Apocrypha; single-book texts retain direct chapter access.
 
 - 2026-11-23 follow-up: Passage picker uses concise work-relative names forRecognitions ofClement books (Book1,Book2,etc.) andHermas sections, without changingcanonicalreferences/identities. Auditreferencehovercursors inNotes/Messages andallrelatedrichtext: linkedpassages shouldshowlinkaffordance, ordinaryeditable/selectabletextretainsIbeam. AdvancedScripturesearch andsimilarclickableresultrows need clearrestrainedhoverfeedback.
+
+## November26 desktop passage picker
+Keep the Mac three-column search/history, books/chapters and texts layout. Compact phone navigation must not leak into Compare or Notes sheets on desktop. Make desktop books easier to see without replacing its established layout; retain iPhone-specific navigation independently.

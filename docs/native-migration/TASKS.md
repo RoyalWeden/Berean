@@ -669,3 +669,9 @@ Owner reports Find is hidden/offscreen while searching, especially iOS. Current 
 ### November 26 — Mac verse study indicators
 
 - **IMPLEMENTED_UNVERIFIED** Verify the corrected arrow and rich attached/indirect excerpts on the isolated Genesis 1 fixture after build 56751. Then check physical hover, dark mode, Reduce Motion and accessibility. Broader iPhone behavior remains outside this Mac slice. [Study indicator evidence](VERSE-STUDY-INDICATORS-2026-11-26.md)
+
+
+### November 26 — Desktop picker and shared Compare precision
+
+- **VERIFIED (bounded)** Mac regular picker, Compare Add and Notes insert/new verse grid cancellation. Compact iPhone passage selection passed. Compare Edit remains open. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md)
+- **VERIFIED (Mac)** True stacked ordinary cold and older-visit replay plus aligned older-visit cold replay. Full shared suite passed 390 tests across 96 suites. **OPEN** iPhone precise crop, reflow, immediate wheel, empty/header and duplicate swap cases. Final owner builds remain pending. [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)

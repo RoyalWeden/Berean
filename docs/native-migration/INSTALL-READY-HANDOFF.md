@@ -49,3 +49,6 @@ Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **b496e
 
 ## November26 rich indicator and reader receipt
 Fresh owner-folder Mac, signed iPhone and Simulator builds from a5956515 PASS. Strict Mac/device signatures and native Dev identities/no cloud/group entitlements PASS. Sandboxed iPhone signature trust check required a repeat using system signing services; that check succeeded exit0. No install/launch/provisioning change. Ignored Nov26 receipt owner-indicators-ready-artifacts.json; build logs /private/tmp/berean-owner-indicators-{mac,device,ios}-20261126.log. Compare WIP is not part of these owner builds.
+
+## November26 desktop picker and Compare receipt
+Owner checkout safely fast-forwarded clean034e975f→appsource2bb1670d. Fresh Mac, signed physical-iPhone and Simulator builds PASS. Strict signatures for all3, correct native Dev identities and no iCloud/App Group entitlements PASS. Ignored Nov26 owner-compare-picker-ready-artifacts.json; logs /private/tmp/berean-owner-compare-picker-{mac,device,ios}-20261126.log. No install, physical launch, provisioning or identity change. Running owner Mac2506 left untouched; isolatedQAclosed. Later documentation-only commits do not change these binaries.
