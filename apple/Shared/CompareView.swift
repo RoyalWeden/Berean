@@ -935,7 +935,7 @@ struct CompareView: View {
                 }
             }
             #if os(macOS)
-            .frame(minWidth: 460, minHeight: 520)
+            .frame(minWidth: 800, minHeight: 540)
             #endif
         }
         .sheet(item: $tagging) { target in

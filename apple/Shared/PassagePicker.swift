@@ -64,8 +64,18 @@ struct PassagePicker: View {
     /// (textId, bookId, chapter, verse)
     let onPick: (ResolvedPassage) -> Void
     var compact = false
-    /// Compact (iPhone) only: a chapter tap moves the reader here and shows that chapter's verse grid; a verse tap
-    /// then finishes with `onPick` (original PassagePicker VersesView). Nil keeps the one-tap chapter pick.
+    /// Compact navigation belongs to iPhone. Shared sheet callers cannot
+    /// accidentally replace the desktop's three-column browser with phone tiles.
+    private var usesCompactLayout: Bool {
+        #if os(iOS)
+        compact
+        #else
+        false
+        #endif
+    }
+    /// An optional chapter preview enables the verse grid; a verse tap finishes
+    /// with onPick. This works within either platform's own browser layout.
+    /// Nil keeps the one-tap chapter pick.
     var onPreview: ((ResolvedPassage) -> Void)? = nil
     @State private var verseGrid: (edition: ChapterEdition, rows: [ChapterVerseRow])?
     @State private var chapterPreviewID: UUID?
@@ -109,7 +119,7 @@ struct PassagePicker: View {
 
     var body: some View {
         Group {
-            if compact {
+            if usesCompactLayout {
                 VStack(spacing: 0) {
                     compactHeader
                     if trimmed.isEmpty { middleColumn }
@@ -123,11 +133,11 @@ struct PassagePicker: View {
                     Divider()
                     textColumn.frame(width: 210)
                 }
-                .frame(height: 420)
+                .frame(height: 480)
             }
         }
         .task {
-            searchFocused = !compact
+            searchFocused = !usesCompactLayout
             catalog = app.bookCatalog.isEmpty ? await app.catalog() : app.bookCatalog
         }
         .task(id: BrowseRequest(text: text, choice: bookChoice)) {
@@ -197,7 +207,7 @@ struct PassagePicker: View {
 
     var leftColumn: some View {
         VStack(spacing: 0) {
-            if !compact {
+            if !usesCompactLayout {
                 TextField("Book, reference or text", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .focused($searchFocused)
@@ -267,7 +277,7 @@ struct PassagePicker: View {
             }
             .listStyle(.sidebar)
             #if os(iOS)
-            .scrollDismissesKeyboard(compact ? .interactively : .automatic)
+            .scrollDismissesKeyboard(usesCompactLayout ? .interactively : .automatic)
             #endif
         }
     }
@@ -416,8 +426,6 @@ struct PassagePicker: View {
                         }
                         .padding(12)
                     }
-                    Text("The reader is already on this chapter — pick a verse, or tap Done.")
-                        .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.bottom, 8)
                 }
             }
         } else if let b = openBook {
@@ -453,6 +461,16 @@ struct PassagePicker: View {
             }
         } else {
             VStack(spacing: 0) {
+                #if os(macOS)
+                HStack {
+                    Text("Books").font(.headline)
+                    Spacer()
+                    Text("\(books.count)").font(.caption).monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 10)
+                Divider()
+                #endif
                 if let activeBookSection {
                     bookSectionPicker(selection: activeBookSection)
                 }
@@ -485,7 +503,7 @@ struct PassagePicker: View {
 
     private func bookSectionPicker(selection: String) -> some View {
         Picker("Book section", selection: Binding(get: { selection }, set: { section in
-            if compact { searchFocused = false }
+            if usesCompactLayout { searchFocused = false }
             chosenBookSection = section
         })) {
             ForEach(sections, id: \.0) { title, _ in
@@ -504,7 +522,7 @@ struct PassagePicker: View {
     }
 
     @ViewBuilder private var bookList: some View {
-        if compact {
+        if usesCompactLayout {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
                     ForEach(displayedBookSections, id: \.0) { title, rows in
@@ -614,7 +632,7 @@ struct PassagePicker: View {
         }
         return Button {
             let passage = ResolvedPassage(textId: text, bookId: book.id, chapter: chapter, verse: nil)
-            if compact, let onPreview {
+            if let onPreview {
                 let requestID = UUID()
                 chapterPreviewID = requestID
                 onPreview(passage)
@@ -632,7 +650,7 @@ struct PassagePicker: View {
                 .font(chapter == 0 ? .caption : .body)
                 .monospacedDigit()
                 .frame(maxWidth: .infinity)
-                .frame(height: compact ? 44 : 34)
+                .frame(height: usesCompactLayout ? 44 : 34)
                 .background(current ? Color.accentColor : Color.secondary.opacity(0.12), in: .rect(cornerRadius: 8))
                 .foregroundStyle(current ? .white : .primary)
                 .contentShape(.rect)
@@ -677,7 +695,7 @@ struct PassagePicker: View {
                                     Spacer()
                                     if t.id == text { Image(systemName: "checkmark").foregroundStyle(.tint) }
                                 }
-                                .frame(minHeight: compact ? 48 : 32)
+                                .frame(minHeight: usesCompactLayout ? 48 : 32)
                                 .contentShape(.rect)
                             }
                             .buttonStyle(.interactivePlain)

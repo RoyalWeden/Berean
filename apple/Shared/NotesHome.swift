@@ -229,7 +229,7 @@ struct NotesHomeView: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { choosingNewNotePassage = false } } }
             }
             #if os(macOS)
-            .frame(minWidth: 460, minHeight: 520)
+            .frame(minWidth: 800, minHeight: 540)
             #endif
         }
         .sheet(isPresented: $choosingDailyDate) {
