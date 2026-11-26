@@ -20,3 +20,5 @@ November26,2026, Codex. Start with [HANDOFF](HANDOFF.md), [OWNER-PRINCIPLES](OWN
 5. Retain wider Find, continuous Search first-paint, recent/cross-reference list restoration and original parity work. Earlier evidence is linked from DOCUMENTATION-MAP.
 
 Owned simulator D0CC2F4C-AC47-4648-AC5C-0DC128CFCE7D only; leave E8B and owner Mac app alone. Prior iPhone baseline: Study Matthew5, verse12 selected, Strong’s off, panelclosed, nine tabs; Workspace4 Compare Psalm23 at start/SyncON. Re-query actual state/container before use. No additional physical phone install authorized.
+
+Nov26 final check: full local BereanKit run with the frozen Compare WIP passed **389 tests /96 suites**, including14 Compare viewport tests, exit0,164.748s. Log `/private/tmp/berean-compare-shared-swiftpm-85aa4309/full-native-20261126.log`; no live local build/test jobs remain. Draft24 publication32e4bd8b was confirmed with legacy/native/security checks IN_PROGRESS; later documentation-only commits do not change the verified a5956515 owner artifacts. Compare UI remains pending despite package/build success.
