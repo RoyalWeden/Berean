@@ -55,11 +55,7 @@ struct CompareViewportTests {
         #expect(CompareViewports.position(in: reloaded, scope: scope) == anchor)
         #expect(CompareViewports.position(in: reloaded, scope: .independent(b)) == nil)
 
-        let aligned = CompareBookmarkScope.aligned(source: address, columns: [a, b])
-        #expect(CompareViewports.updating(saved, scope: aligned, position: anchor) == saved)
-        let stacked = CompareBookmarkScope.stacked(source: address, columns: [a, b])
-        let stackedPrecision = try #require(CompareBookmarkAnchor(verse: 7, columnID: a.id, precision: precision))
-        #expect(CompareViewports.updating(saved, scope: stacked, position: stackedPrecision) == saved)
+        #expect(!JSON.stableJSON(.object(saved)).contains("\"sharedPrecision\""))
 
         let semantic = try #require(CompareBookmarkAnchor(verse: 7))
         let cleared = CompareViewports.updating(reloaded, scope: scope, position: semantic)
@@ -149,6 +145,150 @@ struct CompareViewportTests {
             #expect(CompareViewports.activeVisit(in: empty, context: candidate) == nil)
         }
         #expect(CompareActiveVisitContext(source: address, columns: [left, left], syncScrolling: false) == nil)
+    }
+
+    @Test func sharedHistoryStagesOlderAndEmptyVisitsWithoutRewindingLatestBookmarks() throws {
+        let source = try destination()
+        let pinned = CompareBookmarkColumn(id: UUID(), destination: try destination(2))
+        let following = CompareBookmarkColumn(id: UUID(), destination: source)
+        for layout in [CompareActiveVisitContext.Layout.aligned, .stacked] {
+            let pins: Set<UUID> = layout == .stacked ? [pinned.id] : []
+            let columns = layout == .stacked ? [following, pinned] : [following]
+            let context = try #require(CompareActiveVisitContext(source: source, columns: columns, syncScrolling: true,
+                                                                 pinnedColumnIDs: pins, layout: layout))
+            let scope = try #require(context.sharedBookmarkScope)
+            let columnID = layout == .stacked ? pinned.id : nil
+            let old = try #require(CompareBookmarkAnchor(verse: 4, columnID: columnID))
+            let latest = try #require(CompareBookmarkAnchor(verse: 12, columnID: columnID))
+            let historical = CompareViewports.updating(JSObject([("futureState", true)]), scope: scope, position: old)
+            let current = CompareViewports.updating(historical, scope: scope, position: latest)
+            let merged = CompareViewports.merging(current: current, into: historical)
+            for visit in [CompareViewports.SharedVisit.position(old), .empty] {
+                let staged = CompareViewports.settingSharedActiveVisit(in: merged, context: context, visit: visit)
+                let fields = TabFields.split(type: .bible, state: staged)
+                let local = try #require(try JSON.parse(JSON.stableJSON(.object(fields.local))).objectValue)
+                let reopened = TabFields.merge(type: .bible, sync: fields.sync, local: local)
+                #expect(fields.sync == TabFields.split(type: .bible, state: current).sync)
+                let active = CompareViewports.sharedActiveVisit(in: reopened, context: context)
+                #expect(active == visit)
+                #expect(CompareViewports.position(in: reopened, scope: scope) == latest)
+                #expect(CompareViewports.sharedActiveVisit(in: CompareViewports.clearingActiveVisit(in: reopened),
+                                                           context: context) == nil)
+            }
+        }
+    }
+
+    @Test func sharedCropRestoresCompatibleOlderVisitWithoutChangingLatestOrLegacyRow() throws {
+        let source = try destination()
+        let pinned = CompareBookmarkColumn(id: UUID(), destination: try destination(2))
+        let following = CompareBookmarkColumn(id: UUID(), destination: source)
+        let fingerprint = String(repeating: "a", count: 64)
+        let reflow = String(repeating: "b", count: 64)
+        let previousCrop = try #require(CompareBookmarkPrecision(crop: 21.5, rowHeight: 153, layout: fingerprint))
+        let newerCrop = try #require(CompareBookmarkPrecision(crop: 99, rowHeight: 153, layout: fingerprint))
+
+        for layout in [CompareActiveVisitContext.Layout.aligned, .stacked] {
+            let columns = layout == .stacked ? [following, pinned] : [following]
+            let pins: Set<UUID> = layout == .stacked ? [pinned.id] : []
+            let context = try #require(CompareActiveVisitContext(source: source, columns: columns, syncScrolling: true,
+                                                                 pinnedColumnIDs: pins, layout: layout))
+            let scope = try #require(context.sharedBookmarkScope)
+            let columnID = layout == .stacked ? pinned.id : nil
+            let older = try #require(CompareBookmarkAnchor(verse: 3, columnID: columnID, precision: previousCrop))
+            let newer = try #require(CompareBookmarkAnchor(verse: 3, columnID: columnID, precision: newerCrop))
+            let semantic = try #require(CompareBookmarkAnchor(verse: 3, columnID: columnID))
+
+            let latest = CompareViewports.updating(JSObject(), scope: scope, position: newer)
+            let staged = CompareViewports.settingSharedActiveVisit(in: latest, context: context, visit: .position(older))
+            let split = TabFields.split(type: .bible, state: staged)
+            #expect(split.sync[CompareViewports.field] == nil)
+            let local = try #require(try JSON.parse(JSON.stableJSON(.object(split.local))).objectValue)
+            let reloaded = TabFields.merge(type: .bible, sync: split.sync, local: local)
+            let visit = try #require(CompareViewports.sharedActiveVisit(in: reloaded, context: context))
+            guard case .position(let anchor) = visit else { Issue.record("Expected saved shared row"); continue }
+            #expect(anchor == older)
+            #expect(anchor.precision?.correction(layout: fingerprint, rowHeight: 153, currentCrop: 0.5) == 21)
+            #expect(anchor.precision?.correction(layout: reflow, rowHeight: 153, currentCrop: 0.5) == nil)
+            #expect(anchor.precision?.correction(layout: fingerprint, rowHeight: 160, currentCrop: 0.5) == nil)
+            #expect(CompareViewports.position(in: reloaded, scope: scope) == newer)
+
+            var positions = try #require(reloaded[CompareViewports.field]?.objectValue)
+            var active = try #require(positions["$activeVisit"]?.objectValue)
+            var stored = try #require(active["anchor"]?.objectValue)
+            #expect(stored["precision"] == nil)
+            #expect(stored["sharedPrecision"] != nil)
+            stored["sharedPrecision"] = ["crop": 1000, "rowHeight": 153, "layout": .string(JSString(fingerprint))]
+            active["anchor"] = .object(stored)
+            positions["$activeVisit"] = .object(active)
+            var malformed = reloaded
+            malformed[CompareViewports.field] = .object(positions)
+            #expect(CompareViewports.sharedActiveVisit(in: malformed, context: context) == .position(semantic))
+            #expect(CompareViewports.position(in: malformed, scope: scope) == newer)
+            let cleared = CompareViewports.updating(reloaded, scope: scope, position: semantic)
+            #expect(CompareViewports.position(in: cleared, scope: scope) == semantic)
+        }
+    }
+
+    @Test func sharedActiveVisitRequiresCurrentModeAndCompleteConfigurationEvenWithinSameLayout() throws {
+        let source = try destination()
+        let other = try destination(2)
+        let first = CompareBookmarkColumn(id: UUID(), destination: source)
+        let second = CompareBookmarkColumn(id: UUID(), destination: source)
+        let moved = CompareBookmarkColumn(id: second.id, destination: other)
+        let context = try #require(CompareActiveVisitContext(source: source, columns: [first, second], syncScrolling: false,
+                                                             pinnedColumnIDs: [second.id], layout: .stacked))
+        let old = try #require(CompareBookmarkAnchor(verse: 8, columnID: second.id))
+        let state = CompareViewports.settingSharedActiveVisit(in: JSObject(), context: context, visit: .position(old))
+        for mismatch in [
+            CompareActiveVisitContext(source: source, columns: [first, second], syncScrolling: false, pinnedColumnIDs: [second.id]),
+            CompareActiveVisitContext(source: source, columns: [first, second], syncScrolling: false, pinnedColumnIDs: [second.id], layout: .aligned),
+            CompareActiveVisitContext(source: source, columns: [first, second], syncScrolling: true, pinnedColumnIDs: [second.id], layout: .stacked),
+            CompareActiveVisitContext(source: source, columns: [first, second], syncScrolling: false, layout: .stacked),
+            CompareActiveVisitContext(source: source, columns: [second, first], syncScrolling: false, pinnedColumnIDs: [second.id], layout: .stacked),
+            CompareActiveVisitContext(source: source, columns: [first, moved], syncScrolling: false, pinnedColumnIDs: [second.id], layout: .stacked),
+            CompareActiveVisitContext(source: other, columns: [first, second], syncScrolling: false, pinnedColumnIDs: [second.id], layout: .stacked),
+        ] {
+            let mismatch = try #require(mismatch)
+            #expect(CompareViewports.sharedActiveVisit(in: state, context: mismatch) == nil)
+        }
+        let wrong = try #require(CompareBookmarkAnchor(verse: 8, columnID: UUID()))
+        #expect(CompareViewports.settingSharedActiveVisit(in: state, context: context, visit: .position(wrong)) == state)
+        let refreshed = try #require(CompareActiveVisitContext(source: source, columns: [second, first], syncScrolling: false,
+                                                               pinnedColumnIDs: [second.id], layout: .stacked))
+        let afterFreshScroll = CompareViewports.settingSharedActiveVisit(in: state, context: refreshed, visit: .position(old))
+        #expect(CompareViewports.sharedActiveVisit(in: afterFreshScroll, context: context) == nil)
+        #expect(CompareViewports.sharedActiveVisit(in: afterFreshScroll, context: refreshed) == .position(old))
+    }
+
+    @Test func stackedJumpStaysASourceRequestUntilRowsResolveAndKeepsTheLatestDestination() throws {
+        let source = try destination()
+        let following = CompareBookmarkColumn(id: UUID(), destination: source)
+        let pinned = CompareBookmarkColumn(id: UUID(), destination: try destination(2))
+        let context = try #require(CompareActiveVisitContext(source: source, columns: [following, pinned], syncScrolling: false,
+                                                             pinnedColumnIDs: [pinned.id], layout: .stacked))
+        let scope = try #require(context.sharedBookmarkScope)
+        let old = try #require(CompareBookmarkAnchor(verse: 9, columnID: pinned.id))
+        let latest = try #require(CompareBookmarkAnchor(verse: 18, columnID: pinned.id))
+        let resolved = try #require(CompareBookmarkAnchor(verse: 5, columnID: following.id))
+        let durable = CompareViewports.updating(JSObject(), scope: scope, position: latest)
+        let active = CompareViewports.settingSharedActiveVisit(in: durable, context: context, visit: .position(old))
+        let unidentified = try #require(CompareActiveVisitContext(source: source, columns: [following, pinned], syncScrolling: false,
+                                                                  pinnedColumnIDs: [pinned.id]))
+        let staged = CompareViewports.settingPendingSourceJump(in: active, context: unidentified, verse: 6)
+        let reopened = try #require(try JSON.parse(JSON.stableJSON(.object(staged))).objectValue)
+        #expect(CompareViewports.sharedActiveVisit(in: reopened, context: context) == .position(old))
+        #expect(CompareViewports.activeVisit(in: reopened, context: unidentified) == nil)
+        #expect(CompareViewports.pendingSourceJump(in: reopened, context: context, selectedVerse: 6) == 6)
+        #expect(CompareViewports.pendingSourceJump(in: reopened, context: context, selectedVerse: 7) == nil)
+        let changed = try #require(CompareActiveVisitContext(source: source, columns: [pinned, following], syncScrolling: false,
+                                                             pinnedColumnIDs: [pinned.id], layout: .stacked))
+        #expect(CompareViewports.pendingSourceJump(in: reopened, context: changed, selectedVerse: 6) == nil)
+        let cleared = CompareViewports.clearingPendingSourceJump(in: reopened)
+        #expect(CompareViewports.pendingSourceJump(in: cleared, context: context, selectedVerse: 6) == nil)
+        #expect(CompareViewports.sharedActiveVisit(in: cleared, context: context) == .position(old))
+        let placed = CompareViewports.settingSharedActiveVisit(in: cleared, context: context, visit: .position(resolved))
+        #expect(CompareViewports.sharedActiveVisit(in: placed, context: context) == .position(resolved))
+        #expect(CompareViewports.position(in: placed, scope: scope) == latest)
     }
 
     @Test func activeVisitDoesNotConsumeDestinationCapacityOrResurrectEvictedPositions() throws {

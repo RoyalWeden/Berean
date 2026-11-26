@@ -56,13 +56,18 @@ public enum CompareBookmarkScope: Hashable, Sendable {
 
     public func accepts(_ anchor: CompareBookmarkAnchor) -> Bool {
         switch self {
-        case .independent:
+        case .independent, .aligned:
             return anchor.columnID == nil
-        case .aligned:
-            return anchor.columnID == nil && anchor.precision == nil
         case .stacked(_, let columns):
-            return anchor.precision == nil && columns.contains { $0.id == anchor.columnID }
+            return columns.contains { $0.id == anchor.columnID }
         }
+    }
+
+    fileprivate var precisionKey: String {
+        if case .independent = self { return "precision" }
+        // Prior native builds reject shared anchors carrying the independent
+        // precision key. Keep the semantic row readable on those builds.
+        return "sharedPrecision"
     }
 }
 
@@ -115,35 +120,41 @@ public struct CompareBookmarkAnchor: Equatable, Sendable {
         self.precision = precision
     }
 
-    fileprivate init?(json: JSObject) {
+    fileprivate init?(json: JSObject, precisionKey: String = "precision") {
         guard let verse = json["verse"]?.numberValue.flatMap(Int.init(exactly:)) else { return nil }
+        let precision = json[precisionKey]?.objectValue.flatMap(CompareBookmarkPrecision.init(json:))
         if let value = json["columnID"] {
             guard let id = CompareViewports.parseColumnID(value) else { return nil }
-            self.init(verse: verse, columnID: id)
+            self.init(verse: verse, columnID: id, precision: precision)
         } else {
-            self.init(verse: verse, precision: json["precision"]?.objectValue.flatMap(CompareBookmarkPrecision.init(json:)))
+            self.init(verse: verse, precision: precision)
         }
     }
-    fileprivate func writing(into json: JSObject) -> JSObject {
+    fileprivate func writing(into json: JSObject, precisionKey: String = "precision") -> JSObject {
         var json = json
         json["verse"] = .number(Double(verse))
-        json["precision"] = precision?.json
+        json[precisionKey] = precision?.json
         json["columnID"] = columnID.map { .string(JSString($0.uuidString)) }
         return json
     }
 
 }
 
-/// Only the currently selected independent visit can override the durable
-/// destination bookmarks after a restart.
+/// The layout and configuration of the selected visit that can override the
+/// durable destination bookmarks after a restart.
 public struct CompareActiveVisitContext: Equatable, Sendable {
+    public enum Layout: String, Sendable {
+        case independent, aligned, stacked
+    }
+
     public let source: CompareBookmarkDestination
     public let columns: [CompareBookmarkColumn]
     public let syncScrolling: Bool
     public let pinnedColumnIDs: Set<UUID>
+    public let layout: Layout
 
     public init?(source: CompareBookmarkDestination, columns: [CompareBookmarkColumn], syncScrolling: Bool,
-                 pinnedColumnIDs: Set<UUID> = []) {
+                 pinnedColumnIDs: Set<UUID> = [], layout: Layout = .independent) {
         let ids = Set(columns.map(\.id))
         guard (1...32).contains(columns.count), ids.count == columns.count,
               pinnedColumnIDs.isSubset(of: ids) else { return nil }
@@ -151,13 +162,30 @@ public struct CompareActiveVisitContext: Equatable, Sendable {
         self.columns = columns
         self.syncScrolling = syncScrolling
         self.pinnedColumnIDs = pinnedColumnIDs
+        self.layout = layout
+    }
+
+    public var sharedBookmarkScope: CompareBookmarkScope? {
+        switch layout {
+        case .independent: nil
+        case .aligned: .aligned(source: source, columns: columns)
+        case .stacked: .stacked(source: source, columns: columns)
+        }
     }
 
     fileprivate var json: JSValue {
+        json(layout: layout.rawValue)
+    }
+
+    fileprivate var jumpConfiguration: JSValue {
+        json(layout: "sourceJump")
+    }
+
+    private func json(layout: String) -> JSValue {
         let configuration = columns.map { column -> JSValue in
             [column.key, .bool(pinnedColumnIDs.contains(column.id))]
         }
-        return ["independent", source.key, .array(configuration), .bool(syncScrolling)]
+        return [.string(JSString(layout)), source.key, .array(configuration), .bool(syncScrolling)]
     }
 }
 
@@ -172,6 +200,11 @@ public enum CompareViewports {
         case ordinary
         case history(CompareBookmarkAnchor?)
         case active(CompareBookmarkAnchor?)
+    }
+
+    public enum SharedVisit: Equatable, Sendable {
+        case empty
+        case position(CompareBookmarkAnchor)
     }
 
     /// Explicit requests are handled by the live pane and supersede this
@@ -192,7 +225,7 @@ public enum CompareViewports {
     /// A present empty dictionary denotes a visit with no saved panes.
     public static func activeVisit(in state: JSObject,
                                    context: CompareActiveVisitContext) -> [CompareBookmarkColumn: CompareBookmarkAnchor]? {
-        guard let record = state[field]?.objectValue?[activeVisitKey]?.objectValue,
+        guard context.layout == .independent, let record = state[field]?.objectValue?[activeVisitKey]?.objectValue,
               record["context"] == context.json, let saved = record["anchors"]?.objectValue else { return nil }
         var anchors: [CompareBookmarkColumn: CompareBookmarkAnchor] = [:]
         for column in context.columns {
@@ -207,6 +240,7 @@ public enum CompareViewports {
 
     public static func settingActiveVisit(in state: JSObject, context: CompareActiveVisitContext,
                                           anchors: [CompareBookmarkColumn: CompareBookmarkAnchor]) -> JSObject {
+        guard context.layout == .independent else { return state }
         var positions = state[field]?.objectValue ?? JSObject()
         var record = positions[activeVisitKey]?.objectValue ?? JSObject()
         let previous = record["context"] == context.json ? record["anchors"]?.objectValue : nil
@@ -228,6 +262,71 @@ public enum CompareViewports {
                                            anchors: [CompareBookmarkColumn: CompareBookmarkAnchor]) -> JSObject {
         let existing = activeVisit(in: state, context: context) ?? [:]
         return settingActiveVisit(in: state, context: context, anchors: existing.merging(anchors) { _, current in current })
+    }
+
+    public static func sharedActiveVisit(in state: JSObject, context: CompareActiveVisitContext) -> SharedVisit? {
+        guard let scope = context.sharedBookmarkScope,
+              let record = state[field]?.objectValue?[activeVisitKey]?.objectValue,
+              record["context"] == context.json else { return nil }
+        if record["anchor"] == .null { return .empty }
+        guard let json = record["anchor"]?.objectValue, let anchor = CompareBookmarkAnchor(json: json, precisionKey: scope.precisionKey),
+              scope.accepts(anchor) else { return nil }
+        return .position(anchor)
+    }
+
+    public static func settingSharedActiveVisit(in state: JSObject, context: CompareActiveVisitContext,
+                                                visit: SharedVisit) -> JSObject {
+        guard let scope = context.sharedBookmarkScope else { return state }
+        var positions = state[field]?.objectValue ?? JSObject()
+        var record = positions[activeVisitKey]?.objectValue ?? JSObject()
+        let previous = record["context"] == context.json ? record["anchor"]?.objectValue : nil
+        record["context"] = context.json
+        record.remove("anchors")
+        record.remove("anchor")
+        switch visit {
+        case .empty:
+            record["anchor"] = .null
+        case .position(let anchor):
+            guard scope.accepts(anchor) else { return state }
+            record["anchor"] = .object(anchor.writing(into: previous ?? JSObject(), precisionKey: scope.precisionKey))
+        }
+        positions[activeVisitKey] = .object(record)
+        var state = state
+        state[field] = .object(positions)
+        return state
+    }
+
+    /// An explicit source verse may need to survive an immediate lifecycle save
+    /// before the rendering layout and destination rows are known.
+    public static func pendingSourceJump(in state: JSObject, context: CompareActiveVisitContext,
+                                         selectedVerse: Int?) -> Int? {
+        guard let request = state[field]?.objectValue?[activeVisitKey]?.objectValue?["pendingJump"]?.objectValue,
+              request["context"] == context.jumpConfiguration,
+              let verse = request["verse"]?.numberValue.flatMap(Int.init(exactly:)), verse == selectedVerse,
+              CompareBookmarkAnchor(verse: verse) != nil else { return nil }
+        return verse
+    }
+
+    public static func settingPendingSourceJump(in state: JSObject, context: CompareActiveVisitContext,
+                                                verse: Int) -> JSObject {
+        guard CompareBookmarkAnchor(verse: verse) != nil else { return state }
+        var positions = state[field]?.objectValue ?? JSObject()
+        var record = positions[activeVisitKey]?.objectValue ?? JSObject()
+        record["pendingJump"] = ["context": context.jumpConfiguration, "verse": .number(Double(verse))]
+        positions[activeVisitKey] = .object(record)
+        var state = state
+        state[field] = .object(positions)
+        return state
+    }
+
+    public static func clearingPendingSourceJump(in state: JSObject) -> JSObject {
+        guard var positions = state[field]?.objectValue, var record = positions[activeVisitKey]?.objectValue,
+              record["pendingJump"] != nil else { return state }
+        record.remove("pendingJump")
+        positions[activeVisitKey] = record.isEmpty ? nil : .object(record)
+        var state = state
+        state[field] = positions.isEmpty ? nil : .object(positions)
+        return state
     }
 
     public static func clearingActiveVisit(in state: JSObject) -> JSObject {
@@ -276,7 +375,7 @@ public enum CompareViewports {
 
     public static func position(in state: JSObject, scope: CompareBookmarkScope) -> CompareBookmarkAnchor? {
         guard let key = scope.key, let record = state[field]?.objectValue?[key]?.objectValue,
-              let anchor = CompareBookmarkAnchor(json: record), scope.accepts(anchor) else { return nil }
+              let anchor = CompareBookmarkAnchor(json: record, precisionKey: scope.precisionKey), scope.accepts(anchor) else { return nil }
         return anchor
     }
 
@@ -303,7 +402,7 @@ public enum CompareViewports {
                 nextOrder = Double(recent.count + 1)
             }
             record["order"] = .number(nextOrder)
-            positions[key] = .object(position.writing(into: record))
+            positions[key] = .object(position.writing(into: record, precisionKey: scope.precisionKey))
         }
 
         var state = state
