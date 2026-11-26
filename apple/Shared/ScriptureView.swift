@@ -2670,6 +2670,9 @@ extension ScriptureView {
     /// Resolve the passages actually written in the attached verse note. Load
     /// lazily for the hover card rather than querying every marker while reading.
     @MainActor private func studyPreviewItems(_ verse: Int) async -> [ReaderStudyPreview] {
+        let st = state
+        let attached = (try? app.notes?.coveringVerse(st.bookId, st.chapter, verse, textId: st.translation)) ?? []
+        let mentioned = presentation?.indirectMentions[verse] ?? []
         let links = Array((verseCitations?.links[verse] ?? []).prefix(3))
         let replaceWords = app.wordReplacerEnabled
         var previews: [ReaderStudyPreview] = []
@@ -2700,6 +2703,20 @@ extension ScriptureView {
             previews.append(ReaderStudyPreview(id: "\(link.note.id)|\(index)|\(reference)", reference: reference,
                 noteTitle: link.note.title.isEmpty ? "Untitled" : link.note.title,
                 text: text.isEmpty ? "Passage unavailable" : text))
+        }
+        // An indirect mention is useful study material too. Previously its
+        // marker showed only a count, leaving the hover card apparently empty.
+        // Read attached/mention notes lazily, keep linked passages first, and
+        // avoid repeating the source note already identified by a passage card.
+        var seen = Set(links.map { $0.note.id })
+        let attachedIDs = Set(attached.map(\.id))
+        for note in attached + mentioned {
+            guard previews.count < 3, !Task.isCancelled else { break }
+            guard seen.insert(note.id).inserted else { continue }
+            previews.append(ReaderStudyPreview(id: "note|\(note.id)",
+                reference: attachedIDs.contains(note.id) ? "Attached note" : "Mentioned in",
+                noteTitle: note.title.isEmpty ? "Untitled" : note.title,
+                text: note.content, isNoteExcerpt: true))
         }
         return previews
     }

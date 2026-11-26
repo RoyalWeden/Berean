@@ -447,4 +447,6 @@ struct ReaderStudyPreview: Identifiable, Sendable {
     let reference: String
     let noteTitle: String
     let text: String
+    /// Note excerpts use the same rich preview renderer as Notes, never raw Markdown.
+    var isNoteExcerpt = false
 }

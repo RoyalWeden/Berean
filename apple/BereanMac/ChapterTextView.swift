@@ -1139,18 +1139,21 @@ final class ReaderTextView: NSTextView {
             let items = await load(number)
             guard !Task.isCancelled, self.hovered == range, let window = self.window,
                   allowInactive || window.isKeyWindow, let host = window.contentView else { return }
-            // NSTextInputClient gives the actual rendered first-line rectangle in
-            // screen space, including scrolling/insets. Converting through the
-            // window avoids manually mixing flipped TextKit/container coordinates.
-            let screenAnchor = self.firstRect(forCharacterRange: range, actualRange: nil)
-            guard !screenAnchor.isEmpty else { return }
-            let windowAnchor = window.convertFromScreen(screenAnchor)
-            let textAnchor = self.convert(windowAnchor, from: nil)
-            guard self.visibleRect.intersects(textAnchor) else { return }
-            let anchor = host.convert(windowAnchor, from: nil)
+            // Use the attachment's actual TextKit glyph bounds. The input-client
+            // firstRect can describe the surrounding line/caret for an attachment,
+            // placing the arrow above its marker. View conversion handles flipped
+            // coordinates, text insets and the current scroll offset together.
+            guard let layout = self.layoutManager, let container = self.textContainer else { return }
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            var textAnchor = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            textAnchor.origin.x += self.textContainerOrigin.x
+            textAnchor.origin.y += self.textContainerOrigin.y
+            guard !textAnchor.isEmpty, self.visibleRect.intersects(textAnchor) else { return }
+            let anchor = host.convert(textAnchor, from: self)
+            let screenAnchor = window.convertToScreen(self.convert(textAnchor, to: nil))
             let popover = NSPopover()
             popover.behavior = .transient
-            popover.animates = false
+            popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             // Resolve content before showing, so the card does not change height
             // and shift its arrow after the user has already started reading it.
             popover.contentViewController = NSHostingController(rootView: ReaderStudyHoverCard(verse: verse, items: items))
@@ -1206,6 +1209,7 @@ final class ReaderTextView: NSTextView {
 
     override func draw(_ dirtyRect: NSRect) {
         defer { super.draw(dirtyRect) }
+        drawStudyMarkerHover(in: dirtyRect)
         guard let c = coordinator, !c.parent.selectedVerses.isEmpty,
               let layout = layoutManager, let container = textContainer else { return }
         NSGraphicsContext.saveGraphicsState()
@@ -1230,6 +1234,28 @@ final class ReaderTextView: NSTextView {
             path.fill()
             path.stroke()
         }
+    }
+
+    /// Attachment glyphs need a rounded control surface rather than a text
+    /// selection rectangle. Keep the tint outside layout so hovering never
+    /// changes the gutter width or the reader's saved position.
+    private func drawStudyMarkerHover(in dirtyRect: NSRect) {
+        guard let range = hovered, isStudyMarker(range),
+              let layout = layoutManager, let container = textContainer else { return }
+        let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        var rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+        rect = rect.insetBy(dx: -3, dy: -3)
+        guard dirtyRect.intersects(rect) else { return }
+        NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
+    }
+
+    private func isStudyMarker(_ range: NSRange) -> Bool {
+        guard let storage = textStorage, range.location < storage.length,
+              let url = storage.attribute(.link, at: range.location, effectiveRange: nil) as? URL else { return false }
+        return ["berean-verse-notes", "berean-verse-citations"].contains(url.scheme ?? "")
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -1385,8 +1411,11 @@ final class ReaderTextView: NSTextView {
         if newRange != hovered {
             prepareStudyPreview(at: index, range: newRange)
             if let h = hovered, NSMaxRange(h) <= ts.length { lm.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
-            if let n = newRange { lm.addTemporaryAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.14), forCharacterRange: n) }
+            if let n = newRange, !isStudyMarker(n) {
+                lm.addTemporaryAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.14), forCharacterRange: n)
+            }
             hovered = newRange
+            needsDisplay = true
         }
     }
 
@@ -1398,6 +1427,7 @@ final class ReaderTextView: NSTextView {
         dismissStudyPreview()
         if let h = hovered, let ts = textStorage, NSMaxRange(h) <= ts.length { layoutManager?.removeTemporaryAttribute(.backgroundColor, forCharacterRange: h) }
         hovered = nil
+        needsDisplay = true
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -1539,24 +1569,44 @@ private struct ReaderStudyHoverCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Verse \(verse.readerVerseLabel)", systemImage: verse.studySymbol).font(.headline)
-            Text(verse.studySummary).font(.callout).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Label("Verse \(verse.readerVerseLabel)", systemImage: verse.studySymbol)
+                    .font(.headline)
+                Spacer(minLength: 8)
+            }
+            Text(verse.studySummary).font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if !items.isEmpty {
                 Divider()
-                ForEach(items) { item in
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(item.reference).font(.subheadline.weight(.semibold))
-                        Text(item.text).font(.callout).lineLimit(5)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(item.noteTitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 { Divider().opacity(0.5) }
+                    VStack(alignment: .leading, spacing: 6) {
+                        if item.isNoteExcerpt {
+                            Label(item.noteTitle, systemImage: "note.text")
+                                .font(.subheadline.weight(.semibold)).lineLimit(2)
+                            Text(notePreviewExcerpt(item.text, limit: 320, skippingFirstLineMatching: item.noteTitle))
+                                .font(.callout).lineSpacing(3).lineLimit(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(item.reference).font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text(item.reference).font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.tint)
+                            Text(item.text).font(.callout).lineSpacing(3).lineLimit(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Label(item.noteTitle, systemImage: "note.text")
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else if let preview = verse.citationPreview, !preview.isEmpty {
                 Text(preview).font(.callout).lineSpacing(5)
             }
-            Text("Click the marker to open study details").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 5) {
+                Image(systemName: "cursorarrow.click")
+                Text("Click marker to open")
+            }
+            .font(.caption).foregroundStyle(.tertiary)
         }
         .frame(width: 330, alignment: .leading)
         .padding(16)
