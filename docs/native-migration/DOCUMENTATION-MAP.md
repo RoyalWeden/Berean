@@ -107,3 +107,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 
 - [Independent Compare precision](COMPARE-PRECISION-2026-11-23.md): optional rowcrop model, measured lazy-layout correction, Mac/iPhone runtime evidence and required activevisit persistence follow-up.
 - [Readable lexicon excerpts](LEXICON-EXCERPTS-2026-11-23.md): owner regression, bounded wrapping context and platform verification.
+
+- [Shared Codex and Claude work queue](AI-WORK-QUEUE.md): owner-mandated continuous delegation, ownership, ready briefs and dispatch evidence.

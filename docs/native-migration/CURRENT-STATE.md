@@ -34,3 +34,9 @@
 1. Owner-folder builds are verified at `b496e3bf`. Refresh exact-head CI after final docs publication; at the source check both legacy and native CI were IN_PROGRESS and security NEUTRAL. No green-CI or merge claim.
 2. Continue Find’s wider device, layout, text and accessibility matrix. Continue continuous Search first paint, recent/cross-reference lists, pixel/filter/race and centered/top history checks. Reverse sort and collapsible result groups stay queued.
 3. Continue aligned/stacked older-visit cold history and ordinary Scripture reader return drift.
+
+- **Active continuation Nov24:** diagnosing ordinary Mac reader return with bounded, opt-in QA-only metadata tracing in ChapterTextView (temporary; remove before shipping). Aligned/stacked Compare active-visit persistence is separately being implemented in CompareView/AppModel/CompareViewport and focused tests; source not verified yet. Previous b496e3bf install-ready artifacts remain the last verified owner builds. No production or physical device action.
+
+- Reader measurement now isolates a real reflow case: same clip origin635 but cold width1099→759 changed verse12 crop−12.8→−35.8 (23pt). New Mac capture/restore uses existing width/verseOffset fields; build/runtime pending. Three Notes and three Compare warm returns were exact. See READER-REFLOW-2026-11-24.md. QA trace app currently quit; no production work.
+
+- **Nov26 owner steering:** maintain continuous Claude Code delegation through [AI-WORK-QUEUE](AI-WORK-QUEUE.md). Codex owns reader/Compare restoration and next verse indicator polish; Claude gets independent Search ordering/group work and Presenter/Messages review. Only take Claude tasks after explicit ownership transfer and sufficient usage to finish/verify. Verse note/cross-reference indicators remain a current visual priority.

@@ -118,3 +118,6 @@ Do not mark the broad goal complete because a batch, PR, documentation task or b
 - Command-W while Settings is open previously closed an underlying tab; native window cycling returned safely to the study window. Do not blindly use an app-wide shortcut as a settings-window close action.
 
 After recording the checkpoint, resume actual app work from the ordered queue. The owner wants sustained autonomous implementation and testing, not repeated requests to continue.
+
+## Continuous Claude delegation — owner instruction Nov26
+Maintain [AI-WORK-QUEUE](AI-WORK-QUEUE.md) with separately owned Codex and Claude Code tasks and self-contained implementation briefs. Keep Claude-ready work replenished, record actual dispatch/session/result evidence, and isolate parallel file ownership. Codex must not silently take Claude’s assigned tasks; take over only when usage can cover completion and verification, after an explicit ownership transfer. Prepared work is not a running worker. Keep this queue linked from HANDOFF so either AI discovers it on resume.
