@@ -17,7 +17,6 @@ private final class ChapterPullScrollView: NSScrollView {
     private var studyPreviewOrigin: NSPoint?
     private var appliedViewportGeometry: ViewportGeometry?
     private var historyOffsetCorrection: HistoryOffsetCorrection?
-
     private struct HistoryOffsetCorrection {
         let actionID = UUID()
         var appliedY: CGFloat?
@@ -473,10 +472,14 @@ struct ChapterTextView: NSViewRepresentable {
                     tv.layoutManager?.ensureLayout(for: container)
                     let clip = scroll.contentView
                     var bounds = clip.bounds
+                    let reflowed = position.viewportWidth.map { abs($0 - clip.bounds.width) > 1 } ?? false
+                    let reflowTop = reflowed ? position.verse.flatMap { c.verseRanges[$0] }
+                        .flatMap { tv.firstVerseLineTop(in: $0) }
+                        .flatMap { y in position.verseOffsetFromTop.map { tv.convert(NSPoint(x: 0, y: y), to: clip).y - $0 } } : nil
                     let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
                         .flatMap { tv.firstVerseLineTop(in: $0) }
                         .map { tv.convert(NSPoint(x: 0, y: $0), to: clip).y - tv.visibleTitleBarClearance - 12 } : nil
-                    bounds.origin.y = position.atEnd ? clip.documentRect.maxY : verseTop ?? (clip.documentRect.minY + position.offset)
+                    bounds.origin.y = position.atEnd ? clip.documentRect.maxY : reflowTop ?? verseTop ?? (clip.documentRect.minY + position.offset)
                     clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                     scroll.reflectScrolledClipView(clip)
                     c.editionArrival = position.returnEdition.map {
@@ -1006,8 +1009,11 @@ struct ChapterTextView: NSViewRepresentable {
                 return y >= clip.bounds.minY + view.visibleTitleBarClearance && y < clip.bounds.maxY - parent.actionClearance ? verse : nil
             }
             let verse = visiblePreferred ?? readingAnchor(at: clip.bounds.minY, in: view)?.verse
+            let verseOffset = verse.flatMap { verseRanges[$0] }.flatMap { view.firstVerseLineTop(in: $0) }
+                .map { view.convert(NSPoint(x: 0, y: $0), to: clip).y - clip.bounds.minY }
             return ScriptureReadingPosition(offset: offset, verse: verse, selectedVerses: parent.selectedVerses,
-                                            returnEdition: editionArrival?.returnEdition(at: offset))
+                                            returnEdition: editionArrival?.returnEdition(at: offset),
+                                            viewportWidth: clip.bounds.width, verseOffsetFromTop: verseOffset)
         }
 
         func verse(at index: Int) -> Int? {
