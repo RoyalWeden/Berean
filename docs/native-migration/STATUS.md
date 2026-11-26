@@ -1,5 +1,7 @@
 # Berean Native Migration — Live Status
 
+Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare implementation remains uncommitted/runtime pending; do not mark parity complete.
+
 > Initialized 2026-11-07 from verified Git, CI and test evidence. Every claim here was checked in the
 > session that wrote it; re-verify against live Git before relying on it after a gap.
 

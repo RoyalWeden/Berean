@@ -1,5 +1,7 @@
 # UX and functional issue register (native apps)
 
+Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare implementation remains uncommitted/runtime pending; do not mark parity complete.
+
 Stable IDs; issues are never deleted — fixed ones stay with their evidence.
 
 **Severity.** P0 crash, data loss or sync corruption · P1 major missing or broken workflow · P2 usability or incomplete · P3 polish.

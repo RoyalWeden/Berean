@@ -12,10 +12,10 @@ Use isolated branches/worktrees for parallel code work. Do not edit another work
 
 | ID | Owner | State | Result / scope |
 |---|---|---|---|
-| DX-01 | Codex | Active | Mac reader width-aware restoration; prove measured same-verse crop across width changes and same-width exact points. Temporary QA traces must be removed before final builds. |
+| DX-01 | Codex | Partial verified, wider cases open | Mac reader width-aware restoration; prove measured same-verse crop across width changes and same-width exact points. Temporary QA traces must be removed before final builds. |
 | DX-02 | Codex | Active | Aligned/stacked Compare active visits, qualified warm coordinates, explicit-jump precedence and review regressions. Both apps need real UI checks. |
-| DX-03 | Codex | Next priority | Improve verse note/cross-reference/tag indicators, hover preview alignment and fluid native appearance without interrupting reading. Owner reaffirmed Nov26. |
-| CC-01 | Claude Code | Ready, not yet dispatched | Add both directions of Search result order on Mac and iPhone. See implementation brief below. |
+| DX-03 | Codex | Implemented Mac slice; wider checks open | Improve verse note/cross-reference/tag indicators, hover preview alignment and fluid native appearance without interrupting reading. Owner reaffirmed Nov26. |
+| CC-01 | Claude Code | Blocked: Claude signed out | Add both directions of Search result order on Mac and iPhone. See implementation brief below. |
 | CC-02 | Claude Code | Ready after CC-01 | Add collapsible Search result groups, keeping counts, group jumps and hidden-row restoration coherent. Same files as CC-01: run sequentially. |
 | CC-03 | Claude Code | Ready, read-only | Review Presenter and Messages native parity and visual/accessibility gaps against the original; return at most three concrete, reproducible fixes with scoped file ownership for a later implementation task. |
 
@@ -48,3 +48,7 @@ Read original Electron Presenter/window and messaging workflows plus current nat
 ## Scheduling and usage
 
 Codex continuously replenishes the Claude-ready queue and records dispatch outcomes. Do not restart a live worker after a timeout; inspect its exact handle/process. Do not reset limits or switch credentials. If Claude is unavailable, leave the assignment ready and record the actual reason. Codex taking over requires an explicit queue ownership change, a clear usage/readiness judgment and no other worker still editing those files. Before any final handoff, verify install-ready owner-folder Mac and signed iPhone builds and provide the owner’s simple commands.
+
+## November 26 dispatch evidence
+
+CC-01 isolated worktree created at `/Users/roywe/Documents/ChatGPT/Berean/claude-worktrees/search-order`, branch `native/claude-search-order-20261126`, base b4db91b8. Restricted file-tools-only Claude Sonnet launch attempted; session `89306171-0a74-4173-9ed5-f801336db4e9` ended immediately with **Not logged in · Please run /login**, zero model tokens and no file edits. No live Claude task. CC-01 stays assigned to Claude, awaiting its normal login; no reset or credential change attempted. CC-02/03 remain prepared. Codex continues DX-01/02/03.

@@ -1,5 +1,7 @@
 # Full feature parity — original Berean (Electron Mac + Capacitor iPhone) vs native (SwiftUI/AppKit/UIKit)
 
+Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare implementation remains uncommitted/runtime pending; do not mark parity complete.
+
 Authoritative feature-by-feature record (owner request 2026-11-12). Keyed by the audit's feature IDs (`docs/native-migration-audit/03-FEATURE-INVENTORY.md`).
 Original behaviour, files and platform differences are quoted from the audit. Native status was verified in this repository and, where noted, in the running apps.
 Issues live in `UX-AND-FUNCTIONAL-ISSUES.md`; screens in `SCREEN-INVENTORY.md`.

@@ -797,3 +797,7 @@ Keep bounded device-local Search row bookmarks in the existing filters object an
 ### November 23 — Chapter Find and scoped book groups
 
 Use a top iPhone Find surface with separate temporary match highlighting so the bottom dock and text or verse selection retain their existing roles. Group Search by canonical scoped book ID for Bible editions and by work for other texts. Capture edition focus before exclusive tab update. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md) [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)
+
+### November 26 — Anchor the study popover to the marker glyph
+
+Use TextKit attachment bounds for both the rounded hover surface and popover anchor. The input-client rectangle placed the arrow above the observed marker. Keep preview reads lazy, linked passages first and note excerpts as fallback. Use native motion preferences and the isolated Option-click route for card geometry and content checks. [Study indicator evidence](VERSE-STUDY-INDICATORS-2026-11-26.md)

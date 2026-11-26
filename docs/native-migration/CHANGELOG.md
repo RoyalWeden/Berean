@@ -2237,3 +2237,7 @@ Evidence: ignored `owner-ready-1326-artifacts.json`, `phone-1326-install.json`, 
 
 - `0fe0b88a` moves iPhone chapter Find above the reader, with match navigation and highlighting independent of the selected verse. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md)
 - `4141ad1a` adds grouped book selection, Return quick-add and scope crash protection. Its saved-position seed passed sampled cold starts. [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)
+
+### November 26 — Mac verse study indicators
+
+- Draw a rounded hover surface and anchor the native study popover to the marker glyph. The popover follows Reduce Motion. Attached and indirect note excerpts supplement linked passages, with a three-item limit and duplicate source notes omitted. Corrected anchor and excerpt runtime checks are pending. [Study indicator evidence](VERSE-STUDY-INDICATORS-2026-11-26.md)

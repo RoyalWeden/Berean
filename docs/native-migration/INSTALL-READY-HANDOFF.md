@@ -46,3 +46,6 @@ Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **c5074
 
 ## Nov24 floating Find and Search book-filter receipt
 Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **b496e3bf** all PASS. Strict Mac/device signatures PASS; all three Dev platform identities and absence of iCloud/App Group entitlements verified. The two new Find drawing isolation warnings are absent; older TextKit drawGlyphs warnings remain. Receipt `owner-find-ready-artifacts.json` and `owner-find-{mac,iphone,simulator}-ready.log` are under ignored Nov23 QA evidence; earlier0fe logs are retained separately. No additional physical installation, launch, provisioning or signing change. Later documentation-only commits do not alter these binaries.
+
+## November26 rich indicator and reader receipt
+Fresh owner-folder Mac, signed iPhone and Simulator builds from a5956515 PASS. Strict Mac/device signatures and native Dev identities/no cloud/group entitlements PASS. Sandboxed iPhone signature trust check required a repeat using system signing services; that check succeeded exit0. No install/launch/provisioning change. Ignored Nov26 receipt owner-indicators-ready-artifacts.json; build logs /private/tmp/berean-owner-indicators-{mac,device,ios}-20261126.log. Compare WIP is not part of these owner builds.

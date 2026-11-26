@@ -13,3 +13,7 @@ Ignored evidence: mac-reader-return-warm-trace.json (229 events), mac-reader-ret
 ## Required verification
 
 Capture a new width-aware anchor at a measured partial row, cold return with changed width, and confirm the same verse crop within one physical pixel after settling. Also verify unchanged-width exact points, immediate user wheel input wins, explicit Go reaches its verse, selection near the end clears the action bar, and the original Genesis1 reported case. Reconcile measured layout differences; do not broaden a correction timer from fractions alone. Restore the established Jeremiah33:11/Search voice-of-joy/Thursday note/Compare baseline. Remove trace helpers before final builds and prepare both owner apps.
+
+## November 26 measured continuation
+
+Candidate Mac build passed. New measured partial-row capture at width759/origin740 held verse13 crop−8.6. After an inactive reader width change, return at width919/origin694 held the same verse13 crop−8.6 exactly. A subsequent same-width Notes return held verse9 crop−48.4 and origin343 exactly. Temporary trace removed from source after capture. Evidence: ignored Nov26 reader-reflow-indicators-trace.json (144 decoded events, one interleaved malformed line omitted); raw /private/tmp/berean-reader-indicators-runtime-20261126.log. This proves these settled warm/reflow cases, not continuous first paint, all cold/reflow combinations or immediate wheel arbitration. Further tests listed above remain open.

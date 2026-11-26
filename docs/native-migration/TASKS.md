@@ -665,3 +665,7 @@ Owner reports Find is hidden/offscreen while searching, especially iOS. Current 
 
 - **VERIFIED (bounded)** iPhone chapter Find above the reader with software keyboard shown and hidden, match navigation, chapter refresh, close and retained verse selection. Mac Find passed its existing route. **OPEN** physical iPhone and wider layout/text/accessibility matrix. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md)
 - **VERIFIED (bounded)** Mac/iPhone grouped selection and scope crash retests. **OPEN** continuous first paint and broader filter and accessibility checks. [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)
+
+### November 26 — Mac verse study indicators
+
+- **IMPLEMENTED_UNVERIFIED** Verify the corrected arrow and rich attached/indirect excerpts on the isolated Genesis 1 fixture after build 56751. Then check physical hover, dark mode, Reduce Motion and accessibility. Broader iPhone behavior remains outside this Mac slice. [Study indicator evidence](VERSE-STUDY-INDICATORS-2026-11-26.md)
