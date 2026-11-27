@@ -51,6 +51,7 @@ struct BereanMacApp: App {
                 .focusedSceneValue(\.bereanStudyWindow, false)
                 .frame(minWidth: 480, minHeight: 320)
         }
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1000, height: 700)
         .commandsRemoved()
         Settings {

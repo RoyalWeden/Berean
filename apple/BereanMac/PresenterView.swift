@@ -14,7 +14,7 @@ struct PresenterView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("presenter.scale") private var scale = 1.6
-    private static let controlSize: CGFloat = 32
+    private static let controlSize: CGFloat = 36
     @State private var paused = false
     @State private var frozenFocus: Int?
     @State private var snapshot: Snapshot = .idle
@@ -145,69 +145,16 @@ struct PresenterView: View {
             if !paused && loadedSource != source {
                 ProgressView().controlSize(.small)
             } else {
-                audienceContent.presenterClearScrollEdge()
+                audienceContent
+                    .contentMargins(.bottom, 32, for: .scrollContent)
+                    .presenterClearScrollEdge()
             }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            presenterControls.padding(16)
         }
         .environment(\.colorScheme, renderedAppearance.scheme ?? colorScheme)
         .navigationTitle(paused ? "Presenter — Paused" : "Presenter")
-        .toolbarBackground(.hidden, for: .windowToolbar)
-        .toolbar {
-            ToolbarItem(placement: .status) {
-                Image(systemName: paused ? "pause.fill" : "dot.radiowaves.left.and.right")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: Self.controlSize, height: Self.controlSize)
-                    .modifier(PresenterCircularGlass(interactive: false))
-                    .accessibilityLabel(paused ? "Paused" : "Following main window")
-                    .help(paused ? "The audience view is frozen" : "Following the main window")
-            }
-            .presenterOwnGlassBackground()
-            ToolbarItem {
-                HStack(spacing: 6) {
-                    Button("Smaller", systemImage: "textformat.size.smaller") { setScale(scale - 0.2) }
-                        .labelStyle(.iconOnly)
-                        .accessibilityLabel("Decrease text size")
-                        .disabled(scale <= PresenterZoom.range.lowerBound)
-                        .help("Smaller text (⌘−)")
-                    Button { setScale(PresenterZoom.standard) } label: {
-                        Text("\(Int((scale * 100).rounded()))%")
-                            .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-                            .frame(minWidth: 42)
-                    }
-                    .accessibilityLabel("Reset text size")
-                    .accessibilityValue("\(Int((scale * 100).rounded())) percent")
-                    .help("Reset text size (⌘0)")
-                    Button("Larger", systemImage: "textformat.size.larger") { setScale(scale + 0.2) }
-                        .labelStyle(.iconOnly)
-                        .accessibilityLabel("Increase text size")
-                        .disabled(scale >= PresenterZoom.range.upperBound)
-                        .help("Larger text (⌘+)")
-                }
-                .buttonStyle(.borderless)
-                .padding(.horizontal, 6).frame(height: Self.controlSize)
-                .glassEffectCompat(interactive: true)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Presenter text size")
-            }
-            .presenterOwnGlassBackground()
-            ToolbarItem {
-                Button {
-                    if !paused { frozenFocus = liveFocus; frozenSelection = selected }
-                    paused.toggle()
-                } label: {
-                    Label(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill")
-                        .labelStyle(.iconOnly)
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: Self.controlSize, height: Self.controlSize)
-                        .contentShape(.circle)
-                        .modifier(PresenterCircularGlass(interactive: true))
-                }
-                .buttonStyle(.plain)
-                .disabled(!paused && (loading || loadedSource != source))
-                .help(paused ? "Follow the main window again" : "Keep this document and reading position on screen")
-            }
-            .presenterOwnGlassBackground()
-        }
         .onAppear {
             scale = scale.isFinite ? min(4, max(0.8, scale)) : 1.6
             followedVerse = readerAnchor ?? selected.min()
@@ -233,6 +180,60 @@ struct PresenterView: View {
         .focusedSceneValue(\.presenterZoom, PresenterZoom(scale: scale, set: { [binding = $scale] v in
             binding.wrappedValue = PresenterZoom.clamped(v)
         }))
+    }
+
+    private var presenterControls: some View {
+        HStack(spacing: 8) {
+            Image(systemName: paused ? "pause.fill" : "dot.radiowaves.left.and.right")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: Self.controlSize, height: Self.controlSize)
+                .modifier(PresenterCircularGlass(interactive: false))
+                .accessibilityLabel(paused ? "Paused" : "Following main window")
+                .help(paused ? "The audience view is frozen" : "Following the main window")
+
+            HStack(spacing: 6) {
+                Button("Smaller", systemImage: "textformat.size.smaller") { setScale(scale - 0.2) }
+                    .labelStyle(.iconOnly)
+                    .accessibilityLabel("Decrease text size")
+                    .disabled(scale <= PresenterZoom.range.lowerBound)
+                    .help("Smaller text (⌘−)")
+                Button { setScale(PresenterZoom.standard) } label: {
+                    Text("\(Int((scale * 100).rounded()))%")
+                        .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+                        .frame(minWidth: 42)
+                }
+                .accessibilityLabel("Reset text size")
+                .accessibilityValue("\(Int((scale * 100).rounded())) percent")
+                .help("Reset text size (⌘0)")
+                Button("Larger", systemImage: "textformat.size.larger") { setScale(scale + 0.2) }
+                    .labelStyle(.iconOnly)
+                    .accessibilityLabel("Increase text size")
+                    .disabled(scale >= PresenterZoom.range.upperBound)
+                    .help("Larger text (⌘+)")
+            }
+            .buttonStyle(.borderless)
+            .padding(.horizontal, 10)
+            .frame(height: Self.controlSize)
+            .glassEffectCompat(interactive: true)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Presenter text size")
+
+            Button {
+                if !paused { frozenFocus = liveFocus; frozenSelection = selected }
+                paused.toggle()
+            } label: {
+                Label(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill")
+                    .labelStyle(.iconOnly)
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(width: Self.controlSize, height: Self.controlSize)
+                    .contentShape(.circle)
+                    .modifier(PresenterCircularGlass(interactive: true))
+            }
+            .buttonStyle(.plain)
+            .disabled(!paused && (loading || loadedSource != source))
+            .help(paused ? "Follow the main window again" : "Keep this document and reading position on screen")
+        }
     }
 
     private var pageBackground: Color {
@@ -396,17 +397,6 @@ private struct PresenterCircularGlass: ViewModifier {
             content.glassEffect(.regular.interactive(interactive), in: .circle)
         } else {
             content.background(.regularMaterial, in: .circle)
-        }
-    }
-}
-
-private extension ToolbarContent {
-    @ToolbarContentBuilder
-    func presenterOwnGlassBackground() -> some ToolbarContent {
-        if #available(macOS 26, *) {
-            self.sharedBackgroundVisibility(.hidden)
-        } else {
-            self
         }
     }
 }
