@@ -634,15 +634,9 @@ struct ChapterTextView: NSViewRepresentable {
         private var findQuery = ""
         private var findIndex = 0
         private var findRanges: [[NSRange]] = []
-        private var findHighlight: [NSRange] = []
 
-        func clearFindHighlight() {
-            if let textView, let layout = textView.layoutManager {
-                for range in findHighlight where range.upperBound <= textView.string.utf16.count {
-                    layout.removeTemporaryAttribute(.backgroundColor, forCharacterRange: range)
-                }
-            }
-            findHighlight.removeAll()
+        @MainActor func clearFindHighlight() {
+            (textView?.layoutManager as? ReaderTextLayoutManager)?.setFindMatches([], current: nil)
         }
 
         private func findMatches(_ query: String, in storage: NSTextStorage) -> [[NSRange]] {
@@ -687,20 +681,15 @@ struct ChapterTextView: NSViewRepresentable {
             }
         }
 
-        private func highlightFindMatch() -> NSRange? {
-            guard findRanges.indices.contains(findIndex), let first = findRanges[findIndex].first else { return nil }
-            findHighlight = findRanges[findIndex]
-            for part in findHighlight {
-                textView?.layoutManager?.addTemporaryAttribute(.backgroundColor,
-                                                               value: NSColor.systemYellow.withAlphaComponent(0.40),
-                                                               forCharacterRange: part)
-            }
-            return first
+        @MainActor private func highlightFindMatch() -> NSRange? {
+            let active = findRanges.indices.contains(findIndex) ? findIndex : nil
+            (textView?.layoutManager as? ReaderTextLayoutManager)?.setFindMatches(findRanges, current: active)
+            return active.flatMap { findRanges[$0].first }
         }
 
-        func find(_ query: String, step: Int) -> (current: Int, total: Int) {
-            clearFindHighlight()
+        @MainActor func find(_ query: String, step: Int) -> (current: Int, total: Int) {
             if query.isEmpty {
+                clearFindHighlight()
                 findQuery = ""
                 findRanges.removeAll()
                 findIndex = 0

@@ -219,6 +219,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                 view.textContainerInset.right = style.width.phoneInset
             }
             coordinator.findHighlight.removeAll()
+            (view.layoutManager as? ReaderTextLayoutManager)?.setFindMatches([], current: nil)
             view.attributedText = coordinator.render(key.dark)
             view.setNeedsLayout()
 
@@ -495,26 +496,6 @@ struct IOSChapterTextView: UIViewRepresentable {
         weak var reader: Coordinator?
         weak var view: ReaderTextView?
 
-        override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
-            super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
-            guard let reader, let container = textContainers.first,
-                  let context = UIGraphicsGetCurrentContext() else { return }
-            let highlights = MainActor.assumeIsolated { reader.findHighlight }
-            guard !highlights.isEmpty else { return }
-            context.saveGState()
-            defer { context.restoreGState() }
-            UIColor.systemYellow.withAlphaComponent(0.4).setFill()
-            for range in highlights {
-                let glyphs = glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-                let visible = NSIntersectionRange(glyphs, glyphsToShow)
-                guard visible.length > 0 else { continue }
-                enumerateEnclosingRects(forGlyphRange: visible, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-                                        in: container) { rect, _ in
-                    UIBezierPath(roundedRect: rect.offsetBy(dx: origin.x, dy: origin.y), cornerRadius: 2).fill()
-                }
-            }
-        }
-
         override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
             defer { super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin) }
             guard let reader, let container = textContainers.first,
@@ -579,14 +560,11 @@ struct IOSChapterTextView: UIViewRepresentable {
         }
 
         private func refreshFindHighlight(in view: UITextView) -> (current: Int, total: Int) {
-            let previous = findHighlight
             findHighlight = findMatches.indices.contains(findIndex) ? findMatches[findIndex] : []
             // Extra scroll room lets a first-line match clear the floating bar.
             let clearance: CGFloat = findHighlight.isEmpty ? 0 : 64
             if view.contentInset.top != clearance { view.contentInset.top = clearance }
-            for range in previous + findHighlight where range.upperBound <= view.textStorage.length {
-                view.layoutManager.invalidateDisplay(forCharacterRange: range)
-            }
+            (view.layoutManager as? ReaderTextLayoutManager)?.setFindMatches(findMatches, current: findHighlight.isEmpty ? nil : findIndex)
             return (findHighlight.isEmpty ? 0 : findIndex + 1, findMatches.count)
         }
 

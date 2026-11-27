@@ -24,12 +24,84 @@ typealias ReaderBackgroundColor = UIColor
 class ReaderTextLayoutManager: NSLayoutManager {
     private var backgroundOrigin = CGPoint.zero
     private let skip = NSAttributedString.Key("bereanSkip")
+    @MainActor private var findDrawing = FindDrawing()
+
+    private struct FindDrawing: Sendable {
+        var matches: [[NSRange]] = []
+        var current: Int?
+
+        var currentRanges: [NSRange] { current.map { matches[$0] } ?? [] }
+
+        var coverage: NSRange? {
+            guard let first = matches.first?.first, let last = matches.last?.last else { return nil }
+            return NSUnionRange(first, last)
+        }
+    }
+
+    @MainActor func setFindMatches(_ matches: [[NSRange]], current: Int?) {
+        let previous = findDrawing
+        findDrawing = FindDrawing(matches: matches, current: current.flatMap { matches.indices.contains($0) ? $0 : nil })
+        guard let storage = textStorage else { return }
+        let dirty: [NSRange]
+        if previous.matches != matches {
+            dirty = [previous.coverage, findDrawing.coverage].compactMap { $0 }
+        } else if previous.current != findDrawing.current {
+            dirty = previous.currentRanges + findDrawing.currentRanges
+        } else {
+            return
+        }
+        let valid = NSRange(location: 0, length: storage.length)
+        for range in dirty {
+            let changed = NSIntersectionRange(range, valid)
+            if changed.length > 0 { invalidateDisplay(forCharacterRange: changed) }
+        }
+    }
 
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
         let previous = backgroundOrigin
         backgroundOrigin = origin
         defer { backgroundOrigin = previous }
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+        drawFindMatches(forGlyphRange: glyphsToShow, at: origin)
+    }
+
+    private func drawFindMatches(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
+        let drawing = MainActor.assumeIsolated { findDrawing }
+        guard !drawing.matches.isEmpty, glyphsToShow.length > 0, let container = textContainers.first else { return }
+        let visibleCharacters = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+        #if os(macOS)
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        #else
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        context.saveGState()
+        defer { context.restoreGState() }
+        #endif
+        for (index, match) in drawing.matches.enumerated() {
+            guard let first = match.first, let last = match.last else { continue }
+            if first.location >= visibleCharacters.upperBound { break }
+            guard last.upperBound > visibleCharacters.location else { continue }
+            let active = index == drawing.current
+            let color = active ? ReaderBackgroundColor.systemOrange.withAlphaComponent(0.48)
+                : ReaderBackgroundColor.systemYellow.withAlphaComponent(0.20)
+            color.setFill()
+            for range in match {
+                let characters = NSIntersectionRange(range, visibleCharacters)
+                guard characters.length > 0 else { continue }
+                let glyphs = glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
+                let visible = NSIntersectionRange(glyphs, glyphsToShow)
+                guard visible.length > 0 else { continue }
+                enumerateEnclosingRects(forGlyphRange: visible, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                                        in: container) { rect, _ in
+                    let bounds = rect.offsetBy(dx: origin.x, dy: origin.y)
+                    #if os(macOS)
+                    NSBezierPath(roundedRect: bounds, xRadius: 2, yRadius: 2).fill()
+                    #else
+                    UIBezierPath(roundedRect: bounds, cornerRadius: 2).fill()
+                    #endif
+                }
+            }
+        }
     }
 
     override func fillBackgroundRectArray(_ rectArray: UnsafePointer<CGRect>, count rectCount: Int,
