@@ -272,6 +272,7 @@ struct ScriptureSearchView: View {
         return p
     }
     @State private var highlightCache = SearchHighlightCache()
+    @State private var contextChapterCache = ScriptureSearchChapterCache()
     @State private var snippetCache = ScriptureSearchSnippetCache()
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
@@ -1161,12 +1162,12 @@ struct ScriptureSearchView: View {
                             Spacer()
                         }
                         if resultContext > 0 {
-                            SearchResultContext(hit: h, span: resultContext, edge: .before)
+                            SearchResultContext(hit: h, span: resultContext, edge: .before, cache: contextChapterCache)
                         }
                         Text(highlighted(h, matchingWords: matchingWords))
                             .font(.callout).foregroundStyle(.secondary).lineLimit(resultContext > 0 ? nil : 4)
                         if resultContext > 0 {
-                            SearchResultContext(hit: h, span: resultContext, edge: .after)
+                            SearchResultContext(hit: h, span: resultContext, edge: .after, cache: contextChapterCache)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1307,30 +1308,51 @@ struct ScriptureSearchView: View {
 /// Book filter: type to add books (any text); chosen books show as removable chips.
 /// Neighbouring verses shown dimmed around a search result.
 private struct SearchResultContext: View {
-    enum Edge { case before, after }
+    private struct Request: Hashable {
+        let bibleIdentity: ObjectIdentifier
+        let hit: ScriptureHit
+        let span: Int
+        let edge: ScriptureSearchContext.Edge
+        let replacerEnabled: Bool
+        let rules: [WordReplacerRule]
+    }
+
+    private struct Preview {
+        let request: Request
+        let lines: [ScriptureSearchContext.Line]
+    }
+
     @Environment(AppModel.self) private var app
     let hit: ScriptureHit
     let span: Int
-    let edge: Edge
-    @State private var lines: [(Int, String)] = []
+    let edge: ScriptureSearchContext.Edge
+    let cache: ScriptureSearchChapterCache
+    @State private var preview: Preview?
 
     var body: some View {
+        let bible = app.bible
+        let request = Request(bibleIdentity: ObjectIdentifier(bible), hit: hit, span: span, edge: edge,
+                              replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
+        let lines = preview?.request == request ? preview?.lines ?? [] : []
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(lines, id: \.0) { verse, text in
-                (Text("\(verse) ").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary) + Text(text))
-                    .font(.footnote).foregroundStyle(.tertiary)
+            ForEach(lines) { line in
+                (Text("\(line.label) ").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary) + Text(line.text))
+                    .font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .task(id: "\(hit.textId)|\(hit.bookId)|\(hit.chapter)|\(hit.verseNum)|\(span)|\(edge)") {
-            let range = edge == .before ? Array((hit.verseNum - span)..<hit.verseNum) : Array((hit.verseNum + 1)...(hit.verseNum + span))
-            var found: [(Int, String)] = []
-            for v in range where v > 0 {
-                if let row = await app.bible.queryVerse(hit.bookId, hit.chapter, v, textId: hit.textId) {
-                    found.append((v, VerseDisplay.text(row.text, tagged: row.textTagged, textId: hit.textId,
-                                                       replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)))
-                }
-            }
-            lines = found
+        .task(id: request) {
+            guard !Task.isCancelled else { return }
+            preview = Preview(request: request, lines: [])
+            let hit = request.hit
+            let chapter = await cache.rows(in: bible, textId: hit.textId, bookId: hit.bookId, chapter: hit.chapter)
+            guard !Task.isCancelled, preview?.request == request,
+                  app.bible === bible,
+                  app.wordReplacerEnabled == request.replacerEnabled,
+                  app.wordReplacerRules == request.rules else { return }
+            let lines = ScriptureSearchContext.lines(in: chapter, around: hit, span: request.span, edge: request.edge,
+                                                     replacerEnabled: request.replacerEnabled, rules: request.rules)
+            guard !Task.isCancelled else { return }
+            preview = Preview(request: request, lines: lines)
         }
     }
 }
