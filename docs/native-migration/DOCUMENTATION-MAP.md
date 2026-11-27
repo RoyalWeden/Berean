@@ -116,3 +116,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 
 - [Daily note retention](DAILY-NOTE-RETENTION-2026-11-26.md): original cleanup exemptions and why empty daily identities/metadata must remain.
 - [All-visible Find](FIND-MATCHES-2026-11-26.md): additive drawing, final compiler/runtime verification and saved-highlight preservation.
+
+- [November27 integration and UI evidence](INTEGRATION-REVIEW-2026-11-27.md): reviewed Claude work, fixes, tests, actual Mac/iPhone interactions, cache-build limitation and fixture preservation. [Superseded current checkpoints](CHECKPOINT-HISTORY-2026-11-27.md) are historical only.

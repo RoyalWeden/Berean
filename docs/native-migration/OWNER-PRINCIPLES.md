@@ -91,3 +91,8 @@ Owner explicit copy contract (both Mac and iPhone): audit all verse-copy actions
 
 ## November26 desktop passage picker
 Keep the Mac three-column search/history, books/chapters and texts layout. Compact phone navigation must not leak into Compare or Notes sheets on desktop. Make desktop books easier to see without replacing its established layout; retain iPhone-specific navigation independently.
+
+## November27 — Search, books and Presenter
+Owner reports advanced Scripture Search scrolling choppy; verify actual interaction and restore/history, not source-only smoothness claims. Desktop KJVA books should show two columns inside the established Mac picker so more are visible; retain separate iPhone design. Presenter launch must be easy to find, but use an icon-only presenter/play-window symbol with tooltip/accessibility rather than a labelled toolbar button. Presenter window controls should be individual floating glass with no defined full-width top band; central following-status control is circular. Floating search keyboard shortcut glyphs should use regular weight, preserving size/keycap layout.
+
+November27 follow-up supersedes the intermediate Presenter top-toolbar design: remove visible Presenter window title and put minimal status/zoom/Pause controls in a floating bottom-right group; preserve useful native window controls and keyboard access.

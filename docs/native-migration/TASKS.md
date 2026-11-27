@@ -684,3 +684,14 @@ Owner reports Find is hidden/offscreen while searching, especially iOS. Current 
 
 ### November26 pre8 checkpoint
 All-visible Find and iPhone History access implemented and runtime-checked; NotesHome compiler boundary extractionc3676b9b builds locally on all3 targets. Next Claude queue CC06→CC08→CC07; retain compiler boundaries. Physical install and hosted exact-head verification are distinct from local build readiness; use current HANDOFF for final outcomes. Broad migration and Read Aloud gates remain open.
+
+## November27 — reviewed integration and minimal Presenter
+Reviewed Claude CC05–09/audit work and corrected stale-draft automatic cleanup, missing inactive-close behavior, first-request Search hydration/persistence, Presenter reopen sampling and video link metadata races. New owner requests: two-column KJVA books in existing desktop picker, stable lazy Search rows with idle persistence, discoverable icon-only Presenter launch, title-free Presenter with bottom-right circular glass/capsule controls, and regular-weight floating-search keycaps. Full402 tests/97 suites and owner Mac/signed-iPhone/Simulator builds/signatures pass. Scoped actual UI checks/data-preservation receipts are in INTEGRATION-REVIEW-2026-11-27.md. No physical phone install and no blanket FPS/accessibility/full-parity claim.
+
+### Search performance follow-through (open)
+Do not mark choppy Search fixed from source factoring or two Debug instrumented samples: aggregate hitch time did not clearly decline. Retain idle-only persistence, flat stable rows and shared match inputs; profile warm optimized Dev with an AX-light deterministic scroll sequence, then inspect actual app hotpaths rather than blanket-caching/UI rewrites. Preserve result paint and Search/result/Back/cold anchors. See November27 evidence and compact summaries.
+
+
+### November27 final rendering and safety follow-through
+
+Sourcea6ea72ac adds a view-local256-entry FIFO cache of immutable transformed/windowed Search snippets, keyed by full hit and cleared on Word Replacer toggle/rules changes. Query/Strong’s styling stays live. Six focused tests include520 inserts/ring wrap and changed text/matches/settings; all pass. This proves bounded retention and correct output, not FPS. App-only measured hitches before this cache (445/6933ms versus465/6960ms) did not establish aggregate improvement; Search smoothness remains open. Source62aacc83 flushes a positively loaded note before metadata/Trash mutations and rejects stale identity callbacks. Actual quick-edit→Pin and quick-edit→Trash retained both edits in an owned fixture; all original records and37Mac active tab IDs retained. Presenter final owner direction is title-free with36pt floating bottom-right controls, icon-only launch, preserved keyboard/accessibility labels. All3 final owner builds and strict Mac/device signatures pass; latest full-test and hosted results are maintained in HANDOFF/CURRENT-STATE.
