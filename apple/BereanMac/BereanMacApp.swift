@@ -179,11 +179,17 @@ extension FocusedValues {
 }
 
 /// Presenter text scale exposed to the menu bar while the Presenter window is key.
-struct PresenterZoom {
+struct PresenterZoom: Equatable {
     static let range: ClosedRange<Double> = 0.8...4
     static let standard = 1.6
-    var scale: Double
-    var set: (Double) -> Void
+    let scale: Double
+    let set: (Double) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        // The single Presenter scene republishes a setter for the same scale binding.
+        // Only a change in scale changes what its focused menu commands expose.
+        lhs.scale == rhs.scale
+    }
 
     static func clamped(_ value: Double) -> Double { (min(range.upperBound, max(range.lowerBound, value)) * 10).rounded() / 10 }
 }
