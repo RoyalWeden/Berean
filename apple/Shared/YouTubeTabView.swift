@@ -200,22 +200,37 @@ struct YouTubeTabView: View {
     /// The original's Markdown link text.
     private func markdown(timestamp: Bool) async -> String? {
         guard let id = Self.videoId(from: page.url) else { return nil }
-        let secs = timestamp ? Int(((try? await page.callJavaScript("var v=document.querySelector('video');return v?v.currentTime:0;")) as? Double) ?? 0) : 0
-        // Desktop selectors first; the iPhone loads m.youtube.com, whose owner markup differs (A13),
-        // so fall back to schema.org author metadata, the mobile owner name, then player data for
-        // this same video id.
-        let channel = ((try? await page.callJavaScript("""
-        var a=document.querySelector('#owner #channel-name a, ytd-channel-name a');
-        if(a&&a.textContent.trim()){return a.textContent.trim();}
-        var m=document.querySelector('span[itemprop="author"] link[itemprop="name"]');
-        if(m&&m.getAttribute('content')){return m.getAttribute('content').trim();}
-        var s=document.querySelector('.slim-owner-channel-name, ytm-slim-owner-renderer .slim-owner-title');
-        if(s&&s.textContent.trim()){return s.textContent.trim();}
-        var d=window.ytInitialPlayerResponse&&window.ytInitialPlayerResponse.videoDetails;
-        if(d&&d.videoId===vid&&d.author){return d.author;}
-        return '';
-        """, arguments: ["vid": id])) as? String) ?? ""
-        let title = page.title.replacingOccurrences(of: " - YouTube", with: "").trimmingCharacters(in: .whitespaces)
+        let sourceSession = app.currentSessionId
+        // Snapshot one video's time, title and channel in a single page turn. YouTube's SPA
+        // can retain the previous video's metadata after changing the URL.
+        let sample = try? await page.callJavaScript("""
+        var url=new URL(location.href);
+        var route=url.pathname==='/watch'?url.searchParams.get('v'):
+            url.pathname.indexOf('/shorts/')===0?url.pathname.split('/')[2]:
+            url.hostname==='youtu.be'?url.pathname.slice(1):null;
+        if(route!==vid){return null;}
+        var player=document.querySelector('#movie_player');
+        var data=player&&typeof player.getVideoData==='function'?player.getVideoData():null;
+        if(data&&data.video_id!==vid){return null;}
+        if(!data){
+            var initial=window.ytInitialPlayerResponse&&window.ytInitialPlayerResponse.videoDetails;
+            if(!initial||initial.videoId!==vid){return null;}
+            data={video_id:initial.videoId,title:initial.title,author:initial.author};
+        }
+        var video=document.querySelector('video');
+        var seconds=player&&typeof player.getCurrentTime==='function'?player.getCurrentTime():video?video.currentTime:0;
+        return {id:vid,title:data.title||'',channel:data.author||'',seconds:Number.isFinite(seconds)?Math.max(0,seconds):0};
+        """, arguments: ["vid": id])
+        guard sourceSession == app.currentSessionId, app.findTab(tabId)?.tabType == .youtube,
+              Self.videoId(from: page.url) == id else { return nil }
+        guard let sample = sample as? [String: Any], sample["id"] as? String == id else {
+            app.userMessage = "The video is still loading. Try copying its link again."
+            return nil
+        }
+        let rawSeconds = (sample["seconds"] as? NSNumber)?.doubleValue ?? 0
+        let secs = timestamp ? Int(min(Double(Int32.max), max(0, rawSeconds.isFinite ? rawSeconds : 0))) : 0
+        let title = (sample["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let channel = (sample["channel"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let h = secs / 3600, m = (secs % 3600) / 60, s = secs % 60
         let time = h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
         let base = [channel, title].filter { !$0.isEmpty }.joined(separator: " — ")
@@ -233,11 +248,14 @@ struct YouTubeTabView: View {
     }
 
     private func insert(into noteId: String) async {
-        guard let text = await markdown(timestamp: true), let notes = app.notes, let note = try? notes.one(noteId) else { return }
+        guard let text = await markdown(timestamp: true), let notes = app.notes, let note = try? notes.one(noteId), note.deletedAt == nil else { return }
         let sep = note.content.isEmpty || note.content.hasSuffix("\n") ? "" : "\n"
-        try? notes.update(noteId, .init(content: note.content + sep + text + "\n"))
-        app.notesRevision += 1
-        app.userMessage = "Timestamp added to “\(note.title.isEmpty ? "Untitled" : note.title)”."
+        do {
+            try notes.update(noteId, .init(content: note.content + sep + text + "\n"))
+            app.userMessage = "Timestamp added to “\(note.title.isEmpty ? "Untitled" : note.title)”."
+        } catch {
+            app.userMessage = "Couldn’t add the timestamp: \(error.localizedDescription)"
+        }
     }
 }
 
