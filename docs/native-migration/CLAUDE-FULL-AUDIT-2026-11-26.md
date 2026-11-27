@@ -41,6 +41,8 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 | A29 | S3 | Mac | Accessibility | One window button has no accessibility label (between the sidebar's Messages button and the selection bar's Copy Verses); sidebar tab rows announce the tab's *space* rather than its kind ("PDFs, Scripture", "QA Image Note, YouTube") and repeat their help text twice. | AX inspection of the main window. |
 | A30 | S3 | Mac (both) | Strong's | A8 reproduces on Mac: numbers wrap to the next line away from their word (John 1:12 "…sons" / "G1096 the sons"). | John 1 with Strong's on. |
 
+| A31 | S4 | Mac | Getting Started | The checklist's intro line is truncated ("…Swipe or right-click a step to ma…"); let it wrap. | Help → Berean Help — Getting Started. |
+
 ## Coverage of this pass
 
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
@@ -64,6 +66,9 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A4 | **Fixed, verified on iPhone sim** — Lexicon centre tap selects the tab; sheet no longer jumps. | `native/claude-audit-fixes-20261126` @ `691c9aa5` (StudyInspector.swift) |
 | A14 | **Fixed, verified on iPhone sim** — context-menu and swipe Delete Permanently both confirm ("This can't be undone."); purge/Empty Trash errors reported. | same branch (NotesHome.swift) |
 | A18 | **Fixed, verified on iPhone sim** — with the Tabs sheet open, `berean-native-dev://daily` closes the sheet and the note opens in front. | same branch (BereanIOSApp.swift, IOSRootView.swift) |
-| A28 | Open — Mac reader/toolbar files are Codex-reserved (ChapterTextView); queued for Codex. | — |
+| A5, A16, A20, A21, A24, A25, A26 | **Fixed** — lexicon trim (verified on iPhone G1080); "1 note"; no repeated section headers (verified Mac Settings); iPhone library "On this iPhone"; Mac window tabbing off and Help → Getting Started (verified Mac menus); Word Replacer switch. | same branch @ `2501c66f` |
+| A2, A3 | Open — highlight menu and "Copy Native Dev Link(s)" labels live in ScriptureView/CompareView (Codex-reserved). Suggested: render swatches with `.symbolRenderingMode(.palette)`/tinted `Image` or a colour-named label; rename to "Copy Link(s)". | Codex |
+| A23 | Left as design choice — the Go menu's first "YouTube" opens a YouTube tab, the second (⌘4) switches to the YouTube space; rename one (e.g. "YouTube Space") if wanted. | owner/Codex |
+| A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
