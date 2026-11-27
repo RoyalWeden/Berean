@@ -675,3 +675,9 @@ Owner reports Find is hidden/offscreen while searching, especially iOS. Current 
 
 - **VERIFIED (bounded)** Mac regular picker, Compare Add and Notes insert/new verse grid cancellation. Compact iPhone passage selection passed. Compare Edit remains open. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md)
 - **VERIFIED (Mac)** True stacked ordinary cold and older-visit replay plus aligned older-visit cold replay. Full shared suite passed 390 tests across 96 suites. **OPEN** iPhone precise crop, reflow, immediate wheel, empty/header and duplicate swap cases. Final owner builds remain pending. [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+
+### November 26 — Integrated audit runtime
+
+- **VERIFIED (bounded)** Red supplied italic words on both platforms, iPhone Strong’s routing, Compare spacing, selection actions, highlight menu, passage labels and Lexicon tap. Mac Compare Edit and localized menu passed. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)
+- **OPEN** A10 inactive match paint, residual Mac opening classification, real interruption and broader reflow/accessibility. A34 source reuses Calendar. Repeat UI and new Study Tools History still need coverage. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)

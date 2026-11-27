@@ -582,3 +582,8 @@ Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **b496e
 ## November 26 — Desktop picker and shared Compare precision
 
 Committed source through `2bb1670d`. Mac picker and aligned/stacked cold restore, iPhone compact picker, and original data checks passed as scoped. Full shared tests passed 390 across 96 suites. Final owner Mac/signed-iPhone/Simulator builds and signatures PASS; iPhone precise shared restore remains pending. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+
+## November 26 — Integrated reader and menu follow-through
+
+Mac localized app menu, Search disclosure and Compare Edit picker passed. iPhone verified Compare spacing, long passage title and picker labels, selection actions, highlight choice, Lexicon segment and current Find. Mac repeated settled opening stayed clear of the toolbar. A10 inactive matches, small opening residual, Study Tools History and fresh owner builds remain pending. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)

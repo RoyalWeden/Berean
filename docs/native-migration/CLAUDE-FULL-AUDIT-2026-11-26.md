@@ -44,7 +44,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 | A31 | S4 | Mac | Getting Started | The checklist's intro line is truncated ("…Swipe or right-click a step to ma…"); let it wrap. | Help → Berean Help — Getting Started. |
 
 | A32 | S3 | iPhone | Study Trail | The large navigation title is invisible on the Study Trail list and on a trail (a blurred smudge where "Study Trail" / "Feasts trail" should be); trail controls (Pause Trail, Record Chapters Automatically, Finish Trail) sit flush to the left edge with no inset. | ••• → Study Trail; open a trail. |
-| A33 | S3 | iPhone (shared) | Daily notes · Calendar | Opening today's note creates and **persists an empty daily note** (`daily-YYYY-MM-DD`, empty content); the Calendar then shows a "has note" dot for a day with nothing written, and it counts in Daily Notes. Create the row on first edit, or ignore empty notes in dots/counts. | Open Today's note, leave it untouched, open Calendar. |
+| A33 | S4 | iPhone (shared) | Daily notes · Calendar | Opening today's note persists an empty `daily-YYYY-MM-DD` row. *(Re-checked: the Calendar deliberately draws empty daily notes as a faded dot — `DailyNoteCalendar` uses 45% opacity for length 0 — so the dot is intended.)* Remaining question: whether an untouched daily note should be kept or discarded on leave (it also counts in Daily Notes). | Open Today's note, leave it untouched, open Calendar. |
 | A34 | S4 | iPhone | Calendar / menus | Calendar opens as a new tab each time from Study Tools; its row of icon-only buttons (layout, list, sunrise) has no visible labels. History isn't in the iPhone Study Tools menu at all (only under Settings → History). | ••• → Study Tools → Calendar. |
 
 ## Coverage of this pass
@@ -77,3 +77,11 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
+
+### Codex integration checkpoint
+
+The listed Claude fixes are integrated in `90171b62`. A2, A3, A8/A30, A22 and A28 have subsequent Codex working changes. See the [integration review](INTEGRATION-REVIEW-2026-11-26.md) for verified cases, candidate scope and outstanding retests. A32 and A15 are ready Claude assignments after the scheduled handoff. [Work queue](AI-WORK-QUEUE.md)
+
+### Codex source correction to A34
+
+`openCalendar()` already delegates to `openUtilityTab(newTab: false)` and reuses an existing Calendar in the current workspace. Opening the first one creates a tab; repeated opens are designed to focus it. A repeated-open runtime check is still needed, so do not implement a second reuse layer based on the audit wording alone. The missing iPhone Study Tools History route is being added using the same existing utility-tab path.
