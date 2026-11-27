@@ -307,6 +307,9 @@ struct PresenterView: View {
                 .padding(.horizontal, 36).padding(.vertical, 28)
                 .frame(maxWidth: 1040, alignment: .leading).frame(maxWidth: .infinity)
             }
+            // A35: keep scroll targets below the transparent title bar (scrollTo honours content margins),
+            // so following verse 1 / the chapter heading never parks them under the bar.
+            .contentMargins(.top, 44, for: .scrollContent)
             .onAppear {
                 if focused == verses.first?.id { proxy.scrollTo("presenter-chapter-heading", anchor: .top) }
                 else if let focused { proxy.scrollTo(focused, anchor: UnitPoint(x: 0, y: 0.12)) }
