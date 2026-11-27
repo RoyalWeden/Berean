@@ -20,6 +20,8 @@ November26,2026. Start with [HANDOFF](HANDOFF.md), [OWNER-PRINCIPLES](OWNER-PRIN
 
 - **Final pre8pm receipt, November26 7:49pm PST:** app sourcec3676b9b, documentation-only handoff commit follows. Physical install attempted against paired8956ACCF-F043-58CB-9763-8C3F9E608ACC; devicectl exited1 with CoreDeviceError4016 (required trusted connectivity/services unavailable). No phone install or launch succeeded; signed device artifact remains ready. /private/tmp/berean-pre8-phone-install-20261126.{json,log}. Hosted run45935344052/c3676b9b legacy checks SUCCESS, native IN_PROGRESS. Do not infer native green from this. All local build/signature checks PASS after generated signature repair; no live local build sessions or active editing subagents remain. Codex is stopping for Claude’s8pm work; verify live state on resume.
 
+- **CI publication correction,7:51pm:** source run45935344052 completed CANCELLED (legacy job succeeded; native cancelled by subsequent branch update). Documentation955244b3 started replacement run45936413051, pending. This final documentation correction may supersede that run again through workflow concurrency: successor must inspect the newest branch-head run, not wait for a cancelled one. Hosted Xcode26.6 iOS compilation afterc3676b9b therefore remains unverified; local all3 builds/signatures and iPhone Notes smoke passed. Final published handoff commits change documentation only.
+
 ## Next executable work
 
 1. Codex stops before7:55pm for Claude’s8pm resumption. All source work and local builds are finished; phone installation failed due unavailable connectivity. Owner can reconnect/unlock and run the documented device helper.
