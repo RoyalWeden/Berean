@@ -14,6 +14,7 @@ struct PresenterView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("presenter.scale") private var scale = 1.6
+    private static let controlSize: CGFloat = 32
     @State private var paused = false
     @State private var frozenFocus: Int?
     @State private var snapshot: Snapshot = .idle
@@ -144,18 +145,23 @@ struct PresenterView: View {
             if !paused && loadedSource != source {
                 ProgressView().controlSize(.small)
             } else {
-                audienceContent
+                audienceContent.presenterClearScrollEdge()
             }
         }
         .environment(\.colorScheme, renderedAppearance.scheme ?? colorScheme)
         .navigationTitle(paused ? "Presenter — Paused" : "Presenter")
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .toolbar {
             ToolbarItem(placement: .status) {
-                Image(systemName: paused ? "pause.circle" : "dot.radiowaves.left.and.right")
+                Image(systemName: paused ? "pause.fill" : "dot.radiowaves.left.and.right")
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
+                    .frame(width: Self.controlSize, height: Self.controlSize)
+                    .modifier(PresenterCircularGlass(interactive: false))
                     .accessibilityLabel(paused ? "Paused" : "Following main window")
                     .help(paused ? "The audience view is frozen" : "Following the main window")
             }
+            .presenterOwnGlassBackground()
             ToolbarItem {
                 HStack(spacing: 6) {
                     Button("Smaller", systemImage: "textformat.size.smaller") { setScale(scale - 0.2) }
@@ -178,19 +184,29 @@ struct PresenterView: View {
                         .help("Larger text (⌘+)")
                 }
                 .buttonStyle(.borderless)
-                .padding(.horizontal, 6).frame(minHeight: 32)
+                .padding(.horizontal, 6).frame(height: Self.controlSize)
                 .glassEffectCompat(interactive: true)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Presenter text size")
             }
+            .presenterOwnGlassBackground()
             ToolbarItem {
-                Button(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill") {
+                Button {
                     if !paused { frozenFocus = liveFocus; frozenSelection = selected }
                     paused.toggle()
+                } label: {
+                    Label(paused ? "Resume" : "Pause", systemImage: paused ? "play.fill" : "pause.fill")
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 14, weight: .medium))
+                        .frame(width: Self.controlSize, height: Self.controlSize)
+                        .contentShape(.circle)
+                        .modifier(PresenterCircularGlass(interactive: true))
                 }
+                .buttonStyle(.plain)
                 .disabled(!paused && (loading || loadedSource != source))
                 .help(paused ? "Follow the main window again" : "Keep this document and reading position on screen")
             }
+            .presenterOwnGlassBackground()
         }
         .onAppear {
             scale = scale.isFinite ? min(4, max(0.8, scale)) : 1.6
@@ -360,6 +376,49 @@ struct PresenterView: View {
         renderedAppearance = request.appearance
         loadedSource = request.source
         loading = false
+    }
+}
+
+private struct PresenterCircularGlass: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    let interactive: Bool
+
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(Color(nsColor: .windowBackgroundColor), in: .circle)
+                .overlay {
+                    Circle().strokeBorder(.primary.opacity(0.18))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+        } else if #available(macOS 26, *) {
+            content.glassEffect(.regular.interactive(interactive), in: .circle)
+        } else {
+            content.background(.regularMaterial, in: .circle)
+        }
+    }
+}
+
+private extension ToolbarContent {
+    @ToolbarContentBuilder
+    func presenterOwnGlassBackground() -> some ToolbarContent {
+        if #available(macOS 26, *) {
+            self.sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func presenterClearScrollEdge() -> some View {
+        if #available(macOS 26, *) {
+            self.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            self
+        }
     }
 }
 

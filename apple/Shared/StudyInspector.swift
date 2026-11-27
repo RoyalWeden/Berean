@@ -733,7 +733,7 @@ struct CommandPalette: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Text(actionTitle(selected))
-                                    Image(systemName: "return").font(.system(size: 13, weight: .semibold))
+                                    Image(systemName: "return").font(.system(size: 13, weight: .regular))
                                         .frame(width: 23, height: 23)
                                         .background(.quaternary, in: .rect(cornerRadius: 5))
                                         .accessibilityHidden(true)
@@ -830,7 +830,7 @@ struct CommandPalette: View {
     }
 
     private func shortcutKey(_ label: String) -> some View {
-        Text(label).font(.system(size: 14, weight: .semibold))
+        Text(label).font(.system(size: 14, weight: .regular))
             .frame(width: 23, height: 23)
             .background(.quaternary, in: .rect(cornerRadius: 5))
             .accessibilityHidden(true)

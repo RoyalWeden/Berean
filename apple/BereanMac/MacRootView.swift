@@ -53,9 +53,10 @@ struct MacRootView: View {
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
                     ToolbarItem(placement: .primaryAction) {
                         Button { openWindow(id: "presenter") } label: {
-                            Label("Presenter", systemImage: "rectangle.on.rectangle")
+                            Label("Presenter", systemImage: "play.rectangle.on.rectangle")
                         }
-                        .labelStyle(.titleAndIcon)
+                        .labelStyle(.iconOnly)
+                        .accessibilityLabel("Presenter")
                         .help("Open Presenter (⇧⌘B)")
                     }
                 }
