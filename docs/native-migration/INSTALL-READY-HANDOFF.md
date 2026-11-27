@@ -73,3 +73,7 @@ Mac, signed iPhone device and iPhone Simulator builds for **62aacc83** each exit
 ### November27 final source receipt
 
 All three owner builds for **a6ea72ac** exited0. The rebuilt Dev artifacts and signing configuration are recorded in /private/tmp/berean-owner-20261127-cache-final-builds.json and the regenerated ignored owner-ready-artifacts.json. Strict Mac/device signatures and Dev IDs passed with no iCloud or AppGroup entitlements and unchanged Signing.xcconfig. Installed Simulator remains **e589fbe0**. No physical installation occurred. The exact-source Release package check is still running in session45957.
+
+
+### November27 final Presenter idle fix
+Appsource6a54ccef: owner committed Mac rebuild67121PASS, /private/tmp/berean-presenter-final-owner-mac-20261127.log. Strict Mac/device signature verification, Devidentities/no-cloud-group entitlementsPASS; unchangedphone/Simulatora6binaryhashesretained. OnlyMacApp.swift changed. Regenerated ignoredNov27owner-ready-artifacts.json records bothsources. All406package tests/98suites remainvalid (no package changes). Physicalphone notinstalled. Presenter-idle A/B and zoommenu/keyboarddecrease-reset/reopen/PauseResume passed.

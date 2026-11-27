@@ -2268,3 +2268,7 @@ Final source `a6ea72ac` adds the bounded transformed-snippet cache and passed al
 
 ### November27 final source and artifact verification
 Final app sourcea6ea72ac: full native Release406tests/98suites PASS, terminal0. Owner-folder Mac/signed iPhone/Simulator builds PASS; strict Mac/device signatures, native Dev identities/no-cloud-group entitlements and unchanged signing configuration verified. Final Mac Presenter title-free bottom-right controls/Pause→Resume→close and Strong’s284-result matching paint checked. Original QA records and37activeIDs retained; own metadata fixture recoverably trashed with both draft edits. No phone install. Hosted latest-source checks pending publication; draft24/review guards intact.
+
+
+### November27 — Presenter idle layout fix,6a54ccef
+Explicit scale equality prevents a newly captured focused-value setter from continually republishing and rebuilding native command/toolbar layout. Measured isolated Presenter-open idle CPU~100%→~4%; source-window baseline~4%. OwnerMac trialpassed; finalcommittedrebuildinprogress. Menu and keyboarddecrease/reset, controls afterreopen, Pause/Resume verified. No iPhone/source-data changes.

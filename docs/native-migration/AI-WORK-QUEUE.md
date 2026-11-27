@@ -141,3 +141,9 @@ DX05/A40 implementation remains Codex-owned. Inventory the original normal/stand
 
 ### November27 final verification
 Earlier native full402 tests/97 suites terminal exit0. Finala6ea72ac install-ready Mac/signed iPhone/Simulator builds PASS; strict Mac/device signatures/identities/no-cloud-groups verified. Six snippet-focused tests PASS; final full Release suite passed406tests/98suites, exit0, recorded in HANDOFF/current review. Mac Presenter final controls and Strong’s paint checked, quick draft metadata/Trash check retained both edits. Original24Mac note hashes and exact37active IDs retained; latest iPhone runtime remains e589fbe0 with original27note hashes/47activeIDs. CC10/11 remain ready, not dispatched. Codex owns Search measured smoothness/viewport matrix and DX05; Search hitch samples do not yet prove a smoothness improvement.
+
+
+### Codex next: Presenter layout cost, evidence-led
+Finala6 long-note following/reopen/Pause/Resume runtime passed. During these interactions QA app showed highCPU and slowAX; sample is dominated by SwiftUI flush/native toolbar layout, not a captured note-follow callback or remoteAX call. Before modifying code, compare idle main-thread samples with Presenter closed/open for Scripture and synthetic long note. Keep root focused-scene command routing under review. Child-owned note viewport/one changed-target scroll is a candidate, not a proved fix. Keep existing note/pause/reopen behavior and exact fixture cleanup evidence; see latest integration review.
+
+November27 follow-up supersedes the speculative note-child task: idleScripture A/B established Presenter focus-value churn;6a54ccef explicitscaleequality reducedCPU~100%→~4%, zoomafterreopenandPause/Resumeverified. Do not implement the speculative notechildrefactor as a required fix. Continue remaining note reflow/rapid-switch/multiwindow acceptance.
