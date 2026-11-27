@@ -17,15 +17,16 @@ if (start < 0 || end < 0 || !source.slice(start, end).includes('async function m
   throw new Error('Original Kokoro English oracle boundaries changed')
 }
 const originalKokoro = new Function('l', source.slice(start, end) + ';return m;')(phonemize)
-let simulator, compiledResources = false, inputsOnly = false
+let simulator, tokenizerDirectory, compiledResources = false, inputsOnly = false
 const args = process.argv.slice(2)
 while (args.length) {
   const option = args.shift()
   if (option === '--simulator' && /^[0-9a-f-]{36}$/i.test(args[0] ?? '')) simulator = args.shift()
+  else if (option === '--tokenizer-dir' && args[0] && !args[0].startsWith('--')) tokenizerDirectory = args.shift()
   else if (option === '--compiled-resources') compiledResources = true
   else if (option === '--inputs-only') inputsOnly = true
   else {
-    console.error('Usage: node check.mjs [--simulator <booted-simulator-UUID>] [--compiled-resources | --inputs-only]')
+    console.error('Usage: node check.mjs [--simulator <booted-simulator-UUID>] [--tokenizer-dir <asset-directory>] [--compiled-resources | --inputs-only]')
     process.exit(2)
   }
 }
@@ -149,7 +150,7 @@ async function originalModelSamples() {
 try {
   const sdk = simulator ? run('xcrun', ['--sdk', 'iphonesimulator', '--show-sdk-path']).trim() : null
   const modelSamples = inputsOnly ? await originalModelSamples() : await checkPhonemes(sdk)
-  await checkModelInputs({ modelSamples, directory, scratch, simulator, sdk, run })
+  await checkModelInputs({ modelSamples, directory, scratch, simulator, sdk, run, tokenizerDirectory })
 } catch (error) {
   // Emscripten's uncaught-error handler otherwise prints its entire minified
   // module (including embedded resources) before the useful comparison failure.

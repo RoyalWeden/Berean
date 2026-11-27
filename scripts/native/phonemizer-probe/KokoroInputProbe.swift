@@ -1,7 +1,7 @@
 import Foundation
 
-// This probe accepts an explicit scalar vocabulary, not a general tokenizer.json
-// reader. The model's tokenizer assets and ONNX session are not loaded here.
+// The runner passes the fixture or a vocabulary from the checked Kokoro assets.
+// Both isolate individual Unicode scalars before adding boundary tokens.
 private struct InputFixture: Decodable {
     struct Sample: Decodable {
         let phonemes: String
@@ -11,7 +11,7 @@ private struct InputFixture: Decodable {
 
     let vocabulary: [String: Int64]
     let boundaryID: Int64
-    let unknownID: Int64
+    let unknownID: Int64?
     let maximumTokenCount: Int
     let samples: [Sample]
 
@@ -26,9 +26,11 @@ private struct InputFixture: Decodable {
         }
         return try samples.map { sample in
             var ids = [boundaryID]
-            ids.append(contentsOf: sample.phonemes.unicodeScalars.prefix(maximumTokenCount - 1).map {
+            // The production normalizer drops unsupported scalars. The fixture assigns them an ID.
+            let tokens = sample.phonemes.unicodeScalars.lazy.compactMap {
                 scalarIDs[$0] ?? unknownID
-            })
+            }
+            ids.append(contentsOf: tokens.prefix(maximumTokenCount - 1))
             // The original tokenizer truncates after adding both boundary tokens.
             if ids.count < maximumTokenCount { ids.append(boundaryID) }
             guard let style = styles[sample.voice] else { throw ProbeError.invalidStyle(sample.voice) }

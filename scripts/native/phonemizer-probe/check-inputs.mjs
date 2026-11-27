@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PreTrainedTokenizer } from '@huggingface/transformers'
@@ -9,7 +10,7 @@ export const voices = [
   { accent: 'en', language: 'b', voice: 'bf_emma' },
 ]
 
-export async function checkModelInputs({ modelSamples, directory, scratch, simulator, sdk, run }) {
+function fixtureTokenizer() {
   // Explicit test vocabulary. These IDs are not from the production tokenizer.
   const scalars = '$� abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:;!?—…-()[]\'"ɐɑɒæɔəɚɛɜɝɡɪɫŋɹɾʃʊʌʒθðçʍʔɲˈˌː̩̃\n'
   const vocabulary = Object.fromEntries([...new Set(scalars)].map((scalar, id) => [scalar, id]))
@@ -24,6 +25,38 @@ export async function checkModelInputs({ modelSamples, directory, scratch, simul
     post_processor: { type: 'TemplateProcessing', single: [boundary, sequence, boundary] },
     decoder: null,
   }, { bos_token: '$', eos_token: '$', unk_token: '�', model_max_length: maximumTokenCount })
+  return { tokenizer, vocabulary, boundaryID: vocabulary.$, unknownID: vocabulary['�'], maximumTokenCount }
+}
+
+// The Swift reader handles only this exact production tokenizer's semantics.
+// New revisions must be reviewed for normalizer and pre-tokenizer changes.
+const productionRevision = '1939ad2a8e416c0acfeecc08a694d14ef25f2231'
+const productionChecksums = {
+  'tokenizer.json': '77a02c8e164413299b4b4c403b14f8e0e1c1b727db4d46a09d6327b861060a34',
+  'tokenizer_config.json': 'be1cb066d6ef6b074b3f15e6a6dd21ac88ff3cdaedf325f0aaed686c70f75d20',
+  'config.json': 'df34b4f930b23447cd4dc410fabfb42eb3f24e803e6c3f97d618fb359380a36f',
+}
+
+function productionTokenizer(directory) {
+  const assets = Object.fromEntries(Object.entries(productionChecksums).map(([name, expected]) => {
+    const bytes = readFileSync(join(directory, name))
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), expected, `${name}: SHA-256 for Kokoro ${productionRevision}`)
+    return [name, JSON.parse(bytes)]
+  }))
+  const definition = assets['tokenizer.json']
+  const configuration = assets['tokenizer_config.json']
+  const vocabulary = definition.model.vocab
+  const boundaryID = definition.post_processor.special_tokens.$.ids[0]
+  // This revision's normalizer deletes every scalar outside the vocabulary, before its isolated splits.
+  // Swift sees the original phonemes and does that filtering itself.
+  return {
+    tokenizer: new PreTrainedTokenizer(definition, configuration),
+    vocabulary, boundaryID, unknownID: null, maximumTokenCount: configuration.model_max_length,
+  }
+}
+
+export async function checkModelInputs({ modelSamples, directory, scratch, simulator, sdk, run, tokenizerDirectory }) {
+  const { tokenizer, ...settings } = tokenizerDirectory ? productionTokenizer(tokenizerDirectory) : fixtureTokenizer()
 
   const supplied = ['', ' ˈhɛloʊ! ', 'n̩ æ̃ 🧪é', 'ɑ\nɡ', ...[509, 510, 511, 600].map(n => 'ə'.repeat(n))]
   const cases = [...modelSamples, ...voices.flatMap(({ voice }) => supplied.map(phonemes => ({
@@ -55,9 +88,7 @@ export async function checkModelInputs({ modelSamples, directory, scratch, simul
   const build = ['-module-cache-path', join(scratch, 'modules'), join(directory, 'KokoroInputProbe.swift'), '-o', executable]
   if (simulator) build.push('-target', 'arm64-apple-ios18.0-simulator', '-sdk', sdk)
   run('swiftc', build)
-  const input = JSON.stringify({
-    vocabulary, boundaryID: vocabulary.$, unknownID: vocabulary['�'], maximumTokenCount, samples: cases,
-  })
+  const input = JSON.stringify({ ...settings, samples: cases })
   const output = simulator
     ? run('xcrun', ['simctl', 'spawn', simulator, executable, voiceFolder], input)
     : run(executable, [voiceFolder], input)
@@ -72,5 +103,6 @@ export async function checkModelInputs({ modelSamples, directory, scratch, simul
     assert.equal(actual[i].speed, received[i].speed, label + ': speed')
   }
   console.log((simulator ? 'iOS Simulator' : 'Mac') + ': ' + actual.length
-    + ' fixture token-ID and installed voice-style cases match original Kokoro. No ONNX inference ran.')
+    + (tokenizerDirectory ? ' production' : ' fixture')
+    + ' token-ID and installed voice-style cases match original Kokoro. No ONNX inference ran.')
 }
