@@ -245,6 +245,12 @@ struct PresenterView: View {
                 followNote(note.id)
             }
             .onChange(of: app.presenterNoteViewport) { _, _ in followNote(note.id) }
+            // A different note starts at its top (or its own published position) — never the
+            // previous note's offset.
+            .onChange(of: note.id) { _, id in
+                notePosition = ScrollPosition(edge: .top)
+                followNote(id)
+            }
             .onChange(of: paused) { _, nowPaused in if !nowPaused { followNote(note.id) } }
         case .lexicon(let entry):
             ScrollView {
