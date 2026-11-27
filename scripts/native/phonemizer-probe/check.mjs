@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { gunzipSync } from 'node:zlib'
 import assert from 'node:assert/strict'
 import { phonemize } from 'phonemizer'
+import { checkModelInputs, voices } from './check-inputs.mjs'
 
 const directory = dirname(fileURLToPath(import.meta.url))
 // Compare the full pipeline to the exact original implementation. This test-only
@@ -16,17 +17,19 @@ if (start < 0 || end < 0 || !source.slice(start, end).includes('async function m
   throw new Error('Original Kokoro English oracle boundaries changed')
 }
 const originalKokoro = new Function('l', source.slice(start, end) + ';return m;')(phonemize)
-let simulator, compiledResources = false
+let simulator, compiledResources = false, inputsOnly = false
 const args = process.argv.slice(2)
 while (args.length) {
   const option = args.shift()
   if (option === '--simulator' && /^[0-9a-f-]{36}$/i.test(args[0] ?? '')) simulator = args.shift()
   else if (option === '--compiled-resources') compiledResources = true
+  else if (option === '--inputs-only') inputsOnly = true
   else {
-    console.error('Usage: node check.mjs [--simulator <booted-simulator-UUID>] [--compiled-resources]')
+    console.error('Usage: node check.mjs [--simulator <booted-simulator-UUID>] [--compiled-resources | --inputs-only]')
     process.exit(2)
   }
 }
+if (compiledResources && inputsOnly) throw new Error('--compiled-resources requires the phonemizer checks')
 const scratch = mkdtempSync(join(tmpdir(), 'berean-phonemizer-check-'))
 function run(command, args, input) {
   const result = spawnSync(command, args, { encoding: 'utf8', input, maxBuffer: 8 * 1024 * 1024 })
@@ -57,7 +60,7 @@ function originalResources(destination) {
     writeFileSync(path, data.subarray(file.start, file.end))
   }
 }
-// Synthetic/public text only. No library, credentials, model weights or voice pack are read.
+// Synthetic/public text only. No library, credentials or model weights are read.
 const samples = [
   'In the beginning God created the heaven and the earth.',
   'Yehovuh said unto Yeshuwa.',
@@ -86,12 +89,9 @@ const samples = [
   'one   two   three',
   'word z\n',
 ]
-try {
+async function checkPhonemes(sdk) {
   const build = ['build', '-c', 'release', '--package-path', directory, '--scratch-path', join(scratch, 'build')]
-  if (simulator) {
-    const sdk = run('xcrun', ['--sdk', 'iphonesimulator', '--show-sdk-path']).trim()
-    build.push('--triple', 'arm64-apple-ios18.0-simulator', '--sdk', sdk)
-  }
+  if (simulator) build.push('--triple', 'arm64-apple-ios18.0-simulator', '--sdk', sdk)
   run('swift', build)
   const bin = run('swift', [...build, '--show-bin-path']).trim()
   const executable = join(bin, 'Probe')
@@ -105,23 +105,25 @@ try {
   } else {
     originalResources(data)
   }
+  const modelSamples = []
   const differences = []
   let rawDifferences = 0, preparedDifferences = 0
-  for (const voice of ['en-us', 'en']) {
-    const actual = JSON.parse(invoke(['phonemize', data, voice], JSON.stringify(samples)))
+  for (const { accent, language, voice } of voices) {
+    const actual = JSON.parse(invoke(['phonemize', data, accent], JSON.stringify(samples)))
     for (let i = 0; i < samples.length; i++) {
       try {
-        assert.deepEqual(actual[i], await phonemize(samples[i], voice), `${voice}: ${samples[i]}`)
+        assert.deepEqual(actual[i], await phonemize(samples[i], accent), accent + ': ' + samples[i])
       } catch (error) {
         rawDifferences++
         differences.push(error.message)
       }
     }
-    const prepared = JSON.parse(invoke(['kokoro', data, voice], JSON.stringify(samples)))
+    const prepared = JSON.parse(invoke(['kokoro', data, accent], JSON.stringify(samples)))
     for (let i = 0; i < samples.length; i++) {
       try {
-        assert.equal(prepared[i], await originalKokoro(samples[i], voice === 'en-us' ? 'a' : 'b'),
-          `Kokoro ${voice}: ${samples[i]}`)
+        const english = samples[i]
+        assert.equal(prepared[i], await originalKokoro(english, language), 'Kokoro ' + accent + ': ' + english)
+        modelSamples.push({ english, phonemes: prepared[i], voice, speed: 1 })
       } catch (error) {
         preparedDifferences++
         differences.push(error.message)
@@ -131,6 +133,23 @@ try {
   assert.equal(differences.length, 0,
     `${rawDifferences} raw / ${preparedDifferences} complete Kokoro mismatches:\n${differences.join('\n\n')}`)
   console.log(`${simulator ? 'iOS Simulator' : 'Mac'}: ${samples.length * 2} raw and ${samples.length * 2} complete Kokoro English cases match the original. No audio played or Kokoro model loaded.`)
+  return modelSamples
+}
+
+async function originalModelSamples() {
+  const modelSamples = []
+  for (const { language, voice } of voices) {
+    for (const english of samples) {
+      modelSamples.push({ english, phonemes: await originalKokoro(english, language), voice, speed: 1 })
+    }
+  }
+  return modelSamples
+}
+
+try {
+  const sdk = simulator ? run('xcrun', ['--sdk', 'iphonesimulator', '--show-sdk-path']).trim() : null
+  const modelSamples = inputsOnly ? await originalModelSamples() : await checkPhonemes(sdk)
+  await checkModelInputs({ modelSamples, directory, scratch, simulator, sdk, run })
 } catch (error) {
   // Emscripten's uncaught-error handler otherwise prints its entire minified
   // module (including embedded resources) before the useful comparison failure.

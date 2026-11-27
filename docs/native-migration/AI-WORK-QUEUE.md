@@ -56,4 +56,6 @@ CC-01 isolated worktree created at `/Users/roywe/Documents/ChatGPT/Berean/claude
 
 ## November 26 Codex checkpoint
 
-Desktop picker and shared Compare source are committed in `90e2b88b` and `2bb1670d`. Continue bounded iPhone precise cold replay, Mac reflow/interruption/empty/header/duplicate cases and Compare Edit picker. Owner Mac/signed-iPhone/Simulator builds and artifact checks PASS at2bb1670d. CC-01 remains assigned to Claude, blocked at normal sign-in, with no active Claude worker. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+Desktop picker and shared Compare source are committed in `90e2b88b` and `2bb1670d`. The aligned older-visit iPhone cold replay passed at row 3/crop 63. Keep iPhone stacked precision, reflow/interruption/empty/header/duplicate cases and Compare Edit picker open. Revert the Compare accessibility grouping and label experiment because both variants hid individual verse controls in Device Hub. Owner Mac/signed-iPhone/Simulator builds and artifact checks PASS at2bb1670d. CC-01 remains assigned to Claude, blocked at normal sign-in, with no active Claude worker. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+Read Aloud input parity passed 68 cases each on Mac and iPhone Simulator for fixture tokenization and real voice-style bits. Production tokenizer assets, ONNX inference and audible output remain open. [Read Aloud evidence](READALOUD-INPUTS-2026-11-26.md)
