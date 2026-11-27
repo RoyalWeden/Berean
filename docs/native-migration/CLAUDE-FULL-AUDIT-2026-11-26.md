@@ -58,6 +58,8 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
 - **Mac (AX/PID only):** main window, full menu bar, Settings → Reading, Strong's, Study panel, toolbar/sidebar accessibility. Earlier today: Search order/collapse, Messages folders/quote.
 - **Pass 2 (iPhone):** Study Trail list and trail screen (A32), Study Tools menu, Calendar (A33/A34), PDFs empty state, dark mode + largest accessibility text on the reader (text scales, readable; top bar fixed-size — acceptable).
+- **Pass 3 additions:** Mac workspace menu (complete; Delete correctly disabled with one workspace), Getting Started on Mac.
+- **Verified in earlier sessions, not re-run:** Notes Board/slash menu/tables/images (Nov 22 HANDOFF entries), YouTube tab + manual PiP (Nov 20/22), Messages (CC-04).
 - **Not yet covered (next):** YouTube tab and PiP; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; (Presenter and History checked on Mac — A35/A36; Tags and Ask Berean on iPhone — A37/A38; Mac keyboard flows ⌘K / ⌘T+Esc / ⌘[ / ⌘] all work); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
 
 ## Data touched
@@ -83,6 +85,7 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A32 | **Fixed, verified on iPhone sim** — inline title; "Feasts trail" visible (cause: large title under the pinned top search inset). | same branch @ `c637f9a1` (StudyTrailView.swift) |
 | A38 | **Fixed, verified on iPhone sim** — keyboard dismisses on ask, examples hidden after the first question; answer fully visible. | same branch @ `39d0bb2e` (AskBereanView.swift) |
 | A37 | Hint fixed (names "Tag Selected Verses…"); missing title is the List/Graph picker occupying the title slot — left as design. | same branch @ `39d0bb2e` (TagManagerView.swift) |
+| A31 | **Fixed, verified on Mac** — checklist hint wraps to two lines. | same branch @ `e646fa2a` (GettingStartedChecklist.swift) |
 | A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
