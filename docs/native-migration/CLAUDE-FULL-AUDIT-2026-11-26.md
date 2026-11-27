@@ -55,7 +55,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 
 | A39 | S3 | both | Notes | *(Re-scoped after reading the original.)* The original's leave rule (finalizeNote.ts) exempts verse/daily/journal/import notes — so an empty **verse** note persisting matches it — but it trashes abandoned **untitled general** notes and date-names untitled notes with text. Native had no leave rule at all. | Compose a note, go Back without typing; it stayed as an empty "Untitled". |
 
-| A40 | S4 | Mac | Windows | Every main window shows the same workspace and active tab (opening a note in one switches all), so "New Window" yields a duplicate view rather than an independent one; windows from the previous session are also restored at launch, so repeated New Window accumulates identical windows. Confirm intended (original Electron windows were independent per window). CC-05's multi-window case therefore reduces to the single active note. | File → New Window twice, open a note in one window. |
+| A40 | S3 | Mac | Windows · parity | Every native main window shows the same active tab (opening a note in one switches all); windows from the last session are also restored, so repeated New Window stacks identical windows. **Original (electron/main.ts 591–608):** New Window (⌘N) = peer window sharing tabs/sessions/settings but with *its own active tab, space, layout and scroll*; New Standalone Window (⌥⌘N) = its own tabs/sessions. Native lacks per-window active tab and Standalone Window. Touches AppModel window/session state (Codex-reserved) — proposed for Codex. CC-05 multi-window behaviour should be re-checked once per-window active tabs exist. | File → New Window twice, open a note in one window. |
 
 ## Coverage of this pass
 
