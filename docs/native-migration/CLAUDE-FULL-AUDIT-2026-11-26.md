@@ -62,6 +62,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 - **Pass 2 (iPhone):** Study Trail list and trail screen (A32), Study Tools menu, Calendar (A33/A34), PDFs empty state, dark mode + largest accessibility text on the reader (text scales, readable; top bar fixed-size — acceptable).
 - **Pass 3 additions:** Mac workspace menu (complete; Delete correctly disabled with one workspace), Getting Started on Mac.
 - **Verified in earlier sessions, not re-run:** Notes Board/slash menu/tables/images (Nov 22 HANDOFF entries), YouTube tab + manual PiP (Nov 20/22), Messages (CC-04).
+- **Pass 4 (Mac):** Presenter top offset re-tested with Codex's A28 fix merged → still present → fixed (A35); File → New Idiom… sheet opens (Term/Meaning, Create disabled until filled), cancelled without creating anything.
 - **Not yet covered (next):** YouTube tab and PiP; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; (Presenter and History checked on Mac — A35/A36; Tags and Ask Berean on iPhone — A37/A38; Mac keyboard flows ⌘K / ⌘T+Esc / ⌘[ / ⌘] all work); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
 
 ## Data touched
