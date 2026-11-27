@@ -135,8 +135,18 @@ struct NotesHomeView: View {
         }
     }
 
-    var body: some View {
+    @ViewBuilder private var browserContents: some View {
         let request = searchRequest
+        if location == "trash" { trashList }
+        else if !request.text.isEmpty || (hasFilters && (location == nil || (hasFolderScope && browseOptions.searchEverywhere))) { searchList }
+        else if location == nil { foldersHome }
+        else { folderView }
+    }
+
+    /// Keep the browser and its toolbar as an opaque view boundary. Combining
+    /// their branch types with every editor sheet and confirmation exceeds the
+    /// type-checking budget on the CI compiler.
+    private var browserScaffold: some View {
         VStack(spacing: 0) {
             #if os(iOS)
             // Search stays above the independently scrolling folder/list body.
@@ -151,12 +161,7 @@ struct NotesHomeView: View {
                 searchField
                 Divider()
             }
-            Group {
-                if location == "trash" { trashList }
-                else if !request.text.isEmpty || (hasFilters && (location == nil || (hasFolderScope && browseOptions.searchEverywhere))) { searchList }
-                else if location == nil { foldersHome }
-                else { folderView }
-            }
+            browserContents
         }
         #if os(iOS)
         .navigationTitle("")
@@ -212,6 +217,11 @@ struct NotesHomeView: View {
             }
             #endif
         }
+    }
+
+    var body: some View {
+        let request = searchRequest
+        browserScaffold
         .onAppear {
             browseOptions = app.notesBrowseOptions[tabId] ?? BrowseOptions()
         }
