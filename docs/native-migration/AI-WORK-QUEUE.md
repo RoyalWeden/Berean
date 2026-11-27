@@ -112,3 +112,5 @@ Preserve NotesHome browserContents/browserScaffold opaque computed view boundari
 ## November 26 Claude Code — after the 8pm handoff
 
 Resumed from `/Users/roywe/Berean-native/docs/native-migration/HANDOFF.md`. Branch `native/claude-audit-fixes-20261126` merged up to reader-notes and now @ `ba1f7add` adds, beyond the already-integrated batches: A32 inline titles (c637f9a1), A38 Ask Berean keyboard (39d0bb2e), A31 checklist wrap (e646fa2a), CC-06 inset and CC-07 Trash Restore. Both builds PASS. Codex's A33 "Intentional" resolution accepted; the stash `codex-preserved-owner-audit-before-8pm-20261126` was Claude's uncommitted A33 edit and is now superseded (not dropped). Next ready for Claude: CC-08 (verse-note editor sheet without new tabs), CC-05, CC-09.
+
+| CC-08 | Claude Code | Done on branch @ `f5bb1d40` | see audit A12/A39 |
