@@ -183,7 +183,10 @@ struct NotesHomeView: View {
                         withAnimation(.snappy) { selecting.toggle(); selectedNotes = [] }
                     }
                 }
-                Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
+                // Trash is for restoring or removing; a new note there makes no sense (CC-07 / A15).
+                if location != "trash" {
+                    Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
+                }
                 Menu {
                     Button("Today's Note", systemImage: "sun.max") { app.openTodayDailyNote() }
                     Button("Calendar", systemImage: "calendar") { app.openCalendar(newTab: false) }
@@ -211,9 +214,11 @@ struct NotesHomeView: View {
                     }
                     .help(selecting ? "Finish selecting" : "Select notes to pin, move or delete together")
                 }
-                Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
-                    .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
+                if location != "trash" {
+                    Button { newNoteHere() } label: { Label("New Note", systemImage: "square.and.pencil") }
+                        .keyboardShortcut("n", modifiers: [.command, .shift]).help("New note (⇧⌘N)")
                     .contextMenu { Button("New Idiom…", systemImage: "character.book.closed") { app.idiomDraft = ("", "") } }
+                }
             }
             #endif
         }
@@ -1363,9 +1368,16 @@ struct NotesHomeView: View {
                     Button("Empty Trash…", role: .destructive) { confirmEmptyTrash = true }
                 } footer: { Text("Restored notes go back to their folder, or to the top level if the folder is gone.") }
                 ForEach(trash) { n in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Self.noteTitle(n).font(.body.weight(.semibold))
-                        Text("Deleted \(n.deletedAt.map { Self.dateLabel($0) } ?? "")").font(.caption).foregroundStyle(.secondary)
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Self.noteTitle(n).font(.body.weight(.semibold))
+                            Text("Deleted \(n.deletedAt.map { Self.dateLabel($0) } ?? "")").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        // A visible Restore (swipe and long-press were the only ways before; CC-07 / A15).
+                        Button("Restore") { app.attempt("Couldn’t restore the note") { try app.notes?.restore(n.id) } }
+                            .buttonStyle(.bordered).controlSize(.small)
+                            .accessibilityLabel("Restore \(Self.rowTitle(n))")
                     }
                     .contextMenu {
                         Button("Restore") { app.attempt("Couldn’t restore the note") { try app.notes?.restore(n.id) } }
