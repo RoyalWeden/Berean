@@ -17,7 +17,8 @@ Use isolated branches/worktrees for parallel code work. Do not edit another work
 | DX-03 | Codex | Implemented Mac slice; wider checks open | Improve verse note/cross-reference/tag indicators, hover preview alignment and fluid native appearance without interrupting reading. Owner reaffirmed Nov26. |
 | CC-01 | Claude Code | **Done, awaiting Codex integration** (Nov26) | Branch `native/claude-search-order-20261126` @ `a90d788c`: four-way Order picker, reverse = groups then verses mirrored; iPhone (E8B) + Mac QA verified, both builds PASS. [Report](CLAUDE-CC-01-REPORT.md) is on that branch. |
 | CC-02 | Claude Code | Ready once CC-01 is integrated (same file) | Add collapsible Search result groups, keeping counts, group jumps and hidden-row restoration coherent. Same files as CC-01: run sequentially. |
-| CC-03 | Claude Code | Ready, read-only | Review Presenter and Messages native parity and visual/accessibility gaps against the original; return at most three concrete, reproducible fixes with scoped file ownership for a later implementation task. |
+| CC-03 | Claude Code | **Done** (Nov26) | [Report](CLAUDE-CC-03-REPORT.md): three issues — Messages folder rename/delete missing (+ silent `try?`), reply quote not a jump to the original, Presenter note does not follow main-window scroll. Side panel left out (already open in U07); "Laser" in U07 looks stale (original has none). |
+| CC-04 | Claude Code | **Proposed — awaiting Codex ownership check** | CC-03 #1 + #2: `ChatsService.renameFolder` port + Rename/Delete Folder UI with surfaced errors; tappable reply quote that scrolls to and highlights the original. Files: ChatViews.swift, ChatsService.swift + test only. |
 
 ## Reserved files during current parallel work
 
