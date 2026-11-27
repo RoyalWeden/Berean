@@ -43,7 +43,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 
 | A31 | S4 | Mac | Getting Started | The checklist's intro line is truncated ("…Swipe or right-click a step to ma…"); let it wrap. | Help → Berean Help — Getting Started. |
 
-| A32 | S3 | iPhone | Study Trail | The large navigation title is invisible on the Study Trail list and on a trail (a blurred smudge where "Study Trail" / "Feasts trail" should be); trail controls (Pause Trail, Record Chapters Automatically, Finish Trail) sit flush to the left edge with no inset. | ••• → Study Trail; open a trail. |
+| A32 | S3 | iPhone | Study Trail | The large navigation title is invisible on the Study Trail list and on a trail (a blurred smudge where "Study Trail" / "Feasts trail" should be); trail controls use 12 pt padding, slightly less than the cards below (minor). | ••• → Study Trail; open a trail. |
 | A33 | Intentional | both | Daily notes · Calendar | Both originals create daily notes on date navigation and explicitly exempt them from empty-note cleanup. Retain the row/count and native faded empty-note dot; deleting on leave can redirect date links away from metadata/history. [Source reconciliation](DAILY-NOTE-RETENTION-2026-11-26.md) | Source-verified; no cleanup change. |
 | A34 | S4 | iPhone | Calendar / menus | Calendar opens as a new tab each time from Study Tools; its row of icon-only buttons (layout, list, sunrise) has no visible labels. History isn't in the iPhone Study Tools menu at all (only under Settings → History). | ••• → Study Tools → Calendar. |
 
@@ -74,6 +74,7 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A5, A16, A20, A21, A24, A25, A26 | **Fixed** — lexicon trim (verified on iPhone G1080); "1 note"; no repeated section headers (verified Mac Settings); iPhone library "On this iPhone"; Mac window tabbing off and Help → Getting Started (verified Mac menus); Word Replacer switch. | same branch @ `2501c66f` |
 | A2, A3 | Open — highlight menu and "Copy Native Dev Link(s)" labels live in ScriptureView/CompareView (Codex-reserved). Suggested: render swatches with `.symbolRenderingMode(.palette)`/tinted `Image` or a colour-named label; rename to "Copy Link(s)". | Codex |
 | A23 | Left as design choice — the Go menu's first "YouTube" opens a YouTube tab, the second (⌘4) switches to the YouTube space; rename one (e.g. "YouTube Space") if wanted. | owner/Codex |
+| A32 | **Fixed, verified on iPhone sim** — inline title; "Feasts trail" visible (cause: large title under the pinned top search inset). | same branch @ `c637f9a1` (StudyTrailView.swift) |
 | A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
