@@ -15,8 +15,8 @@ Use isolated branches/worktrees for parallel code work. Do not edit another work
 | DX-01 | Codex | Partial verified, wider cases open | Mac reader width-aware restoration; prove measured same-verse crop across width changes and same-width exact points. Temporary QA traces must be removed before final builds. |
 | DX-02 | Codex | Mac core cases verified; wider matrix open | Committed precise aligned/stacked older visits and cold crops; iPhone precise A/B/cold, reflow, interruption, empty and duplicate cases remain. |
 | DX-03 | Codex | Implemented Mac slice; wider checks open | Improve verse note/cross-reference/tag indicators, hover preview alignment and fluid native appearance without interrupting reading. Owner reaffirmed Nov26. |
-| CC-01 | Claude Code | Blocked: Claude signed out | Add both directions of Search result order on Mac and iPhone. See implementation brief below. |
-| CC-02 | Claude Code | Ready after CC-01 | Add collapsible Search result groups, keeping counts, group jumps and hidden-row restoration coherent. Same files as CC-01: run sequentially. |
+| CC-01 | Claude Code | **Done, awaiting Codex integration** (Nov26) | Branch `native/claude-search-order-20261126` @ `a90d788c`: four-way Order picker, reverse = groups then verses mirrored; iPhone (E8B) + Mac QA verified, both builds PASS. [Report](CLAUDE-CC-01-REPORT.md) is on that branch. |
+| CC-02 | Claude Code | Ready once CC-01 is integrated (same file) | Add collapsible Search result groups, keeping counts, group jumps and hidden-row restoration coherent. Same files as CC-01: run sequentially. |
 | CC-03 | Claude Code | Ready, read-only | Review Presenter and Messages native parity and visual/accessibility gaps against the original; return at most three concrete, reproducible fixes with scoped file ownership for a later implementation task. |
 
 ## Reserved files during current parallel work
@@ -57,3 +57,7 @@ CC-01 isolated worktree created at `/Users/roywe/Documents/ChatGPT/Berean/claude
 ## November 26 Codex checkpoint
 
 Desktop picker and shared Compare source are committed in `90e2b88b` and `2bb1670d`. Continue bounded iPhone precise cold replay, Mac reflow/interruption/empty/header/duplicate cases and Compare Edit picker. Owner Mac/signed-iPhone/Simulator builds and artifact checks PASS at2bb1670d. CC-01 remains assigned to Claude, blocked at normal sign-in, with no active Claude worker. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+## November 26 Claude Code result — CC-01
+
+Claude Code (session fa975be4, normal login) claimed CC-01, fast-forwarded the prepared worktree to 7b7631b8 and committed `a90d788c` on `native/claude-search-order-20261126` (pushed; no PR, no merge). Only `apple/Shared/ScriptureSearchView.swift` changed. Direction is encoded in the native-only `sort` field (`bookOrder|bookOrderReverse|relevance|relevanceLast`) so SearchViewport fingerprints/history snapshots distinguish orders without a contract change. Verified on Claude's simulator E8B01B22 with real taps and on Claude's Mac QA instance via AX: 19 results in every order; exact first/last and group mirrors under By text and By book; Reset restores the default; result→Back keeps the order. Pre-existing finding for Codex: Search tab options (order, grouping, scope, match, testament, books) are not persisted across relaunch because `TabFields.sync[.search]` keeps only `query`. Details and open cases in the branch's `docs/native-migration/CLAUDE-CC-01-REPORT.md`.
