@@ -113,3 +113,6 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 
 - [Shared Compare precision](COMPARE-SHARED-PRECISION-2026-11-26.md): older active visits vs latest destinations, crop wire compatibility, actual Mac aligned/stacked proof, simulator touch limit, remaining matrix and fixture cleanup.
 - [Desktop passage picker](DESKTOP-PASSAGE-PICKER-2026-11-26.md): platform separation, book visibility, Mac Notes verse-grid flow and scoped UI acceptance.
+
+- [Daily note retention](DAILY-NOTE-RETENTION-2026-11-26.md): original cleanup exemptions and why empty daily identities/metadata must remain.
+- [All-visible Find](FIND-MATCHES-2026-11-26.md): additive drawing, final compiler/runtime verification and saved-highlight preservation.

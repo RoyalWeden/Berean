@@ -1,6 +1,6 @@
 # Berean Native Migration — Live Status
 
-Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare source2bb1670d is committed with scoped Mac older-visit/cold precision proof. iPhone precise replay and the wider matrix remain open; do not mark broad parity complete.
+Nov26 evening: Claude Search/Messages/audit fixes are integrated with native reader refinement and all-visible Find.397 package tests and full Mac/Simulator builds pass; scoped UI checks include saved-highlight-safe Find, desktop three-column pickers, iPhone long titles and utility-tab reuse. iPhone aligned older-visit/cold Compare crop63 is verified; the wider matrix remains open. Final owner builds and the explicitly authorized pre8pm physical install are being prepared. Start with HANDOFF/CURRENT for the live receipt; migration remains active until the scheduled7:55pm handoff pause. [Integration evidence](INTEGRATION-REVIEW-2026-11-26.md)
 
 > Initialized 2026-11-07 from verified Git, CI and test evidence. Every claim here was checked in the
 > session that wrote it; re-verify against live Git before relying on it after a gap.

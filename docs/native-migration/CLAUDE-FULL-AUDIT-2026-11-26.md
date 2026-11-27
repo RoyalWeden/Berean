@@ -44,7 +44,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 | A31 | S4 | Mac | Getting Started | The checklist's intro line is truncated ("…Swipe or right-click a step to ma…"); let it wrap. | Help → Berean Help — Getting Started. |
 
 | A32 | S3 | iPhone | Study Trail | The large navigation title is invisible on the Study Trail list and on a trail (a blurred smudge where "Study Trail" / "Feasts trail" should be); trail controls (Pause Trail, Record Chapters Automatically, Finish Trail) sit flush to the left edge with no inset. | ••• → Study Trail; open a trail. |
-| A33 | S4 | iPhone (shared) | Daily notes · Calendar | Opening today's note persists an empty `daily-YYYY-MM-DD` row. *(Re-checked: the Calendar deliberately draws empty daily notes as a faded dot — `DailyNoteCalendar` uses 45% opacity for length 0 — so the dot is intended.)* Remaining question: whether an untouched daily note should be kept or discarded on leave (it also counts in Daily Notes). | Open Today's note, leave it untouched, open Calendar. |
+| A33 | Intentional | both | Daily notes · Calendar | Both originals create daily notes on date navigation and explicitly exempt them from empty-note cleanup. Retain the row/count and native faded empty-note dot; deleting on leave can redirect date links away from metadata/history. [Source reconciliation](DAILY-NOTE-RETENTION-2026-11-26.md) | Source-verified; no cleanup change. |
 | A34 | S4 | iPhone | Calendar / menus | Calendar opens as a new tab each time from Study Tools; its row of icon-only buttons (layout, list, sunrise) has no visible labels. History isn't in the iPhone Study Tools menu at all (only under Settings → History). | ••• → Study Tools → Calendar. |
 
 ## Coverage of this pass
@@ -85,3 +85,7 @@ The listed Claude fixes are integrated in `90171b62`. A2, A3, A8/A30, A22 and A2
 ### Codex source correction to A34
 
 `openCalendar()` already delegates to `openUtilityTab(newTab: false)` and reuses an existing Calendar in the current workspace. Opening the first one creates a tab; repeated opens are designed to focus it. A repeated-open runtime check is still needed, so do not implement a second reuse layer based on the audit wording alone. The missing iPhone Study Tools History route is being added using the same existing utility-tab path.
+
+### Final Codex runtime follow-through
+
+All-visible Find is implemented in c7338cb3 with actor isolation correction536ed1b9. Both full app builds passed; Mac Romans8 Spirit22matches and iPhone Matthew5 blessed9matches showed faint inactive and orange active marks. Stepping, no-match/query replacement, close and iPhone chapter change cleared old paint; existing Mac blue ROM8:1–2 highlights were visually retained. iPhone History is present and opens from Study Tools. Repeated History and Calendar each kept ten tabs after the initial nine→ten creation; owned utility tabs were closed and all original nine tabs restored. A34 duplicate-Calendar claim is therefore contradicted by runtime. A33 is intentional original behavior, as the source reconciliation explains. General menu accessibility, other external-route covers and the wider matrix remain open.
