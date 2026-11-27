@@ -20,8 +20,8 @@ Use isolated branches/worktrees for parallel code work. Do not edit another work
 | CC-03 | Claude Code | **Audit complete; integrated** (Nov26) | [Report](CLAUDE-CC-03-REPORT.md): three issues — Messages folder rename/delete missing (+ silent `try?`), reply quote not a jump to the original, Presenter note does not follow main-window scroll. Side panel left out (already open in U07); "Laser" in U07 looks stale (original has none). |
 | CC-04 | Claude Code | **Integrated** (Nov26) | `native/claude-chat-folders-20261126` @ `d778c4b2`: transactional `ChatsService.renameFolder` (+test), Rename/Delete Folder (header menu on Mac; conversation Folder submenu on both), sidebar errors reported instead of `try?`, reply quote jumps to and tints the original. 391 package tests + both builds PASS; iPhone E8B real taps and Mac QA AX verified; fixtures removed. Report `docs/native-migration/CLAUDE-CC-04-REPORT.md` on that branch. |
 | CC-05 | Claude Code | **Ready after the7:55pm handoff** | Presenter note follow may use one lightweight ephemeral note viewport field in AppModel; that narrow ownership is released at handoff. Keep viewport/history, sync, schema and identities unchanged. Search persistence is separated asCC09. |
-| CC-06 | Claude Code | **Ready, undispatched** | A32 iPhone Study Trail title and control insets. Own StudyTrailView.swift plus a focused report. |
-| CC-07 | Claude Code | **Ready, undispatched** | A15 iPhone Trash visible Restore and removal of Trash compose. Own NotesHome.swift plus a focused report. |
+| CC-06 | Claude Code | **Done on branch, awaiting Codex review** (Nov26) | `native/claude-audit-fixes-20261126` @ `ba1f7add`: inline Study Trail titles (c637f9a1) + 16 pt control inset; verified on E8B. |
+| CC-07 | Claude Code | **Done on branch, awaiting Codex review** (Nov26) | same branch @ `ba1f7add`: visible Restore per Trash row (accessibility label "Restore <title>"), no New Note in Trash (iPhone + Mac); Restore verified on E8B with a fixture, removed afterwards. |
 
 ## Reserved files during current parallel work
 
@@ -108,3 +108,7 @@ Codex releases a narrowly scoped ephemeral AppModel note-viewport value for this
 
 ### November26 pre8 compatibility guard for CC07
 Preserve NotesHome browserContents/browserScaffold opaque computed view boundaries fromc3676b9b. Hosted Xcode26.6 timed out checking the previous combined expression; local27 build and Notes/Trash/Cancel/Back smoke pass after extraction. Avoid recombining the entire view while adding Restore/hiding Trash compose. Run both native builds, and inspect exact-head CI rather than treating older green as current.
+
+## November 26 Claude Code — after the 8pm handoff
+
+Resumed from `/Users/roywe/Berean-native/docs/native-migration/HANDOFF.md`. Branch `native/claude-audit-fixes-20261126` merged up to reader-notes and now @ `ba1f7add` adds, beyond the already-integrated batches: A32 inline titles (c637f9a1), A38 Ask Berean keyboard (39d0bb2e), A31 checklist wrap (e646fa2a), CC-06 inset and CC-07 Trash Restore. Both builds PASS. Codex's A33 "Intentional" resolution accepted; the stash `codex-preserved-owner-audit-before-8pm-20261126` was Claude's uncommitted A33 edit and is now superseded (not dropped). Next ready for Claude: CC-08 (verse-note editor sheet without new tabs), CC-05, CC-09.
