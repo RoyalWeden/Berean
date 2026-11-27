@@ -248,6 +248,8 @@ struct ScriptureSearchView: View {
     /// Queries that read as a verse reference show that verse's cross references (original search "auto" mode);
     /// this per-view override switches back to a word search for the same text.
     @State private var wordsInsteadOf: String?
+    /// Whether this view has hydrated options saved before a cold launch (CC-09).
+    @State private var optionsHydrated = false
     /// Collapsed result groups (original collapsedGroups). Device-local scene state per tab, so a
     /// result round trip that remounts this view keeps them; it holds one query + options
     /// fingerprint only ("fingerprint\ntitle\ntitle…"), so another search never inherits it.
@@ -405,6 +407,8 @@ struct ScriptureSearchView: View {
         }
         #endif
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
+        // CC-09: keep options across a cold launch via the local filters bag (SearchOptionsStore).
+        .task(id: SearchViewports.configuration(in: state)) { syncStoredOptions() }
         .onChange(of: query) { _, newQuery in field = newQuery }
         .task(id: request) { [request] in await runSearch(request) }
         .task(id: tagSelection.ids) { refreshTags() }
@@ -650,6 +654,20 @@ struct ScriptureSearchView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
                 .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 10))
+        }
+    }
+
+    /// First appearance restores options a cold launch dropped, then every option change is
+    /// mirrored into the local store (an explicit Reset therefore clears it). Pure transforms on
+    /// `tab.state` only — no computed model reads inside `app.update`.
+    private func syncStoredOptions() {
+        let current = app.findTab(tabId)?.state ?? JSObject()
+        let restore = !optionsHydrated
+        optionsHydrated = true
+        let next = restore ? SearchOptionsStore.capturing(SearchOptionsStore.restoring(current)) : SearchOptionsStore.capturing(current)
+        guard next != current else { return }
+        app.update(tabId, recordHistory: false) { tab in
+            tab.state = restore ? SearchOptionsStore.capturing(SearchOptionsStore.restoring(tab.state)) : SearchOptionsStore.capturing(tab.state)
         }
     }
 

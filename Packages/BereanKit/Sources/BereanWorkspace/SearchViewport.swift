@@ -124,3 +124,50 @@ public enum SearchViewports {
     }
 
 }
+
+/// Native Search options (order, grouping, scope, match, testament, books, tags, edition focus)
+/// kept in the already-local `filters` bag so they survive a cold launch. Top-level search keys
+/// are dropped by the query-only sync/local split; this namespace sits beside
+/// `$nativeSearchViewports` and never touches other (legacy, possibly malformed) filter fields.
+public enum SearchOptionsStore {
+    static let namespace = "$nativeSearchOptions"
+    static let version = 1
+    /// The option fields that drive requests, configuration fingerprints, history and UI.
+    public static let keys = ["scopeTexts", "wordMode", "testament", "bookIds", "tagFilter", "tagFilterAll",
+                              "nativeSearchFocusText", "sort", "grouping"]
+
+    /// The saved option values, when a valid versioned record exists.
+    public static func saved(in state: JSObject) -> JSObject? {
+        guard let record = state["filters"]?.objectValue?[namespace]?.objectValue,
+              record["v"]?.numberValue == Double(version) else { return nil }
+        var values = JSObject()
+        for key in keys { if let v = record[JSString(key)], v != .null { values[JSString(key)] = v } }
+        return values
+    }
+
+    /// Mirror the current top-level option values into the namespace (an empty set removes it, so
+    /// Reset leaves nothing stale). Leaves `state` unchanged if `filters` holds a non-object value.
+    public static func capturing(_ state: JSObject) -> JSObject {
+        let existing = state["filters"]
+        guard existing == nil || existing == .null || existing?.objectValue != nil else { return state }
+        var record = JSObject()
+        for key in keys { if let v = state[JSString(key)], v != .null { record[JSString(key)] = v } }
+        var filters = existing?.objectValue ?? JSObject()
+        if record.isEmpty { filters[namespace] = nil } else { record["v"] = .number(Double(version)); filters[namespace] = .object(record) }
+        if filters == existing?.objectValue { return state }
+        var result = state
+        result["filters"] = filters.isEmpty ? nil : .object(filters)
+        return result
+    }
+
+    /// Fill option keys that are missing at the top level (cold launch) from the saved record.
+    /// Keys already present win, so warm state is never overwritten.
+    public static func restoring(_ state: JSObject) -> JSObject {
+        guard let saved = saved(in: state) else { return state }
+        var result = state
+        for key in keys where result[JSString(key)] == nil || result[JSString(key)] == .null {
+            if let v = saved[JSString(key)] { result[JSString(key)] = v }
+        }
+        return result
+    }
+}
