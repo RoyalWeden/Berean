@@ -1030,6 +1030,7 @@ struct ScriptureSearchView: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain).clickableCursor()
+        .optionHover()
         .help(collapsed ? "Show \(group.title)" : "Hide \(group.title)")
         .accessibilityLabel("\(group.title), \(group.hits.count) result\(group.hits.count == 1 ? "" : "s")")
         .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
