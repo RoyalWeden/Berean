@@ -18,10 +18,15 @@ struct BereanIOSApp: App {
     var body: some Scene {
         WindowGroup {
             IOSRootView().environment(app).preferredColorScheme(app.colorScheme)
-                .onOpenURL(perform: app.openNativeDevURL)
+                .onOpenURL { url in
+                    // Close whatever sheet is up first, so the destination isn't left behind it.
+                    NotificationCenter.default.post(name: .bereanExternalRoute, object: nil)
+                    app.openNativeDevURL(url)
+                }
                 // Spotlight result → its deep link (SpotlightIndex).
                 .onContinueUserActivity(CSSearchableItemActionType) { activity in
                     if let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String, let url = URL(string: id) {
+                        NotificationCenter.default.post(name: .bereanExternalRoute, object: nil)
                         app.openNativeDevURL(url)
                     }
                 }
@@ -37,4 +42,10 @@ struct BereanIOSApp: App {
                 .onChange(of: indexedWorkspaces) { SpotlightIndex.scheduleRefresh(app) }
         }
     }
+}
+
+
+extension Notification.Name {
+    /// An external link (URL, Spotlight) is about to route; presented sheets should close first.
+    static let bereanExternalRoute = Notification.Name("berean.externalRoute")
 }

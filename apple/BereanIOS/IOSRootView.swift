@@ -133,6 +133,11 @@ struct IOSRootView: View {
             guard !Task.isCancelled, readerEdition == source else { return }
             alternateEdition = target
         }
+        .onReceive(NotificationCenter.default.publisher(for: .bereanExternalRoute)) { _ in
+            showTabs = false; goRequest = nil; showSettings = false; showScriptureDisplay = false
+            chapterTagTarget = nil; showArchive = false
+            app.gettingStartedShown = false; app.askBereanShown = false
+        }
         .sheet(isPresented: $showSettings) { NavigationStack { SettingsView().navigationTitle("Settings").toolbar { Button("Done") { showSettings = false } } } }
         .fullScreenCover(isPresented: Binding(get: { app.chatShown }, set: { app.chatShown = $0 })) {
             ChatView(onDone: { app.chatShown = false })

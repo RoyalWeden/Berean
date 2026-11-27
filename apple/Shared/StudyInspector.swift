@@ -115,7 +115,10 @@ struct StudyInspector: View {
                 .accessibilityLabel("Close Study Panel")
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            // Clear the sheet's grab handle: its tap toggles the detent, and it sat over the
+            // middle ("Lexicon") segment, so tapping Lexicon only resized the sheet.
+            .padding(.top, 14)
+            .padding(.bottom, 4)
             #endif
             Divider()
             panelContent(panel, st: reader, lexiconKey: lexiconKey)
