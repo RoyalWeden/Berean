@@ -43,15 +43,20 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 
 | A31 | S4 | Mac | Getting Started | The checklist's intro line is truncated ("…Swipe or right-click a step to ma…"); let it wrap. | Help → Berean Help — Getting Started. |
 
+| A32 | S3 | iPhone | Study Trail | The large navigation title is invisible on the Study Trail list and on a trail (a blurred smudge where "Study Trail" / "Feasts trail" should be); trail controls (Pause Trail, Record Chapters Automatically, Finish Trail) sit flush to the left edge with no inset. | ••• → Study Trail; open a trail. |
+| A33 | S3 | iPhone (shared) | Daily notes · Calendar | Opening today's note creates and **persists an empty daily note** (`daily-YYYY-MM-DD`, empty content); the Calendar then shows a "has note" dot for a day with nothing written, and it counts in Daily Notes. Create the row on first edit, or ignore empty notes in dots/counts. | Open Today's note, leave it untouched, open Calendar. |
+| A34 | S4 | iPhone | Calendar / menus | Calendar opens as a new tab each time from Study Tools; its row of icon-only buttons (layout, list, sunrise) has no visible labels. History isn't in the iPhone Study Tools menu at all (only under Settings → History). | ••• → Study Tools → Calendar. |
+
 ## Coverage of this pass
 
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
 - **Mac (AX/PID only):** main window, full menu bar, Settings → Reading, Strong's, Study panel, toolbar/sidebar accessibility. Earlier today: Search order/collapse, Messages folders/quote.
-- **Not yet covered in this pass (next):** YouTube tab and PiP; PDFs (import, highlights, bookmarks); Study Trail recording/merge/split; Presenter window; Calendar/History/Tags screens; workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
+- **Pass 2 (iPhone):** Study Trail list and trail screen (A32), Study Tools menu, Calendar (A33/A34), PDFs empty state, dark mode + largest accessibility text on the reader (text scales, readable; top bar fixed-size — acceptable).
+- **Not yet covered (next):** YouTube tab and PiP; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; Presenter window; History and Tags screens; workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
 
 ## Data touched
 
-iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow highlights created then deleted; a daily note opened and left empty (not saved); Strong's toggled back off; a test tab opened and closed. Mac QA (claude-20261120): Strong's and Study panel toggled back; no content written. No production data, D0CC, Codex QA library or physical phone.
+iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow highlights created then deleted; a daily note opened and left empty — **it was persisted** (see A33); removed afterwards; Strong's toggled back off; a test tab opened and closed. Mac QA (claude-20261120): Strong's and Study panel toggled back; no content written. No production data, D0CC, Codex QA library or physical phone.
 
 ## Suggested fix order
 
