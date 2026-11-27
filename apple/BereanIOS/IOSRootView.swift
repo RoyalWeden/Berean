@@ -174,7 +174,8 @@ struct IOSRootView: View {
                 pendingNewTab = true
                 showTabs = false
             })
-            .presentationDetents([.medium, .large], selection: $tabSheetDetent)
+            // A42: landscape (compact height) — a half-height Tabs sheet shows no tab cards, so full height only.
+            .presentationDetents(verticalSizeClass == .compact ? [.large] : [.medium, .large], selection: $tabSheetDetent)
         }
         .sheet(isPresented: $showArchive) {
             NavigationStack {
