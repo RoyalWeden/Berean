@@ -692,7 +692,7 @@ struct NotesHomeView: View {
             .contentShape(.rect)
         }
         .buttonStyle(NotesHomeRowButtonStyle())
-        .accessibilityLabel("\(name), \(n) notes")
+        .accessibilityLabel("\(name), \(n) note\(n == 1 ? "" : "s")")
     }
 
     func folderRow(_ f: NoteFolder, depth: Int) -> some View {
