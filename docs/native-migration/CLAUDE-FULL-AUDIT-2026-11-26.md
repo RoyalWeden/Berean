@@ -53,6 +53,8 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 | A37 | S4 | iPhone | Tags | The Tags screen has no title (blank gap above the filter field), and its empty-state hint says "Tag Verse…", but the real control is the tag icon / "Tag Selected Verses…". | ••• → Study Tools → Tags. |
 | A38 | S3 | iPhone | Ask Berean | After asking, the keyboard stays up and covers the answer (only the first heading, "Strong's H2580", is visible); the example list also stays above the result. Dismiss the keyboard on submit and collapse the examples once there's an answer. | Ask Berean → "word study on grace" → Return. |
 
+| A39 | S3 | both | Notes | A note created by Add Note and left untouched stays as an **empty verse note** (no empty-note cleanup exists natively; the originals clean empty non-daily notes, which is why daily notes are explicitly exempt). Pre-existing — same on the old tab path. | Add Note → Back → Done without typing; note row remains with empty content. |
+
 ## Coverage of this pass
 
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
@@ -86,6 +88,8 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A38 | **Fixed, verified on iPhone sim** — keyboard dismisses on ask, examples hidden after the first question; answer fully visible. | same branch @ `39d0bb2e` (AskBereanView.swift) |
 | A37 | Hint fixed (names "Tag Selected Verses…"); missing title is the List/Graph picker occupying the title slot — left as design. | same branch @ `39d0bb2e` (TagManagerView.swift) |
 | A31 | **Fixed, verified on Mac** — checklist hint wraps to two lines. | same branch @ `e646fa2a` (GettingStartedChecklist.swift) |
+| A12 | **Fixed (CC-08), verified on iPhone sim** — Add Note edits inside the verse sheet; no new tab; Back/Done return to the same reader. | same branch @ `f5bb1d40` (ScriptureView.swift) |
+| A15 | **Fixed (CC-07)** — visible Restore per row; no compose in Trash. | same branch |
 | A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
