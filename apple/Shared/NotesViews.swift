@@ -1129,6 +1129,10 @@ struct NoteDetailView: View {
         wikiLinkQuery = nil; dismissedWikiLinkQuery = nil; wikiLinkTargets = []
         referenceCompletion = nil; dismissedReferenceCompletion = nil; preparedReference = nil
         scriptureBlocks = []
+        // CC-05: a newly shown note starts at the top for the Presenter until it is scrolled.
+        if app.presenterOpen, loadedId != noteId {
+            app.presenterNoteViewport = PresenterNoteViewport(noteId: noteId, fraction: 0)
+        }
         if let outgoing = loadedId, outgoing != noteId {
             saveNow(); snapshot()
             finalizeIfLeft(outgoing, title: title, content: content)
