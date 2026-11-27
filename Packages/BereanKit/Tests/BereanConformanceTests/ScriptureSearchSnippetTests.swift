@@ -62,6 +62,37 @@ struct ScriptureSearchSnippetTests {
         #expect(snippet.text.split(separator: " ")[4] == "mercy")
     }
 
+    @Test func fullVerseRetainsBothEndsAndItsOriginalMatchPositionAcrossModeChanges() {
+        let cache = ScriptureSearchSnippetCache()
+        let words = (0..<30).map { $0 == 20 ? "mercy" : "unmatched\($0)" }
+        let hit = ScriptureHit(textId: "lxx", bookId: "PSA", chapter: 23, verseNum: 1,
+                               text: words.joined(separator: " "), textTagged: nil,
+                               matchWordIndices: [20], matchedStrongs: ["G1656"])
+        let compact = cache.snippet(for: hit, replacerEnabled: false, rules: [])
+        let full = cache.snippet(for: hit, replacerEnabled: false, rules: [], windowed: false)
+        #expect(full.text == hit.text)
+        #expect(full.matchWordIndices == [20])
+        #expect(full.text.split(separator: " ")[20] == "mercy")
+        #expect(full.text.hasPrefix("unmatched0 "))
+        #expect(full.text.hasSuffix(" unmatched29"))
+        #expect(cache.snippet(for: hit, replacerEnabled: false, rules: []) == compact)
+        #expect(cache.snippet(for: hit, replacerEnabled: false, rules: [], windowed: false) == full)
+    }
+
+    @Test func fullVerseKeepsReplacementAdjustedStrongsPositionsWhenSettingsChange() {
+        let cache = ScriptureSearchSnippetCache()
+        var hit = psalm
+        hit.matchWordIndices = [4]
+        hit.matchedStrongs = ["H7462"]
+        let enabled = cache.snippet(for: hit, replacerEnabled: true, rules: WordReplacer.defaultRules, windowed: false)
+        #expect(enabled.text == "Yehovah is my shepherd.")
+        #expect(enabled.matchWordIndices == [3])
+        let disabled = cache.snippet(for: hit, replacerEnabled: false, rules: WordReplacer.defaultRules, windowed: false)
+        #expect(disabled.text == hit.text)
+        #expect(disabled.matchWordIndices == [4])
+        #expect(cache.snippet(for: hit, replacerEnabled: true, rules: WordReplacer.defaultRules, windowed: false) == enabled)
+    }
+
     @Test func capacitySurvivesRingWrapAndSettingsClearTheCache() {
         let cache = ScriptureSearchSnippetCache()
         let rules = WordReplacer.defaultRules

@@ -632,7 +632,8 @@ struct ScriptureSearchView: View {
                 Text("By text").tag("text"); Text("By book").tag("book"); Text("No groups").tag("none")
             }.modifier(SearchOptionsPickerStyle(title: "Group by"))
             Picker("Context", selection: $resultContext) {
-                Text("Verse only").tag(0); Text("±1 verse").tag(1); Text("±2 verses").tag(2)
+                Text("Compact").tag(0); Text("Full verse").tag(-1)
+                Text("±1 verse").tag(1); Text("±2 verses").tag(2)
             }.modifier(SearchOptionsPickerStyle(title: "Context"))
             }
             if hasActiveOptions {
@@ -1165,7 +1166,7 @@ struct ScriptureSearchView: View {
                             SearchResultContext(hit: h, span: resultContext, edge: .before, cache: contextChapterCache)
                         }
                         Text(highlighted(h, matchingWords: matchingWords))
-                            .font(.callout).foregroundStyle(.secondary).lineLimit(resultContext > 0 ? nil : 4)
+                            .font(.callout).foregroundStyle(.secondary).lineLimit(resultContext != 0 ? nil : 4)
                         if resultContext > 0 {
                             SearchResultContext(hit: h, span: resultContext, edge: .after, cache: contextChapterCache)
                         }
@@ -1239,7 +1240,8 @@ struct ScriptureSearchView: View {
 
     /// Mark Strong's matches and any plain query words in the same snippet.
     private func highlighted(_ hit: ScriptureHit, matchingWords: Set<String>) -> AttributedString {
-        let snippet = snippetCache.snippet(for: hit, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
+        let snippet = snippetCache.snippet(for: hit, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules,
+                                           windowed: resultContext == 0)
         let s = snippet.text
         let indices = Set(snippet.matchWordIndices)
         var a = AttributedString(s)
