@@ -316,7 +316,14 @@ struct ScriptureSearchView: View {
     var scope: [String]? { state["scopeTexts"]?.arrayValue?.compactMap { $0.stringValue?.string } }
     var mode: WordMode { WordMode(rawValue: state["wordMode"]?.stringValue?.string ?? "all") ?? .all }
     var testament: String { state["testament"]?.stringValue?.string ?? "all" }
-    var sort: String { state["sort"]?.stringValue?.string ?? "bookOrder" }        // bookOrder | relevance
+    /// bookOrder | bookOrderReverse | relevance | relevanceLast. The direction lives in the same
+    /// native-only field (the original's Sort By + direction pair) so the existing viewport
+    /// fingerprint, history snapshot and Reset Options already tell every order apart.
+    var sort: String { state["sort"]?.stringValue?.string ?? "bookOrder" }
+    /// Scripture (canonical) order rather than the search's relevance order.
+    private var sortsByBook: Bool { sort == "bookOrder" || sort == "bookOrderReverse" }
+    /// Genesis→Revelation reversed, or best match last.
+    private var sortReversed: Bool { sort == "bookOrderReverse" || sort == "relevanceLast" }
     var grouping: String { state["grouping"]?.stringValue?.string ?? "text" }     // text | book | none
     var bookFilter: [String] { state["bookIds"]?.arrayValue?.compactMap { $0.stringValue?.string } ?? [] }
 
@@ -601,7 +608,8 @@ struct ScriptureSearchView: View {
             }
             optionsGroup("Results", symbol: "list.bullet") {
             Picker("Order", selection: Binding(get: { sort }, set: { set("sort", .string(JSString($0))) })) {
-                Text("Scripture order").tag("bookOrder"); Text("Best match first").tag("relevance")
+                Text("Genesis → Revelation").tag("bookOrder"); Text("Revelation → Genesis").tag("bookOrderReverse")
+                Text("Best match first").tag("relevance"); Text("Best match last").tag("relevanceLast")
             }.modifier(SearchOptionsPickerStyle(title: "Order"))
             Picker("Group by", selection: Binding(get: { grouping }, set: { set("grouping", .string(JSString($0))) })) {
                 Text("By text").tag("text"); Text("By book").tag("book"); Text("No groups").tag("none")
@@ -799,7 +807,7 @@ struct ScriptureSearchView: View {
     var shown: [ScriptureHit] {
         var hits = testamentFiltered
         if let f = focusText { hits = hits.filter { $0.textId == f } }
-        if sort == "bookOrder" {
+        if sortsByBook {
             let textOrder = Dictionary(uniqueKeysWithValues: availableTexts.enumerated().map { ($1.id, $0) })
             hits.sort { (textOrder[$0.textId] ?? 99, Reference.bookOrder($0.bookId), $0.chapter, $0.verseNum) < (textOrder[$1.textId] ?? 99, Reference.bookOrder($1.bookId), $1.chapter, $1.verseNum) }
         }
@@ -982,6 +990,13 @@ struct ScriptureSearchView: View {
     struct Group { var title: String; var hits: [ScriptureHit] }
 
     var groups: [Group] {
+        let forward = forwardGroups
+        // Like the original, the reverse direction flips the group order and then each group's
+        // verses, so a book that occurs in several editions keeps its mirrored position.
+        return sortReversed ? forward.reversed().map { Group(title: $0.title, hits: $0.hits.reversed()) } : forward
+    }
+
+    private var forwardGroups: [Group] {
         let hits = shown
         switch grouping {
         case "book":
