@@ -55,6 +55,8 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 
 | A39 | S3 | both | Notes | *(Re-scoped after reading the original.)* The original's leave rule (finalizeNote.ts) exempts verse/daily/journal/import notes — so an empty **verse** note persisting matches it — but it trashes abandoned **untitled general** notes and date-names untitled notes with text. Native had no leave rule at all. | Compose a note, go Back without typing; it stayed as an empty "Untitled". |
 
+| A40 | S4 | Mac | Windows | Every main window shows the same workspace and active tab (opening a note in one switches all), so "New Window" yields a duplicate view rather than an independent one; windows from the previous session are also restored at launch, so repeated New Window accumulates identical windows. Confirm intended (original Electron windows were independent per window). CC-05's multi-window case therefore reduces to the single active note. | File → New Window twice, open a note in one window. |
+
 ## Coverage of this pass
 
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
