@@ -125,7 +125,9 @@ struct GettingStartedChecklist: View {
                     }
                     .padding(.vertical, 4)
                 } footer: {
+                    // macOS list footers default to one line; let the hint wrap (it was cut off).
                     Text("Steps tick themselves off as you use Berean. Swipe or right-click a step to mark it yourself.")
+                        .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(GettingStartedCatalog.groups, id: \.label) { group in
                     Section(group.label) {
