@@ -140,7 +140,9 @@ struct LexiconEntryView: View {
 
     /// The reader's word replacer (e.g. LORD → Yehovah) applied to lexicon prose, as the original does.
     private func replaced(_ text: String) -> String {
-        app.wordReplacerEnabled ? WordReplacer.apply(text, rules: app.wordReplacerRules) : text
+        // Lexicon prose sometimes starts with a stray space (" to procreate…").
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return app.wordReplacerEnabled ? WordReplacer.apply(text, rules: app.wordReplacerRules) : text
     }
 
     /// Gloss shown for an entry; Strong's "unrepresented in English" (H853) gets the original's plain explanation.

@@ -53,6 +53,8 @@ struct NotesHomeView: View {
     @State private var deletingFolder: NoteFolder?
     @State private var folderName = ""
     @State private var confirmEmptyTrash = false
+    /// A trashed note awaiting "Delete Permanently" confirmation (irreversible, like Empty Trash).
+    @State private var pendingPurge: Note?
     @State private var pendingTrash: [String] = []
     @State private var searchScroll = ScrollPosition(idType: String.self)
     @State private var restoredSearchPosition: SearchPosition?
@@ -279,8 +281,18 @@ struct NotesHomeView: View {
         } message: { _ in
             Text("You can restore notes from Trash.")
         }
+        .confirmationDialog("Delete “\(pendingPurge.map { Self.rowTitle($0) } ?? "")” permanently?",
+                            isPresented: Binding(get: { pendingPurge != nil }, set: { if !$0 { pendingPurge = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete Permanently", role: .destructive) {
+                if let n = pendingPurge {
+                    app.attempt("Couldn’t delete the note") { _ = try app.notes?.purgeTrashItem(n.id) }
+                }
+                pendingPurge = nil
+            }
+        } message: { Text("This can’t be undone.") }
         .confirmationDialog("Empty Trash?", isPresented: $confirmEmptyTrash, titleVisibility: .visible) {
-            Button("Delete \(trash.count) Notes Permanently", role: .destructive) { _ = try? app.notes?.emptyTrash() }
+            Button("Delete \(trash.count) Notes Permanently", role: .destructive) { app.attempt("Couldn’t empty Trash") { _ = try app.notes?.emptyTrash() } }
         } message: { Text("This cannot be undone.") }
     }
 
@@ -680,7 +692,7 @@ struct NotesHomeView: View {
             .contentShape(.rect)
         }
         .buttonStyle(NotesHomeRowButtonStyle())
-        .accessibilityLabel("\(name), \(n) notes")
+        .accessibilityLabel("\(name), \(n) note\(n == 1 ? "" : "s")")
     }
 
     func folderRow(_ f: NoteFolder, depth: Int) -> some View {
@@ -1347,11 +1359,11 @@ struct NotesHomeView: View {
                     }
                     .contextMenu {
                         Button("Restore") { app.attempt("Couldn’t restore the note") { try app.notes?.restore(n.id) } }
-                        Button("Delete Permanently", role: .destructive) { _ = try? app.notes?.purgeTrashItem(n.id) }
+                        Button("Delete Permanently…", role: .destructive) { pendingPurge = n }
                     }
                     #if os(iOS)
                     .swipeActions(edge: .leading) { Button("Restore") { app.attempt("Couldn’t restore the note") { try app.notes?.restore(n.id) } }.tint(.blue) }
-                    .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { _ = try? app.notes?.purgeTrashItem(n.id) } }
+                    .swipeActions(edge: .trailing) { Button("Delete", role: .destructive) { pendingPurge = n } }
                     #endif
                 }
             }

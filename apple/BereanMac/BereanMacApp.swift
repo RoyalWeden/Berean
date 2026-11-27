@@ -11,6 +11,9 @@ struct BereanMacApp: App {
 
     init() {
         BereanTips.configure()
+        // Berean has its own sidebar tabs; AppKit's automatic window tabbing added a second,
+        // unrelated "tab" system (Show Tab Bar, Merge All Windows…) to the View/Window menus.
+        NSWindow.allowsAutomaticWindowTabbing = false
         #if DEBUG
         NativeCursorDiagnostics.installIfRequested()
         #endif
@@ -69,6 +72,11 @@ struct BereanMacApp: App {
                     Button("Today's Note") { app.openTodayDailyNote() }.keyboardShortcut("d", modifiers: [.command, .shift])
                     Button("New Workspace") { app.newWorkspace() }.keyboardShortcut("0", modifiers: [.command, .shift])
                 }.disabled(isStudyWindow != true)
+            }
+            // No help book ships; the Help menu opens the Getting Started checklist instead
+            // of macOS's "Help isn't available".
+            CommandGroup(replacing: .help) {
+                Button("Berean Help — Getting Started") { app.gettingStartedShown = true }
             }
             // Close belongs to saveItem. Replace the default command rather than
             // registering a second ⌘W that competes with AppKit's Close Window.

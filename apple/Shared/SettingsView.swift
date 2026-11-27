@@ -85,7 +85,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var readingSection: some View {
         @Bindable var app = app
-        Section("Reading") {
+        Section {
             Picker("Default text", selection: $app.defaultText) { ForEach(availableTexts) { Text($0.name).tag($0.id) } }
             Picker("Shepherd of Hermas edition", selection: $app.hermasEdition) {
                 Text("Charles Taylor (1903)").tag(HermasText.taylor)
@@ -95,7 +95,7 @@ struct SettingsView: View {
             Toggle("Copy Verses When Highlighting", isOn: $app.autoCopyOnHighlight)
             LabeledContent("Word Replacer") {
                 HStack(spacing: 12) {
-                    Toggle("Word Replacer", isOn: $app.wordReplacerEnabled).labelsHidden()
+                    Toggle("Word Replacer", isOn: $app.wordReplacerEnabled).labelsHidden().toggleStyle(.switch)
                     Button("Rules…") { showsWordReplacer = true }
                         .help("Browse name replacements and Strong’s-based rules")
                 }
@@ -219,7 +219,7 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var aboutSections: some View {
-        Section("About") {
+        Section {
             LabeledContent("Version", value: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–") + " (native development build)")
             LabeledContent("Texts", value: "\(availableTexts.count) installed")
             Button("Replay Getting Started") { app.replayOnboarding() }
@@ -230,7 +230,12 @@ struct SettingsView: View {
             }
         }
         Section("Library") {
+            #if os(macOS)
             LabeledContent("Location", value: UserLibrary.directory.path).textSelection(.enabled)
+            #else
+            // A sandbox path means nothing on iPhone.
+            LabeledContent("Location", value: "On this iPhone")
+            #endif
             Text("Development build — this library is separate from your Berean data and does not sync yet.").font(.caption).foregroundStyle(.secondary)
         }
     }
