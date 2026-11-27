@@ -24,7 +24,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 | A12 | S3 | iPhone | Notes from reader | **Add Note** opens the note in a *new Notes tab*; the editor's Back goes to the Notes home, not back to the passage you were reading, so returning needs the tab switcher. | Psalm 24:1 → … → Add Note → type → ‹. |
 | A13 | S4 | iPhone (check) | YouTube timestamp | Channel name is read with desktop-YouTube selectors (`#owner #channel-name a, ytd-channel-name a`); on the mobile page the iPhone loads, the channel part is likely missing (label becomes "Title — m:ss"). Needs a device/sim check with a real video. | Code: YouTubeTabView `markdown(timestamp:)`. |
 | A14 | **S2** | iPhone (check Mac) | Notes · Trash | **Delete Permanently runs immediately with no confirmation** — an irreversible deletion one tap from a context menu (Empty Trash… does confirm). Add a destructive confirmation. | Trash → long-press a note → Delete Permanently. |
-| A15 | S3 | iPhone | Notes · Trash | Restore / Delete Permanently exist only in the long-press menu; no swipe actions or visible buttons, so restoring is undiscoverable. A New Note (compose) button sits in the Trash toolbar, which doesn't belong there. | Open Trash. |
+| A15 | S4 | iPhone | Notes · Trash | *(Corrected: swipe right = Restore and swipe left = Delete do exist.)* No visible Restore control besides swipe/long-press. A New Note (compose) button sits in the Trash toolbar, which doesn't belong there. | Open Trash. |
 | A16 | S4 | iPhone | Notes · accessibility | VoiceOver label "Trash, 1 notes" (no singular). | Notes home with one trashed note. |
 | A17 | S4 | iPhone | Notes · search | Search results don't highlight the matched word in the preview. | Notes → search "audit". |
 | A18 | **S2** | iPhone | Deep links / app routing | Opening a link while a sheet is presented (e.g. the Tabs sheet) leaves the sheet up; the destination (daily note) opens **behind** it while its keyboard and editor toolbar appear **over** the sheet. Routing should dismiss presented sheets/popovers first. Affects Spotlight, Shortcuts, widget and `berean-native-dev://` links. | Open Tabs sheet → `xcrun simctl openurl … berean-native-dev://daily`. |
@@ -56,3 +56,14 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 1. **S2:** A4 (Lexicon segment under grab handle), A14 (permanent delete without confirmation), A18 (deep link under presented sheet), A28 (Mac Study panel overlaps verse 1).
 2. **S3:** A2 (black highlight swatches), A3 ("Native Dev" label), A8/A30 (Strong's binding), A9 (Compare bar spacing), A12 (Add Note return path), A15 (Trash restore discoverability), A19/A29 (accessibility labels), A21 (iPhone library path), A22/A24 (Mac app name, system window tabs), A7/A27 (scope decisions).
 3. **S4:** the rest.
+
+## Fix status
+
+| # | Status | Where |
+|---|---|---|
+| A4 | **Fixed, verified on iPhone sim** — Lexicon centre tap selects the tab; sheet no longer jumps. | `native/claude-audit-fixes-20261126` @ `691c9aa5` (StudyInspector.swift) |
+| A14 | **Fixed, verified on iPhone sim** — context-menu and swipe Delete Permanently both confirm ("This can't be undone."); purge/Empty Trash errors reported. | same branch (NotesHome.swift) |
+| A18 | **Fixed, verified on iPhone sim** — with the Tabs sheet open, `berean-native-dev://daily` closes the sheet and the note opens in front. | same branch (BereanIOSApp.swift, IOSRootView.swift) |
+| A28 | Open — Mac reader/toolbar files are Codex-reserved (ChapterTextView); queued for Codex. | — |
+
+Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
