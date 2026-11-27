@@ -197,7 +197,10 @@ struct PresenterView: View {
             followedVerse = readerAnchor ?? selected.min()
             app.presenterOpen = true
         }
-        .onDisappear { app.presenterOpen = false }
+        .onDisappear {
+            app.presenterOpen = false
+            app.presenterNoteViewport = nil
+        }
         .task(id: request) { await load(request) }
         // Follow the latest interaction: selection focuses its first verse;
         // subsequent reader scrolling must still move the audience view.
@@ -247,7 +250,7 @@ struct PresenterView: View {
             .onChange(of: app.presenterNoteViewport) { _, _ in followNote(note.id) }
             // A different note starts at its top (or its own published position) — never the
             // previous note's offset.
-            .onChange(of: note.id) { _, id in
+            .onChange(of: note.id, initial: true) { _, id in
                 notePosition = ScrollPosition(edge: .top)
                 followNote(id)
             }

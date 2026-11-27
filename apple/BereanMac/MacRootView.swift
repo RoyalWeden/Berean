@@ -51,6 +51,13 @@ struct MacRootView: View {
                 .toolbar {
                     // With the sidebar hidden the same buttons sit right after the sidebar button.
                     ToolbarItemGroup(placement: .navigation) { if columns == .detailOnly { navGroup } }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { openWindow(id: "presenter") } label: {
+                            Label("Presenter", systemImage: "rectangle.on.rectangle")
+                        }
+                        .labelStyle(.titleAndIcon)
+                        .help("Open Presenter (⇧⌘B)")
+                    }
                 }
         }
         .toolbarBackground(scriptureToolbarBackground, for: .windowToolbar)

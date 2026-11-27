@@ -501,6 +501,14 @@ struct PassagePicker: View {
         return sections.filter { $0.0 == activeBookSection }
     }
 
+    private var usesDesktopBookGrid: Bool {
+        #if os(macOS)
+        text == "kjva"
+        #else
+        false
+        #endif
+    }
+
     private func bookSectionPicker(selection: String) -> some View {
         Picker("Book section", selection: Binding(get: { selection }, set: { section in
             if usesCompactLayout { searchFocused = false }
@@ -546,28 +554,29 @@ struct PassagePicker: View {
             #if os(iOS)
             .scrollDismissesKeyboard(.interactively)
             #endif
+        } else if usesDesktopBookGrid {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())], spacing: 4) {
+                    ForEach(displayedBookSections, id: \.0) { title, rows in
+                        Section {
+                            ForEach(rows, id: \.id) { book in bookRow(book, inGrid: true).id(book.id) }
+                        } header: {
+                            if activeBookSection == nil, !title.isEmpty {
+                                Text(title).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
         } else {
             List {
                 ForEach(displayedBookSections, id: \.0) { title, rows in
                     Section {
                         ForEach(rows, id: \.id) { book in
-                            let current = book.id == currentBook && text == textId
-                            Button { open(book, in: text) } label: {
-                                HStack {
-                                    Text(Self.pickerBookName(book, in: text))
-                                        .fontWeight(current ? .semibold : .regular)
-                                        .accessibilityLabel(book.name)
-                                    Spacer()
-                                    Text(book.chaptersCount == 1 ? "" : "\(book.chaptersCount)")
-                                        .font(.caption).foregroundStyle(.tertiary).monospacedDigit()
-                                }
-                                .padding(.vertical, 4)
-                                .background(current ? Color.accentColor.opacity(0.14) : .clear, in: .rect(cornerRadius: 6))
-                                .contentShape(.rect)
-                            }
-                            .buttonStyle(.interactivePlain)
-                            .accessibilityAddTraits(current ? .isSelected : [])
-                            .id(book.id)
+                            bookRow(book).id(book.id)
                         }
                     } header: {
                         if activeBookSection == nil, !title.isEmpty { Text(title) }
@@ -576,6 +585,32 @@ struct PassagePicker: View {
             }
             .listStyle(.sidebar)
         }
+    }
+
+    private func bookRow(_ book: BookRow, inGrid: Bool = false) -> some View {
+        let current = book.id == currentBook && text == textId
+        return Button { open(book, in: text) } label: {
+            HStack(spacing: inGrid ? 4 : nil) {
+                Text(Self.pickerBookName(book, in: text))
+                    .fontWeight(current ? .semibold : .regular)
+                    .lineLimit(inGrid ? 2 : nil)
+                    .accessibilityLabel(book.name)
+                Spacer(minLength: inGrid ? 0 : nil)
+                if book.chaptersCount > 1 {
+                    Text("\(book.chaptersCount)")
+                        .font(.caption).foregroundStyle(.tertiary).monospacedDigit()
+                        .fixedSize()
+                        .accessibilityLabel("\(book.chaptersCount) chapters")
+                }
+            }
+            .padding(.horizontal, inGrid ? 8 : 0)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, minHeight: inGrid ? 32 : nil, alignment: .leading)
+            .background(current ? Color.accentColor.opacity(0.14) : .clear, in: .rect(cornerRadius: 6))
+            .contentShape(.rect)
+        }
+        .buttonStyle(.interactivePlain)
+        .accessibilityAddTraits(current ? .isSelected : [])
     }
 
     private func bookTile(_ b: BookRow) -> some View {

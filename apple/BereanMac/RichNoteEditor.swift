@@ -26,7 +26,8 @@ struct RichNoteEditor: NSViewRepresentable {
     var onTableContext: (Bool) -> Void = { _ in }
     var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
-    /// Proportional vertical scroll position (0…1) whenever the visible region moves.
+    var reportsScrollFraction = false
+    /// Proportional vertical scroll position (0…1) when following starts or the visible region moves.
     var onScrollFraction: (Double) -> Void = { _ in }
     var referenceContext = ""
     var onReferencePreview: @MainActor (URL) async -> NoteReferencePreview? = { _ in nil }
@@ -76,9 +77,13 @@ struct RichNoteEditor: NSViewRepresentable {
         context.coordinator.scrollObserver = NotificationCenter.default.addObserver(
             forName: NSView.boundsDidChangeNotification, object: nil, queue: .main
         ) { [weak coordinator = context.coordinator, weak tv] note in
-            guard let tv, let coordinator, let clip = note.object as? NSClipView, tv.isDescendant(of: clip) else { return }
-            MainActor.assumeIsolated { coordinator.reportScroll(tv) }
+            guard let tv, let coordinator, let clip = note.object as? NSClipView else { return }
+            MainActor.assumeIsolated {
+                guard tv.isDescendant(of: clip) else { return }
+                coordinator.scheduleScrollReport()
+            }
         }
+        context.coordinator.scheduleScrollReport()
         return scroll
     }
 
@@ -96,6 +101,8 @@ struct RichNoteEditor: NSViewRepresentable {
             || c.parent.fontFamily != fontFamily || c.parent.fontSize != fontSize
             || c.parent.referenceContext != referenceContext
         let spellingSettingChanged = c.parent.spellCheck != spellCheck
+        let startedFollowing = reportsScrollFraction && !c.parent.reportsScrollFraction
+        let referenceContextChanged = c.parent.referenceContext != referenceContext
         let previousRequest = c.parent.formatRequest
         c.parent = self
         if let request = formatRequest, request != previousRequest {
@@ -151,14 +158,28 @@ struct RichNoteEditor: NSViewRepresentable {
         if contentChanged { tv.string = text }
         if contentChanged || styleChanged { c.restyle() }
         if contentChanged { c.publishWikiLinkQuery() }
+        if startedFollowing || referenceContextChanged { c.scheduleScrollReport() }
     }
 
     @MainActor final class Coordinator: NSObject, NSTextViewDelegate, @preconcurrency NSLayoutManagerDelegate {
         var parent: RichNoteEditor
         weak var textView: NoteTextView?
         var scrollObserver: NSObjectProtocol?
+        private var scrollReportScheduled = false
 
-        func reportScroll(_ tv: NSTextView) {
+        func scheduleScrollReport() {
+            guard parent.reportsScrollFraction, !scrollReportScheduled else { return }
+            scrollReportScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.scrollReportScheduled = false
+                guard self.parent.reportsScrollFraction, self.scrollObserver != nil,
+                      let editor = self.textView, editor.window != nil else { return }
+                self.reportScroll(editor)
+            }
+        }
+
+        private func reportScroll(_ tv: NSTextView) {
             // visibleRect reflects whichever ancestor clips the text view.
             let visible = tv.visibleRect
             let range = tv.frame.height - visible.height
