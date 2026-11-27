@@ -64,6 +64,10 @@ struct StudyTrailView: View {
                 if !trails.isEmpty { librarySearchField }
             }
             .navigationTitle("Study Trail")
+            #if os(iOS)
+            // A large title sat under the pinned search inset and rendered as a blur.
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             // Done in the bar (it used to be a second bottom inset that sat exactly over New Trail on iPhone).
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { app.showStudyTrail = false } }
@@ -363,6 +367,9 @@ private struct StudyTrailStopsView: View {
         }
         .searchable(text: $query, prompt: "Find in This Trail")
         .navigationTitle(trail.name.isEmpty ? "Untitled Trail" : trail.name)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .alert("Rename Trail", isPresented: $renamingTrail) {
             TextField("Name", text: $draftTrailName)
             Button("Cancel", role: .cancel) {}
