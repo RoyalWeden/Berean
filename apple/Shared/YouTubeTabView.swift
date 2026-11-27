@@ -201,7 +201,20 @@ struct YouTubeTabView: View {
     private func markdown(timestamp: Bool) async -> String? {
         guard let id = Self.videoId(from: page.url) else { return nil }
         let secs = timestamp ? Int(((try? await page.callJavaScript("var v=document.querySelector('video');return v?v.currentTime:0;")) as? Double) ?? 0) : 0
-        let channel = ((try? await page.callJavaScript("var a=document.querySelector('#owner #channel-name a, ytd-channel-name a');return a?a.textContent.trim():'';")) as? String) ?? ""
+        // Desktop selectors first; the iPhone loads m.youtube.com, whose owner markup differs (A13),
+        // so fall back to schema.org author metadata, the mobile owner name, then player data for
+        // this same video id.
+        let channel = ((try? await page.callJavaScript("""
+        var a=document.querySelector('#owner #channel-name a, ytd-channel-name a');
+        if(a&&a.textContent.trim()){return a.textContent.trim();}
+        var m=document.querySelector('span[itemprop="author"] link[itemprop="name"]');
+        if(m&&m.getAttribute('content')){return m.getAttribute('content').trim();}
+        var s=document.querySelector('.slim-owner-channel-name, ytm-slim-owner-renderer .slim-owner-title');
+        if(s&&s.textContent.trim()){return s.textContent.trim();}
+        var d=window.ytInitialPlayerResponse&&window.ytInitialPlayerResponse.videoDetails;
+        if(d&&d.videoId===vid&&d.author){return d.author;}
+        return '';
+        """, arguments: ["vid": id])) as? String) ?? ""
         let title = page.title.replacingOccurrences(of: " - YouTube", with: "").trimmingCharacters(in: .whitespaces)
         let h = secs / 3600, m = (secs % 3600) / 60, s = secs % 60
         let time = h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
