@@ -274,6 +274,30 @@ public final class ChatsService: @unchecked Sendable {
         onChange("ai_chat", id, "upsert"); return true
     }
 
+    /// Rename a folder (every conversation in it moves along), or with `to: nil` remove the folder —
+    /// its conversations stay, just unfiled. Port of the original `aiChats.renameFolder`: a blank
+    /// new name is refused (`nil` result); otherwise returns how many conversations moved.
+    @discardableResult
+    public func renameFolder(_ from: String, to: String?) throws -> Int? {
+        let target = to.flatMap { Self.cleanFolder($0) }
+        if to != nil, target == nil { return nil }
+        let ids = try db.query("SELECT id FROM ai_chats WHERE folder = ?", [.text(from)]).compactMap { $0["id"]?.string }
+        guard !ids.isEmpty else { return 0 }
+        let stamp = Self.iso(now())
+        try db.exec("BEGIN IMMEDIATE")
+        do {
+            for id in ids {
+                try db.run("UPDATE ai_chats SET folder = ?, updated_at = ? WHERE id = ?", [target.map { .text($0) } ?? .null, .text(stamp), .text(id)])
+            }
+            try db.exec("COMMIT")
+        } catch {
+            try? db.exec("ROLLBACK")
+            throw error
+        }
+        for id in ids { onChange("ai_chat", id, "upsert") }
+        return ids.count
+    }
+
     public func delete(_ id: String) throws {
         try db.run("DELETE FROM ai_chats WHERE id = ?", [.text(id)])
         onChange("ai_chat", id, "delete")

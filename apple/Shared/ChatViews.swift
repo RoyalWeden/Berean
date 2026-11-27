@@ -21,6 +21,10 @@ struct ChatView: View {
     @State private var foldering: ChatsService.Chat?
     @State private var folderName = ""
     @State private var deleting: ChatsService.Chat?
+    /// Folder-wide Rename / Delete (original Rename Folder… / Delete Folder… → aiChats.renameFolder).
+    @State private var renamingFolder: String?
+    @State private var deletingFolder: String?
+    @State private var failure: String?
 
     private var filteredConversations: [ChatsService.Chat] {
         chats.filter { chat in
@@ -41,7 +45,11 @@ struct ChatView: View {
                     .font(.body.weight(.medium)).padding(.vertical, 6).tag(Selection.all)
                 if !pinned.isEmpty { Section("Pinned") { ForEach(pinned) { row($0, folders: folders) } } }
                 ForEach(folders, id: \.self) { f in
-                    Section(f) { ForEach(unpinned.filter { $0.folder == f }) { row($0, folders: folders) } }
+                    Section {
+                        ForEach(unpinned.filter { $0.folder == f }) { row($0, folders: folders) }
+                    } header: {
+                        Text(f).contextMenu { folderActions(f) }
+                    }
                 }
                 Section("Conversations") {
                     if loose.isEmpty && pinned.isEmpty && folders.isEmpty {
@@ -94,18 +102,43 @@ struct ChatView: View {
         .task(id: app.chatsRevision) { chats = (try? app.chats?.all()) ?? [] }
         .alert("Rename Conversation", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Title", text: $newTitle)
-            Button("Rename") { if let c = renaming { try? app.chats?.rename(c.id, newTitle) }; renaming = nil }
+            Button("Rename") { if let c = renaming { attempt("rename the conversation") { try app.chats?.rename(c.id, newTitle) } }; renaming = nil }
             Button("Cancel", role: .cancel) { renaming = nil }
         }
         .alert("Move to Folder", isPresented: Binding(get: { foldering != nil }, set: { if !$0 { foldering = nil } })) {
             TextField("Folder name", text: $folderName)
-            Button("Move") { if let c = foldering { try? app.chats?.organize(c.id, folder: .some(folderName)) }; foldering = nil }
+            Button("Move") { if let c = foldering { attempt("move the conversation") { try app.chats?.organize(c.id, folder: .some(folderName)) } }; foldering = nil }
             Button("Cancel", role: .cancel) { foldering = nil }
         }
+        .alert("Rename Folder", isPresented: Binding(get: { renamingFolder != nil }, set: { if !$0 { renamingFolder = nil } })) {
+            TextField("Folder name", text: $folderName)
+            Button("Rename") {
+                if let from = renamingFolder {
+                    attempt("rename the folder") {
+                        if try app.chats?.renameFolder(from, to: folderName) == nil { failure = "A folder needs a name." }
+                    }
+                }
+                renamingFolder = nil
+            }
+            Button("Cancel", role: .cancel) { renamingFolder = nil }
+        } message: { Text("Every conversation in “\(renamingFolder ?? "")” moves with it.") }
+        .confirmationDialog("Delete Folder “\(deletingFolder ?? "")”?", isPresented: Binding(get: { deletingFolder != nil }, set: { if !$0 { deletingFolder = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete Folder", role: .destructive) {
+                if let f = deletingFolder { attempt("delete the folder") { try app.chats?.renameFolder(f, to: nil) } }
+                deletingFolder = nil
+            }
+        } message: { Text("Its conversations stay, unfiled.") }
+        .alert("Couldn’t Update Messages", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button("OK", role: .cancel) { failure = nil }
+        } message: { Text(failure ?? "") }
         .confirmationDialog("Delete “\(deleting?.title ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
                             titleVisibility: .visible) {
             Button("Delete Conversation", role: .destructive) {
-                if let c = deleting { try? app.chats?.delete(c.id); if selection == .chat(c.id) { selection = .all } }
+                if let c = deleting {
+                    attempt("delete the conversation") { try app.chats?.delete(c.id) }
+                    if failure == nil, selection == .chat(c.id) { selection = .all }
+                }
                 deleting = nil
             }
         } message: { Text("Its messages are deleted too.") }
@@ -138,16 +171,31 @@ struct ChatView: View {
         .contentShape(.rect)
         .tag(Selection.chat(c.id))
         .contextMenu {
-            Button(c.pinnedAt == nil ? "Pin" : "Unpin", systemImage: c.pinnedAt == nil ? "pin" : "pin.slash") { try? app.chats?.organize(c.id, pinned: c.pinnedAt == nil) }
+            Button(c.pinnedAt == nil ? "Pin" : "Unpin", systemImage: c.pinnedAt == nil ? "pin" : "pin.slash") { attempt("pin the conversation") { try app.chats?.organize(c.id, pinned: c.pinnedAt == nil) } }
             Button("Rename…", systemImage: "pencil") { newTitle = c.title; renaming = c }
             Menu("Folder") {
-                ForEach(folders.filter { $0 != c.folder }, id: \.self) { f in Button(f) { try? app.chats?.organize(c.id, folder: .some(f)) } }
+                ForEach(folders.filter { $0 != c.folder }, id: \.self) { f in Button(f) { attempt("move the conversation") { try app.chats?.organize(c.id, folder: .some(f)) } } }
                 Button("New Folder…") { folderName = ""; foldering = c }
-                if c.folder != nil { Divider(); Button("Remove from Folder") { try? app.chats?.organize(c.id, folder: .some(nil)) } }
+                if let current = c.folder {
+                    Divider()
+                    Button("Remove from Folder") { attempt("move the conversation") { try app.chats?.organize(c.id, folder: .some(nil)) } }
+                    Divider()
+                    folderActions(current)
+                }
             }
             Divider()
             Button("Delete…", systemImage: "trash", role: .destructive) { deleting = c }
         }
+    }
+
+    @ViewBuilder private func folderActions(_ folder: String) -> some View {
+        Button("Rename Folder…", systemImage: "pencil") { folderName = folder; renamingFolder = folder }
+        Button("Delete Folder…", systemImage: "trash", role: .destructive) { deletingFolder = folder }
+    }
+
+    /// Runs a store change and reports a failure in plain words instead of dropping it.
+    private func attempt(_ action: String, _ body: () throws -> Void) {
+        do { try body() } catch { failure = "Berean couldn’t \(action). \(error.localizedDescription)" }
     }
 
     private func newConversation() {
@@ -176,6 +224,10 @@ struct ChatThreadView: View {
     @State private var search = ""
     @State private var showingSearch = false
     @FocusState private var searchFocused: Bool
+    /// A reply's quote asks to show its original (original ChatReplyQuote "Show the original message").
+    @State private var jumpTarget: ChatsService.MessageAddress?
+    @State private var highlighted: ChatsService.MessageAddress?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if os(iOS)
     @State private var composerFocused = false
     #else
@@ -189,6 +241,7 @@ struct ChatThreadView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -200,6 +253,7 @@ struct ChatThreadView: View {
                                     .frame(maxWidth: .infinity).padding(.top, 8)
                             }
                             bubble(item.chat, item.message)
+                                .background(highlighted == item.id ? Color.accentColor.opacity(0.14) : .clear, in: .rect(cornerRadius: 24))
                         }
                         .id(item.id)
                     }
@@ -221,6 +275,22 @@ struct ChatThreadView: View {
             .onChange(of: items.last?.id) { previous, id in
                 if previous == nil { scrollTarget = id }
                 else { withAnimation(.smooth) { scrollTarget = id } }
+            }
+            .onChange(of: jumpTarget) { _, target in
+                guard let target, items.contains(where: { $0.id == target }) else { return }
+                jumpTarget = nil
+                if reduceMotion { proxy.scrollTo(target, anchor: .center) }
+                else { withAnimation(.smooth) { proxy.scrollTo(target, anchor: .center) } }
+                withAnimation(.easeOut(duration: 0.2)) { highlighted = target }
+                Task {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    if highlighted == target { withAnimation(.easeOut(duration: 0.4)) { highlighted = nil } }
+                }
+            }
+            .onChange(of: items.map(\.id)) { _, _ in
+                // The original was hidden by a message search that has now been cleared.
+                if let target = jumpTarget { jumpTarget = nil; DispatchQueue.main.async { jumpTarget = target } }
+            }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -304,6 +374,11 @@ struct ChatThreadView: View {
         }
     }
 
+    private func showOriginal(_ address: ChatsService.MessageAddress) {
+        if !items.contains(where: { $0.id == address }), !search.isEmpty { search = "" }
+        jumpTarget = address
+    }
+
     @ViewBuilder private func bubble(_ chat: ChatsService.Chat, _ m: ChatsService.Message) -> some View {
         let note = m.kind == .note
         let mine = m.role == "user"
@@ -313,8 +388,18 @@ struct ChatThreadView: View {
             }
             if let parentId = m.inReplyTo {
                 let parent = chat.messages.first { $0.id == parentId }
-                Label(parent.map { String($0.displayPreview.prefix(80)) } ?? "Original message deleted", systemImage: "arrowshape.turn.up.left")
+                let quote = Label(parent.map { String($0.displayPreview.prefix(80)) } ?? "Original message deleted", systemImage: "arrowshape.turn.up.left")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let parent {
+                    // Like the original quote button: show the message this replies to.
+                    Button { showOriginal(ChatsService.MessageAddress(chatID: chat.id, messageID: parent.id)) } label: { quote }
+                        .buttonStyle(.plain).clickableCursor()
+                        .help("Show the original message")
+                        .accessibilityLabel("Replying to: \(String(parent.displayPreview.prefix(80)))")
+                        .accessibilityHint("Shows the original message")
+                } else {
+                    quote
+                }
             }
             if editing?.id == ChatsService.MessageAddress(chatID: chat.id, messageID: m.id) {
                 TextField("Message", text: $editText, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(1...8)
