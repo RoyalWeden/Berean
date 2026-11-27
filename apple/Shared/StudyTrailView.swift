@@ -896,7 +896,8 @@ private struct StudyTrailStopsView: View {
             }
             .buttonStyle(.bordered)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
+            // Same side inset as the list cards below (CC-06 / A32).
+            .padding(.horizontal, 16).padding(.vertical, 12)
             .background(.regularMaterial)
         }
     }
