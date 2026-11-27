@@ -105,3 +105,6 @@ Verify all four orders and groups across quit/relaunch, two tabs and distinct qu
 ## CC-05 Presenter note-follow ownership after7:55pm
 
 Codex releases a narrowly scoped ephemeral AppModel note-viewport value for this task once the scheduled handoff completes. Own PresenterView.swift, the Mac rich-note scroll observer and that field only. Follow the active note proportionally; Pause must freeze note ID/content/viewport, Resume follows the current document, and fast note switches/resize/image or table reflow must not apply an old note’s offset. No persisted viewport/sync/schema changes, reader/Compare navigation changes or controls that promise an unimplemented action. Verify long formatted note follow, pause/resume, switching and window resizing using isolated owned fixtures and preserve the original Presenter/library state.
+
+### November26 pre8 compatibility guard for CC07
+Preserve NotesHome browserContents/browserScaffold opaque computed view boundaries fromc3676b9b. Hosted Xcode26.6 timed out checking the previous combined expression; local27 build and Notes/Trash/Cancel/Back smoke pass after extraction. Avoid recombining the entire view while adding Restore/hiding Trash compose. Run both native builds, and inspect exact-head CI rather than treating older green as current.

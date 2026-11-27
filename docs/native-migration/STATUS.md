@@ -587,3 +587,11 @@ Committed source through `2bb1670d`. Mac picker and aligned/stacked cold restore
 ## November 26 — Integrated reader and menu follow-through
 
 Mac localized app menu, Search disclosure and Compare Edit picker passed. iPhone verified Compare spacing, long passage title and picker labels, selection actions, highlight choice, Lexicon segment and current Find. Mac repeated settled opening stayed clear of the toolbar. A10 inactive matches, small opening residual, Study Tools History and fresh owner builds remain pending. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)
+
+## November26 pre8pm final build and compatibility checkpoint
+
+App sourcec3676b9b. Hosted Xcode26.6 NotesHome type-check timeout at3fd644d8 fixed with opaque browserContents/browserScaffold boundaries, retaining behavior/state/modals. All three owner-folder Xcode27 builds PASS; c367 Simulator Notes17/Trash10/confirmation Cancel/Back checked without deletion. Preserve these boundaries in CC07.
+
+Final Mac/device refresh exited0 each at7:46pm. Strict signature verification then caught regenerated AppIntents extract.actionsdata/nlu.lzfse with a stale incremental device signature despite BUILD SUCCEEDED. Removed only the generated bundle’s _CodeSignature/CodeResources output and rebuilt through normal Xcode CodeSign (exit0); all three strict signatures/DevIDs/no cloud-or-group entitlements now PASS, Signing.xcconfig unchanged. Do not assume BUILD SUCCEEDED alone proves valid signed resources. Logs /private/tmp/berean-owner-pre8-refresh-{mac,device}-20261126.log and berean-owner-pre8-device-resign-20261126.log; ignored owner-pre8-ready-artifacts.json.
+
+Read-only final QA audit after c367 smoke retained all watched original row hashes and exact37Mac/47iPhone active tab IDs; no new note content. D0CC current containerC42052F5-E274-4DA1-A006-1F2BFCDD9EB4, backgroundedMatthew5:12/nine tabs/StrongOFF/panelclosed/Findclosed. Original owner Mac2506 untouched. Exact-head hosted run45935344052 remains in progress at7:47; previous45933415044 failed iOS compilation, not a green receipt. Physical iPhone unavailable at7:47, so no installation yet; final outcome follows in current checkpoints.

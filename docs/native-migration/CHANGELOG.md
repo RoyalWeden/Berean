@@ -2252,3 +2252,6 @@ Evidence: ignored `owner-ready-1326-artifacts.json`, `phone-1326-install.json`, 
 ### November 26 — Reader alignment and integrated audit fixes
 
 Mac app-menu localization, whole Search group disclosure and Compare Edit desktop picker passed live. iPhone Compare spacing, selection actions, colored highlight choices and Lexicon center tap passed. Both platforms verified red italic supplied words. Study Tools now lists History in source. Final build/runtime for that addition and inactive Find highlighting are pending. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)
+
+### November26 — reviewed integration and reader finishing
+Integrated reviewed Claude Search, Messages and audit work; corrected transactional folder membership and legacy names; refined native highlight menus/Strong’s joins/Compare controls; restored red italic supplied words without changing copy/corpus contracts; added iPhone History access and visible inactive Find matches on both apps. Preserved Mac picker layout, improved settled toolbar overlap restoration, and split NotesHome view expressions for older hosted Swift compiler compatibility. Full native397-test suite passed before final view-only build/UI checks; all3 local Dev builds ready. See current HANDOFF for exact source, CI and physical-install limits.

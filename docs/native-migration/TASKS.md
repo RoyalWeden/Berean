@@ -681,3 +681,6 @@ Owner reports Find is hidden/offscreen while searching, especially iOS. Current 
 
 - **VERIFIED (bounded)** Red supplied italic words on both platforms, iPhone Strong’s routing, Compare spacing, selection actions, highlight menu, passage labels and Lexicon tap. Mac Compare Edit and localized menu passed. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)
 - **OPEN** A10 inactive match paint, residual Mac opening classification, real interruption and broader reflow/accessibility. A34 source reuses Calendar. Repeat UI and new Study Tools History still need coverage. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)
+
+### November26 pre8 checkpoint
+All-visible Find and iPhone History access implemented and runtime-checked; NotesHome compiler boundary extractionc3676b9b builds locally on all3 targets. Next Claude queue CC06→CC08→CC07; retain compiler boundaries. Physical install and hosted exact-head verification are distinct from local build readiness; use current HANDOFF for final outcomes. Broad migration and Read Aloud gates remain open.
