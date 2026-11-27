@@ -663,7 +663,9 @@ struct NoteDetailView: View {
     @State private var shareRequest: NativeShareRequest?
     #endif
     @State private var confirmingTrash = false
+    @State private var trashNoteId: String?
     @State private var choosingNoteIcon = false
+    @State private var iconNoteId: String?
     @State private var noteIconInput = ""
     @State private var insertingReference = false
     @State private var insertingLink = false
@@ -967,29 +969,39 @@ struct NoteDetailView: View {
                     // Note details (original editor chrome): status, folder and statistics in one menu.
                     Menu {
                         Picker("Status", selection: Binding(get: { note.status ?? "" }, set: { value in
-                            app.attempt("Couldn’t change the status") { _ = try app.notes?.update(note.id, .init(status: .some(value))) }
-                            reload()
+                            changeMetadata(for: note.id, failure: "Couldn’t change the status") {
+                                _ = try $0.update(note.id, .init(status: .some(value)))
+                            }
                         })) {
                             Text("None").tag("")
                             ForEach(NotesHomeView.statuses, id: \.id) { Text($0.label).tag($0.id) }
                         }
                         Menu("Icon", systemImage: "face.smiling") {
                             ForEach(Self.noteIcons, id: \.emoji) { icon in
-                                Button(icon.emoji + " " + icon.name) { setNoteIcon(icon.emoji) }
+                                Button(icon.emoji + " " + icon.name) { setNoteIcon(icon.emoji, for: note.id) }
                             }
                             Divider()
                             Button("Custom Emoji…") {
                                 noteIconInput = note.icon ?? ""
+                                iconNoteId = note.id
                                 choosingNoteIcon = true
                             }
                             if note.icon != nil {
-                                Button("Remove Icon") { setNoteIcon(nil) }
+                                Button("Remove Icon") { setNoteIcon(nil, for: note.id) }
                             }
                         }
                         Menu("Folder", systemImage: "folder") {
-                            Button("No Folder") { app.attempt("Couldn’t move the note") { try app.notes?.setFolder(note.id, nil) }; reload() }
+                            Button("No Folder") {
+                                changeMetadata(for: note.id, failure: "Couldn’t move the note") {
+                                    try $0.setFolder(note.id, nil)
+                                }
+                            }
                             ForEach((try? app.notes?.folders()) ?? [], id: \.id) { folder in
-                                Button(folder.name) { app.attempt("Couldn’t move the note") { try app.notes?.setFolder(note.id, folder.id) }; reload() }
+                                Button(folder.name) {
+                                    changeMetadata(for: note.id, failure: "Couldn’t move the note") {
+                                        try $0.setFolder(note.id, folder.id)
+                                    }
+                                }
                             }
                         }
                         Divider()
@@ -1019,12 +1031,17 @@ struct NoteDetailView: View {
                     .menuIndicator(.hidden)
                     .accessibilityLabel("Share note")
                     .help("Share note text, print, or export Markdown")
-                    Button { try? app.notes?.setPinned(note.id, !note.pinned); reload() } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
+                    Button {
+                        changeMetadata(for: note.id, failure: "Couldn’t change the pin") {
+                            try $0.setPinned(note.id, !note.pinned)
+                        }
+                    } label: { Label(note.pinned ? "Unpin" : "Pin", systemImage: note.pinned ? "pin.slash" : "pin") }
                     Button(role: .destructive) {
                         if app.confirmNoteDelete && !JSText.trim(content).isEmpty {
+                            trashNoteId = note.id
                             confirmingTrash = true
                         } else {
-                            moveToTrash()
+                            moveToTrash(note.id)
                         }
                     } label: { Label("Move to Trash", systemImage: "trash") }
                 }
@@ -1033,7 +1050,7 @@ struct NoteDetailView: View {
         .alert("Custom Note Icon", isPresented: $choosingNoteIcon) {
             TextField("Emoji", text: $noteIconInput)
             Button("Set Icon") {
-                if let customNoteIcon { setNoteIcon(customNoteIcon) }
+                if let customNoteIcon, let iconNoteId { setNoteIcon(customNoteIcon, for: iconNoteId) }
             }
             .disabled(customNoteIcon == nil)
             Button("Cancel", role: .cancel) {}
@@ -1041,7 +1058,9 @@ struct NoteDetailView: View {
             Text("Enter one emoji.")
         }
         .alert("Move Note to Trash?", isPresented: $confirmingTrash) {
-            Button("Move to Trash", role: .destructive) { moveToTrash() }
+            Button("Move to Trash", role: .destructive) {
+                if let trashNoteId { moveToTrash(trashNoteId) }
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You can restore this note from Trash.")
@@ -1609,18 +1628,45 @@ struct NoteDetailView: View {
         return value
     }
 
-    private func setNoteIcon(_ icon: String?) {
-        saveNow()
-        app.attempt("Couldn’t change the note icon") {
-            _ = try app.notes?.update(noteId, .init(icon: .some(icon)))
+    private func changeMetadata(for id: String, failure: String, _ change: (NotesService) throws -> Void) {
+        guard noteId == id, loadedId == id, mountedNoteId == id else { return }
+        guard let service = app.notes else {
+            app.userMessage = "\(failure). The library is not open."
+            return
         }
-        reload()
+        guard saveNow()?.id == id else { return }
+        app.attempt(failure) {
+            try change(service)
+            guard let refreshed = try service.one(id), refreshed.deletedAt == nil else {
+                app.userMessage = "\(failure). The note is no longer available."
+                return
+            }
+            note = refreshed
+            title = refreshed.title
+            content = refreshed.content
+            app.refreshNoteTabTitles(refreshed)
+        }
     }
 
-    private func moveToTrash() {
-        saveNow()
+    private func setNoteIcon(_ icon: String?, for id: String) {
+        changeMetadata(for: id, failure: "Couldn’t change the note icon") {
+            _ = try $0.update(id, .init(icon: .some(icon)))
+        }
+    }
+
+    private func moveToTrash(_ id: String) {
+        guard noteId == id, loadedId == id, mountedNoteId == id else { return }
+        guard let service = app.notes else {
+            app.userMessage = "Couldn’t move the note to Trash. The library is not open."
+            return
+        }
+        guard let saved = saveNow(), saved.id == id else { return }
         app.attempt("Couldn’t move the note to Trash") {
-            try app.notes?.delete(noteId)
+            guard try service.one(id) == saved else {
+                app.userMessage = "The note changed elsewhere before it could be moved to Trash."
+                return
+            }
+            try service.delete(id)
             if performDestination != nil { dismiss() } else { app.openNote(nil) }
         }
     }
