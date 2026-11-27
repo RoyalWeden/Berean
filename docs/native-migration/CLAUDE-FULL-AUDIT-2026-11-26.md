@@ -50,12 +50,15 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 | A35 | S2 | Mac | Presenter | The audience view starts with verse 1 under the Presenter's transparent title bar (first line blurred, chapter heading off-screen). It mirrors the main reader's viewport, which has the same offset (A28) — changing the Presenter's own heading anchor had no effect, so the fix belongs with A28 in the main reader. | John 1 → Window → Show Presenter. |
 | A36 | S4 | Mac | History | Repeated identical searches are listed as separate rows ("voice of joy" twice today). | Go → History. |
 
+| A37 | S4 | iPhone | Tags | The Tags screen has no title (blank gap above the filter field), and its empty-state hint says "Tag Verse…", but the real control is the tag icon / "Tag Selected Verses…". | ••• → Study Tools → Tags. |
+| A38 | S3 | iPhone | Ask Berean | After asking, the keyboard stays up and covers the answer (only the first heading, "Strong's H2580", is visible); the example list also stays above the result. Dismiss the keyboard on submit and collapse the examples once there's an answer. | Ask Berean → "word study on grace" → Return. |
+
 ## Coverage of this pass
 
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
 - **Mac (AX/PID only):** main window, full menu bar, Settings → Reading, Strong's, Study panel, toolbar/sidebar accessibility. Earlier today: Search order/collapse, Messages folders/quote.
 - **Pass 2 (iPhone):** Study Trail list and trail screen (A32), Study Tools menu, Calendar (A33/A34), PDFs empty state, dark mode + largest accessibility text on the reader (text scales, readable; top bar fixed-size — acceptable).
-- **Not yet covered (next):** YouTube tab and PiP; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; Tags screen; (Presenter and History checked on Mac — A35/A36); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
+- **Not yet covered (next):** YouTube tab and PiP; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; (Presenter and History checked on Mac — A35/A36; Tags and Ask Berean on iPhone — A37/A38; Mac keyboard flows ⌘K / ⌘T+Esc / ⌘[ / ⌘] all work); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
 
 ## Data touched
 
