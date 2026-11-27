@@ -40,7 +40,15 @@ private final class ChapterPullScrollView: NSScrollView {
 
     var isAtChapterOpening: Bool {
         let clip = contentView
-        return documentView != nil && clip.bounds.height > 0 && clip.bounds.minY <= clip.documentRect.minY + 1
+        guard documentView != nil, clip.bounds.height > 0 else { return false }
+        let offset = clip.bounds.minY - clip.documentRect.minY
+        if offset <= 1 { return true }
+        // An inset change can leave a few points of native scroll even though
+        // the start of the text still has its reading gap below the toolbar.
+        guard offset <= 12, let textView = reader?.textView else { return false }
+        let textStart = textView.convert(textView.textContainerOrigin, to: clip).y
+        let readableTop = clip.bounds.minY + textView.visibleTitleBarClearance
+        return textStart - readableTop >= ReaderFloatingControls.readingGap
     }
 
     // SwiftUI may queue a restore before this native view has a window or size.
