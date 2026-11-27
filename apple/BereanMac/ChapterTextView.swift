@@ -17,6 +17,7 @@ private final class ChapterPullScrollView: NSScrollView {
     private var studyPreviewOrigin: NSPoint?
     private var appliedViewportGeometry: ViewportGeometry?
     private var historyOffsetCorrection: HistoryOffsetCorrection?
+    private var openingCorrection: UUID?
     private struct HistoryOffsetCorrection {
         let actionID = UUID()
         var appliedY: CGFloat?
@@ -37,10 +38,16 @@ private final class ChapterPullScrollView: NSScrollView {
 
     var isRestoringViewport: Bool { pendingViewportAction != nil }
 
+    var isAtChapterOpening: Bool {
+        let clip = contentView
+        return documentView != nil && clip.bounds.height > 0 && clip.bounds.minY <= clip.documentRect.minY + 1
+    }
+
     // SwiftUI may queue a restore before this native view has a window or size.
     // Apply the latest intent once its actual viewport exists, then retain it
     // only through the initial native layout burst.
     func enqueueViewportAction(correctHistoryOffset: Bool = false, _ action: @escaping () -> Void) {
+        openingCorrection = nil
         pendingViewportAction = action
         appliedViewportGeometry = nil
         historyOffsetCorrection = correctHistoryOffset ? HistoryOffsetCorrection() : nil
@@ -70,8 +77,35 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     override func layout() {
+        let keepOpening = isAtChapterOpening && !isRestoringViewport
+        let previousGeometry = keepOpening ? viewportGeometry : nil
         super.layout()
+        reader?.textView?.updateReadingInset()
         applyViewportActionIfReady()
+        if keepOpening, previousGeometry != viewportGeometry, !isRestoringViewport { preserveChapterOpening() }
+    }
+
+    private func preserveChapterOpening() {
+        scrollToChapterOpening()
+        guard openingCorrection == nil else { return }
+        let correction = UUID()
+        openingCorrection = correction
+        // AppKit can apply a final clip adjustment after the native resize.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.openingCorrection == correction, !self.isRestoringViewport else { return }
+            self.openingCorrection = nil
+            self.scrollToChapterOpening()
+        }
+    }
+
+    private func scrollToChapterOpening() {
+        let clip = contentView
+        let opening = clip.documentRect.minY
+        guard clip.bounds.minY != opening else { return }
+        var destination = clip.bounds
+        destination.origin.y = opening
+        clip.scroll(to: clip.constrainBoundsRect(destination).origin)
+        reflectScrolledClipView(clip)
     }
 
     override func reflectScrolledClipView(_ clipView: NSClipView) {
@@ -131,6 +165,7 @@ private final class ChapterPullScrollView: NSScrollView {
         super.viewDidMoveToWindow()
         stopKeyboardMonitor()
         guard window != nil else { return }
+        reader?.textView?.updateReadingInset()
         applyViewportActionIfReady()
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { [weak self] event in
             guard let self, let window, event.window === window, window.isKeyWindow,
@@ -153,6 +188,7 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     func cancelViewportAction() {
+        openingCorrection = nil
         viewportSettle?.invalidate()
         viewportSettle = nil
         pendingViewportAction = nil
@@ -167,9 +203,16 @@ private final class ChapterPullScrollView: NSScrollView {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
-        let ranges = frame.size != newSize ? reader?.visibleSelectedRanges(in: self) ?? [] : []
+        let resized = frame.size != newSize
+        let keepOpening = resized && isAtChapterOpening && !isRestoringViewport
+        let ranges = resized && !keepOpening ? reader?.visibleSelectedRanges(in: self) ?? [] : []
         super.setFrameSize(newSize)
+        reader?.textView?.updateReadingInset()
         applyViewportActionIfReady()
+        if keepOpening, !isRestoringViewport {
+            preserveChapterOpening()
+            return
+        }
         for range in ranges {
             if reader?.revealSelectedRange(range, in: self) == true { break }
         }
@@ -316,6 +359,7 @@ struct ChapterTextView: NSViewRepresentable {
         tv.delegate = context.coordinator
         tv.coordinator = context.coordinator
         tv.setAccessibilityLabel("Scripture text")
+        tv.updateReadingInset()
         scroll.documentView = tv
         context.coordinator.textView = tv
         positionReader.capture = { [weak coordinator = context.coordinator, weak scroll] preferred in
@@ -354,6 +398,7 @@ struct ChapterTextView: NSViewRepresentable {
         }
         c.parent = self
         guard let tv = c.textView else { return }
+        let wasAtOpening = (scroll as? ChapterPullScrollView)?.isAtChapterOpening == true
         tv.titleBarClearance = titleBarClearance
         tv.updateOutlineMotion()
         let clip = scroll.contentView
@@ -369,6 +414,7 @@ struct ChapterTextView: NSViewRepresentable {
             scroll.contentInsets.bottom = actionClearance
             scroll.scrollerInsets.bottom = actionClearance
             if wasAtEnd { bounds.origin.y = clip.documentRect.maxY }
+            else if wasAtOpening { bounds.origin.y = clip.documentRect.minY }
             clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
             scroll.reflectScrolledClipView(clip)
         }
@@ -398,7 +444,9 @@ struct ChapterTextView: NSViewRepresentable {
                 let kept = previousText.utf16.elementsEqual(tv.string.utf16) ? sel : []
                 tv.selectedRanges = kept.isEmpty ? [NSValue(range: NSRange(location: 0, length: 0))] : kept
                 var proposed = previousBounds
-                if let bodyAnchor, let y = c.bodyReflowTop(bodyAnchor, in: tv) {
+                if wasAtOpening {
+                    proposed.origin.y = clip.documentRect.minY
+                } else if let bodyAnchor, let y = c.bodyReflowTop(bodyAnchor, in: tv) {
                     proposed.origin.y = y
                 } else if wasAtEnd, let container = tv.textContainer {
                     tv.layoutManager?.ensureLayout(for: container)
@@ -472,6 +520,8 @@ struct ChapterTextView: NSViewRepresentable {
                     tv.layoutManager?.ensureLayout(for: container)
                     let clip = scroll.contentView
                     var bounds = clip.bounds
+                    let atOpening = position.offset <= 1 && (position.viewportWidth != nil || position.verse == nil
+                        || position.verse == parent.verses.first?.verse)
                     let reflowed = position.viewportWidth.map { abs($0 - clip.bounds.width) > 1 } ?? false
                     let reflowTop = reflowed ? position.verse.flatMap { c.verseRanges[$0] }
                         .flatMap { tv.firstVerseLineTop(in: $0) }
@@ -479,7 +529,13 @@ struct ChapterTextView: NSViewRepresentable {
                     let verseTop = position.offset == 0 ? position.verse.flatMap { c.verseRanges[$0] }
                         .flatMap { tv.firstVerseLineTop(in: $0) }
                         .map { tv.convert(NSPoint(x: 0, y: $0), to: clip).y - tv.visibleTitleBarClearance - 12 } : nil
-                    bounds.origin.y = position.atEnd ? clip.documentRect.maxY : reflowTop ?? verseTop ?? (clip.documentRect.minY + position.offset)
+                    if position.atEnd {
+                        bounds.origin.y = clip.documentRect.maxY
+                    } else if atOpening {
+                        bounds.origin.y = clip.documentRect.minY
+                    } else {
+                        bounds.origin.y = reflowTop ?? verseTop ?? (clip.documentRect.minY + position.offset)
+                    }
                     clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
                     scroll.reflectScrolledClipView(clip)
                     c.editionArrival = position.returnEdition.map {
@@ -748,7 +804,7 @@ struct ChapterTextView: NSViewRepresentable {
                     marker.addAttributes([
                         .foregroundColor: NSColor.secondaryLabelColor,
                         .paragraphStyle: numberedTitle ? titlePara : para, Self.skipKey: true,
-                        .link: URL(string: "\((v.citationCount > 0 || v.mentionCount > 0) && v.noteCount == 0 && v.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(v.verse)")!,
+                        .link: URL(string: "\(v.studyOpensCrossReferences ? "berean-verse-citations" : "berean-verse-notes"):\(v.verse)")!,
                     ], range: NSRange(location: 0, length: marker.length))
                     out.append(marker)
                 }
@@ -819,7 +875,7 @@ struct ChapterTextView: NSViewRepresentable {
                     if p.style.showStrongs {
                         for n in w.strongs {
                             let id = n.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
-                            out.append(NSAttributedString(string: "\u{2009}" + id, attributes: [
+                            out.append(NSAttributedString(string: "\u{202F}" + id, attributes: [
                                 .font: NSFont.monospacedDigitSystemFont(ofSize: max(9, size * 0.58), weight: .medium),
                                 .foregroundColor: NSColor.controlAccentColor, .baselineOffset: size * 0.38,
                                 .link: URL(string: "strongs:\(id)")!, .paragraphStyle: para, Self.skipKey: true,
@@ -1096,7 +1152,7 @@ final class ReaderTextView: NSTextView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        updateReadingInset(for: frame.width)
+        updateReadingInset()
         updateOutlineMotion()
         if window == nil { dismissStudyPreview() }
     }
@@ -1179,25 +1235,32 @@ final class ReaderTextView: NSTextView {
     private var tracking: NSTrackingArea?
 
     var readerWidth = ScriptureWidth.normal {
-        didSet { if readerWidth != oldValue { updateReadingInset(for: frame.width) } }
+        didSet { if readerWidth != oldValue { updateReadingInset() } }
     }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        updateReadingInset(for: newSize.width)
+        updateReadingInset()
     }
 
-    private func updateReadingInset(for width: CGFloat) {
-        let inset = max(20, (width - readerWidth.macMaximum) / 2)
+    fileprivate func updateReadingInset() {
+        let inset = max(20, (frame.width - readerWidth.macMaximum) / 2)
         let next = NSSize(width: inset, height: 18 + visibleTitleBarClearance)
         if textContainerInset != next { textContainerInset = next }
     }
 
     fileprivate var titleBarClearance: CGFloat = 0 {
-        didSet { if oldValue != titleBarClearance { updateReadingInset(for: frame.width) } }
+        didSet { if oldValue != titleBarClearance { updateReadingInset() } }
     }
 
     fileprivate var visibleTitleBarClearance: CGFloat {
+        if let window, let clip = enclosingScrollView?.contentView,
+           clip.bounds.height > 0, window.contentLayoutRect.height > 0 {
+            // The native inspector can change how far this viewport extends
+            // under the toolbar without changing SwiftUI's safe-area estimate.
+            let overlap = clip.convert(clip.bounds, to: nil).maxY - window.contentLayoutRect.maxY
+            if overlap.isFinite { return max(0, overlap) }
+        }
         guard window?.styleMask.contains(.fullScreen) != true else {
             return titleBarClearance
         }
