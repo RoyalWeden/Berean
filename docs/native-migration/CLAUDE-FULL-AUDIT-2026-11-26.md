@@ -81,6 +81,8 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A2, A3 | Open — highlight menu and "Copy Native Dev Link(s)" labels live in ScriptureView/CompareView (Codex-reserved). Suggested: render swatches with `.symbolRenderingMode(.palette)`/tinted `Image` or a colour-named label; rename to "Copy Link(s)". | Codex |
 | A23 | Left as design choice — the Go menu's first "YouTube" opens a YouTube tab, the second (⌘4) switches to the YouTube space; rename one (e.g. "YouTube Space") if wanted. | owner/Codex |
 | A32 | **Fixed, verified on iPhone sim** — inline title; "Feasts trail" visible (cause: large title under the pinned top search inset). | same branch @ `c637f9a1` (StudyTrailView.swift) |
+| A38 | **Fixed, verified on iPhone sim** — keyboard dismisses on ask, examples hidden after the first question; answer fully visible. | same branch @ `39d0bb2e` (AskBereanView.swift) |
+| A37 | Hint fixed (names "Tag Selected Verses…"); missing title is the List/Graph picker occupying the title slot — left as design. | same branch @ `39d0bb2e` (TagManagerView.swift) |
 | A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
