@@ -116,3 +116,7 @@ Resumed from `/Users/roywe/Berean-native/docs/native-migration/HANDOFF.md`. Bran
 | CC-08 | Claude Code | Done on branch @ `f5bb1d40` | see audit A12/A39 |
 
 | CC-09 | Claude Code | **Done on branch, awaiting Codex review** (Nov26) | `native/claude-audit-fixes-20261126` @ `e242a294`: `SearchOptionsStore` (v1 namespace in local filters) + 3 tests; view restores once then captures. Cold-launch keep and Reset-clears verified on E8B; 396 tests PASS. Not run: two tabs/distinct queries, older-visit Back, Mac cold launch; possible first-paint viewport reset when restore changes the configuration fingerprint (AppModel clears the active visit on configuration change). |
+
+## November 27 Claude Code — CC-05 / CC-09 follow-up checks
+
+Branch `native/claude-audit-fixes-20261126` @ `96cfcde9`. **CC-09 on Mac:** two Search tabs ("voice of joy" Revelation→Genesis, "grace" By book) each restored their own options after quit/relaunch; Reset on one cleared only that tab; older-visit Back within a tab showed that visit's options. **CC-05 note switching:** found and fixed a bug — switching notes left the Presenter at the previous note's offset; now resets per note (verified Alpha 60% → Beta top → Beta 30%). Still not run: image/table reflow, multiple main windows. Note for Codex: the Mac app menu is now titled "Berean Native Dev" (A22 appears fixed); QA scripts keyed on "BereanMac" must use the new title.
