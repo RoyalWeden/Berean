@@ -1697,13 +1697,14 @@ final class AppModel {
         return SearchViewports.restoration(in: record, configuration: context.configuration, context: context.persistenceKey)
     }
 
+    @discardableResult
     func rememberSearchViewport(tabId: String, context: ScriptureSearchScrollContext, row: String?,
-                                alignment: SearchViewportAlignment = .top, persist: Bool) {
+                                alignment: SearchViewportAlignment = .top, persist: Bool) -> Bool {
         guard isCurrentSearchViewport(tabId: tabId, context: context),
               let visit = SearchViewportVisit(configuration: context.configuration, context: context.persistenceKey,
-                                               row: row, alignment: alignment) else { return }
+                                               row: row, alignment: alignment) else { return false }
         currentSearchVisits[tabId] = visit
-        guard persist, let tab = findTab(tabId) else { return }
+        guard persist, let tab = findTab(tabId) else { return true }
         if alignment == .top {
             if row != nil, searchVisibleRows[tabId]?[context] == nil,
                let remembered = searchVisibleRows[tabId], remembered.count >= SearchViewports.capacity,
@@ -1719,9 +1720,10 @@ final class AppModel {
         let record = searchViewportRecords[tabId] ?? SearchViewports.record(in: tab.state) ?? JSObject()
         let updated = alignment == .center ? SearchViewports.settingActive(visit, in: record)
             : SearchViewports.updating(record, visit: visit)
-        guard updated != record else { return }
+        guard updated != record else { return true }
         searchViewportRecords[tabId] = updated
         if saveTask == nil { scheduleSave() }
+        return true
     }
 
     private func flushSearchViewports() {

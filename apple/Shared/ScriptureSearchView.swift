@@ -186,11 +186,11 @@ private struct SearchResultScrollRestoration: ViewModifier {
     private func capture(_ row: String?, atTop: Bool, in scope: Scope?, persist: Bool) {
         let current = app.searchHistoryRevision
         guard let scope, restored == scope, atTop || row.map(containsRow) == true,
-              app.isCurrentSearchViewport(tabId: tabId, context: scope.context),
               scope.historyRevision == (current?.tabID == tabId ? current?.revision : nil) else { return }
         let context = scope.context
-        app.searchResultAnchors[tabId]?.removeValue(forKey: context)
-        app.rememberSearchViewport(tabId: tabId, context: context, row: atTop ? nil : row, persist: persist)
+        if app.rememberSearchViewport(tabId: tabId, context: context, row: atTop ? nil : row, persist: persist) {
+            app.searchResultAnchors[tabId]?.removeValue(forKey: context)
+        }
     }
 }
 
@@ -938,6 +938,7 @@ struct ScriptureSearchView: View {
             let scrollContext = self.scrollContext
             let context = app.activeTab?.id == tabId && !searchPending ? scrollContext : nil
             let collapsed = shownCollapsed(groups, scrollContext)
+            let matchingWords = self.matchingWords
             // One stable child per row lets the lazy stack estimate and reuse rows without
             // recursively expanding every group's variable-sized subtree during scrolling.
             let rows: [ResultListRow] = groups.flatMap { group in
@@ -960,7 +961,7 @@ struct ScriptureSearchView: View {
                                 groupHeader(group, collapsed: collapsed, context: scrollContext)
                                     .id(item.id)
                             case .hit(let hit):
-                                row(hit)
+                                row(hit, matchingWords: matchingWords)
                                     .padding(.horizontal, 16).padding(.vertical, 6)
                                     .overlay(alignment: .bottom) { Divider().padding(.leading, 16) }
                                     .id(item.id)
@@ -1132,7 +1133,7 @@ struct ScriptureSearchView: View {
         app.visitScripture(passage, reuseTab: reuseTab, returningTo: tabId)
     }
 
-    func row(_ h: ScriptureHit) -> some View {
+    private func row(_ h: ScriptureHit, matchingWords: Set<String>) -> some View {
         let passage = ResolvedPassage(textId: h.textId, bookId: h.bookId, chapter: h.chapter, verse: h.verseNum)
         let edition = textInfo(h.textId)
         return SearchResultHighlights(hit: h, cache: highlightCache) { marks in
@@ -1161,7 +1162,8 @@ struct ScriptureSearchView: View {
                         if resultContext > 0 {
                             SearchResultContext(hit: h, span: resultContext, edge: .before)
                         }
-                        Text(highlighted(h)).font(.callout).foregroundStyle(.secondary).lineLimit(resultContext > 0 ? nil : 4)
+                        Text(highlighted(h, matchingWords: matchingWords))
+                            .font(.callout).foregroundStyle(.secondary).lineLimit(resultContext > 0 ? nil : 4)
                         if resultContext > 0 {
                             SearchResultContext(hit: h, span: resultContext, edge: .after)
                         }
@@ -1228,8 +1230,17 @@ struct ScriptureSearchView: View {
         VerseDisplay.text(h.text, tagged: h.textTagged, textId: h.textId, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
     }
 
+    private var matchingWords: Set<String> {
+        var q = query
+        if q.hasPrefix("\""), q.hasSuffix("\"") { q = String(q.dropFirst().dropLast()) }
+        guard StrongsId.normalize(q) == nil else { return [] }
+        let variants = app.wordReplacerEnabled ? WordReplacer.searchVariants(q, rules: app.wordReplacerRules) : [q]
+        return Set(variants.flatMap { $0.split(separator: " ").map(String.init) })
+            .filter { $0.count >= 2 && StrongsId.normalize($0) == nil }
+    }
+
     /// Mark Strong's matches and any plain query words in the same snippet.
-    func highlighted(_ hit: ScriptureHit) -> AttributedString {
+    private func highlighted(_ hit: ScriptureHit, matchingWords: Set<String>) -> AttributedString {
         let snippet = hit.strongsSnippet(replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
         let window = snippet.flatMap { VerseDisplay.wordWindow($0.text, matchIndices: $0.indices) }
         let s = window?.text ?? snippet?.text ?? displayText(hit)
@@ -1240,13 +1251,7 @@ struct ScriptureSearchView: View {
                 mark(word.startIndex..<word.endIndex, in: &a)
             }
         }
-        var q = query
-        if q.hasPrefix("\""), q.hasSuffix("\"") { q = String(q.dropFirst().dropLast()) }
-        if StrongsId.normalize(q) != nil { return a }
-        let variants = app.wordReplacerEnabled ? WordReplacer.searchVariants(q, rules: app.wordReplacerRules) : [q]
-        let words = Set(variants.flatMap { $0.split(separator: " ").map(String.init) })
-            .filter { $0.count >= 2 && StrongsId.normalize($0) == nil }
-        for w in words {
+        for w in matchingWords {
             var from = s.startIndex
             while from < s.endIndex,
                   let r = s.range(of: w, options: [.caseInsensitive, .diacriticInsensitive], range: from..<s.endIndex) {
