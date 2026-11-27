@@ -58,12 +58,25 @@ public enum VerseDisplay {
 
     /// The rendered tokens of a KJVA tagged verse — exactly the words `buildVerseDisplayTokens` shows (replacer,
     /// Strong's restorations, "the" suppression) but keeping each token's Strong's numbers, for renderers that
-    /// draw Strong's chips. Other texts: the parsed tokens unchanged.
+    /// draw Strong's chips. Native KJVA rendering fills red-letter gaps in supplied words between
+    /// explicitly red ordinary words. Other texts keep their parsed visible tokens.
     public static func renderTokens(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule], hideSuppliedWords: Bool = false) -> [TaggedToken] {
         guard let tagged, !tagged.isEmpty else { return [] }
         let tokens = TaggedText.parse(tagged)
         if textId == "kjva" {
-            return kjvaTokens(tokens, replace: replacerEnabled && !rules.isEmpty, rules: rules, hideSuppliedWords: hideSuppliedWords)
+            var rendered = kjvaTokens(tokens, replace: replacerEnabled && !rules.isEmpty, rules: rules, hideSuppliedWords: hideSuppliedWords)
+            var previousOrdinary: Int?
+            // The visible tokens already exclude particles, alignment brackets and empty words.
+            // Only ordinary, explicitly red neighbors can color an intervening italic run.
+            for index in rendered.indices where !rendered[index].isItalic {
+                if let previousOrdinary, rendered[previousOrdinary].isRedLetter, rendered[index].isRedLetter {
+                    for supplied in (previousOrdinary + 1)..<index {
+                        rendered[supplied].isRedLetter = true
+                    }
+                }
+                previousOrdinary = index
+            }
+            return rendered
         }
         return tokens.filter { !$0.hasNoPlainText }
     }

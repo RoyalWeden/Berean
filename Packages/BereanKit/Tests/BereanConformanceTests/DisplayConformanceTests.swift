@@ -94,6 +94,57 @@ func jsInts(_ a: [Int]) -> JSValue { .array(a.map { .number(Double($0)) }) }
 }
 
 @Suite struct RenderTokensTests {
+    @Test(.enabled(if: bibleDataPresent)) func johnThreeFiveRendersSuppliedWordInRedAndItalic() throws {
+        let path = try #require(dataFile("kjva"))
+        let db = try SQLiteConnection(readOnlyPath: path)
+        let row = try #require(db.query("SELECT text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ?",
+                                        [.text("JHN"), .integer(3), .integer(5)]).first)
+        let text = try #require(row["text"]?.string)
+        let tagged = try #require(row["text_tagged"]?.string)
+        let parsed = TaggedText.parse(tagged).filter { !$0.hasNoPlainText }
+        let suppliedIndex = parsed.firstIndex(where: \.isItalic)
+        let supplied = try #require(suppliedIndex)
+        try #require(supplied > 0 && supplied < parsed.count - 1)
+        #expect(parsed[supplied].word == "of")
+        #expect(!parsed[supplied].isRedLetter)
+        #expect(parsed[supplied - 1].word == "and" && parsed[supplied + 1].word == "the")
+
+        var expected = parsed
+        expected[supplied].isRedLetter = true
+        let rendered = VerseDisplay.renderTokens(text, tagged: tagged, textId: "kjva", replacerEnabled: false, rules: [])
+        #expect(rendered == expected)
+        #expect(rendered.map(\.word).joined(separator: " ") == text)
+        #expect(!VerseDisplay.tokens(text, tagged: tagged, textId: "kjva", replacerEnabled: false, rules: [])[supplied].isRedLetter)
+        #expect(!VerseDisplay.studyTokens(text, tagged: tagged, textId: "kjva", replacerEnabled: false, rules: [])[supplied].isRedLetter)
+        #expect(VerseDisplay.text(text, tagged: tagged, textId: "kjva", replacerEnabled: false, rules: []) == text)
+    }
+
+    @Test func visibleSuppliedRunsIgnoreTokensWithoutPlainText() {
+        let tagged = "!left{G1} *one{} ~{G2} sup>({} {} *{} !{G3} !*explicit{} *two{G4} !right{G5}"
+        let parsed = TaggedText.parse(tagged).filter { !$0.hasNoPlainText }
+        var expected = parsed
+        expected[1].isRedLetter = true
+        expected[3].isRedLetter = true
+        let rendered = VerseDisplay.renderTokens("", tagged: tagged, textId: "kjva", replacerEnabled: false, rules: [])
+        #expect(rendered.map(\.word) == ["left", "one", "explicit", "two", "right"])
+        #expect(rendered == expected)
+        #expect(VerseDisplay.renderTokens("", tagged: tagged, textId: "kjva", replacerEnabled: false, rules: [],
+                                          hideSuppliedWords: true) == parsed.filter { !$0.isItalic })
+        #expect(VerseDisplay.renderTokens("", tagged: tagged, textId: "lxx", replacerEnabled: false, rules: []) == parsed)
+    }
+
+    @Test(arguments: [
+        "*leading{} !first{} Narrator{} *next{} !last{} *trailing{}",
+        "!first{} *before{} narrator{} *after{} !last{}",
+        "!*leading{} *nearStart{} !spoken{} *nearEnd{} !*trailing{}",
+        "!{G1} *of{} !{G2}",
+        "*only{} *supplied{}",
+    ])
+    func suppliedWordsKeepSourceColorWithoutTwoOrdinaryRedFlanks(_ tagged: String) {
+        let source = TaggedText.parse(tagged).filter { !$0.hasNoPlainText }
+        #expect(VerseDisplay.renderTokens("", tagged: tagged, textId: "kjva", replacerEnabled: false, rules: []) == source)
+    }
+
     /// renderTokens must show exactly the words buildVerseDisplayTokens shows (incl. "the" suppression), for every KJVA verse.
     @Test(.enabled(if: bibleDataPresent)) func matchesDisplayTokensForEveryVerse() throws {
         let db = try SQLiteConnection(readOnlyPath: dataFile("kjva")!)
