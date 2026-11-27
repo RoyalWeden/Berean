@@ -1100,6 +1100,26 @@ struct NoteDetailView: View {
         .onDisappear {
             saveNow()
             if !JSText.trim(content).isEmpty { snapshot() }
+            finalizeIfLeft(noteId, title: title, content: content)
+        }
+    }
+
+    /// A39 — the original's leave rule (finalizeNote.ts): once no open tab shows this note, an
+    /// untitled empty note goes to Trash and an untitled note with text gets a date name. Uses the
+    /// editor's in-memory title/content (the stored copy can lag an in-flight save).
+    private func finalizeIfLeft(_ id: String, title: String, content: String) {
+        guard let stored = (try? app.notes?.one(id)) ?? nil, stored.deletedAt == nil else { return }
+        let shown = app.sessions.contains { session in
+            session.allTabs.contains { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }
+        }
+        guard !shown else { return }
+        var latest = stored
+        latest.title = title
+        latest.content = content
+        switch NoteFinalize.action(for: latest) {
+        case .trash: app.attempt("Couldn’t tidy up the empty note") { try app.notes?.delete(id) }
+        case .name(let generated): app.attempt("Couldn’t name the note") { _ = try app.notes?.update(id, .init(title: generated)) }
+        case .none: break
         }
     }
 
@@ -1109,7 +1129,10 @@ struct NoteDetailView: View {
         wikiLinkQuery = nil; dismissedWikiLinkQuery = nil; wikiLinkTargets = []
         referenceCompletion = nil; dismissedReferenceCompletion = nil; preparedReference = nil
         scriptureBlocks = []
-        if loadedId != nil, loadedId != noteId { saveNow(); snapshot() }
+        if let outgoing = loadedId, outgoing != noteId {
+            saveNow(); snapshot()
+            finalizeIfLeft(outgoing, title: title, content: content)
+        }
         reload()
         loadedId = noteId; lastSnapshot = content
         if note?.content.isEmpty == true {
