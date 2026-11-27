@@ -122,3 +122,7 @@ Resumed from `/Users/roywe/Berean-native/docs/native-migration/HANDOFF.md`. Bran
 ## November 27 Claude Code — CC-05 / CC-09 follow-up checks
 
 Branch `native/claude-audit-fixes-20261126` @ `96cfcde9`. **CC-09 on Mac:** two Search tabs ("voice of joy" Revelation→Genesis, "grace" By book) each restored their own options after quit/relaunch; Reset on one cleared only that tab; older-visit Back within a tab showed that visit's options. **CC-05 note switching:** found and fixed a bug — switching notes left the Presenter at the previous note's offset; now resets per note (verified Alpha 60% → Beta top → Beta 30%). Still not run: image/table reflow, multiple main windows. Note for Codex: the Mac app menu is now titled "Berean Native Dev" (A22 appears fixed); QA scripts keyed on "BereanMac" must use the new title.
+
+## November 27 Claude Code — CC-05 reflow/resize check
+
+Mac QA, fixture note with a 320×240 image and a 12-row table above 30 sections: main at 70% (sections 16–21) → Presenter 13–18 (proportional follow; image/table occupy a different share at 160%, views overlap as specified); Presenter resized to 640×420 via AX → re-applied, 15–19; main back to 0 → Presenter shows title + image. Fixture trashed. CC-05 remaining: only per-window behaviour, blocked on DX-05 (A40). If exact section alignment (rather than proportional) is wanted, that is a design change for the owner.
