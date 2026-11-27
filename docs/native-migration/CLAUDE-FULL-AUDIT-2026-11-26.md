@@ -57,6 +57,8 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 
 | A40 | S3 | Mac | Windows · parity | Every native main window shows the same active tab (opening a note in one switches all); windows from the last session are also restored, so repeated New Window stacks identical windows. **Original (electron/main.ts 591–608):** New Window (⌘N) = peer window sharing tabs/sessions/settings but with *its own active tab, space, layout and scroll*; New Standalone Window (⌥⌘N) = its own tabs/sessions. Native lacks per-window active tab and Standalone Window. Touches AppModel window/session state (Codex-reserved) — proposed for Codex. CC-05 multi-window behaviour should be re-checked once per-window active tabs exist. | File → New Window twice, open a note in one window. |
 
+| A41 | S4 | iPhone | Files | The iPhone app declares no document types (`CFBundleDocumentTypes`, `LSSupportsOpeningDocumentsInPlace`, `UIFileSharingEnabled` absent), so a PDF or Markdown file can't be opened *into* Berean from Files / AirDrop / "Open in…"; import is only via the in-app picker. Related to the owner-gated Share Extension decision (#1). | Files app → long-press a PDF → Share; Berean isn't offered. |
+
 ## Coverage of this pass
 
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
@@ -65,6 +67,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 - **Pass 3 additions:** Mac workspace menu (complete; Delete correctly disabled with one workspace), Getting Started on Mac.
 - **Verified in earlier sessions, not re-run:** Notes Board/slash menu/tables/images (Nov 22 HANDOFF entries), YouTube tab + manual PiP (Nov 20/22), Messages (CC-04).
 - **Pass 4 (Mac):** Presenter top offset re-tested with Codex's A28 fix merged → still present → fixed (A35); File → New Idiom… sheet opens (Term/Meaning, Create disabled until filled), cancelled without creating anything.
+- **Blocked for unattended testing (Nov 27):** iPhone landscape — simulators run headless and opening Simulator.app would expose Codex's D0CC device to rotation; PDF/Markdown/e-Sword import — needs the system file picker and the app accepts no handed-in documents (A41); Shortcuts by voice and on-device PiP — owner's iPhone.
 - **Not yet covered (next):** YouTube PiP on device; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; (Presenter and History checked on Mac — A35/A36; Tags and Ask Berean on iPhone — A37/A38; Mac keyboard flows ⌘K / ⌘T+Esc / ⌘[ / ⌘] all work); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
 
 ## Data touched
