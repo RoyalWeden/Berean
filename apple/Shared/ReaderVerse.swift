@@ -356,8 +356,9 @@ struct ReaderVerse: Equatable {
     var mentionCount = 0
     var citationPreview: String?
     /// One quiet margin target; the symbol identifies its primary study material.
+    var studyOpensCrossReferences: Bool { citationCount > 0 || mentionCount > 0 }
     var studySymbol: String {
-        citationCount > 0 || mentionCount > 0 ? "arrow.triangle.branch" : noteCount > 0 ? "note.text" : "tag"
+        studyOpensCrossReferences ? "arrow.triangle.branch" : noteCount > 0 ? "note.text" : "tag"
     }
     var studySummary: String {
         var parts: [String] = []

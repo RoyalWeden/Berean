@@ -1189,12 +1189,12 @@ struct ScriptureSearchView: View {
             Menu("Highlight", systemImage: "highlighter") {
                 let current = wholeVerseColor(in: marks)
                 ForEach(highlightColors, id: \.self) { color in
-                    Button(color.capitalized, systemImage: current == color ? "checkmark" : "circle.fill") {
+                    Button {
                         app.attempt("Couldn’t highlight the verse") {
                             try highlights.setVerseColor(bookId: hit.bookId, chapter: hit.chapter, verse: hit.verseNum,
                                                          color: color, textId: hit.textId)
                         }
-                    }
+                    } label: { HighlightColorMenuLabel(color: color, selected: current == color) }
                 }
                 Divider()
                 Button("Remove Highlights", systemImage: "eraser") {

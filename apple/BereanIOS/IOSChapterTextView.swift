@@ -1039,7 +1039,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                     let marker = NSMutableAttributedString(attachment: attachment)
                     marker.addAttributes(base.merging([
                         .paragraphStyle: numberedTitle ? titleParagraph : paragraph,
-                        .link: URL(string: "\((verse.citationCount > 0 || verse.mentionCount > 0) && verse.noteCount == 0 && verse.tags.isEmpty ? "berean-verse-citations" : "berean-verse-notes"):\(verse.verse)")!, Self.skip: true,
+                        .link: URL(string: "\(verse.studyOpensCrossReferences ? "berean-verse-citations" : "berean-verse-notes"):\(verse.verse)")!, Self.skip: true,
                     ]) { _, new in new }, range: NSRange(location: 0, length: marker.length))
                     out.append(marker)
                 }
@@ -1076,7 +1076,7 @@ struct IOSChapterTextView: UIViewRepresentable {
                         for number in word.strongs {
                             let id = number.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
                             guard !id.isEmpty, let url = URL(string: "strongs:\(id)") else { continue }
-                            out.append(NSAttributedString(string: "\u{2009}" + id, attributes: base.merging([
+                            out.append(NSAttributedString(string: "\u{202F}" + id, attributes: base.merging([
                                 .font: UIFont.monospacedDigitSystemFont(ofSize: max(10, size * 0.6), weight: .medium),
                                 .foregroundColor: UIColor.tintColor, .baselineOffset: size * 0.28, .link: url, Self.skip: true,
                             ]) { _, new in new }))
