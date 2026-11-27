@@ -34,6 +34,29 @@ import BereanWorkspace
         #expect(try svc.chat("c1")!.messages.count == 3)
     }
 
+    @Test func renameAndRemoveFolderMoveEveryConversation() throws {
+        let (_, svc, log) = try setup()
+        let a = try svc.upsert(chatId: nil, messages: [svc.noteMessage("one")])
+        let b = try svc.upsert(chatId: nil, messages: [svc.noteMessage("two")])
+        let c = try svc.upsert(chatId: nil, messages: [svc.noteMessage("three")])
+        try svc.organize(a.id, folder: .some("Torah")); try svc.organize(b.id, folder: .some("Torah")); try svc.organize(c.id, folder: .some("Feasts"))
+        let before = try svc.chat(a.id)!.updatedAt
+        // A blank new name is refused and changes nothing.
+        #expect(try svc.renameFolder("Torah", to: "   ") == nil)
+        #expect(try svc.chat(a.id)!.folder == "Torah")
+        log.items.removeAll()
+        #expect(try svc.renameFolder("Torah", to: "  Torah   Study ") == 2)
+        #expect(try svc.chat(a.id)!.folder == "Torah Study" && svc.chat(b.id)!.folder == "Torah Study")
+        #expect(try svc.chat(c.id)!.folder == "Feasts")                       // other folders untouched
+        #expect(try svc.chat(a.id)!.updatedAt > before)
+        #expect(Set(log.items.map(\.id)) == [a.id, b.id] && log.items.allSatisfy { $0.op == "upsert" })
+        // Removing a folder keeps its conversations, unfiled.
+        #expect(try svc.renameFolder("Torah Study", to: nil) == 2)
+        #expect(try svc.chat(a.id)!.folder == nil && svc.chat(b.id)!.folder == nil)
+        #expect(try svc.chat(a.id) != nil && svc.chat(b.id) != nil)
+        #expect(try svc.renameFolder("Missing", to: "X") == 0)
+    }
+
     @Test func conversationsUnfiledOrganizeAndEdits() throws {
         let (_, svc, log) = try setup()
         let a = try svc.upsert(chatId: nil, messages: [svc.noteMessage("**Grace** teaches us to deny ungodliness")])
