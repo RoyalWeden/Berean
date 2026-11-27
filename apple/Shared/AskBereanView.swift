@@ -49,7 +49,7 @@ struct AskBereanView: View {
                     Button("Ask", systemImage: "sparkle.magnifyingglass") { Task { await ask() } }
                         .disabled(question.trimmingCharacters(in: .whitespaces).isEmpty || asking)
                 } footer: {
-                    Text("Try: John 3:16 · H2617 · compare H2617 and H7356 · word study on grace · How does Isaiah 7:14 read in the LXX? · verses on the Sabbath, not from Exodus")
+                    if asked.isEmpty { Text("Try: John 3:16 · H2617 · compare H2617 and H7356 · word study on grace · How does Isaiah 7:14 read in the LXX? · verses on the Sabbath, not from Exodus") }
                 }
                 if asking { ProgressView() }
                 if !asked.isEmpty, !asking {
@@ -221,6 +221,7 @@ struct AskBereanView: View {
     private func ask() async {
         let raw = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return }
+        focused = false   // let the answer be seen; the keyboard used to cover it
         asking = true
         asked = raw
         question = ""   // ready for a follow-up

@@ -51,7 +51,7 @@ struct TagManagerView: View {
             Divider()
             List {
                 if tags.isEmpty {
-                    ContentUnavailableView("No tags yet", systemImage: "tag", description: Text("Tag a verse from its verse menu (Tag Verse…), or create a tag here."))
+                    ContentUnavailableView("No tags yet", systemImage: "tag", description: Text("Select verses and tap the tag button (Tag Selected Verses…), or create a tag here."))
                 }
                 ForEach(shown) { t in
                     Button { app.openSearch("#\(t.name)", reuseTab: true) } label: {
