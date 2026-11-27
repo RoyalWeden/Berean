@@ -63,7 +63,7 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 - **Pass 3 additions:** Mac workspace menu (complete; Delete correctly disabled with one workspace), Getting Started on Mac.
 - **Verified in earlier sessions, not re-run:** Notes Board/slash menu/tables/images (Nov 22 HANDOFF entries), YouTube tab + manual PiP (Nov 20/22), Messages (CC-04).
 - **Pass 4 (Mac):** Presenter top offset re-tested with Codex's A28 fix merged → still present → fixed (A35); File → New Idiom… sheet opens (Term/Meaning, Create disabled until filled), cancelled without creating anything.
-- **Not yet covered (next):** YouTube tab and PiP; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; (Presenter and History checked on Mac — A35/A36; Tags and Ask Berean on iPhone — A37/A38; Mac keyboard flows ⌘K / ⌘T+Esc / ⌘[ / ⌘] all work); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
+- **Not yet covered (next):** YouTube PiP on device; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; (Presenter and History checked on Mac — A35/A36; Tags and Ask Berean on iPhone — A37/A38; Mac keyboard flows ⌘K / ⌘T+Esc / ⌘[ / ⌘] all work); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
 
 ## Data touched
 
@@ -93,6 +93,7 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A15 | **Fixed (CC-07)** — visible Restore per row; no compose in Trash. | same branch |
 | A39 | **Fixed, verified on iPhone sim** — native `NoteFinalize` port + leave hook; abandoned untitled note trashed, titled note kept. | same branch @ `044f0148` (NoteFinalize.swift, NotesViews.swift) |
 | A35 | **Fixed, verified on Mac** — Presenter scroll content gets a top margin so the heading / followed verse never sit under the title bar (it was not caused by the main reader after all: still present with Codex's A28 fix merged). | same branch @ `cb4e6de3` (PresenterView.swift) |
+| A13 | **Confirmed then fixed, verified on iPhone sim** — copied timestamp link lacked the channel on m.youtube.com; now "Blender — … — 0:11". YouTube tab, Timestamp menu (copy timestamp/video link, insert into open notes) and playback checked with a real video. | same branch @ `7bb236db` (YouTubeTabView.swift) |
 | A28 | **Fixed by Codex** (c3676b9b): settled Mac chapter openings stay below the toolbar through repeated Study-panel toggles. The Presenter case was separate (A35, fixed above). | reader-notes |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
