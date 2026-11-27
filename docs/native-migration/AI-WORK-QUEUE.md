@@ -13,13 +13,15 @@ Use isolated branches/worktrees for parallel code work. Do not edit another work
 | ID | Owner | State | Result / scope |
 |---|---|---|---|
 | DX-01 | Codex | Partial verified, wider cases open | Mac reader width-aware restoration; prove measured same-verse crop across width changes and same-width exact points. Temporary QA traces must be removed before final builds. |
-| DX-02 | Codex | Mac core cases verified; wider matrix open | Committed precise aligned/stacked older visits and cold crops; iPhone precise A/B/cold, reflow, interruption, empty and duplicate cases remain. |
+| DX-02 | Codex | Mac core cases verified; wider matrix open | Committed precise aligned/stacked older visits and cold crops; iPhone aligned olderA/cold row3 crop63 is verified; stacked-iPhone, reflow, interruption, empty and duplicate cases remain. |
 | DX-03 | Codex | Implemented Mac slice; wider checks open | Improve verse note/cross-reference/tag indicators, hover preview alignment and fluid native appearance without interrupting reading. Owner reaffirmed Nov26. |
-| CC-01 | Claude Code | **Done, awaiting Codex integration** (Nov26) | Branch `native/claude-search-order-20261126` @ `a90d788c`: four-way Order picker, reverse = groups then verses mirrored; iPhone (E8B) + Mac QA verified, both builds PASS. [Report](CLAUDE-CC-01-REPORT.md) is on that branch. |
-| CC-02 | Claude Code | **Done on stacked branch, awaiting Codex review** (Nov26) | `native/claude-search-groups-20261126` @ `932f9db3` (on top of CC-01 `a90d788c`): whole-row disclosure headers with counts; per-tab SceneStorage scoped to one query+options fingerprint (survives result round trip, never leaks); pending result return keeps its group open; collapsing the saved row falls back to the header. Both builds PASS; iPhone E8B + Mac QA verified. Integrate after CC-01. Report on that branch. |
-| CC-03 | Claude Code | **Done** (Nov26) | [Report](CLAUDE-CC-03-REPORT.md): three issues — Messages folder rename/delete missing (+ silent `try?`), reply quote not a jump to the original, Presenter note does not follow main-window scroll. Side panel left out (already open in U07); "Laser" in U07 looks stale (original has none). |
-| CC-04 | Claude Code | **Done on isolated branch, awaiting Codex review/integration** (Nov26) | `native/claude-chat-folders-20261126` @ `d778c4b2`: transactional `ChatsService.renameFolder` (+test), Rename/Delete Folder (header menu on Mac; conversation Folder submenu on both), sidebar errors reported instead of `try?`, reply quote jumps to and tints the original. 391 package tests + both builds PASS; iPhone E8B real taps and Mac QA AX verified; fixtures removed. Report `docs/native-migration/CLAUDE-CC-04-REPORT.md` on that branch. |
-| CC-05 | Claude Code | **Proposed — needs Codex decision** | (a) CC-03 #3 Presenter note follows main-window scroll (needs an AppModel field — Codex-reserved); (b) persist Search options across relaunch (needs `TabFields` split-contract extension). Either can be briefed once Codex rules on ownership/contract. |
+| CC-01 | Claude Code | **Integrated** (Nov26) | Branch `native/claude-search-order-20261126` @ `a90d788c`: four-way Order picker, reverse = groups then verses mirrored; iPhone (E8B) + Mac QA verified, both builds PASS. [Report](CLAUDE-CC-01-REPORT.md) is on that branch. |
+| CC-02 | Claude Code | **Integrated** (Nov26) | `native/claude-search-groups-20261126` @ `932f9db3` (on top of CC-01 `a90d788c`): whole-row disclosure headers with counts; per-tab SceneStorage scoped to one query+options fingerprint (survives result round trip, never leaks); pending result return keeps its group open; collapsing the saved row falls back to the header. Both builds PASS; iPhone E8B + Mac QA verified. Integrated after CC-01 through `90171b62`. Report on that branch. |
+| CC-03 | Claude Code | **Audit complete; integrated** (Nov26) | [Report](CLAUDE-CC-03-REPORT.md): three issues — Messages folder rename/delete missing (+ silent `try?`), reply quote not a jump to the original, Presenter note does not follow main-window scroll. Side panel left out (already open in U07); "Laser" in U07 looks stale (original has none). |
+| CC-04 | Claude Code | **Integrated** (Nov26) | `native/claude-chat-folders-20261126` @ `d778c4b2`: transactional `ChatsService.renameFolder` (+test), Rename/Delete Folder (header menu on Mac; conversation Folder submenu on both), sidebar errors reported instead of `try?`, reply quote jumps to and tints the original. 391 package tests + both builds PASS; iPhone E8B real taps and Mac QA AX verified; fixtures removed. Report `docs/native-migration/CLAUDE-CC-04-REPORT.md` on that branch. |
+| CC-05 | Claude Code | **Ready after the7:55pm handoff** | Presenter note follow may use one lightweight ephemeral note viewport field in AppModel; that narrow ownership is released at handoff. Keep viewport/history, sync, schema and identities unchanged. Search persistence is separated asCC09. |
+| CC-06 | Claude Code | **Ready, undispatched** | A32 iPhone Study Trail title and control insets. Own StudyTrailView.swift plus a focused report. |
+| CC-07 | Claude Code | **Ready, undispatched** | A15 iPhone Trash visible Restore and removal of Trash compose. Own NotesHome.swift plus a focused report. |
 
 ## Reserved files during current parallel work
 
@@ -58,7 +60,9 @@ CC-01 isolated worktree created at `/Users/roywe/Documents/ChatGPT/Berean/claude
 
 ## November 26 Codex checkpoint
 
-Desktop picker and shared Compare source are committed in `90e2b88b` and `2bb1670d`. Continue bounded iPhone precise cold replay, Mac reflow/interruption/empty/header/duplicate cases and Compare Edit picker. Owner Mac/signed-iPhone/Simulator builds and artifact checks PASS at2bb1670d. CC-01 remains assigned to Claude, blocked at normal sign-in, with no active Claude worker. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+Desktop picker and shared Compare source are committed in `90e2b88b` and `2bb1670d`. The aligned older-visit iPhone cold replay passed at row 3/crop 63. Keep iPhone stacked precision, reflow/interruption/empty/header/duplicate cases and Compare Edit picker open. Revert the Compare accessibility grouping and label experiment because both variants hid individual verse controls in Device Hub. Owner Mac/signed-iPhone/Simulator builds and artifact checks PASS at2bb1670d. CC-01 remains assigned to Claude, blocked at normal sign-in, with no active Claude worker. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+Read Aloud input parity passed 68 cases each on Mac and iPhone Simulator for fixture tokenization and real voice-style bits. Production tokenizer assets, ONNX inference and audible output remain open. [Read Aloud evidence](READALOUD-INPUTS-2026-11-26.md)
 
 ## November 26 Claude Code result — CC-01
 
@@ -71,3 +75,36 @@ Implemented CC-03 #1 + #2 on isolated branch `native/claude-chat-folders-2026112
 ## November 26 Claude Code — integration readiness
 
 Dry merges (git merge-tree, nothing committed) onto `native/reader-notes` @ `8e1b116d`: `native/claude-search-groups-20261126` (CC-01 + CC-02) **clean**; `native/claude-chat-folders-20261126` (CC-04) **clean**; both together **clean**. All Claude-assigned work is complete; the next Claude task (CC-05) waits on Codex's ownership/contract rulings recorded above.
+
+## November 26 evening handoff
+
+Claude CC-01, CC-02, CC-03 and CC-04 are complete and integrated through root revision `90171b62`. Earlier branch reports and the signed-out dispatch remain historical evidence. The owner resumes Claude at 8:00 p.m. PST. Codex is scheduled to pause at 7:55 p.m. PST. CC-06 and CC-07 are ready and undispatched. Verify the latest base and file reservations before assigning either task. Root retains ScriptureView, CompareView and chapter TextKit sources. ChatService quality work has a separate owner. [Integration evidence](INTEGRATION-REVIEW-2026-11-26.md)
+
+## CC-06 — Study Trail iPhone title and controls (A32)
+
+Own only `apple/Shared/StudyTrailView.swift` and a focused report. Diagnose the missing or blurred library and detail titles around the navigation stack and top safe-area material. The detail controls already have 12-point padding, so measure actual insets before changing the owning container. Keep the Mac presentation, routes, list/map, search and trail service callbacks. In isolated E8B QA verify title and alignment from library → live or paused trail → Back, with search, scrolling, list/map and larger text. Use an owned synthetic trail if state changes are needed. Preserve existing trails. Build both platforms and report actual checks and limits.
+
+## CC-07 — Visible iPhone Trash Restore (A15)
+
+Own only `apple/Shared/NotesHome.swift` and a focused report. Hide New Note in iPhone Trash and add a visible, named per-note Restore route using the same error-reporting restore action as the existing swipe or contextual command. Keep normal folder compose, Mac presentation, swipe/context actions and the integrated A14 permanent-delete confirmation. Verify populated and empty Trash, visible and accessible Restore, ordinary compose outside Trash, and canceling permanent-delete confirmation. Exercise only an owned synthetic fixture through recoverable UI. Build both platforms and report actual checks and limits. Do not purge a note.
+
+## CC-08 — Add verse notes without accumulating tabs (A12)
+
+Ready for Claude after the handoff; prioritize afterCC06 and beforeCC07. Scope ScriptureView.swift and NotesViews.swift, plus a focused report. The iPhone direct Add Note actions currently dismiss the verse sheet and call newNote, creating a Notes tab whose Back goes to Notes. Route both the verse sheet and selected-range Add Note through the existing Scripture-owned VerseSheetPage.noteEditor. Use the stable ID returned by newNote(openEditor: false), as the existing Verse Notes list already does. Direct-entry Back should flush/save and dismiss the whole sheet back to the mounted reader. Preserve the Verse Notes list→editor Back stack and explicit Open in Notes action. Preserve opened-note History events without creating navigation tabs.
+
+Do not repurpose originTabId: it is synced metadata. Do not use a persistent source link that can later follow a different page in that tab. Guard deferred link actions by current workspace ID and reader tab ID; never recreate a closed source or jump into a switched workspace. Mac Add Note remains unchanged unless a separately verified shared fix requires it. No NotesHome/CC07 edits.
+
+Acceptance: direct single-verse, contiguous and noncontiguous Add Note→type→Back creates exactly one correctly attached note and no tab, preserves reader ID/edition/selection/viewport, and saves immediately. Include existing pinned/unpinned Notes and pinned Scripture tabs, repeated note creation, source closure/workspace switch through supported routes, ordinary folder/search Notes Back, Verse Notes Back, explicit Open in Notes and verse/wiki links. Only owned recoverable fixtures; no purge. Reference source audit: ScriptureView direct Add Note/selection actions, existing VerseSheetPage.noteEditor and NotesViews VerseNotesView newNote(openEditor:false).
+
+## CC-09 — Preserve native Search options locally
+
+Ready as a bounded source/design check, then implementation if the existing local bag suffices. Own ScriptureSearchView.swift, SearchViewport.swift and focused tests/report. Search order/group/scope/match/book/tag options currently survive warm navigation but top-level keys are dropped by query-only sync/local splitting on cold launch. Keep TabFields sync and local allowlists, schema and legacy opaque fields unchanged. Investigate a versioned native namespace inside the already-local filters object, alongside the existing native viewport namespace. Preserve unrelated filters and malformed legacy values; do not overwrite them to force persistence. Hydrate effective options consistently for requests, configuration fingerprints, history and UI; explicit clear/reset must remove stale persisted values. Avoid computed model access inside app.update exclusivity, which previously caused a scope-switch crash.
+
+Verify all four orders and groups across quit/relaunch, two tabs and distinct queries, active/older visit Back, reset/defaults, edition/book/tag options and legacy filter round trips. No synced preferences, canonical ID changes or production data changes. If compatibility needs a new storage contract, return evidence rather than changing it silently.
+
+## CC-05 Presenter note-follow ownership after7:55pm
+
+Codex releases a narrowly scoped ephemeral AppModel note-viewport value for this task once the scheduled handoff completes. Own PresenterView.swift, the Mac rich-note scroll observer and that field only. Follow the active note proportionally; Pause must freeze note ID/content/viewport, Resume follows the current document, and fast note switches/resize/image or table reflow must not apply an old note’s offset. No persisted viewport/sync/schema changes, reader/Compare navigation changes or controls that promise an unimplemented action. Verify long formatted note follow, pause/resume, switching and window resizing using isolated owned fixtures and preserve the original Presenter/library state.
+
+### November26 pre8 compatibility guard for CC07
+Preserve NotesHome browserContents/browserScaffold opaque computed view boundaries fromc3676b9b. Hosted Xcode26.6 timed out checking the previous combined expression; local27 build and Notes/Trash/Cancel/Back smoke pass after extraction. Avoid recombining the entire view while adding Restore/hiding Trash compose. Run both native builds, and inspect exact-head CI rather than treating older green as current.

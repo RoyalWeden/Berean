@@ -28,4 +28,8 @@ The full suite passed 390 tests across 96 suites, including 15 focused Compare t
 
 Removed the temporary Exodus 31 and 30 columns in the UI. Restored original two columns, unpinned LXX, Sync off and panel closed. Mac QA quit after restoring Search “voice of joy,” All and seven tabs. iPhone Study Matthew 5 returned with verse 12 selected, Strong’s off, panel closed and nine tabs. Read-only `shared-picker-final-data-check.json` retained the 37 original Mac active IDs and all original watched hashes with two earlier Trash fixtures, and matched all watched iPhone tables and 47 active IDs. No notes were created.
 
-iPhone precise crop and distinct older-versus-newer replay remain unverified. Also verify reflow, immediate wheel interruption, empty/header starts and duplicate-column swaps.
+The later iPhone aligned check is below. Reflow, immediate input interruption, empty/header starts, duplicate-column swaps and iPhone stacked precision remain open.
+
+## iPhone aligned older-visit cold replay
+
+On the owned D0CC Simulator, aligned Psalm 23 had older visit A at row 3, crop 63, measured row height 120.5. The newer B visit was at the opening, semantic verse 1. Actual Back returned to A. Cold launch placed row 3 initially at native offset 313 with crop 0, then corrected to 376. The settled offset 376, crop 63 and row height 120.5 exactly matched A at coherent 402 × 654 geometry. See `build/apple/qa-evidence/20261126/ios-aligned-older-cold-geometry.json`. This supersedes the earlier inconclusive attempts to distinguish A and B. Temporary trace is being removed. The parallel accessibility experiment is being reverted because it hid individual verse controls in Device Hub. [Accessibility evidence](COMPARE-ACCESSIBILITY-2026-11-26.md)

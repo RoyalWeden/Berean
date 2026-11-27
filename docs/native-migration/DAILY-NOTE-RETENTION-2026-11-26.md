@@ -1,0 +1,9 @@
+# Daily note retention — source reconciliation, November26
+
+A33 is intentional original behavior. Both legacy platforms find or create a note on first date navigation (src/lib/dailyNotes.ts14–27, desktop Sidebar and mobile NotesHomePage/CalendarTabPage callers). Original empty-note finalization explicitly exempts daily/journal system notes (src/lib/notes/finalizeNote.ts40–45, noteUtils.ts4–8), including a regression fixture in src/lib/notes/__tests__/finalizeNote.test.ts30–33. This was read-only source inspection, not a fresh execution of those JavaScript tests.
+
+Native AppModel+Workspaces uses the same find/create date flow. NotesService includes zero-length daily rows in its date index and Notes counts them. The native Calendar deliberately uses45% opacity for a saved empty row. Original iPhone marks any saved date; original desktop heatmap shades positive content only. The faint native dot is a deliberate visual distinction, not exact legacy styling.
+
+Keep the row and count. An empty body can still carry a pin, folder, icon, status, tags or version history. Soft-deleting on leave removes the live date mapping while reserving its deterministic ID, so another open can allocate a different UUID and redirect date navigation from the old identity/metadata. Purging would also lose versions. Do not add automatic empty-daily-note cleanup as a polish fix. No data or application source was changed for this reconciliation.
+
+Original source pointers: [date creation](../../src/lib/dailyNotes.ts#L14), [daily cleanup exemption](../../src/lib/notes/finalizeNote.ts#L40), [cleanup fixture](../../src/lib/notes/__tests__/finalizeNote.test.ts#L30), [mobile count](../../src/mobile/notes/notesHomeModel.ts#L109), [mobile calendar](../../src/mobile/calendar/CalendarView.tsx#L52). Native pointers: [calendar cue](../../apple/Shared/DailyNoteCalendar.swift#L227), [date lookup/creation](../../Packages/BereanKit/Sources/BereanNotes/NotesService.swift#L337).

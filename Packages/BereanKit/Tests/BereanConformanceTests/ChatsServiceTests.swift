@@ -7,8 +7,8 @@ import BereanNotes
 import BereanWorkspace
 
 @Suite("berean chat") struct ChatsServiceTests {
-    func setup() throws -> (SQLiteConnection, ChatsService, EventLog) {
-        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+    func setup(path: String = ":memory:") throws -> (SQLiteConnection, ChatsService, EventLog) {
+        let db = try SQLiteConnection(readWritePath: path, create: true)
         try Migrator.migrate(db)
         let clock = FakeClock(); clock.t = 1_800_000_000_000
         let ids = FakeClock(); ids.t = 0
@@ -32,6 +32,82 @@ import BereanWorkspace
         let stored = try db.query("SELECT messages FROM ai_chats WHERE id = 'c1'").first!["messages"]!.string!
         #expect(stored.contains(#""results":[{"x":1}]"#) && stored.contains(#""id":"c1:1""#) && stored.contains(#""kind":"note""#))
         #expect(try svc.chat("c1")!.messages.count == 3)
+    }
+
+    @Test func renameAndRemoveFolderMoveEveryConversation() throws {
+        let (_, svc, log) = try setup()
+        let a = try svc.upsert(chatId: nil, messages: [svc.noteMessage("one")])
+        let b = try svc.upsert(chatId: nil, messages: [svc.noteMessage("two")])
+        let c = try svc.upsert(chatId: nil, messages: [svc.noteMessage("three")])
+        try svc.organize(a.id, folder: .some("Torah")); try svc.organize(b.id, folder: .some("Torah")); try svc.organize(c.id, folder: .some("Feasts"))
+        let before = try svc.chat(a.id)!.updatedAt
+        // A blank new name is refused and changes nothing.
+        #expect(try svc.renameFolder("Torah", to: "   ") == nil)
+        #expect(try svc.chat(a.id)!.folder == "Torah")
+        log.items.removeAll()
+        #expect(try svc.renameFolder("Torah", to: "  Torah   Study ") == 2)
+        #expect(try svc.chat(a.id)!.folder == "Torah Study" && svc.chat(b.id)!.folder == "Torah Study")
+        #expect(try svc.chat(c.id)!.folder == "Feasts")                       // other folders untouched
+        #expect(try svc.chat(a.id)!.updatedAt > before)
+        #expect(Set(log.items.map(\.id)) == [a.id, b.id] && log.items.allSatisfy { $0.op == "upsert" })
+        // Removing a folder keeps its conversations, unfiled.
+        #expect(try svc.renameFolder("Torah Study", to: nil) == 2)
+        #expect(try svc.chat(a.id)!.folder == nil && svc.chat(b.id)!.folder == nil)
+        #expect(try svc.chat(a.id) != nil && svc.chat(b.id) != nil)
+        #expect(try svc.renameFolder("Missing", to: "X") == 0)
+    }
+
+    @Test func folderNamesMatchLegacyWhitespaceAndUTF16Slice() {
+        #expect(ChatsService.cleanFolder("\u{FEFF}\tTorah\u{00A0}\u{2028}Study\u{3000}") == "Torah Study")
+        #expect(ChatsService.cleanFolder("\u{FEFF}\u{2029}") == nil)
+        #expect(ChatsService.cleanFolder("\u{0085}") == "\u{0085}")
+        #expect(ChatsService.cleanFolder(String(repeating: "😀", count: 31)) == String(repeating: "😀", count: 30))
+        #expect(ChatsService.cleanFolder("a" + String(repeating: "😀", count: 30))
+                == "a" + String(repeating: "😀", count: 29) + "\u{FFFD}")
+    }
+
+    @Test func folderRenameMatchesExistingNoncanonicalNameExactly() throws {
+        let (db, svc, _) = try setup()
+        let old = try svc.upsert(chatId: nil, messages: [svc.noteMessage("old folder")])
+        let existing = try svc.upsert(chatId: nil, messages: [svc.noteMessage("canonical folder")])
+        let raw = String(repeating: "😀", count: 31)
+        let canonical = String(repeating: "😀", count: 30)
+        // Older native builds could persist the longer source name directly.
+        try db.run("UPDATE ai_chats SET folder = ? WHERE id = ?", [.text(raw), .text(old.id)])
+        try svc.organize(existing.id, folder: .some(canonical))
+        #expect(try svc.chat(old.id)?.folder == raw)
+        #expect(try svc.renameFolder(raw, to: " New\u{00A0}Folder ") == 1)
+        #expect(try svc.chat(old.id)?.folder == "New Folder")
+        #expect(try svc.chat(existing.id)?.folder == canonical)
+        #expect(try svc.renameFolder("New Folder", to: raw) == 1)
+        #expect(try svc.chat(old.id)?.folder == canonical)
+    }
+
+    @Test func folderRenameLocksMembershipBeforeMovingRows() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("berean-chat-folders-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("library.db").path
+        let (db, svc, _) = try setup(path: path)
+        let other = try SQLiteConnection(readWritePath: path, create: false)
+        try other.exec("PRAGMA busy_timeout = 0")
+        let chat = try svc.upsert(chatId: nil, messages: [svc.noteMessage("one")])
+        try svc.organize(chat.id, folder: .some("Torah"))
+        let rename = ChatsService(db: db, now: {
+            // Timestamping happens after the membership read. A different
+            // connection must be unable to move this row before the rename.
+            do throws(SQLiteError) {
+                try other.run("UPDATE ai_chats SET folder = 'Moved' WHERE id = ?", [.text(chat.id)])
+                Issue.record("The folder transaction let a competing writer change membership")
+            } catch {
+                #expect(error.code == 5)  // SQLITE_BUSY
+            }
+            return 1_800_000_006_000
+        })
+        #expect(try rename.renameFolder("Torah", to: "Study") == 1)
+        #expect(try svc.chat(chat.id)?.folder == "Study")
+        #expect(try other.run("UPDATE ai_chats SET folder = 'Moved' WHERE id = ?", [.text(chat.id)]).changes == 1)
+        #expect(try svc.chat(chat.id)?.folder == "Moved")
     }
 
     @Test func conversationsUnfiledOrganizeAndEdits() throws {

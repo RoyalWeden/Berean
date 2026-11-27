@@ -147,8 +147,11 @@ public final class ChatsService: @unchecked Sendable {
     }
 
     public static func cleanFolder(_ name: String?) -> String? {
-        let t = String((name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(60))
-        return t.isEmpty ? nil : t
+        let clean = JSText.collapseWhitespace(JSText.trim(name ?? ""))
+        guard !clean.isEmpty else { return nil }
+        // The legacy slice counts UTF-16 code units. Repair a split surrogate
+        // the same way as the legacy UTF-8 text binding to SQLite.
+        return String(decoding: clean.utf16.prefix(60), as: UTF16.self)
     }
 
     // MARK: reads
@@ -272,6 +275,33 @@ public final class ChatsService: @unchecked Sendable {
         guard !sets.isEmpty else { return false }
         try db.run("UPDATE ai_chats SET \(sets.joined(separator: ", ")), updated_at = ? WHERE id = ?", args + [.text(Self.iso(now())), .text(id)])
         onChange("ai_chat", id, "upsert"); return true
+    }
+
+    /// Rename a folder (every conversation in it moves along), or with `to: nil` remove the folder —
+    /// its conversations stay, just unfiled. Port of the original `aiChats.renameFolder`: a blank
+    /// new name is refused (`nil` result); otherwise returns how many conversations moved.
+    @discardableResult
+    public func renameFolder(_ from: String, to: String?) throws -> Int? {
+        let target = to.flatMap { Self.cleanFolder($0) }
+        if to != nil, target == nil { return nil }
+        try db.exec("BEGIN IMMEDIATE")
+        let ids: [String]
+        do {
+            ids = try db.query("SELECT id FROM ai_chats WHERE folder = ?", [.text(from)]).compactMap { $0["id"]?.string }
+            if !ids.isEmpty {
+                let stamp = Self.iso(now())
+                let destination: SQLiteValue = target.map(SQLiteValue.text) ?? .null
+                for id in ids {
+                    try db.run("UPDATE ai_chats SET folder = ?, updated_at = ? WHERE id = ?", [destination, .text(stamp), .text(id)])
+                }
+            }
+            try db.exec("COMMIT")
+        } catch {
+            try? db.exec("ROLLBACK")
+            throw error
+        }
+        for id in ids { onChange("ai_chat", id, "upsert") }
+        return ids.count
     }
 
     public func delete(_ id: String) throws {

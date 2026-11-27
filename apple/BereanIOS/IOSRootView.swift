@@ -448,6 +448,7 @@ struct IOSRootView: View {
                     Button("Ask Berean", systemImage: "sparkle.magnifyingglass") { app.askBereanShown = true }
                     Button("Getting Started", systemImage: "checklist") { app.gettingStartedShown = true }
                     Button { app.openCalendar() } label: { Label("Calendar", systemImage: "calendar") }
+                    Button("History", systemImage: "clock.arrow.circlepath") { app.openHistory() }
                     Button("Tags", systemImage: "tag") { app.openTags() }
                     Button("PDFs", systemImage: "doc.richtext") { app.openPdfLibrary() }
                     Button("YouTube", systemImage: "play.rectangle") { app.openYouTube() }

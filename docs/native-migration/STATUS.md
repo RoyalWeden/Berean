@@ -1,6 +1,6 @@
 # Berean Native Migration — Live Status
 
-Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare source2bb1670d is committed with scoped Mac older-visit/cold precision proof. iPhone precise replay and the wider matrix remain open; do not mark broad parity complete.
+Nov26 evening: Claude Search/Messages/audit fixes are integrated with native reader refinement and all-visible Find.397 package tests and full Mac/Simulator builds pass; scoped UI checks include saved-highlight-safe Find, desktop three-column pickers, iPhone long titles and utility-tab reuse. iPhone aligned older-visit/cold Compare crop63 is verified; the wider matrix remains open. Final owner builds and the explicitly authorized pre8pm physical install are being prepared. Start with HANDOFF/CURRENT for the live receipt; migration remains active until the scheduled7:55pm handoff pause. [Integration evidence](INTEGRATION-REVIEW-2026-11-26.md)
 
 > Initialized 2026-11-07 from verified Git, CI and test evidence. Every claim here was checked in the
 > session that wrote it; re-verify against live Git before relying on it after a gap.
@@ -582,3 +582,16 @@ Fresh owner-folder Mac, signed physical-iPhone and Simulator builds from **b496e
 ## November 26 — Desktop picker and shared Compare precision
 
 Committed source through `2bb1670d`. Mac picker and aligned/stacked cold restore, iPhone compact picker, and original data checks passed as scoped. Full shared tests passed 390 across 96 suites. Final owner Mac/signed-iPhone/Simulator builds and signatures PASS; iPhone precise shared restore remains pending. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+
+## November 26 — Integrated reader and menu follow-through
+
+Mac localized app menu, Search disclosure and Compare Edit picker passed. iPhone verified Compare spacing, long passage title and picker labels, selection actions, highlight choice, Lexicon segment and current Find. Mac repeated settled opening stayed clear of the toolbar. A10 inactive matches, small opening residual, Study Tools History and fresh owner builds remain pending. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)
+
+## November26 pre8pm final build and compatibility checkpoint
+
+App sourcec3676b9b. Hosted Xcode26.6 NotesHome type-check timeout at3fd644d8 fixed with opaque browserContents/browserScaffold boundaries, retaining behavior/state/modals. All three owner-folder Xcode27 builds PASS; c367 Simulator Notes17/Trash10/confirmation Cancel/Back checked without deletion. Preserve these boundaries in CC07.
+
+Final Mac/device refresh exited0 each at7:46pm. Strict signature verification then caught regenerated AppIntents extract.actionsdata/nlu.lzfse with a stale incremental device signature despite BUILD SUCCEEDED. Removed only the generated bundle’s _CodeSignature/CodeResources output and rebuilt through normal Xcode CodeSign (exit0); all three strict signatures/DevIDs/no cloud-or-group entitlements now PASS, Signing.xcconfig unchanged. Do not assume BUILD SUCCEEDED alone proves valid signed resources. Logs /private/tmp/berean-owner-pre8-refresh-{mac,device}-20261126.log and berean-owner-pre8-device-resign-20261126.log; ignored owner-pre8-ready-artifacts.json.
+
+Read-only final QA audit after c367 smoke retained all watched original row hashes and exact37Mac/47iPhone active tab IDs; no new note content. D0CC current containerC42052F5-E274-4DA1-A006-1F2BFCDD9EB4, backgroundedMatthew5:12/nine tabs/StrongOFF/panelclosed/Findclosed. Original owner Mac2506 untouched. Exact-head hosted run45935344052 remains in progress at7:47; previous45933415044 failed iOS compilation, not a green receipt. Physical iPhone unavailable at7:47, so no installation yet; final outcome follows in current checkpoints.

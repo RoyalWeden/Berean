@@ -80,6 +80,7 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md): irregular iPhone verse rows, Mac toolbar ownership, mapped Compare Presenter checks and remaining input coverage.
 - [Compare history evidence](COMPARE-HISTORY-2026-11-21.md): session-local per-visit selection, Mac and iPhone Simulator routes, and the open narrow viewport-transfer audit.
 - [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md) — iPhone top Find bar, isolated keyboard and selection checks, and open accessibility/device cases.
+- [Integration review](INTEGRATION-REVIEW-2026-11-26.md) — integrated Claude work, reader and menu runtime, and remaining evening checks.
 - [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md) — scoped bulk filters, scope-crash retest and sampled cold-position seed.
 - [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md) — local result anchors and active visits, Mac and iPhone Simulator coverage, and open viewport cases.
 - [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md) — independent older-visit cold restore, explicit picker jump and aligned opening headers.
@@ -112,3 +113,6 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 
 - [Shared Compare precision](COMPARE-SHARED-PRECISION-2026-11-26.md): older active visits vs latest destinations, crop wire compatibility, actual Mac aligned/stacked proof, simulator touch limit, remaining matrix and fixture cleanup.
 - [Desktop passage picker](DESKTOP-PASSAGE-PICKER-2026-11-26.md): platform separation, book visibility, Mac Notes verse-grid flow and scoped UI acceptance.
+
+- [Daily note retention](DAILY-NOTE-RETENTION-2026-11-26.md): original cleanup exemptions and why empty daily identities/metadata must remain.
+- [All-visible Find](FIND-MATCHES-2026-11-26.md): additive drawing, final compiler/runtime verification and saved-highlight preservation.

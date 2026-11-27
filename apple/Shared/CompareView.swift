@@ -536,6 +536,7 @@ struct CompareView: View {
     @Environment(\.displayScale) private var displayScale
     let tabId: String
     #if os(iOS)
+    var readerControls: AnyView? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var scriptureTypeScale = 1.0
     #endif
@@ -1002,12 +1003,16 @@ struct CompareView: View {
         #if os(iOS)
         .toolbar {
             if ownsCurrentCompareToolbar(passage) {
-                ToolbarItem(placement: .topBarTrailing) {
-                    manageTranslations(st, cols)
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .tint(.accentColor)
-                        .accessibilityAddTraits(.isSelected)
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: ScriptureView.readerBarSpacing) {
+                        readerControls
+                        manageTranslations(st, cols)
+                            .menuStyle(.borderlessButton)
+                            .menuIndicator(.hidden)
+                            .tint(.accentColor)
+                            .glassEffectCompat(interactive: true)
+                            .accessibilityAddTraits(.isSelected)
+                    }
                 }
             }
         }
@@ -2387,16 +2392,16 @@ struct CompareView: View {
         }
         if let url = DeepLink.nativeDevPassageURL(bookId: row.bookId, chapter: row.chapter,
                                                   verse: row.verseNum, textId: column.text) {
-            Button("Copy Native Dev Link", systemImage: "link") {
+            Button("Copy Link", systemImage: "link") {
                 Clipboard.copy(url.absoluteString)
                 AccessibilityNotification.Announcement("Verse link copied").post()
             }
         }
         Menu("Highlight Verse", systemImage: "highlighter") {
             ForEach(highlightColors, id: \.self) { color in
-                Button(color.capitalized, systemImage: "circle.fill") {
+                Button {
                     app.highlightVerses([row], color: color, textID: column.text, copy: copyVerse)
-                }
+                } label: { HighlightColorMenuLabel(color: color) }
             }
         }
         if chapterHighlights[EditionChapter(row, text: column.text)]?[row.verseNum]?.isEmpty == false {
@@ -2779,16 +2784,21 @@ struct CompareView: View {
                 .help("Copy selected verses with their edition reference")
             Menu {
                 ForEach(highlightColors, id: \.self) { color in
-                    Button(color.capitalized, systemImage: "circle.fill") {
+                    Button {
                         guard let target = selectedPassage else { return }
                         app.highlightVerses(comparisonSelectedRows, color: color, textID: target.edition.text,
                                             copy: { copyComparisonSelection() })
-                    }
+                    } label: { HighlightColorMenuLabel(color: color) }
                 }
-                Button("Remove Highlights", systemImage: "eraser") {
-                    guard let target = selectedPassage else { return }
-                    for row in comparisonSelectedRows {
-                        try? app.highlights?.remove(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: target.edition.text)
+                if let target = selectedPassage,
+                   comparisonSelectedRows.contains(where: { chapterHighlights[EditionChapter($0, text: target.edition.text)]?[$0.verseNum]?.isEmpty == false }) {
+                    Divider()
+                    Button("Remove Highlights", systemImage: "eraser") {
+                        for row in comparisonSelectedRows {
+                            app.attempt("Couldn’t remove the verse highlights") {
+                                try app.highlights?.remove(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum, textId: target.edition.text)
+                            }
+                        }
                     }
                 }
             } label: {
@@ -2857,8 +2867,10 @@ struct CompareView: View {
         #endif
         .padding(.horizontal, 8)
         .padding(.bottom, ReaderFloatingControls.bottomPadding)
+        #if os(macOS)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Selected \(comparisonSelectionLabel), \(selectedPassage.map { textInfo($0.edition.text).name } ?? "")")
+        #endif
         .task(id: copiedSelection) {
             guard copiedSelection else { return }
             do { try await Task.sleep(for: .seconds(1)); copiedSelection = false } catch { }

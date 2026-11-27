@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 import TipKit
 import CoreTransferable
 import UniformTypeIdentifiers
@@ -495,7 +498,7 @@ struct ChapterExportActions: View {
             AccessibilityNotification.Announcement("Reference copied").post()
         }
         if let url = DeepLink.nativeDevPassageURL(bookId: state.bookId, chapter: state.chapter, textId: state.translation) {
-            Button("Copy Native Dev Link", systemImage: "link") {
+            Button("Copy Link", systemImage: "link") {
                 Clipboard.copy(url.absoluteString)
                 AccessibilityNotification.Announcement("Chapter link copied").post()
             }
@@ -616,7 +619,7 @@ struct ScriptureView: View {
         if !tags.isEmpty { details.append("Chapter tags: " + tags.joined(separator: ", ")) }
         return ReaderChapterStudy(symbol: relatedNotes.isEmpty ? "tag" : "arrow.triangle.branch",
                                   summary: details.joined(separator: " · "),
-                                  opensCrossReferences: !relatedNotes.isEmpty && tags.isEmpty)
+                                  opensCrossReferences: !relatedNotes.isEmpty)
     }
 
     private func openChapterStudy() {
@@ -744,7 +747,13 @@ struct ScriptureView: View {
     var body: some View {
         let st = state
         Group {
-            if st.compareMode { CompareView(tabId: tabId) } else { chapterBody(st) }
+            if st.compareMode {
+                #if os(iOS)
+                CompareView(tabId: tabId, readerControls: AnyView(iosPassageControls(st)))
+                #else
+                CompareView(tabId: tabId)
+                #endif
+            } else { chapterBody(st) }
         }
         .overlay(alignment: .topLeading) { noteReturnPill(st) }
         #if os(iOS)
@@ -1182,7 +1191,7 @@ struct ScriptureView: View {
                                              endVerse: run.upperBound, textId: state.translation)?.absoluteString
             }
             if !links.isEmpty {
-                Button(links.count == 1 ? "Copy Native Dev Link" : "Copy Native Dev Links", systemImage: "link") {
+                Button(links.count == 1 ? "Copy Link" : "Copy Links", systemImage: "link") {
                     onComplete()
                     Clipboard.copy(links.joined(separator: "\n"))
                     AccessibilityNotification.Announcement(links.count == 1 ? "Verse link copied" : "Verse links copied").post()
@@ -1269,8 +1278,10 @@ struct ScriptureView: View {
                 #endif
                 .padding(.horizontal, 8)
                 .padding(.bottom, ReaderFloatingControls.bottomPadding)
+                #if os(macOS)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Selected \(selectionLabel(st))")
+                #endif
                 .task(id: copyFeedbackID) {
                     guard copiedAction != nil else { return }
                     do {
@@ -1508,19 +1519,23 @@ struct ScriptureView: View {
 
     @ViewBuilder private func highlightActions(_ st: BibleState, onComplete: @escaping () -> Void = {}) -> some View {
         ForEach(highlightColors, id: \.self) { color in
-            Button(color.capitalized, systemImage: "circle.fill") {
+            Button {
                 onComplete()
                 app.highlightVerses(selectedRows, color: color, textID: st.translation) {
                     copySelection(st, plain: false)
                 }
-            }
+            } label: { HighlightColorMenuLabel(color: color) }
         }
-        Divider()
-        Button("Remove Highlights") {
-            onComplete()
-            for row in selectedRows {
-                try? app.highlights?.remove(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
-                                            textId: st.translation)
+        if selectedRows.contains(where: { highlights[$0.verseNum]?.isEmpty == false }) {
+            Divider()
+            Button("Remove Highlights", systemImage: "eraser") {
+                onComplete()
+                for row in selectedRows {
+                    app.attempt("Couldn’t remove the verse highlights") {
+                        try app.highlights?.remove(bookId: row.bookId, chapter: row.chapter, verse: row.verseNum,
+                                                   textId: st.translation)
+                    }
+                }
             }
         }
     }
@@ -1693,43 +1708,23 @@ struct ScriptureView: View {
     func toolbar(_ st: BibleState) -> some ToolbarContent {
         // History Back / Forward live in the window toolbar beside the sidebar button (MacRootView), for every tab type.
         // The passage pill: ‹ Book Chapter · Text › — previous / next chapter around the passage navigator.
+        #if os(macOS)
         ToolbarItem(placement: .principal) {
-            #if os(macOS)
             ControlGroup { passageControls(st) }
                 .controlGroupStyle(.navigation)
                 .popover(isPresented: $pickerShown, arrowEdge: .bottom) { picker(st, compact: false) }
                 .popover(isPresented: numberingInfoPresented, arrowEdge: .bottom) { numberingInfoPanel }
-            #else
-            // One centred row with one spacing — Strong's · passage · Compare (· KJV/LXX) — so the
-            // gaps are equal on every iPhone width and chapter (they used to depend on the bar edges).
-            HStack(spacing: Self.readerBarSpacing) {
-            strongsBarButton(st)
-            HStack(spacing: 2) { passageControls(st) }
-                .frame(maxWidth: 240)
-                .buttonStyle(.interactivePlain)
-                .padding(.horizontal, 8)
-                .glassEffectCompat(interactive: true)
-                // Tucked away while reading downward (fades and lifts; the nav bar keeps its height so text never jumps).
-                .opacity(app.readerChromeHidden ? 0 : 1)
-                .offset(y: app.readerChromeHidden ? -12 : 0)
-                .allowsHitTesting(!app.readerChromeHidden)
-                .accessibilityHidden(app.readerChromeHidden)
-                .popover(isPresented: numberingInfoPresented, arrowEdge: .top) {
-                    numberingInfoPanel.presentationCompactAdaptation(.popover)
-                }
-                .sheet(isPresented: $pickerShown) {
-                    NavigationStack {
-                        picker(st, compact: true)
-                            .navigationTitle("Go to")
-                            .navigationBarTitleDisplayMode(.inline)
-                            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { pickerShown = false } } }
-                    }
-                    .presentationDetents([.large])
-                }
-            trailingBarButtons(st)
-            }
-            #endif
         }
+        #else
+        if !st.compareMode {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: Self.readerBarSpacing) {
+                    iosPassageControls(st)
+                    trailingBarButtons(st)
+                }
+            }
+        }
+        #endif
         #if os(iOS)
         #else
         let hasText = st.compareMode || (loadedChapter == chapterKey(st) && !verses.isEmpty)
@@ -2175,6 +2170,30 @@ struct ScriptureView: View {
 
 let highlightColors = ["yellow", "red", "green", "blue", "purple"]
 
+/// Native menus flatten template symbols to monochrome on iPhone. Supply an
+/// original-colour symbol so the swatch remains visible alongside its name.
+struct HighlightColorMenuLabel: View {
+    let color: String
+    var selected = false
+
+    var body: some View {
+        Label {
+            Text(color.capitalized)
+        } icon: {
+            #if os(iOS)
+            if let image = UIImage(systemName: selected ? "checkmark.circle.fill" : "circle.fill")?
+                .withTintColor(UIColor(Color.highlight(color)), renderingMode: .alwaysOriginal) {
+                Image(uiImage: image)
+            }
+            #else
+            Image(systemName: selected ? "checkmark.circle.fill" : "circle.fill")
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color.highlight(color))
+            #endif
+        }
+    }
+}
+
 extension Color {
     static func highlight(_ name: String) -> Color {
         switch name {
@@ -2315,9 +2334,9 @@ struct VerseRowView: View {
             }
             pos += units.count
             if showStrongs && !w.3.isEmpty {
-                for (k, n) in w.3.enumerated() {
+                for n in w.3 {
                     let id = n.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
-                    var chip = AttributedString((k > 0 ? " " : "") + id)
+                    var chip = AttributedString("\u{202F}" + id)
                     chip.font = .system(.caption2, design: .rounded)
                     chip.foregroundColor = .secondary
                     chip.baselineOffset = 6
@@ -2419,6 +2438,36 @@ extension ScriptureView {
 
     #if os(iOS)
     static let readerBarSpacing: CGFloat = 10
+
+    /// Share the passage row with Compare, so all of its controls use one gap
+    /// instead of splitting the translations menu into a separate bar region.
+    private func iosPassageControls(_ st: BibleState) -> some View {
+        HStack(spacing: Self.readerBarSpacing) {
+            strongsBarButton(st)
+            HStack(spacing: 2) { passageControls(st) }
+                .frame(maxWidth: 240)
+                .buttonStyle(.interactivePlain)
+                .padding(.horizontal, 8)
+                .glassEffectCompat(interactive: true)
+                // Tucked away while reading downward (fades and lifts; the nav bar keeps its height so text never jumps).
+                .opacity(app.readerChromeHidden ? 0 : 1)
+                .offset(y: app.readerChromeHidden ? -12 : 0)
+                .allowsHitTesting(!app.readerChromeHidden)
+                .accessibilityHidden(app.readerChromeHidden)
+                .popover(isPresented: numberingInfoPresented, arrowEdge: .top) {
+                    numberingInfoPanel.presentationCompactAdaptation(.popover)
+                }
+                .sheet(isPresented: $pickerShown) {
+                    NavigationStack {
+                        picker(st, compact: true)
+                            .navigationTitle("Go to")
+                            .navigationBarTitleDisplayMode(.inline)
+                            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { pickerShown = false } } }
+                    }
+                    .presentationDetents([.large])
+                }
+        }
+    }
 
     @ViewBuilder func strongsBarButton(_ st: BibleState) -> some View {
             Button {

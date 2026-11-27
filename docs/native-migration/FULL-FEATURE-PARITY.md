@@ -1404,3 +1404,8 @@ Mac Notes Strong’s preview is implemented in12d2e360 and passes actual-helper 
 
 - S02: Mac regular, Compare Add and Notes routes use the desktop browser. iPhone compact passage selection passed. Compare Edit runtime remains open. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md)
 - S13: Mac aligned and stacked older-visit cold geometry passed. Keep the iPhone precision and broader reflow/interruption/empty/header/duplicate cases open. [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+
+### November 26 — Reader, Compare, Search and Find follow-through
+
+Mac Search collapse retained result counts and Compare Edit used the desktop picker. iPhone verified equal Compare spacing, accessible selection actions, colored highlight choices, Lexicon segment routing, long passage title and current Find. Red supplied italic words passed both platforms. Inactive Find matches, wider reflow, interruption and accessibility remain open. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)

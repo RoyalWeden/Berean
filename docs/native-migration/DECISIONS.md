@@ -806,3 +806,11 @@ Use TextKit attachment bounds for both the rounded hover surface and popover anc
 ### November 26 — Platform picker layout and shared Compare geometry
 
 Select the desktop picker layout on Mac at the shared picker boundary and keep chapter-preview eligibility independent of layout. Store shared Compare crops alongside semantic row identity and validate compatible measured geometry before correction. Keep the active visit distinct from the latest destination. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+
+### November 26 — Reader and tool menu follow-through
+
+Use measured Mac native clearance through inspector reflow. Keep Strong’s markers bound to their word, red coloring on supplied italic words inside speech, and compact book labels distinct from their accessibility names. Preserve Calendar’s existing reuse path and expose History from Study Tools. [Integration review](INTEGRATION-REVIEW-2026-11-26.md)
+
+## November26 — Notes compiler boundaries and install evidence
+Keep NotesHome browserContents/browserScaffold opaque view boundaries: they avoid hosted Xcode26.6 type-check timeout without changing UI. Incremental AppIntents metadata can invalidate a prior device signature even when Xcode reports BUILD SUCCEEDED; verify strict signatures after final builds and use Xcode to regenerate signing. Do not change signing configuration to mask failure.

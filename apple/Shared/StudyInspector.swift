@@ -948,7 +948,7 @@ struct SelectedVersesStrongsView: View {
             out += word
             for n in t.strongs {
                 let num = n.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
-                var chip = AttributedString("\u{2009}" + num)
+                var chip = AttributedString("\u{202F}" + num)
                 chip.font = .caption2.monospaced()
                 chip.baselineOffset = 6
                 chip.foregroundColor = n.hasPrefix("(") ? .secondary : .accentColor
