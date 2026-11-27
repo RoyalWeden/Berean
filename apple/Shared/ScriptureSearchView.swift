@@ -272,6 +272,7 @@ struct ScriptureSearchView: View {
         return p
     }
     @State private var highlightCache = SearchHighlightCache()
+    @State private var snippetCache = ScriptureSearchSnippetCache()
     @State private var result = ScriptureSearchResult(hits: [], truncatedTexts: [])
     @State private var loading = false
     @State private var showOptions = false
@@ -1226,10 +1227,6 @@ struct ScriptureSearchView: View {
         }
     }
 
-    func displayText(_ h: ScriptureHit) -> String {
-        VerseDisplay.text(h.text, tagged: h.textTagged, textId: h.textId, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
-    }
-
     private var matchingWords: Set<String> {
         var q = query
         if q.hasPrefix("\""), q.hasSuffix("\"") { q = String(q.dropFirst().dropLast()) }
@@ -1241,10 +1238,9 @@ struct ScriptureSearchView: View {
 
     /// Mark Strong's matches and any plain query words in the same snippet.
     private func highlighted(_ hit: ScriptureHit, matchingWords: Set<String>) -> AttributedString {
-        let snippet = hit.strongsSnippet(replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
-        let window = snippet.flatMap { VerseDisplay.wordWindow($0.text, matchIndices: $0.indices) }
-        let s = window?.text ?? snippet?.text ?? displayText(hit)
-        let indices = Set(window?.indices ?? snippet?.indices ?? [])
+        let snippet = snippetCache.snippet(for: hit, replacerEnabled: app.wordReplacerEnabled, rules: app.wordReplacerRules)
+        let s = snippet.text
+        let indices = Set(snippet.matchWordIndices)
         var a = AttributedString(s)
         if !indices.isEmpty {
             for (index, word) in s.split(separator: " ").enumerated() where indices.contains(index) {
