@@ -1159,6 +1159,12 @@ struct NoteDetailView: View {
                        onSlashCompletion: receiveSlashCompletion,
                        onTableContext: { editingTable = $0 },
                        onWikiLinkCommand: handleCompletionCommand, onLink: openLink,
+                       onScrollFraction: { fraction in
+                           // Only while a Presenter is open; keyed by note so switches never reuse an old offset.
+                           guard app.presenterOpen else { return }
+                           let next = PresenterNoteViewport(noteId: noteId, fraction: (fraction * 1000).rounded() / 1000)
+                           if app.presenterNoteViewport != next { app.presenterNoteViewport = next }
+                       },
                        referenceContext: noteId, onReferencePreview: referencePreview)
             .focused($focus, equals: .body)
         #else

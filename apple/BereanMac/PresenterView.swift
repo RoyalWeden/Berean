@@ -116,6 +116,15 @@ struct PresenterView: View {
         return followedVerse ?? selected.min() ?? readerAnchor ?? app.activeTab.map { BibleState($0.state).verse } ?? nil
     }
     @State private var frozenSelection: Set<Int> = []
+    @State private var notePosition = ScrollPosition(edge: .top)
+    /// width = visible height, height = content height of the presented note.
+    @State private var noteMetrics = CGSize.zero
+
+    private func followNote(_ id: String) {
+        guard !paused, let viewport = app.presenterNoteViewport, viewport.noteId == id else { return }
+        let range = max(0, noteMetrics.height - noteMetrics.width)
+        notePosition.scrollTo(y: viewport.fraction * range)
+    }
     private var request: Request {
         Request(source: source, notesRevision: { if case .note = source { return app.notesRevision }; return 0 }(),
                 replacer: source.edition != nil && app.wordReplacerEnabled,
@@ -229,6 +238,14 @@ struct PresenterView: View {
                 }
                 .padding(40).frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
             }
+            // CC-05: follow the main window's note scroll proportionally (frozen while paused).
+            .scrollPosition($notePosition)
+            .onScrollGeometryChange(for: CGSize.self) { CGSize(width: $0.containerSize.height, height: $0.contentSize.height) } action: { _, metrics in
+                noteMetrics = metrics
+                followNote(note.id)
+            }
+            .onChange(of: app.presenterNoteViewport) { _, _ in followNote(note.id) }
+            .onChange(of: paused) { _, nowPaused in if !nowPaused { followNote(note.id) } }
         case .lexicon(let entry):
             ScrollView {
                 VStack(alignment: .leading, spacing: 18 * scale) {

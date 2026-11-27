@@ -26,6 +26,8 @@ struct RichNoteEditor: NSViewRepresentable {
     var onTableContext: (Bool) -> Void = { _ in }
     var onWikiLinkCommand: (NoteWikiLinkCommand) -> Bool = { _ in false }
     var onLink: (URL) -> Void = { _ in }
+    /// Proportional vertical scroll position (0…1) whenever the visible region moves.
+    var onScrollFraction: (Double) -> Void = { _ in }
     var referenceContext = ""
     var onReferencePreview: @MainActor (URL) async -> NoteReferencePreview? = { _ in nil }
 
@@ -68,11 +70,22 @@ struct RichNoteEditor: NSViewRepresentable {
         scroll.drawsBackground = false
         scroll.autohidesScrollers = true
         tv.referenceHover.observe(scroll)
+        scroll.contentView.postsBoundsChangedNotifications = true
+        // The editor can be laid out at full height inside an outer scroller, so listen to every
+        // clip view and react only to ones that contain this text view.
+        context.coordinator.scrollObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification, object: nil, queue: .main
+        ) { [weak coordinator = context.coordinator, weak tv] note in
+            guard let tv, let coordinator, let clip = note.object as? NSClipView, tv.isDescendant(of: clip) else { return }
+            MainActor.assumeIsolated { coordinator.reportScroll(tv) }
+        }
         return scroll
     }
 
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
         (scroll.documentView as? NoteTextView)?.referenceHover.stop()
+        if let token = coordinator.scrollObserver { NotificationCenter.default.removeObserver(token) }
+        coordinator.scrollObserver = nil
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
@@ -143,6 +156,15 @@ struct RichNoteEditor: NSViewRepresentable {
     @MainActor final class Coordinator: NSObject, NSTextViewDelegate, @preconcurrency NSLayoutManagerDelegate {
         var parent: RichNoteEditor
         weak var textView: NoteTextView?
+        var scrollObserver: NSObjectProtocol?
+
+        func reportScroll(_ tv: NSTextView) {
+            // visibleRect reflects whichever ancestor clips the text view.
+            let visible = tv.visibleRect
+            let range = tv.frame.height - visible.height
+            let fraction = range > 1 ? min(1, max(0, visible.minY / range)) : 0
+            parent.onScrollFraction(fraction)
+        }
         var editing = false
         var hidden = IndexSet()
         var substitutions: [Int: (len: Int, glyph: String)] = [:]

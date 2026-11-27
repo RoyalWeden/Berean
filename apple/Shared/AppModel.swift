@@ -394,6 +394,9 @@ final class AppModel {
 
     // MARK: presenter (Mac second window)
     var presenterOpen = false
+    /// CC-05: where the main window's note editor is scrolled (0…1), for the Presenter to follow.
+    /// Ephemeral — never persisted or synced; keyed by note so a switch never applies an old offset.
+    var presenterNoteViewport: PresenterNoteViewport?
     struct PresenterAnchor: Equatable { var tabId: String; var edition: ChapterEdition; var verse: Int? }
     /// The main reader's top visible verse, published only while the presenter is open.
     var presenterAnchor: PresenterAnchor?
@@ -2636,3 +2639,11 @@ enum ScriptureFont {
         }
     }
 }
+
+
+/// The active note editor's proportional scroll position, published only while the Presenter is open.
+struct PresenterNoteViewport: Equatable {
+    let noteId: String
+    let fraction: Double
+}
+
