@@ -59,6 +59,8 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 
 | A41 | S4 | iPhone | Files | The iPhone app declares no document types (`CFBundleDocumentTypes`, `LSSupportsOpeningDocumentsInPlace`, `UIFileSharingEnabled` absent), so a PDF or Markdown file can't be opened *into* Berean from Files / AirDrop / "Open in…"; import is only via the in-app picker. Related to the owner-gated Share Extension decision (#1). | Files app → long-press a PDF → Share; Berean isn't offered. |
 
+| A42 | S3 | iPhone | Landscape · Tabs | In landscape the Tabs sheet opened at half height showing only the toolbar, search field and workspace row — no tab cards until dragged up. **Fixed** `0e5a8dd4`: compact height offers only the large detent. | Rotate to landscape → tap the tab-cards button. |
+
 ## Coverage of this pass
 
 - **iPhone (real taps):** launch; reader tap-select, multi-select, Copy (single/non-contiguous), Highlight, More menu, Cross References, study sheet tabs, Lexicon entry, Strong's toggle, KJVA⇄LXX, Compare + its menu, passage picker typed range, chapter arrows, Find in Chapter, Reading Options/Scripture Display, Add Note (Markdown + auto-link), Notes home/search/swipe-delete/Trash/permanent delete, tab switcher, daily note deep link, Settings (Reading, About), dock More menu. Earlier today (CC-01/02/04): Search order/grouping/collapse/result round trip, Messages folders/reply quote.
@@ -67,7 +69,8 @@ Severity: **S1** broken/data risk · **S2** wrong behaviour a user will hit · *
 - **Pass 3 additions:** Mac workspace menu (complete; Delete correctly disabled with one workspace), Getting Started on Mac.
 - **Verified in earlier sessions, not re-run:** Notes Board/slash menu/tables/images (Nov 22 HANDOFF entries), YouTube tab + manual PiP (Nov 20/22), Messages (CC-04).
 - **Pass 4 (Mac):** Presenter top offset re-tested with Codex's A28 fix merged → still present → fixed (A35); File → New Idiom… sheet opens (Term/Meaning, Create disabled until filled), cancelled without creating anything.
-- **Blocked for unattended testing (Nov 27):** iPhone landscape — simulators run headless and opening Simulator.app would expose Codex's D0CC device to rotation; PDF/Markdown/e-Sword import — needs the system file picker and the app accepts no handed-in documents (A41); Shortcuts by voice and on-device PiP — owner's iPhone.
+- **Pass 5 (Nov 27, sim E8B via Xcode device orientation + simctl ui):** landscape reader (full-width reflow; text under the floating top bar is the recorded DECISIONS 712 choice), Search and Tabs (A42 fixed); dark mode and accessibility-extra-large Dynamic Type in the reader and alerts — wrap correctly. Simulator restored to light / Large.
+- **Blocked for unattended testing (Nov 27):** PDF/Markdown/e-Sword import — needs the system file picker and the app accepts no handed-in documents (A41); Shortcuts by voice and on-device PiP — owner's iPhone.
 - **Not yet covered (next):** YouTube PiP on device; PDF import/highlights/bookmarks (library is empty on this sim); Study Trail recording/merge/split; (Presenter and History checked on Mac — A35/A36; Tags and Ask Berean on iPhone — A37/A38; Mac keyboard flows ⌘K / ⌘T+Esc / ⌘[ / ⌘] all work); workspaces (create/rename/switch); Notes Board, slash menu, tables, images, version history; e-Sword/Markdown import; idioms; Ask Berean; App Intents/Spotlight; iPhone landscape/Dynamic Type/dark mode; Mac window resizing and multiple windows; keyboard-only Mac flows.
 
 ## Data touched
