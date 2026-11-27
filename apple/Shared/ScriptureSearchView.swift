@@ -248,6 +248,21 @@ struct ScriptureSearchView: View {
     /// Queries that read as a verse reference show that verse's cross references (original search "auto" mode);
     /// this per-view override switches back to a word search for the same text.
     @State private var wordsInsteadOf: String?
+    /// Collapsed result groups (original collapsedGroups). Device-local scene state per tab, so a
+    /// result round trip that remounts this view keeps them; it holds one query + options
+    /// fingerprint only ("fingerprint\ntitle\ntitle…"), so another search never inherits it.
+    @SceneStorage private var collapsedStore: String
+
+    init(tabId: String) {
+        self.tabId = tabId
+        _collapsedStore = SceneStorage(wrappedValue: "", "berean.search.collapsedGroups." + tabId)
+    }
+
+    private func collapsedTitles(for key: String) -> Set<String> {
+        let lines = collapsedStore.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard lines.count > 1, lines[0] == key else { return [] }
+        return Set(lines.dropFirst())
+    }
 
     /// The verse a reference-shaped query names, when cross-reference mode applies.
     private var crossRefTarget: ResolvedPassage? {
@@ -922,8 +937,9 @@ struct ScriptureSearchView: View {
             let groups = self.groups
             let scrollContext = self.scrollContext
             let context = app.activeTab?.id == tabId && !searchPending ? scrollContext : nil
+            let collapsed = shownCollapsed(groups, scrollContext)
             let rowIDs = Set(groups.flatMap { group in
-                group.hits.map(resultID) + (grouping == "none" ? [] : ["group:" + group.title])
+                (collapsed.contains(group.title) ? [] : group.hits.map(resultID)) + (grouping == "none" ? [] : ["group:" + group.title])
             })
             ScrollViewReader { proxy in
                 ScrollView {
@@ -935,15 +951,12 @@ struct ScriptureSearchView: View {
                                 .padding(.horizontal, 16).padding(.vertical, 8)
                         }
                         ForEach(groups, id: \.title) { group in
+                            let isCollapsed = collapsed.contains(group.title)
                             if grouping != "none" {
-                                Text("\(group.title) — \(group.hits.count)")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 16).padding(.vertical, 8)
-                                    .accessibilityAddTraits(.isHeader)
+                                groupHeader(group, collapsed: isCollapsed, context: scrollContext)
                                     .id("group:" + group.title)
                             }
-                            ForEach(group.hits, id: \.self) { hit in
+                            ForEach(isCollapsed ? [] : group.hits, id: \.self) { hit in
                                 row(hit)
                                     .padding(.horizontal, 16).padding(.vertical, 6)
                                     .overlay(alignment: .bottom) { Divider().padding(.leading, 16) }
@@ -988,6 +1001,60 @@ struct ScriptureSearchView: View {
     }
 
     struct Group { var title: String; var hits: [ScriptureHit] }
+
+    /// The collapsed groups to draw. A group holding the row a result return is coming back to
+    /// stays open, so restoration lands on that verse rather than an unrelated row.
+    private func shownCollapsed(_ groups: [Group], _ context: ScriptureSearchScrollContext) -> Set<String> {
+        var set = collapsedTitles(for: context.persistenceKey)
+        guard grouping != "none", !set.isEmpty else { return [] }
+        if let pending = app.searchResultAnchors[tabId]?[context],
+           let owner = groups.first(where: { $0.hits.contains { resultID($0) == pending } }) {
+            set.remove(owner.title)
+        }
+        return set
+    }
+
+    /// Whole-row disclosure header (original group header button): title, count, chevron.
+    private func groupHeader(_ group: Group, collapsed: Bool, context: ScriptureSearchScrollContext) -> some View {
+        Button { toggleGroup(group, context: context) } label: {
+            HStack(spacing: 6) {
+                Text(group.title).font(.caption.weight(.semibold)).foregroundStyle(.primary)
+                Text(group.hits.count.formatted()).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(collapsed ? -90 : 0))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain).clickableCursor()
+        .help(collapsed ? "Show \(group.title)" : "Hide \(group.title)")
+        .accessibilityLabel("\(group.title), \(group.hits.count) result\(group.hits.count == 1 ? "" : "s")")
+        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private func toggleGroup(_ group: Group, context: ScriptureSearchScrollContext) {
+        let key = context.persistenceKey
+        var set = collapsedTitles(for: key)
+        if set.contains(group.title) {
+            set.remove(group.title)
+        } else {
+            set.insert(group.title)
+            let rows = Set(group.hits.map(resultID))
+            // Collapsing deliberately ends a pending result return into this group …
+            if let pending = app.searchResultAnchors[tabId]?[context], rows.contains(pending) {
+                app.searchResultAnchors[tabId]?.removeValue(forKey: context)
+            }
+            // … and a saved position inside it falls back to the group's own header.
+            if let saved = app.searchViewportAnchor(tabId: tabId, context: context)?.row, rows.contains(saved) {
+                app.rememberSearchViewport(tabId: tabId, context: context, row: "group:" + group.title, persist: true)
+            }
+        }
+        withAnimation(.snappy) { collapsedStore = set.isEmpty ? "" : ([key] + set.sorted()).joined(separator: "\n") }
+    }
 
     var groups: [Group] {
         let forward = forwardGroups
