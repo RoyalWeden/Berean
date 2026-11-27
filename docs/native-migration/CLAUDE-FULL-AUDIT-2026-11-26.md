@@ -82,7 +82,7 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A14 | **Fixed, verified on iPhone sim** — context-menu and swipe Delete Permanently both confirm ("This can't be undone."); purge/Empty Trash errors reported. | same branch (NotesHome.swift) |
 | A18 | **Fixed, verified on iPhone sim** — with the Tabs sheet open, `berean-native-dev://daily` closes the sheet and the note opens in front. | same branch (BereanIOSApp.swift, IOSRootView.swift) |
 | A5, A16, A20, A21, A24, A25, A26 | **Fixed** — lexicon trim (verified on iPhone G1080); "1 note"; no repeated section headers (verified Mac Settings); iPhone library "On this iPhone"; Mac window tabbing off and Help → Getting Started (verified Mac menus); Word Replacer switch. | same branch @ `2501c66f` |
-| A2, A3 | Open — highlight menu and "Copy Native Dev Link(s)" labels live in ScriptureView/CompareView (Codex-reserved). Suggested: render swatches with `.symbolRenderingMode(.palette)`/tinted `Image` or a colour-named label; rename to "Copy Link(s)". | Codex |
+| A2, A3, A8 | **Fixed by Codex** (app source c3676b9b, per the Nov 26 pre-8pm checkpoint): native coloured swatches + conditional Remove Highlights, "Copy Links" wording, Strong's word joins. | reader-notes |
 | A23 | Left as design choice — the Go menu's first "YouTube" opens a YouTube tab, the second (⌘4) switches to the YouTube space; rename one (e.g. "YouTube Space") if wanted. | owner/Codex |
 | A32 | **Fixed, verified on iPhone sim** — inline title; "Feasts trail" visible (cause: large title under the pinned top search inset). | same branch @ `c637f9a1` (StudyTrailView.swift) |
 | A38 | **Fixed, verified on iPhone sim** — keyboard dismisses on ask, examples hidden after the first question; answer fully visible. | same branch @ `39d0bb2e` (AskBereanView.swift) |
@@ -92,7 +92,7 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A15 | **Fixed (CC-07)** — visible Restore per row; no compose in Trash. | same branch |
 | A39 | **Fixed, verified on iPhone sim** — native `NoteFinalize` port + leave hook; abandoned untitled note trashed, titled note kept. | same branch @ `044f0148` (NoteFinalize.swift, NotesViews.swift) |
 | A35 | **Fixed, verified on Mac** — Presenter scroll content gets a top margin so the heading / followed verse never sit under the title bar (it was not caused by the main reader after all: still present with Codex's A28 fix merged). | same branch @ `cb4e6de3` (PresenterView.swift) |
-| A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
+| A28 | **Fixed by Codex** (c3676b9b): settled Mac chapter openings stay below the toolbar through repeated Study-panel toggles. The Presenter case was separate (A35, fixed above). | reader-notes |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
 
