@@ -1212,8 +1212,9 @@ struct ScriptureView: View {
         }
     }
 
-    private func addNoteForSelection(_ state: BibleState) {
-        guard !selectedRows.isEmpty else { return }
+    @discardableResult
+    private func addNoteForSelection(_ state: BibleState, openEditor: Bool = true) -> String? {
+        guard !selectedRows.isEmpty else { return nil }
         let links: [String] = selection.count > 1 ? selectionRanges(state).flatMap { range in
             (range.spans ?? []).compactMap { start, end in
                 let firstVerse = Int(start)
@@ -1232,9 +1233,22 @@ struct ScriptureView: View {
                 return start == end ? prefix : "\(prefix)-\(Int(end))"
             }
         }.joined(separator: ",")
-        app.newNote(verseRef: attachment,
-                    textId: state.translation, title: selectionLabel(state), content: links.joined(separator: "\n\n"))
+        return app.newNote(verseRef: attachment,
+                           textId: state.translation, title: selectionLabel(state), content: links.joined(separator: "\n\n"),
+                           openEditor: openEditor)
     }
+
+    #if os(iOS)
+    /// iPhone Add Note: edit the new note inside the passage's verse sheet instead of a new Notes tab,
+    /// so Back/Done return to the same reader, edition, selection and position (CC-08 / A12).
+    private func addNoteInVerseSheet(_ state: BibleState) {
+        guard let row = selectedRows.min(by: { $0.verseNum < $1.verseNum }),
+              let id = addNoteForSelection(state, openEditor: false) else { return }
+        verseSheetDetent = .large
+        verseSheetPath = [.noteEditor(id)]
+        tappedVerse = TappedVerse(row: row)
+    }
+    #endif
 
     private func selectionReference(_ state: BibleState) -> String {
         VerseClipboard.reference(clipboardSelectionLabel(selectedRows, textId: state.translation), textId: state.translation)
@@ -1416,7 +1430,13 @@ struct ScriptureView: View {
             }
         }
         if !selectedRows.isEmpty {
-            Button("Add Note", systemImage: "square.and.pencil") { addNoteForSelection(st) }
+            Button("Add Note", systemImage: "square.and.pencil") {
+                #if os(iOS)
+                addNoteInVerseSheet(st)
+                #else
+                addNoteForSelection(st)
+                #endif
+            }
             Button("Cross References", systemImage: "arrow.triangle.branch") {
                 openInspector("crossrefs", verse: selectedVerse ?? selection.min(), selectedVerses: selection.sorted())
             }
@@ -2093,7 +2113,13 @@ struct ScriptureView: View {
                 tagging = ([TagRange(bookId: v.bookId, chapter: Double(v.chapter), whole: true)], Reference.readerChapterLabel(v.bookId, v.chapter, textId: st.translation), "chapter")
             }
         }
-        Button("Add Note") { perform { app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation) } }
+        Button("Add Note") {
+            // Stay in the verse sheet: edit the new note here rather than opening a Notes tab (CC-08).
+            if let id = app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation, openEditor: false) {
+                verseSheetDetent = .large
+                verseSheetPath.append(.noteEditor(id))
+            }
+        }
         Button("Compare This Verse") { perform { compareVerse(v, in: st) } }
         Button("Open in New Tab") { perform { app.openScripture(bookId: v.bookId, chapter: v.chapter, verse: v.verseNum, textId: st.translation) } }
     }
