@@ -77,3 +77,6 @@ With mainScriptureJer33 and no AX calls after opening Presenter: closedCPU2.13â†
 RedundantrootMac trial40497/99209/99223 stalledCASopen exactlylike earlierrootSimulator; sampled ToolchainCAS/createCAS/UnifiedOnDiskCacheopen, no sourcework. StoppedonlyownxcodeINT/dedicatedserviceTERM;terminal65, notpass. Ownertrial22752PASS. Finalcommittedownerrebuild67121running; signediPhone/Simulatora6unchanged because6a onlyMacApp.swift. Noreset/globalcachedeletion.
 
 FinalcommittedownerMac67121 exited0. StrictMac/device signatures and no-cloud/group entitlements reverified; owner-ready-artifacts.json updated6aMac/a6mobile. No localjobsremain. Rootduplicatecancelled65, notpass.
+
+
+Hosted46057445831/642c2992 completedSUCCESS for native and legacy. SimulatorstrictsignaturealsoPASS. Later6aMac-only focused-value fix is locally measured, finalbuilt and reviewed; finalpublicationchecksremainnew-headpending. Review confirms the single Presenter Window always writes the same AppStorage scale key, and scale equality preserves boundary/menu updates; live close/reopen verified setter lifetime. No other custom closure-bearing focused-scene payload found in Mac/shared source.

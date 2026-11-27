@@ -77,3 +77,6 @@ All three owner builds for **a6ea72ac** exited0. The rebuilt Dev artifacts and s
 
 ### November27 final Presenter idle fix
 Appsource6a54ccef: owner committed Mac rebuild67121PASS, /private/tmp/berean-presenter-final-owner-mac-20261127.log. Strict Mac/device signature verification, Devidentities/no-cloud-group entitlementsPASS; unchangedphone/Simulatora6binaryhashesretained. OnlyMacApp.swift changed. Regenerated ignoredNov27owner-ready-artifacts.json records bothsources. All406package tests/98suites remainvalid (no package changes). Physicalphone notinstalled. Presenter-idle A/B and zoommenu/keyboarddecrease-reset/reopen/PauseResume passed.
+
+
+November27 final Presenter verification:6a54ccef stops focused zoom payload layout churn; idle isolated CPU~100%→~4%, title-free bottom-right controls, menu zoom/keyboard decrease-reset afterreopen and Pause/Resume pass. Mac final ownerbuildPASS; unchangedmobilea6device/SimulatorbuildsPASS; strictsignaturesall3PASS. Hosted642c2992 native+legacySUCCESS; laterMac6a/finaldocsrequire new exact-head checks. Search smoothness staysOPEN. Canonical current source/evidence/nexttasks are in HANDOFF and CURRENT-STATE.
