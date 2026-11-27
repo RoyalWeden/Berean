@@ -91,6 +91,7 @@ iPhone E8B: one audit note created then permanently deleted; John 3:4/3:6 yellow
 | A12 | **Fixed (CC-08), verified on iPhone sim** — Add Note edits inside the verse sheet; no new tab; Back/Done return to the same reader. | same branch @ `f5bb1d40` (ScriptureView.swift) |
 | A15 | **Fixed (CC-07)** — visible Restore per row; no compose in Trash. | same branch |
 | A39 | **Fixed, verified on iPhone sim** — native `NoteFinalize` port + leave hook; abandoned untitled note trashed, titled note kept. | same branch @ `044f0148` (NoteFinalize.swift, NotesViews.swift) |
+| A35 | **Fixed, verified on Mac** — Presenter scroll content gets a top margin so the heading / followed verse never sit under the title bar (it was not caused by the main reader after all: still present with Codex's A28 fix merged). | same branch @ `cb4e6de3` (PresenterView.swift) |
 | A28 | Open, **broader than first recorded** — verse 1 also sits under the floating passage control with no Study panel open (seen behind the Getting Started sheet). Mac reader/toolbar files are Codex-reserved. | Codex |
 
 Both native builds pass on the fix branch; test fixtures (one note, two tabs) removed afterwards.
