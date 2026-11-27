@@ -147,8 +147,11 @@ public final class ChatsService: @unchecked Sendable {
     }
 
     public static func cleanFolder(_ name: String?) -> String? {
-        let t = String((name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(60))
-        return t.isEmpty ? nil : t
+        let clean = JSText.collapseWhitespace(JSText.trim(name ?? ""))
+        guard !clean.isEmpty else { return nil }
+        // The legacy slice counts UTF-16 code units. Repair a split surrogate
+        // the same way as the legacy UTF-8 text binding to SQLite.
+        return String(decoding: clean.utf16.prefix(60), as: UTF16.self)
     }
 
     // MARK: reads
@@ -281,13 +284,16 @@ public final class ChatsService: @unchecked Sendable {
     public func renameFolder(_ from: String, to: String?) throws -> Int? {
         let target = to.flatMap { Self.cleanFolder($0) }
         if to != nil, target == nil { return nil }
-        let ids = try db.query("SELECT id FROM ai_chats WHERE folder = ?", [.text(from)]).compactMap { $0["id"]?.string }
-        guard !ids.isEmpty else { return 0 }
-        let stamp = Self.iso(now())
         try db.exec("BEGIN IMMEDIATE")
+        let ids: [String]
         do {
-            for id in ids {
-                try db.run("UPDATE ai_chats SET folder = ?, updated_at = ? WHERE id = ?", [target.map { .text($0) } ?? .null, .text(stamp), .text(id)])
+            ids = try db.query("SELECT id FROM ai_chats WHERE folder = ?", [.text(from)]).compactMap { $0["id"]?.string }
+            if !ids.isEmpty {
+                let stamp = Self.iso(now())
+                let destination: SQLiteValue = target.map(SQLiteValue.text) ?? .null
+                for id in ids {
+                    try db.run("UPDATE ai_chats SET folder = ?, updated_at = ? WHERE id = ?", [destination, .text(stamp), .text(id)])
+                }
             }
             try db.exec("COMMIT")
         } catch {
