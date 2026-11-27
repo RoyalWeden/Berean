@@ -402,10 +402,10 @@ public final class NotesService: @unchecked Sendable {
         }
     }
 
-    /// `update` — false when the note does not exist. Empty strings clear icon/status/idiom fields, as in TypeScript.
+    /// Empty strings clear icon/status/idiom fields, as in TypeScript. An editor can supply its
+    /// baseline to avoid overwriting a newer saved draft or changing a note already in Trash.
     @discardableResult
-    public func update(_ id: String, _ u: Update) throws -> Bool {
-        if try db.query("SELECT id FROM notes WHERE id = ?", [.text(id)]).isEmpty { return false }
+    public func update(_ id: String, _ u: Update, ifUnchanged baseline: Note? = nil) throws -> Bool {
         var fields = ["updated_at = ?"], values: [SQLiteValue] = [.integer(now())]
         func nonEmpty(_ s: String?) -> SQLiteValue { (s?.isEmpty ?? true) ? .null : .text(s!) }
         if let v = u.title { fields.append("title = ?"); values.append(.text(v)) }
@@ -420,9 +420,45 @@ public final class NotesService: @unchecked Sendable {
         if let v = u.idiomAutoVariants { fields.append("idiom_auto_variants = ?"); values.append(.integer(v ? 1 : 0)) }
         if let v = u.idiomData { fields.append("idiom_data = ?"); values.append(v.map { .text(JSON.stringify($0).string) } ?? .null) }
         values.append(.text(id))
-        try db.run("UPDATE notes SET \(fields.joined(separator: ", ")) WHERE id = ?", values)
+        var condition = "id = ?"
+        if let baseline {
+            guard baseline.id == id, baseline.deletedAt == nil else { return false }
+            condition += " AND deleted_at IS NULL AND updated_at = ? AND COALESCE(title, '') = ? AND COALESCE(content, '') = ?"
+            values += [.integer(baseline.updatedAt), .text(baseline.title), .text(baseline.content)]
+        }
+        let updated = try db.run("UPDATE notes SET \(fields.joined(separator: ", ")) WHERE \(condition)", values)
+        guard updated.changes > 0 else { return false }
         onChange("note", id, "upsert")
         return true
+    }
+
+    /// Finalize a note only if its last confirmed persisted state still matches. The transaction
+    /// keeps another writer from editing or changing the note's type between the decision and write.
+    @discardableResult
+    public func finalizeUnchanged(_ baseline: Note, format: NoteFinalize.NameFormat = .long) throws -> NoteFinalize.Action {
+        guard baseline.deletedAt == nil else { return .none }
+        let action = NoteFinalize.action(for: baseline, format: format)
+        guard action != .none else { return .none }
+        try db.exec("BEGIN IMMEDIATE")
+        do {
+            guard try one(baseline.id) == baseline else {
+                try db.exec("ROLLBACK")
+                return .none
+            }
+            switch action {
+            case .trash:
+                try db.run("UPDATE notes SET deleted_at = ? WHERE id = ?", [.integer(now()), .text(baseline.id)])
+            case .name(let title):
+                try db.run("UPDATE notes SET title = ?, updated_at = ? WHERE id = ?", [.text(title), .integer(now()), .text(baseline.id)])
+            case .none: break
+            }
+            try db.exec("COMMIT")
+        } catch {
+            try? db.exec("ROLLBACK")
+            throw error
+        }
+        onChange("note", baseline.id, action == .trash ? "delete" : "upsert")
+        return action
     }
 
     public func setAiExcluded(_ noteId: String, _ excluded: Bool) throws {

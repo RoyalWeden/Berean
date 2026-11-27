@@ -170,27 +170,27 @@ private struct SearchResultScrollRestoration: ViewModifier {
             } action: { _, reachedTop in
                 atTop = reachedTop
                 if reachedTop, position.isPositionedByUser {
-                    capture(nil, atTop: true, in: scope)
+                    capture(nil, atTop: true, in: scope, persist: false)
                 }
             }
             .onChange(of: position.viewID(type: String.self)) { _, row in
                 guard position.isPositionedByUser else { return }
-                capture(row, atTop: atTop, in: scope)
+                capture(row, atTop: atTop, in: scope, persist: false)
             }
             .onScrollPhaseChange { old, new in
                 guard new == .idle, old == .interacting || old == .decelerating || position.isPositionedByUser else { return }
-                capture(position.viewID(type: String.self), atTop: atTop, in: scope)
+                capture(position.viewID(type: String.self), atTop: atTop, in: scope, persist: true)
             }
     }
 
-    private func capture(_ row: String?, atTop: Bool, in scope: Scope?) {
+    private func capture(_ row: String?, atTop: Bool, in scope: Scope?, persist: Bool) {
         let current = app.searchHistoryRevision
         guard let scope, restored == scope, atTop || row.map(containsRow) == true,
               app.isCurrentSearchViewport(tabId: tabId, context: scope.context),
               scope.historyRevision == (current?.tabID == tabId ? current?.revision : nil) else { return }
         let context = scope.context
         app.searchResultAnchors[tabId]?.removeValue(forKey: context)
-        app.rememberSearchViewport(tabId: tabId, context: context, row: atTop ? nil : row, persist: true)
+        app.rememberSearchViewport(tabId: tabId, context: context, row: atTop ? nil : row, persist: persist)
     }
 }
 
@@ -248,8 +248,6 @@ struct ScriptureSearchView: View {
     /// Queries that read as a verse reference show that verse's cross references (original search "auto" mode);
     /// this per-view override switches back to a word search for the same text.
     @State private var wordsInsteadOf: String?
-    /// Whether this view has hydrated options saved before a cold launch (CC-09).
-    @State private var optionsHydrated = false
     /// Collapsed result groups (original collapsedGroups). Device-local scene state per tab, so a
     /// result round trip that remounts this view keeps them; it holds one query + options
     /// fingerprint only ("fingerprint\ntitle\ntitle…"), so another search never inherits it.
@@ -407,8 +405,6 @@ struct ScriptureSearchView: View {
         }
         #endif
         .onAppear { field = query; if query.isEmpty { fieldFocused = true } }
-        // CC-09: keep options across a cold launch via the local filters bag (SearchOptionsStore).
-        .task(id: SearchViewports.configuration(in: state)) { syncStoredOptions() }
         .onChange(of: query) { _, newQuery in field = newQuery }
         .task(id: request) { [request] in await runSearch(request) }
         .task(id: tagSelection.ids) { refreshTags() }
@@ -654,20 +650,6 @@ struct ScriptureSearchView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
                 .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 10))
-        }
-    }
-
-    /// First appearance restores options a cold launch dropped, then every option change is
-    /// mirrored into the local store (an explicit Reset therefore clears it). Pure transforms on
-    /// `tab.state` only — no computed model reads inside `app.update`.
-    private func syncStoredOptions() {
-        let current = app.findTab(tabId)?.state ?? JSObject()
-        let restore = !optionsHydrated
-        optionsHydrated = true
-        let next = restore ? SearchOptionsStore.capturing(SearchOptionsStore.restoring(current)) : SearchOptionsStore.capturing(current)
-        guard next != current else { return }
-        app.update(tabId, recordHistory: false) { tab in
-            tab.state = restore ? SearchOptionsStore.capturing(SearchOptionsStore.restoring(tab.state)) : SearchOptionsStore.capturing(tab.state)
         }
     }
 
@@ -956,9 +938,13 @@ struct ScriptureSearchView: View {
             let scrollContext = self.scrollContext
             let context = app.activeTab?.id == tabId && !searchPending ? scrollContext : nil
             let collapsed = shownCollapsed(groups, scrollContext)
-            let rowIDs = Set(groups.flatMap { group in
-                (collapsed.contains(group.title) ? [] : group.hits.map(resultID)) + (grouping == "none" ? [] : ["group:" + group.title])
-            })
+            // One stable child per row lets the lazy stack estimate and reuse rows without
+            // recursively expanding every group's variable-sized subtree during scrolling.
+            let rows: [ResultListRow] = groups.flatMap { group in
+                let header: [ResultListRow] = grouping == "none" ? [] : [.header(group, collapsed: collapsed.contains(group.title))]
+                return header + (collapsed.contains(group.title) ? [] : group.hits.map(ResultListRow.hit))
+            }
+            let rowIDs = Set(rows.map(\.id))
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -968,17 +954,16 @@ struct ScriptureSearchView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                                 .padding(.horizontal, 16).padding(.vertical, 8)
                         }
-                        ForEach(groups, id: \.title) { group in
-                            let isCollapsed = collapsed.contains(group.title)
-                            if grouping != "none" {
-                                groupHeader(group, collapsed: isCollapsed, context: scrollContext)
-                                    .id("group:" + group.title)
-                            }
-                            ForEach(isCollapsed ? [] : group.hits, id: \.self) { hit in
+                        ForEach(rows) { item in
+                            switch item {
+                            case .header(let group, let collapsed):
+                                groupHeader(group, collapsed: collapsed, context: scrollContext)
+                                    .id(item.id)
+                            case .hit(let hit):
                                 row(hit)
                                     .padding(.horizontal, 16).padding(.vertical, 6)
                                     .overlay(alignment: .bottom) { Divider().padding(.leading, 16) }
-                                    .id(resultID(hit))
+                                    .id(item.id)
                             }
                         }
                     }
@@ -1019,6 +1004,19 @@ struct ScriptureSearchView: View {
     }
 
     struct Group { var title: String; var hits: [ScriptureHit] }
+
+    private enum ResultListRow: Identifiable {
+        case header(Group, collapsed: Bool)
+        case hit(ScriptureHit)
+
+        var id: String {
+            switch self {
+            case .header(let group, _): "group:" + group.title
+            case .hit(let hit): "\(hit.textId)|\(hit.bookId)|\(hit.chapter)|\(hit.verseNum)"
+            }
+        }
+    }
+
 
     /// The collapsed groups to draw. A group holding the row a result return is coming back to
     /// stays open, so restoration lands on that verse rather than an unrelated row.

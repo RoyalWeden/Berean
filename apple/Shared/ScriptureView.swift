@@ -697,6 +697,7 @@ struct ScriptureView: View {
     private enum VerseSheetPage: Hashable { case notes, crossReferences, noteEditor(String) }
     private static let verseSheetCompactDetent = PresentationDetent.height(300)
     @State private var verseSheetPath: [VerseSheetPage] = []
+    @State private var directVerseNoteID: String?
     @State private var verseSheetDetent = Self.verseSheetCompactDetent
     #endif
 
@@ -1245,6 +1246,7 @@ struct ScriptureView: View {
         guard let row = selectedRows.min(by: { $0.verseNum < $1.verseNum }),
               let id = addNoteForSelection(state, openEditor: false) else { return }
         verseSheetDetent = .large
+        directVerseNoteID = id
         verseSheetPath = [.noteEditor(id)]
         tappedVerse = TappedVerse(row: row)
     }
@@ -1641,6 +1643,7 @@ struct ScriptureView: View {
             afterVerseSheet = nil
             verseSheetCopyFeedback = nil
             verseSheetPath = []
+            directVerseNoteID = nil
             verseSheetDetent = Self.verseSheetCompactDetent
             action?()
         }) { item in
@@ -1673,6 +1676,17 @@ struct ScriptureView: View {
                             .navigationBarTitleDisplayMode(.inline)
                     case .noteEditor(let id):
                         NoteDetailView(noteId: id, performDestination: finishVerseSheet)
+                            .navigationBarBackButtonHidden(directVerseNoteID == id)
+                            .toolbar {
+                                if directVerseNoteID == id {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        Button { tappedVerse = nil } label: {
+                                            Label("Scripture", systemImage: "chevron.backward")
+                                        }
+                                        .accessibilityLabel("Back to Scripture")
+                                    }
+                                }
+                            }
                     }
                 }
             }
@@ -2117,6 +2131,7 @@ struct ScriptureView: View {
             // Stay in the verse sheet: edit the new note here rather than opening a Notes tab (CC-08).
             if let id = app.newNote(verseRef: "\(v.bookId).\(v.chapter).\(v.verseNum)", textId: st.translation, openEditor: false) {
                 verseSheetDetent = .large
+                directVerseNoteID = id
                 verseSheetPath.append(.noteEditor(id))
             }
         }

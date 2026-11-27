@@ -160,6 +160,22 @@ public enum SearchOptionsStore {
         return result
     }
 
+    /// Hydrate before a scene can start its first request or compare viewport fingerprints.
+    /// Non-search tabs and the generic legacy TabFields serialization remain untouched.
+    public static func restoring(in session: Session) -> Session {
+        var result = session
+        for space in SpaceId.allCases {
+            guard let tabs = result.tabs[space] else { continue }
+            result.tabs[space] = tabs.map { tab in
+                guard tab.tabType == .search else { return tab }
+                var restored = tab
+                restored.state = restoring(tab.state)
+                return restored
+            }
+        }
+        return result
+    }
+
     /// Fill option keys that are missing at the top level (cold launch) from the saved record.
     /// Keys already present win, so warm state is never overwritten.
     public static func restoring(_ state: JSObject) -> JSObject {

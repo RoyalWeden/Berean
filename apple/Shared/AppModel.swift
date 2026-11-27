@@ -247,6 +247,8 @@ final class AppModel {
     var userMessage: String?
     /// Bumped on every note write so note lists and verse dots refresh.
     var notesRevision = 0 { didSet { refreshIdiomsIfNeeded() } }
+    @ObservationIgnored private var mountedNoteEditors: [String: Set<UUID>] = [:]
+    @ObservationIgnored private var pendingNoteFinalizations: [String: Note] = [:]
     @ObservationIgnored private var strongsNotesIndex: (revision: Int, task: Task<NoteStrongsIndex, Never>)?
 
     /// One off-main parse per note revision, shared by the full entry and study inspector.
@@ -489,7 +491,7 @@ final class AppModel {
             }
             let h = TabPersistence.hydrate(sessions: rows.sessions, tabs: rows.tabs, groups: rows.groups, localState: local)
             if h.sessions.isEmpty { seedDefault() } else {
-                sessions = h.sessions; displayOrders = h.displayOrders; archivedGroups = h.archivedGroups; keys = h.keys
+                sessions = h.sessions.map { SearchOptionsStore.restoring(in: $0) }; displayOrders = h.displayOrders; archivedGroups = h.archivedGroups; keys = h.keys
                 currentSessionId = UserLibrary.defaults.string(forKey: "currentSessionId").flatMap { id in sessions.contains { $0.id == id } ? id : nil } ?? sessions[0].id
                 if let space = workspaceSpaces[currentSessionId].flatMap(SpaceId.init(rawValue:)),
                    let id = activeTabId(in: space), tabs(in: space).contains(where: { $0.id == id }) {
@@ -916,7 +918,9 @@ final class AppModel {
         return id
     }
 
-    private func insertTab(_ tab: BereanWorkspace.Tab, after displayAnchor: String?, inSpaceAfter spaceAnchor: String?) {
+    private func insertTab(_ incoming: BereanWorkspace.Tab, after displayAnchor: String?, inSpaceAfter spaceAnchor: String?) {
+        var tab = incoming
+        if tab.tabType == .search { tab.state = SearchOptionsStore.capturing(SearchOptionsStore.restoring(tab.state)) }
         let space = tab.spaceId
         insertInDisplayOrder(tab.id, after: displayAnchor)
         var list = sessions[sessionIndex].tabs[space] ?? []
@@ -977,9 +981,12 @@ final class AppModel {
         for sp in SpaceId.allCases {
             guard var list = sessions[sessionIndex].tabs[sp], let idx = list.firstIndex(where: { $0.id == tabId }) else { continue }
             if scriptureHistoryRestore?.tabID == tabId { scriptureHistoryRestore = nil }
-            list.remove(at: idx)
+            let closed = list.remove(at: idx)
             sessions[sessionIndex].tabs[sp] = list
             if activeTabId(in: sp) == tabId { sessions[sessionIndex].activeTabId[sp] = list.isEmpty ? nil : list[min(idx, list.count - 1)].id }
+            if closed.tabType == .note, let id = closed.state["noteId"]?.stringValue?.string {
+                finalizeNoteIfClosed(id)
+            }
             scheduleSave(); return
         }
     }
@@ -1059,6 +1066,11 @@ final class AppModel {
             guard let idx = sessions[sessionIndex].tabs[sp]?.firstIndex(where: { $0.id == tabId }) else { continue }
             let before = sessions[sessionIndex].tabs[sp]![idx]
             change(&sessions[sessionIndex].tabs[sp]![idx])
+            // Capture in the same mutation, before navigation/history or persistence can run.
+            // A disappearing Search view must not cancel an options-save task.
+            if sessions[sessionIndex].tabs[sp]![idx].tabType == .search {
+                sessions[sessionIndex].tabs[sp]![idx].state = SearchOptionsStore.capturing(sessions[sessionIndex].tabs[sp]![idx].state)
+            }
             if recordHistory, before.tabType == .bible {
                 let updated = sessions[sessionIndex].tabs[sp]![idx].state
                 if let columns = updated["compareColumns"], columns == before.state["compareColumns"] {
@@ -1206,7 +1218,7 @@ final class AppModel {
         }
         let previous = historyLocation(current)
         let destination = BereanWorkspace.Tab(id: current.id, spaceId: space, type: type.rawValue,
-                                              title: title, state: state,
+                                              title: title, state: type == .search ? SearchOptionsStore.capturing(state) : state,
                                               originTabId: origin?.id, originSpaceId: origin?.spaceId)
         guard sessions[sessionIndex].replaceTabContent(current.id, with: destination) != nil else { return false }
         if scriptureHistoryRestore?.tabID == current.id { scriptureHistoryRestore = nil }
@@ -1676,8 +1688,12 @@ final class AppModel {
     }
 
     func searchViewportAnchor(tabId: String, context: ScriptureSearchScrollContext) -> SearchViewportVisit? {
-        guard let tab = findTab(tabId),
-              let record = searchViewportRecords[tabId] ?? SearchViewports.record(in: tab.state) else { return nil }
+        guard let tab = findTab(tabId) else { return nil }
+        if let live = currentSearchVisits[tabId], live.configuration == context.configuration,
+           live.context == context.persistenceKey {
+            return live.row == nil ? nil : live
+        }
+        guard let record = searchViewportRecords[tabId] ?? SearchViewports.record(in: tab.state) else { return nil }
         return SearchViewports.restoration(in: record, configuration: context.configuration, context: context.persistenceKey)
     }
 
@@ -1709,19 +1725,31 @@ final class AppModel {
     }
 
     private func flushSearchViewports() {
+        // Live samples are cheap and observation-ignored during momentum. A lifecycle save
+        // still includes the latest sample even if scrolling has not reached idle yet.
+        for session in sessions {
+            for tab in session.allTabs where tab.tabType == .search {
+                guard let visit = currentSearchVisits[tab.id], visit.configuration == SearchViewports.configuration(in: tab.state) else { continue }
+                let record = searchViewportRecords[tab.id] ?? SearchViewports.record(in: tab.state) ?? JSObject()
+                let updated = SearchViewports.settingActive(visit, in: SearchViewports.updating(record, visit: visit))
+                if updated != record { searchViewportRecords[tab.id] = updated }
+            }
+        }
         guard !searchViewportRecords.isEmpty else { return }
         for workspace in sessions.indices {
-            guard var tabs = sessions[workspace].tabs[.search] else { continue }
-            var changed = false
-            for index in tabs.indices {
-                guard tabs[index].tabType == .search, let record = searchViewportRecords[tabs[index].id] else { continue }
-                let state = SearchViewports.installing(record, in: tabs[index].state)
-                if state != tabs[index].state {
-                    tabs[index].state = state
-                    changed = true
+            for space in SpaceId.allCases {
+                guard var tabs = sessions[workspace].tabs[space] else { continue }
+                var changed = false
+                for index in tabs.indices {
+                    guard tabs[index].tabType == .search, let record = searchViewportRecords[tabs[index].id] else { continue }
+                    let state = SearchViewports.installing(record, in: tabs[index].state)
+                    if state != tabs[index].state {
+                        tabs[index].state = state
+                        changed = true
+                    }
                 }
+                if changed { sessions[workspace].tabs[space] = tabs }
             }
-            if changed { sessions[workspace].tabs[.search] = tabs }
         }
     }
 
@@ -2224,6 +2252,36 @@ final class AppModel {
             return
         }
         openNote(nil)
+    }
+
+    func mountNoteEditor(_ id: String, editor: UUID) {
+        pendingNoteFinalizations.removeValue(forKey: id)
+        mountedNoteEditors[id, default: []].insert(editor)
+    }
+
+    func leaveNoteEditor(_ id: String, editor: UUID, saved: Note?) {
+        guard mountedNoteEditors[id]?.remove(editor) != nil,
+              mountedNoteEditors[id]?.isEmpty == true else { return }
+        mountedNoteEditors.removeValue(forKey: id)
+        if let saved, saved.id == id, saved.deletedAt == nil,
+           JSText.trim(saved.title).isEmpty, saved.type != "idiom", !NoteFinalize.isSystemNote(saved) {
+            pendingNoteFinalizations[id] = saved
+        }
+        finalizeNoteIfClosed(id)
+    }
+
+    private func finalizeNoteIfClosed(_ id: String) {
+        func showsNote(_ tab: BereanWorkspace.Tab) -> Bool {
+            tab.tabType == .note && tab.state["noteId"]?.stringValue?.string == id
+        }
+        guard mountedNoteEditors[id] == nil, let baseline = pendingNoteFinalizations[id],
+              !sessions.contains(where: { $0.allTabs.contains(where: showsNote) }) else { return }
+        pendingNoteFinalizations.removeValue(forKey: id)
+        // Archive restores the original destination. Keep its note available even when every live tab closes.
+        guard !archivedGroups.contains(where: { $0.tabs.contains(where: showsNote) }) else { return }
+        let storedFormat = settingValue("untitledNoteNameFormat")?.stringValue?.string
+        let format = storedFormat.flatMap(NoteFinalize.NameFormat.init(rawValue:)) ?? .long
+        attempt("Couldn’t finish the note") { _ = try notes?.finalizeUnchanged(baseline, format: format) }
     }
 
     func openNote(_ id: String?, newTab: Bool = false, fromList source: String? = nil, preferActiveTab: Bool = false) {

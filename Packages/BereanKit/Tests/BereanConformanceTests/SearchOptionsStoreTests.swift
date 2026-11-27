@@ -47,4 +47,29 @@ struct SearchOptionsStoreTests {
         let empty = try state(["query": "q"])
         #expect(SearchOptionsStore.capturing(empty) == empty)
     }
+    @Test func sessionHydratesBeforeFirstRequestWithoutChangingTheSavedVisit() throws {
+        var warm = try state(["query": "voice of joy", "sort": "relevanceLast", "grouping": "book", "filters": ["future": 1]])
+        let configuration = SearchViewports.configuration(in: warm)
+        let context = SearchViewports.fingerprint("result context")
+        let visit = try #require(SearchViewportVisit(configuration: configuration, context: context, row: "ISA.1.1", alignment: .center))
+        warm = SearchViewports.installing(SearchViewports.settingActive(visit, in: JSObject()), in: warm)
+        let split = TabFields.split(type: .search, state: SearchOptionsStore.capturing(warm))
+        let cold = TabFields.merge(type: .search, sync: split.sync, local: split.local)
+        let search = Tab(id: "search", spaceId: .scripture, type: "search", title: "Search", state: cold)
+        let other = Tab(id: "note", spaceId: .notes, type: "note", title: "Note", state: cold)
+        let session = Session(id: "session", name: "Study", tabs: [.scripture: [search], .notes: [other]], activeTabId: [.scripture: "search"])
+        let hydrated = SearchOptionsStore.restoring(in: session)
+        let initial = try #require(hydrated.tabs[.scripture]?.first?.state)
+        #expect(SearchViewports.configuration(in: initial) == configuration)
+        #expect(SearchViewports.active(in: try #require(SearchViewports.record(in: initial))) == visit)
+        #expect(hydrated.tabs[.notes] == [other])
+        #expect(hydrated.activeTabId == session.activeTabId)
+        #expect(initial["filters"]?["future"] == 1)
+        var reset = initial
+        for key in SearchOptionsStore.keys { reset[JSString(key)] = nil }
+        let capturedReset = SearchOptionsStore.capturing(reset)
+        let resetSplit = TabFields.split(type: .search, state: capturedReset)
+        #expect(SearchOptionsStore.saved(in: TabFields.merge(type: .search, sync: resetSplit.sync, local: resetSplit.local)) == nil)
+    }
+
 }

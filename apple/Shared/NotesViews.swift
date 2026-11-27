@@ -656,6 +656,8 @@ struct NoteDetailView: View {
     /// Content of the last version snapshot (or as opened) — a snapshot is only taken after edits.
     @State private var lastSnapshot: String?
     @State private var loadedId: String?
+    @State private var editorToken = UUID()
+    @State private var mountedNoteId: String?
     @State private var showingHistory = false
     #if os(macOS)
     @State private var shareRequest: NativeShareRequest?
@@ -1084,12 +1086,13 @@ struct NoteDetailView: View {
                 content = restored; lastSnapshot = restored; reload()
             }
         }
+        .onAppear { mountEditor() }
         .task(id: noteId) { await prepareNote() }
         .onChange(of: app.noteStrongsBlockSuggest) { invalidateDisabledReferenceSuggestion() }
         .onChange(of: app.noteVerseBlockSuggest) { invalidateDisabledReferenceSuggestion() }
         // Reflect changes made elsewhere (import, version restore, another window) unless this view has unsaved edits.
         .onChange(of: app.notesRevision) {
-            guard let fresh = try? app.notes?.one(noteId), let note, fresh.updatedAt != note.updatedAt,
+            guard loadedId == noteId, let fresh = try? app.notes?.one(noteId), let note, fresh != note,
                   title == note.title, content == note.content else { return }
             reload(); lastSnapshot = content
         }
@@ -1097,33 +1100,29 @@ struct NoteDetailView: View {
             // A suspended scene may never get to finish the editor's debounce task.
             if phase == .background { saveNow() }
         }
-        .onDisappear {
-            saveNow()
-            if !JSText.trim(content).isEmpty { snapshot() }
-            finalizeIfLeft(noteId, title: title, content: content)
-        }
+        .onDisappear { leaveEditor() }
     }
 
-    /// A39 — the original's leave rule (finalizeNote.ts): once no open tab shows this note, an
-    /// untitled empty note goes to Trash and an untitled note with text gets a date name. Uses the
-    /// editor's in-memory title/content (the stored copy can lag an in-flight save).
-    private func finalizeIfLeft(_ id: String, title: String, content: String) {
-        guard let stored = (try? app.notes?.one(id)) ?? nil, stored.deletedAt == nil else { return }
-        let shown = app.sessions.contains { session in
-            session.allTabs.contains { $0.tabType == .note && $0.state["noteId"]?.stringValue?.string == id }
-        }
-        guard !shown else { return }
-        var latest = stored
-        latest.title = title
-        latest.content = content
-        switch NoteFinalize.action(for: latest) {
-        case .trash: app.attempt("Couldn’t tidy up the empty note") { try app.notes?.delete(id) }
-        case .name(let generated): app.attempt("Couldn’t name the note") { _ = try app.notes?.update(id, .init(title: generated)) }
-        case .none: break
-        }
+    private func mountEditor() {
+        guard mountedNoteId != noteId else { return }
+        leaveEditor()
+        mountedNoteId = noteId
+        app.mountNoteEditor(noteId, editor: editorToken)
+    }
+
+    private func leaveEditor() {
+        guard let id = mountedNoteId else { return }
+        saveTask?.cancel()
+        snapshotTask?.cancel()
+        let saved = loadedId == id ? saveNow() : nil
+        if loadedId == id, note?.id == id, !JSText.trim(content).isEmpty { snapshot() }
+        mountedNoteId = nil
+        app.leaveNoteEditor(id, editor: editorToken, saved: saved)
     }
 
     private func prepareNote() async {
+        guard !Task.isCancelled else { return }
+        mountEditor()
         // Invalidate any queued native edit before this view is reused for another note.
         formatRequest = nil
         wikiLinkQuery = nil; dismissedWikiLinkQuery = nil; wikiLinkTargets = []
@@ -1133,12 +1132,11 @@ struct NoteDetailView: View {
         if app.presenterOpen, loadedId != noteId {
             app.presenterNoteViewport = PresenterNoteViewport(noteId: noteId, fraction: 0)
         }
-        if let outgoing = loadedId, outgoing != noteId {
-            saveNow(); snapshot()
-            finalizeIfLeft(outgoing, title: title, content: content)
-        }
         reload()
         loadedId = noteId; lastSnapshot = content
+        if performDestination != nil, let note, note.deletedAt == nil {
+            app.recordHistory(type: "note", title: note.displayTitle, noteId: note.id)
+        }
         if note?.content.isEmpty == true {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
@@ -1186,6 +1184,7 @@ struct NoteDetailView: View {
                        onSlashCompletion: receiveSlashCompletion,
                        onTableContext: { editingTable = $0 },
                        onWikiLinkCommand: handleCompletionCommand, onLink: openLink,
+                       reportsScrollFraction: app.presenterOpen,
                        onScrollFraction: { fraction in
                            // Only while a Presenter is open; keyed by note so switches never reuse an old offset.
                            guard app.presenterOpen else { return }
@@ -1725,17 +1724,24 @@ struct NoteDetailView: View {
         saveTask = Task { try? await Task.sleep(for: .milliseconds(600)); if !Task.isCancelled { saveNow() } }
     }
 
-    func saveNow() {
-        guard let note, title != note.title || content != note.content else { return }
-        guard let service = app.notes else { return }
+    @discardableResult
+    func saveNow() -> Note? {
+        guard let note, note.id == loadedId, note.id == mountedNoteId, note.deletedAt == nil else { return nil }
+        guard title != note.title || content != note.content else { return note }
+        guard let service = app.notes else { return nil }
         do {
-            try service.update(note.id, .init(title: title, content: content))
-            if let saved = try service.one(note.id) {
-                self.note = saved
-                app.refreshNoteTabTitles(saved)
+            guard try service.update(note.id, .init(title: title, content: content), ifUnchanged: note),
+                  let saved = try service.one(note.id), saved.deletedAt == nil,
+                  saved.title == title, saved.content == content else {
+                app.userMessage = "The note changed elsewhere before these edits could be saved."
+                return nil
             }
+            self.note = saved
+            app.refreshNoteTabTitles(saved)
+            return saved
         } catch {
             app.userMessage = "Could not save the note: \(error)"
+            return nil
         }
     }
 }

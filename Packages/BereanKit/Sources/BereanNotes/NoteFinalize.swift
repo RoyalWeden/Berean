@@ -8,6 +8,7 @@ import Foundation
 /// System notes (verse, daily, journal, imports) and idioms are never touched.
 public enum NoteFinalize {
     public enum Action: Equatable, Sendable { case none, trash, name(String) }
+    public enum NameFormat: String, Sendable { case long, medium, iso, numeric }
 
     public static func isSystemNote(_ note: Note) -> Bool {
         if ["verse", "daily", "journal"].contains(note.type) { return true }
@@ -24,18 +25,32 @@ public enum NoteFinalize {
         return !body.isEmpty
     }
 
-    /// "October 5, 2026" — the original's default ("long") untitled-note name.
-    public static func untitledName(_ date: Date, locale: Locale = .current) -> String {
+    public static func untitledName(_ date: Date, format: NameFormat = .long, locale: Locale = .current,
+                                    timeZone: TimeZone = .current) -> String {
         let f = DateFormatter()
+        f.timeZone = timeZone
+        if format == .iso {
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.calendar = Calendar(identifier: .gregorian)
+            f.dateFormat = "yyyy-MM-dd"
+            return f.string(from: date)
+        }
         f.locale = locale
-        f.setLocalizedDateFormatFromTemplate("yMMMMd")
+        let template = switch format {
+        case .long: "yMMMMd"
+        case .medium: "yMMMd"
+        case .iso, .numeric: "yMd"
+        }
+        f.setLocalizedDateFormatFromTemplate(template)
         return f.string(from: date)
     }
 
-    public static func action(for note: Note, locale: Locale = .current) -> Action {
+    public static func action(for note: Note, format: NameFormat = .long, locale: Locale = .current,
+                              timeZone: TimeZone = .current, now: Date = Date()) -> Action {
         if isSystemNote(note) || note.type == "idiom" { return .none }
         if !note.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .none }
         if !hasMeaningfulBody(note.content) { return .trash }
-        return .name(untitledName(Date(timeIntervalSince1970: Double(note.createdAt) / 1000), locale: locale))
+        let date = note.createdAt == 0 ? now : Date(timeIntervalSince1970: Double(note.createdAt) / 1000)
+        return .name(untitledName(date, format: format, locale: locale, timeZone: timeZone))
     }
 }
