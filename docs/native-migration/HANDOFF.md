@@ -3,6 +3,8 @@
 <!-- AI CONTINUITY START -->
 ## How every AI must use this document
 
+**Use the native worktree’s absolute handoff path.** The owner’s long-lived Claude process can start in `/Users/roywe/Berean` on legacy `main`. That checkout’s relative HANDOFF still contains the historical November8/PR19 checkpoint. For native work, read `/Users/roywe/Berean-native/docs/native-migration/HANDOFF.md` (or the current Codex clone’s equivalent), then verify live state. Do not follow the old main-checkout merge instructions or update main merely to align documents.
+
 The owner may tell Claude Code, Codex or another AI only **“Read HANDOFF.md and continue.”** This file must point to everything necessary to resume safely. It is not merely a historical transcript.
 
 1. Read the compact current checkpoint below and [CURRENT-STATE](CURRENT-STATE.md), then verify live Git/PR/checks and the actual app/library before changing anything. Preserve newer dirty work and owner state.

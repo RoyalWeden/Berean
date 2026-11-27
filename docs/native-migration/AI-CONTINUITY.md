@@ -4,6 +4,8 @@ Owner request, 2026-11-19: every AI must keep durable notes throughout the work 
 
 ## Start and resume
 
+**Use the native worktree’s absolute handoff path.** The owner’s long-lived Claude process can start in `/Users/roywe/Berean` on legacy `main`. That checkout’s relative HANDOFF still contains the historical November8/PR19 checkpoint. For native work, read `/Users/roywe/Berean-native/docs/native-migration/HANDOFF.md` (or the current Codex clone’s equivalent), then verify live state. Do not follow the old main-checkout merge instructions or update main merely to align documents.
+
 1. Start with [HANDOFF](HANDOFF.md), even if the owner provides no other context.
 2. Read [CURRENT-STATE](CURRENT-STATE.md), [OWNER-PRINCIPLES](OWNER-PRINCIPLES.md), this contract and the latest detailed HANDOFF entry. Use [DOCUMENTATION-MAP](DOCUMENTATION-MAP.md) to select task-specific documents. Do not mistake the historical log for current instructions or reread the entire archive as routine startup.
 3. Verify actual checkout, branch, dirty files, worktrees, source revision, GitHub PR/head/base/draft state and exact-head checks. Verify the running app path, development identity, library/profile and simulator before interacting. A saved timestamp, PID, task label or quoted AI report is not proof of current state.
