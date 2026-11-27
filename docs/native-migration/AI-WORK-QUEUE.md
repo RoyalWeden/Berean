@@ -67,3 +67,7 @@ Claude Code (session fa975be4, normal login) claimed CC-01, fast-forwarded the p
 ## November 26 Claude Code result — CC-04
 
 Implemented CC-03 #1 + #2 on isolated branch `native/claude-chat-folders-20261126` (`d778c4b2`, pushed; not integrated, no PR). Files: ChatsService.swift (+ChatsServiceTests), ChatViews.swift only. Integration order suggestion: CC-01 (`a90d788c`) and CC-04 (`d778c4b2`) touch disjoint files and can land independently; CC-02 must follow CC-01.
+
+## November 26 Claude Code — integration readiness
+
+Dry merges (git merge-tree, nothing committed) onto `native/reader-notes` @ `8e1b116d`: `native/claude-search-groups-20261126` (CC-01 + CC-02) **clean**; `native/claude-chat-folders-20261126` (CC-04) **clean**; both together **clean**. All Claude-assigned work is complete; the next Claude task (CC-05) waits on Codex's ownership/contract rulings recorded above.
