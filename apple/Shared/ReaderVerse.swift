@@ -24,7 +24,13 @@ typealias ReaderBackgroundColor = UIColor
 class ReaderTextLayoutManager: NSLayoutManager {
     private var backgroundOrigin = CGPoint.zero
     private let skip = NSAttributedString.Key("bereanSkip")
-    @MainActor private var findDrawing = FindDrawing()
+    private let findDrawingStore = FindDrawingStore()
+
+    @MainActor private final class FindDrawingStore {
+        var value = FindDrawing()
+
+        nonisolated init() {}
+    }
 
     private struct FindDrawing: Sendable {
         var matches: [[NSRange]] = []
@@ -39,14 +45,15 @@ class ReaderTextLayoutManager: NSLayoutManager {
     }
 
     @MainActor func setFindMatches(_ matches: [[NSRange]], current: Int?) {
-        let previous = findDrawing
-        findDrawing = FindDrawing(matches: matches, current: current.flatMap { matches.indices.contains($0) ? $0 : nil })
+        let previous = findDrawingStore.value
+        let drawing = FindDrawing(matches: matches, current: current.flatMap { matches.indices.contains($0) ? $0 : nil })
+        findDrawingStore.value = drawing
         guard let storage = textStorage else { return }
         let dirty: [NSRange]
         if previous.matches != matches {
-            dirty = [previous.coverage, findDrawing.coverage].compactMap { $0 }
-        } else if previous.current != findDrawing.current {
-            dirty = previous.currentRanges + findDrawing.currentRanges
+            dirty = [previous.coverage, drawing.coverage].compactMap { $0 }
+        } else if previous.current != drawing.current {
+            dirty = previous.currentRanges + drawing.currentRanges
         } else {
             return
         }
@@ -66,7 +73,8 @@ class ReaderTextLayoutManager: NSLayoutManager {
     }
 
     private func drawFindMatches(forGlyphRange glyphsToShow: NSRange, at origin: CGPoint) {
-        let drawing = MainActor.assumeIsolated { findDrawing }
+        let store = findDrawingStore
+        let drawing = MainActor.assumeIsolated { store.value }
         guard !drawing.matches.isEmpty, glyphsToShow.length > 0, let container = textContainers.first else { return }
         let visibleCharacters = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
         #if os(macOS)
