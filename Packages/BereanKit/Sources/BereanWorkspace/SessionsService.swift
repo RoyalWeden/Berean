@@ -141,15 +141,19 @@ public final class SessionsService: @unchecked Sendable {
         onChange(.init(entity: "tab", id: id, op: "delete"))
     }
     public func setLocalState(sessionId: String, activeTab: JSObject) throws {
+        try writeLocalState(sessionId: sessionId, activeTab: activeTab, at: now())
+    }
+
+    private func writeLocalState(sessionId: String, activeTab: JSObject, at now: Int64) throws {
         try db.run("INSERT INTO session_local_state (session_id, active_tab_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET active_tab_json = excluded.active_tab_json, updated_at = excluded.updated_at",
-                   [.text(sessionId), .text(JSON.stringify(.object(activeTab)).string), .integer(now())])
+                   [.text(sessionId), .text(JSON.stringify(.object(activeTab)).string), .integer(now)])
     }
 
     public struct Counts: Equatable, Sendable { public var sessions = 0, tabs = 0, archivedGroups = 0 }
 
-    /// `applySnapshot` — make the tables match the workspace: upsert what differs, tombstone what is gone (one transaction).
+    /// Commit workspace upserts, tombstones, and the supplied device-local selections together.
     @discardableResult
-    public func applySnapshot(_ snap: TabPersistence.Snapshot) throws -> (upserted: Counts, tombstoned: Counts) {
+    public func applySnapshot(_ snap: TabPersistence.Snapshot, localState: [String: JSObject] = [:]) throws -> (upserted: Counts, tombstoned: Counts) {
         let n = now()
         var up = Counts(), tomb = Counts()
         var changed: [DataChange] = []
@@ -166,6 +170,9 @@ public final class SessionsService: @unchecked Sendable {
                     switch table { case "sessions": tomb.sessions += 1; case "tabs": tomb.tabs += 1; default: tomb.archivedGroups += 1 }
                     changed.append(.init(entity: entity, id: id, op: "delete"))
                 }
+            }
+            for (sessionID, activeTab) in localState.sorted(by: { $0.key < $1.key }) {
+                try writeLocalState(sessionId: sessionID, activeTab: activeTab, at: n)
             }
         }
         changed.forEach(onChange)

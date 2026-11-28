@@ -100,7 +100,13 @@ final class AppModel {
     let lexicon = LexiconService(lexiconPath: { Corpora.path($0 == "H" ? "strongs_hebrew" : "strongs_greek") }, textPath: { Corpora.path($0) })
     let crossrefs = CrossrefsService(dataPath: { Corpora.path($0) })
 
-    var sessions: [Session] = []
+    /// Shared canonical topology and the sole workspace persistence owner.
+    private var workspaceStore = WorkspaceStore()
+    var sessions: [Session] {
+        get { workspaceStore.sessions }
+        set { workspaceStore.sessions = newValue }
+        _modify { yield &workspaceStore.sessions }
+    }
     var currentSessionId = ""
     var activeSpace: SpaceId = .scripture {
         didSet { rememberWorkspaceSpace() }
@@ -124,8 +130,16 @@ final class AppModel {
         var seen = Set<String>()
         return Set((recorded + recentTabIDs).filter { open.contains($0) && seen.insert($0).inserted }.prefix(5))
     }
-    var displayOrders: [String: [String]] = [:]
-    var archivedGroups: [ArchivedGroup] = []
+    var displayOrders: [String: [String]] {
+        get { workspaceStore.displayOrders }
+        set { workspaceStore.displayOrders = newValue }
+        _modify { yield &workspaceStore.displayOrders }
+    }
+    var archivedGroups: [ArchivedGroup] {
+        get { workspaceStore.archivedGroups }
+        set { workspaceStore.archivedGroups = newValue }
+        _modify { yield &workspaceStore.archivedGroups }
+    }
     var books: [String: [BookRow]] = [:]
     var libraryError: String?
     var commandPaletteShown = false {
@@ -373,9 +387,7 @@ final class AppModel {
             askSettingsRevision += 1
         }
     }
-    private var sessionsService: SessionsService?
     private var lock: SingleInstanceLock?
-    private var keys = TabPersistence.OrderKeyMaps()
     private var saveTask: Task<Void, Never>?
     private let workspaceSaveSignposter = OSSignposter(subsystem: "com.berean.native", category: "WorkspacePersistence")
     private let workspaceSaveLogger = Logger(subsystem: "com.berean.native", category: "WorkspacePersistence")
@@ -465,7 +477,7 @@ final class AppModel {
             let db = try UserDatabase(path: UserLibrary.directory.appendingPathComponent("berean.db").path)
             try Migrator.migrate(db.connection, backup: { from, _ in try Self.backup(db.connection, from: from) })
             let svc = SessionsService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) })
-            database = db; sessionsService = svc
+            database = db
             notes = NotesService(db: db.connection, onChange: { [weak self] _, _, _ in Task { @MainActor in self?.notesRevision += 1 } })
             settingsService = SettingsService(db: db.connection)
             workspaces = WorkspacesService(db: db.connection, now: { Int64(Date().timeIntervalSince1970 * 1000) }, uuid: { Self.newId() }, onChange: { _ in })
@@ -490,8 +502,14 @@ final class AppModel {
                 local[s.id] = Dictionary(uniqueKeysWithValues: o.entries.map { ($0.key.string, $0.value.stringValue?.string) })
             }
             let h = TabPersistence.hydrate(sessions: rows.sessions, tabs: rows.tabs, groups: rows.groups, localState: local)
+            // Enable the durable writer only after every persisted workspace row
+            // has been read successfully. A failed read must not save a seeded
+            // fallback over the library's real tabs.
+            workspaceStore = WorkspaceStore(service: svc,
+                                            sessions: h.sessions.map { SearchOptionsStore.restoring(in: $0) },
+                                            displayOrders: h.displayOrders, archivedGroups: h.archivedGroups,
+                                            orderKeys: h.keys)
             if h.sessions.isEmpty { seedDefault() } else {
-                sessions = h.sessions.map { SearchOptionsStore.restoring(in: $0) }; displayOrders = h.displayOrders; archivedGroups = h.archivedGroups; keys = h.keys
                 currentSessionId = UserLibrary.defaults.string(forKey: "currentSessionId").flatMap { id in sessions.contains { $0.id == id } ? id : nil } ?? sessions[0].id
                 if let space = workspaceSpaces[currentSessionId].flatMap(SpaceId.init(rawValue:)),
                    let id = activeTabId(in: space), tabs(in: space).contains(where: { $0.id == id }) {
@@ -570,17 +588,11 @@ final class AppModel {
         }
     }
 
-    private func workspaceSaveStage<T>(_ name: StaticString, _ action: () throws -> T) rethrows -> T {
-        let interval = workspaceSaveSignposter.beginInterval(name)
-        defer { workspaceSaveSignposter.endInterval(name, interval) }
-        return try action()
-    }
-
     func saveNow() {
         // An explicit lifecycle flush covers the queued debounce as well.
         saveTask?.cancel()
         saveTask = nil
-        guard let svc = sessionsService else { return }
+        guard workspaceStore.canPersist else { return }
         flushCompareBookmarks()
         flushSearchViewports()
         let started = ContinuousClock.now
@@ -592,19 +604,9 @@ final class AppModel {
                 workspaceSaveLogger.warning("Workspace save exceeded 250ms: \(String(describing: elapsed), privacy: .public)")
             }
         }
-        UserLibrary.defaults.set(currentSessionId, forKey: "currentSessionId")
-        let built = workspaceSaveStage("Build workspace snapshot") {
-            TabPersistence.buildSnapshot(sessions: sessions, displayOrders: displayOrders, archivedGroups: archivedGroups, previous: keys)
-        }
-        keys = built.keys
         do {
-            _ = try workspaceSaveStage("Apply workspace snapshot") { try svc.applySnapshot(built.snapshot) }
-            try workspaceSaveStage("Save workspace local state") {
-                for (sid, active) in built.localState {
-                    var o = JSObject()
-                    for sp in SpaceId.allCases { if let v = active[sp] { o[JSString(sp.rawValue)] = v.map { .string(JSString($0)) } ?? .null } }
-                    try svc.setLocalState(sessionId: sid, activeTab: o)
-                }
+            if try workspaceStore.save() {
+                UserLibrary.defaults.set(currentSessionId, forKey: "currentSessionId")
             }
         } catch { libraryError = "Saving tabs failed: \(error)" }
     }
