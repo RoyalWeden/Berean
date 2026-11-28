@@ -1,6 +1,17 @@
+import Foundation
 import Testing
 import BereanCore
 import BereanReference
+
+@Test func psalm151RequiresTheSeptuagint() {
+    #expect(Reference.parse("Psalm 151") == nil)
+    let reference = Reference.parse("Psalm 151:2 LXX")
+    #expect(reference?.bookId == "PSA")
+    #expect(reference?.chapter == 151)
+    #expect(reference?.verse == 2)
+    #expect(reference?.forcedTranslation == "LXX")
+    #expect(Reference.parse("Psalm 152 LXX") == nil)
+}
 
 @Suite("reference golden") struct ReferenceConformanceTests {
     static func s(_ x: String?) -> JSValue { x.map { .string(JSString($0)) } ?? .null }
@@ -13,6 +24,19 @@ import BereanReference
         switch fn {
         case "resolveBookToken": return s(Reference.resolveBookToken(str(0)))
         case "isExactBookToken": return .bool(Reference.isExactBookToken(str(0)))
+        case "extractRefsFromNote":
+            return .array(NoteVerseRefs.extract(content: str(0), title: str(1), hermas: hermas).map { ref in
+                var object = JSObject()
+                object["bookId"] = s(ref.bookId)
+                object["chapter"] = .number(Double(ref.chapter))
+                object["verse"] = .number(Double(ref.verse))
+                if let end = ref.endVerse { object["endVerse"] = .number(Double(end)) }
+                object["isChapter"] = .bool(ref.isChapter)
+                if ref.lxx { object["lxx"] = .bool(true) }
+                object["sourceNoteTitle"] = s(ref.sourceNoteTitle)
+                object["context"] = s(ref.context)
+                return .object(object)
+            })
         case "parseRef": return Reference.parseJSON(str(0), hermas: hermas)
         case "toCanonical": return s(Reference.toCanonical(str(0)))
         case "toFilename": return s(Reference.toFilename(str(0)))
@@ -98,5 +122,15 @@ import BereanReference
             if JSValue.array(got) != c["refs"]! { failures.append("\(text.debugDescription): \(JSON.stringify(.array(got)).string) want \(JSON.stringify(c["refs"]!).string)") }
         }
         #expect(failures.isEmpty, Comment(rawValue: "\(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
+    }
+}
+
+@Suite("note reference link spans") struct NoteLinkSpanTests {
+    @Test func spansCoverReferenceText() {
+        let text = "See John 3:16 and [[Gen 1:1]] plus Isaiah 6:4 LXX here."
+        let spans = NoteVerseRefs.linkSpans(content: text)
+        let ns = text as NSString
+        #expect(spans.map { ns.substring(with: $0.range) } == ["John 3:16", "Gen 1:1", "Isaiah 6:4 LXX"])
+        #expect(spans.map(\.reference) == ["John 3:16", "Gen 1:1", "Isaiah 6:4 LXX"])
     }
 }

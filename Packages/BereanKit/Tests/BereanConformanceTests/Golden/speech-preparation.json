@@ -1,0 +1,7598 @@
+{
+ "format": 1,
+ "sources": {
+  "src/lib/tts/textPrep.ts": "a9036f5ad054a31c080b1922b8da414a52e9fe8ffedc13152768ca226946357f",
+  "src/lib/tts/extractSpokenText.ts": "0fd84208c497e1db0472acf50462a58c0e8be3320d27a3938614771de157f36d",
+  "src/lib/taggedTokens.ts": "4e2f235c25f678ee9af55c982a8fff03fa627d11f6b7ab1ce1a2e47d448199fb",
+  "src/lib/wordReplacer.ts": "7922c0a66273dd3db1158fb8a54f24162f895e603a6add3e984c84087c783bbf",
+  "scripts/golden/speechPreparation.ts": "716574224941799dd79f00c36e765147faa39664048e0e86b084dbb11fdb6e10"
+ },
+ "numbers": [
+  {
+   "input": -5,
+   "ordinal": false,
+   "output": "negative five"
+  },
+  {
+   "input": -5,
+   "ordinal": true,
+   "output": "negative fifth"
+  },
+  {
+   "input": -4,
+   "ordinal": false,
+   "output": "negative four"
+  },
+  {
+   "input": -4,
+   "ordinal": true,
+   "output": "negative fourth"
+  },
+  {
+   "input": -3,
+   "ordinal": false,
+   "output": "negative three"
+  },
+  {
+   "input": -3,
+   "ordinal": true,
+   "output": "negative third"
+  },
+  {
+   "input": -2,
+   "ordinal": false,
+   "output": "negative two"
+  },
+  {
+   "input": -2,
+   "ordinal": true,
+   "output": "negative second"
+  },
+  {
+   "input": -1,
+   "ordinal": false,
+   "output": "negative one"
+  },
+  {
+   "input": -1,
+   "ordinal": true,
+   "output": "negative first"
+  },
+  {
+   "input": 0,
+   "ordinal": false,
+   "output": "zero"
+  },
+  {
+   "input": 0,
+   "ordinal": true,
+   "output": "zeroth"
+  },
+  {
+   "input": 1,
+   "ordinal": false,
+   "output": "one"
+  },
+  {
+   "input": 1,
+   "ordinal": true,
+   "output": "first"
+  },
+  {
+   "input": 2,
+   "ordinal": false,
+   "output": "two"
+  },
+  {
+   "input": 2,
+   "ordinal": true,
+   "output": "second"
+  },
+  {
+   "input": 3,
+   "ordinal": false,
+   "output": "three"
+  },
+  {
+   "input": 3,
+   "ordinal": true,
+   "output": "third"
+  },
+  {
+   "input": 4,
+   "ordinal": false,
+   "output": "four"
+  },
+  {
+   "input": 4,
+   "ordinal": true,
+   "output": "fourth"
+  },
+  {
+   "input": 5,
+   "ordinal": false,
+   "output": "five"
+  },
+  {
+   "input": 5,
+   "ordinal": true,
+   "output": "fifth"
+  },
+  {
+   "input": 6,
+   "ordinal": false,
+   "output": "six"
+  },
+  {
+   "input": 6,
+   "ordinal": true,
+   "output": "sixth"
+  },
+  {
+   "input": 7,
+   "ordinal": false,
+   "output": "seven"
+  },
+  {
+   "input": 7,
+   "ordinal": true,
+   "output": "seventh"
+  },
+  {
+   "input": 8,
+   "ordinal": false,
+   "output": "eight"
+  },
+  {
+   "input": 8,
+   "ordinal": true,
+   "output": "eighth"
+  },
+  {
+   "input": 9,
+   "ordinal": false,
+   "output": "nine"
+  },
+  {
+   "input": 9,
+   "ordinal": true,
+   "output": "ninth"
+  },
+  {
+   "input": 10,
+   "ordinal": false,
+   "output": "ten"
+  },
+  {
+   "input": 10,
+   "ordinal": true,
+   "output": "tenth"
+  },
+  {
+   "input": 11,
+   "ordinal": false,
+   "output": "eleven"
+  },
+  {
+   "input": 11,
+   "ordinal": true,
+   "output": "eleventh"
+  },
+  {
+   "input": 12,
+   "ordinal": false,
+   "output": "twelve"
+  },
+  {
+   "input": 12,
+   "ordinal": true,
+   "output": "twelfth"
+  },
+  {
+   "input": 13,
+   "ordinal": false,
+   "output": "thirteen"
+  },
+  {
+   "input": 13,
+   "ordinal": true,
+   "output": "thirteenth"
+  },
+  {
+   "input": 14,
+   "ordinal": false,
+   "output": "fourteen"
+  },
+  {
+   "input": 14,
+   "ordinal": true,
+   "output": "fourteenth"
+  },
+  {
+   "input": 15,
+   "ordinal": false,
+   "output": "fifteen"
+  },
+  {
+   "input": 15,
+   "ordinal": true,
+   "output": "fifteenth"
+  },
+  {
+   "input": 16,
+   "ordinal": false,
+   "output": "sixteen"
+  },
+  {
+   "input": 16,
+   "ordinal": true,
+   "output": "sixteenth"
+  },
+  {
+   "input": 17,
+   "ordinal": false,
+   "output": "seventeen"
+  },
+  {
+   "input": 17,
+   "ordinal": true,
+   "output": "seventeenth"
+  },
+  {
+   "input": 18,
+   "ordinal": false,
+   "output": "eighteen"
+  },
+  {
+   "input": 18,
+   "ordinal": true,
+   "output": "eighteenth"
+  },
+  {
+   "input": 19,
+   "ordinal": false,
+   "output": "nineteen"
+  },
+  {
+   "input": 19,
+   "ordinal": true,
+   "output": "nineteenth"
+  },
+  {
+   "input": 20,
+   "ordinal": false,
+   "output": "twenty"
+  },
+  {
+   "input": 20,
+   "ordinal": true,
+   "output": "twentieth"
+  },
+  {
+   "input": 21,
+   "ordinal": false,
+   "output": "twenty-one"
+  },
+  {
+   "input": 21,
+   "ordinal": true,
+   "output": "twenty-first"
+  },
+  {
+   "input": 22,
+   "ordinal": false,
+   "output": "twenty-two"
+  },
+  {
+   "input": 22,
+   "ordinal": true,
+   "output": "twenty-second"
+  },
+  {
+   "input": 23,
+   "ordinal": false,
+   "output": "twenty-three"
+  },
+  {
+   "input": 23,
+   "ordinal": true,
+   "output": "twenty-third"
+  },
+  {
+   "input": 24,
+   "ordinal": false,
+   "output": "twenty-four"
+  },
+  {
+   "input": 24,
+   "ordinal": true,
+   "output": "twenty-fourth"
+  },
+  {
+   "input": 25,
+   "ordinal": false,
+   "output": "twenty-five"
+  },
+  {
+   "input": 25,
+   "ordinal": true,
+   "output": "twenty-fifth"
+  },
+  {
+   "input": 26,
+   "ordinal": false,
+   "output": "twenty-six"
+  },
+  {
+   "input": 26,
+   "ordinal": true,
+   "output": "twenty-sixth"
+  },
+  {
+   "input": 27,
+   "ordinal": false,
+   "output": "twenty-seven"
+  },
+  {
+   "input": 27,
+   "ordinal": true,
+   "output": "twenty-seventh"
+  },
+  {
+   "input": 28,
+   "ordinal": false,
+   "output": "twenty-eight"
+  },
+  {
+   "input": 28,
+   "ordinal": true,
+   "output": "twenty-eighth"
+  },
+  {
+   "input": 29,
+   "ordinal": false,
+   "output": "twenty-nine"
+  },
+  {
+   "input": 29,
+   "ordinal": true,
+   "output": "twenty-ninth"
+  },
+  {
+   "input": 30,
+   "ordinal": false,
+   "output": "thirty"
+  },
+  {
+   "input": 30,
+   "ordinal": true,
+   "output": "thirtieth"
+  },
+  {
+   "input": 31,
+   "ordinal": false,
+   "output": "thirty-one"
+  },
+  {
+   "input": 31,
+   "ordinal": true,
+   "output": "thirty-first"
+  },
+  {
+   "input": 32,
+   "ordinal": false,
+   "output": "thirty-two"
+  },
+  {
+   "input": 32,
+   "ordinal": true,
+   "output": "thirty-second"
+  },
+  {
+   "input": 33,
+   "ordinal": false,
+   "output": "thirty-three"
+  },
+  {
+   "input": 33,
+   "ordinal": true,
+   "output": "thirty-third"
+  },
+  {
+   "input": 34,
+   "ordinal": false,
+   "output": "thirty-four"
+  },
+  {
+   "input": 34,
+   "ordinal": true,
+   "output": "thirty-fourth"
+  },
+  {
+   "input": 35,
+   "ordinal": false,
+   "output": "thirty-five"
+  },
+  {
+   "input": 35,
+   "ordinal": true,
+   "output": "thirty-fifth"
+  },
+  {
+   "input": 36,
+   "ordinal": false,
+   "output": "thirty-six"
+  },
+  {
+   "input": 36,
+   "ordinal": true,
+   "output": "thirty-sixth"
+  },
+  {
+   "input": 37,
+   "ordinal": false,
+   "output": "thirty-seven"
+  },
+  {
+   "input": 37,
+   "ordinal": true,
+   "output": "thirty-seventh"
+  },
+  {
+   "input": 38,
+   "ordinal": false,
+   "output": "thirty-eight"
+  },
+  {
+   "input": 38,
+   "ordinal": true,
+   "output": "thirty-eighth"
+  },
+  {
+   "input": 39,
+   "ordinal": false,
+   "output": "thirty-nine"
+  },
+  {
+   "input": 39,
+   "ordinal": true,
+   "output": "thirty-ninth"
+  },
+  {
+   "input": 40,
+   "ordinal": false,
+   "output": "forty"
+  },
+  {
+   "input": 40,
+   "ordinal": true,
+   "output": "fortieth"
+  },
+  {
+   "input": 41,
+   "ordinal": false,
+   "output": "forty-one"
+  },
+  {
+   "input": 41,
+   "ordinal": true,
+   "output": "forty-first"
+  },
+  {
+   "input": 42,
+   "ordinal": false,
+   "output": "forty-two"
+  },
+  {
+   "input": 42,
+   "ordinal": true,
+   "output": "forty-second"
+  },
+  {
+   "input": 43,
+   "ordinal": false,
+   "output": "forty-three"
+  },
+  {
+   "input": 43,
+   "ordinal": true,
+   "output": "forty-third"
+  },
+  {
+   "input": 44,
+   "ordinal": false,
+   "output": "forty-four"
+  },
+  {
+   "input": 44,
+   "ordinal": true,
+   "output": "forty-fourth"
+  },
+  {
+   "input": 45,
+   "ordinal": false,
+   "output": "forty-five"
+  },
+  {
+   "input": 45,
+   "ordinal": true,
+   "output": "forty-fifth"
+  },
+  {
+   "input": 46,
+   "ordinal": false,
+   "output": "forty-six"
+  },
+  {
+   "input": 46,
+   "ordinal": true,
+   "output": "forty-sixth"
+  },
+  {
+   "input": 47,
+   "ordinal": false,
+   "output": "forty-seven"
+  },
+  {
+   "input": 47,
+   "ordinal": true,
+   "output": "forty-seventh"
+  },
+  {
+   "input": 48,
+   "ordinal": false,
+   "output": "forty-eight"
+  },
+  {
+   "input": 48,
+   "ordinal": true,
+   "output": "forty-eighth"
+  },
+  {
+   "input": 49,
+   "ordinal": false,
+   "output": "forty-nine"
+  },
+  {
+   "input": 49,
+   "ordinal": true,
+   "output": "forty-ninth"
+  },
+  {
+   "input": 50,
+   "ordinal": false,
+   "output": "fifty"
+  },
+  {
+   "input": 50,
+   "ordinal": true,
+   "output": "fiftieth"
+  },
+  {
+   "input": 51,
+   "ordinal": false,
+   "output": "fifty-one"
+  },
+  {
+   "input": 51,
+   "ordinal": true,
+   "output": "fifty-first"
+  },
+  {
+   "input": 52,
+   "ordinal": false,
+   "output": "fifty-two"
+  },
+  {
+   "input": 52,
+   "ordinal": true,
+   "output": "fifty-second"
+  },
+  {
+   "input": 53,
+   "ordinal": false,
+   "output": "fifty-three"
+  },
+  {
+   "input": 53,
+   "ordinal": true,
+   "output": "fifty-third"
+  },
+  {
+   "input": 54,
+   "ordinal": false,
+   "output": "fifty-four"
+  },
+  {
+   "input": 54,
+   "ordinal": true,
+   "output": "fifty-fourth"
+  },
+  {
+   "input": 55,
+   "ordinal": false,
+   "output": "fifty-five"
+  },
+  {
+   "input": 55,
+   "ordinal": true,
+   "output": "fifty-fifth"
+  },
+  {
+   "input": 56,
+   "ordinal": false,
+   "output": "fifty-six"
+  },
+  {
+   "input": 56,
+   "ordinal": true,
+   "output": "fifty-sixth"
+  },
+  {
+   "input": 57,
+   "ordinal": false,
+   "output": "fifty-seven"
+  },
+  {
+   "input": 57,
+   "ordinal": true,
+   "output": "fifty-seventh"
+  },
+  {
+   "input": 58,
+   "ordinal": false,
+   "output": "fifty-eight"
+  },
+  {
+   "input": 58,
+   "ordinal": true,
+   "output": "fifty-eighth"
+  },
+  {
+   "input": 59,
+   "ordinal": false,
+   "output": "fifty-nine"
+  },
+  {
+   "input": 59,
+   "ordinal": true,
+   "output": "fifty-ninth"
+  },
+  {
+   "input": 60,
+   "ordinal": false,
+   "output": "sixty"
+  },
+  {
+   "input": 60,
+   "ordinal": true,
+   "output": "sixtieth"
+  },
+  {
+   "input": 61,
+   "ordinal": false,
+   "output": "sixty-one"
+  },
+  {
+   "input": 61,
+   "ordinal": true,
+   "output": "sixty-first"
+  },
+  {
+   "input": 62,
+   "ordinal": false,
+   "output": "sixty-two"
+  },
+  {
+   "input": 62,
+   "ordinal": true,
+   "output": "sixty-second"
+  },
+  {
+   "input": 63,
+   "ordinal": false,
+   "output": "sixty-three"
+  },
+  {
+   "input": 63,
+   "ordinal": true,
+   "output": "sixty-third"
+  },
+  {
+   "input": 64,
+   "ordinal": false,
+   "output": "sixty-four"
+  },
+  {
+   "input": 64,
+   "ordinal": true,
+   "output": "sixty-fourth"
+  },
+  {
+   "input": 65,
+   "ordinal": false,
+   "output": "sixty-five"
+  },
+  {
+   "input": 65,
+   "ordinal": true,
+   "output": "sixty-fifth"
+  },
+  {
+   "input": 66,
+   "ordinal": false,
+   "output": "sixty-six"
+  },
+  {
+   "input": 66,
+   "ordinal": true,
+   "output": "sixty-sixth"
+  },
+  {
+   "input": 67,
+   "ordinal": false,
+   "output": "sixty-seven"
+  },
+  {
+   "input": 67,
+   "ordinal": true,
+   "output": "sixty-seventh"
+  },
+  {
+   "input": 68,
+   "ordinal": false,
+   "output": "sixty-eight"
+  },
+  {
+   "input": 68,
+   "ordinal": true,
+   "output": "sixty-eighth"
+  },
+  {
+   "input": 69,
+   "ordinal": false,
+   "output": "sixty-nine"
+  },
+  {
+   "input": 69,
+   "ordinal": true,
+   "output": "sixty-ninth"
+  },
+  {
+   "input": 70,
+   "ordinal": false,
+   "output": "seventy"
+  },
+  {
+   "input": 70,
+   "ordinal": true,
+   "output": "seventieth"
+  },
+  {
+   "input": 71,
+   "ordinal": false,
+   "output": "seventy-one"
+  },
+  {
+   "input": 71,
+   "ordinal": true,
+   "output": "seventy-first"
+  },
+  {
+   "input": 72,
+   "ordinal": false,
+   "output": "seventy-two"
+  },
+  {
+   "input": 72,
+   "ordinal": true,
+   "output": "seventy-second"
+  },
+  {
+   "input": 73,
+   "ordinal": false,
+   "output": "seventy-three"
+  },
+  {
+   "input": 73,
+   "ordinal": true,
+   "output": "seventy-third"
+  },
+  {
+   "input": 74,
+   "ordinal": false,
+   "output": "seventy-four"
+  },
+  {
+   "input": 74,
+   "ordinal": true,
+   "output": "seventy-fourth"
+  },
+  {
+   "input": 75,
+   "ordinal": false,
+   "output": "seventy-five"
+  },
+  {
+   "input": 75,
+   "ordinal": true,
+   "output": "seventy-fifth"
+  },
+  {
+   "input": 76,
+   "ordinal": false,
+   "output": "seventy-six"
+  },
+  {
+   "input": 76,
+   "ordinal": true,
+   "output": "seventy-sixth"
+  },
+  {
+   "input": 77,
+   "ordinal": false,
+   "output": "seventy-seven"
+  },
+  {
+   "input": 77,
+   "ordinal": true,
+   "output": "seventy-seventh"
+  },
+  {
+   "input": 78,
+   "ordinal": false,
+   "output": "seventy-eight"
+  },
+  {
+   "input": 78,
+   "ordinal": true,
+   "output": "seventy-eighth"
+  },
+  {
+   "input": 79,
+   "ordinal": false,
+   "output": "seventy-nine"
+  },
+  {
+   "input": 79,
+   "ordinal": true,
+   "output": "seventy-ninth"
+  },
+  {
+   "input": 80,
+   "ordinal": false,
+   "output": "eighty"
+  },
+  {
+   "input": 80,
+   "ordinal": true,
+   "output": "eightieth"
+  },
+  {
+   "input": 81,
+   "ordinal": false,
+   "output": "eighty-one"
+  },
+  {
+   "input": 81,
+   "ordinal": true,
+   "output": "eighty-first"
+  },
+  {
+   "input": 82,
+   "ordinal": false,
+   "output": "eighty-two"
+  },
+  {
+   "input": 82,
+   "ordinal": true,
+   "output": "eighty-second"
+  },
+  {
+   "input": 83,
+   "ordinal": false,
+   "output": "eighty-three"
+  },
+  {
+   "input": 83,
+   "ordinal": true,
+   "output": "eighty-third"
+  },
+  {
+   "input": 84,
+   "ordinal": false,
+   "output": "eighty-four"
+  },
+  {
+   "input": 84,
+   "ordinal": true,
+   "output": "eighty-fourth"
+  },
+  {
+   "input": 85,
+   "ordinal": false,
+   "output": "eighty-five"
+  },
+  {
+   "input": 85,
+   "ordinal": true,
+   "output": "eighty-fifth"
+  },
+  {
+   "input": 86,
+   "ordinal": false,
+   "output": "eighty-six"
+  },
+  {
+   "input": 86,
+   "ordinal": true,
+   "output": "eighty-sixth"
+  },
+  {
+   "input": 87,
+   "ordinal": false,
+   "output": "eighty-seven"
+  },
+  {
+   "input": 87,
+   "ordinal": true,
+   "output": "eighty-seventh"
+  },
+  {
+   "input": 88,
+   "ordinal": false,
+   "output": "eighty-eight"
+  },
+  {
+   "input": 88,
+   "ordinal": true,
+   "output": "eighty-eighth"
+  },
+  {
+   "input": 89,
+   "ordinal": false,
+   "output": "eighty-nine"
+  },
+  {
+   "input": 89,
+   "ordinal": true,
+   "output": "eighty-ninth"
+  },
+  {
+   "input": 90,
+   "ordinal": false,
+   "output": "ninety"
+  },
+  {
+   "input": 90,
+   "ordinal": true,
+   "output": "ninetieth"
+  },
+  {
+   "input": 91,
+   "ordinal": false,
+   "output": "ninety-one"
+  },
+  {
+   "input": 91,
+   "ordinal": true,
+   "output": "ninety-first"
+  },
+  {
+   "input": 92,
+   "ordinal": false,
+   "output": "ninety-two"
+  },
+  {
+   "input": 92,
+   "ordinal": true,
+   "output": "ninety-second"
+  },
+  {
+   "input": 93,
+   "ordinal": false,
+   "output": "ninety-three"
+  },
+  {
+   "input": 93,
+   "ordinal": true,
+   "output": "ninety-third"
+  },
+  {
+   "input": 94,
+   "ordinal": false,
+   "output": "ninety-four"
+  },
+  {
+   "input": 94,
+   "ordinal": true,
+   "output": "ninety-fourth"
+  },
+  {
+   "input": 95,
+   "ordinal": false,
+   "output": "ninety-five"
+  },
+  {
+   "input": 95,
+   "ordinal": true,
+   "output": "ninety-fifth"
+  },
+  {
+   "input": 96,
+   "ordinal": false,
+   "output": "ninety-six"
+  },
+  {
+   "input": 96,
+   "ordinal": true,
+   "output": "ninety-sixth"
+  },
+  {
+   "input": 97,
+   "ordinal": false,
+   "output": "ninety-seven"
+  },
+  {
+   "input": 97,
+   "ordinal": true,
+   "output": "ninety-seventh"
+  },
+  {
+   "input": 98,
+   "ordinal": false,
+   "output": "ninety-eight"
+  },
+  {
+   "input": 98,
+   "ordinal": true,
+   "output": "ninety-eighth"
+  },
+  {
+   "input": 99,
+   "ordinal": false,
+   "output": "ninety-nine"
+  },
+  {
+   "input": 99,
+   "ordinal": true,
+   "output": "ninety-ninth"
+  },
+  {
+   "input": 100,
+   "ordinal": false,
+   "output": "one hundred"
+  },
+  {
+   "input": 100,
+   "ordinal": true,
+   "output": "one hundredth"
+  },
+  {
+   "input": 101,
+   "ordinal": false,
+   "output": "one hundred and one"
+  },
+  {
+   "input": 101,
+   "ordinal": true,
+   "output": "one hundred and first"
+  },
+  {
+   "input": 102,
+   "ordinal": false,
+   "output": "one hundred and two"
+  },
+  {
+   "input": 102,
+   "ordinal": true,
+   "output": "one hundred and second"
+  },
+  {
+   "input": 103,
+   "ordinal": false,
+   "output": "one hundred and three"
+  },
+  {
+   "input": 103,
+   "ordinal": true,
+   "output": "one hundred and third"
+  },
+  {
+   "input": 104,
+   "ordinal": false,
+   "output": "one hundred and four"
+  },
+  {
+   "input": 104,
+   "ordinal": true,
+   "output": "one hundred and fourth"
+  },
+  {
+   "input": 105,
+   "ordinal": false,
+   "output": "one hundred and five"
+  },
+  {
+   "input": 105,
+   "ordinal": true,
+   "output": "one hundred and fifth"
+  },
+  {
+   "input": 106,
+   "ordinal": false,
+   "output": "one hundred and six"
+  },
+  {
+   "input": 106,
+   "ordinal": true,
+   "output": "one hundred and sixth"
+  },
+  {
+   "input": 107,
+   "ordinal": false,
+   "output": "one hundred and seven"
+  },
+  {
+   "input": 107,
+   "ordinal": true,
+   "output": "one hundred and seventh"
+  },
+  {
+   "input": 108,
+   "ordinal": false,
+   "output": "one hundred and eight"
+  },
+  {
+   "input": 108,
+   "ordinal": true,
+   "output": "one hundred and eighth"
+  },
+  {
+   "input": 109,
+   "ordinal": false,
+   "output": "one hundred and nine"
+  },
+  {
+   "input": 109,
+   "ordinal": true,
+   "output": "one hundred and ninth"
+  },
+  {
+   "input": 110,
+   "ordinal": false,
+   "output": "one hundred and ten"
+  },
+  {
+   "input": 110,
+   "ordinal": true,
+   "output": "one hundred and tenth"
+  },
+  {
+   "input": 111,
+   "ordinal": false,
+   "output": "one hundred and eleven"
+  },
+  {
+   "input": 111,
+   "ordinal": true,
+   "output": "one hundred and eleventh"
+  },
+  {
+   "input": 112,
+   "ordinal": false,
+   "output": "one hundred and twelve"
+  },
+  {
+   "input": 112,
+   "ordinal": true,
+   "output": "one hundred and twelfth"
+  },
+  {
+   "input": 113,
+   "ordinal": false,
+   "output": "one hundred and thirteen"
+  },
+  {
+   "input": 113,
+   "ordinal": true,
+   "output": "one hundred and thirteenth"
+  },
+  {
+   "input": 114,
+   "ordinal": false,
+   "output": "one hundred and fourteen"
+  },
+  {
+   "input": 114,
+   "ordinal": true,
+   "output": "one hundred and fourteenth"
+  },
+  {
+   "input": 115,
+   "ordinal": false,
+   "output": "one hundred and fifteen"
+  },
+  {
+   "input": 115,
+   "ordinal": true,
+   "output": "one hundred and fifteenth"
+  },
+  {
+   "input": 116,
+   "ordinal": false,
+   "output": "one hundred and sixteen"
+  },
+  {
+   "input": 116,
+   "ordinal": true,
+   "output": "one hundred and sixteenth"
+  },
+  {
+   "input": 117,
+   "ordinal": false,
+   "output": "one hundred and seventeen"
+  },
+  {
+   "input": 117,
+   "ordinal": true,
+   "output": "one hundred and seventeenth"
+  },
+  {
+   "input": 118,
+   "ordinal": false,
+   "output": "one hundred and eighteen"
+  },
+  {
+   "input": 118,
+   "ordinal": true,
+   "output": "one hundred and eighteenth"
+  },
+  {
+   "input": 119,
+   "ordinal": false,
+   "output": "one hundred and nineteen"
+  },
+  {
+   "input": 119,
+   "ordinal": true,
+   "output": "one hundred and nineteenth"
+  },
+  {
+   "input": 120,
+   "ordinal": false,
+   "output": "one hundred and twenty"
+  },
+  {
+   "input": 120,
+   "ordinal": true,
+   "output": "one hundred and twentieth"
+  },
+  {
+   "input": 121,
+   "ordinal": false,
+   "output": "one hundred and twenty-one"
+  },
+  {
+   "input": 121,
+   "ordinal": true,
+   "output": "one hundred and twenty-first"
+  },
+  {
+   "input": 122,
+   "ordinal": false,
+   "output": "one hundred and twenty-two"
+  },
+  {
+   "input": 122,
+   "ordinal": true,
+   "output": "one hundred and twenty-second"
+  },
+  {
+   "input": 123,
+   "ordinal": false,
+   "output": "one hundred and twenty-three"
+  },
+  {
+   "input": 123,
+   "ordinal": true,
+   "output": "one hundred and twenty-third"
+  },
+  {
+   "input": 124,
+   "ordinal": false,
+   "output": "one hundred and twenty-four"
+  },
+  {
+   "input": 124,
+   "ordinal": true,
+   "output": "one hundred and twenty-fourth"
+  },
+  {
+   "input": 125,
+   "ordinal": false,
+   "output": "one hundred and twenty-five"
+  },
+  {
+   "input": 125,
+   "ordinal": true,
+   "output": "one hundred and twenty-fifth"
+  },
+  {
+   "input": 999,
+   "ordinal": false,
+   "output": "nine hundred and ninety-nine"
+  },
+  {
+   "input": 999,
+   "ordinal": true,
+   "output": "nine hundred and ninety-ninth"
+  },
+  {
+   "input": 1000,
+   "ordinal": false,
+   "output": "one thousand"
+  },
+  {
+   "input": 1000,
+   "ordinal": true,
+   "output": "one thousandth"
+  },
+  {
+   "input": 1001,
+   "ordinal": false,
+   "output": "one thousand and one"
+  },
+  {
+   "input": 1001,
+   "ordinal": true,
+   "output": "one thousand and first"
+  },
+  {
+   "input": 1020,
+   "ordinal": false,
+   "output": "one thousand and twenty"
+  },
+  {
+   "input": 1020,
+   "ordinal": true,
+   "output": "one thousand and twentieth"
+  },
+  {
+   "input": 2005,
+   "ordinal": false,
+   "output": "two thousand and five"
+  },
+  {
+   "input": 2005,
+   "ordinal": true,
+   "output": "two thousand and fifth"
+  },
+  {
+   "input": 70000,
+   "ordinal": false,
+   "output": "seventy thousand"
+  },
+  {
+   "input": 70000,
+   "ordinal": true,
+   "output": "seventy thousandth"
+  },
+  {
+   "input": 1000000,
+   "ordinal": false,
+   "output": "one million"
+  },
+  {
+   "input": 1000000,
+   "ordinal": true,
+   "output": "one millionth"
+  },
+  {
+   "input": 1000001,
+   "ordinal": false,
+   "output": "one million and one"
+  },
+  {
+   "input": 1000001,
+   "ordinal": true,
+   "output": "one million and first"
+  },
+  {
+   "input": 1000000000,
+   "ordinal": false,
+   "output": "one billion"
+  },
+  {
+   "input": 1000000000,
+   "ordinal": true,
+   "output": "one billionth"
+  },
+  {
+   "input": 999999999999,
+   "ordinal": false,
+   "output": "nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-nine"
+  },
+  {
+   "input": 999999999999,
+   "ordinal": true,
+   "output": "nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-ninth"
+  }
+ ],
+ "tokens": [
+  {
+   "input": "0",
+   "pronunciation": "0",
+   "abbreviation": "0",
+   "number": "zero",
+   "punctuation": "0",
+   "prepared": "zero"
+  },
+  {
+   "input": "0th",
+   "pronunciation": "0th",
+   "abbreviation": "0th",
+   "number": "zeroth",
+   "punctuation": "0th",
+   "prepared": "zeroth"
+  },
+  {
+   "input": "(0),",
+   "pronunciation": "(0),",
+   "abbreviation": "(0),",
+   "number": "(zero),",
+   "punctuation": "(0),",
+   "prepared": "(zero),"
+  },
+  {
+   "input": "1",
+   "pronunciation": "1",
+   "abbreviation": "1",
+   "number": "one",
+   "punctuation": "1",
+   "prepared": "one"
+  },
+  {
+   "input": "1th",
+   "pronunciation": "1th",
+   "abbreviation": "1th",
+   "number": "first",
+   "punctuation": "1th",
+   "prepared": "first"
+  },
+  {
+   "input": "(1),",
+   "pronunciation": "(1),",
+   "abbreviation": "(1),",
+   "number": "(one),",
+   "punctuation": "(1),",
+   "prepared": "(one),"
+  },
+  {
+   "input": "2",
+   "pronunciation": "2",
+   "abbreviation": "2",
+   "number": "two",
+   "punctuation": "2",
+   "prepared": "two"
+  },
+  {
+   "input": "2th",
+   "pronunciation": "2th",
+   "abbreviation": "2th",
+   "number": "second",
+   "punctuation": "2th",
+   "prepared": "second"
+  },
+  {
+   "input": "(2),",
+   "pronunciation": "(2),",
+   "abbreviation": "(2),",
+   "number": "(two),",
+   "punctuation": "(2),",
+   "prepared": "(two),"
+  },
+  {
+   "input": "3",
+   "pronunciation": "3",
+   "abbreviation": "3",
+   "number": "three",
+   "punctuation": "3",
+   "prepared": "three"
+  },
+  {
+   "input": "3th",
+   "pronunciation": "3th",
+   "abbreviation": "3th",
+   "number": "third",
+   "punctuation": "3th",
+   "prepared": "third"
+  },
+  {
+   "input": "(3),",
+   "pronunciation": "(3),",
+   "abbreviation": "(3),",
+   "number": "(three),",
+   "punctuation": "(3),",
+   "prepared": "(three),"
+  },
+  {
+   "input": "4",
+   "pronunciation": "4",
+   "abbreviation": "4",
+   "number": "four",
+   "punctuation": "4",
+   "prepared": "four"
+  },
+  {
+   "input": "4th",
+   "pronunciation": "4th",
+   "abbreviation": "4th",
+   "number": "fourth",
+   "punctuation": "4th",
+   "prepared": "fourth"
+  },
+  {
+   "input": "(4),",
+   "pronunciation": "(4),",
+   "abbreviation": "(4),",
+   "number": "(four),",
+   "punctuation": "(4),",
+   "prepared": "(four),"
+  },
+  {
+   "input": "5",
+   "pronunciation": "5",
+   "abbreviation": "5",
+   "number": "five",
+   "punctuation": "5",
+   "prepared": "five"
+  },
+  {
+   "input": "5th",
+   "pronunciation": "5th",
+   "abbreviation": "5th",
+   "number": "fifth",
+   "punctuation": "5th",
+   "prepared": "fifth"
+  },
+  {
+   "input": "(5),",
+   "pronunciation": "(5),",
+   "abbreviation": "(5),",
+   "number": "(five),",
+   "punctuation": "(5),",
+   "prepared": "(five),"
+  },
+  {
+   "input": "6",
+   "pronunciation": "6",
+   "abbreviation": "6",
+   "number": "six",
+   "punctuation": "6",
+   "prepared": "six"
+  },
+  {
+   "input": "6th",
+   "pronunciation": "6th",
+   "abbreviation": "6th",
+   "number": "sixth",
+   "punctuation": "6th",
+   "prepared": "sixth"
+  },
+  {
+   "input": "(6),",
+   "pronunciation": "(6),",
+   "abbreviation": "(6),",
+   "number": "(six),",
+   "punctuation": "(6),",
+   "prepared": "(six),"
+  },
+  {
+   "input": "7",
+   "pronunciation": "7",
+   "abbreviation": "7",
+   "number": "seven",
+   "punctuation": "7",
+   "prepared": "seven"
+  },
+  {
+   "input": "7th",
+   "pronunciation": "7th",
+   "abbreviation": "7th",
+   "number": "seventh",
+   "punctuation": "7th",
+   "prepared": "seventh"
+  },
+  {
+   "input": "(7),",
+   "pronunciation": "(7),",
+   "abbreviation": "(7),",
+   "number": "(seven),",
+   "punctuation": "(7),",
+   "prepared": "(seven),"
+  },
+  {
+   "input": "8",
+   "pronunciation": "8",
+   "abbreviation": "8",
+   "number": "eight",
+   "punctuation": "8",
+   "prepared": "eight"
+  },
+  {
+   "input": "8th",
+   "pronunciation": "8th",
+   "abbreviation": "8th",
+   "number": "eighth",
+   "punctuation": "8th",
+   "prepared": "eighth"
+  },
+  {
+   "input": "(8),",
+   "pronunciation": "(8),",
+   "abbreviation": "(8),",
+   "number": "(eight),",
+   "punctuation": "(8),",
+   "prepared": "(eight),"
+  },
+  {
+   "input": "9",
+   "pronunciation": "9",
+   "abbreviation": "9",
+   "number": "nine",
+   "punctuation": "9",
+   "prepared": "nine"
+  },
+  {
+   "input": "9th",
+   "pronunciation": "9th",
+   "abbreviation": "9th",
+   "number": "ninth",
+   "punctuation": "9th",
+   "prepared": "ninth"
+  },
+  {
+   "input": "(9),",
+   "pronunciation": "(9),",
+   "abbreviation": "(9),",
+   "number": "(nine),",
+   "punctuation": "(9),",
+   "prepared": "(nine),"
+  },
+  {
+   "input": "10",
+   "pronunciation": "10",
+   "abbreviation": "10",
+   "number": "ten",
+   "punctuation": "10",
+   "prepared": "ten"
+  },
+  {
+   "input": "10th",
+   "pronunciation": "10th",
+   "abbreviation": "10th",
+   "number": "tenth",
+   "punctuation": "10th",
+   "prepared": "tenth"
+  },
+  {
+   "input": "(10),",
+   "pronunciation": "(10),",
+   "abbreviation": "(10),",
+   "number": "(ten),",
+   "punctuation": "(10),",
+   "prepared": "(ten),"
+  },
+  {
+   "input": "11",
+   "pronunciation": "11",
+   "abbreviation": "11",
+   "number": "eleven",
+   "punctuation": "11",
+   "prepared": "eleven"
+  },
+  {
+   "input": "11th",
+   "pronunciation": "11th",
+   "abbreviation": "11th",
+   "number": "eleventh",
+   "punctuation": "11th",
+   "prepared": "eleventh"
+  },
+  {
+   "input": "(11),",
+   "pronunciation": "(11),",
+   "abbreviation": "(11),",
+   "number": "(eleven),",
+   "punctuation": "(11),",
+   "prepared": "(eleven),"
+  },
+  {
+   "input": "12",
+   "pronunciation": "12",
+   "abbreviation": "12",
+   "number": "twelve",
+   "punctuation": "12",
+   "prepared": "twelve"
+  },
+  {
+   "input": "12th",
+   "pronunciation": "12th",
+   "abbreviation": "12th",
+   "number": "twelfth",
+   "punctuation": "12th",
+   "prepared": "twelfth"
+  },
+  {
+   "input": "(12),",
+   "pronunciation": "(12),",
+   "abbreviation": "(12),",
+   "number": "(twelve),",
+   "punctuation": "(12),",
+   "prepared": "(twelve),"
+  },
+  {
+   "input": "13",
+   "pronunciation": "13",
+   "abbreviation": "13",
+   "number": "thirteen",
+   "punctuation": "13",
+   "prepared": "thirteen"
+  },
+  {
+   "input": "13th",
+   "pronunciation": "13th",
+   "abbreviation": "13th",
+   "number": "thirteenth",
+   "punctuation": "13th",
+   "prepared": "thirteenth"
+  },
+  {
+   "input": "(13),",
+   "pronunciation": "(13),",
+   "abbreviation": "(13),",
+   "number": "(thirteen),",
+   "punctuation": "(13),",
+   "prepared": "(thirteen),"
+  },
+  {
+   "input": "14",
+   "pronunciation": "14",
+   "abbreviation": "14",
+   "number": "fourteen",
+   "punctuation": "14",
+   "prepared": "fourteen"
+  },
+  {
+   "input": "14th",
+   "pronunciation": "14th",
+   "abbreviation": "14th",
+   "number": "fourteenth",
+   "punctuation": "14th",
+   "prepared": "fourteenth"
+  },
+  {
+   "input": "(14),",
+   "pronunciation": "(14),",
+   "abbreviation": "(14),",
+   "number": "(fourteen),",
+   "punctuation": "(14),",
+   "prepared": "(fourteen),"
+  },
+  {
+   "input": "15",
+   "pronunciation": "15",
+   "abbreviation": "15",
+   "number": "fifteen",
+   "punctuation": "15",
+   "prepared": "fifteen"
+  },
+  {
+   "input": "15th",
+   "pronunciation": "15th",
+   "abbreviation": "15th",
+   "number": "fifteenth",
+   "punctuation": "15th",
+   "prepared": "fifteenth"
+  },
+  {
+   "input": "(15),",
+   "pronunciation": "(15),",
+   "abbreviation": "(15),",
+   "number": "(fifteen),",
+   "punctuation": "(15),",
+   "prepared": "(fifteen),"
+  },
+  {
+   "input": "16",
+   "pronunciation": "16",
+   "abbreviation": "16",
+   "number": "sixteen",
+   "punctuation": "16",
+   "prepared": "sixteen"
+  },
+  {
+   "input": "16th",
+   "pronunciation": "16th",
+   "abbreviation": "16th",
+   "number": "sixteenth",
+   "punctuation": "16th",
+   "prepared": "sixteenth"
+  },
+  {
+   "input": "(16),",
+   "pronunciation": "(16),",
+   "abbreviation": "(16),",
+   "number": "(sixteen),",
+   "punctuation": "(16),",
+   "prepared": "(sixteen),"
+  },
+  {
+   "input": "17",
+   "pronunciation": "17",
+   "abbreviation": "17",
+   "number": "seventeen",
+   "punctuation": "17",
+   "prepared": "seventeen"
+  },
+  {
+   "input": "17th",
+   "pronunciation": "17th",
+   "abbreviation": "17th",
+   "number": "seventeenth",
+   "punctuation": "17th",
+   "prepared": "seventeenth"
+  },
+  {
+   "input": "(17),",
+   "pronunciation": "(17),",
+   "abbreviation": "(17),",
+   "number": "(seventeen),",
+   "punctuation": "(17),",
+   "prepared": "(seventeen),"
+  },
+  {
+   "input": "18",
+   "pronunciation": "18",
+   "abbreviation": "18",
+   "number": "eighteen",
+   "punctuation": "18",
+   "prepared": "eighteen"
+  },
+  {
+   "input": "18th",
+   "pronunciation": "18th",
+   "abbreviation": "18th",
+   "number": "eighteenth",
+   "punctuation": "18th",
+   "prepared": "eighteenth"
+  },
+  {
+   "input": "(18),",
+   "pronunciation": "(18),",
+   "abbreviation": "(18),",
+   "number": "(eighteen),",
+   "punctuation": "(18),",
+   "prepared": "(eighteen),"
+  },
+  {
+   "input": "19",
+   "pronunciation": "19",
+   "abbreviation": "19",
+   "number": "nineteen",
+   "punctuation": "19",
+   "prepared": "nineteen"
+  },
+  {
+   "input": "19th",
+   "pronunciation": "19th",
+   "abbreviation": "19th",
+   "number": "nineteenth",
+   "punctuation": "19th",
+   "prepared": "nineteenth"
+  },
+  {
+   "input": "(19),",
+   "pronunciation": "(19),",
+   "abbreviation": "(19),",
+   "number": "(nineteen),",
+   "punctuation": "(19),",
+   "prepared": "(nineteen),"
+  },
+  {
+   "input": "20",
+   "pronunciation": "20",
+   "abbreviation": "20",
+   "number": "twenty",
+   "punctuation": "20",
+   "prepared": "twenty"
+  },
+  {
+   "input": "20th",
+   "pronunciation": "20th",
+   "abbreviation": "20th",
+   "number": "twentieth",
+   "punctuation": "20th",
+   "prepared": "twentieth"
+  },
+  {
+   "input": "(20),",
+   "pronunciation": "(20),",
+   "abbreviation": "(20),",
+   "number": "(twenty),",
+   "punctuation": "(20),",
+   "prepared": "(twenty),"
+  },
+  {
+   "input": "21",
+   "pronunciation": "21",
+   "abbreviation": "21",
+   "number": "twenty-one",
+   "punctuation": "21",
+   "prepared": "twenty-one"
+  },
+  {
+   "input": "21th",
+   "pronunciation": "21th",
+   "abbreviation": "21th",
+   "number": "twenty-first",
+   "punctuation": "21th",
+   "prepared": "twenty-first"
+  },
+  {
+   "input": "(21),",
+   "pronunciation": "(21),",
+   "abbreviation": "(21),",
+   "number": "(twenty-one),",
+   "punctuation": "(21),",
+   "prepared": "(twenty-one),"
+  },
+  {
+   "input": "22",
+   "pronunciation": "22",
+   "abbreviation": "22",
+   "number": "twenty-two",
+   "punctuation": "22",
+   "prepared": "twenty-two"
+  },
+  {
+   "input": "22th",
+   "pronunciation": "22th",
+   "abbreviation": "22th",
+   "number": "twenty-second",
+   "punctuation": "22th",
+   "prepared": "twenty-second"
+  },
+  {
+   "input": "(22),",
+   "pronunciation": "(22),",
+   "abbreviation": "(22),",
+   "number": "(twenty-two),",
+   "punctuation": "(22),",
+   "prepared": "(twenty-two),"
+  },
+  {
+   "input": "23",
+   "pronunciation": "23",
+   "abbreviation": "23",
+   "number": "twenty-three",
+   "punctuation": "23",
+   "prepared": "twenty-three"
+  },
+  {
+   "input": "23th",
+   "pronunciation": "23th",
+   "abbreviation": "23th",
+   "number": "twenty-third",
+   "punctuation": "23th",
+   "prepared": "twenty-third"
+  },
+  {
+   "input": "(23),",
+   "pronunciation": "(23),",
+   "abbreviation": "(23),",
+   "number": "(twenty-three),",
+   "punctuation": "(23),",
+   "prepared": "(twenty-three),"
+  },
+  {
+   "input": "24",
+   "pronunciation": "24",
+   "abbreviation": "24",
+   "number": "twenty-four",
+   "punctuation": "24",
+   "prepared": "twenty-four"
+  },
+  {
+   "input": "24th",
+   "pronunciation": "24th",
+   "abbreviation": "24th",
+   "number": "twenty-fourth",
+   "punctuation": "24th",
+   "prepared": "twenty-fourth"
+  },
+  {
+   "input": "(24),",
+   "pronunciation": "(24),",
+   "abbreviation": "(24),",
+   "number": "(twenty-four),",
+   "punctuation": "(24),",
+   "prepared": "(twenty-four),"
+  },
+  {
+   "input": "25",
+   "pronunciation": "25",
+   "abbreviation": "25",
+   "number": "twenty-five",
+   "punctuation": "25",
+   "prepared": "twenty-five"
+  },
+  {
+   "input": "25th",
+   "pronunciation": "25th",
+   "abbreviation": "25th",
+   "number": "twenty-fifth",
+   "punctuation": "25th",
+   "prepared": "twenty-fifth"
+  },
+  {
+   "input": "(25),",
+   "pronunciation": "(25),",
+   "abbreviation": "(25),",
+   "number": "(twenty-five),",
+   "punctuation": "(25),",
+   "prepared": "(twenty-five),"
+  },
+  {
+   "input": "26",
+   "pronunciation": "26",
+   "abbreviation": "26",
+   "number": "twenty-six",
+   "punctuation": "26",
+   "prepared": "twenty-six"
+  },
+  {
+   "input": "26th",
+   "pronunciation": "26th",
+   "abbreviation": "26th",
+   "number": "twenty-sixth",
+   "punctuation": "26th",
+   "prepared": "twenty-sixth"
+  },
+  {
+   "input": "(26),",
+   "pronunciation": "(26),",
+   "abbreviation": "(26),",
+   "number": "(twenty-six),",
+   "punctuation": "(26),",
+   "prepared": "(twenty-six),"
+  },
+  {
+   "input": "27",
+   "pronunciation": "27",
+   "abbreviation": "27",
+   "number": "twenty-seven",
+   "punctuation": "27",
+   "prepared": "twenty-seven"
+  },
+  {
+   "input": "27th",
+   "pronunciation": "27th",
+   "abbreviation": "27th",
+   "number": "twenty-seventh",
+   "punctuation": "27th",
+   "prepared": "twenty-seventh"
+  },
+  {
+   "input": "(27),",
+   "pronunciation": "(27),",
+   "abbreviation": "(27),",
+   "number": "(twenty-seven),",
+   "punctuation": "(27),",
+   "prepared": "(twenty-seven),"
+  },
+  {
+   "input": "28",
+   "pronunciation": "28",
+   "abbreviation": "28",
+   "number": "twenty-eight",
+   "punctuation": "28",
+   "prepared": "twenty-eight"
+  },
+  {
+   "input": "28th",
+   "pronunciation": "28th",
+   "abbreviation": "28th",
+   "number": "twenty-eighth",
+   "punctuation": "28th",
+   "prepared": "twenty-eighth"
+  },
+  {
+   "input": "(28),",
+   "pronunciation": "(28),",
+   "abbreviation": "(28),",
+   "number": "(twenty-eight),",
+   "punctuation": "(28),",
+   "prepared": "(twenty-eight),"
+  },
+  {
+   "input": "29",
+   "pronunciation": "29",
+   "abbreviation": "29",
+   "number": "twenty-nine",
+   "punctuation": "29",
+   "prepared": "twenty-nine"
+  },
+  {
+   "input": "29th",
+   "pronunciation": "29th",
+   "abbreviation": "29th",
+   "number": "twenty-ninth",
+   "punctuation": "29th",
+   "prepared": "twenty-ninth"
+  },
+  {
+   "input": "(29),",
+   "pronunciation": "(29),",
+   "abbreviation": "(29),",
+   "number": "(twenty-nine),",
+   "punctuation": "(29),",
+   "prepared": "(twenty-nine),"
+  },
+  {
+   "input": "30",
+   "pronunciation": "30",
+   "abbreviation": "30",
+   "number": "thirty",
+   "punctuation": "30",
+   "prepared": "thirty"
+  },
+  {
+   "input": "30th",
+   "pronunciation": "30th",
+   "abbreviation": "30th",
+   "number": "thirtieth",
+   "punctuation": "30th",
+   "prepared": "thirtieth"
+  },
+  {
+   "input": "(30),",
+   "pronunciation": "(30),",
+   "abbreviation": "(30),",
+   "number": "(thirty),",
+   "punctuation": "(30),",
+   "prepared": "(thirty),"
+  },
+  {
+   "input": "31",
+   "pronunciation": "31",
+   "abbreviation": "31",
+   "number": "thirty-one",
+   "punctuation": "31",
+   "prepared": "thirty-one"
+  },
+  {
+   "input": "31th",
+   "pronunciation": "31th",
+   "abbreviation": "31th",
+   "number": "thirty-first",
+   "punctuation": "31th",
+   "prepared": "thirty-first"
+  },
+  {
+   "input": "(31),",
+   "pronunciation": "(31),",
+   "abbreviation": "(31),",
+   "number": "(thirty-one),",
+   "punctuation": "(31),",
+   "prepared": "(thirty-one),"
+  },
+  {
+   "input": "32",
+   "pronunciation": "32",
+   "abbreviation": "32",
+   "number": "thirty-two",
+   "punctuation": "32",
+   "prepared": "thirty-two"
+  },
+  {
+   "input": "32th",
+   "pronunciation": "32th",
+   "abbreviation": "32th",
+   "number": "thirty-second",
+   "punctuation": "32th",
+   "prepared": "thirty-second"
+  },
+  {
+   "input": "(32),",
+   "pronunciation": "(32),",
+   "abbreviation": "(32),",
+   "number": "(thirty-two),",
+   "punctuation": "(32),",
+   "prepared": "(thirty-two),"
+  },
+  {
+   "input": "33",
+   "pronunciation": "33",
+   "abbreviation": "33",
+   "number": "thirty-three",
+   "punctuation": "33",
+   "prepared": "thirty-three"
+  },
+  {
+   "input": "33th",
+   "pronunciation": "33th",
+   "abbreviation": "33th",
+   "number": "thirty-third",
+   "punctuation": "33th",
+   "prepared": "thirty-third"
+  },
+  {
+   "input": "(33),",
+   "pronunciation": "(33),",
+   "abbreviation": "(33),",
+   "number": "(thirty-three),",
+   "punctuation": "(33),",
+   "prepared": "(thirty-three),"
+  },
+  {
+   "input": "34",
+   "pronunciation": "34",
+   "abbreviation": "34",
+   "number": "thirty-four",
+   "punctuation": "34",
+   "prepared": "thirty-four"
+  },
+  {
+   "input": "34th",
+   "pronunciation": "34th",
+   "abbreviation": "34th",
+   "number": "thirty-fourth",
+   "punctuation": "34th",
+   "prepared": "thirty-fourth"
+  },
+  {
+   "input": "(34),",
+   "pronunciation": "(34),",
+   "abbreviation": "(34),",
+   "number": "(thirty-four),",
+   "punctuation": "(34),",
+   "prepared": "(thirty-four),"
+  },
+  {
+   "input": "35",
+   "pronunciation": "35",
+   "abbreviation": "35",
+   "number": "thirty-five",
+   "punctuation": "35",
+   "prepared": "thirty-five"
+  },
+  {
+   "input": "35th",
+   "pronunciation": "35th",
+   "abbreviation": "35th",
+   "number": "thirty-fifth",
+   "punctuation": "35th",
+   "prepared": "thirty-fifth"
+  },
+  {
+   "input": "(35),",
+   "pronunciation": "(35),",
+   "abbreviation": "(35),",
+   "number": "(thirty-five),",
+   "punctuation": "(35),",
+   "prepared": "(thirty-five),"
+  },
+  {
+   "input": "36",
+   "pronunciation": "36",
+   "abbreviation": "36",
+   "number": "thirty-six",
+   "punctuation": "36",
+   "prepared": "thirty-six"
+  },
+  {
+   "input": "36th",
+   "pronunciation": "36th",
+   "abbreviation": "36th",
+   "number": "thirty-sixth",
+   "punctuation": "36th",
+   "prepared": "thirty-sixth"
+  },
+  {
+   "input": "(36),",
+   "pronunciation": "(36),",
+   "abbreviation": "(36),",
+   "number": "(thirty-six),",
+   "punctuation": "(36),",
+   "prepared": "(thirty-six),"
+  },
+  {
+   "input": "37",
+   "pronunciation": "37",
+   "abbreviation": "37",
+   "number": "thirty-seven",
+   "punctuation": "37",
+   "prepared": "thirty-seven"
+  },
+  {
+   "input": "37th",
+   "pronunciation": "37th",
+   "abbreviation": "37th",
+   "number": "thirty-seventh",
+   "punctuation": "37th",
+   "prepared": "thirty-seventh"
+  },
+  {
+   "input": "(37),",
+   "pronunciation": "(37),",
+   "abbreviation": "(37),",
+   "number": "(thirty-seven),",
+   "punctuation": "(37),",
+   "prepared": "(thirty-seven),"
+  },
+  {
+   "input": "38",
+   "pronunciation": "38",
+   "abbreviation": "38",
+   "number": "thirty-eight",
+   "punctuation": "38",
+   "prepared": "thirty-eight"
+  },
+  {
+   "input": "38th",
+   "pronunciation": "38th",
+   "abbreviation": "38th",
+   "number": "thirty-eighth",
+   "punctuation": "38th",
+   "prepared": "thirty-eighth"
+  },
+  {
+   "input": "(38),",
+   "pronunciation": "(38),",
+   "abbreviation": "(38),",
+   "number": "(thirty-eight),",
+   "punctuation": "(38),",
+   "prepared": "(thirty-eight),"
+  },
+  {
+   "input": "39",
+   "pronunciation": "39",
+   "abbreviation": "39",
+   "number": "thirty-nine",
+   "punctuation": "39",
+   "prepared": "thirty-nine"
+  },
+  {
+   "input": "39th",
+   "pronunciation": "39th",
+   "abbreviation": "39th",
+   "number": "thirty-ninth",
+   "punctuation": "39th",
+   "prepared": "thirty-ninth"
+  },
+  {
+   "input": "(39),",
+   "pronunciation": "(39),",
+   "abbreviation": "(39),",
+   "number": "(thirty-nine),",
+   "punctuation": "(39),",
+   "prepared": "(thirty-nine),"
+  },
+  {
+   "input": "40",
+   "pronunciation": "40",
+   "abbreviation": "40",
+   "number": "forty",
+   "punctuation": "40",
+   "prepared": "forty"
+  },
+  {
+   "input": "40th",
+   "pronunciation": "40th",
+   "abbreviation": "40th",
+   "number": "fortieth",
+   "punctuation": "40th",
+   "prepared": "fortieth"
+  },
+  {
+   "input": "(40),",
+   "pronunciation": "(40),",
+   "abbreviation": "(40),",
+   "number": "(forty),",
+   "punctuation": "(40),",
+   "prepared": "(forty),"
+  },
+  {
+   "input": "41",
+   "pronunciation": "41",
+   "abbreviation": "41",
+   "number": "forty-one",
+   "punctuation": "41",
+   "prepared": "forty-one"
+  },
+  {
+   "input": "41th",
+   "pronunciation": "41th",
+   "abbreviation": "41th",
+   "number": "forty-first",
+   "punctuation": "41th",
+   "prepared": "forty-first"
+  },
+  {
+   "input": "(41),",
+   "pronunciation": "(41),",
+   "abbreviation": "(41),",
+   "number": "(forty-one),",
+   "punctuation": "(41),",
+   "prepared": "(forty-one),"
+  },
+  {
+   "input": "42",
+   "pronunciation": "42",
+   "abbreviation": "42",
+   "number": "forty-two",
+   "punctuation": "42",
+   "prepared": "forty-two"
+  },
+  {
+   "input": "42th",
+   "pronunciation": "42th",
+   "abbreviation": "42th",
+   "number": "forty-second",
+   "punctuation": "42th",
+   "prepared": "forty-second"
+  },
+  {
+   "input": "(42),",
+   "pronunciation": "(42),",
+   "abbreviation": "(42),",
+   "number": "(forty-two),",
+   "punctuation": "(42),",
+   "prepared": "(forty-two),"
+  },
+  {
+   "input": "43",
+   "pronunciation": "43",
+   "abbreviation": "43",
+   "number": "forty-three",
+   "punctuation": "43",
+   "prepared": "forty-three"
+  },
+  {
+   "input": "43th",
+   "pronunciation": "43th",
+   "abbreviation": "43th",
+   "number": "forty-third",
+   "punctuation": "43th",
+   "prepared": "forty-third"
+  },
+  {
+   "input": "(43),",
+   "pronunciation": "(43),",
+   "abbreviation": "(43),",
+   "number": "(forty-three),",
+   "punctuation": "(43),",
+   "prepared": "(forty-three),"
+  },
+  {
+   "input": "44",
+   "pronunciation": "44",
+   "abbreviation": "44",
+   "number": "forty-four",
+   "punctuation": "44",
+   "prepared": "forty-four"
+  },
+  {
+   "input": "44th",
+   "pronunciation": "44th",
+   "abbreviation": "44th",
+   "number": "forty-fourth",
+   "punctuation": "44th",
+   "prepared": "forty-fourth"
+  },
+  {
+   "input": "(44),",
+   "pronunciation": "(44),",
+   "abbreviation": "(44),",
+   "number": "(forty-four),",
+   "punctuation": "(44),",
+   "prepared": "(forty-four),"
+  },
+  {
+   "input": "45",
+   "pronunciation": "45",
+   "abbreviation": "45",
+   "number": "forty-five",
+   "punctuation": "45",
+   "prepared": "forty-five"
+  },
+  {
+   "input": "45th",
+   "pronunciation": "45th",
+   "abbreviation": "45th",
+   "number": "forty-fifth",
+   "punctuation": "45th",
+   "prepared": "forty-fifth"
+  },
+  {
+   "input": "(45),",
+   "pronunciation": "(45),",
+   "abbreviation": "(45),",
+   "number": "(forty-five),",
+   "punctuation": "(45),",
+   "prepared": "(forty-five),"
+  },
+  {
+   "input": "46",
+   "pronunciation": "46",
+   "abbreviation": "46",
+   "number": "forty-six",
+   "punctuation": "46",
+   "prepared": "forty-six"
+  },
+  {
+   "input": "46th",
+   "pronunciation": "46th",
+   "abbreviation": "46th",
+   "number": "forty-sixth",
+   "punctuation": "46th",
+   "prepared": "forty-sixth"
+  },
+  {
+   "input": "(46),",
+   "pronunciation": "(46),",
+   "abbreviation": "(46),",
+   "number": "(forty-six),",
+   "punctuation": "(46),",
+   "prepared": "(forty-six),"
+  },
+  {
+   "input": "47",
+   "pronunciation": "47",
+   "abbreviation": "47",
+   "number": "forty-seven",
+   "punctuation": "47",
+   "prepared": "forty-seven"
+  },
+  {
+   "input": "47th",
+   "pronunciation": "47th",
+   "abbreviation": "47th",
+   "number": "forty-seventh",
+   "punctuation": "47th",
+   "prepared": "forty-seventh"
+  },
+  {
+   "input": "(47),",
+   "pronunciation": "(47),",
+   "abbreviation": "(47),",
+   "number": "(forty-seven),",
+   "punctuation": "(47),",
+   "prepared": "(forty-seven),"
+  },
+  {
+   "input": "48",
+   "pronunciation": "48",
+   "abbreviation": "48",
+   "number": "forty-eight",
+   "punctuation": "48",
+   "prepared": "forty-eight"
+  },
+  {
+   "input": "48th",
+   "pronunciation": "48th",
+   "abbreviation": "48th",
+   "number": "forty-eighth",
+   "punctuation": "48th",
+   "prepared": "forty-eighth"
+  },
+  {
+   "input": "(48),",
+   "pronunciation": "(48),",
+   "abbreviation": "(48),",
+   "number": "(forty-eight),",
+   "punctuation": "(48),",
+   "prepared": "(forty-eight),"
+  },
+  {
+   "input": "49",
+   "pronunciation": "49",
+   "abbreviation": "49",
+   "number": "forty-nine",
+   "punctuation": "49",
+   "prepared": "forty-nine"
+  },
+  {
+   "input": "49th",
+   "pronunciation": "49th",
+   "abbreviation": "49th",
+   "number": "forty-ninth",
+   "punctuation": "49th",
+   "prepared": "forty-ninth"
+  },
+  {
+   "input": "(49),",
+   "pronunciation": "(49),",
+   "abbreviation": "(49),",
+   "number": "(forty-nine),",
+   "punctuation": "(49),",
+   "prepared": "(forty-nine),"
+  },
+  {
+   "input": "50",
+   "pronunciation": "50",
+   "abbreviation": "50",
+   "number": "fifty",
+   "punctuation": "50",
+   "prepared": "fifty"
+  },
+  {
+   "input": "50th",
+   "pronunciation": "50th",
+   "abbreviation": "50th",
+   "number": "fiftieth",
+   "punctuation": "50th",
+   "prepared": "fiftieth"
+  },
+  {
+   "input": "(50),",
+   "pronunciation": "(50),",
+   "abbreviation": "(50),",
+   "number": "(fifty),",
+   "punctuation": "(50),",
+   "prepared": "(fifty),"
+  },
+  {
+   "input": "51",
+   "pronunciation": "51",
+   "abbreviation": "51",
+   "number": "fifty-one",
+   "punctuation": "51",
+   "prepared": "fifty-one"
+  },
+  {
+   "input": "51th",
+   "pronunciation": "51th",
+   "abbreviation": "51th",
+   "number": "fifty-first",
+   "punctuation": "51th",
+   "prepared": "fifty-first"
+  },
+  {
+   "input": "(51),",
+   "pronunciation": "(51),",
+   "abbreviation": "(51),",
+   "number": "(fifty-one),",
+   "punctuation": "(51),",
+   "prepared": "(fifty-one),"
+  },
+  {
+   "input": "52",
+   "pronunciation": "52",
+   "abbreviation": "52",
+   "number": "fifty-two",
+   "punctuation": "52",
+   "prepared": "fifty-two"
+  },
+  {
+   "input": "52th",
+   "pronunciation": "52th",
+   "abbreviation": "52th",
+   "number": "fifty-second",
+   "punctuation": "52th",
+   "prepared": "fifty-second"
+  },
+  {
+   "input": "(52),",
+   "pronunciation": "(52),",
+   "abbreviation": "(52),",
+   "number": "(fifty-two),",
+   "punctuation": "(52),",
+   "prepared": "(fifty-two),"
+  },
+  {
+   "input": "53",
+   "pronunciation": "53",
+   "abbreviation": "53",
+   "number": "fifty-three",
+   "punctuation": "53",
+   "prepared": "fifty-three"
+  },
+  {
+   "input": "53th",
+   "pronunciation": "53th",
+   "abbreviation": "53th",
+   "number": "fifty-third",
+   "punctuation": "53th",
+   "prepared": "fifty-third"
+  },
+  {
+   "input": "(53),",
+   "pronunciation": "(53),",
+   "abbreviation": "(53),",
+   "number": "(fifty-three),",
+   "punctuation": "(53),",
+   "prepared": "(fifty-three),"
+  },
+  {
+   "input": "54",
+   "pronunciation": "54",
+   "abbreviation": "54",
+   "number": "fifty-four",
+   "punctuation": "54",
+   "prepared": "fifty-four"
+  },
+  {
+   "input": "54th",
+   "pronunciation": "54th",
+   "abbreviation": "54th",
+   "number": "fifty-fourth",
+   "punctuation": "54th",
+   "prepared": "fifty-fourth"
+  },
+  {
+   "input": "(54),",
+   "pronunciation": "(54),",
+   "abbreviation": "(54),",
+   "number": "(fifty-four),",
+   "punctuation": "(54),",
+   "prepared": "(fifty-four),"
+  },
+  {
+   "input": "55",
+   "pronunciation": "55",
+   "abbreviation": "55",
+   "number": "fifty-five",
+   "punctuation": "55",
+   "prepared": "fifty-five"
+  },
+  {
+   "input": "55th",
+   "pronunciation": "55th",
+   "abbreviation": "55th",
+   "number": "fifty-fifth",
+   "punctuation": "55th",
+   "prepared": "fifty-fifth"
+  },
+  {
+   "input": "(55),",
+   "pronunciation": "(55),",
+   "abbreviation": "(55),",
+   "number": "(fifty-five),",
+   "punctuation": "(55),",
+   "prepared": "(fifty-five),"
+  },
+  {
+   "input": "56",
+   "pronunciation": "56",
+   "abbreviation": "56",
+   "number": "fifty-six",
+   "punctuation": "56",
+   "prepared": "fifty-six"
+  },
+  {
+   "input": "56th",
+   "pronunciation": "56th",
+   "abbreviation": "56th",
+   "number": "fifty-sixth",
+   "punctuation": "56th",
+   "prepared": "fifty-sixth"
+  },
+  {
+   "input": "(56),",
+   "pronunciation": "(56),",
+   "abbreviation": "(56),",
+   "number": "(fifty-six),",
+   "punctuation": "(56),",
+   "prepared": "(fifty-six),"
+  },
+  {
+   "input": "57",
+   "pronunciation": "57",
+   "abbreviation": "57",
+   "number": "fifty-seven",
+   "punctuation": "57",
+   "prepared": "fifty-seven"
+  },
+  {
+   "input": "57th",
+   "pronunciation": "57th",
+   "abbreviation": "57th",
+   "number": "fifty-seventh",
+   "punctuation": "57th",
+   "prepared": "fifty-seventh"
+  },
+  {
+   "input": "(57),",
+   "pronunciation": "(57),",
+   "abbreviation": "(57),",
+   "number": "(fifty-seven),",
+   "punctuation": "(57),",
+   "prepared": "(fifty-seven),"
+  },
+  {
+   "input": "58",
+   "pronunciation": "58",
+   "abbreviation": "58",
+   "number": "fifty-eight",
+   "punctuation": "58",
+   "prepared": "fifty-eight"
+  },
+  {
+   "input": "58th",
+   "pronunciation": "58th",
+   "abbreviation": "58th",
+   "number": "fifty-eighth",
+   "punctuation": "58th",
+   "prepared": "fifty-eighth"
+  },
+  {
+   "input": "(58),",
+   "pronunciation": "(58),",
+   "abbreviation": "(58),",
+   "number": "(fifty-eight),",
+   "punctuation": "(58),",
+   "prepared": "(fifty-eight),"
+  },
+  {
+   "input": "59",
+   "pronunciation": "59",
+   "abbreviation": "59",
+   "number": "fifty-nine",
+   "punctuation": "59",
+   "prepared": "fifty-nine"
+  },
+  {
+   "input": "59th",
+   "pronunciation": "59th",
+   "abbreviation": "59th",
+   "number": "fifty-ninth",
+   "punctuation": "59th",
+   "prepared": "fifty-ninth"
+  },
+  {
+   "input": "(59),",
+   "pronunciation": "(59),",
+   "abbreviation": "(59),",
+   "number": "(fifty-nine),",
+   "punctuation": "(59),",
+   "prepared": "(fifty-nine),"
+  },
+  {
+   "input": "60",
+   "pronunciation": "60",
+   "abbreviation": "60",
+   "number": "sixty",
+   "punctuation": "60",
+   "prepared": "sixty"
+  },
+  {
+   "input": "60th",
+   "pronunciation": "60th",
+   "abbreviation": "60th",
+   "number": "sixtieth",
+   "punctuation": "60th",
+   "prepared": "sixtieth"
+  },
+  {
+   "input": "(60),",
+   "pronunciation": "(60),",
+   "abbreviation": "(60),",
+   "number": "(sixty),",
+   "punctuation": "(60),",
+   "prepared": "(sixty),"
+  },
+  {
+   "input": "61",
+   "pronunciation": "61",
+   "abbreviation": "61",
+   "number": "sixty-one",
+   "punctuation": "61",
+   "prepared": "sixty-one"
+  },
+  {
+   "input": "61th",
+   "pronunciation": "61th",
+   "abbreviation": "61th",
+   "number": "sixty-first",
+   "punctuation": "61th",
+   "prepared": "sixty-first"
+  },
+  {
+   "input": "(61),",
+   "pronunciation": "(61),",
+   "abbreviation": "(61),",
+   "number": "(sixty-one),",
+   "punctuation": "(61),",
+   "prepared": "(sixty-one),"
+  },
+  {
+   "input": "62",
+   "pronunciation": "62",
+   "abbreviation": "62",
+   "number": "sixty-two",
+   "punctuation": "62",
+   "prepared": "sixty-two"
+  },
+  {
+   "input": "62th",
+   "pronunciation": "62th",
+   "abbreviation": "62th",
+   "number": "sixty-second",
+   "punctuation": "62th",
+   "prepared": "sixty-second"
+  },
+  {
+   "input": "(62),",
+   "pronunciation": "(62),",
+   "abbreviation": "(62),",
+   "number": "(sixty-two),",
+   "punctuation": "(62),",
+   "prepared": "(sixty-two),"
+  },
+  {
+   "input": "63",
+   "pronunciation": "63",
+   "abbreviation": "63",
+   "number": "sixty-three",
+   "punctuation": "63",
+   "prepared": "sixty-three"
+  },
+  {
+   "input": "63th",
+   "pronunciation": "63th",
+   "abbreviation": "63th",
+   "number": "sixty-third",
+   "punctuation": "63th",
+   "prepared": "sixty-third"
+  },
+  {
+   "input": "(63),",
+   "pronunciation": "(63),",
+   "abbreviation": "(63),",
+   "number": "(sixty-three),",
+   "punctuation": "(63),",
+   "prepared": "(sixty-three),"
+  },
+  {
+   "input": "64",
+   "pronunciation": "64",
+   "abbreviation": "64",
+   "number": "sixty-four",
+   "punctuation": "64",
+   "prepared": "sixty-four"
+  },
+  {
+   "input": "64th",
+   "pronunciation": "64th",
+   "abbreviation": "64th",
+   "number": "sixty-fourth",
+   "punctuation": "64th",
+   "prepared": "sixty-fourth"
+  },
+  {
+   "input": "(64),",
+   "pronunciation": "(64),",
+   "abbreviation": "(64),",
+   "number": "(sixty-four),",
+   "punctuation": "(64),",
+   "prepared": "(sixty-four),"
+  },
+  {
+   "input": "65",
+   "pronunciation": "65",
+   "abbreviation": "65",
+   "number": "sixty-five",
+   "punctuation": "65",
+   "prepared": "sixty-five"
+  },
+  {
+   "input": "65th",
+   "pronunciation": "65th",
+   "abbreviation": "65th",
+   "number": "sixty-fifth",
+   "punctuation": "65th",
+   "prepared": "sixty-fifth"
+  },
+  {
+   "input": "(65),",
+   "pronunciation": "(65),",
+   "abbreviation": "(65),",
+   "number": "(sixty-five),",
+   "punctuation": "(65),",
+   "prepared": "(sixty-five),"
+  },
+  {
+   "input": "66",
+   "pronunciation": "66",
+   "abbreviation": "66",
+   "number": "sixty-six",
+   "punctuation": "66",
+   "prepared": "sixty-six"
+  },
+  {
+   "input": "66th",
+   "pronunciation": "66th",
+   "abbreviation": "66th",
+   "number": "sixty-sixth",
+   "punctuation": "66th",
+   "prepared": "sixty-sixth"
+  },
+  {
+   "input": "(66),",
+   "pronunciation": "(66),",
+   "abbreviation": "(66),",
+   "number": "(sixty-six),",
+   "punctuation": "(66),",
+   "prepared": "(sixty-six),"
+  },
+  {
+   "input": "67",
+   "pronunciation": "67",
+   "abbreviation": "67",
+   "number": "sixty-seven",
+   "punctuation": "67",
+   "prepared": "sixty-seven"
+  },
+  {
+   "input": "67th",
+   "pronunciation": "67th",
+   "abbreviation": "67th",
+   "number": "sixty-seventh",
+   "punctuation": "67th",
+   "prepared": "sixty-seventh"
+  },
+  {
+   "input": "(67),",
+   "pronunciation": "(67),",
+   "abbreviation": "(67),",
+   "number": "(sixty-seven),",
+   "punctuation": "(67),",
+   "prepared": "(sixty-seven),"
+  },
+  {
+   "input": "68",
+   "pronunciation": "68",
+   "abbreviation": "68",
+   "number": "sixty-eight",
+   "punctuation": "68",
+   "prepared": "sixty-eight"
+  },
+  {
+   "input": "68th",
+   "pronunciation": "68th",
+   "abbreviation": "68th",
+   "number": "sixty-eighth",
+   "punctuation": "68th",
+   "prepared": "sixty-eighth"
+  },
+  {
+   "input": "(68),",
+   "pronunciation": "(68),",
+   "abbreviation": "(68),",
+   "number": "(sixty-eight),",
+   "punctuation": "(68),",
+   "prepared": "(sixty-eight),"
+  },
+  {
+   "input": "69",
+   "pronunciation": "69",
+   "abbreviation": "69",
+   "number": "sixty-nine",
+   "punctuation": "69",
+   "prepared": "sixty-nine"
+  },
+  {
+   "input": "69th",
+   "pronunciation": "69th",
+   "abbreviation": "69th",
+   "number": "sixty-ninth",
+   "punctuation": "69th",
+   "prepared": "sixty-ninth"
+  },
+  {
+   "input": "(69),",
+   "pronunciation": "(69),",
+   "abbreviation": "(69),",
+   "number": "(sixty-nine),",
+   "punctuation": "(69),",
+   "prepared": "(sixty-nine),"
+  },
+  {
+   "input": "70",
+   "pronunciation": "70",
+   "abbreviation": "70",
+   "number": "seventy",
+   "punctuation": "70",
+   "prepared": "seventy"
+  },
+  {
+   "input": "70th",
+   "pronunciation": "70th",
+   "abbreviation": "70th",
+   "number": "seventieth",
+   "punctuation": "70th",
+   "prepared": "seventieth"
+  },
+  {
+   "input": "(70),",
+   "pronunciation": "(70),",
+   "abbreviation": "(70),",
+   "number": "(seventy),",
+   "punctuation": "(70),",
+   "prepared": "(seventy),"
+  },
+  {
+   "input": "71",
+   "pronunciation": "71",
+   "abbreviation": "71",
+   "number": "seventy-one",
+   "punctuation": "71",
+   "prepared": "seventy-one"
+  },
+  {
+   "input": "71th",
+   "pronunciation": "71th",
+   "abbreviation": "71th",
+   "number": "seventy-first",
+   "punctuation": "71th",
+   "prepared": "seventy-first"
+  },
+  {
+   "input": "(71),",
+   "pronunciation": "(71),",
+   "abbreviation": "(71),",
+   "number": "(seventy-one),",
+   "punctuation": "(71),",
+   "prepared": "(seventy-one),"
+  },
+  {
+   "input": "72",
+   "pronunciation": "72",
+   "abbreviation": "72",
+   "number": "seventy-two",
+   "punctuation": "72",
+   "prepared": "seventy-two"
+  },
+  {
+   "input": "72th",
+   "pronunciation": "72th",
+   "abbreviation": "72th",
+   "number": "seventy-second",
+   "punctuation": "72th",
+   "prepared": "seventy-second"
+  },
+  {
+   "input": "(72),",
+   "pronunciation": "(72),",
+   "abbreviation": "(72),",
+   "number": "(seventy-two),",
+   "punctuation": "(72),",
+   "prepared": "(seventy-two),"
+  },
+  {
+   "input": "73",
+   "pronunciation": "73",
+   "abbreviation": "73",
+   "number": "seventy-three",
+   "punctuation": "73",
+   "prepared": "seventy-three"
+  },
+  {
+   "input": "73th",
+   "pronunciation": "73th",
+   "abbreviation": "73th",
+   "number": "seventy-third",
+   "punctuation": "73th",
+   "prepared": "seventy-third"
+  },
+  {
+   "input": "(73),",
+   "pronunciation": "(73),",
+   "abbreviation": "(73),",
+   "number": "(seventy-three),",
+   "punctuation": "(73),",
+   "prepared": "(seventy-three),"
+  },
+  {
+   "input": "74",
+   "pronunciation": "74",
+   "abbreviation": "74",
+   "number": "seventy-four",
+   "punctuation": "74",
+   "prepared": "seventy-four"
+  },
+  {
+   "input": "74th",
+   "pronunciation": "74th",
+   "abbreviation": "74th",
+   "number": "seventy-fourth",
+   "punctuation": "74th",
+   "prepared": "seventy-fourth"
+  },
+  {
+   "input": "(74),",
+   "pronunciation": "(74),",
+   "abbreviation": "(74),",
+   "number": "(seventy-four),",
+   "punctuation": "(74),",
+   "prepared": "(seventy-four),"
+  },
+  {
+   "input": "75",
+   "pronunciation": "75",
+   "abbreviation": "75",
+   "number": "seventy-five",
+   "punctuation": "75",
+   "prepared": "seventy-five"
+  },
+  {
+   "input": "75th",
+   "pronunciation": "75th",
+   "abbreviation": "75th",
+   "number": "seventy-fifth",
+   "punctuation": "75th",
+   "prepared": "seventy-fifth"
+  },
+  {
+   "input": "(75),",
+   "pronunciation": "(75),",
+   "abbreviation": "(75),",
+   "number": "(seventy-five),",
+   "punctuation": "(75),",
+   "prepared": "(seventy-five),"
+  },
+  {
+   "input": "76",
+   "pronunciation": "76",
+   "abbreviation": "76",
+   "number": "seventy-six",
+   "punctuation": "76",
+   "prepared": "seventy-six"
+  },
+  {
+   "input": "76th",
+   "pronunciation": "76th",
+   "abbreviation": "76th",
+   "number": "seventy-sixth",
+   "punctuation": "76th",
+   "prepared": "seventy-sixth"
+  },
+  {
+   "input": "(76),",
+   "pronunciation": "(76),",
+   "abbreviation": "(76),",
+   "number": "(seventy-six),",
+   "punctuation": "(76),",
+   "prepared": "(seventy-six),"
+  },
+  {
+   "input": "77",
+   "pronunciation": "77",
+   "abbreviation": "77",
+   "number": "seventy-seven",
+   "punctuation": "77",
+   "prepared": "seventy-seven"
+  },
+  {
+   "input": "77th",
+   "pronunciation": "77th",
+   "abbreviation": "77th",
+   "number": "seventy-seventh",
+   "punctuation": "77th",
+   "prepared": "seventy-seventh"
+  },
+  {
+   "input": "(77),",
+   "pronunciation": "(77),",
+   "abbreviation": "(77),",
+   "number": "(seventy-seven),",
+   "punctuation": "(77),",
+   "prepared": "(seventy-seven),"
+  },
+  {
+   "input": "78",
+   "pronunciation": "78",
+   "abbreviation": "78",
+   "number": "seventy-eight",
+   "punctuation": "78",
+   "prepared": "seventy-eight"
+  },
+  {
+   "input": "78th",
+   "pronunciation": "78th",
+   "abbreviation": "78th",
+   "number": "seventy-eighth",
+   "punctuation": "78th",
+   "prepared": "seventy-eighth"
+  },
+  {
+   "input": "(78),",
+   "pronunciation": "(78),",
+   "abbreviation": "(78),",
+   "number": "(seventy-eight),",
+   "punctuation": "(78),",
+   "prepared": "(seventy-eight),"
+  },
+  {
+   "input": "79",
+   "pronunciation": "79",
+   "abbreviation": "79",
+   "number": "seventy-nine",
+   "punctuation": "79",
+   "prepared": "seventy-nine"
+  },
+  {
+   "input": "79th",
+   "pronunciation": "79th",
+   "abbreviation": "79th",
+   "number": "seventy-ninth",
+   "punctuation": "79th",
+   "prepared": "seventy-ninth"
+  },
+  {
+   "input": "(79),",
+   "pronunciation": "(79),",
+   "abbreviation": "(79),",
+   "number": "(seventy-nine),",
+   "punctuation": "(79),",
+   "prepared": "(seventy-nine),"
+  },
+  {
+   "input": "80",
+   "pronunciation": "80",
+   "abbreviation": "80",
+   "number": "eighty",
+   "punctuation": "80",
+   "prepared": "eighty"
+  },
+  {
+   "input": "80th",
+   "pronunciation": "80th",
+   "abbreviation": "80th",
+   "number": "eightieth",
+   "punctuation": "80th",
+   "prepared": "eightieth"
+  },
+  {
+   "input": "(80),",
+   "pronunciation": "(80),",
+   "abbreviation": "(80),",
+   "number": "(eighty),",
+   "punctuation": "(80),",
+   "prepared": "(eighty),"
+  },
+  {
+   "input": "81",
+   "pronunciation": "81",
+   "abbreviation": "81",
+   "number": "eighty-one",
+   "punctuation": "81",
+   "prepared": "eighty-one"
+  },
+  {
+   "input": "81th",
+   "pronunciation": "81th",
+   "abbreviation": "81th",
+   "number": "eighty-first",
+   "punctuation": "81th",
+   "prepared": "eighty-first"
+  },
+  {
+   "input": "(81),",
+   "pronunciation": "(81),",
+   "abbreviation": "(81),",
+   "number": "(eighty-one),",
+   "punctuation": "(81),",
+   "prepared": "(eighty-one),"
+  },
+  {
+   "input": "82",
+   "pronunciation": "82",
+   "abbreviation": "82",
+   "number": "eighty-two",
+   "punctuation": "82",
+   "prepared": "eighty-two"
+  },
+  {
+   "input": "82th",
+   "pronunciation": "82th",
+   "abbreviation": "82th",
+   "number": "eighty-second",
+   "punctuation": "82th",
+   "prepared": "eighty-second"
+  },
+  {
+   "input": "(82),",
+   "pronunciation": "(82),",
+   "abbreviation": "(82),",
+   "number": "(eighty-two),",
+   "punctuation": "(82),",
+   "prepared": "(eighty-two),"
+  },
+  {
+   "input": "83",
+   "pronunciation": "83",
+   "abbreviation": "83",
+   "number": "eighty-three",
+   "punctuation": "83",
+   "prepared": "eighty-three"
+  },
+  {
+   "input": "83th",
+   "pronunciation": "83th",
+   "abbreviation": "83th",
+   "number": "eighty-third",
+   "punctuation": "83th",
+   "prepared": "eighty-third"
+  },
+  {
+   "input": "(83),",
+   "pronunciation": "(83),",
+   "abbreviation": "(83),",
+   "number": "(eighty-three),",
+   "punctuation": "(83),",
+   "prepared": "(eighty-three),"
+  },
+  {
+   "input": "84",
+   "pronunciation": "84",
+   "abbreviation": "84",
+   "number": "eighty-four",
+   "punctuation": "84",
+   "prepared": "eighty-four"
+  },
+  {
+   "input": "84th",
+   "pronunciation": "84th",
+   "abbreviation": "84th",
+   "number": "eighty-fourth",
+   "punctuation": "84th",
+   "prepared": "eighty-fourth"
+  },
+  {
+   "input": "(84),",
+   "pronunciation": "(84),",
+   "abbreviation": "(84),",
+   "number": "(eighty-four),",
+   "punctuation": "(84),",
+   "prepared": "(eighty-four),"
+  },
+  {
+   "input": "85",
+   "pronunciation": "85",
+   "abbreviation": "85",
+   "number": "eighty-five",
+   "punctuation": "85",
+   "prepared": "eighty-five"
+  },
+  {
+   "input": "85th",
+   "pronunciation": "85th",
+   "abbreviation": "85th",
+   "number": "eighty-fifth",
+   "punctuation": "85th",
+   "prepared": "eighty-fifth"
+  },
+  {
+   "input": "(85),",
+   "pronunciation": "(85),",
+   "abbreviation": "(85),",
+   "number": "(eighty-five),",
+   "punctuation": "(85),",
+   "prepared": "(eighty-five),"
+  },
+  {
+   "input": "86",
+   "pronunciation": "86",
+   "abbreviation": "86",
+   "number": "eighty-six",
+   "punctuation": "86",
+   "prepared": "eighty-six"
+  },
+  {
+   "input": "86th",
+   "pronunciation": "86th",
+   "abbreviation": "86th",
+   "number": "eighty-sixth",
+   "punctuation": "86th",
+   "prepared": "eighty-sixth"
+  },
+  {
+   "input": "(86),",
+   "pronunciation": "(86),",
+   "abbreviation": "(86),",
+   "number": "(eighty-six),",
+   "punctuation": "(86),",
+   "prepared": "(eighty-six),"
+  },
+  {
+   "input": "87",
+   "pronunciation": "87",
+   "abbreviation": "87",
+   "number": "eighty-seven",
+   "punctuation": "87",
+   "prepared": "eighty-seven"
+  },
+  {
+   "input": "87th",
+   "pronunciation": "87th",
+   "abbreviation": "87th",
+   "number": "eighty-seventh",
+   "punctuation": "87th",
+   "prepared": "eighty-seventh"
+  },
+  {
+   "input": "(87),",
+   "pronunciation": "(87),",
+   "abbreviation": "(87),",
+   "number": "(eighty-seven),",
+   "punctuation": "(87),",
+   "prepared": "(eighty-seven),"
+  },
+  {
+   "input": "88",
+   "pronunciation": "88",
+   "abbreviation": "88",
+   "number": "eighty-eight",
+   "punctuation": "88",
+   "prepared": "eighty-eight"
+  },
+  {
+   "input": "88th",
+   "pronunciation": "88th",
+   "abbreviation": "88th",
+   "number": "eighty-eighth",
+   "punctuation": "88th",
+   "prepared": "eighty-eighth"
+  },
+  {
+   "input": "(88),",
+   "pronunciation": "(88),",
+   "abbreviation": "(88),",
+   "number": "(eighty-eight),",
+   "punctuation": "(88),",
+   "prepared": "(eighty-eight),"
+  },
+  {
+   "input": "89",
+   "pronunciation": "89",
+   "abbreviation": "89",
+   "number": "eighty-nine",
+   "punctuation": "89",
+   "prepared": "eighty-nine"
+  },
+  {
+   "input": "89th",
+   "pronunciation": "89th",
+   "abbreviation": "89th",
+   "number": "eighty-ninth",
+   "punctuation": "89th",
+   "prepared": "eighty-ninth"
+  },
+  {
+   "input": "(89),",
+   "pronunciation": "(89),",
+   "abbreviation": "(89),",
+   "number": "(eighty-nine),",
+   "punctuation": "(89),",
+   "prepared": "(eighty-nine),"
+  },
+  {
+   "input": "90",
+   "pronunciation": "90",
+   "abbreviation": "90",
+   "number": "ninety",
+   "punctuation": "90",
+   "prepared": "ninety"
+  },
+  {
+   "input": "90th",
+   "pronunciation": "90th",
+   "abbreviation": "90th",
+   "number": "ninetieth",
+   "punctuation": "90th",
+   "prepared": "ninetieth"
+  },
+  {
+   "input": "(90),",
+   "pronunciation": "(90),",
+   "abbreviation": "(90),",
+   "number": "(ninety),",
+   "punctuation": "(90),",
+   "prepared": "(ninety),"
+  },
+  {
+   "input": "91",
+   "pronunciation": "91",
+   "abbreviation": "91",
+   "number": "ninety-one",
+   "punctuation": "91",
+   "prepared": "ninety-one"
+  },
+  {
+   "input": "91th",
+   "pronunciation": "91th",
+   "abbreviation": "91th",
+   "number": "ninety-first",
+   "punctuation": "91th",
+   "prepared": "ninety-first"
+  },
+  {
+   "input": "(91),",
+   "pronunciation": "(91),",
+   "abbreviation": "(91),",
+   "number": "(ninety-one),",
+   "punctuation": "(91),",
+   "prepared": "(ninety-one),"
+  },
+  {
+   "input": "92",
+   "pronunciation": "92",
+   "abbreviation": "92",
+   "number": "ninety-two",
+   "punctuation": "92",
+   "prepared": "ninety-two"
+  },
+  {
+   "input": "92th",
+   "pronunciation": "92th",
+   "abbreviation": "92th",
+   "number": "ninety-second",
+   "punctuation": "92th",
+   "prepared": "ninety-second"
+  },
+  {
+   "input": "(92),",
+   "pronunciation": "(92),",
+   "abbreviation": "(92),",
+   "number": "(ninety-two),",
+   "punctuation": "(92),",
+   "prepared": "(ninety-two),"
+  },
+  {
+   "input": "93",
+   "pronunciation": "93",
+   "abbreviation": "93",
+   "number": "ninety-three",
+   "punctuation": "93",
+   "prepared": "ninety-three"
+  },
+  {
+   "input": "93th",
+   "pronunciation": "93th",
+   "abbreviation": "93th",
+   "number": "ninety-third",
+   "punctuation": "93th",
+   "prepared": "ninety-third"
+  },
+  {
+   "input": "(93),",
+   "pronunciation": "(93),",
+   "abbreviation": "(93),",
+   "number": "(ninety-three),",
+   "punctuation": "(93),",
+   "prepared": "(ninety-three),"
+  },
+  {
+   "input": "94",
+   "pronunciation": "94",
+   "abbreviation": "94",
+   "number": "ninety-four",
+   "punctuation": "94",
+   "prepared": "ninety-four"
+  },
+  {
+   "input": "94th",
+   "pronunciation": "94th",
+   "abbreviation": "94th",
+   "number": "ninety-fourth",
+   "punctuation": "94th",
+   "prepared": "ninety-fourth"
+  },
+  {
+   "input": "(94),",
+   "pronunciation": "(94),",
+   "abbreviation": "(94),",
+   "number": "(ninety-four),",
+   "punctuation": "(94),",
+   "prepared": "(ninety-four),"
+  },
+  {
+   "input": "95",
+   "pronunciation": "95",
+   "abbreviation": "95",
+   "number": "ninety-five",
+   "punctuation": "95",
+   "prepared": "ninety-five"
+  },
+  {
+   "input": "95th",
+   "pronunciation": "95th",
+   "abbreviation": "95th",
+   "number": "ninety-fifth",
+   "punctuation": "95th",
+   "prepared": "ninety-fifth"
+  },
+  {
+   "input": "(95),",
+   "pronunciation": "(95),",
+   "abbreviation": "(95),",
+   "number": "(ninety-five),",
+   "punctuation": "(95),",
+   "prepared": "(ninety-five),"
+  },
+  {
+   "input": "96",
+   "pronunciation": "96",
+   "abbreviation": "96",
+   "number": "ninety-six",
+   "punctuation": "96",
+   "prepared": "ninety-six"
+  },
+  {
+   "input": "96th",
+   "pronunciation": "96th",
+   "abbreviation": "96th",
+   "number": "ninety-sixth",
+   "punctuation": "96th",
+   "prepared": "ninety-sixth"
+  },
+  {
+   "input": "(96),",
+   "pronunciation": "(96),",
+   "abbreviation": "(96),",
+   "number": "(ninety-six),",
+   "punctuation": "(96),",
+   "prepared": "(ninety-six),"
+  },
+  {
+   "input": "97",
+   "pronunciation": "97",
+   "abbreviation": "97",
+   "number": "ninety-seven",
+   "punctuation": "97",
+   "prepared": "ninety-seven"
+  },
+  {
+   "input": "97th",
+   "pronunciation": "97th",
+   "abbreviation": "97th",
+   "number": "ninety-seventh",
+   "punctuation": "97th",
+   "prepared": "ninety-seventh"
+  },
+  {
+   "input": "(97),",
+   "pronunciation": "(97),",
+   "abbreviation": "(97),",
+   "number": "(ninety-seven),",
+   "punctuation": "(97),",
+   "prepared": "(ninety-seven),"
+  },
+  {
+   "input": "98",
+   "pronunciation": "98",
+   "abbreviation": "98",
+   "number": "ninety-eight",
+   "punctuation": "98",
+   "prepared": "ninety-eight"
+  },
+  {
+   "input": "98th",
+   "pronunciation": "98th",
+   "abbreviation": "98th",
+   "number": "ninety-eighth",
+   "punctuation": "98th",
+   "prepared": "ninety-eighth"
+  },
+  {
+   "input": "(98),",
+   "pronunciation": "(98),",
+   "abbreviation": "(98),",
+   "number": "(ninety-eight),",
+   "punctuation": "(98),",
+   "prepared": "(ninety-eight),"
+  },
+  {
+   "input": "99",
+   "pronunciation": "99",
+   "abbreviation": "99",
+   "number": "ninety-nine",
+   "punctuation": "99",
+   "prepared": "ninety-nine"
+  },
+  {
+   "input": "99th",
+   "pronunciation": "99th",
+   "abbreviation": "99th",
+   "number": "ninety-ninth",
+   "punctuation": "99th",
+   "prepared": "ninety-ninth"
+  },
+  {
+   "input": "(99),",
+   "pronunciation": "(99),",
+   "abbreviation": "(99),",
+   "number": "(ninety-nine),",
+   "punctuation": "(99),",
+   "prepared": "(ninety-nine),"
+  },
+  {
+   "input": "100",
+   "pronunciation": "100",
+   "abbreviation": "100",
+   "number": "one hundred",
+   "punctuation": "100",
+   "prepared": "one hundred"
+  },
+  {
+   "input": "100th",
+   "pronunciation": "100th",
+   "abbreviation": "100th",
+   "number": "one hundredth",
+   "punctuation": "100th",
+   "prepared": "one hundredth"
+  },
+  {
+   "input": "(100),",
+   "pronunciation": "(100),",
+   "abbreviation": "(100),",
+   "number": "(one hundred),",
+   "punctuation": "(100),",
+   "prepared": "(one hundred),"
+  },
+  {
+   "input": "101",
+   "pronunciation": "101",
+   "abbreviation": "101",
+   "number": "one hundred and one",
+   "punctuation": "101",
+   "prepared": "one hundred and one"
+  },
+  {
+   "input": "101th",
+   "pronunciation": "101th",
+   "abbreviation": "101th",
+   "number": "one hundred and first",
+   "punctuation": "101th",
+   "prepared": "one hundred and first"
+  },
+  {
+   "input": "(101),",
+   "pronunciation": "(101),",
+   "abbreviation": "(101),",
+   "number": "(one hundred and one),",
+   "punctuation": "(101),",
+   "prepared": "(one hundred and one),"
+  },
+  {
+   "input": "102",
+   "pronunciation": "102",
+   "abbreviation": "102",
+   "number": "one hundred and two",
+   "punctuation": "102",
+   "prepared": "one hundred and two"
+  },
+  {
+   "input": "102th",
+   "pronunciation": "102th",
+   "abbreviation": "102th",
+   "number": "one hundred and second",
+   "punctuation": "102th",
+   "prepared": "one hundred and second"
+  },
+  {
+   "input": "(102),",
+   "pronunciation": "(102),",
+   "abbreviation": "(102),",
+   "number": "(one hundred and two),",
+   "punctuation": "(102),",
+   "prepared": "(one hundred and two),"
+  },
+  {
+   "input": "103",
+   "pronunciation": "103",
+   "abbreviation": "103",
+   "number": "one hundred and three",
+   "punctuation": "103",
+   "prepared": "one hundred and three"
+  },
+  {
+   "input": "103th",
+   "pronunciation": "103th",
+   "abbreviation": "103th",
+   "number": "one hundred and third",
+   "punctuation": "103th",
+   "prepared": "one hundred and third"
+  },
+  {
+   "input": "(103),",
+   "pronunciation": "(103),",
+   "abbreviation": "(103),",
+   "number": "(one hundred and three),",
+   "punctuation": "(103),",
+   "prepared": "(one hundred and three),"
+  },
+  {
+   "input": "104",
+   "pronunciation": "104",
+   "abbreviation": "104",
+   "number": "one hundred and four",
+   "punctuation": "104",
+   "prepared": "one hundred and four"
+  },
+  {
+   "input": "104th",
+   "pronunciation": "104th",
+   "abbreviation": "104th",
+   "number": "one hundred and fourth",
+   "punctuation": "104th",
+   "prepared": "one hundred and fourth"
+  },
+  {
+   "input": "(104),",
+   "pronunciation": "(104),",
+   "abbreviation": "(104),",
+   "number": "(one hundred and four),",
+   "punctuation": "(104),",
+   "prepared": "(one hundred and four),"
+  },
+  {
+   "input": "105",
+   "pronunciation": "105",
+   "abbreviation": "105",
+   "number": "one hundred and five",
+   "punctuation": "105",
+   "prepared": "one hundred and five"
+  },
+  {
+   "input": "105th",
+   "pronunciation": "105th",
+   "abbreviation": "105th",
+   "number": "one hundred and fifth",
+   "punctuation": "105th",
+   "prepared": "one hundred and fifth"
+  },
+  {
+   "input": "(105),",
+   "pronunciation": "(105),",
+   "abbreviation": "(105),",
+   "number": "(one hundred and five),",
+   "punctuation": "(105),",
+   "prepared": "(one hundred and five),"
+  },
+  {
+   "input": "106",
+   "pronunciation": "106",
+   "abbreviation": "106",
+   "number": "one hundred and six",
+   "punctuation": "106",
+   "prepared": "one hundred and six"
+  },
+  {
+   "input": "106th",
+   "pronunciation": "106th",
+   "abbreviation": "106th",
+   "number": "one hundred and sixth",
+   "punctuation": "106th",
+   "prepared": "one hundred and sixth"
+  },
+  {
+   "input": "(106),",
+   "pronunciation": "(106),",
+   "abbreviation": "(106),",
+   "number": "(one hundred and six),",
+   "punctuation": "(106),",
+   "prepared": "(one hundred and six),"
+  },
+  {
+   "input": "107",
+   "pronunciation": "107",
+   "abbreviation": "107",
+   "number": "one hundred and seven",
+   "punctuation": "107",
+   "prepared": "one hundred and seven"
+  },
+  {
+   "input": "107th",
+   "pronunciation": "107th",
+   "abbreviation": "107th",
+   "number": "one hundred and seventh",
+   "punctuation": "107th",
+   "prepared": "one hundred and seventh"
+  },
+  {
+   "input": "(107),",
+   "pronunciation": "(107),",
+   "abbreviation": "(107),",
+   "number": "(one hundred and seven),",
+   "punctuation": "(107),",
+   "prepared": "(one hundred and seven),"
+  },
+  {
+   "input": "108",
+   "pronunciation": "108",
+   "abbreviation": "108",
+   "number": "one hundred and eight",
+   "punctuation": "108",
+   "prepared": "one hundred and eight"
+  },
+  {
+   "input": "108th",
+   "pronunciation": "108th",
+   "abbreviation": "108th",
+   "number": "one hundred and eighth",
+   "punctuation": "108th",
+   "prepared": "one hundred and eighth"
+  },
+  {
+   "input": "(108),",
+   "pronunciation": "(108),",
+   "abbreviation": "(108),",
+   "number": "(one hundred and eight),",
+   "punctuation": "(108),",
+   "prepared": "(one hundred and eight),"
+  },
+  {
+   "input": "109",
+   "pronunciation": "109",
+   "abbreviation": "109",
+   "number": "one hundred and nine",
+   "punctuation": "109",
+   "prepared": "one hundred and nine"
+  },
+  {
+   "input": "109th",
+   "pronunciation": "109th",
+   "abbreviation": "109th",
+   "number": "one hundred and ninth",
+   "punctuation": "109th",
+   "prepared": "one hundred and ninth"
+  },
+  {
+   "input": "(109),",
+   "pronunciation": "(109),",
+   "abbreviation": "(109),",
+   "number": "(one hundred and nine),",
+   "punctuation": "(109),",
+   "prepared": "(one hundred and nine),"
+  },
+  {
+   "input": "110",
+   "pronunciation": "110",
+   "abbreviation": "110",
+   "number": "one hundred and ten",
+   "punctuation": "110",
+   "prepared": "one hundred and ten"
+  },
+  {
+   "input": "110th",
+   "pronunciation": "110th",
+   "abbreviation": "110th",
+   "number": "one hundred and tenth",
+   "punctuation": "110th",
+   "prepared": "one hundred and tenth"
+  },
+  {
+   "input": "(110),",
+   "pronunciation": "(110),",
+   "abbreviation": "(110),",
+   "number": "(one hundred and ten),",
+   "punctuation": "(110),",
+   "prepared": "(one hundred and ten),"
+  },
+  {
+   "input": "111",
+   "pronunciation": "111",
+   "abbreviation": "111",
+   "number": "one hundred and eleven",
+   "punctuation": "111",
+   "prepared": "one hundred and eleven"
+  },
+  {
+   "input": "111th",
+   "pronunciation": "111th",
+   "abbreviation": "111th",
+   "number": "one hundred and eleventh",
+   "punctuation": "111th",
+   "prepared": "one hundred and eleventh"
+  },
+  {
+   "input": "(111),",
+   "pronunciation": "(111),",
+   "abbreviation": "(111),",
+   "number": "(one hundred and eleven),",
+   "punctuation": "(111),",
+   "prepared": "(one hundred and eleven),"
+  },
+  {
+   "input": "112",
+   "pronunciation": "112",
+   "abbreviation": "112",
+   "number": "one hundred and twelve",
+   "punctuation": "112",
+   "prepared": "one hundred and twelve"
+  },
+  {
+   "input": "112th",
+   "pronunciation": "112th",
+   "abbreviation": "112th",
+   "number": "one hundred and twelfth",
+   "punctuation": "112th",
+   "prepared": "one hundred and twelfth"
+  },
+  {
+   "input": "(112),",
+   "pronunciation": "(112),",
+   "abbreviation": "(112),",
+   "number": "(one hundred and twelve),",
+   "punctuation": "(112),",
+   "prepared": "(one hundred and twelve),"
+  },
+  {
+   "input": "113",
+   "pronunciation": "113",
+   "abbreviation": "113",
+   "number": "one hundred and thirteen",
+   "punctuation": "113",
+   "prepared": "one hundred and thirteen"
+  },
+  {
+   "input": "113th",
+   "pronunciation": "113th",
+   "abbreviation": "113th",
+   "number": "one hundred and thirteenth",
+   "punctuation": "113th",
+   "prepared": "one hundred and thirteenth"
+  },
+  {
+   "input": "(113),",
+   "pronunciation": "(113),",
+   "abbreviation": "(113),",
+   "number": "(one hundred and thirteen),",
+   "punctuation": "(113),",
+   "prepared": "(one hundred and thirteen),"
+  },
+  {
+   "input": "114",
+   "pronunciation": "114",
+   "abbreviation": "114",
+   "number": "one hundred and fourteen",
+   "punctuation": "114",
+   "prepared": "one hundred and fourteen"
+  },
+  {
+   "input": "114th",
+   "pronunciation": "114th",
+   "abbreviation": "114th",
+   "number": "one hundred and fourteenth",
+   "punctuation": "114th",
+   "prepared": "one hundred and fourteenth"
+  },
+  {
+   "input": "(114),",
+   "pronunciation": "(114),",
+   "abbreviation": "(114),",
+   "number": "(one hundred and fourteen),",
+   "punctuation": "(114),",
+   "prepared": "(one hundred and fourteen),"
+  },
+  {
+   "input": "115",
+   "pronunciation": "115",
+   "abbreviation": "115",
+   "number": "one hundred and fifteen",
+   "punctuation": "115",
+   "prepared": "one hundred and fifteen"
+  },
+  {
+   "input": "115th",
+   "pronunciation": "115th",
+   "abbreviation": "115th",
+   "number": "one hundred and fifteenth",
+   "punctuation": "115th",
+   "prepared": "one hundred and fifteenth"
+  },
+  {
+   "input": "(115),",
+   "pronunciation": "(115),",
+   "abbreviation": "(115),",
+   "number": "(one hundred and fifteen),",
+   "punctuation": "(115),",
+   "prepared": "(one hundred and fifteen),"
+  },
+  {
+   "input": "116",
+   "pronunciation": "116",
+   "abbreviation": "116",
+   "number": "one hundred and sixteen",
+   "punctuation": "116",
+   "prepared": "one hundred and sixteen"
+  },
+  {
+   "input": "116th",
+   "pronunciation": "116th",
+   "abbreviation": "116th",
+   "number": "one hundred and sixteenth",
+   "punctuation": "116th",
+   "prepared": "one hundred and sixteenth"
+  },
+  {
+   "input": "(116),",
+   "pronunciation": "(116),",
+   "abbreviation": "(116),",
+   "number": "(one hundred and sixteen),",
+   "punctuation": "(116),",
+   "prepared": "(one hundred and sixteen),"
+  },
+  {
+   "input": "117",
+   "pronunciation": "117",
+   "abbreviation": "117",
+   "number": "one hundred and seventeen",
+   "punctuation": "117",
+   "prepared": "one hundred and seventeen"
+  },
+  {
+   "input": "117th",
+   "pronunciation": "117th",
+   "abbreviation": "117th",
+   "number": "one hundred and seventeenth",
+   "punctuation": "117th",
+   "prepared": "one hundred and seventeenth"
+  },
+  {
+   "input": "(117),",
+   "pronunciation": "(117),",
+   "abbreviation": "(117),",
+   "number": "(one hundred and seventeen),",
+   "punctuation": "(117),",
+   "prepared": "(one hundred and seventeen),"
+  },
+  {
+   "input": "118",
+   "pronunciation": "118",
+   "abbreviation": "118",
+   "number": "one hundred and eighteen",
+   "punctuation": "118",
+   "prepared": "one hundred and eighteen"
+  },
+  {
+   "input": "118th",
+   "pronunciation": "118th",
+   "abbreviation": "118th",
+   "number": "one hundred and eighteenth",
+   "punctuation": "118th",
+   "prepared": "one hundred and eighteenth"
+  },
+  {
+   "input": "(118),",
+   "pronunciation": "(118),",
+   "abbreviation": "(118),",
+   "number": "(one hundred and eighteen),",
+   "punctuation": "(118),",
+   "prepared": "(one hundred and eighteen),"
+  },
+  {
+   "input": "119",
+   "pronunciation": "119",
+   "abbreviation": "119",
+   "number": "one hundred and nineteen",
+   "punctuation": "119",
+   "prepared": "one hundred and nineteen"
+  },
+  {
+   "input": "119th",
+   "pronunciation": "119th",
+   "abbreviation": "119th",
+   "number": "one hundred and nineteenth",
+   "punctuation": "119th",
+   "prepared": "one hundred and nineteenth"
+  },
+  {
+   "input": "(119),",
+   "pronunciation": "(119),",
+   "abbreviation": "(119),",
+   "number": "(one hundred and nineteen),",
+   "punctuation": "(119),",
+   "prepared": "(one hundred and nineteen),"
+  },
+  {
+   "input": "120",
+   "pronunciation": "120",
+   "abbreviation": "120",
+   "number": "one hundred and twenty",
+   "punctuation": "120",
+   "prepared": "one hundred and twenty"
+  },
+  {
+   "input": "120th",
+   "pronunciation": "120th",
+   "abbreviation": "120th",
+   "number": "one hundred and twentieth",
+   "punctuation": "120th",
+   "prepared": "one hundred and twentieth"
+  },
+  {
+   "input": "(120),",
+   "pronunciation": "(120),",
+   "abbreviation": "(120),",
+   "number": "(one hundred and twenty),",
+   "punctuation": "(120),",
+   "prepared": "(one hundred and twenty),"
+  },
+  {
+   "input": "121",
+   "pronunciation": "121",
+   "abbreviation": "121",
+   "number": "one hundred and twenty-one",
+   "punctuation": "121",
+   "prepared": "one hundred and twenty-one"
+  },
+  {
+   "input": "121th",
+   "pronunciation": "121th",
+   "abbreviation": "121th",
+   "number": "one hundred and twenty-first",
+   "punctuation": "121th",
+   "prepared": "one hundred and twenty-first"
+  },
+  {
+   "input": "(121),",
+   "pronunciation": "(121),",
+   "abbreviation": "(121),",
+   "number": "(one hundred and twenty-one),",
+   "punctuation": "(121),",
+   "prepared": "(one hundred and twenty-one),"
+  },
+  {
+   "input": "122",
+   "pronunciation": "122",
+   "abbreviation": "122",
+   "number": "one hundred and twenty-two",
+   "punctuation": "122",
+   "prepared": "one hundred and twenty-two"
+  },
+  {
+   "input": "122th",
+   "pronunciation": "122th",
+   "abbreviation": "122th",
+   "number": "one hundred and twenty-second",
+   "punctuation": "122th",
+   "prepared": "one hundred and twenty-second"
+  },
+  {
+   "input": "(122),",
+   "pronunciation": "(122),",
+   "abbreviation": "(122),",
+   "number": "(one hundred and twenty-two),",
+   "punctuation": "(122),",
+   "prepared": "(one hundred and twenty-two),"
+  },
+  {
+   "input": "123",
+   "pronunciation": "123",
+   "abbreviation": "123",
+   "number": "one hundred and twenty-three",
+   "punctuation": "123",
+   "prepared": "one hundred and twenty-three"
+  },
+  {
+   "input": "123th",
+   "pronunciation": "123th",
+   "abbreviation": "123th",
+   "number": "one hundred and twenty-third",
+   "punctuation": "123th",
+   "prepared": "one hundred and twenty-third"
+  },
+  {
+   "input": "(123),",
+   "pronunciation": "(123),",
+   "abbreviation": "(123),",
+   "number": "(one hundred and twenty-three),",
+   "punctuation": "(123),",
+   "prepared": "(one hundred and twenty-three),"
+  },
+  {
+   "input": "124",
+   "pronunciation": "124",
+   "abbreviation": "124",
+   "number": "one hundred and twenty-four",
+   "punctuation": "124",
+   "prepared": "one hundred and twenty-four"
+  },
+  {
+   "input": "124th",
+   "pronunciation": "124th",
+   "abbreviation": "124th",
+   "number": "one hundred and twenty-fourth",
+   "punctuation": "124th",
+   "prepared": "one hundred and twenty-fourth"
+  },
+  {
+   "input": "(124),",
+   "pronunciation": "(124),",
+   "abbreviation": "(124),",
+   "number": "(one hundred and twenty-four),",
+   "punctuation": "(124),",
+   "prepared": "(one hundred and twenty-four),"
+  },
+  {
+   "input": "125",
+   "pronunciation": "125",
+   "abbreviation": "125",
+   "number": "one hundred and twenty-five",
+   "punctuation": "125",
+   "prepared": "one hundred and twenty-five"
+  },
+  {
+   "input": "125th",
+   "pronunciation": "125th",
+   "abbreviation": "125th",
+   "number": "one hundred and twenty-fifth",
+   "punctuation": "125th",
+   "prepared": "one hundred and twenty-fifth"
+  },
+  {
+   "input": "(125),",
+   "pronunciation": "(125),",
+   "abbreviation": "(125),",
+   "number": "(one hundred and twenty-five),",
+   "punctuation": "(125),",
+   "prepared": "(one hundred and twenty-five),"
+  },
+  {
+   "input": "999",
+   "pronunciation": "999",
+   "abbreviation": "999",
+   "number": "nine hundred and ninety-nine",
+   "punctuation": "999",
+   "prepared": "nine hundred and ninety-nine"
+  },
+  {
+   "input": "999th",
+   "pronunciation": "999th",
+   "abbreviation": "999th",
+   "number": "nine hundred and ninety-ninth",
+   "punctuation": "999th",
+   "prepared": "nine hundred and ninety-ninth"
+  },
+  {
+   "input": "(999),",
+   "pronunciation": "(999),",
+   "abbreviation": "(999),",
+   "number": "(nine hundred and ninety-nine),",
+   "punctuation": "(999),",
+   "prepared": "(nine hundred and ninety-nine),"
+  },
+  {
+   "input": "1000",
+   "pronunciation": "1000",
+   "abbreviation": "1000",
+   "number": "one thousand",
+   "punctuation": "1000",
+   "prepared": "one thousand"
+  },
+  {
+   "input": "1000th",
+   "pronunciation": "1000th",
+   "abbreviation": "1000th",
+   "number": "one thousandth",
+   "punctuation": "1000th",
+   "prepared": "one thousandth"
+  },
+  {
+   "input": "(1000),",
+   "pronunciation": "(1000),",
+   "abbreviation": "(1000),",
+   "number": "(one thousand),",
+   "punctuation": "(1000),",
+   "prepared": "(one thousand),"
+  },
+  {
+   "input": "1001",
+   "pronunciation": "1001",
+   "abbreviation": "1001",
+   "number": "one thousand and one",
+   "punctuation": "1001",
+   "prepared": "one thousand and one"
+  },
+  {
+   "input": "1001th",
+   "pronunciation": "1001th",
+   "abbreviation": "1001th",
+   "number": "one thousand and first",
+   "punctuation": "1001th",
+   "prepared": "one thousand and first"
+  },
+  {
+   "input": "(1001),",
+   "pronunciation": "(1001),",
+   "abbreviation": "(1001),",
+   "number": "(one thousand and one),",
+   "punctuation": "(1001),",
+   "prepared": "(one thousand and one),"
+  },
+  {
+   "input": "1020",
+   "pronunciation": "1020",
+   "abbreviation": "1020",
+   "number": "one thousand and twenty",
+   "punctuation": "1020",
+   "prepared": "one thousand and twenty"
+  },
+  {
+   "input": "1020th",
+   "pronunciation": "1020th",
+   "abbreviation": "1020th",
+   "number": "one thousand and twentieth",
+   "punctuation": "1020th",
+   "prepared": "one thousand and twentieth"
+  },
+  {
+   "input": "(1020),",
+   "pronunciation": "(1020),",
+   "abbreviation": "(1020),",
+   "number": "(one thousand and twenty),",
+   "punctuation": "(1020),",
+   "prepared": "(one thousand and twenty),"
+  },
+  {
+   "input": "2005",
+   "pronunciation": "2005",
+   "abbreviation": "2005",
+   "number": "two thousand and five",
+   "punctuation": "2005",
+   "prepared": "two thousand and five"
+  },
+  {
+   "input": "2005th",
+   "pronunciation": "2005th",
+   "abbreviation": "2005th",
+   "number": "two thousand and fifth",
+   "punctuation": "2005th",
+   "prepared": "two thousand and fifth"
+  },
+  {
+   "input": "(2005),",
+   "pronunciation": "(2005),",
+   "abbreviation": "(2005),",
+   "number": "(two thousand and five),",
+   "punctuation": "(2005),",
+   "prepared": "(two thousand and five),"
+  },
+  {
+   "input": "70000",
+   "pronunciation": "70000",
+   "abbreviation": "70000",
+   "number": "seventy thousand",
+   "punctuation": "70000",
+   "prepared": "seventy thousand"
+  },
+  {
+   "input": "70000th",
+   "pronunciation": "70000th",
+   "abbreviation": "70000th",
+   "number": "seventy thousandth",
+   "punctuation": "70000th",
+   "prepared": "seventy thousandth"
+  },
+  {
+   "input": "(70000),",
+   "pronunciation": "(70000),",
+   "abbreviation": "(70000),",
+   "number": "(seventy thousand),",
+   "punctuation": "(70000),",
+   "prepared": "(seventy thousand),"
+  },
+  {
+   "input": "1000000",
+   "pronunciation": "1000000",
+   "abbreviation": "1000000",
+   "number": "one million",
+   "punctuation": "1000000",
+   "prepared": "one million"
+  },
+  {
+   "input": "1000000th",
+   "pronunciation": "1000000th",
+   "abbreviation": "1000000th",
+   "number": "one millionth",
+   "punctuation": "1000000th",
+   "prepared": "one millionth"
+  },
+  {
+   "input": "(1000000),",
+   "pronunciation": "(1000000),",
+   "abbreviation": "(1000000),",
+   "number": "(one million),",
+   "punctuation": "(1000000),",
+   "prepared": "(one million),"
+  },
+  {
+   "input": "1000001",
+   "pronunciation": "1000001",
+   "abbreviation": "1000001",
+   "number": "one million and one",
+   "punctuation": "1000001",
+   "prepared": "one million and one"
+  },
+  {
+   "input": "1000001th",
+   "pronunciation": "1000001th",
+   "abbreviation": "1000001th",
+   "number": "one million and first",
+   "punctuation": "1000001th",
+   "prepared": "one million and first"
+  },
+  {
+   "input": "(1000001),",
+   "pronunciation": "(1000001),",
+   "abbreviation": "(1000001),",
+   "number": "(one million and one),",
+   "punctuation": "(1000001),",
+   "prepared": "(one million and one),"
+  },
+  {
+   "input": "1000000000",
+   "pronunciation": "1000000000",
+   "abbreviation": "1000000000",
+   "number": "one billion",
+   "punctuation": "1000000000",
+   "prepared": "one billion"
+  },
+  {
+   "input": "1000000000th",
+   "pronunciation": "1000000000th",
+   "abbreviation": "1000000000th",
+   "number": "one billionth",
+   "punctuation": "1000000000th",
+   "prepared": "one billionth"
+  },
+  {
+   "input": "(1000000000),",
+   "pronunciation": "(1000000000),",
+   "abbreviation": "(1000000000),",
+   "number": "(one billion),",
+   "punctuation": "(1000000000),",
+   "prepared": "(one billion),"
+  },
+  {
+   "input": "999999999999",
+   "pronunciation": "999999999999",
+   "abbreviation": "999999999999",
+   "number": "nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-nine",
+   "punctuation": "999999999999",
+   "prepared": "nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-nine"
+  },
+  {
+   "input": "999999999999th",
+   "pronunciation": "999999999999th",
+   "abbreviation": "999999999999th",
+   "number": "nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-ninth",
+   "punctuation": "999999999999th",
+   "prepared": "nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-ninth"
+  },
+  {
+   "input": "(999999999999),",
+   "pronunciation": "(999999999999),",
+   "abbreviation": "(999999999999),",
+   "number": "(nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-nine),",
+   "punctuation": "(999999999999),",
+   "prepared": "(nine hundred and ninety-nine billion nine hundred and ninety-nine million nine hundred and ninety-nine thousand nine hundred and ninety-nine),"
+  },
+  {
+   "input": "1st",
+   "pronunciation": "1st",
+   "abbreviation": "1st",
+   "number": "first",
+   "punctuation": "1st",
+   "prepared": "first"
+  },
+  {
+   "input": "2nd",
+   "pronunciation": "2nd",
+   "abbreviation": "2nd",
+   "number": "second",
+   "punctuation": "2nd",
+   "prepared": "second"
+  },
+  {
+   "input": "3rd",
+   "pronunciation": "3rd",
+   "abbreviation": "3rd",
+   "number": "third",
+   "punctuation": "3rd",
+   "prepared": "third"
+  },
+  {
+   "input": "42ND",
+   "pronunciation": "42ND",
+   "abbreviation": "42ND",
+   "number": "forty-second",
+   "punctuation": "42ND",
+   "prepared": "forty-second"
+  },
+  {
+   "input": "1,000",
+   "pronunciation": "1,000",
+   "abbreviation": "1,000",
+   "number": "one thousand",
+   "punctuation": "1,000",
+   "prepared": "one thousand"
+  },
+  {
+   "input": "2,005",
+   "pronunciation": "2,005",
+   "abbreviation": "2,005",
+   "number": "two thousand and five",
+   "punctuation": "2,005",
+   "prepared": "two thousand and five"
+  },
+  {
+   "input": "1,00",
+   "pronunciation": "1,00",
+   "abbreviation": "1,00",
+   "number": "1,00",
+   "punctuation": "1,00",
+   "prepared": "1,00"
+  },
+  {
+   "input": "0.05",
+   "pronunciation": "0.05",
+   "abbreviation": "0.05",
+   "number": "zero point zero five",
+   "punctuation": "0.05",
+   "prepared": "zero point zero five"
+  },
+  {
+   "input": "3.14",
+   "pronunciation": "3.14",
+   "abbreviation": "3.14",
+   "number": "three point one four",
+   "punctuation": "3.14",
+   "prepared": "three point one four"
+  },
+  {
+   "input": "00000000000000000000001",
+   "pronunciation": "00000000000000000000001",
+   "abbreviation": "00000000000000000000001",
+   "number": "one",
+   "punctuation": "00000000000000000000001",
+   "prepared": "one"
+  },
+  {
+   "input": "9999999999999",
+   "pronunciation": "9999999999999",
+   "abbreviation": "9999999999999",
+   "number": "9999999999999",
+   "punctuation": "9999999999999",
+   "prepared": "9999999999999"
+  },
+  {
+   "input": "9999999999999.1",
+   "pronunciation": "9999999999999.1",
+   "abbreviation": "9999999999999.1",
+   "number": "9999999999999.1",
+   "punctuation": "9999999999999.1",
+   "prepared": "9999999999999.1"
+  },
+  {
+   "input": "H7225",
+   "pronunciation": "H7225",
+   "abbreviation": "H7225",
+   "number": "H7225",
+   "punctuation": "H7225",
+   "prepared": "H7225"
+  },
+  {
+   "input": "٤٠",
+   "pronunciation": "٤٠",
+   "abbreviation": "٤٠",
+   "number": "٤٠",
+   "punctuation": "٤٠",
+   "prepared": "٤٠"
+  },
+  {
+   "input": "４０",
+   "pronunciation": "４０",
+   "abbreviation": "４０",
+   "number": "４０",
+   "punctuation": "４０",
+   "prepared": "４０"
+  },
+  {
+   "input": "-40",
+   "pronunciation": "-40",
+   "abbreviation": "-40",
+   "number": "-40",
+   "punctuation": "-40",
+   "prepared": "-40"
+  },
+  {
+   "input": "+40",
+   "pronunciation": "+40",
+   "abbreviation": "+40",
+   "number": "+40",
+   "punctuation": "+40",
+   "prepared": "+40"
+  },
+  {
+   "input": "mr.",
+   "pronunciation": "mr.",
+   "abbreviation": "mister",
+   "number": "mr.",
+   "punctuation": "mr.",
+   "prepared": "mister"
+  },
+  {
+   "input": "MR.",
+   "pronunciation": "MR.",
+   "abbreviation": "Mister",
+   "number": "MR.",
+   "punctuation": "MR.",
+   "prepared": "Mister"
+  },
+  {
+   "input": "(mr.",
+   "pronunciation": "(mr.",
+   "abbreviation": "(mister",
+   "number": "(mr.",
+   "punctuation": "(mr.",
+   "prepared": "(mister"
+  },
+  {
+   "input": "mr.,",
+   "pronunciation": "mr.,",
+   "abbreviation": "mr.,",
+   "number": "mr.,",
+   "punctuation": "mr.,",
+   "prepared": "mr.,"
+  },
+  {
+   "input": "mrs.",
+   "pronunciation": "mrs.",
+   "abbreviation": "missus",
+   "number": "mrs.",
+   "punctuation": "mrs.",
+   "prepared": "missus"
+  },
+  {
+   "input": "MRS.",
+   "pronunciation": "MRS.",
+   "abbreviation": "Missus",
+   "number": "MRS.",
+   "punctuation": "MRS.",
+   "prepared": "Missus"
+  },
+  {
+   "input": "(mrs.",
+   "pronunciation": "(mrs.",
+   "abbreviation": "(missus",
+   "number": "(mrs.",
+   "punctuation": "(mrs.",
+   "prepared": "(missus"
+  },
+  {
+   "input": "mrs.,",
+   "pronunciation": "mrs.,",
+   "abbreviation": "mrs.,",
+   "number": "mrs.,",
+   "punctuation": "mrs.,",
+   "prepared": "mrs.,"
+  },
+  {
+   "input": "ms.",
+   "pronunciation": "ms.",
+   "abbreviation": "miss",
+   "number": "ms.",
+   "punctuation": "ms.",
+   "prepared": "miss"
+  },
+  {
+   "input": "MS.",
+   "pronunciation": "MS.",
+   "abbreviation": "Miss",
+   "number": "MS.",
+   "punctuation": "MS.",
+   "prepared": "Miss"
+  },
+  {
+   "input": "(ms.",
+   "pronunciation": "(ms.",
+   "abbreviation": "(miss",
+   "number": "(ms.",
+   "punctuation": "(ms.",
+   "prepared": "(miss"
+  },
+  {
+   "input": "ms.,",
+   "pronunciation": "ms.,",
+   "abbreviation": "ms.,",
+   "number": "ms.,",
+   "punctuation": "ms.,",
+   "prepared": "ms.,"
+  },
+  {
+   "input": "dr.",
+   "pronunciation": "dr.",
+   "abbreviation": "doctor",
+   "number": "dr.",
+   "punctuation": "dr.",
+   "prepared": "doctor"
+  },
+  {
+   "input": "DR.",
+   "pronunciation": "DR.",
+   "abbreviation": "Doctor",
+   "number": "DR.",
+   "punctuation": "DR.",
+   "prepared": "Doctor"
+  },
+  {
+   "input": "(dr.",
+   "pronunciation": "(dr.",
+   "abbreviation": "(doctor",
+   "number": "(dr.",
+   "punctuation": "(dr.",
+   "prepared": "(doctor"
+  },
+  {
+   "input": "dr.,",
+   "pronunciation": "dr.,",
+   "abbreviation": "dr.,",
+   "number": "dr.,",
+   "punctuation": "dr.,",
+   "prepared": "dr.,"
+  },
+  {
+   "input": "st.",
+   "pronunciation": "st.",
+   "abbreviation": "saint",
+   "number": "st.",
+   "punctuation": "st.",
+   "prepared": "saint"
+  },
+  {
+   "input": "ST.",
+   "pronunciation": "ST.",
+   "abbreviation": "Saint",
+   "number": "ST.",
+   "punctuation": "ST.",
+   "prepared": "Saint"
+  },
+  {
+   "input": "(st.",
+   "pronunciation": "(st.",
+   "abbreviation": "(saint",
+   "number": "(st.",
+   "punctuation": "(st.",
+   "prepared": "(saint"
+  },
+  {
+   "input": "st.,",
+   "pronunciation": "st.,",
+   "abbreviation": "st.,",
+   "number": "st.,",
+   "punctuation": "st.,",
+   "prepared": "st.,"
+  },
+  {
+   "input": "vs.",
+   "pronunciation": "vs.",
+   "abbreviation": "versus",
+   "number": "vs.",
+   "punctuation": "vs.",
+   "prepared": "versus"
+  },
+  {
+   "input": "VS.",
+   "pronunciation": "VS.",
+   "abbreviation": "Versus",
+   "number": "VS.",
+   "punctuation": "VS.",
+   "prepared": "Versus"
+  },
+  {
+   "input": "(vs.",
+   "pronunciation": "(vs.",
+   "abbreviation": "(versus",
+   "number": "(vs.",
+   "punctuation": "(vs.",
+   "prepared": "(versus"
+  },
+  {
+   "input": "vs.,",
+   "pronunciation": "vs.,",
+   "abbreviation": "vs.,",
+   "number": "vs.,",
+   "punctuation": "vs.,",
+   "prepared": "vs.,"
+  },
+  {
+   "input": "etc.",
+   "pronunciation": "etc.",
+   "abbreviation": "et cetera",
+   "number": "etc.",
+   "punctuation": "etc.",
+   "prepared": "et cetera"
+  },
+  {
+   "input": "ETC.",
+   "pronunciation": "ETC.",
+   "abbreviation": "Et cetera",
+   "number": "ETC.",
+   "punctuation": "ETC.",
+   "prepared": "Et cetera"
+  },
+  {
+   "input": "(etc.",
+   "pronunciation": "(etc.",
+   "abbreviation": "(et cetera",
+   "number": "(etc.",
+   "punctuation": "(etc.",
+   "prepared": "(et cetera"
+  },
+  {
+   "input": "etc.,",
+   "pronunciation": "etc.,",
+   "abbreviation": "etc.,",
+   "number": "etc.,",
+   "punctuation": "etc.,",
+   "prepared": "etc.,"
+  },
+  {
+   "input": "e.g.",
+   "pronunciation": "e.g.",
+   "abbreviation": "for example",
+   "number": "e.g.",
+   "punctuation": "e.g.",
+   "prepared": "for example"
+  },
+  {
+   "input": "E.G.",
+   "pronunciation": "E.G.",
+   "abbreviation": "For example",
+   "number": "E.G.",
+   "punctuation": "E.G.",
+   "prepared": "For example"
+  },
+  {
+   "input": "(e.g.",
+   "pronunciation": "(e.g.",
+   "abbreviation": "(for example",
+   "number": "(e.g.",
+   "punctuation": "(e.g.",
+   "prepared": "(for example"
+  },
+  {
+   "input": "e.g.,",
+   "pronunciation": "e.g.,",
+   "abbreviation": "e.g.,",
+   "number": "e.g.,",
+   "punctuation": "e.g.,",
+   "prepared": "e.g.,"
+  },
+  {
+   "input": "i.e.",
+   "pronunciation": "i.e.",
+   "abbreviation": "that is",
+   "number": "i.e.",
+   "punctuation": "i.e.",
+   "prepared": "that is"
+  },
+  {
+   "input": "I.E.",
+   "pronunciation": "I.E.",
+   "abbreviation": "That is",
+   "number": "I.E.",
+   "punctuation": "I.E.",
+   "prepared": "That is"
+  },
+  {
+   "input": "(i.e.",
+   "pronunciation": "(i.e.",
+   "abbreviation": "(that is",
+   "number": "(i.e.",
+   "punctuation": "(i.e.",
+   "prepared": "(that is"
+  },
+  {
+   "input": "i.e.,",
+   "pronunciation": "i.e.,",
+   "abbreviation": "i.e.,",
+   "number": "i.e.,",
+   "punctuation": "i.e.,",
+   "prepared": "i.e.,"
+  },
+  {
+   "input": "cf.",
+   "pronunciation": "cf.",
+   "abbreviation": "compare",
+   "number": "cf.",
+   "punctuation": "cf.",
+   "prepared": "compare"
+  },
+  {
+   "input": "CF.",
+   "pronunciation": "CF.",
+   "abbreviation": "Compare",
+   "number": "CF.",
+   "punctuation": "CF.",
+   "prepared": "Compare"
+  },
+  {
+   "input": "(cf.",
+   "pronunciation": "(cf.",
+   "abbreviation": "(compare",
+   "number": "(cf.",
+   "punctuation": "(cf.",
+   "prepared": "(compare"
+  },
+  {
+   "input": "cf.,",
+   "pronunciation": "cf.,",
+   "abbreviation": "cf.,",
+   "number": "cf.,",
+   "punctuation": "cf.,",
+   "prepared": "cf.,"
+  },
+  {
+   "input": "no.",
+   "pronunciation": "no.",
+   "abbreviation": "number",
+   "number": "no.",
+   "punctuation": "no.",
+   "prepared": "number"
+  },
+  {
+   "input": "NO.",
+   "pronunciation": "NO.",
+   "abbreviation": "Number",
+   "number": "NO.",
+   "punctuation": "NO.",
+   "prepared": "Number"
+  },
+  {
+   "input": "(no.",
+   "pronunciation": "(no.",
+   "abbreviation": "(number",
+   "number": "(no.",
+   "punctuation": "(no.",
+   "prepared": "(number"
+  },
+  {
+   "input": "no.,",
+   "pronunciation": "no.,",
+   "abbreviation": "no.,",
+   "number": "no.,",
+   "punctuation": "no.,",
+   "prepared": "no.,"
+  },
+  {
+   "input": "ch.",
+   "pronunciation": "ch.",
+   "abbreviation": "chapter",
+   "number": "ch.",
+   "punctuation": "ch.",
+   "prepared": "chapter"
+  },
+  {
+   "input": "CH.",
+   "pronunciation": "CH.",
+   "abbreviation": "Chapter",
+   "number": "CH.",
+   "punctuation": "CH.",
+   "prepared": "Chapter"
+  },
+  {
+   "input": "(ch.",
+   "pronunciation": "(ch.",
+   "abbreviation": "(chapter",
+   "number": "(ch.",
+   "punctuation": "(ch.",
+   "prepared": "(chapter"
+  },
+  {
+   "input": "ch.,",
+   "pronunciation": "ch.,",
+   "abbreviation": "ch.,",
+   "number": "ch.,",
+   "punctuation": "ch.,",
+   "prepared": "ch.,"
+  },
+  {
+   "input": "chs.",
+   "pronunciation": "chs.",
+   "abbreviation": "chapters",
+   "number": "chs.",
+   "punctuation": "chs.",
+   "prepared": "chapters"
+  },
+  {
+   "input": "CHS.",
+   "pronunciation": "CHS.",
+   "abbreviation": "Chapters",
+   "number": "CHS.",
+   "punctuation": "CHS.",
+   "prepared": "Chapters"
+  },
+  {
+   "input": "(chs.",
+   "pronunciation": "(chs.",
+   "abbreviation": "(chapters",
+   "number": "(chs.",
+   "punctuation": "(chs.",
+   "prepared": "(chapters"
+  },
+  {
+   "input": "chs.,",
+   "pronunciation": "chs.,",
+   "abbreviation": "chs.,",
+   "number": "chs.,",
+   "punctuation": "chs.,",
+   "prepared": "chs.,"
+  },
+  {
+   "input": "v.",
+   "pronunciation": "v.",
+   "abbreviation": "verse",
+   "number": "v.",
+   "punctuation": "v.",
+   "prepared": "verse"
+  },
+  {
+   "input": "V.",
+   "pronunciation": "V.",
+   "abbreviation": "Verse",
+   "number": "V.",
+   "punctuation": "V.",
+   "prepared": "Verse"
+  },
+  {
+   "input": "(v.",
+   "pronunciation": "(v.",
+   "abbreviation": "(verse",
+   "number": "(v.",
+   "punctuation": "(v.",
+   "prepared": "(verse"
+  },
+  {
+   "input": "v.,",
+   "pronunciation": "v.,",
+   "abbreviation": "v.,",
+   "number": "v.,",
+   "punctuation": "v.,",
+   "prepared": "v.,"
+  },
+  {
+   "input": "vv.",
+   "pronunciation": "vv.",
+   "abbreviation": "verses",
+   "number": "vv.",
+   "punctuation": "vv.",
+   "prepared": "verses"
+  },
+  {
+   "input": "VV.",
+   "pronunciation": "VV.",
+   "abbreviation": "Verses",
+   "number": "VV.",
+   "punctuation": "VV.",
+   "prepared": "Verses"
+  },
+  {
+   "input": "(vv.",
+   "pronunciation": "(vv.",
+   "abbreviation": "(verses",
+   "number": "(vv.",
+   "punctuation": "(vv.",
+   "prepared": "(verses"
+  },
+  {
+   "input": "vv.,",
+   "pronunciation": "vv.,",
+   "abbreviation": "vv.,",
+   "number": "vv.,",
+   "punctuation": "vv.,",
+   "prepared": "vv.,"
+  },
+  {
+   "input": "ff.",
+   "pronunciation": "ff.",
+   "abbreviation": "and following",
+   "number": "ff.",
+   "punctuation": "ff.",
+   "prepared": "and following"
+  },
+  {
+   "input": "FF.",
+   "pronunciation": "FF.",
+   "abbreviation": "And following",
+   "number": "FF.",
+   "punctuation": "FF.",
+   "prepared": "And following"
+  },
+  {
+   "input": "(ff.",
+   "pronunciation": "(ff.",
+   "abbreviation": "(and following",
+   "number": "(ff.",
+   "punctuation": "(ff.",
+   "prepared": "(and following"
+  },
+  {
+   "input": "ff.,",
+   "pronunciation": "ff.,",
+   "abbreviation": "ff.,",
+   "number": "ff.,",
+   "punctuation": "ff.,",
+   "prepared": "ff.,"
+  },
+  {
+   "input": "approx.",
+   "pronunciation": "approx.",
+   "abbreviation": "approximately",
+   "number": "approx.",
+   "punctuation": "approx.",
+   "prepared": "approximately"
+  },
+  {
+   "input": "APPROX.",
+   "pronunciation": "APPROX.",
+   "abbreviation": "Approximately",
+   "number": "APPROX.",
+   "punctuation": "APPROX.",
+   "prepared": "Approximately"
+  },
+  {
+   "input": "(approx.",
+   "pronunciation": "(approx.",
+   "abbreviation": "(approximately",
+   "number": "(approx.",
+   "punctuation": "(approx.",
+   "prepared": "(approximately"
+  },
+  {
+   "input": "approx.,",
+   "pronunciation": "approx.,",
+   "abbreviation": "approx.,",
+   "number": "approx.,",
+   "punctuation": "approx.,",
+   "prepared": "approx.,"
+  },
+  {
+   "input": "Yehovah",
+   "pronunciation": "Yehovuh",
+   "abbreviation": "Yehovah",
+   "number": "Yehovah",
+   "punctuation": "Yehovah",
+   "prepared": "Yehovuh"
+  },
+  {
+   "input": "YEHOVAH",
+   "pronunciation": "Yehovuh",
+   "abbreviation": "YEHOVAH",
+   "number": "YEHOVAH",
+   "punctuation": "YEHOVAH",
+   "prepared": "Yehovuh"
+  },
+  {
+   "input": "yehovah",
+   "pronunciation": "Yehovuh",
+   "abbreviation": "yehovah",
+   "number": "yehovah",
+   "punctuation": "yehovah",
+   "prepared": "Yehovuh"
+  },
+  {
+   "input": "Yehovahs",
+   "pronunciation": "Yehovuh's",
+   "abbreviation": "Yehovahs",
+   "number": "Yehovahs",
+   "punctuation": "Yehovahs",
+   "prepared": "Yehovuh's"
+  },
+  {
+   "input": "Yehovah's",
+   "pronunciation": "Yehovuh's",
+   "abbreviation": "Yehovah's",
+   "number": "Yehovah's",
+   "punctuation": "Yehovah's",
+   "prepared": "Yehovuh's"
+  },
+  {
+   "input": "Yehovah’s",
+   "pronunciation": "Yehovuh's",
+   "abbreviation": "Yehovah’s",
+   "number": "Yehovah’s",
+   "punctuation": "Yehovah's",
+   "prepared": "Yehovuh's"
+  },
+  {
+   "input": "(Yehovah),",
+   "pronunciation": "(Yehovuh),",
+   "abbreviation": "(Yehovah),",
+   "number": "(Yehovah),",
+   "punctuation": "(Yehovah),",
+   "prepared": "(Yehovuh),"
+  },
+  {
+   "input": "Yeshua",
+   "pronunciation": "Yeshuwa",
+   "abbreviation": "Yeshua",
+   "number": "Yeshua",
+   "punctuation": "Yeshua",
+   "prepared": "Yeshuwa"
+  },
+  {
+   "input": "Yeshua's",
+   "pronunciation": "Yeshuwa's",
+   "abbreviation": "Yeshua's",
+   "number": "Yeshua's",
+   "punctuation": "Yeshua's",
+   "prepared": "Yeshuwa's"
+  },
+  {
+   "input": "(Yeshua!)",
+   "pronunciation": "(Yeshuwa!)",
+   "abbreviation": "(Yeshua!)",
+   "number": "(Yeshua!)",
+   "punctuation": "(Yeshua!)",
+   "prepared": "(Yeshuwa!)"
+  },
+  {
+   "input": "Yeshua’S",
+   "pronunciation": "Yeshua’S",
+   "abbreviation": "Yeshua’S",
+   "number": "Yeshua’S",
+   "punctuation": "Yeshua'S",
+   "prepared": "Yeshua'S"
+  },
+  {
+   "input": "words—then",
+   "pronunciation": "words—then",
+   "abbreviation": "words—then",
+   "number": "words—then",
+   "punctuation": "words,then",
+   "prepared": "words,then"
+  },
+  {
+   "input": "words–and",
+   "pronunciation": "words–and",
+   "abbreviation": "words–and",
+   "number": "words–and",
+   "punctuation": "words,and",
+   "prepared": "words,and"
+  },
+  {
+   "input": "wait...",
+   "pronunciation": "wait...",
+   "abbreviation": "wait...",
+   "number": "wait...",
+   "punctuation": "wait,",
+   "prepared": "wait,"
+  },
+  {
+   "input": "wait…",
+   "pronunciation": "wait…",
+   "abbreviation": "wait…",
+   "number": "wait…",
+   "punctuation": "wait,",
+   "prepared": "wait,"
+  },
+  {
+   "input": "what!!??",
+   "pronunciation": "what!!??",
+   "abbreviation": "what!!??",
+   "number": "what!!??",
+   "punctuation": "what!?",
+   "prepared": "what!?"
+  },
+  {
+   "input": "wait......",
+   "pronunciation": "wait......",
+   "abbreviation": "wait......",
+   "number": "wait......",
+   "punctuation": "wait,",
+   "prepared": "wait,"
+  },
+  {
+   "input": "‘hello’",
+   "pronunciation": "‘hello’",
+   "abbreviation": "‘hello’",
+   "number": "‘hello’",
+   "punctuation": "'hello'",
+   "prepared": "'hello'"
+  },
+  {
+   "input": "“hello”",
+   "pronunciation": "“hello”",
+   "abbreviation": "“hello”",
+   "number": "“hello”",
+   "punctuation": "\"hello\"",
+   "prepared": "\"hello\""
+  },
+  {
+   "input": "😀",
+   "pronunciation": "😀",
+   "abbreviation": "😀",
+   "number": "😀",
+   "punctuation": "😀",
+   "prepared": "😀"
+  },
+  {
+   "input": "é",
+   "pronunciation": "é",
+   "abbreviation": "é",
+   "number": "é",
+   "punctuation": "é",
+   "prepared": "é"
+  },
+  {
+   "input": "",
+   "pronunciation": "",
+   "abbreviation": "",
+   "number": "",
+   "punctuation": "",
+   "prepared": ""
+  },
+  {
+   "input": "\n",
+   "pronunciation": "\n",
+   "abbreviation": "\n",
+   "number": "\n",
+   "punctuation": "\n",
+   "prepared": "\n"
+  },
+  {
+   "input": "Dr.\n",
+   "pronunciation": "Dr.\n",
+   "abbreviation": "Dr.\n",
+   "number": "Dr.\n",
+   "punctuation": "Dr.\n",
+   "prepared": "Dr.\n"
+  },
+  {
+   "input": "40\n",
+   "pronunciation": "40\n",
+   "abbreviation": "40\n",
+   "number": "40\n",
+   "punctuation": "40\n",
+   "prepared": "40\n"
+  }
+ ],
+ "verses": [
+  {
+   "text": "",
+   "tagged": null,
+   "rules": [],
+   "output": {
+    "words": [],
+    "spokenText": ""
+   }
+  },
+  {
+   "text": "",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [],
+    "spokenText": ""
+   }
+  },
+  {
+   "text": "",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [],
+    "spokenText": ""
+   }
+  },
+  {
+   "text": "  Jesus  said 40 words—then. ",
+   "tagged": null,
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "Jesus",
+      "charStart": 2,
+      "charLen": 5,
+      "wordIndex": 2
+     },
+     {
+      "text": "said",
+      "charStart": 9,
+      "charLen": 4,
+      "wordIndex": 4
+     },
+     {
+      "text": "forty",
+      "charStart": 14,
+      "charLen": 5,
+      "wordIndex": 5
+     },
+     {
+      "text": "words,then.",
+      "charStart": 20,
+      "charLen": 11,
+      "wordIndex": 6
+     }
+    ],
+    "spokenText": "  Jesus  said forty words,then. "
+   }
+  },
+  {
+   "text": "  Jesus  said 40 words—then. ",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "Yeshuwa",
+      "charStart": 2,
+      "charLen": 7,
+      "wordIndex": 2
+     },
+     {
+      "text": "said",
+      "charStart": 11,
+      "charLen": 4,
+      "wordIndex": 4
+     },
+     {
+      "text": "forty",
+      "charStart": 16,
+      "charLen": 5,
+      "wordIndex": 5
+     },
+     {
+      "text": "words,then.",
+      "charStart": 22,
+      "charLen": 11,
+      "wordIndex": 6
+     }
+    ],
+    "spokenText": "  Yeshuwa  said forty words,then. "
+   }
+  },
+  {
+   "text": "  Jesus  said 40 words—then. ",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "Jesus",
+      "charStart": 2,
+      "charLen": 5,
+      "wordIndex": 2
+     },
+     {
+      "text": "said",
+      "charStart": 9,
+      "charLen": 4,
+      "wordIndex": 4
+     },
+     {
+      "text": "forty",
+      "charStart": 14,
+      "charLen": 5,
+      "wordIndex": 5
+     },
+     {
+      "text": "words,then.",
+      "charStart": 20,
+      "charLen": 11,
+      "wordIndex": 6
+     }
+    ],
+    "spokenText": "  Jesus  said forty words,then. "
+   }
+  },
+  {
+   "text": "(Dr. said) 700 é 😀.",
+   "tagged": null,
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "(Doctor",
+      "charStart": 0,
+      "charLen": 7,
+      "wordIndex": 0
+     },
+     {
+      "text": "said)",
+      "charStart": 8,
+      "charLen": 5,
+      "wordIndex": 1
+     },
+     {
+      "text": "seven hundred",
+      "charStart": 14,
+      "charLen": 13,
+      "wordIndex": 2
+     },
+     {
+      "text": "é",
+      "charStart": 28,
+      "charLen": 2,
+      "wordIndex": 3
+     },
+     {
+      "text": "😀.",
+      "charStart": 31,
+      "charLen": 3,
+      "wordIndex": 4
+     }
+    ],
+    "spokenText": "(Doctor said) seven hundred é 😀."
+   }
+  },
+  {
+   "text": "(Dr. said) 700 é 😀.",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "(Doctor",
+      "charStart": 0,
+      "charLen": 7,
+      "wordIndex": 0
+     },
+     {
+      "text": "said)",
+      "charStart": 8,
+      "charLen": 5,
+      "wordIndex": 1
+     },
+     {
+      "text": "seven hundred",
+      "charStart": 14,
+      "charLen": 13,
+      "wordIndex": 2
+     },
+     {
+      "text": "é",
+      "charStart": 28,
+      "charLen": 2,
+      "wordIndex": 3
+     },
+     {
+      "text": "😀.",
+      "charStart": 31,
+      "charLen": 3,
+      "wordIndex": 4
+     }
+    ],
+    "spokenText": "(Doctor said) seven hundred é 😀."
+   }
+  },
+  {
+   "text": "(Dr. said) 700 é 😀.",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "(Doctor",
+      "charStart": 0,
+      "charLen": 7,
+      "wordIndex": 0
+     },
+     {
+      "text": "said)",
+      "charStart": 8,
+      "charLen": 5,
+      "wordIndex": 1
+     },
+     {
+      "text": "seven hundred",
+      "charStart": 14,
+      "charLen": 13,
+      "wordIndex": 2
+     },
+     {
+      "text": "é",
+      "charStart": 28,
+      "charLen": 2,
+      "wordIndex": 3
+     },
+     {
+      "text": "😀.",
+      "charStart": 31,
+      "charLen": 3,
+      "wordIndex": 4
+     }
+    ],
+    "spokenText": "(Doctor said) seven hundred é 😀."
+   }
+  },
+  {
+   "text": "The LORD said 40 words.",
+   "tagged": "The{} LORD{H3068} said{} 40{} words.{}",
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "The",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "LORD",
+      "charStart": 4,
+      "charLen": 4,
+      "wordIndex": 1
+     },
+     {
+      "text": "said",
+      "charStart": 9,
+      "charLen": 4,
+      "wordIndex": 2
+     },
+     {
+      "text": "forty",
+      "charStart": 14,
+      "charLen": 5,
+      "wordIndex": 3
+     },
+     {
+      "text": "words.",
+      "charStart": 20,
+      "charLen": 6,
+      "wordIndex": 4
+     }
+    ],
+    "spokenText": "The LORD said forty words."
+   }
+  },
+  {
+   "text": "The LORD said 40 words.",
+   "tagged": "The{} LORD{H3068} said{} 40{} words.{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "",
+      "charStart": 0,
+      "charLen": 0,
+      "wordIndex": 0
+     },
+     {
+      "text": "Yehovuh",
+      "charStart": 1,
+      "charLen": 7,
+      "wordIndex": 1
+     },
+     {
+      "text": "said",
+      "charStart": 9,
+      "charLen": 4,
+      "wordIndex": 2
+     },
+     {
+      "text": "forty",
+      "charStart": 14,
+      "charLen": 5,
+      "wordIndex": 3
+     },
+     {
+      "text": "words.",
+      "charStart": 20,
+      "charLen": 6,
+      "wordIndex": 4
+     }
+    ],
+    "spokenText": " Yehovuh said forty words."
+   }
+  },
+  {
+   "text": "The LORD said 40 words.",
+   "tagged": "The{} LORD{H3068} said{} 40{} words.{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "The",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "LORD",
+      "charStart": 4,
+      "charLen": 4,
+      "wordIndex": 1
+     },
+     {
+      "text": "said",
+      "charStart": 9,
+      "charLen": 4,
+      "wordIndex": 2
+     },
+     {
+      "text": "forty",
+      "charStart": 14,
+      "charLen": 5,
+      "wordIndex": 3
+     },
+     {
+      "text": "words.",
+      "charStart": 20,
+      "charLen": 6,
+      "wordIndex": 4
+     }
+    ],
+    "spokenText": "The LORD said forty words."
+   }
+  },
+  {
+   "text": "the LORD'S earth",
+   "tagged": "the{} ~{H853} LORD'S{H3068} earth{H776}",
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "the",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "LORD'S",
+      "charStart": 4,
+      "charLen": 6,
+      "wordIndex": 1
+     },
+     {
+      "text": "earth",
+      "charStart": 11,
+      "charLen": 5,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "the LORD'S earth"
+   }
+  },
+  {
+   "text": "the LORD'S earth",
+   "tagged": "the{} ~{H853} LORD'S{H3068} earth{H776}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "",
+      "charStart": 0,
+      "charLen": 0,
+      "wordIndex": 0
+     },
+     {
+      "text": "Yehovuh's",
+      "charStart": 1,
+      "charLen": 9,
+      "wordIndex": 1
+     },
+     {
+      "text": "earth",
+      "charStart": 11,
+      "charLen": 5,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": " Yehovuh's earth"
+   }
+  },
+  {
+   "text": "the LORD'S earth",
+   "tagged": "the{} ~{H853} LORD'S{H3068} earth{H776}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "the",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "LORD'S",
+      "charStart": 4,
+      "charLen": 6,
+      "wordIndex": 1
+     },
+     {
+      "text": "earth",
+      "charStart": 11,
+      "charLen": 5,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "the LORD'S earth"
+   }
+  },
+  {
+   "text": "the Lord said",
+   "tagged": "the;{} Lord{H1|H3068} !*said{}",
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "the;",
+      "charStart": 0,
+      "charLen": 4,
+      "wordIndex": 0
+     },
+     {
+      "text": "Lord",
+      "charStart": 5,
+      "charLen": 4,
+      "wordIndex": 1
+     },
+     {
+      "text": "said",
+      "charStart": 10,
+      "charLen": 4,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "the; Lord said"
+   }
+  },
+  {
+   "text": "the Lord said",
+   "tagged": "the;{} Lord{H1|H3068} !*said{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "",
+      "charStart": 0,
+      "charLen": 0,
+      "wordIndex": 0
+     },
+     {
+      "text": "Yehovuh",
+      "charStart": 1,
+      "charLen": 7,
+      "wordIndex": 1
+     },
+     {
+      "text": "said",
+      "charStart": 9,
+      "charLen": 4,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": " Yehovuh said"
+   }
+  },
+  {
+   "text": "the Lord said",
+   "tagged": "the;{} Lord{H1|H3068} !*said{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "the;",
+      "charStart": 0,
+      "charLen": 4,
+      "wordIndex": 0
+     },
+     {
+      "text": "Lord",
+      "charStart": 5,
+      "charLen": 4,
+      "wordIndex": 1
+     },
+     {
+      "text": "said",
+      "charStart": 10,
+      "charLen": 4,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "the; Lord said"
+   }
+  },
+  {
+   "text": "the earth was void",
+   "tagged": "the{} earth{H776} was{} void{}",
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "the",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "earth",
+      "charStart": 4,
+      "charLen": 5,
+      "wordIndex": 1
+     },
+     {
+      "text": "was",
+      "charStart": 10,
+      "charLen": 3,
+      "wordIndex": 2
+     },
+     {
+      "text": "void",
+      "charStart": 14,
+      "charLen": 4,
+      "wordIndex": 3
+     }
+    ],
+    "spokenText": "the earth was void"
+   }
+  },
+  {
+   "text": "the earth was void",
+   "tagged": "the{} earth{H776} was{} void{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "the",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "earth",
+      "charStart": 4,
+      "charLen": 5,
+      "wordIndex": 1
+     },
+     {
+      "text": "was",
+      "charStart": 10,
+      "charLen": 3,
+      "wordIndex": 2
+     },
+     {
+      "text": "void",
+      "charStart": 14,
+      "charLen": 4,
+      "wordIndex": 3
+     }
+    ],
+    "spokenText": "the earth was void"
+   }
+  },
+  {
+   "text": "the earth was void",
+   "tagged": "the{} earth{H776} was{} void{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "the",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "earth",
+      "charStart": 4,
+      "charLen": 5,
+      "wordIndex": 1
+     },
+     {
+      "text": "was",
+      "charStart": 10,
+      "charLen": 3,
+      "wordIndex": 2
+     },
+     {
+      "text": "void",
+      "charStart": 14,
+      "charLen": 4,
+      "wordIndex": 3
+     }
+    ],
+    "spokenText": "the earth was void"
+   }
+  },
+  {
+   "text": "plain fallback",
+   "tagged": "",
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "plain",
+      "charStart": 0,
+      "charLen": 5,
+      "wordIndex": 0
+     },
+     {
+      "text": "fallback",
+      "charStart": 6,
+      "charLen": 8,
+      "wordIndex": 1
+     }
+    ],
+    "spokenText": "plain fallback"
+   }
+  },
+  {
+   "text": "plain fallback",
+   "tagged": "",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "plain",
+      "charStart": 0,
+      "charLen": 5,
+      "wordIndex": 0
+     },
+     {
+      "text": "fallback",
+      "charStart": 6,
+      "charLen": 8,
+      "wordIndex": 1
+     }
+    ],
+    "spokenText": "plain fallback"
+   }
+  },
+  {
+   "text": "plain fallback",
+   "tagged": "",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "plain",
+      "charStart": 0,
+      "charLen": 5,
+      "wordIndex": 0
+     },
+     {
+      "text": "fallback",
+      "charStart": 6,
+      "charLen": 8,
+      "wordIndex": 1
+     }
+    ],
+    "spokenText": "plain fallback"
+   }
+  },
+  {
+   "text": "no readable tokens",
+   "tagged": "~{H853} sup>({} /sup>){}",
+   "rules": [],
+   "output": {
+    "words": [],
+    "spokenText": ""
+   }
+  },
+  {
+   "text": "no readable tokens",
+   "tagged": "~{H853} sup>({} /sup>){}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [],
+    "spokenText": ""
+   }
+  },
+  {
+   "text": "no readable tokens",
+   "tagged": "~{H853} sup>({} /sup>){}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [],
+    "spokenText": ""
+   }
+  },
+  {
+   "text": "Jesus (said) 700",
+   "tagged": "Jesus{G2424} sup>({} (said){} /sup>){} 700{}",
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "Jesus",
+      "charStart": 0,
+      "charLen": 5,
+      "wordIndex": 0
+     },
+     {
+      "text": "(said)",
+      "charStart": 6,
+      "charLen": 6,
+      "wordIndex": 1
+     },
+     {
+      "text": "seven hundred",
+      "charStart": 13,
+      "charLen": 13,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "Jesus (said) seven hundred"
+   }
+  },
+  {
+   "text": "Jesus (said) 700",
+   "tagged": "Jesus{G2424} sup>({} (said){} /sup>){} 700{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "Yeshuwa",
+      "charStart": 0,
+      "charLen": 7,
+      "wordIndex": 0
+     },
+     {
+      "text": "(said)",
+      "charStart": 8,
+      "charLen": 6,
+      "wordIndex": 1
+     },
+     {
+      "text": "seven hundred",
+      "charStart": 15,
+      "charLen": 13,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "Yeshuwa (said) seven hundred"
+   }
+  },
+  {
+   "text": "Jesus (said) 700",
+   "tagged": "Jesus{G2424} sup>({} (said){} /sup>){} 700{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "Jesus",
+      "charStart": 0,
+      "charLen": 5,
+      "wordIndex": 0
+     },
+     {
+      "text": "(said)",
+      "charStart": 6,
+      "charLen": 6,
+      "wordIndex": 1
+     },
+     {
+      "text": "seven hundred",
+      "charStart": 13,
+      "charLen": 13,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "Jesus (said) seven hundred"
+   }
+  },
+  {
+   "text": "α😀 é",
+   "tagged": "α😀{} é{}",
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "α😀",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "é",
+      "charStart": 4,
+      "charLen": 2,
+      "wordIndex": 1
+     }
+    ],
+    "spokenText": "α😀 é"
+   }
+  },
+  {
+   "text": "α😀 é",
+   "tagged": "α😀{} é{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "α😀",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "é",
+      "charStart": 4,
+      "charLen": 2,
+      "wordIndex": 1
+     }
+    ],
+    "spokenText": "α😀 é"
+   }
+  },
+  {
+   "text": "α😀 é",
+   "tagged": "α😀{} é{}",
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "α😀",
+      "charStart": 0,
+      "charLen": 3,
+      "wordIndex": 0
+     },
+     {
+      "text": "é",
+      "charStart": 4,
+      "charLen": 2,
+      "wordIndex": 1
+     }
+    ],
+    "spokenText": "α😀 é"
+   }
+  },
+  {
+   "text": "one\ntwo  three",
+   "tagged": null,
+   "rules": [],
+   "output": {
+    "words": [
+     {
+      "text": "one\ntwo",
+      "charStart": 0,
+      "charLen": 7,
+      "wordIndex": 0
+     },
+     {
+      "text": "three",
+      "charStart": 9,
+      "charLen": 5,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "one\ntwo  three"
+   }
+  },
+  {
+   "text": "one\ntwo  three",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": true
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": true
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "one\ntwo",
+      "charStart": 0,
+      "charLen": 7,
+      "wordIndex": 0
+     },
+     {
+      "text": "three",
+      "charStart": 9,
+      "charLen": 5,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "one\ntwo  three"
+   }
+  },
+  {
+   "text": "one\ntwo  three",
+   "tagged": null,
+   "rules": [
+    {
+     "id": "name",
+     "queries": [
+      "Jesus"
+     ],
+     "replacement": "Yeshua",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "title",
+     "queries": [
+      "Lord"
+     ],
+     "replacement": "master",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "divine",
+     "queries": [],
+     "replacement": "Yehovah",
+     "strongsNum": "H3068",
+     "wholeWord": false,
+     "enabled": false
+    },
+    {
+     "id": "multi",
+     "queries": [
+      "700"
+     ],
+     "replacement": "seven hundred",
+     "wholeWord": true,
+     "enabled": false
+    },
+    {
+     "id": "disabled",
+     "queries": [
+      "earth"
+     ],
+     "replacement": "ignored",
+     "wholeWord": true,
+     "enabled": false
+    }
+   ],
+   "output": {
+    "words": [
+     {
+      "text": "one\ntwo",
+      "charStart": 0,
+      "charLen": 7,
+      "wordIndex": 0
+     },
+     {
+      "text": "three",
+      "charStart": 9,
+      "charLen": 5,
+      "wordIndex": 2
+     }
+    ],
+    "spokenText": "one\ntwo  three"
+   }
+  }
+ ]
+}

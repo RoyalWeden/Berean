@@ -2,7 +2,7 @@
  "format": 1,
  "generator": "scripts/golden/notes.ts",
  "sources": {
-  "src/platform/services/notesService.ts": "e7cfd4e651746df3d678a20afffd998713df029029abe2ee08b909e195e6d7a8",
+  "src/platform/services/notesService.ts": "04c7a696f45fa873647f5e6aa8585757b40ee05123a8f146b3a32123073c39bd",
   "src/lib/noteUtils.ts": "f3dc400ec01ee101b28acfac33b09938b698a34c25d9e4f99c24ef7e0a8e469c",
   "scripts/golden/notes.ts": "e4b9f163909edfefe8b98e6bc2b494acabd7b0bf2019209e3904ba4eef2580c5"
  },

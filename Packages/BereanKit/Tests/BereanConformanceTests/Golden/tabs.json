@@ -2,10 +2,10 @@
  "format": 1,
  "generator": "scripts/golden/tabs.ts",
  "sources": {
-  "src/platform/sync/tabFields.ts": "a444dd63b9ee995cd700385a9d61c189d3966a51c105a96ffe6adff8d4a95a53",
+  "src/platform/sync/tabFields.ts": "0029153aa3b387f7693e683733dcd4185c0e96d4242458d7b3e8510160f047e0",
   "src/store/tabPersistence.ts": "f84cafd273a396fb89b5dcb10ab72c498600100ebb2dfda7750719684eb882f7",
   "src/platform/services/sessionsService.ts": "2c7cf23a3146e863a078d1679c42189516f1cdd26f41a7f749a0b5d564d7e772",
-  "scripts/golden/tabs.ts": "2fe67814d0934292b5410a1b9ca9f5518c337133d446d316b07b5ac3bf978f31"
+  "scripts/golden/tabs.ts": "2b50278a6bd5a488a1b89ae0c94d3ad254fa9abd6cfe374d8d016bf4c1079bf1"
  },
  "split": [
   {
@@ -20,6 +20,18 @@
     "targetVerse": 16,
     "rightPanelOpen": true,
     "rightPanelWidth": 380,
+    "nativeReaderPositions": {
+     "kjva|JHN|3": {
+      "offset": 120.5,
+      "verse": 16,
+      "atEnd": false,
+      "selectedVerses": [
+       16
+      ],
+      "width": 390,
+      "verseOffset": -2.5
+     }
+    },
     "compareMode": true,
     "compareColumns": [
      {
@@ -84,6 +96,18 @@
      },
      {}
     ],
+    "nativeReaderPositions": {
+     "kjva|JHN|3": {
+      "offset": 120.5,
+      "verse": 16,
+      "atEnd": false,
+      "selectedVerses": [
+       16
+      ],
+      "width": 390,
+      "verseOffset": -2.5
+     }
+    },
     "scrollPosition": 120.5,
     "rightPanelOpen": true,
     "rightPanelWidth": 380,
@@ -119,6 +143,18 @@
     ],
     "rightPanelTab": "lexicon",
     "scriptureLayout": "study-grid",
+    "nativeReaderPositions": {
+     "kjva|JHN|3": {
+      "offset": 120.5,
+      "verse": 16,
+      "atEnd": false,
+      "selectedVerses": [
+       16
+      ],
+      "width": 390,
+      "verseOffset": -2.5
+     }
+    },
     "scrollPosition": 120.5,
     "rightPanelOpen": true,
     "rightPanelWidth": 380,
@@ -127,7 +163,7 @@
     }
    },
    "syncJson": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-   "localJson": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}"
+   "localJson": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}"
   },
   {
    "type": "bible",
@@ -621,6 +657,18 @@
       "targetVerse": 16,
       "rightPanelOpen": true,
       "rightPanelWidth": 380,
+      "nativeReaderPositions": {
+       "kjva|JHN|3": {
+        "offset": 120.5,
+        "verse": 16,
+        "atEnd": false,
+        "selectedVerses": [
+         16
+        ],
+        "width": 390,
+        "verseOffset": -2.5
+       }
+      },
       "compareMode": true,
       "compareColumns": [
        {
@@ -830,7 +878,7 @@
     "origin_tab_id": null,
     "origin_space_id": null,
     "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-    "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}"
+    "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}"
    },
    {
     "id": "t2",
@@ -1144,7 +1192,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000001000,
      "deleted_at": null
@@ -1265,7 +1313,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000001000,
      "deleted_at": null
@@ -1352,7 +1400,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000001000,
      "deleted_at": null
@@ -1460,7 +1508,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000001000,
      "deleted_at": null
@@ -1581,7 +1629,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000001000,
      "deleted_at": null
@@ -1668,7 +1716,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000001000,
      "deleted_at": null
@@ -2104,7 +2152,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2231,7 +2279,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2318,7 +2366,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2442,7 +2490,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2579,7 +2627,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2666,7 +2714,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2790,7 +2838,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2927,7 +2975,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -2997,7 +3045,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -3104,7 +3152,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -3231,7 +3279,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -3284,7 +3332,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000004000,
      "deleted_at": null
@@ -3391,7 +3439,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -3518,7 +3566,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -3588,7 +3636,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -3685,7 +3733,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -3812,7 +3860,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -3899,7 +3947,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -4013,7 +4061,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -4140,7 +4188,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -4227,7 +4275,7 @@
      "origin_tab_id": null,
      "origin_space_id": null,
      "sync_state_json": "{\"bookId\":\"JHN\",\"chapter\":3,\"compareColumns\":[{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"lxx\"},{\"bookId\":\"GEN\",\"chapter\":1,\"textId\":\"kjva\"}],\"compareMode\":true,\"hiddenAnnotations\":[\"lxx_supply\"],\"rightPanelTab\":\"lexicon\",\"scriptureLayout\":\"study-grid\",\"showStrongs\":true,\"translation\":\"kjva\",\"verse\":16}",
-     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
+     "local_state_json": "{\"compareColumns\":[{\"scrollPos\":{\"frac\":0.25,\"verseNum\":3}},{}],\"nativeReaderPositions\":{\"kjva|JHN|3\":{\"atEnd\":false,\"offset\":120.5,\"selectedVerses\":[16],\"verse\":16,\"verseOffset\":-2.5,\"width\":390}},\"rightPanelOpen\":true,\"rightPanelScrollTops\":{\"notes\":10},\"rightPanelWidth\":380,\"scrollPosition\":120.5}",
      "created_at": 1800000001000,
      "updated_at": 1800000008000,
      "deleted_at": null
@@ -4345,6 +4393,18 @@
         "showStrongs": true,
         "translation": "kjva",
         "verse": 16,
+        "nativeReaderPositions": {
+         "kjva|JHN|3": {
+          "atEnd": false,
+          "offset": 120.5,
+          "selectedVerses": [
+           16
+          ],
+          "verse": 16,
+          "verseOffset": -2.5,
+          "width": 390
+         }
+        },
         "rightPanelOpen": true,
         "rightPanelScrollTops": {
          "notes": 10

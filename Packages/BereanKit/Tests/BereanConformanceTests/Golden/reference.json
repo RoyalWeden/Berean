@@ -82500,6 +82500,226 @@
    }
   },
   {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "See [[John 3:16|love]] and John 3:16.",
+    "Study fixture"
+   ],
+   "out": [
+    {
+     "bookId": "JHN",
+     "chapter": 3,
+     "verse": 16,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "See John 3:16|love and John 3:16."
+    }
+   ]
+  },
+  {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "Compare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX.",
+    "Study fixture"
+   ],
+   "out": [
+    {
+     "bookId": "DEU",
+     "chapter": 32,
+     "verse": 3,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Compare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX."
+    },
+    {
+     "bookId": "DEU",
+     "chapter": 32,
+     "verse": 6,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Compare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX."
+    },
+    {
+     "bookId": "DEU",
+     "chapter": 32,
+     "verse": 9,
+     "endVerse": 13,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Compare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX."
+    },
+    {
+     "bookId": "DEU",
+     "chapter": 32,
+     "verse": 23,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Compare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX."
+    },
+    {
+     "bookId": "DEU",
+     "chapter": 32,
+     "verse": 25,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Compare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX."
+    },
+    {
+     "bookId": "ISA",
+     "chapter": 6,
+     "verse": 4,
+     "isChapter": false,
+     "lxx": true,
+     "sourceNoteTitle": "Study fixture",
+     "context": "pare Deuteronomy 32:3,6,9-13,23,25 and Isaiah 6:4 LXX."
+    }
+   ]
+  },
+  {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "Her 5 children and her 5 friends. My job 3 days. See Job 3.",
+    "Study fixture"
+   ],
+   "out": [
+    {
+     "bookId": "HER_VIS",
+     "chapter": 5,
+     "verse": 0,
+     "isChapter": true,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Her 5 children and her 5 friends. My job"
+    },
+    {
+     "bookId": "JOB",
+     "chapter": 3,
+     "verse": 0,
+     "isChapter": true,
+     "sourceNoteTitle": "Study fixture",
+     "context": "and her 5 friends. My job 3 days. See Job 3."
+    }
+   ]
+  },
+  {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "Compare Romans 9:21–22 and Isaiah 63:17-64:3.",
+    "Study fixture"
+   ],
+   "out": [
+    {
+     "bookId": "ROM",
+     "chapter": 9,
+     "verse": 21,
+     "endVerse": 22,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Compare Romans 9:21–22 and Isaiah 63:17-64:3."
+    },
+    {
+     "bookId": "ISA",
+     "chapter": 63,
+     "verse": 17,
+     "endVerse": 3,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Compare Romans 9:21–22 and Isaiah 63:17-64:3."
+    }
+   ]
+  },
+  {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "Quoting 1 Kings 8 and [[Romans 8:28]].",
+    "Study fixture"
+   ],
+   "out": [
+    {
+     "bookId": "1KI",
+     "chapter": 8,
+     "verse": 0,
+     "isChapter": true,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Quoting 1 Kings 8 and Romans 8:28."
+    },
+    {
+     "bookId": "ROM",
+     "chapter": 8,
+     "verse": 28,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Quoting 1 Kings 8 and Romans 8:28."
+    }
+   ]
+  },
+  {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "Psalm 23 and Psalm 23. Isaiah 6:4 and Isaiah 6:4 LXX.",
+    "Study fixture"
+   ],
+   "out": [
+    {
+     "bookId": "PSA",
+     "chapter": 23,
+     "verse": 0,
+     "isChapter": true,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Psalm 23 and Psalm 23. Isaiah 6:4 and Isaia"
+    },
+    {
+     "bookId": "ISA",
+     "chapter": 6,
+     "verse": 4,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Psalm 23 and Psalm 23. Isaiah 6:4 and Isaiah 6:4 LXX."
+    },
+    {
+     "bookId": "ISA",
+     "chapter": 6,
+     "verse": 4,
+     "isChapter": false,
+     "lxx": true,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Psalm 23 and Psalm 23. Isaiah 6:4 and Isaiah 6:4 LXX."
+    }
+   ]
+  },
+  {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "Shepherd of Hermas, Vision 3:2 and Recognitions, Book 10 41:8.",
+    "Study fixture"
+   ],
+   "out": [
+    {
+     "bookId": "HER_VIS",
+     "chapter": 3,
+     "verse": 2,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Shepherd of Hermas, Vision 3:2 and Recognitions, Book 10 41:8."
+    },
+    {
+     "bookId": "RCL10",
+     "chapter": 41,
+     "verse": 8,
+     "isChapter": false,
+     "sourceNoteTitle": "Study fixture",
+     "context": "Shepherd of Hermas, Vision 3:2 and Recognitions, Book 10 41:8."
+    }
+   ]
+  },
+  {
+   "fn": "extractRefsFromNote",
+   "args": [
+    "",
+    "Study fixture"
+   ],
+   "out": []
+  },
+  {
    "fn": "toCanonical",
    "args": [
     "Genesis 1"
@@ -116771,7 +116991,9 @@
  "format": 1,
  "generator": "scripts/golden/corpus.ts",
  "sources": {
-  "src/lib/parseRef.ts": "3ab5c9828271af79a81d46bdd5f75ce94a2a341c83c835411d448f973f2a5ef1",
+  "src/lib/noteRefs.ts": "35ebb7d44a3b13fd0bbab67ce2dfbd37b54017eb11b50b9d44b5f56a3fa2481d",
+  "src/lib/noteRefText.ts": "16213dca4e91563e59fa43c3927fe2e35019d1916fa53da568f1f2f22c920829",
+  "src/lib/parseRef.ts": "4ff548a57b3e7b895a5107f7c796f9efd79bd62077ad18da2fdaf9385b5a07de",
   "src/lib/hermasMap.ts": "8acc0bc5fb60075ba8f88a172b67b0d353dae8397aacd8f91ac992d816280b5a",
   "src/lib/chapterNumbering.ts": "fd6208afae754e51e7fbd4d625cb7848b3b35050522edf34cc3fbad7c26c1e92"
  }

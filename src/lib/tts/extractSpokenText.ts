@@ -106,15 +106,17 @@ export function buildSpokenWords(
   // Plain-text fallback (same split convention as VerseRow.tsx's `words = verse.text.split(' ')`)
   const raw = verse.text.split(' ')
   const words: SpokenWord[] = []
+  const parts: string[] = []
   let charPos = 0
   raw.forEach((w, i) => {
-    if (!w) { charPos += 1; return }
+    if (!w) { parts.push(''); charPos += 1; return }
     let spokenWord = wordReplacerRules.length > 0 ? applyWordReplacer(w, wordReplacerRules) : w
     spokenWord = prepareWordForSpeech(spokenWord)
     words.push({ text: spokenWord, charStart: charPos, charLen: spokenWord.length, wordIndex: i })
+    parts.push(spokenWord)
     charPos += spokenWord.length + 1
   })
-  return { words, spokenText: raw.filter(Boolean).join(' ') }
+  return { words, spokenText: parts.join(' ') }
 }
 
 /** Maps a chapter's verses into the per-verse spoken queue used by ttsEngine.ts. */

@@ -14,7 +14,7 @@ Every **new or compacted Claude session** starts with this sequence:
 
 1. Read the repository's current `CLAUDE.md` and any per-directory agent instructions. Verify instructions against current code where contradictory.
 2. Read **this entire playbook** (or, when constrained, its sections 0–4, 8, 12, 15–19, and the precise sections for the next task). Do not act from a vague remembered summary.
-3. Read `docs/native-migration/STATUS.md`, `TASKS.md`, `DECISIONS.md`, `HANDOFF.md`, and the latest entries in `CHANGELOG.md`.
+3. Open the compact current checkpoint at the top of [HANDOFF](HANDOFF.md) and [CURRENT-STATE](CURRENT-STATE.md) for the working tree, current CI, and next executable checks. Read `STATUS.md`, `TASKS.md`, `DECISIONS.md`, and the latest entries in `CHANGELOG.md` for the wider migration state.
 4. Open the separately provided **Berean Native Migration Master Specification** and ensure its location is recorded in `STATUS.md`. If unavailable, do not invent content; continue only with tasks safely specified by this playbook and audits, and log the specification as missing.
 5. Consult relevant original audit sections in `docs/native-migration-audit/00` through `17` before altering a sensitive subsystem.
 6. Verify live evidence: `git status --porcelain=v1`, `git branch --show-current`, `git rev-parse HEAD`, `git worktree list`, relevant PR/CI results, current app identities and build scripts. Never assume an old checkpoint is still current.
@@ -22,6 +22,8 @@ Every **new or compacted Claude session** starts with this sequence:
 8. Implement → test → repair → rerun → commit → review/PR/merge under existing repo policy → update all durable records → immediately select the next ready task. Do not stop simply because a PR or milestone finished.
 9. If blocked, record the precise owner action required, choose a separate unblocked task, and continue. Only interrupt when the user is genuinely necessary; batch questions.
 10. Before any session terminates, update `HANDOFF.md` with exact repository state, worktree, touched files, commands and outcomes, blockers, and next executable step. **No claim of background continuation beyond the current active agent session.**
+
+For reader, search and navigation changes, use both actual app bundles with the immutable catalog and the native Dev identities. Check that navigation resolves a less common bundled text, and compare tab counts before and after ordinary navigation and explicit New Tab. Verify touch selection and persistent highlights separately from compile checks. Keep unnamed-workspace discovery and reversible tab cleanup in the active parity queue.
 
 **Never infer completion from the existence of source files.** Feature completion requires actual behavior, persistence and restart checks, platform checks, and relevant parity tests.
 
@@ -693,3 +695,191 @@ Next ready task:
 - iPhone App Intents existed (audit 07 corrected audit 03 partial read).
 - `docs/privacy.md` asserted no location data, but sunrise uses location on-device, per audit 17.
 - Some audit agents did not inspect every line, and many findings are INFERRED, UNVERIFIED or BLOCKED. **No document is a substitute for verification against current repo code.**
+
+### Notes browse runtime checks after 2026-11-17
+
+Use the shared `openNoteFromList` path for gallery and list activation and context actions so folder and search return anchors stay consistent. Validate a card beyond the initial viewport, then repeat Back/Forward. Test disclosure with an explicitly selected note and confirm the hidden selection count before exercising bulk actions. Keep collapse state scoped by location and grouping, and keep search matches visible.
+
+### Cursor regression checks
+
+Build the Mac Dev app and launch the scratch library with `BEREAN_CURSOR_TRACE=1` to record the settled expected/actual cursor after real input events. Check multiple points inside one control, enabled and disabled states, and text/link/resize areas nearby. Use the event-delivered point during dispatch, and coalesce subsequent refreshes. Keep the trace opt-in and treat a successful sample as evidence only for that tested path.
+
+### Location-editing regression gate (2026-11-17)
+
+For Cmd+L, test both same- and different-type destinations with existing exact matches and pinned current tabs. Assert source ID, pin, global display order and total count remain fixed and peer content does not change. Traverse Back and Forward across every type change; check actual scroll anchors separately. Test Cmd+K reuse and explicit New Tab overrides alongside replacement. Use only the named native QA library and read-only database inspection as supporting evidence.
+
+### Test configuration and duplicate-app targeting checks (2026-11-17)
+
+Optimized Xcode simulator package tests require ENABLE_TESTABILITY=YES for @testable imports; SwiftPM test defaults do not establish that Xcode Release setting. Keep it test-only. Fixed historical-date UI fixtures should control Date without replacing the real async rendering timers.
+
+Before any CUA action after getApp rebinding or agent UI handoff, verify the visible library/workspace fixture. Two running native Dev instances share the same bundle ID, and the tool may resolve the regular Dev process despite a QA bundle path. Do not use or terminate the regular Dev process to work around this. Retain precise known QA IDs/counts as supporting read-only evidence, and leave multi-instance targeting unverified if the API cannot distinguish it.
+
+
+## 2026-11-19 — source resolution and QA identity notes
+
+A build observation timeout is not a failed build. In this round both Xcode package scans were confirmed live and sampled inside Git refresh reads of offloaded source files. Stop only identified build-owned Git children after that diagnosis; observe the original Xcode handles to terminal state. Invocation-only `GIT_OPTIONAL_LOCKS=0`, `GIT_CONFIG_COUNT=2`, `GIT_CONFIG_KEY_0=core.trustctime`, `GIT_CONFIG_VALUE_0=false`, `GIT_CONFIG_KEY_1=core.checkStat`, `GIT_CONFIG_VALUE_1=minimal` avoided repeated ctime refresh without persistent config changes. Do not reset usage/caches, delete locks, pin cloud directories, or stop unrelated Dev processes.
+
+Fresh LaunchServices QA launch now uses the sandbox container's BereanNativeQA store, whereas earlier direct launches used the noncontainer QA path. Verify exact process args, AX QA identifier and read-only store/fixture identity before interacting. Record hashes AND timestamps for all fixture notes, restore the original tab/passage and compare tab counts. Never assume a previous QA baseline applies to another path. CUA AX can take20–40s; after a timed-out runtime rebind and inspect current state before repeating actions. No UI automation outside CUA.
+
+
+## 2026-11-19 — native references, toolbar responsiveness and Strong’s continuity
+
+- 42d34bbe: additive native cross-reference APIs map verified stored LXX rows to canonical sources; correct chapter grouping and combined-record aggregation. Legacy service entry points/goldens remain intact. Classic/TSKe selected and chapter UI checked on both apps; structural unverified alignments remain open.
+- fce2b88e: native navigation ControlGroup replaces fixed-size HStack; measured Mac toolbar CPU loop resolved while retaining sidebar titlebar placement. Baseline99.5% CPU/AX20–40s → idle0–3.3%/AX0.1–0.4s. This supersedes prior automation-latency diagnosis; broader physical interaction checks remain.
+- 3bbecdea: native readers retain the visible body line when Strong’s toggles, preferring a visible selected verse and excluding inline metadata from anchor offsets. Mac selected/unselected and iPhone mid-chapter on/off verified; physical phone and full edge/width matrix pending.
+- Validation: full202 shared tests; final6 focused cross-reference checks include all151 Psalms source bounds. Fresh reader intent/reflow harness passes Unicode/metadata mapping and prior tap/adjacency checks. Both final native builds pass. See current HANDOFF for exact logs, QA restoration and remaining tasks; source corpus/production/sync/identities unchanged.
+
+
+## 2026-11-19 — Compare selection and floating actions (d6f7cced)
+
+Each edition now owns its selectable verse numbers and action target. Additive taps/Mac Shift use actual stored row order; selection itself does not change the anchor passage or history. Adjacent visible selected rows share one faint/dashed outline; stacked interleaved editions remain outside each other’s outlines. Reduced Motion pauses animation. The adaptive glass action bar reuses reader control styling and supports copy/highlight/tag/note/reference/reader/share/clear operations. iPhone dock safe-area clearance was verified after an initial hidden-bar failure. Mac Command-C was verified after fixing a focus-routing failure. Clearing and exiting Compare does not restore an old selection. Shared title rendering uses the Scripture font and folds source title newlines.
+
+Both local Dev builds and the expanded native reader harness pass. Mac LXX50/KJV51 copy and action destinations, Mac Shift group/Escape, and iPhone stacked selection/copy feedback/reader transfer/final dock gap/clear-exit passed. See HANDOFF for exact logs and QA restoration. No note contents/timestamps changed;4 Mac/9 iPhone tabs preserved. Prior baselinecce95bf0 CI44493859591 is green, including203 shared tests; this is not evidence for the new source’s pending CI.
+
+Remaining before full Compare parity: view-state retention across tabs/relaunch, independent/pinned/cross-chapter/duplicate/4-column/width/accessibility matrix, actual mutation-and-undo action checks, native word-copy precedence, body-tap selection, selected-line reveal, and whole-block drag previews/grab-anywhere. Generic arbitrary-tab splitting and Kokoro playback remain separate open work.
+
+
+## 2026-11-19 — Compare tab return and explicit location intent (3090db5c)
+
+A bounded local snapshot per open tab now restores the selected Compare column/edition/chapter, selected stored rows, focus and original Shift anchor across tab switches. Close/explicit Compare arrival clear the cache. It is observation-ignored memory, with no new persisted/synced fields; restart retention remains open. Incoming explicit references override old local selection, including same-chapter and repeated identical commands. A fresh jump revision also restores the requested scroll position. Ordinary Go deduplication still uses the original one-argument isShown match, which excludes Compare.
+
+Final Mac/iOS builds pass (`/tmp/berean-compare-intent-complete-{mac,ios}.log`), and expanded native harness passes retained-anchor and unavailable-row cases. Mac UI verified LXXGenesis12 → Notes → return retaining selection; new/repeated Go to KJVGenesis11 replaces it, and repeat Go moves from near-end offset back to verse11. iPhone verified KJVPsalm3v1 → existing G5463 → return retaining that edition/selection.4 Mac/9 iPhone tabs preserved; original QA passages restored and all7 Mac QA note contents/timestamps unchanged. Earlier repeated-command failure and intermediate method-reference compile errors were corrected, not counted as passes. Full independent/pinned/history/restart/4-column/accessibility coverage, native word-copy precedence and whole-block dragging remain open.
+
+
+## 2026-11-19 — Compare passage lift follow-up (7d365304)
+
+Native Mac drag sources now cover headers, verse-cell whitespace and independent panes, with a readable glass passage preview, faded source and destination wash. Reorder remaps edition selection/scroll caches without changing legacy column records. Aligned two-edition reorder in both directions, exact mid-chapter scroll retention, Escape cancellation and native word-copy precedence passed. Both local native builds pass. Preview is a reconstructed visible excerpt; system-owned ghost pixels and physical feel were not captured. Pinned independent attempts did not demonstrate a successful drop; keep that matrix,4-column/duplicate/narrow/accessibility and selection removal/action writes open. CUA requires a final destination click to complete the native drop in this environment; do not misdiagnose its pending session as a stuck app. See HANDOFF/CHANGELOG for exact evidence/restored QA and CI scope. Generic arbitrary-tab splitting remains planned only. Strong’s body-word reading continuity is delivered; long-verse/end/width/hardware checks remain.
+
+
+## 2026-11-19 — Compare Strong’s continuity (f0b8752e)
+
+Shared Compare scroll now follows a visible verse through Strong’s reflow, preferring visible selected focus; independent and stacked hosts also receive verse-based restoration. Deferred work yields to newer explicit navigation/current-tab/passage/Compare-mode changes. Main Reader retains the finer body-word position separately. Mac aligned UI verified verse8 retained on enabling and selected11 retained on disabling; final guarded Mac/iOS builds PASS. Guard race matrix, independent/stacked/iPhone runtime and full width/long-verse/hardware checks remain. Nested drag-source removal experiment did not establish a pinned-drop fix and was fully reverted; pinned native dragging remains open. See HANDOFF/CHANGELOG for exact logs, QA restoration and CI status.
+
+
+## 2026-11-19 — Notes formatting and context-menu follow-up
+
+347cf74a routes native inline formatting through a shared, source-preserving cell edit: confirmed table pipes/rules/padding remain intact; mixed cells toggle together; existing inline constructs keep their rendering/source rather than becoming malformed enclosing marks.9 focused regressions and all212 package tests pass. Mac whole-table bold/toggle/Undo/Redo and exact persisted source verified. Arbitrary nested marks and the separate colored multi-cell highlight adapter remain open.04079bdf shortens the iPhone preview and groups Share/Print/Export; simulator now shows the entire primary menu including Trash and its action worked. Both final native builds pass. iPhone grid rendering passed; iPhone formatting/Undo remains unverified because remote keyboard input changed text unexpectedly. All original7Mac/17iOS note contents/timestamps unchanged, synthetic notes in recoverable Trash, original passages restored/4Mac/9current-iPhone tabs. Read HANDOFF for logs, simulator container relocation, input failures and next gates; no production/sync/schema changes or merge.
+
+
+## 2026-11-19 — Multi-cell/multiline note highlights (8adef50b)
+
+Default/color/Remove Highlight now share one source-preserving edit across cells and paragraphs, including partial recolor/removal and mapped selection. Color application is idempotent; structural Markdown/line endings and existing code/links/other marks survive. Other marks remain protected rather than gaining nested styling. Escape atoms stay together even under partial selection (initial failed readable-text case corrected).20 focused tests and all223 package tests pass; both native builds pass. Mac actual6-run Blue→Undo/Redo→Green→Remove restored the exact original source and grid; synthetic note in recoverable Trash, original7 note hashes/timestamps and4workspace tabs unchanged. iPhone8ade runtime and full native partial/nested/width/hardware matrix remain open. See HANDOFF for exact logs, evidence limits and pending exact-head CI.
+
+
+## 2026-11-19 — Combined note rendering (09eb7d84 /6555fd0e)
+
+Existing strong/emphasis combinations now use Foundation source positions while custom marks/raw IDs remain source-preserving. Literal code and link destinations stay intact; the native punctuation-only mark fallback remains. Bounded thread-safe process cache avoids reparsing unchanged bodies; synthetic parser timing matches the old path after caching (not a whole-editor latency claim). Highlight backgrounds now exclude hidden glyphs; real Mac empty blue strip disappeared.9new tests,46focused and all232package tests pass; both final native builds pass. Mac combined styles/table, plain copy and Command-B round trip verified with exact source retained; synthetic note trashed, original7 note hashes/timestamps and4workspace tabs unchanged. Whole protected highlight runs can be cleared; unsupported partial nested edits remain unchanged and full rich-mark mutation parity remains open. iPhone runtime/physical/accessibility/large-note matrix and GFM escaped wiki-alias identity verification remain queued. See HANDOFF for exact logs and CI scope.
+
+## iPhone Notes interaction regression — 2026-11-19
+
+For reliable touch-only fixture input, open a known plain-text test file in TextEdit, select/copy, DeviceHub Edit→Send Clipboard (Capture KeyboardOFF), then paste through the iPhone body menu. Avoid further text-entry commands before Paste. Double-click the desired word and use the on-screen format/Undo/Redo controls; verify the selection remains around that word after Redo and another toggle restores exact full source via read-only DB. Separate settled screenshots avoid transient remote frames. Original-note hashes/timestamps and tab counts must match the baseline; trash only the new synthetic note via UI and restore the original reader. Never infer cross-cell/combined/color passes from a single-word test.
+
+## Combined-style interaction check — 2026-11-19
+
+Use a synthetic table, select only the visible word, add Bold then Italic, remove Bold, Undo, then remove Italic. Read-only source must show triple-star, single-star, then double-star respectively, with the same word still selected. Run on both apps; do not confuse raw AX style serialization with saved Markdown. Partial removal within a larger marked run and selection containing hidden syntax are separate unfinished cases. Restore original notes/reader and compare original hashes/timestamps. Legacy table-link probe instructions and exact collision fixtures are in NOTE-TABLE-LINK-COMPATIBILITY.md.
+
+## Partial-style check — 2026-11-19
+
+Synthetic fixture `/tmp/berean-iphone-partial-style.txt`: a table with `***Alpha Bravo Charlie***`. Select only Bravo, toggle Bold then Italic, expect `***Alpha** Bravo **Charlie***` then `***Alpha*** Bravo ***Charlie***`; Alpha/Charlie retain both styles. Undo and Redo must restore exact source and selection. Test with toolbar touches on iPhone and keyboard/menu on Mac; raw AX Markdown does not encode every font style reliably, so verify saved source read-only. Global validator also checks neighbouring links/code; package tests cover hidden-syntax fragment joining and Unicode/edge/intraword selections. Original note hashes/timestamps and active tabs must match baselines after recoverably trashing only the synthetic fixture.
+
+## Generic split implementation sequence — 2026-11-19
+
+Start from PaneLayout/PaneLayoutHistory/PaneTabDragPayload tests and TAB-SPLIT-DESIGN.md. Extract current single-tab rendering by explicit tabID before connecting previews; do not enable UI against global activeTab commands. Use candidate.applying plus current minimums/viewport/live tabs for preview and repeat validation at drop. On archive/close reconcile the tree first. Duplicate same-note editors across different tab IDs need a separate host policy. Keep the new tree in memory until legacy/new persistence contracts pass. For Compare Strong’s checks, record visible verse per pane independently, not equal scroll fractions after text reflow.
+
+## Mac content-host checkpoint — 2026-11-19
+
+Initial explicit-tabID extraction is implemented and live checked for Scripture/Notes/Calendar/History/Tags/Lexicon/Search. Root still hosts one active tab. Next audit global-active consumers and create focused pane context, separate focused toolbar/inspector/title ownership, and coordinate note first-responder/save before permitting background hosts. Do not turn on a split just because two views render. Keep same-note/different-tab editors refused/coordinated and test all placeholder families. Full evidence and exact original-tab baseline are in HANDOFF.
+
+## Pane focus/compact API — 2026-11-19
+
+Use PaneLayoutHistory.select for sidebar/Go document selection; visible documents focus without layout undo, other documents replace only the focused leaf. Pass minimums keyed by TAB ID, recomputed from current document types. Capture commandTarget using per-window ID and live session/workspace ID; revalidate accepts before command execution and retain separate async intent revisions. Background viewport saves may explicitly require no focus but must retain the same visible pane/tab. Compact presentation uses .focused throughout model selection/history/frames and retains the full tree. No application bridge exists yet; see TAB-SPLIT-DESIGN for the next per-window coordinator/FocusedSceneValue and toolbar/editor prerequisites.
+
+## 2026-11-19 — Reader annotation workflow
+
+For reader annotation changes, exercise a tagged verse plus chapter tags; dot→study details, chapter caption→chapter scope, picker Cancel, range selection and copy with no metadata. Check Compare column edition. iPhone touch verified John7:2 tagged verse→Notes→dismiss→tap3→group2–3→Back originalPsalm3LXX. Read-only baselines verify note content/timestamps, exact tab IDs and tag rows. No annotation writes needed for this visual check; do not claim removal/search execution. Current final build logs /tmp/berean-study-tags-final-{mac,ios}.log.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+New ordinary-note reference UI matrix passed on Mac/iPhone with existing notes, no annotation edits. Mac sourceNote→Back restored17; Strong’sON/OFF retained17 viewport; Compare reference-only dots verified. All iPhone baselines intact. Shared Mac baseline became stale during concurrent interaction; never restore/delete the changed note/new tabs. Use a distinct debug QA profile/library/preferences and separate app path next. Full254-test and build logs in HANDOFF. Queue FOLLOWUP-2026-11-19.md.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+Use only isolated Mac profile (QA-PROFILES.md). Viewport regression test: settle midchapter, record scrollbar/pixel offset, switch Notes/Search and return; compare exact position, not an early animation sample or a different active tab. New-tab jump and close tested. Zero-size trace diagnosis and final proof in READER-VIEWPORT-RESTORATION.md. Temporary trace removed. Notes menu/scope verified Mac/iPhone. Profile13notes/38IDs and iPhone17notes/47IDs/tags intact. Final255-test/build logs in HANDOFF.
+
+### Notes context verification checkpoint (2026-11-19)
+
+Use isolated Mac profile only. Context Table QA fixture ab468514-f24a-41d8-bf6b-d5fc176d2918 is recoverably trashed; do not restore it over human data. Mac table add-row/add-column/two-Undo/prose-context passed. iPhone readable study preview passed, contextual editor menu runtime remains next. Simulator current container97AA7CDA-A08F-4457-BA49-9DE41351682D (rediscover before read). Final13/17original-note hashes/timestamps,38/47active IDs and all tags unchanged. Builds in /tmp/berean-context-table-{mac,ios}.log. Physical scroll, sharing, version-history, RTL and match styling remain open.
+
+### 2026-11-19 next resumption evidence
+
+Continue from sharing/BDB/intent increment at end of HANDOFF. Do not redo completed fixtures or touch human-used QA. New priority reproduction: isolated Mac Compare intermediary→Reader changed0.2734573119188504→0.3753169907016061; later Note returns stable at new value. Prior zero-size restore fix remains, but this separate path is not solved. iPhone New Tab/ordinary Go alternation verified for Lexicon only; expand destination-type matrix. Current iPhone containerDC341112-61E7-465B-BC81-A37791F587B5/PID77177 must be rediscovered after install. All original13/17notes,38/47active IDs and tags unchanged. SHARING-AUDIT.md holds remaining source-anchor matrix.
+
+### 2026-11-19 current resumption checkpoint
+
+Follow HANDOFF latest reader/reference entry; previous Compare→Reader reproduction is now UI-verified fixed for the measured path. Current Mac scrollbar0.5418427726120034, final copied app has no diagnostic flags. Retained trace /private/tmp/berean-codex-qa/viewport-followup.jsonl; temporary code removed. Mac reference fixture d549a917 is recoverably trashed; both temp tabs closed;13original notes/38IDs/tags unchanged. iPhone641F095F-BF1B-439E-8439-EAA7082B13EB/PID80592 restoredPsalm3LXX;17notes/47IDs/tags unchanged. Strong’s detectiontrue both QA; Mac Scripture detectionfalse intentionally unchanged. Read NOTES-REFERENCE-PARITY.md for next tracking/settings work. iPhone More menu app-level Settings is hard to discover in Scripture; Notes More exposes it. DeviceHub form scrolling: finish drag with a destination click at blank left margin; inspect every settled screenshot.
+
+## 2026-11-19 — Backlink workflow regression recipe
+
+Use only the named isolated Mac QA copy/profile; preserve the shared human QA app. See latest HANDOFF for current simulator container/PID. Create a disposable note containing normalized bare H430, an explicit named G26 link and a wiki note title; verify My Notes count/open/Back, edit invalidation and exact note-tab reuse. Do not reinterpret wiki titles or equate Strong’s mentions with arbitrary verses. Read-only compare all original note hashes/timestamps, exact active IDs and tags; trash only the disposable note and close its individual tabs. On iPhone use existing G5463/Wiki iPhone QA without editing it: My Notes → note → top Back must return to G5463; then restore Psalm 3. Scripture More → Settings must be visible and open; close without changing preferences. Compact/source-closure/forward/large-library cases remain next. Final logs and boundaries are in HANDOFF.
+
+## 2026-11-19 — New controls QA profile and regression pass
+
+Prior codex-study-20261119 now has newer concurrent state; preserve it. Automate only `/private/tmp/berean-codex-controls-qa/BereanMac.app --qa-library --qa-profile codex-controls-20261119`, baseline `/private/tmp/berean-codex-controls-qa/baseline.json` (16notes includingTrash/37IDs/tags). No broad kills or stale baseline restores. In this copy check Notes grouped scope/filter, existing everlasting covenant search Exact phrase/reset, Settings Shortcuts copy note/cmd shift/no-results/clear, Compare/Notes/reader return and settled pane widths, native divider hover and panel containment. Latest HANDOFF records initial failures and what remains unverified. On the designated iPhone use Psalm3LXX Compare body taps in each edition, number clear, Exit, ChapterNotes open/close; avoid writes and restore unselected LXX. Final Mac and iPhone runtime/container named in HANDOFF; rediscover after installation.
+
+## 2026-11-19 — Divider and Compare diagnostics
+
+Native divider regression: compile apple/BereanMac/NativeDividerCursorRegions.swift plus scripts/native-checks/DividerGeometry.swift using swiftc -parse-as-library and run the result; no app/UI automation or database required. Keep decorations, overlapping glass main panes and hidden inspector cases in future changes. DEBUG BEREAN_CURSOR_TRACE=1 records container-tmp berean-native-cursor-samples.json and berean-native-divider-regions.json. Require windowIsKey=true before claiming a cursor-hover result; AX Raise is not proof of activation. Do not add activation hacks/global cursor forcing.
+
+Compare opt-in --qa-library --qa-drag-trace saves compare-column-drag.jsonl/png only to the named library. Read actual image dimensions/alpha and trace capture/frame/pointer/translation/operation. Native CUA drag may remain active until a final destination click; Escape must cancel. Snapshot proof at scale1 is not Retina2x or physical moving-image proof. Full remaining matrix is in NATIVE-COMPARE-DRAG.md. Latest final runtime/profile is codex-controls-20261119; earlier profiles have concurrent human changes and must remain untouched.
+
+Native CI now also compiles/runs scripts/native-checks/DividerGeometry.swift against the real divider helper, before database-dependent tests. This AppKit geometry-only regression does not need SDK27, a running app, or a QA database, so it still runs when the Mac app build is skipped on hosted SDK26. Local standalone fixtures pass.
+
+## 2026-11-19 — Consecutive native drag gate
+
+After any Compare drag change, test at least several consecutive reorders, invalid-target cancellation followed by another valid move, pinned/independent and interleaved stacked layouts. A one-shot move is insufficient. Check the generated image contains only the actual source fragments and separately inspect verse controls/selection fidelity. CUA completion click can open a passage header if drag already ended; use the intended target body and inspect ended operation/order, never assume Escape cancels a drag already dropped. In vertical stacks, completing over the source correctly cancels. Full observed sequence/coordinates and restored safe fixture are in HANDOFF.
+
+## 2026-11-19 — Notes keyboard/table verification
+
+Use only new disposable notes and close only their extra tabs. Simulator installs relocate data: always re-query get_app_container and save the exact root; current path /private/tmp/berean-note-keyboard-ios-container.txt. Transfer a generated fixture via TextEdit CmdA/C→DeviceHub Edit Send Clipboard→body touch Paste; CaptureKeyboardOFF. Read persisted source through SQLite mode=ro after actions/Undo/Redo, never write the DB directly. Verify all original note hashes/timestamps, exact active IDs and all tag tables after cleanup.
+
+DEBUG+simulator --qa-note-keyboard-trace writes ranges, item labels and bounds (no note text) to UserLibrary.directory/note-keyboard-context.json. Initial accessory bounds can precede attachment; re-check settled width after another selection event (observed402). Verify actual visible controls and direct Hide, not only bar.items count: UIKit may overflow controls. Next/Previous availability must refresh when reopening the menu. Require actual source matches and retained selection after Redo. Compare raw/masked RGBA pixels before inferring missing controls from a scaled preview. Full evidence and remaining matrices in HANDOFF/NOTES-KEYBOARD-AND-TABLES.md.
+
+## 2026-11-19 — Study markers and automatic dictionary blocks
+
+Use NOTES-AUTOMATIC-BLOCKS.md to resume reference parity: suggestion/insertion, visual block detection, reference linking and backlink indexing are separate acceptance gates. Current dictionary cards + Psalm/table fixes pass274tests; canonical Scripture cards and full Word Replacer remain open. If reads/builds/Git hang on compressed,dataless files, restore required individual tracked paths/metadata (directory or batched brctl requests may not hydrate children); use a temporary build cache. Do not reset or treat empty test runs as passing.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+For margin previews, use native firstRect screen geometry, convert through window/content and resolve text before showing. Keep attached notes, outgoing passages and other-note mentions distinct. Record physical hover separately from opt-in QA entry tests. Resume Scripture-block prototype only after canonical verification/settings/guards/tests; .swift.txt in docs is explicitly uncompiled. Preserve LIVE layout, not stale earlier screenshots: latest Mac Notes panel, sidebar239 and scroll0.5782918149466192.
+
+## 2026-11-19 — Owner-required continuous AI handover documentation
+
+Owner explicitly requires durable notes for Codex, Claude Code and any successor throughout work, with HANDOFF as the one entry point. Added AI-CONTINUITY (startup/checkpoint/coordination/safety), OWNER-PRINCIPLES (current decisions and supersessions), CURRENT-STATE (verified source/runtime/evidence/next steps) and DOCUMENTATION-MAP (task-oriented links). Root AGENTS.md and CLAUDE.md route native work to HANDOFF. Replaced the mixed current block with one concise checkpoint; archived the former block verbatim with SHA256 and retained the entire committed historical log. Continuous updates are an ongoing requirement, not a one-time completed migration feature. Preserve dirty work, identities, original data, review guards, actual test scope and the distinction between prototypes/QA entries and delivered parity. Latest snapshot preparation UTC2026-11-20T05:57:54+00:00.
+
+## 2026-11-19 — Clipboard and final build evidence
+
+Use SIMULATOR-CLIPBOARD-QA for exact paste through DeviceHub Send Clipboard; captured CmdV can otherwise use a stale simulator clipboard. Open an already-created temporary TextEdit fixture to avoid default iCloud autosave/naming. Verify exact DB source, original records/IDs/tags, recoverable UUID cleanup and restored settings. No shell GUI events/clipboard automation. Temporary isolated derived data was used after a confirmed offloaded12GiB compilation index blocked an obsolete provisional build; final290tests/Mac+iOSbuilds passed before that provisional process was cancelled. Do not label it success or restart live jobs solely for a timeout. Details SCRIPTURE-BLOCKS-2026-11-19.
+
+
+## 2026-11-20 — Attachment/editor lifecycle QA
+
+Use NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md for the latest tested source/data preservation and cleanup packet. Check native reader labels separately from raw stored attachment keys; legacy golden output intentionally stays raw. Verify focus teardown by trashing an owned actively edited note and using the returned dock without relaunch. Preserve original notes/tags/tab IDs and restore original pane width/scroll. Unit ordering checks do not replace software-keyboard/physical-device/multi-editor UI checks. Continue updating HANDOFF/CURRENT-STATE during work.
+
+
+## 2026-11-20 — Inspector width investigation remains open
+
+Published334eafbb/4e6c49fa retained. QA trace proves hidden inspector width capture during a new closed-inspector Bible tab. Custom380pt→newPsalmLXX→close→Genesis returns320pt. Three attempted fixes built but failed the identical UI regression (active/presented capture guard; conditional ideal; omit hidden content); **all removed**, exact published source/app restored without diagnostic flags. Original1148divider/0.5782918149466192scroll/Genesis1selected1/Notes restored and prior20/25notes,37/47activeIDs/alltags rechecked unchanged. No GUI phase pending. Read [precise reproduction/trace/failed approaches](READER-VIEWPORT-RESTORATION.md#2026-11-20--width-drift-reproduced-attempted-fixes-rejected); do not report width drift fixed or repeat rejected approaches as untested ideas. Prior9aCI44693533700 cancelled;4e6c49fa CI44695609238 live at latest poll, not green. Broad migrationACTIVE.
+
+
+## 2026-11-20 operational lessons
+
+- Owner's latest hard stop is16:50Pacific Nov20; prepare cleanup/checkpoint by16:40 and pause the broad goal. Continuous notes are required throughout work, not only at the end.
+- After a crash, CUA getApp can auto-launch a copy without QA arguments. Before reacquiring UI, verify the exact live path/arguments/profile; never treat a default-profile launch as isolated. Stop only the identified QA-path process, leaving owner/other checkouts untouched.
+- Test both sides of window command changes. Native Close belongs to SwiftUI.saveItem; adding another⌘W may leave two competing actions. Presenter/Chat and main study shortcuts must each be verified.
+- On Mac split navigation, avoid duplicate native search-toolbar ownership. An inline sidebar search plus a single native thread search passed repeated Chat open/close.
+- Restore original note/tag/folder rows and exact active tab IDs, rather than claiming preservation from a count. Clearly identify owned Chat fixtures; this feature has no Trash, so do not silently hard-delete them.
+- See [the focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md) for rejected underlap/width attempts and tested versus open matrices.

@@ -1,0 +1,38 @@
+# Independent Compare precision — Nov 23
+
+Independent columns now preserve the clipped portion of a raw verse. This extends the device-local semantic bookmarks described in [Durable Compare bookmarks](COMPARE-DURABLE-2026-11-23.md). The broad migration remains active.
+
+## Storage and restoration
+
+- An independent bookmark may store a signed crop, measured row height, and deterministic layout fingerprint alongside its raw verse. The fingerprint reflects measured width and display scale, font family and effective size, line spacing, compact mode, Strong’s, verse numbers, annotation filters, and replacement settings. Invalid or incompatible precision falls back to the raw verse. Existing verse-only records are readable.
+- The same bounded local destination map and stable column UUIDs are used. Aligned and stacked bookmarks retain their existing semantic formats. Sync payloads, legacy `scrollPos`, identities, and database schema are unchanged.
+- Each independent pane has one typed SwiftUI scroll binding. The pane requests the raw row by ID, then uses its measured frame and the normalized native scroll offset once both describe the same layout. Corrections add the remaining row displacement to the current native offset. The pane watches for subsequent lazy-stack re-estimation and bounds corrective requests. Genuine scrolling and newer viewport requests supersede restoration.
+- Back and Forward use immutable visit snapshots with their own precise anchors, including intentionally empty visits. The bounded live visit cache is separate from the latest destination map. History restoration can seed the live visit without replacing a newer durable bookmark for the same destination.
+
+## Verification
+
+The first Mac cold replay of independent Exodus 32 reopened 16 points farther down in both panes. The saved KJVA row 12 crop was 36 points and the LXX row 16 crop was 26 points. The original scrollbar fractions were `.5189718482252142` and `.6843065693430657`. The first replay landed at `.5287637698898409` and `.6940389294403893`.
+
+The diagnostic trace showed estimated offscreen row frames before the ID jump. It also showed row geometry reaching the intended crops while the native scroll offset still reported the earlier ID placement. Waiting for agreeing measurements exposed a subsequent 16-point lazy-layout adjustment. Correcting from the confirmed current native offset removed the first correction's undershoot and rebound. The final Mac cold replay restored both original scrollbar fractions exactly. The final measured crops were 35.5 and 25.5 points, within one display pixel of the saved crops. Mac Back and Forward also restored the distinct Exodus 32 and Exodus 33 visits, including the Exodus 33 bottom-left and top-right pane positions.
+
+- Eight focused Compare tests passed, including precision serialization, local-only persistence, malformed precision, reflow fallback, stable column isolation, and distinct or empty visit priority.
+- The full shared package passed before the geometry-only refinement, with 376 conformance tests and four core tests. The refined source built for Mac and iPhone Simulator with the QA-only diagnostic logging enabled. The final cleanup removes that logging and passes Swift parsing and the diff check. The logs below distinguish instrumented runtime evidence from the cleanup.
+- Ignored evidence under `build/apple/qa-evidence/20261123` includes `compare-precision-focused-tests.log`, `full-package-compare-precision-tests.log`, `mac-compare-precision-before-relaunch.json`, `mac-compare-precision-trace-runtime.log`, `mac-compare-convergence-runtime.log`, `mac-compare-final-equation-build.log`, `mac-compare-final-equation-runtime.log`, and `ios-lexicon-compare-build.log`. The first SDK probe and its commands are also archived there.
+
+## Remaining implementation and verification
+
+Exercise exact independent cold and Back/Forward positions on the owned iPhone simulator. The Mac result does not close iPhone precision, Mac stacked cold restore, synced independent peers, duplicate-destination reorder, explicit jump and rapid navigation, resize/reflow, or accessibility checks.
+
+A cold restart immediately after Back to an older visit still uses the latest durable bookmark for that destination. Preserve the currently displayed historical visit across restart with one bounded active-visit record inside the existing local Compare field. Scope it to the current source, independent layout, and stable column destinations. Record it from the immutable history snapshot when the visit is selected, before deferred placement, and preserve an intentionally empty visit. Update individual pane positions during that active visit and invalidate the record on incompatible navigation. Restore it after explicit jump, in-memory history, and validated layout arrival, ahead of the latest durable destination map. Keep the two record types separate in recency and merging so Back cannot rewind the destination map. Test quit before placement, an empty visit, one pane moving while its peer remains at the old crop, and stale column IDs. Global SQL History viewport persistence remains separate.
+
+## Parent iPhone runtime follow-through
+Instrumented iOS build PASS. Installed only owned D0CC simulator, coldlaunch34853. Workspace4 Psalm23 Compare→ManageTranslations→SyncOFF. Independent touchdrags saved leftKJVA raw3 crop14.6667/height120.5, rightLXXPsalm22 raw4 crop51.3333/height240.8333, same SHA256renderfingerprint. Read-only record `ios-compare-precision-before.json`. Cold terminate/launch reopened the same partial lines in both panes (screenshots visually matching). This proves independent within-verse cold behavior on this layout; no physical-phone, all font/reflow, rapidjump or accessibility claim. Returned bothpanes tostart, restoredSyncON and Study/Matthew5selected12/Strong’sOFF/panelclosed9tabs. MacEXO32 original orderSyncOFF/both0, Genesis1selected1 Notesinspector originalfraction.07135575942915393 restored. Mainreader fractional drift on tabreturn remains open.
+
+Source ecec1418 now commits precise independent bookmarks/integration. Temporary DEBUGtrace removed; functional geometry unchanged; final uninstrumented owner-folder builds/tests pending. Fullpackage380 earlier predates new lexicon test shape; fresh fullsuite running, do not reuse old count as current.
+
+## Final uninstrumented verification and install-ready result
+Owner folder safely fast-forwarded from clean50732392 to sourceecec1418. Fresh Mac, signed genericphysicaliPhone and Simulator builds PASS. Full native-engine378tests/95suites PASS from that stable folder, including Compare/Core/lexicon suites. Strict Mac/device signatures PASS with normal trust-service access, DevIDs correct, no iCloud/AppGroup entitlements. No phone install/provisioning update. Artifacts in owner build/apple/DerivedData; sourceSHA/evidence owner-ready-artifacts.json. This supersedes pending-build/test wording above.
+
+Fresh default test engine hit diskI/O attachment and ran old/incomplete130tests (exit1); native retry failed because cloud materialization modified a source midcompile. Final owner-folder run avoids this and passes. Repo .git marked KeepDownloaded after dataless reads blocked local transfer; firstfetch timedout, laterretry succeeded. No cloud setting disabled/files reconstructed.
+
+Final read-only data check preserves every watched original content hash and exact37/47activeIDs, with only one added recoverably trashed Notes fixture/library. Source/artifact validation does not close the activevisitcold-afterolderBack requirement or wider matrix.

@@ -2,7 +2,8 @@ import Testing
 import BereanCore
 import BereanSync
 import BereanSQLite
-import BereanBible
+@testable import BereanBible
+import BereanText
 
 /// Repository `data/` (symlinked in worktrees; downloaded in CI). Tests skip when absent.
 let repoDataDir: String = {
@@ -107,6 +108,18 @@ func digest(_ rows: [JSValue]) -> JSObject {
         #expect(failures.isEmpty, Comment(rawValue: "SQLite \(SQLiteConnection.libraryVersion) — \(failures.count) mismatches:\n" + failures.prefix(30).joined(separator: "\n")))
     }
 
+    @Test func passageFilterAppliesBeforeSearchLimit() async {
+        let unfiltered = await svc.searchText("the")
+        #expect(unfiltered.count == ScriptureSearch.perTextLimit)
+        #expect(!unfiltered.contains { $0.bookId == "REV" && $0.chapter == 22 && $0.verseNum == 21 })
+
+        let filtered = await ScriptureSearch.run("the", in: ["kjva"], mode: .all, replacer: false, bible: svc) {
+            $0 == "REV" && $1 == 22 && $2 == 21
+        }
+        #expect(filtered.hits.map(\.verseNum) == [21])
+        #expect(filtered.truncatedTexts.isEmpty)
+    }
+
     @Test func queryHelpers() {
         for c in g.arr("fts") {
             #expect(BibleText.safeFtsQuery(c["query"]!.str, phrase: c["mode"]!.str == "phrase") == c["result"]!.str, "\(c["query"]!.str)")
@@ -193,6 +206,38 @@ func digest(_ rows: [JSValue]) -> JSObject {
         #expect(short.hits.isEmpty)
     }
 
+    @Test func searchLimitProbesForExtraMatchingRows() async {
+        let bible = svc()
+        let exact = await bible.searchTextBatch("beginning", textId: "kjva", mode: .all,
+                                                matching: { $0 == "GEN" && $1 == 1 && $2 == 1 }, rowLimit: 1)
+        #expect(exact.rows.count == 1)
+        #expect(!exact.reachedLimit)
+        let capped = await bible.searchTextBatch("God", textId: "kjva", mode: .all, rowLimit: 1)
+        #expect(capped.rows.count == 1)
+        #expect(capped.reachedLimit)
+        let any = await bible.searchTextBatch("beginning God", textId: "kjva", mode: .any, rowLimit: 1)
+        #expect(!any.rows.isEmpty)
+        #expect(any.reachedLimit)
+    }
+
+    @Test func testamentScopesEachEditionBeforeTheResultLimit() async {
+        let bible = svc()
+        let unscoped = await ScriptureSearch.run("God", in: ["kjva"], mode: .all, replacer: false, bible: bible)
+        #expect(unscoped.truncatedTexts.contains("kjva"))
+        let books = await bible.getBooks("kjva").filter { $0.testament == "NT" }.map(\.id)
+        let explicit = await ScriptureSearch.run("God", in: ["kjva"], mode: .all, bookIds: books,
+                                                 replacer: false, bible: bible)
+        let scoped = await ScriptureSearch.run("God", in: ["kjva", "lxx"], mode: .all, testament: "NT",
+                                               replacer: false, bible: bible)
+        #expect(!scoped.hits.isEmpty)
+        #expect(scoped.hits == explicit.hits)
+        #expect(scoped.truncatedTexts == explicit.truncatedTexts)
+        #expect(scoped.hits.count > unscoped.hits.filter { books.contains($0.bookId) }.count)
+        let conflicting = await ScriptureSearch.run("God", in: ["kjva"], mode: .all, bookIds: ["GEN"],
+                                                    testament: "NT", replacer: false, bible: bible)
+        #expect(conflicting.hits.isEmpty)
+    }
+
     @Test func deterministicOrder() async {
         let a = await ScriptureSearch.run("grace", in: all, mode: .any, bible: svc())
         let b = await ScriptureSearch.run("grace", in: all, mode: .any, bible: svc())
@@ -201,13 +246,55 @@ func digest(_ rows: [JSValue]) -> JSObject {
 }
 
 @Suite("strong's number search", .enabled(if: bibleDataPresent)) struct StrongsQueryTests {
-    @Test func numbersAndWords() async {
+    @Test func numbersAndWords() async throws {
         let lex = LexiconService(lexiconPath: { dataFile($0 == "H" ? "strongs_hebrew" : "strongs_greek") }, textPath: { dataFile($0 == "lxx" ? "lxx_brenton" : $0) })
         let g = await ScriptureSearch.strongs("G5485", lexicon: lex)
         #expect((g?.count ?? 0) > 100)
         let both = await ScriptureSearch.strongs("H7225 H430", lexicon: lex)
-        #expect(both?.contains { $0.bookId == "GEN" && $0.chapter == 1 && $0.verseNum == 1 } == true)
+        let genesis = try #require(both?.first { $0.bookId == "GEN" && $0.chapter == 1 && $0.verseNum == 1 })
+        #expect(genesis.matchWordIndices == [2, 3])
+        #expect(genesis.matchedStrongs == ["H7225", "H430"])
+        let common = try #require(await ScriptureSearch.strongs("H3068", lexicon: lex))
+        let full = await lex.allOccurrences("H3068")
+        let compact = await lex.occurrences("H3068")
+        #expect(common.count > compact.count)
+        #expect(common.map { "\($0.textId)|\($0.bookId)|\($0.chapter)|\($0.verseNum)" }
+                == full.map { "\($0.textId)|\($0.bookId)|\($0.chapter)|\($0.verseNum)" })
+        #expect(await ScriptureSearch.strongs("H3068 H3068", lexicon: lex) == common)
         let none = await ScriptureSearch.strongs("grace", lexicon: lex)
         #expect(none == nil)
+    }
+}
+
+
+@Suite("Strong's search snippets") struct StrongsSnippetTests {
+    @Test func restoredNameKeepsMatchWhenArticleDisappears() throws {
+        let hit = ScriptureHit(textId: "kjva", bookId: "PSA", chapter: 23, verseNum: 1,
+                               text: "The Lord is my shepherd.",
+                               textTagged: "The{} LORD{H3068} *is{} my{} shepherd.{H7462}",
+                               matchWordIndices: [1, 4], matchedStrongs: ["H3068", "H7462"])
+        let raw = try #require(hit.strongsSnippet(replacerEnabled: false))
+        #expect(raw.text == "The Lord is my shepherd.")
+        #expect(raw.indices == [1, 4])
+        let rendered = try #require(hit.strongsSnippet(replacerEnabled: true))
+        #expect(rendered.text == "Yehovah is my shepherd.")
+        #expect(rendered.indices == [0, 3])
+    }
+
+    @Test func matchingRenderedAndPlainSnippetsStillRemapIndices() throws {
+        let rules = [
+            WordReplacerRule(id: "phrase", queries: ["The Lord"], replacement: "Yehovah",
+                             wholeWord: true, enabled: true),
+            WordReplacerRule(id: "name", queries: [], replacement: "Yehovah",
+                             wholeWord: true, enabled: true, strongsNum: "H3068")
+        ]
+        let hit = ScriptureHit(textId: "kjva", bookId: "PSA", chapter: 23, verseNum: 1,
+                               text: "The Lord is my shepherd.",
+                               textTagged: "The{} LORD{H3068} *is{} my{} shepherd.{H7462}",
+                               matchWordIndices: [1, 4], matchedStrongs: ["H3068", "H7462"])
+        #expect(WordReplacer.apply(hit.text, rules: rules) == "Yehovah is my shepherd.")
+        let snippet = try #require(hit.strongsSnippet(replacerEnabled: true, rules: rules))
+        #expect(snippet.text == "Yehovah is my shepherd.")
+        #expect(snippet.indices == [0, 3])
     }
 }

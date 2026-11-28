@@ -1,5 +1,7 @@
 # UX and functional issue register (native apps)
 
+Nov26: Mac verse markers now have rounded hover feedback and correctly anchored rich note/reference previews; reader width changes preserve measured same-verse crop. Scoped UI/build evidence and open hover/accessibility/iPhone cases: [indicator checkpoint](VERSE-STUDY-INDICATORS-2026-11-26.md), [reader reflow](READER-REFLOW-2026-11-24.md). Aligned/stacked Compare source2bb1670d is committed with scoped Mac older-visit/cold precision proof. iPhone precise replay and the wider matrix remain open; do not mark broad parity complete.
+
 Stable IDs; issues are never deleted — fixed ones stay with their evidence.
 
 **Severity.** P0 crash, data loss or sync corruption · P1 major missing or broken workflow · P2 usability or incomplete · P3 polish.
@@ -12,21 +14,27 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 
 | ID | Issue | Plat | Sev | Feature | Status |
 |---|---|---|---|---|---|
-| SHARED-FUNC-006 | Study Trail missing entirely. | both | P1 | U14 | OPEN |
+| SHARED-FUNC-006 | Study Trail map, automatic recording, and connection editing missing. | both | P1 | U14 | Trail browsing, manual recording, connection reading, explicit creation and stop/connection note editing implemented. Navigable branch map implemented. Opt-in automatic chapter recording implemented. Cross-reference and inline Strong’s capture, library search, and manual trail ordering are implemented. Full graph controls, additional automatic connection types, and relationship editing remain open. |
 | SHARED-DATA-001 | No native sync; native libraries are isolated dev copies (by design until the M4 gates). | both | P1 | A01 | OPEN (gated, OD-5) |
-| IOS-FUNC-002 | iPhone reader: no cross-verse text selection (per-verse rows). | iOS | P2 | S07 | OPEN |
-| MAC-UI-008 | Strong's search results do not highlight the matched words (the occurrence word indices are available). | both | P3 | Q03 | OPEN |
-| MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | OPEN |
+| IOS-FUNC-002 | Verify cross-verse touch handles, copy output, highlight/reopen and swipe arbitration on device. | iOS | P2 | S07/H02 | IN PROGRESS: single TextKit document implemented. Whole-verse clipboard verified for single, range and gapped selections and grouped LXX Psalm 3 on Simulator. Cross-verse text handles, partial Copy with Reference, highlight/reopen and swipe arbitration on physical iPhone remain open. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md). |
+| MAC-UI-008 | Strong's search snippets should highlight the matched words, including when Word Replacer changes their positions. | both | P3 | Q03 | Highlighting implemented. Regression test covers identical display text with remapped positions. Live Mac and iPhone visual checks pending. |
+| MAC-UI-009 | Strong's hover gloss tooltip (original: word, transliteration, short definition) missing; click works. | Mac | P2 | S05 | FIXED earlier (ChapterTextView `.toolTip` from `strongsTooltips`) — status corrected 2026-11-14 by the audit |
+| IOS-UI-030 | Verse action capsule: words behind the regular Liquid Glass read through the icons over red-letter text (simulator). | iOS | P3 | S08 | Backing opacity increased for both Scripture capsules. Light and Dark Mode simulator captures verified improved icon contrast over red-letter text. Physical iPhone and Reduce Transparency checks remain open (AUDIT D/I25). |
+| MAC-FUNC-030 | Native Lexicon search misses multi-word glosses only partly; untagged-word dashed underline + click (original Strong's mode) not reproduced — replaced by the reader context-menu “Look Up in Lexicon”. | Mac | P3 | D1 | OPEN (design difference, recorded) |
+| MAC-FUNC-037 | **Compare renders blank on Mac** (P1). Repro (Dev library): open John 3 (KJVA) in the "standard" layout, click the Compare toolbar button → toolbar switches to Compare (columns menu lists two "John 3" columns) but the content area is empty; Home/scroll shows nothing; exiting Compare restores the reader. Tab state: `{"bookId":"JHN","chapter":3,"compareMode":true,"translation":"kjva","scriptureLayout":"standard","rightPanelTab":"lexicon",...}` with no `compareColumns`. **Pre-existing:** reproduced identically on a clean build of `64df1059` (before the Claude session). Also blank on **Genesis 1** (KJVA + LXX both have text), so it is not the missing-NT-in-LXX case; even the column header row is missing and no ProgressView shows, so check so check `CompareView.body` GeometryReader/`ViewThatFits` sizing and the `scriptureLayout` container in `ScriptureLayouts.swift`. **Probe results (20:20–20:25, reverted):** a temp-file log inside `CompareView`'s root `GeometryReader` recorded `size (935.0, 0.0)` with `loadedPassage == passage`, 2 columns, all following — i.e. data is loaded but the view is offered **zero height**. Adding `.frame(maxWidth: .infinity, maxHeight: .infinity)` and then `minHeight: 200` to `CompareView` in `ScriptureView.body` did not change the result, and after relaunch (tab restored in Compare) the GeometryReader closure did not re-evaluate at all. Next: inspect what wraps `ScriptureView` in `MacRootView` for bible tabs (the `.inspector(isPresented:)` + `ScriptureLayouts` `scripture` frame) and whether CompareView's `.toolbar`/`.sheet` modifiers or the iOS-only `.safeAreaInset` branch collapse it on macOS; try rendering CompareView without the outer GeometryReader. **Tried 20:27 (reverted): replacing the GeometryReader with a `Group` + `onGeometryChange` width — still blank**, so the root container is not the cause; next suspect the content itself (`alignedComparison`'s `ScrollView { ViewThatFits(in: .horizontal) { comparisonGrid; stackedComparison } }`, the `Grid` with `gridCellUnsizedAxes` Divider, or a `.background`/overlay in `comparisonText`). A quick split test: temporarily return `Text("compare")` from `alignedComparison` and bisect. | Mac | P1 | Compare | **FIXED 2026-11-14 20:29**: cause was `CompareView`'s `.safeAreaInset(edge: .top)` whose body is `#if os(iOS)`-only — on macOS the empty inset collapsed the content to zero height. The modifier is now iOS-only; Mac Dev verified Genesis 1 KJVA/LXX compare renders. |
+| SHARED-UI-038 | Stacked Compare dropped verse 1 and left a gap under the column headers. | both | P2 | Compare | **FIXED 2026-11-14 20:31**: header rows (ids 0, 1…) collided with verse rows' `.id(verse)` in one LazyVStack; headers now share one container. Mac and iPhone simulator verified Genesis 1 shows verse 1. |
+| MAC-UI-039 | Aligned Compare always uses the stacked layout, even in a 1700pt-wide window; the side-by-side `comparisonGrid` (original's columns) never wins `ViewThatFits(in: .horizontal)`, likely because grid cells' text reports its full single-line ideal width. Fix idea: choose grid vs stacked by measured width (`onGeometryChange`, ≥ 280pt per column) instead of `ViewThatFits`. | Mac | P2 | Compare | **FIXED 20:36**: layout chosen by measured width (≥280 pt per column → grid); Mac verified side-by-side KJVA/LXX at 1700 pt. |
 | SHARED-FUNC-010 | Verse actions lack Play Audio From Here (Copy Reference and Compare This Verse added). | both | P3 | S08 | OPEN (waits for Read Aloud) |
 | SHARED-FUNC-011 | Notes editor: tables as source text, images as captions, columns/threads without chrome (ADR-0014 limits). | both | P2 | N04/N05 | OPEN |
-| MAC-FUNC-013 | No calendar on Mac (⌘⇧D Today's Note now exists). | Mac | P2 | N12 | OPEN (partly fixed) |
+| SHARED-FUNC-017 | Today’s Note needs the legacy sunrise boundary and a no-location fallback. | both | P2 | N12 | Sunrise with manual local coordinates and midnight fallback implemented. Native location acquisition remains open. |
+| SHARED-UX-020 | Many unnamed workspaces and tabs accumulate during normal study. Find by contained passages, reuse eligible tabs, and support reversible bulk archive. | both | P1 | workspace/tab navigation | IN PROGRESS. Mac and iPhone Go reuse, workspace previews, open-tab search and reversible archive implemented. Simulator verified search, single-tab restore and tab moves. Duplicate workspace names and large lists still need runtime coverage. |
 | SHARED-FUNC-014 | Settings still missing: Texts (enable / reorder), Notes, Hermas translation choice, Read Aloud / AI / YouTube sections (verse-number and red-letter toggles, Shortcuts and About added). | both | P2 | U12/S11 | OPEN (partly fixed) |
 | MAC-UI-015 | Sidebar drag: no drop line and no auto-scroll near the edges; no pinned-tab grid; no density setting. | Mac | P2 | U02 | OPEN |
 | SHARED-FUNC-016 | Tag graph (visual relationships) missing; the Tag Manager now exists. | both | P3 | U16 | OPEN (graph only) |
 | MAC-FUNC-017 | Single window only: no floating tabs, presenter or secondary windows. | Mac | P2 | U07 | OPEN |
 | SHARED-FUNC-018 | PDFs, YouTube, Read Aloud, Ask Berean not ported. | both | P2 | U17/M01/M05/G01 | OPEN |
 | SHARED-FUNC-019 | Deep links (`berean://`) not handled natively. | both | P2 | A06 | OPEN |
-| IOS-FUNC-004 | iPhone New sheet has no notes results (Mac ⌘K does). | iOS | P2 | Q09 | OPEN |
+| IOS-FUNC-004 | Verify iPhone Go opens a note by title and body match. | iOS | P2 | Q09 | iPhone 18 Pro Simulator verified immediate exact-title submission and body-only search with an excerpt. Tapping the body match dismissed Go, opened the note, and preserved the 16-tab count. |
 | SHARED-UI-020 | Accessibility: no full VoiceOver pass; dark mode checked only on the reader, search and sidebar. | both | P2 | A14 | OPEN |
 
 ## Fixed
@@ -47,7 +55,7 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-UI-026 | **Back / Forward not in the sidebar** (owner report). | Mac | P2 | [sidebar ‹ ›] group in the sidebar title bar, same place when collapsed; verified both states; PR #23 |
 | SHARED-SEARCH-001 | **Search limited to one text, no scope control, no Strong's queries, weak options** (owner report). | both | P1 | ScriptureSearchView + ScriptureSearch engine: All Texts default, scope menu, per-text counts, options, Strong's, phrase, history; verified "watchers" (22 results, 4 texts) and G5485 (284); 6 engine tests; PR #23 (d3e9342) |
 | SHARED-SEARCH-002 | Strong's bridge and Strong's search missed most occurrences of common numbers (the 1000-row, book-id-ordered cap also exists in the original). | both | P2 | Search uses uncapped occurrences; tests (Ps 23:1 via Yehovah; Gen 1:1 for H7225 + H430) |
-| MAC-FUNC-003 | ⌘K did not find notes. | Mac | P1 | Grouped palette: Recent · Go to · Lexicon · Search · Notes · Commands, with ↑/↓ and Return; verified "grace" listing 2 notes; PR #23. (The iPhone uses New, which has no notes group yet; tracked below as IOS-FUNC-004.) |
+| MAC-FUNC-003 | ⌘K did not find notes. | Mac | P1 | Grouped palette: Recent · Go to · Lexicon · Search · Notes · Commands, with ↑/↓ and Return; verified "grace" listing 2 notes; PR #23. iPhone Go also supports Notes hits (IOS-FUNC-004). |
 | MAC-FUNC-004 | No find in chapter. | Mac | P1 | ⌘F find bar with match count and next/previous, ⌘G; verified "world" (5 matches) in John 3; PR #23 |
 | MAC-FUNC-007 | Notes home was a filtered list only. | both | P1 | Folders home (All Notes, system folders, folder tree with counts, Trash, Recently Edited) · folder view (subfolders, Pinned, recency sections, sort, group by status / folder / type) · previews · row menu (pin, move, status, duplicate, export, trash) · folder menu (new subfolder, rename, move, delete keeping or trashing notes) · Trash (restore, delete permanently, empty). Services tested. Verified on the Mac (create folder, move note, open folder, note → back to its folder) and on the iPhone (home renders); PR #23 (9b69814) |
 | IOS-FUNC-005 | New sheet stayed open after Return (`dismiss()` ineffective after navigation). | iOS | P1 | Closes through the presenter's binding; verified "obadiah" → Obadiah 1 with the sheet closed (Simulator); PR #23 |
@@ -58,3 +66,457 @@ Each row gives: issue (expected vs actual, how to reproduce) · platform · seve
 | MAC-FUNC-028 | Found by exploratory testing: app shortcuts such as ⌘⇧D did nothing while the reader had focus (NSTextView swallowed them). | Mac | P1 | The reader passes unhandled key equivalents to the menus; verified ⌘⇧D → today's note `daily-2026-11-12` (the existing app's id format); PR #23 |
 | SHARED-FUNC-012 | No History screen. | both | P2 | `HistoryService` port (shared `history` table, device-local; 5-minute duplicate rule; cap 5000; tested). Records passages, notes, Strong's and searches. History tab (Search space, as in the original): by day, filter, type picker, reopen, remove, clear, Show Older. ⌘Y, ⌘K Commands, iPhone New sheet. Verified on the Mac (Romans 8 + "grace" listed); PR #23 |
 | SHARED-FUNC-029 | No Tag Manager. | both | P2 | Tags tab (Notes space, as in the original): filter, coverage per tag, open verses, rename, colour slot, merge into, delete (asks again when notes mention #tag), new tag. Go ▸ Tags, ⌘K, iPhone New. Verified on the Mac (#Gospel listed); PR #23 |
+
+### 2026-11-12 review branch
+
+- MAC-FUNC-013 — Calendar opened from Mac Go/⌘K and iPhone More. Selected month and date use existing tab-state keys. Mac opened an existing daily note; iPhone opened a newly created Dev daily note. Sunrise parity tracked separately.
+- SHARED-FUNC-018 — Both targets now bundle the full Scripture catalog via explicit read-only lists. Mac ⌘K opened Didache 1 and rendered its text.
+- IOS-UI-020 — Scripture link underlines removed. Compact dock labels its three controls and shows the open-tab count. Go reuses compatible unpinned tabs.
+
+### 2026-11-14 evening (Claude Code, `native/reader-notes`)
+
+- MAC-UI-031 — FIXED: native controls (buttons, pop-ups, segmented pickers, toolbar items) showed the arrow; now the pointing hand,
+  disabled toolbar items keep the arrow and update when enabled (`ClickableCursor.swift`; verified with `screencapture -C`).
+- MAC-FUNC-031 — FIXED: ⌘K ran a Scripture search for a typed command name ("notes home"); commands now rank first (`68c75906`).
+- SHARED-UI-032 — FIXED: whole-chapter labels said "Psalms 3" in Go/palette history; now "Psalm 3" (`3fbbc918`).
+- IOS-UI-033 — FIXED: Go sheet rows rendered as blue links; now primary text with tinted icons (`3fbbc918`, simulator).
+- IOS-UI-034 — FIXED: Psalm title line used the verse hanging indent on iPhone (`30fc3d29`, simulator).
+- SHARED-FUNC-035 — FIXED: lexicon search missed accent-free spellings (shalom, chesed) (`639b41ad`).
+- SHARED-UI-036 — FIXED: destructive note/history/tag actions swallowed errors; now reported through `userMessage` (`b6223db3`).
+- Full list of the session's features and their verification: HANDOFF.md "2026-11-14 evening checkpoint" + AUDIT-2026-11-14.md.
+
+### 2026-11-17 current-location follow-up
+
+- Fixed Command-L Search All Texts inheriting filters from the replaced search. Back and Forward now distinguish destinations with the same query and different result restrictions. Mac runtime verified testament restoration. Both Dev builds passed.
+- Cursor tracking review retained AppKit's superview-coordinate hit-test contract. Continuous pointer-motion verification remains open, along with IME Find input and compact Find layouts.
+
+### 2026-11-17 Notes browse follow-up
+
+- Added adaptive Notes Gallery on both platforms. Mac selection/search/Back and simulator opening/return passed live QA.
+- Fixed Notes folder resetting to the folders screen on relaunch by persisting `listFolderId` locally. Both apps reopened All Notes in Gallery after relaunch. All 148 Swift tests passed.
+- Long-gallery positions, accessibility sizes, iPhone gallery bulk actions and custom-folder relaunch remain to verify.
+
+### 2026-11-17 Notes section follow-up
+
+- Added collapsible section headings on both platforms, including note counts, disclosure accessibility values and retained state per folder/grouping.
+- Fixed reproduced gallery history loss. Mac scroll-bar position returned from 1 to about 0.058 before the correction and stayed at 1 through repeated Back/Forward afterward.
+- Mac verified search through collapsed sections, disclosure persistence and selection counts. Simulator verified tapping headings away from the chevron and selected counts after collapse. Custom-folder disclosure, touch scroll restoration and accessibility sizes remain open.
+
+### 2026-11-17 Notes targets and cursor follow-up
+
+- Mac Notes has glass groups and leading aligned content. Whole-row opening passed in Mac custom folders and simulator All Notes.
+- Updated shared Mac clickable cursor handling to settle after dispatch and use the delivered event point. Sampled SwiftUI disclosure and enabled toolbar controls retained the hand after movement, while disabled Back retained the arrow. Broader control and manual-motion coverage remains open.
+
+### 2026-11-17 home and floating control follow-up
+
+- Fixed a sampled arrow cursor over floating Scripture Copy, caused by its hosting-view hit relationship. Repeated drag produced hand/hand after rebuilding.
+- Mac Notes home now retains its viewport across recent-note navigation and ordinary tab switches. The note editor's return label identifies its real destination.
+- Mac runtime passed repeated lower-card navigation and home tab-switch restoration. Missing-recent fallback, iPhone home scrolling and wider manual cursor coverage remain open.
+
+Cursor follow-up matrix: verify inactive-window hover after preserving the delivered event window; verify SwiftUI enabled-state changes under a stationary pointer; sample native switch-style toggles. Floating Copy's arrow/hand regression was reproduced and corrected, but these cases are still open.
+
+### 2026-11-17 switch and iPhone home follow-up
+
+- Native switch movement is runtime verified (Verse Numbers, hand/hand), and its QA preference was restored. SwiftUI enabled-state refresh is implemented, with stationary-pointer runtime verification remaining.
+- iPhone Notes home recent-note return now restores the lower viewport; repeated third/last recent note return passed in Simulator. Ordinary touch-scroll saving and missing-recent fallback remain unverified.
+
+### 2026-11-17 location-editing regression
+
+Cross-type Cmd+L is fixed for the directly exercised Scripture/Search/Lexicon/Note matrix; stable ID/order/count and untouched peers were verified in the QA library. Pinned Compare round trip and ordinary Cmd+K/Shift-Return behavior passed. Explicit Notes Search/Lexicon Search/utility combinations and exact long-scroll equality remain QA work. Blank sidebar now explicitly resets to arrow; live sample passed.
+
+During palette QA, Gallery returned imported note hits while Gallery QA 07 did not, despite a direct read-only FTS query matching the imported title. Cause remains unverified; investigate separately from tab replacement.
+
+### 2026-11-17 note completion refinements
+
+Native [[ note-title suggestions now work on both platforms. Mac keyboard and pointer choice, Escape/query editing, plus iPhone touch insertion/Undo/Redo passed. Mac still sometimes undoes completion and following typing together (source restored correctly). Manual wheel/touch scrolling with the chooser open, software keyboard resizing, hardware IME and accessibility sizes need QA.
+
+### 2026-11-17 verified query and undo refinements
+
+- Fixed reproduced stale visible Lexicon query and blank Cmd+L Notes query. Notes and Lexicon query Back/Forward passed; Calendar/History/Tags remained in the current tab.
+- Simulator verified Hebrew elohim query/language persistence after relaunch.
+- Mac completion following-typing undo coalescing is fixed for the exercised native editor path: first Undo only later typing, second only completion, Redo completion. This supersedes the earlier open entry for that path.
+- Numeric full-title palette lookup still reproduces; package FTS helper and read-only database queries succeed. Keep diagnosis at the UI/runtime boundary before changing data/search semantics.
+
+### 2026-11-17 Lexicon result follow-up
+
+iOS 27 Simulator verified recovery after rapid typing and Return, Clear refocus, and deep result viewport restore after entry return and relaunch. Mac hover/activation, history across queries and tabs, and accessibility/device checks remain open. Keep numeric full-title palette lookup open pending safe Mac QA targeting.
+
+Final Lexicon follow-up: Hebrew/Greek switching reproduced a several-row offset shift. Eager measurement of the SQL-bounded results fixes the exercised round trip, retaining the exact saved1551.333 offset in Simulator. Deep Back/Forward and seeded resets remain open.
+
+### 2026-11-18 owner UX checks
+
+Verified iPhone Verse Notes creation/return, date-aware daily reuse, empty-folder centering and independent nested disclosure. Mac marked QA verified unpin/repin, no overflow at tested width, and passive-space arrow/active-row hand after fixing distant region matches. Explicit large Notes title removes observed inherited inline/blank-title case after reinstall. Continue broad cursor motion/resize, compact toolbar widths, quick formatting, Compare validity, selection clipping/highlight geometry, chapter gestures and tab-switch timing. Read Aloud still requires original Kokoro quality.
+
+### 2026-11-18 — Compare and character selection checkpoint
+- Mac QA: invalidLXXRomans5 shows one repair row, not blank verse cells. ChoosePassage→Isaiah52LXX works. FollowMain disabled; close-last exits, Back/Forward restores. Left gutter numbers and no repeated per-verse Mac ellipses verified. Phone compact Compare, drag/reorder and broader resize matrix still require runtime coverage.
+- Mac native character drag Mark13:7–9 and saved yellow partial highlights follow words across wraps; no number/gutter/trailing fill. Offscreen renderer regression covers Strong’s exclusion and retained tag fill. iPhone word selection and simultaneous verse actions exercised; handle extension across several verses not established. Inspect adjacent dashed-outline grouping on phone again: screenshot after mixed native/tap selection appeared separated, not yet reproduced from a clean selection state.
+- QA process lesson: /tmp and /private/tmp aliases produced two isolated QA processes during diagnosis. Relaunch pattern must match both; verify exactly one QA process and berean-native-qa-sidebar-toggle before UI mutation. Regular Dev remains untouched.
+
+### 2026-11-18 — Notes follow-up verification
+Daily-folder calendar markers/date reuse verified on both platforms. Mac Checklist/Table available directly; preexisting formatting/typing Undo coalescing fixed and live checklist Undo/Redo/follow-on typing tested. iPhone blank large-title area reproduced on tab/folder return, replaced with explicit fixed accessible heading; verified Notes and DailyNotes after return. Tiny widths, DynamicType and VoiceOver remain unverified. Continue broader formatting/IME Undo checks.
+
+Chapter gesture follow-up: deterministic fresh-edge/hysteresis regression and builds pass. iPhone13→12 end and12→13 start work. Repeated activation at a later13end viewport not established: inspect real scroll begin offset versus2pt edge tolerance and dock/contentInset settling. Do not silently lower arm threshold before measuring. Cue rendering/haptic timing, Mac physical trackpad stillpending.
+
+18Nov follow-up: late Mac hover gloss arrival caused full reader rebuild through Key.tooltips; now metadata-only with actual-helper regression. Whole-app tab latency still needs measurement. iPhone pan trace proves211pttop navigation; many failed bottom attempts have0actualinput and are inconclusive. Physical/haptic checks remain. Scripture detail viewport is memory-only and relaunch returned to top; persist validated local-only native viewport records next (TASKS/HANDOFF).
+
+### 2026-11-18 — Relaunch loses native Scripture position
+Resolved underlying memory-only storage with local bounded validated viewport checkpoints. MacQA and iPhone27 simulator deep position restored after relaunch. Mac switch-away/back also retained position. Do not equate this with measured instant switching throughout the app; other tab types, explicit jump/end/resize/LXX matrices remain open.
+
+
+Phone selection recheck18Nov: final Mark12:37–39 renders one faint-filled rounded dashed group and floating action bar with text below; persisted verse/endVerse37/39 confirmed. An earlier number tap appeared to replace prior selection; repeat clean number-only and body/number mixed sequences before closing touch consistency.
+
+### 2026-11-18 — Exact note title lookup repaired
+Palette stale cache suppressed GalleryQA07/01 despite correct FTS results. Current-query fallback now renders correct title after rapid typing/replacement, removes old hits on no-match, and Return opens correct note (Mac verified). iPhone Go replacement and note opening also passed. onChange alone was insufficient; fallback is essential. Native DB helper/FTS unchanged. Full query/IME/metadata-refresh matrix remains open.
+
+
+18Nov note-title truncation: GoSubmitFollowupQA was truncated in phone editor. Now full2line title displays; Mac multiline paste preserves single-line metadata and Return enters body on both platforms. More than5lines/accessibility/software-keyboard/IME remain manual acceptance.
+
+
+18Nov owner report OPEN: occasional Scripture scroll stutter, brief chapter-loading spinner, bottom pull not working when chapter is shorter than viewport, and top-pull feel. Investigate current reader lifecycle/cache/metadata and geometry at coincident edges; alwaysBounceVertical is already enabled. Preserve selection and deliberate-edge guards. Speech compatibility expanded to exact original phoneme output; audible backend still absent.
+
+### 2026-11-18 — Reader gesture checkpoint
+iPhone short-page pulls now use passive raw touch travel; deliberate chapter turns have explicit start/end arrival. Mac scroll checkpoints reuse one idle timer; short pages allow elasticity. Both builds and intent checks pass; simulator boundary cycle and Mac checkpoint/relaunch verified. Loading flash and physical gesture feel remain open. See HANDOFF latest checkpoint for evidence and continuation.
+
+### 2026-11-18 — Prepared chapter-turn checkpoint
+Added16chapter read-only preparation cache, shared in-flight loads, actual-neighbor prefetch, outgoing viewport capture and atomic destination rows/annotations/selection for explicit turns. Both native builds pass; Mac history/selection and iPhone short-page cycle checked. Removed iPhone empty system glass circle when chrome tucks. Other navigation paths can still show loading; global frame pacing remains open. See latest HANDOFF for scope, exact evidence and queued CI status.
+
+### 2026-11-18 — Compare follow-up from reader regression pass
+Mac toolbar Compare on/off and chapter-next rendered correctly. Existing persisted LXX New Testament column remains recoverable as unavailable (Choose Passage/Remove), rather than being deleted. One CUA ⌥⌘C attempt did not toggle Compare despite visible help; ⌥⌘→ worked in same pass. Reproduce with/without native text focus and inspect responder/menu conflicts; do not claim fixed from this single observation. Latest fixture Mac13single, iPhonePsalm119mid.
+
+### 2026-11-18 — Direct warm Scripture presentation
+Cached chapters and revision-scoped annotations now render directly for warm navigation; location-scoped selection/scroll targets prevent stale state. Native view reuse captures outgoing viewport;16entry cache protects visible chapter and coalesced waiters publish before returning. Both final native builds pass; Mac34step boundary/history test, local selection/highlight refresh, phone mapped Psalm return and tab restoration checked. Cold misses/frame pacing remain open. Prior-head CI cancelled before runner assignment due hosted macOS capacity; see HANDOFF for exact evidence and next work.
+
+### 2026-11-18 — Working tabs first on iPhone
+Tab overview now opens expanded and shows current tabs before creation/cleanup/archive controls and recent duplicates. Existing actions and optional compact detent remain. Simulator existing119→G5463→119 navigation preserves viewport; nine tabs unchanged. Final iOS build passes. See HANDOFF for exact evidence, remaining large-workspace/accessibility checks and hosted CI capacity cancellation.
+
+### 2026-11-18 — Passage preview prepares the reader
+Shared previews now reuse a bounded prepared chapter with separately retained raw rows, warming both Mac palette/CmdL and iPhoneGo destinations without changing excerpts or navigation semantics. Both builds and raw LXXPsalm 3 heading→bodyverse2 UI checks pass; current-tab reuse leaves13MacQA/9phone tabs unchanged. Fast submit before preview is ready can still be cold. See HANDOFF for oracle/evidence and remaining selection/performance work.
+
+
+### 2026-11-18 — Reader selection gesture checkpoint
+Targeted fix: rapid adjacent iPhone verse-body taps no longer become UIKit word selection; number taps no longer double-toggle/select words. Intentional native word selection removes whole-verse outline/bar. Final clean simulator checks pass; physical phone/VoiceOver/accessibility timing remain open. General scrolling smoothness and cold quick-submit spinner remain measured-work items, not declared resolved. Latest HANDOFF contains exact evidence.
+
+
+### 2026-11-18 — Reader release and sidebar restoration
+Fixed reproduced short-page pull arrival regression: outgoing momentum no longer scrolls incoming chapter away from its intended edge after release. Final simulator117→116END→117START→118START passes. Restored Mac Sidebar/Back/Forward to sidebar title area at user request; hide/show/history checks pass. Pin idle-right/hover-left implementation builds, idle-right screenshot verified; physical hover and narrow-window layout still need verification. General scrolling FPS and cold-cache flash are not declared universally fixed.
+
+### 2026-11-18 — latest reader requests
+Psalm numbering must use body-first Brenton rendering (title belongs to body1), superseding separately numbered titles. Check input/labels/copy/Compare/flip against both Psalm 3 and two-title Psalm 50 while retaining raw annotation identities. LXX badge hover implemented; physical motion check outstanding. Mac slow-pull packet regression covered; actual trackpad/FPS remains unverified. Cursor and arbitrary tab splitting audits exist, implementation pending.
+
+Latest verification: full Swift suite192tests/55suites PASS; focused Psalm suite8 PASS; slow-pull harness PASS. Both final ancillary-label builds PASS (/tmp/berean-psalm-label-consistency-{mac,ios}.log). Mac/simulator reader UI checks described in HANDOFF. Scope is body-first Brenton presentation with unchanged storage IDs, plus LXXbadge/native-menu/pull refinements; generic splits/cursor replacement and notes-generated reference-link semantics audit remain open.
+
+
+## 2026-11-18 — location input, native cursor ownership and iPhone verse taps
+
+- Mac ⌘L now owns keyboard focus before its field mounts, preserves early keys/paste, selects the current destination once, and replaces the current tab across Scripture, Search, Lexicon and Notes. QA verified the original tab identity, 13-tab count and unchanged note content/update time. Explicit Shift-Return creates a tab; closing it currently selects its neighbor, not necessarily its origin.
+- Removed global cursor swizzles/private toolbar hooks and forced hands. Native controls, text, links and dividers own their cursors. Source audit and builds passed; physical pointer-motion/flicker coverage remains open.
+- iPhone body taps use a passive touch observer: rapid verse1/2/5 accumulation, targeted deselection, native word double-tap, 400ms taps, 900ms long-press, scroll cancellation, chapter pull and inline Strong’s were exercised in the Simulator. The new pure reader-taps harness joins CI. Physical iPhone/VoiceOver and handle dragging remain unverified.
+- Added a 44pt accessible Close Study Panel control; final fresh-launch Simulator check dismissed the G2962 inspector. Restored Psalm 3 LXX, Strong’s OFF, no verse selection, 9 tabs. Both final local builds PASS: `/tmp/berean-study-close-final-mac.log` and `/tmp/berean-study-close-final-ios.log`.
+- Online rendering verified again: [Brenton Psalm 3](https://biblehub.com/sep/psalms/3.htm) combines the title and first body line as verse1. [Brenton Psalm51 / LXX50](https://biblehub.com/sep/psalms/51.htm) does the same for its longer title. Preserve Septuagint chapter numbering and raw stored IDs; display/copy/accessibility numbering follows the reader. Do not reinterpret persisted links or rewrite production data.
+- Next: per-edition Compare selection and whole-block dragging; generic all-tab split previews; physical cursor motion and Mac scroll/pull feel; note reference formatting/preferences; M05 Kokoro playback. These remain unfinished. Owner-only merge order #22 → #23 → draft #24 remains unchanged.
+
+
+## 2026-11-18 — corpus-wide Brenton rendering and combined verse compatibility
+
+The actual 151-Psalm corpus check found that stored LXX 115:4 contains both the cup and vows sentences, with no stored verse 5. The reader now labels that record 4–5, preserves all its words/annotation identity, resolves human-entered verse 5 to stored4, and maps KJV 116:14 to that existing record in Compare/flip. Verse6 and following keep their numbers. Labels, selected references, chapter export, partial copy and accessibility use the range. Raw persisted links, tag spans and note/highlight keys are not rewritten.
+
+Online witnesses: [Bible Hub Psalm 3](https://biblehub.com/sep/psalms/3.htm) and [MT51/LXX50](https://biblehub.com/sep/psalms/51.htm) combine superscription and first body as verse1. [eBible Brenton115](https://ebible.org/eng-Brenton/PSA115.htm) calls the second sentence4a; [Bible Hub MT116](https://biblehub.com/sep/psalms/116.htm) separates the two sentences at13–14. Reader 4–5 is the numeric presentation of that combined record, consistent with the chosen body-first convention, rather than a claim that every online edition uses identical labels. Keep actual LXX chapter numbering; do not substitute a site's MT chapter headings.
+
+Verification: all 195 shared tests/57 suites PASS in139.323 s from a temporary native-build source snapshot; all 120 package source/test/fixture SHA256 values were checked against the repository with zero mismatches. Log `/tmp/berean-online-brenton-final-suite.log`; manifest `/tmp/berean-online-psalter-source/source-sha256.json`. Initial corpus test correctly failed on115's gap and motivated the range fix. Direct checkout test attempts were interrupted only after diagnosing cloud-backed Git/build database waits; no caches or usage were reset.
+
+First range builds BOTH PASS: `/tmp/berean-brenton-range-final-{mac,ios}.log`. Fresh iPhone PID32126 verified Go 115:5→115:4–5, readable gutter label, both sentences selected, verse 6 unchanged and9 tabs. Selecting6 then exposed separate outlines at the missing stored5. Final source fixes drawing/reveal grouping by actual row order while still breaking at unselected rows or real rows without layout; persistence stays unchanged. Reader tap + adjacency harness PASS with immutable inputs `/tmp/berean-final-range-selection-checks` (explicit temporary module-cache path after a sandbox cache-write failure). Final grouping builds and Mac/iPhone UI checks subsequently PASS; see verified publication checkpoint below. Reference labels also coalesce adjacent displayed ranges without changing saved raw groups.
+
+The single4–6 outline, copy/reference labels and fixture restoration are now verified on both apps. Publish only the tested source and its checkpoint. Audit combined-record cross-reference aggregation and newly generated Markdown/link display vs raw IDs; original legacy links must keep their meaning. Generic all-tab split previews, per-edition Compare selection/whole-block drag, physical pointer/flicker, Mac scroll/pull feel and M05 playback remain open.
+
+
+### Verified publication checkpoint — source `8492a161`
+
+Both final grouping builds PASS (`/tmp/berean-brenton-group-final-mac.log`, `/tmp/berean-brenton-group-final-ios.log`). iPhone fresh PID33697 showed one outline around 4–5 + 6, correct targeted deselect/reselect and native Copy→Paste containing `Psalms 115:4-6 LXX`, range label4–5 and verse 6, without extra text/rows. Restored Psalm 3 LXX, no selection, Strong’s OFF, inspector closed,9 tabs. Mac fresh QA launch verified ⌘L115:5→115:4–5, Shift-click 6→one4–6 outline, Copy Reference→immediate ⌘L paste exactly `Psalms 115:4-6 LXX`, then restored Psalm 50:1 LXX (raw 3),13 tabs. Readonly DB confirms original tabID0456641d-da15-49d2-8620-cdf2b9d1f0bd/typeBible retained and GalleryQA07 content SHA256 AND updated_at unchanged.
+
+Full 195 shared tests/57 suites passed; after adding corpus-version coherence assertions, the 3 focused tests passed again (`/tmp/berean-brenton-corpus-coherence-final.log`). All120 package snapshot hashes matched repo. Tap + visual-adjacency harness passed. No application code changed after final builds/UI checks. Physical iPhone/VoiceOver, physical cursor-motion/flicker, full Mac scrolling performance and combined-record cross-reference aggregation remain open.
+
+Commits: faf8589d location focus/input;3c38eb5c native cursor ownership;819f9954 iPhone body taps/CI;59bbd436 accessible inspector close;8492a161 combined Brenton records/visual adjacency. The next docs commit records this checkpoint. Publish the complete checkpoint to **github**/native/reader-notes, existing draft24; compare remote head with local HEAD and read CI for that exact PR head. Prior74aeb6c5/CI44391471644 is historical evidence only. PR22/23/24 were rechecked OPEN,24draft/base native/m6-navigation; owner-only merge order unchanged. Do not merge or inherit old green checks.
+
+
+## 2026-11-19 — Psalm rendering follow-up
+
+- **Delivered739c5e41:** numbered superscription/body groups, repaired native title indentation, iPhone title tap selection and quiet LXX/KJV metadata with on-demand explanations. Both builds pass; actual Mac/Simulator group selection verified. ONLINE-BRENTON.md records online edition differences.
+- **New confirmed issue READER-CROSSREF-IDENTITIES:** Psalm50LXX whole-chapter TSKe shows threeVerse1 groups and drops correct correspondence at the end, because service KJV source verse numbers are rendered as raw LXX IDs. Selection requests also pass raw LXX source numbers to legacy cross-reference lookup. Combined115:4 needs references from KJV116:13 AND14. Implement native reader mapping/aggregation without changing legacy conformance results; test joins/splits and both sources/scopes. Do not merely relabel duplicated groups.
+- **Still open:** font/number-hidden/Dynamic Type/VoiceOver checks, full Mac title typography at varied pane widths, Compare per-column selection/whole-block drag, physical cursor/flicker/scroll matrix, generic splits, Notes parity, display-vs-raw links and real Kokoro audio.
+
+
+## 2026-11-19 — native references, toolbar responsiveness and Strong’s continuity
+
+- 42d34bbe: additive native cross-reference APIs map verified stored LXX rows to canonical sources; correct chapter grouping and combined-record aggregation. Legacy service entry points/goldens remain intact. Classic/TSKe selected and chapter UI checked on both apps; structural unverified alignments remain open.
+- fce2b88e: native navigation ControlGroup replaces fixed-size HStack; measured Mac toolbar CPU loop resolved while retaining sidebar titlebar placement. Baseline99.5% CPU/AX20–40s → idle0–3.3%/AX0.1–0.4s. This supersedes prior automation-latency diagnosis; broader physical interaction checks remain.
+- 3bbecdea: native readers retain the visible body line when Strong’s toggles, preferring a visible selected verse and excluding inline metadata from anchor offsets. Mac selected/unselected and iPhone mid-chapter on/off verified; physical phone and full edge/width matrix pending.
+- Validation: full202 shared tests; final6 focused cross-reference checks include all151 Psalms source bounds. Fresh reader intent/reflow harness passes Unicode/metadata mapping and prior tap/adjacency checks. Both final native builds pass. See current HANDOFF for exact logs, QA restoration and remaining tasks; source corpus/production/sync/identities unchanged.
+
+
+## 2026-11-19 — Compare selection and floating actions (d6f7cced)
+
+Each edition now owns its selectable verse numbers and action target. Additive taps/Mac Shift use actual stored row order; selection itself does not change the anchor passage or history. Adjacent visible selected rows share one faint/dashed outline; stacked interleaved editions remain outside each other’s outlines. Reduced Motion pauses animation. The adaptive glass action bar reuses reader control styling and supports copy/highlight/tag/note/reference/reader/share/clear operations. iPhone dock safe-area clearance was verified after an initial hidden-bar failure. Mac Command-C was verified after fixing a focus-routing failure. Clearing and exiting Compare does not restore an old selection. Shared title rendering uses the Scripture font and folds source title newlines.
+
+Both local Dev builds and the expanded native reader harness pass. Mac LXX50/KJV51 copy and action destinations, Mac Shift group/Escape, and iPhone stacked selection/copy feedback/reader transfer/final dock gap/clear-exit passed. See HANDOFF for exact logs and QA restoration. No note contents/timestamps changed;4 Mac/9 iPhone tabs preserved. Prior baselinecce95bf0 CI44493859591 is green, including203 shared tests; this is not evidence for the new source’s pending CI.
+
+Remaining before full Compare parity: view-state retention across tabs/relaunch, independent/pinned/cross-chapter/duplicate/4-column/width/accessibility matrix, actual mutation-and-undo action checks, native word-copy precedence, body-tap selection, selected-line reveal, and whole-block drag previews/grab-anywhere. Generic arbitrary-tab splitting and Kokoro playback remain separate open work.
+
+
+## 2026-11-19 — Compare tab return and explicit location intent (3090db5c)
+
+A bounded local snapshot per open tab now restores the selected Compare column/edition/chapter, selected stored rows, focus and original Shift anchor across tab switches. Close/explicit Compare arrival clear the cache. It is observation-ignored memory, with no new persisted/synced fields; restart retention remains open. Incoming explicit references override old local selection, including same-chapter and repeated identical commands. A fresh jump revision also restores the requested scroll position. Ordinary Go deduplication still uses the original one-argument isShown match, which excludes Compare.
+
+Final Mac/iOS builds pass (`/tmp/berean-compare-intent-complete-{mac,ios}.log`), and expanded native harness passes retained-anchor and unavailable-row cases. Mac UI verified LXXGenesis12 → Notes → return retaining selection; new/repeated Go to KJVGenesis11 replaces it, and repeat Go moves from near-end offset back to verse11. iPhone verified KJVPsalm3v1 → existing G5463 → return retaining that edition/selection.4 Mac/9 iPhone tabs preserved; original QA passages restored and all7 Mac QA note contents/timestamps unchanged. Earlier repeated-command failure and intermediate method-reference compile errors were corrected, not counted as passes. Full independent/pinned/history/restart/4-column/accessibility coverage, native word-copy precedence and whole-block dragging remain open.
+
+
+## 2026-11-19 — Compare passage lift follow-up (7d365304)
+
+Native Mac drag sources now cover headers, verse-cell whitespace and independent panes, with a readable glass passage preview, faded source and destination wash. Reorder remaps edition selection/scroll caches without changing legacy column records. Aligned two-edition reorder in both directions, exact mid-chapter scroll retention, Escape cancellation and native word-copy precedence passed. Both local native builds pass. Preview is a reconstructed visible excerpt; system-owned ghost pixels and physical feel were not captured. Pinned independent attempts did not demonstrate a successful drop; keep that matrix,4-column/duplicate/narrow/accessibility and selection removal/action writes open. CUA requires a final destination click to complete the native drop in this environment; do not misdiagnose its pending session as a stuck app. See HANDOFF/CHANGELOG for exact evidence/restored QA and CI scope. Generic arbitrary-tab splitting remains planned only. Strong’s body-word reading continuity is delivered; long-verse/end/width/hardware checks remain.
+
+
+## 2026-11-19 — Compare Strong’s continuity (f0b8752e)
+
+Shared Compare scroll now follows a visible verse through Strong’s reflow, preferring visible selected focus; independent and stacked hosts also receive verse-based restoration. Deferred work yields to newer explicit navigation/current-tab/passage/Compare-mode changes. Main Reader retains the finer body-word position separately. Mac aligned UI verified verse8 retained on enabling and selected11 retained on disabling; final guarded Mac/iOS builds PASS. Guard race matrix, independent/stacked/iPhone runtime and full width/long-verse/hardware checks remain. Nested drag-source removal experiment did not establish a pinned-drop fix and was fully reverted; pinned native dragging remains open. See HANDOFF/CHANGELOG for exact logs, QA restoration and CI status.
+
+
+## 2026-11-19 — Notes formatting and context-menu follow-up
+
+347cf74a routes native inline formatting through a shared, source-preserving cell edit: confirmed table pipes/rules/padding remain intact; mixed cells toggle together; existing inline constructs keep their rendering/source rather than becoming malformed enclosing marks.9 focused regressions and all212 package tests pass. Mac whole-table bold/toggle/Undo/Redo and exact persisted source verified. Arbitrary nested marks and the separate colored multi-cell highlight adapter remain open.04079bdf shortens the iPhone preview and groups Share/Print/Export; simulator now shows the entire primary menu including Trash and its action worked. Both final native builds pass. iPhone grid rendering passed; iPhone formatting/Undo remains unverified because remote keyboard input changed text unexpectedly. All original7Mac/17iOS note contents/timestamps unchanged, synthetic notes in recoverable Trash, original passages restored/4Mac/9current-iPhone tabs. Read HANDOFF for logs, simulator container relocation, input failures and next gates; no production/sync/schema changes or merge.
+
+
+## 2026-11-19 — Multi-cell/multiline note highlights (8adef50b)
+
+Default/color/Remove Highlight now share one source-preserving edit across cells and paragraphs, including partial recolor/removal and mapped selection. Color application is idempotent; structural Markdown/line endings and existing code/links/other marks survive. Other marks remain protected rather than gaining nested styling. Escape atoms stay together even under partial selection (initial failed readable-text case corrected).20 focused tests and all223 package tests pass; both native builds pass. Mac actual6-run Blue→Undo/Redo→Green→Remove restored the exact original source and grid; synthetic note in recoverable Trash, original7 note hashes/timestamps and4workspace tabs unchanged. iPhone8ade runtime and full native partial/nested/width/hardware matrix remain open. See HANDOFF for exact logs, evidence limits and pending exact-head CI.
+
+
+## 2026-11-19 — Combined note rendering (09eb7d84 /6555fd0e)
+
+Existing strong/emphasis combinations now use Foundation source positions while custom marks/raw IDs remain source-preserving. Literal code and link destinations stay intact; the native punctuation-only mark fallback remains. Bounded thread-safe process cache avoids reparsing unchanged bodies; synthetic parser timing matches the old path after caching (not a whole-editor latency claim). Highlight backgrounds now exclude hidden glyphs; real Mac empty blue strip disappeared.9new tests,46focused and all232package tests pass; both final native builds pass. Mac combined styles/table, plain copy and Command-B round trip verified with exact source retained; synthetic note trashed, original7 note hashes/timestamps and4workspace tabs unchanged. Whole protected highlight runs can be cleared; unsupported partial nested edits remain unchanged and full rich-mark mutation parity remains open. iPhone runtime/physical/accessibility/large-note matrix and GFM escaped wiki-alias identity verification remain queued. See HANDOFF for exact logs and CI scope.
+
+## 2026-11-19 — iPhone formatting target survives Undo/Redo
+
+All iPhone programmatic note formatting uses the existing literal-source undo path with validated text/selection bounds. This fixes Redo collapsing selection and a subsequent format button inserting empty marks at the caret. Real simulator touch Bold→Undo→Redo→Bold and Highlight→Undo→Redo→Highlight restore the exact whole original table fixture; selected Prayer retains visible handles. iOS build passes (`/tmp/berean-note-selection-undo-ios.log`). Original17 notes unchanged,47active tabs retained, synthetic notes recoverably trashed. Mac/package unchanged; previous232tests/Mac build are baseline, not fresh checks. Broader multi-cell/combined-style/color/typing/IME/accessibility parity remains open. See HANDOFF for IDs and clipboard method.
+
+## 2026-11-19 — Combined formatting of visible note text
+
+Shared native formatting now adds styles to existing styled text and toggles exact marked runs independently, including bold+italic shared boundaries. It verifies plain text and prior style coverage before accepting the source edit. Mac and iPhone actual UI passed a selected table word through Bold→Italic, independent Bold removal, Undo and independent Italic removal; exact saved source confirmed.236tests and both SDK27.2 builds pass (HANDOFF has logs). Partial removal inside a larger mark, whole-table combined editing and broader rich-editor parity remain open. Table wiki-link normalization is deferred because actual legacy serialization proves an identity collision; see NOTE-TABLE-LINK-COMPATIBILITY.md.
+
+## 2026-11-19 — Remove note styles from part of a passage
+
+Native Notes now removes a style only from selected visible text while retaining surrounding formatting, including nested emphasis. Global visible-character/semantic validation protects neighbouring styles and link/code identities. Mac and iPhone live checks passed sequential Bold/Italic removal from Bravo inside a formatted table phrase, plus exact Undo/Redo and selection retention.240tests and both final SDK27.2 builds pass; HANDOFF contains logs, initial failures and cleanup evidence. Whole-cell/table mixed hidden-syntax edits and broader rich-editor parity remain open.
+
+## 2026-11-19 — Generic tab-split model groundwork
+
+Added process-local pane-tree edits/geometry, atomic layout undo and scoped/versioned tab-drag payload validation.8focused tests include484ordered tab-family/edge cases. Full248tests and both SDK27.2 builds pass (`/tmp/berean-pane-layout-*` logs). No split UI, drag target/type, app command routing or persistence is enabled; TAB-SPLIT-DESIGN.md specifies the next extraction and remaining gates. Separately, actual Mac Compare independent KJV10/LXX5 reading positions survived Strong’sON/OFF; exact intra-row position and broader matrices remain open. Original notes unchanged; HANDOFF has precise evidence.
+
+## 2026-11-19 — Explicit Mac tab content host
+
+MacRootView now delegates its current single document to MacTabContentHost(tabID:), preserving identity/toolbar/inspector behavior and handling a stale tab explicitly. Mac build and real Scripture/Notes/Calendar/History/Tags/Lexicon/Search checks pass; exact37original tabs and7original notes preserved. Shared248tests/iOS model-build baseline unchanged. Background-pane command/focus/toolbar/editor coordination and actual drag previews/splits remain unfinished; see TAB-SPLIT-DESIGN/HANDOFF.
+
+## 2026-11-19 — Pane selection and compact command-scope model
+
+Added focused-document replacement, visible-tab reuse, scoped/stale command-target checks and compact focused projection retaining the full split tree.13focused model tests pass (including484family/edge cases); full253tests and both SDK27.2 builds pass (`/tmp/berean-pane-focus-*` logs). Minimums now key on TAB ID so replacements use their own document constraints. AppModel command routing, pane environment, compact picker and visible splits remain unimplemented; this is model groundwork only. HANDOFF/TAB-SPLIT-DESIGN record the exact next bridge and validation.
+
+## 2026-11-19 — Reader annotation workflow
+
+SHARED-UX-ANNOTATIONS (P2, both): inline tags disrupted reading. First pass implemented: notes/tags margin dot, chapter summary and contextual grouped details; Compare tag rows removed. Mac/iPhone interactions verified, both builds pass. IN PROGRESS until hidden-number/accessibility/large-type/dark/many-tag and citation-unification acceptance complete. Actual tag search/removal submissions not part of this pass. No data migration.
+
+## 2026-11-19 — Personal references and follow-up queue
+
+SHARED-UX-ANNOTATIONS: unified personal reference dots and contextual Related Passages route implemented, including ordinary-note ranges, while attached Notes stay distinct.254tests/both builds and Mac/iPhone route checks pass. New issues (scope/sort/filter placement/hover, release-scroll, hidden Markdown/context table menu, share anchor, history polish, auto-ref parity, BDB selection, substring highlighting) remain OPEN in FOLLOWUP-2026-11-19.md. Shared Mac QA concurrent edits require isolation before further tests.
+
+## 2026-11-19 — Automation QA isolation
+
+Debug-only named QA library/preferences now implemented; regular behavior/identities unchanged. Live named-suite writes and parser safety checked; full255tests/both builds pass. Use only the separate app path/profile in QA-PROFILES.md; preserve concurrent shared-QA user edits. Notes controls/viewport follow-up is validated in the worktree.
+
+## 2026-11-19 — Study controls and viewport lifecycle
+
+MAC-UX-VIEWPORT (P1): saved reader restore ran detached0×0 and clamped correct offset into wrong viewport; FIXED in final source, exact0.2734573119188504 Notes/Search return and fresh17jump verified, trace retained/removed from source. MAC-UX-RELEASE (P2): normal release model saves removed, physical smoothness still OPEN. Notes filter placement/redundant labels fixed and both-platform scope checks pass; initial hover controls implemented, full audit OPEN. Notes previews raw Markdown confirmed OPEN in FOLLOWUP-2026-11-19.md.
+
+### 2026-11-19 Notes preview/table follow-up
+
+Study-note rows now use semantic readable previews (iPhone wiki-bracket regression verified). Both editors publish retained-selection table context; Table menu adapts between insertion and row/column/delete operations. Mac contextual insertion, original-source undo and prose reset verified; iPhone context interactions/full Markdown edge cases remain open. Both builds pass. See HANDOFF dated entry for logs, disposable fixture cleanup and unchanged original note/tab/tag invariants. Remaining share/version/RTL/match/auto-reference audits are not marked complete.
+
+### 2026-11-19 sharing, BDB and navigation increment
+
+Mac Notes sharing now uses a stable native toolbar anchor (repeated open/cancel verified); ordinary editor/list/bulk note sharing uses readable text, explicit Markdown copy/export retained. Version history spacing/preview polished (Mac preview verified). Native BDB selectable prose uses an explicit English paragraph base; Mac mixed Hebrew/English logical copy and iPhone word handles verified. Search substring marks and Lexicon bold+faint match backgrounds verified. Found/fixed iPhone New Tab sheet intent loss: explicit H1 created a separate tab, ordinary Go reused G5463; cleanup restored exact47IDs. Final builds pass; detailed limits/paths in HANDOFF and SHARING-AUDIT.md. New Compare→Reader viewport shift is OPEN; no all-scroll/no-Markdown/all-share/all-parity completion claim.
+
+### 2026-11-19 reader layout and reference tracking
+
+8f680362 fixes repeated Compare→Reader width-reflow shifts by retaining the immediate restoration intent through initial layout changes, yielding to input. Final no-trace UI roundtrips retain0.5418427726120034; physical smoothness/full races still open.03697661 restores original Strong’s detection preference on both apps; Mac explicit-link independence and iPhone OFF persistence/ON restoration verified. c8fbfe2e removes canonical-name/80-result loss of ordinary-note citations; real Jn3:17 MyNotes UI and90+note/edit/Trash/restore tests pass. Full256tests/both builds pass, original13/17notes/38/47IDs/tags unchanged. HANDOFF and NOTES-REFERENCE-PARITY.md provide precise remaining matrices; broader goal remains active.
+
+## 2026-11-19 — Personal lexicon Notes and simpler iPhone commands
+
+Implemented shared Lexicon My Notes backlinks using normalized bare IDs and actual lexicon destinations, preserving note-title wiki identities and excluding code/images/comments/unrelated URLs. Ephemeral off-main, revision-aware index has no result cap or schema change. Mac normalized/explicit-link/edit invalidation and iPhone existing-note/open/top-Back return verified. iPhone More now groups reading/chapter/tab/study commands with Settings directly reachable; tab previews use readable excerpts. Full 258 tests and both return-fix builds passed; final disclosure polish build logs and full evidence/limits are in HANDOFF. Physical scroll/hover, compact/history/performance/reference grammar, rich tables/all sharing/live panes/Kokoro remain open. Production data/identities untouched; review guard and active goal unchanged.
+
+## 2026-11-19 — Search/study/Compare/window follow-through
+
+Seven focused source commits now deliver the Mac chapter share anchor (actual open/cancel twice), aligned inline search controls and grouped Options (Exact phrase/reset checked), grouped Notes inspector with compact desktop chapter scope, searchable Shortcuts (action/modifier/no-results/clear checked), iPhone Compare body selection (LXX/KJVA/number-clear checked), persistent window inspector with settled native width retention and explicit sidebar240/panel320/window1000 minimums, and local cursor-region yielding at native dividers. Both apps build; latest Mac-only limits/cursor builds pass. Physical cursor/drag/first constrained Compare reflow/all-tab history/toolbar matrices remain open. See latest HANDOFF for exact evidence, failed width experiments, source commits and safe NEW controls QA profile. All16 fresh Mac notes/37IDs and17 iPhone notes/47IDs/tags unchanged. Do not restore the now-stale prior study QA baseline.
+
+## 2026-11-19 — Divider/Compare implementation checkpoint
+
+Divider transient cursor report has a narrow native tracking implementation plus arranged-pane/glass-overlap regression coverage (5658bcfe); physical key-window sustained hover remains OPEN. Compare reconstructed preview is replaced by the actual rendered visible column with native pickup offset (6c351503); independent move/cancel and verse actions verified, broader interaction/2x/modes remain OPEN. Preserve the remaining owner queue in FOLLOWUP-2026-11-19.md.
+
+## 2026-11-19 — Repeated Compare drag correctness
+
+Source bbca520f fixes stale recognizer source identity after reorder, finishes the native gesture lifetime and masks stacked drag images to the actual source fragments. Real aligned/pinned consecutive moves, invalid-drop recovery, rendered Strong’s link and temporary three-column stacked reorder/return verified; both builds pass. Temporary column removed and reading states restored;16notes/37IDs/alltags unchanged. Blue verse-control image fidelity,2x/selected/text-selection/4column/race/physical cursor matrices remain open. Exact evidence in HANDOFF/NATIVE-COMPARE-DRAG.md. Previous718d9e2e CI44665586360 is green; new head’s checks are separate.
+
+## 2026-11-19 — Table-safe Notes and minimal iPhone keyboard controls
+
+713bd02e protects real note tables from paragraph/list/callout/nested-table edits and disables corresponding native controls.1b9a4074 groups the iPhone accessory into6prose/5table controls, keeps formatting in a native menu, provides contextual table operations/live cell navigation, direct keyboard dismissal, Undo/Redo availability and haptics preference support. Both final builds and265tests pass. Actual Mac shortcut/table/prose/Undo and iPhone row/column/format/Undo/Redo/navigation/heading checks passed. Original16Mac/17iPhone notes,37/47IDs/tags unchanged; disposable notes trashed/tabs closed. See HANDOFF/NOTES-KEYBOARD-AND-TABLES.md for exact scopes and open device/rich-edit matrices. d6422697 adds opt-in raw Compare diagnostics; direct pixels supersede the earlier missing-number preview interpretation. Latest owner marker/hover/replacer/auto-block requests remain OPEN in FOLLOWUP.
+
+## 2026-11-19 — Study markers and automatic dictionary blocks
+
+Chapter study visible wording removed while chapter access remains icon. Margin symbols identify primary material with summary and450ms personal-citation preview on Mac; citation-only click opens Cross Refs, combined opens Notes. Filter hover moved outside native Menu labels after owner report; menu clicks verified, continuous physical hover/preview lifecycle/VoiceOver still open. Native dictionary cards checked both platforms; Scripture cards remain open.
+
+## 2026-11-19 — Aligned cited-passage previews
+
+Owner-reported vertical hover offset addressed via native text-input screen anchor; actual native card aligned at top and scrolled. Short verses no longer compress to2lines. Chapter symbols no longer imply notes for tags/citations; mention counts and routes are distinct. Physical hover/resize/Retina and broad target-range matrices remain open. See STUDY-PREVIEW-ALIGNMENT.md.
+
+## 2026-11-19 — Verified Scripture blocks and iPhone Settings (7e8142f9)
+
+Both native editors now canonically verify and style copied Scripture without changing source, with original false/0.9 settings, cancellable/debounced bounded verification and complete LXX/range selection. iPhone Settings gains six native category routes. Full290sharedtests/finalMac+iOSbuilds PASS; actual Mac/Simulator source/Undo/settings/table/duplicate/rejection checks PASS. All owned fixtures trashed/extra tabs closed; existing19/24note-row hashes,37/47activeIDs/alltags preserved. See SCRIPTURE-BLOCKS-2026-11-19 and CURRENT-STATE for precise proof, runtime and limits. Full rich-import/read-only/index parity remainsOPEN. Next fix LXX attachment display, iPhone dock after editor removal and Mac viewport drift; no Apple voices/merge action. Broad migration remainsACTIVE.
+
+
+## 2026-11-20 — Reader-aligned note labels and iPhone editor removal
+
+Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw IDs/legacy golden formatter remain unchanged. Owner-scoped editor teardown fixes tested iPhone focused-note Trash/dock recovery without restart. Six new regressions;296shared tests/both builds PASS; real Mac+iPhone label/link checks and iPhone accessory-keyboard workflow PASS. All20/25prior notes,37/47active IDs/alltags preserved, owned fixtures recoverablytrashed. Physical/software-keyboard/multiple-editor UI matrix and Mac right-divider return drift remainOPEN. See [evidence](NOTE-LABELS-EDITOR-LIFECYCLE-2026-11-20.md) and CURRENT-STATE for live review/CI/runtime. Owner completed final Ollama shortcut removal; verified absent. Broad migrationACTIVE.
+
+
+## 2026-11-20 — Inspector width investigation remains open
+
+Published334eafbb/4e6c49fa retained. QA trace proves hidden inspector width capture during a new closed-inspector Bible tab. Custom380pt→newPsalmLXX→close→Genesis returns320pt. Three attempted fixes built but failed the identical UI regression (active/presented capture guard; conditional ideal; omit hidden content); **all removed**, exact published source/app restored without diagnostic flags. Original1148divider/0.5782918149466192scroll/Genesis1selected1/Notes restored and prior20/25notes,37/47activeIDs/alltags rechecked unchanged. No GUI phase pending. Read [precise reproduction/trace/failed approaches](READER-VIEWPORT-RESTORATION.md#2026-11-20--width-drift-reproduced-attempted-fixes-rejected); do not report width drift fixed or repeat rejected approaches as untested ideas. Prior9aCI44693533700 cancelled;4e6c49fa CI44695609238 live at latest poll, not green. Broad migrationACTIVE.
+
+
+## 2026-11-20 — Presenter/Messages follow-through and width correction
+
+The later native restore e5816a96 supersedes the earlier removed width experiments above: custom380pt return passed twice; settled Notes/Search/Compare and explicit hide/show retain width/reading position. Constrained first opening and physical resize are still open, so this is not a universal viewport fix.
+
+Presenter's former pause followed later source edits; b816ec41 now holds rendered content, selection and focus. Main/auxiliary⌘W conflicted; ebd7f913 replaces the native Close group and scopes commands. Actual main-tab and Presenter/Chat close checks pass. The new Mac conversation search initially caused duplicate search toolbar insertion/crash; only the thread now registers native toolbar search, and repeated Chat open/close passed. Keep these failed attempts visible in the [evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md).
+
+Remaining: physical phone/keyboard/rotation/accessibility; larger Presenter keyboard shortcut; long/table messages and internal reference interactions; save/edit failure injection; constrained/manual inspector resizing. Full data preservation and owned QA fixture cleanup details are in the focused evidence and CURRENT-STATE.
+
+
+## 2026-11-20 15:25 Pacific — Messages reference and composing follow-up
+
+Commit **1ec16c13** restores plain Scripture/Strong’s internal links without rewriting saved messages, uses normal destination navigation and reveals the main document. Stable declarative targets plus an initial-only bottom anchor fix reopening at older content. The iPhone native multiline composer grows to eight lines, preserves Markdown punctuation, and sends with Send/Command-Return. Actual Mac+iPhone reference, rich table/list/code, search, reopen and iPhone draft-return checks pass. Both Dev builds and344 shared tests pass. Original notes/tags/folders and exact37/47 active tab IDs unchanged. Rejected input/layout/focus attempts and remaining physical/accessibility/failure gates remain explicit in [focused evidence](PRESENTER-MESSAGES-POLISH-2026-11-20.md). No production/sync/schema/raw identity changes or merges. Publication of this follow-up is next; prior b8882e06 CI44831691582 is green.
+
+
+## 2026-11-21 — Newly found and refined Claude controls
+
+Fixed: theme preset accessibility entries all“Aa”/iPhone missing named choices; native text choices expose actual names. Custom print was unavailable unless imported and had no editor; now always selectable with four native fraction fields/steppers (0...4in), preserving unknown saved fields. Fixed Mac automatic duplicate/wrapped field labels after visual QA. Messages rows/reply excerpts no longer expose image source/base64 and use quieter date stamps; blank semantic text preserves legacy summary. Image-led read-only blocks retain following prose/images. Presenter pause no longer changes effective scheme underneath the frozen palette.
+
+Still OPEN: physical VoiceOver/dynamic-type print controls, actual paper result, arbitrary locale/invalid-number edits, iPhone images/reply matrix, imported theme dark-scheme/verse-number override semantics, larger message-search performance, Presenter secondary Compare focus and rich heading scaling. See focused Nov21 evidence; do not mark these wider cases verified from build success.
+
+
+### Nov21 Presenter follow-up — source1e9eeed7+6a50adc6
+Settled reopen now uses the retained reader viewport; live observation remains subscribed and grouped zoom controls expose distinct names/actions. Mac build and actual reopened13→19/livefollow/zoom actions pass. Cold startup with restored audience still starts at top before reader settles: explicitly OPEN; source seeding alone did not fix it. Compare active-secondary projection and explicit same-chapter jump matrix remainOPEN. Detailed next implementation packet in PRESENTER-REFINEMENT-2026-11-21.md. Original QA rows and exact37/47activeIDs preserved. Broad goalACTIVE.
+
+
+### Nov21 startup correction — ada385b1
+Supersedes reproduced startup selection-overwrite above: transient highlight snapshots no longer request focus; deliberate verse selection/clear/destination still does. Both builds PASS; actual fresh startup stays at savedverse7/selected1, explicitverse8 focuses8; original state restored. No persisted format/schema changes. Wider multi-window/paused/edition/history matrix remainsOPEN. Focused evidence has exact scope and next steps.
+
+
+### Nov21 confirmed history offset gap (OPEN)
+Finalada385b1 actualCmdLGenesis1:20/currenttab/Presenterfollow PASS. Back→Genesis1:1 returnsscroll0 rather than prior509pt/verse7. History snapshot keeps viewport but ignoredcache shadowsit, selectionobserver reveals1 and same-passage native viewportrestore is not triggered. Next fix needs scoped one-time restoration across bothadapters, not cache-only change. Full implementation/test packet in PRESENTER-REFINEMENT-2026-11-21.md. FinalQAselection/viewport restored; no extra tabs.
+
+
+## 2026-11-21 — Reader navigation and surfaces checkpoint
+
+- Same-chapter history losing its saved viewport is repaired on both native readers (e3845c9b); iPhone programmatic jumps now checkpoint reverse-history destinations. Actual Mac/iPhone exact-offset round trips pass. The Mac +26-point Scripture–Lexicon return drift is repaired through first-attachment layout correction (7118fff8), with repeated actual round trips. Broader missing-viewport/type/edition/first-frame cases remain open.
+- iPhone Scripture has no full-width top edge blur and uses smaller phone-only insets; desktop widths/margins are unchanged. Final Simulator body-tap selection/deselection checked. Wider device/accessibility matrix remains open.
+- Mac palette now presents without its old 150ms fade, with shared immediate dimming and initial query focus. Immediate typing, Actions and outside dismissal checked; precise first-frame timing remains unmeasured.
+- Physical iPhone exit-watchdog cause remains open. Diagnostics now preserve full stacks and acknowledge dismissed reports locally, with save timing for further investigation. See CURRENT-STATE and the linked focused records for evidence and safe next steps.
+
+
+### 2026-11-21 — Compare focused-column audience (8ae5e4a6)
+
+Mac Presenter now uses a validated, atomic transient projection of the selected comparison column, including its actual edition/chapter, highlights and reading focus. Both platforms build; actual LXX Exodus 32:2 audience wording and pause → switch tab → resume pass. Shared layout/anchor decisions are consistent across available columns and widths. No persistence/schema changes. Mapped/availability/reorder/removal/clear/scroll matrices and full multi-column mirroring remain open. A separate tab-switch/pane-reflow drift remains open; do not claim all tab transitions preserve first-frame geometry. See PRESENTER-REFINEMENT-2026-11-21.md and CURRENT-STATE for exact QA state/evidence.
+
+
+### 2026-11-21 — Inspector lifetime and final history settling
+
+8252c91c validates the live inspector target across same-ID tab replacement and updates only its open state. Mac actual Lexicon/Search replacements retain the UUID and contain no leaked Scripture fields; inspector toggle works. 852a4767 corrects the final AppKit origin-only shift during newly mounted history restoration: repeated actual Search round trips preserve446 points, immediate user scrolling wins, and its new position survives history. Final Mac build passes; temporary diagnostics removed. Later changes are Mac-only; shared package unchanged since349-test pass. See TAB-LIFECYCLE-2026-11-21.md for trace, bounded evidence, current QA geometry and remaining accessibility/first-frame/history/Compare matrix. Earlier geometry readings were affected by AX divider adjustment; controlled no-write tab switching was stable. Do not close the broad reflow requirement from that narrow check.
+
+
+## 2026-11-21 — iPhone verse grid and stale Mac reader chrome
+
+- **Verified on iPhone Simulator:** The compact picker uses real prepared rows, so skipped and combined LXX labels select the corresponding stored verse. The outside edge of the enlarged dismiss control removed focus. A connected hardware keyboard leaves interactive software-keyboard dismissal unverified. Existing Other writings → Apocalypse of Elijah opened chapters 1–5 directly.
+- **Verified on Mac:** Switching out of the exercised Exodus Compare route left one Genesis toolbar and the matching window title. Back from a same-ID Strong’s search also restored the Genesis toolbar and viewport. Main passage popover Return passed. Tool coordinate and accessibility mapping left mouse row activation inconclusive. [Picker and toolbar evidence](PICKER-CHROME-2026-11-21.md)
+
+
+## 2026-11-21 — Compare Back/Forward selection loss
+
+**Verified on Mac and iPhone Simulator.** Mac Back through swap and close now restores the original LXX verse 3 selection. Two visits to the same order retain their distinct selections, and Back after an explicit jump restores the prior LXX selection. iPhone Back and Forward restore the selected KJVA verse 3 in each column order. The narrow Compare reading-position handoff remains open: its source can choose an anchor using a mode different from the rendered layout. Persisted Compare viewport, rapid navigation, accessibility and full mirroring still need coverage. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md)
+
+
+## 2026-11-21 — Paused Compare columns checkpoint
+
+Local source6fbba670 keeps iPhone Compare side by side with horizontal overflow, compact matching headers/cells, tighter inline verse numbers, no per-verse ellipsis, and complete compact-row selection bounds. Global Close Column is e31b8d87. Shared layout arrivals preserve verified raw verse/source-grid identity instead of stale incompatible offsets. Final Mac+iOS builds pass. Actual iPhone horizontal/vertical scrolling, Sync off/on near10, close3→2, survivor retention and joined text-tap selection verified in bounded scope; final compact selection includes its first number. Mac final runtime, pinned→following and explicit-jump/rapid/accessibility checks remain open. Owner requested pause; not pushed. Next design request is Compare grouped naturally with passage picker. [Precise checkpoint](COMPARE-VIEWPORT-2026-11-21.md).
+
+
+## 2026-11-21 — Discoverable iPhone reading controls
+
+Source0819f846 adds direct Strong’s left of passage picker and Compare/Manage in the existing top row, removing the extra44pt Compare band. Both chapter arrows always remain; long names wrap in two lines, LXX appears on the edition-switch button. Actual Simulator Song of Solomon1LXX full-title/Strong’s on-off/lexicon lookup/CompareExit passes; build scopes and remaining375pt/VoiceOver/physical checks are in [focused evidence](IOS-READER-CONTROLS-2026-11-21.md). The ordinary changing foreground gap remains OPEN (measured AEL case stable; no inset hack). Source3bb05740 further widens iPhone-only text with6/10/22pt insets; desktop widths unchanged. Rejected arrow-hiding and separate-LXX-row candidates were not committed. Broad migration active.
+
+## 2026-11-21 — Single selected verse copied with a newline and number prefix
+
+**Fixed locally and verified on Mac and iPhone Simulator.** A single selected verse formerly copied as a reference header followed by a numbered body. Actual clipboard now contains the reference and body on one line. Consecutive and gapped selections retain the multiline layout. Additional passing clipboard cases cover Mac Compare, Mac Scripture search and iPhone LXX Psalm 3. Remaining entry points and partial-text gestures are tracked in S07 and IOS-FUNC-002. [Verse-copy evidence](VERSE-COPY-PARITY-2026-11-21.md).
+
+## 2026-11-22 — Compare follows closed-reader navigation
+
+Shared CompareColumn now updates following saved columns on real reader passage changes even while Compare is closed. Pins, independent legacy columns, explicit replacements and history snapshots retain their behavior. Both builds, red-before/green-after isolated state probe, Mac close/navigation/reentry with Back/Forward, and iPhone mixed follower/independent reentry pass. Already-stranded ambiguous records remain preserved; use explicit Follow Main Passage. Physical/relaunch/expanded UI matrix and durable viewport work remain open. [Evidence and compatibility](COMPARE-REENTRY-2026-11-22.md).
+
+## 2026-11-22 — Rich note previews on both platforms
+
+Source7ccbc3ca replaces flat snippets with rich attributed rows and bounded document thumbnails for gallery/iPhone tabs. Valid Markdown stays hidden; headings, links, wiki aliases, underlines, highlights, lists/callouts and table grids render; code remains literal. No note storage/editor rewrite. Final both builds and10focused parser checks pass. Actual Mac gallery/history and iPhone peek/table-tab/tap verified; final iPhone thumbnail retains button role. Original row hashes/37+47IDs/22+26notes pass. Physical/VoiceOver/large-type/imported-dialect/performance matrix remains open. [Detailed evidence](NOTE-PREVIEWS-2026-11-22.md).
+
+## 2026-11-23 — Owner lexicon context regression and Compare precision
+- Owner reported lexicon rows sometimes barely show words. FIXED shared bounded context+natural wrapping, removing second linecutoff. Actual1Chr1:10 compactH776 now fullsentence with earthhighlight; longerfulltab/iPhone rows retain useful context. Scoped remainingcompactphone check in lexicon packet.
+- Independent Compare first cold candidate overshot16pt after lazy re-estimation. FIXED using agreeing native/row geometry and bounded correction. Mac exactcoldfractions+Back/Forward and iPhone partialverse cold PASS. Preserve original failure evidence.
+- StillOPEN: cold quit afterolderBack needs activevisit persistence separate from latestdestination bookmarks; mainreader fraction drift on tabreturn; full gesture/reflow/cursor/accessibility/parity matrix.
+
+## Nov23 verification update
+Clement/Hermas picker label issue is fixed and visually verified on both platforms (7e69e745). Search result and edition-filter hover feedback is implemented (07e8a99b); full pointer/appearance matrix remains open. Rich reference cursor coverage and remaining Compare/inspector risks are enumerated in REFERENCE-CURSOR-AUDIT-2026-11-23.md. Independent Compare cold-after-older-Back now retains its own active visit (7b694f3c), with actual Mac within-pixel replay; iPhone and other layouts remain required work. Search result cold scroll persistence and stale Mac window title remain open in TASKS.
+
+### Nov23 — Native reference preview and Compare interaction follow-through
+12d2e360 adds a350ms read-only Strong’s preview in the Mac Notes editor, using actual link glyphs and cancellable Lexicon lookup. Actual isolated AppKit lifecycle tests pass; physical pointer dwell remains unverified.09e34b1d gives linked Compare verses native cursor regions, correct first-baseline alignment, and whole-column lift before native text capture. Actual independent Compare drag/drop, normal Strong’s/number clicks, word selection and context menus pass. See NOTES-HOVER-COMPARE-2026-11-23.md for exact evidence, environment failures and remaining cases. No production/sync/schema or note-source change.
+
+
+## November 23 — Search return and Compare continuity
+
+Verified Mac Search cold and distinct centered/top history and iPhone settled cold, centered return and stable inline title spacing. The iPhone first-frame flash, recent/cross-reference lists, pixel/filter/race and accessibility cases remain open. Compare independent cold and opening headers passed in the tested paths. Older aligned/stacked cold history remains open. [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md) [Compare active-visit evidence](COMPARE-ACTIVE-VISIT-2026-11-23.md)
+
+
+## November 23 — iPhone Find and Search scope switching
+
+Verified visible iPhone Simulator Find with either software-keyboard state and preserved verse selection. Scope switching passed after the fix for the iPhone Bible scope crash. Wider Find and continuous Search first-paint checks remain open. [iPhone Find evidence](IOS-FIND-VISIBILITY-2026-11-23.md) [Search book filters](SEARCH-BOOK-FILTERS-2026-11-23.md)
+
+
+## November 26 — Desktop picker layout and Compare crop restoration
+
+Mac Compare Add and Notes open the tested desktop passage picker routes. Mac stacked and aligned older-visit cold restoration passed, with the newer destination preserved separately. iPhone precise crop and broader reflow and interruption remain open. [Desktop picker evidence](DESKTOP-PASSAGE-PICKER-2026-11-26.md) [Shared Compare evidence](COMPARE-SHARED-PRECISION-2026-11-26.md)
+
+## November27 — reviewed integration and minimal Presenter
+Reviewed Claude CC05–09/audit work and corrected stale-draft automatic cleanup, missing inactive-close behavior, first-request Search hydration/persistence, Presenter reopen sampling and video link metadata races. New owner requests: two-column KJVA books in existing desktop picker, stable lazy Search rows with idle persistence, discoverable icon-only Presenter launch, title-free Presenter with bottom-right circular glass/capsule controls, and regular-weight floating-search keycaps. Full402 tests/97 suites and owner Mac/signed-iPhone/Simulator builds/signatures pass. Scoped actual UI checks/data-preservation receipts are in INTEGRATION-REVIEW-2026-11-27.md. No physical phone install and no blanket FPS/accessibility/full-parity claim.
+
+
+### November27 final rendering and safety follow-through
+
+Sourcea6ea72ac adds a view-local256-entry FIFO cache of immutable transformed/windowed Search snippets, keyed by full hit and cleared on Word Replacer toggle/rules changes. Query/Strong’s styling stays live. Six focused tests include520 inserts/ring wrap and changed text/matches/settings; all pass. This proves bounded retention and correct output, not FPS. App-only measured hitches before this cache (445/6933ms versus465/6960ms) did not establish aggregate improvement; Search smoothness remains open. Source62aacc83 flushes a positively loaded note before metadata/Trash mutations and rejects stale identity callbacks. Actual quick-edit→Pin and quick-edit→Trash retained both edits in an owned fixture; all original records and37Mac active tab IDs retained. Presenter final owner direction is title-free with36pt floating bottom-right controls, icon-only launch, preserved keyboard/accessibility labels. All3 final owner builds and strict Mac/device signatures pass; latest full-test and hosted results are maintained in HANDOFF/CURRENT-STATE.
+
+
+November27 final Presenter verification:6a54ccef stops focused zoom payload layout churn; idle isolated CPU~100%→~4%, title-free bottom-right controls, menu zoom/keyboard decrease-reset afterreopen and Pause/Resume pass. Mac final ownerbuildPASS; unchangedmobilea6device/SimulatorbuildsPASS; strictsignaturesall3PASS. Hosted642c2992 native+legacySUCCESS; laterMac6a/finaldocsrequire new exact-head checks. Search smoothness staysOPEN. Canonical current source/evidence/nexttasks are in HANDOFF and CURRENT-STATE.
+
+
+### November27,12:23pm PST — Shared Search context and Full verse
+Source e23eac7a/aaa6c517 restores original Compact/Full/±1/±2 behavior, reader-aligned numeric neighbors, complete Strong’s matches and settings/cancellation-safe previews.16-entry shared raw chapter cache bounds pending reads.418 native tests/100 suites, all3 owner builds/strict signatures and actual Mac+iPhone Simulator UI passed. Original watched records and exact37/47 activeIDs retained; physical phone untouched. Main raw title-only hit composition and physical smoothness remain open. Publication/final docs synchronization await approval-service usage-limit recovery; do not bypass or reset. Prior64a3852f hosted native+legacy passed, new code not published. See SEARCH-CONTEXT-2026-11-27 and the current checkpoints.
+
+
+### November27 evening — Complete Psalm opening Search presentation
+Sourcebab93109 composes separately stored LXX headings+openingbody without concatenating Strong’s offsets or changing raw actions/anchors/counts. Validated fallback for incomplete/mismatched data; ordinary rows add no async task. Matched long headings remain visible in Compact.424tests/101suites, all3ownerbuilds/strictsignatures and actualMac+iPhone title/body/Strong/context/navigation checks PASS. FreshSimulator originals and47activeIDs retained; physicalphone untouchedbyCodex. Prior5da8a373 hostednative+legacyPASS; latestsource needs own publication/check. See PSALM-SEARCH-OPENING-2026-11-27 and current checkpoints.
+
+November27 evening: Mac Presenter simplified to two bottom-right floating groups with larger zoom targets and no redundant title/status chrome. Real Mac control/reopen checks and all3 owner builds/signatures passed0928d530; reflow/accessibility speech remain open. [Evidence](PRESENTER-MINIMAL-CONTROLS-2026-11-27.md).
+
+## November27 — Workspace persistence and lifecycle
+Workspace pending-save lifecycle gap improved: retained Mac delegate flushes all tab types on Quit and cancels on failed commit; iPhone app-level background flush covers all tabs. Confirmed delayed-save/cold and failed-save/retry UI. Final editor-draft ordering and no-main-window error acceptance stay open. [Evidence](WORKSPACE-WRITER-2026-11-27.md).

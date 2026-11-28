@@ -1,0 +1,72 @@
+
+
+## Superseded paused/resumed checkpoint, archived after iPhone controls
+
+# Current native migration checkpoint
+
+## Resumed work — iPhone controls and top spacing
+
+Owner resumed. Broad migration ACTIVE. Read [IOS-READER-CONTROLS-2026-11-21](IOS-READER-CONTROLS-2026-11-21.md) for current work: discoverable Strong’s, compact Compare in the passage toolbar, long-title layout and measured top-inset investigation. Paused checkpoint below remains source/runtime baseline, not an instruction to stop.
+
+## Previous paused checkpoint — 2026-11-21, Codex, approximately 12:51 PST
+
+**Owner explicitly requested a pause within a few minutes. Work stopped after this checkpoint.** Latest local app source **6fbba670**, preceded by global Close Column **e31b8d87**. Neither is pushed yet. Published draft24 remains354e5d90/all3checks green44945186621; do not claim those checks cover local source. Source and documentation are committed separately.
+
+Final source builds pass: `mac-compare-compact-final-build.log`, `ios-compare-compact-final-build.log`. iPhone installed on CodexD0CC, PID46466 advisory; requery container from `ios-container.txt`. Actual simulator verifies side-by-side three columns, horizontal swipe to third, aligned vertical scroll, Sync off/on around verse10, close3→2 retains passage, adding pinned third keeps survivors at10, joined text-tap selection10–11 before last compact cleanup. Final cleanup verified tighter inline verse numbers/text, no per-verse ellipsis, first selected number enclosed by outline. Per-column menus remain. Both final builds pass; final Mac runtime and pinned→FollowMain/explicit-jump matrix still OPEN. No full parity claim.
+
+**Next:** improve Compare's integration with the regular passage picker (owner request, not implemented), assess compact spacing/font/readability on both platforms, finish final Mac runtime, pinned→following and explicit-jump/history checks, then publish focused commits to verified `github` remote and verify exact-head CI. Preserve new iPhone columns and unchanged desktop Scripture margins. See [focused evidence](COMPARE-VIEWPORT-2026-11-21.md).
+
+Safe stop state: iPhone ordinary Psalm118LXX reader, no selection/sheet/Compare visible, nine workspace tabs; retained three configured columns (third pinned) for future tests. Original Psalm3 reading baseline not restored; this is explicitly owned QA reading-state drift. Mac untouched this slice: QA Genesis1selected1/Notes/446 and original EXO comparison, running older50f00c76. Final original-data hashes all pass, exact37/47activeIDs and22/26notes (`compare-columns-final-data-check.json`). No production/sync/schema/identity changes or merges. All workers completed; no builds left running.
+
+Older checkpoint below is historical evidence; this paused section supersedes its current runtime/publication claims.
+
+
+Snapshot: **2026-11-21, Codex**. Broad goal ACTIVE; latest turn made concrete progress, not a blocker/wait-only turn. Start with [HANDOFF](HANDOFF.md), [owner principles](OWNER-PRINCIPLES.md), and [continuity contract](AI-CONTINUITY.md). Stay-within-limits disabled; no resets or new cutoff.
+
+## Source and review
+
+- Checkout `/Users/roywe/Documents/ChatGPT/Berean/repo`, branch `native/reader-notes`. Latest app source **50f00c76** (per-visit Compare selection history). Prior d9da6c36/c39ca828 repair Mac chrome and the iPhone picker; 852a4767/8252c91c repair history and inspector lifecycle. This documentation checkpoint includes the selection-history change. Verify remote head/publication and exact-head checks live; the source commit identifier stays distinct from the documentation head. Newer local Compare work is in progress; see the active slice below.
+- Prior source 8ae5e4a6 (Compare Presenter),7118fff8 (initial-layout history),40fb2923 (immediate Mac palette),0d6c0ad3 (clear/wider iPhone reader),da77a14c (diagnostics/timing),e3845c9b (history viewports) remains published in the branch. Detailed evidence stays linked below.
+- Draft #24 remains open, base`native/m6-navigation`. Preceding published **e39b48a0** all three checks PASS in **44943410767**. This does not verify later 50f00c76; check the latest remote head and CI. Old green44894290052 covers ec6138cd only. Never claim old-head checks verify new source.
+- Push only verified remote `github` (RoyalWeden/Berean); `origin` is owner-local. Owner-only merge stack22→23 after retarget/green→draft24. No merge/ready/retarget/force, production data, sync, schema, signing or identity changes. Other checkout untouched.
+
+## Latest completed source and evidence
+
+- **50f00c76:** each bounded in-memory Back/Forward entry copies its Compare selection. Configuration changes capture outgoing selection before installing the remap; history restores replace/evict cache and publish a scoped revision. Actual Mac swap/close/Back twice/Forward twice preserves selections; repeated original-order visits retain distinct 3 versus 5; explicit KJV 10 jump wins and same-chapter Back restores LXX 5. Actual iPhone secondary KJVA 3 swap/Back/Forward preserves selection. Session-local only; no persisted/sync/schema change. [Compare history evidence](COMPARE-HISTORY-2026-11-21.md).
+- Latest both builds pass: `mac-compare-history-selection-build.log` / `ios-compare-history-selection-build.log`. Existing actual reader selection harness passes (`reader-taps-compare-history.log`). Mac runtime session 79343/log`mac-compare-history-selection-runtime.log`; iPhone final shared source installed on CodexD0CC, PID 42858 advisory. New epoch/helper does not close persisted/narrow/rapid/accessibility matrices.
+
+- **c39ca828:** compact verse grid uses prepared reader rows and real verse/range labels, opening raw IDs directly. Actual iPhone EXO 32 LXX excludes9/includes35→raw35, 1KI14 offers21–31→raw31, PSA 115 range 4–5→raw4, PSA 3 display 1→raw2. iOS-only 44-point clear/dismiss targets; edge tap on dismiss works. Software-keyboard interactive dismissal remains unverified (hardware keyboard connected). Full catalog/Elijah direct chapters checked as existing behavior. Desktop margins unchanged.
+- **d9da6c36:** active Mac tab owns title and toolbar; old reader popovers dismiss on departure and stale callbacks reject inactive targets. Reproduced Compare→popover→mappedPresenter→Back→Genesis now leaves one correct Genesis group, Compare off/no Manage Translations, exact446. Cmd+L Lexicon/Back passes. Return navigation passes; real-pointer row click remains inconclusive due test targeting. [Picker/chrome evidence](PICKER-CHROME-2026-11-21.md).
+- Earlier picker/chrome builds and installed-source scopes are recorded in the focused picker record; final running apps now use 50f00c76.
+
+- **8252c91c:** inspector binding and width callbacks validate live active tab type/layout, including same-ID Cmd+L replacements. Valid writes change only rightPanelOpen. Actual Scripture→Lexicon and Scripture→Search keep the same UUID/seven workspace tabs; raw replacement state contains only strongsNum or query, with empty local state. Inspector toggles work. Deterministic delayed-callback injection remains unverified.
+- **852a4767:** correct AppKit's final offset-only adjustment during first-mounted history restoration. Trace proved446 was correctly requested/applied through width changes, then moved to440 at unchanged geometry. A bounded, generation-scoped next-main-turn correction now preserves446 without extending the existing timer. Native input cancels. Actual repeated Search Back/Forward exact446 passes; immediate user scroll wins and its new position survives history. Temporary diagnostics removed.
+- Earlier history and Compare builds passed at their recorded source scope. Shared package remains unchanged since **349 tests pass** (345 conformance/90suites plus4core), log`shared-watchdog-tests.log`. These package tests do not prove app-only UI behavior.
+- [Tab lifecycle evidence](TAB-LIFECYCLE-2026-11-21.md) has precise repro, failed attempts, source reasoning and current state. [History evidence](HISTORY-VIEWPORT-RESTORATION-2026-11-21.md) records earlier same-chapter/cross-chapter/iPhone and Presenter live/paused checks. [Presenter evidence](PRESENTER-REFINEMENT-2026-11-21.md) records actual secondary LXX audience and pause/tab-switch/resume, plus open Compare matrix.
+- iPhone Scripture has no broad top blur; individual glass controls remain. Phone-only inset wide/normal/narrow8/14/26 versus12/20/32. Desktop widths/margins unchanged (920/760/600 caps). Final Simulator body-tap selection/deselection passes; all width presets/accessibility/physical touch remain open.
+- Mac palette immediate query entry, Cmd+L prefilled replacement, Actions and outside dismissal pass within the focused scope. Instrumented first-frame timing remains open.
+- **Physical iPhone watchdog cause OPEN.** Report is process-exit watchdog; sampled app frames resolve to entry point. Full diagnostics, local acknowledgement and content-free save timing added. Simulator lifecycle sanity does not prove physical resolution. [Investigation](IOS-WATCHDOG-2026-11-21.md).
+
+## Safe runtime and data
+
+- Durable ignored evidence`build/apple/qa-evidence/20261121`; Xcode cache`build/apple/DerivedData-codex-20261121`; Swift scratch`build/apple/swiftpm-codex-20261121`. Builds sharing this Xcode cache must run sequentially. No reliance on restart-deleted temporary evidence.
+- Mac QA app`build/apple/DerivedData-codex-20261121/Build/Products/Debug/BereanMac.app`, arguments`--qa-library --qa-profile codex-controls-20261119`, runtime session 79343/log`mac-compare-history-selection-runtime.log`. Revalidate PID/path/args. Separate owner process under`/Users/roywe/Berean-native/...` untouched.
+- Current Mac Genesis 1 KJVA/selected 1/Notes inspector, offset 446, fraction0.4402764067127344, sidebar 239/right divider 1660 in current 2000-point-wide QA window; Presenter closed at 160%. Older AX splitter setValue changed geometry; do not replay it or force stale800/660 widths. Controlled Compare→Genesis cycle without divider writes was stable; broad first-frame/reflow/width-memory matrix remains open.
+- iPhone only Codex simulator **D0CC2F4C-AC47-4648-AC5C-0DC128CFCE7D**, identity`com.berean.native.ios.dev`; last Psalm 3 LXX/no selection/no sheets/nine workspace tabs/CaptureKeyboardOFF. Container recorded`ios-container.txt`, requery after each install. QA DB suffix`Library/Application Support/BereanNative/berean.db`. Leave ClaudeE8B01B22 and physical devices untouched.
+- Latest`compare-history-final-data-check.json`: all original note/settings/chat/tag row hashes retained; exact37Mac/47iPhoneactiveIDs,22/26notes. EXO comparison original sync state restored exactly. QA tab reading/history state legitimately changed. Existing owned fixtures remain (Mac synthetic image Chatab44752e-5113-4c1b-869a-8b7a60d9c706); do not hard-delete. Effective print Normal/four1inch custom values restored; Mac Default theme key retained.
+- Preserved stash`codex-preserved-presenter-before-claude-20261121` contains superseded Presenter work; do not blindly pop.
+
+## Next executable work
+
+1. Verify publication of this checkpoint with 50f00c76 and live exact-head CI. Keep precise local versus published distinction; prior passes are bounded evidence.
+2. Pinned Psalm 3 secondary, clear-to-primary and mapped Jonah 2:1 Presenter now pass. Wide reorder/selected-column removal and current-run per-visit selection history now pass within focused scope. Next fix the separate narrow survivor-position bookmark logic, then current-column scroll/reentry/narrow matrix; full multi-column mirroring remains partial parity. Preserve atomic projection, actual mapped chapters and paused snapshot semantics.
+3. Broaden missing-viewport/rapid/history/startup/edition/paused/accessibility and inspector deliberate-drag tests; never change native geometry code from AX values alone. Full queue remains in TASKS/FOLLOWUP/FULL-FEATURE-PARITY.
+4. Continue physical watchdog attribution only with full physical .ips or reproduction, preserving durability and the phone's data. No Apple voices, production/sync changes or merges.
+
+
+## Active Compare viewport and iPhone columns slice
+
+- Read [COMPARE-VIEWPORT-2026-11-21](COMPARE-VIEWPORT-2026-11-21.md). Local commit e31b8d87 adds global Close Column. Dirty CompareView now includes actual-layout survivor bookmarks, shared Sync/configuration arrival handling, iOS inline column-picker title, and the owner’s newly requested side-by-side phone rendering. Extra columns overflow horizontally; synced rows remain aligned; pinned passages retain independent scrolling. Mac layout styling and Scripture margins unchanged.
+- Earlier candidate both builds passed; actual iPhone Sync-off3→2 preserved verse5. That candidate still failed Sync-on (reset1) and pinned→following (stale aligned offset). New correction parsed but is not yet runtime-verified. New final Mac build session68319/log`mac-compare-columns-build.log` running; then build iOS sequentially, install/requery container, test final columns and transitions. Build first failed due sandbox cache access, not source; elevated retry is live. Do not restart a live build from this saved label: inspect its handle.
+- Current iPhone fixture: KJVA Psalm119 / LXX Psalm118 / LXX Psalm118 all-following, Sync on, near5–7, no selection,9workspace tabs. Final restore to Psalm3LXX unselected/noCompare required. Mac QA mainGenesis remains446/source50f00c76 pending controlled relaunch. Last original-data check`compare-viewport-mid-data-check.json` passes hashes and exact37/47IDs,22/26notes. Published354e5d90 live draft24/all3checksPASS in44945186621; newer local source not covered.
+- Next: verify current columns and Sync/configuration transitions on both platforms; preserve per-visit selection history. Then durable local Compare bookmarks and per-visit viewport history, synced chapter-group navigation, additive cross-column selection design. Keep generic tab-split and full Presenter requirements open. Owner iPhone-only margins clarified and recorded in OWNER-PRINCIPLES; no desktop rollback needed.

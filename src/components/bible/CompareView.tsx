@@ -10,6 +10,7 @@ import { normalizeBookName } from '@/lib/parseRef'
 import { zoomedFontSize } from '@/lib/zoom'
 import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
 import { encodeScrollPosition, decodeScrollPosition, type ScrollPosition } from '@/lib/verseScrollSync'
+import { compareColumnOrderKey, compareColumnRecord, type SavedCompareColumn } from '@/lib/compareColumnRecord'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import type { Verse, Book } from '@/types'
@@ -47,6 +48,7 @@ interface ColState {
   chapter: number
   verses: Verse[]
   loading: boolean
+  savedRecord?: SavedCompareColumn
 }
 
 interface Props {
@@ -71,9 +73,9 @@ interface Props {
   /** Called when removing a column would leave a single column — lets the host exit compare mode. */
   onCollapseToSingle?: (last: { bookId: string; chapter: number; textId: string }) => void
   /** Columns saved in tab state — restored on mount so chapter navigation survives a tab switch. */
-  initialColumns?: Array<{ textId: string; bookId: string; chapter: number; scrollPos?: ScrollPosition }>
+  initialColumns?: SavedCompareColumn[]
   /** Persist the current columns to tab state whenever they change. */
-  onColumnsChange?: (cols: Array<{ textId: string; bookId: string; chapter: number; scrollPos?: ScrollPosition }>) => void
+  onColumnsChange?: (cols: SavedCompareColumn[]) => void
   /** Scroll any column and every OTHER column sharing its exact bookId+chapter (a
    *  different translation of the same passage) follows by verse position. */
   syncScrollEnabled?: boolean
@@ -151,7 +153,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     // exact columns the user left, including any chapter navigation they did.
     if (initialColumns && initialColumns.length > 0) {
       return initialColumns.map((c, i) => ({
-        id: `col-${i}`, textId: c.textId, bookId: c.bookId, chapter: c.chapter, verses: [], loading: true,
+        id: `col-${i}`, textId: c.textId, bookId: c.bookId, chapter: c.chapter, verses: [], loading: true, savedRecord: { ...c },
       }))
     }
     // Entered via "Add panel": start with just the CURRENT view; the picked ref is appended
@@ -224,13 +226,11 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   // Persist columns (text/book/chapter + last-known scroll position) to tab state so
   // chapter navigation, column adds/removes, translation changes, AND scroll position all
   // survive leaving and returning to the tab.
-  const persistKey = columns.map(c => `${c.textId}:${c.bookId}:${c.chapter}`).join('|')
+  const persistKey = compareColumnOrderKey(columns)
   const onColumnsChangeRef = useRef(onColumnsChange)
   onColumnsChangeRef.current = onColumnsChange
   const persistColumns = useCallback(() => {
-    onColumnsChangeRef.current?.(columnsRef.current.map(c => ({
-      textId: c.textId, bookId: c.bookId, chapter: c.chapter, scrollPos: colScrollPosRef.current[c.id],
-    })))
+    onColumnsChangeRef.current?.(columnsRef.current.map(c => compareColumnRecord(c, colScrollPosRef.current[c.id])))
   }, [])
   useEffect(() => {
     persistColumns()

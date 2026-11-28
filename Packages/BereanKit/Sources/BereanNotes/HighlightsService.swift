@@ -38,10 +38,22 @@ public final class HighlightsService: @unchecked Sendable {
         return out
     }
 
-    /// `toggle`. Character offsets win over word offsets; both are optional (whole verse).
+    /// Apply a whole-verse color. Applying the same color again leaves the existing highlight intact.
+    public func setVerseColor(bookId: String, chapter: Int, verse: Int, color: String, textId: String = "kjva") throws {
+        _ = try changeColor(bookId: bookId, chapter: chapter, verse: verse, color: color, textId: textId,
+                            startWord: nil, endWord: nil, startChar: nil, endChar: nil, removeIfSameColor: false)
+    }
+
+    /// Character offsets win over word offsets; both are optional (whole verse).
     @discardableResult
     public func toggle(bookId: String, chapter: Int, verse: Int, color: String, textId: String = "kjva",
                        startWord: Int? = nil, endWord: Int? = nil, startChar: Int? = nil, endChar: Int? = nil) throws -> HighlightToggle {
+        try changeColor(bookId: bookId, chapter: chapter, verse: verse, color: color, textId: textId,
+                        startWord: startWord, endWord: endWord, startChar: startChar, endChar: endChar, removeIfSameColor: true)
+    }
+
+    private func changeColor(bookId: String, chapter: Int, verse: Int, color: String, textId: String,
+                             startWord: Int?, endWord: Int?, startChar: Int?, endChar: Int?, removeIfSameColor: Bool) throws -> HighlightToggle {
         let isChar = startChar != nil && endChar != nil
         let isWord = !isChar && startWord != nil && endWord != nil
         let base: [SQLiteValue] = [.text(textId), .text(bookId), .integer(Int64(chapter)), .integer(Int64(verse))]
@@ -57,6 +69,7 @@ public final class HighlightsService: @unchecked Sendable {
         }
         if let existing, let id = existing.values[0].string {
             if existing.values[1].string == color {
+                guard removeIfSameColor else { return .updated(id, color) }
                 try db.run("DELETE FROM highlights WHERE id = ?", [.text(id)])
                 onChange("highlight", id, "delete", nil)
                 return .removed(id)

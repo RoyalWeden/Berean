@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { verseRefDisplay } from '@/lib/parseRef'
+import { parseDottedAttachment, verseRefDisplay } from '@/lib/parseRef'
 import { filterNoteCrossRefs } from '@/lib/notesCrossRefs'
 import type { Note } from '@/types'
 
@@ -42,4 +42,10 @@ describe('filterNoteCrossRefs (selected-verse filter)', () => {
     expect(both.byVerse.map((v) => v.verseNum)).toEqual([3, 9])
     expect(both.indirect).toHaveLength(1)
   })
+})
+
+it('parses chapter and range attachments for navigation', () => {
+  expect(parseDottedAttachment(' JHN.3.14-16 ')).toMatchObject({ bookId: 'JHN', chapter: 3, verse: 14, endVerse: 16 })
+  expect(parseDottedAttachment('JHN.3')).toMatchObject({ bookId: 'JHN', chapter: 3, verse: undefined })
+  expect(parseDottedAttachment('JHN.3.14,JHN.3.16')).toBeUndefined()
 })

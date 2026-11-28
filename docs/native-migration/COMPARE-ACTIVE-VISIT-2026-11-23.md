@@ -1,0 +1,41 @@
+# Compare active history visit persistence
+
+Independent Compare preserves the visit selected by Back or Forward across a cold restart. The selected visit can be older than the latest bookmark for the same destination. This extends [independent Compare precision](COMPARE-PRECISION-2026-11-23.md).
+
+## Source and storage
+
+- The existing device-local `nativeComparePositions` object holds one reserved `$activeVisit` record in addition to its 24 destination entries. The active record matches the source, ordered stable column IDs and effective destinations, pin state, and Sync setting. It admits an intentionally empty visit. Neither sync payloads nor the database schema changed.
+- An immutable history snapshot records the observed independent layout. Selecting it stages the active record before pane placement, so the next lifecycle save can preserve the chosen visit even if the panes have yet to settle. The latest destination map retains its own values and evictions. A genuine pane movement updates that pane's active anchor while retaining the peer. Incompatible configuration changes invalidate the active record.
+- Explicit chapter-and-verse requests synchronously stage semantic targets for the following independent columns, using the same versification mapping as the live jump. Pinned and unaffected panes retain their applicable anchors. Ordinary selection does not stage a jump.
+
+## Mac runtime and automated checks
+
+The Mac QA configuration used LXX left and KJV right. Exodus 32 visit A held LXX row 5 at crop −1 and KJV row 7 at crop 34. After a visit to Exodus 33, the newer Exodus 32 visit B held row 12 at crop 34 and row 15 at crop 18. Back twice staged the active A record while preserving both latest B destination records. On cold replay, both fingerprints and row heights matched. The right pane restored crop 34 exactly and the left restored crop 0 within one display pixel. The scrollbar fractions differed because SwiftUI's lazy content extent changed. The row geometry supersedes the initial fraction-based diagnosis.
+
+The one-pane case then moved only the right pane to KJV row 8 at crop −12. The untouched left pane retained active LXX row 5 at crop −1 and the separate latest LXX destination remained row 12 at crop 34. The initial one-pane cold replay exposed a placement failure. The ID placement superseded the coordinate request, and the unchanged measurement left that request pending. The pane now permits a bounded retry after another matching layout sample while the request remains current.
+
+The final Mac cold replay restored right row 8 at crop −12.5 with native offset 506 after the second correction. The left pane restored row 5 at crop 0. Both were within one display pixel of their saved crops, and the screenshot matched. Temporary diagnostic logging was removed after verification. Swift parsing and diff checks passed after cleanup.
+
+- The instrumented Mac build and the full 381-test package suite passed before the geometry-only retry refinement. Eleven focused Compare tests passed on retry. The first focused attempt was interrupted by source materialization while compiling `NoteAttachmentLabelTests.swift`. The retry used the native engine after the source and test folders were kept downloaded.
+- The retry refinement passed the isolated macOS SDK typecheck. Evidence is under `build/apple/qa-evidence/20261123`, including `compare-active-visit-focused-tests.log`, `compare-active-visit-focused-tests-materialization-failure.log`, the `mac-active-visit-*.json` snapshots, `mac-active-visit-trace-runtime.log`, `mac-active-visit-one-pane-cold.log`, `mac-active-visit-retry-runtime.log`, and `compare-negative-crop-sdk-probe.log`.
+
+## Remaining work
+
+The verified iPhone cases are below. Exercise an empty older visit and ordinary selection without a viewport reset. Keep the established Dev fixtures and restore their original reader state after testing.
+
+Aligned and stacked cold-after-Back remain required engineering. Their active visit snapshots need the actual layout mode and matching source/configuration, plus the aligned source-grid row or stacked preferred stable column and raw row. Any shared pixel position needs compatible measured geometry and a semantic fallback after reflow. The existing in-memory absolute offsets alone are insufficient for cold restore.
+
+## iPhone actual runtime — Nov23 continuation
+Verified on owned D0CC Simulator, built app source `12d2e360`. Workspace4 Psalm23 KJVA-left/LXX22-right, SyncOFF. VisitA saved left raw3/crop14.6667/height120.5 and right raw4/crop51.3333/height240.8333. Next chapter24 then Previous23 created visitB; touch movement returned both B panes to raw1/crop-8. More→Back twice restored A. Read-only snapshot proves `$activeVisit` A is separate from both latest destination B anchors. Cold terminate/relaunch visually restored A, with unchanged stored fingerprints/anchors. Then moved only left to raw1/crop-8; right active raw4/crop51.3333 and separate latest right destination raw1/crop-8 remained. Second cold launch visibly restored that one-pane combination. Evidence ios-active-visit-{baseline,A,B,back-A,one-pane}.json and snapshot-ios-active-visit.py. These are scoped independent-mode successes; aligned/stacked and empty visits remain open.
+
+The initial same-chapter picker test selected Psalm 23:2 but left the active Compare viewport at the old 1/4 rows through cold restart. ScriptureView had omitted the explicit jump request made by AppModel’s normal Scripture navigation. Commit `81292f65` adds the request only for explicit verse destinations. Repeating the picker request for already-selected Psalm 23:2 put both columns at verse 2 with active rows 2/2. Backgrounding and cold reopening kept both at verse 2.
+
+The same commit also restored the aligned first-row header treatment. Simulator runtime 70923 confirmed the headers appeared below the floating controls at the opening edge. That check leaves older aligned and stacked cold-history restoration open. The Compare fixture returned to Psalm 23 at the start, Sync on, KJVA left/LXX right and no selection. Final Study baseline was restored to Matthew 5, selected verse 12, Strong’s off, panel closed and nine tabs. Final iPhone watched tables matched the current-turn baseline and all 47 active IDs remained. See [Search viewport evidence](SEARCH-VIEWPORT-2026-11-23.md).
+
+Touch QA lesson: Device Hub must be normally activated (`open -b com.apple.dt.Devices`) before Raise/touch dragging. AX Raise alone left it inactive and made earlier drag attempts ineffective. Native key-window-gated Mac QA similarly needs a normal activated launch with explicit QA arguments. Do not diagnose a source scroll defect from an inactive tool window.
+
+## November26 uncommitted shared-mode implementation
+Codex WIP owns CompareView/AppModel/CompareViewport and tests, intentionally excluded from published a5956515 app artifacts. Source review addressed stale warm coordinates after real movement, already-resolved Go blocking layout transfers, identical-destination stable-UUID reorders and opening-edge header preservation. Mac and Simulator candidate builds passed; full package389tests/96suites passed (log /private/tmp/berean-compare-shared-swiftpm-85aa4309/full-native-20261126.log). No live delegated process remains. Required next: Mac aligned and true stacked (narrow plus pinned/divergent), iPhone aligned A→B→Back→cold, active-vs-latest proof, empty/top swaps, within-row warm placement, resized/Strong’s fallback and explicit Go→selection→layout transfer. Preserve WIP; do not treat tests/builds as UI proof or stage with unrelated changes.
+
+## November26 committed shared-mode follow-through
+Supersedes the earlier uncommitted shared-mode checkpoint above. Source2bb1670d includes aligned/stacked active visits and compatible local sharedPrecision. Mac older A vs newer B and cold crop verified in both layouts; full390tests/96suites and final owner Mac/signed-iPhone/Simulator builds/signatures PASS. No sourceWIP or temporary trace remains. See [current shared precision evidence](COMPARE-SHARED-PRECISION-2026-11-26.md) for exact positions, compatibility, simulator input limit and remaining matrix.

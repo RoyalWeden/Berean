@@ -1,10 +1,14 @@
 # Berean — Claude Code Project Brief
 
-> This file is the single source of truth for the Berean desktop Bible study application.
-> Claude Code should read this file at the start of every session and before making any
-> architectural decisions. Do not deviate from the specs here without explicit user instruction.
+> **Native macOS/iPhone migration: start with [HANDOFF.md](docs/native-migration/HANDOFF.md).** The owner designates it as the single entry point for Claude Code, Codex and any successor AI. It links current state, owner principles, continuous-note requirements, safeguards and task-specific evidence. Follow that reading order before editing, and keep those notes current throughout the work.
+>
+> The rest of this document retains the existing Electron/Capacitor desktop baseline and setup guidance. Preserve legacy compatibility, but verify current checkout/runtime paths through the native handoff rather than blindly applying historical locations or pre-migration assumptions. Latest direct owner instructions and higher-priority environment instructions still take precedence.
+
+**Required for Claude Code as well as Codex:** keep the top current checkpoint in HANDOFF.md and CURRENT-STATE.md synchronized throughout the work. A historical log entry at the end of HANDOFF.md is additional evidence, not a replacement for either current summary. Record meaningful code/test results and failures immediately, and reconcile source revision, dirty files, app/data ownership, live checks and next work before a final reply, pause or handover. Follow the [checkpoint contract](docs/native-migration/AI-CONTINUITY.md#checkpoint-reconciliation-before-every-handover). Do not mark the whole queue finished merely because one feature batch is done.
 
 ---
+
+Before every native usage handoff, prepare and verify the owner’s development build in `/Users/roywe/Berean-native`. Follow the [install-ready checklist](docs/native-migration/INSTALL-READY-HANDOFF.md) and include the Mac and iPhone Terminal commands in the final reply.
 
 ## Table of Contents
 

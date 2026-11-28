@@ -1,0 +1,41 @@
+# Verse-copy parity — active Mac and iPhone work
+
+Owner explicitly requests all verse-copy actions on **both platforms** match original: singleverse reference+body on one line; multipleverses header reference/range first, each numbered verse on its own following line. This is a simplified contract; inspect original source for exact reference/edition/body behavior.
+
+Original authority: src/lib/verseClipboard.ts formats full canonical reference and LXX suffix only; normal singlecopy collapses whitespace and strips residual Strong’s tokens. VerseSelectionBar.copyVerses uses refLabel, one fetchedverse inline, multiple numbered lines. refLabel preserves consecutive/nonconsecutive ranges and full heterogeneous refs. Word Replacer remains respected. Native existing SharedVerseSelection always emits header+numberedlines even for one verse, while other single-copy paths differ on KJVA suffix. Native iOS partial Copy with Reference also needs audit.
+
+Bounded implementation agent owns ScriptureView/CompareView/ScriptureSearchView/StudyViews, native IOSChapterTextView/ChapterTextView and pure formatter/tests if required. Parent owns builds, actual Mac/iPhone clipboard checks and docs/publication. No production/sync/schema/IDs or native selection gesture changes. Preserve plain partial Copy Text as plain, reference-only actions as reference-only, and earlier owner cross-reference Copy policy (no text unless LXX). Shared single/multi format must apply when verse text is copied, including LXX cross-reference ranges and auto-copy-on-highlight callsites.
+
+Current source publicationfe00494e (app0819f846/margins3bb05740/Compare6fbba670) live CI44975267718 native+legacy running,securityPASS. Source newcopyfix not yet implemented. MacactualCompare final check passed Syncfalseleft6/right1→Synctrueboth6→falseboth6→globalcloseKJVAopensLXXnear6→Backboth6. Genesis current414 (previouscoldbaseline446) stable through same-runEXO/GEN roundtrip; no pointgeometrydiagnostic yet, unexplainedcoldstartupdrift OPEN. Do not falsely report exact446restored or blameCompare. Mac QA51521 profilecodex-controls-20261119; owner728 untouched. iPhone51249Song1LXX/Strongsoff/no selection/Compare/sheet,9tabs.
+
+## Actual before-fix clipboard evidence
+
+Mac actual selection actionCopy yielded `Genesis 1:1\n1 In the beginning God created the heaven and the earth.` (verse-copy-mac-single-before.txt). iPhone actual bodytap selectedSong1:1LXX, actionCopy yielded `Song of Solomon 1:1 LXX\n1 The Song of songs, which is Solomon's.` (verse-copy-ios-single-before.txt). Thus both platforms reproduce the exact single-selection newline/number-prefix bug, independent of source review. Mac sandboxed pbpaste returned empty; reading the actual app clipboard with approved OS access returned the expected public verse. Simulator clipboard read used exact ownedD0CC. No private note clipboard content read.
+
+Current Mac remainsGenesis1 selected1/current414stable, iPhoneSong1LXX selected1/Strongsoff/offset0/nine tabs. Keep these useful fixtures for final fixedsingle copy, then range1–3 andgapped1,3 onbothplatforms. Puretests must also coverLXXPsalmcombinedtitle/displaynumbering, whitespace, bare KJVreference and LXXsuffix, Word Replacer/annotations, partialreferencecopy and legacyrange punctuation. Do not change underlying datasets or plain text-selectioncopy.
+
+## Body-content decision: LXX Psalm superscriptions
+
+Retain genuine attached LXX superscription for **all whole-verse copies**, single or multiple, not just chapter export. The owner explicitly asked title+firstbody to form one displayed verse; PsalmSuperscription.apply folds authentic raw title rows into that first body's title field. Dropping it would lose part of the displayed LXX verse. This is deliberate native corrected-display consistency while retaining legacy copy layout. Exclude only synthesized MissingLxxVerses notice lines from copied text. KJV curated paratext behavior stays legacy-compatible. Partial native Copy with Reference still copies only actual selected words; do not invent/add an unselected title. Add appliedPsalm3 test proving correct readernumber/body composition and one line for single.
+
+## Initial actual after-fix results
+
+Final Mac+iOS Xcode builds pass (mac/ios-verse-copy-parity-final-build.log). Six focused conformance cases pass in verse-copy-conformance.log using private caches/native SwiftPM build system after environment permission failures and one timestamp-overlap retry; no source/test failures remain. Tests cover exact line layout, gaps, partial fragments, superscription/title-body resolution from either raw row, combined displaynumber4–5, marker exclusion, replacement and annotation settings.
+
+Actual Mac newformatter: singleGEN1:1 exactlyone line; consecutiveGEN1:1-3 byte-identical to correct4linebaseline; gappedGEN1:1,3 exact3lines withoutverse2. Actual final iPhone54304: Song1:1LXX exactlyone line; Song1:1-2LXX byte-identicalcorrect3linebaseline; gappedSong1:1,3LXX correct3lines withoutverse2. Evidence verse-copy-{mac,ios}-{single,multiple,gapped}-after.txt. Mac runtime precedes final config-only lowercase/private-helper cleanup; final Mac build covers that exact source.
+
+One handwritten iPhonegap assertion initially expected alternate wording “have … loved”. Read-only data/lxx_brenton.db and bundled final app database both confirm “do … love”; fresh actual screenshot confirms the visible verse also says “do … love”. Corrected assertion to the verified source/display wording and it passes. No application or data change was made for that false expected-text failure.
+
+Current fixtures: MacGEN1selected1,3/offset0 (not414); iPhoneSong1LXXselected1,3/Strongsoff/currentoffsetslightlyreflowednearstart. Need additional copy entrypoint and realPsalm title checks, then restore cleanreadingselection states and originaldatahash/IDs. Parent retains build/publication ownership; bounded agent finished no runningtests/sourceedits.
+
+## Final reviewed checkpoint, 2026-11-22
+
+Source committed **d86f69b5**. Reviewed all native pasteboard/Clipboard.copy verse callsites; remaining direct writes are non-verse note/PDF/chat/link/Strong’s content or native literal text selections. Final source builds both apps; six cases pass. Actual final-source Mac Compare EXO32LXX single1 and range1–2 copied correct one/three lines, and search1Chron15:16 copies full body inline without KJVA suffix. Actual iPhone Psalm3 displayed1 includes authentic title+firstbody inline; displayed1–2 copies header plus2numberedlines. Evidence `verse-copy-mac-compare-{single,multiple}-after.txt`, `verse-copy-mac-search-after.txt`, `verse-copy-ios-psalm-{title,range}-after.txt`. Do not claim every contextual menu or partial drag was individually exercised.
+
+Restored Mac GEN1selected1/Notes via Cmd-L, current offset0, seven tabs; iPhone PSA3LXX/Strongsoff/no selection/Compare/sheet,nine tabs. Retained dormant comparison fixtures. `verse-copy-final-data-check.json` passes original note/settings/chat/tag row hashes, exact37Mac/47iPhoneIDs and22/26notes. No data/schema/production change. Existing publishedfe00494e native+legacy CI44975267718 completed SUCCESS; native Mac app-build step skipped (local final Mac build passed). That old CI does not cover d86f69b5; publish and check exact new head next.
+
+## Additional iPhone Compare acceptance
+
+Actual final-copy-source Compare KJVA Psalm119 single1 and range1–2 pass exact one/three-line output, including active Word Replacer (`Yehovah`). Evidence `verse-copy-ios-compare-single-after.txt` and `verse-copy-ios-compare-multiple-after.txt`. Returned ordinary PSA3LXX/no selection/Compareoff/nine tabs. Source d86f69b5/docs2d2a2fb2 now published; exact-headCI45054330257 started, not yet complete.
+
+Additional Mac lexicon occurrence Copy Verse Matthew5:12 verified full body inline, no edition suffix, then Cmd-L cross-type history Back returned GEN1selected1/seven tabs. `verse-copy-mac-lexicon-after.txt`. The parallel extra iPhone lexicon check remains INCONCLUSIVE: invalid AX menu item, coordinate fallback/public clipboard equality could be shared Mac clipboard; later user-changed-app notification and Matthew5:12 reader fixture mean no reliable click attribution. Do not claim iPhone lexicon context Copy passed from this evidence. Prior iPhone reader/Compare checks remain valid.

@@ -49,6 +49,34 @@ func noteJSON(_ n: Note) -> JSValue {
         svc = NotesService(db: db)
     }
 
+    @Test func strongsBacklinksCoverAllNotesAndRefreshWithoutChangingSource() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let service = NotesService(db: db, now: { 1 })
+        for i in 0..<205 {
+            _ = try service.create(.init(id: "ref-\(i)", title: "Mention \(i)", content: "**h00430** H430"))
+        }
+        _ = try service.create(.init(id: "explicit", title: "Named link", content: "[God](berean-native-dev://lexicon/H430)"))
+        _ = try service.create(.init(id: "wiki", title: "H430", content: "[[H430]] `H430`"))
+        let original = try service.all(limit: Int.max)
+        let index = NoteStrongsIndex(notes: original)
+        #expect(index.notes(citing: "H-00430").count == 206)
+        #expect(Set(index.notes(citing: "H430").map(\.id)).count == 206)
+        #expect(index.notes(citing: "H43").isEmpty)
+        #expect(index.notes(citing: "G430").isEmpty)
+        #expect(index.notes(citing: "H0").isEmpty)
+        #expect(try service.all(limit: Int.max) == original)
+        _ = try service.update("explicit", .init(content: "H43"))
+        try service.delete("ref-0")
+        let updated = NoteStrongsIndex(notes: try service.all(limit: Int.max))
+        #expect(updated.notes(citing: "H430").count == 204)
+        #expect(updated.notes(citing: "H43").map(\.id) == ["explicit"])
+        let includingTrash = NoteStrongsIndex(notes: try service.all(limit: Int.max) + service.trash())
+        #expect(includingTrash.notes(citing: "H430").count == 204)
+        #expect(try service.restore("ref-0"))
+        #expect(NoteStrongsIndex(notes: try service.all(limit: Int.max)).notes(citing: "H430").count == 205)
+    }
+
     @Test func listsAndLookups() throws {
         #expect(JSValue.array(try svc.all().map(noteJSON)) == g["all"]!)
         #expect(try svc.all(limit: 3, offset: 2).map(\.id) == g.arr("page").map(\.str))
@@ -68,6 +96,157 @@ func noteJSON(_ n: Note) -> JSValue {
             let got = try svc.search(c["query"]!.str, mode: NotesWordMode(rawValue: c["mode"]!.str)!).map(\.id)
             #expect(got == c["results"]!.array.map(\.str), "\(c["query"]!.str.debugDescription) \(c["mode"]!.str)")
         }
+    }
+
+    @Test func notesHomeMatchIDsCoverAllResultsAndRefreshAfterEdits() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        let older = try notes.create(.init(id: "z", title: "Olive branch")).note
+        for i in 0..<201 {
+            _ = try notes.create(.init(id: "a-\(i)", title: "Olive orchard branch"))
+        }
+        _ = try notes.create(.init(id: "untitled", content: "sycamore"))
+        #expect(try !notes.search("olive", limit: 200).contains { $0.id == older.id })
+        #expect(try notes.matchingNoteIDs("oliv branch").count == 202)
+        #expect(try notes.matchingNoteIDs("olive branch", mode: .phrase) == [older.id])
+        #expect(try notes.matchingNoteIDs("oliv sycam", mode: .any).count == 203)
+        #expect(try notes.matchingNoteIDs("untitled") == ["untitled"])
+        #expect(try notes.matchingNoteIDs("  !?\n").isEmpty)
+
+        _ = try notes.update(older.id, .init(title: "Fig tree"))
+        #expect(try notes.matchingNoteIDs("olive branch", mode: .phrase).isEmpty)
+        #expect(try notes.matchingNoteIDs("fig") == [older.id])
+        try notes.delete(older.id)
+        #expect(try notes.matchingNoteIDs("fig").isEmpty)
+        _ = try notes.restore(older.id)
+        #expect(try notes.matchingNoteIDs("fig") == [older.id])
+    }
+
+    @Test func noteCrossReferencesKeepRangesEditionsAndIndirectMentions() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        _ = try notes.create(.init(id: "direct", type: "verse", title: "Direct",
+                                  content: "Isaiah 6:4 LXX. Isaiah 6:4 LXX. John 3:16.",
+                                  verseRef: "JHN.3.16-17", textId: "kjva"))
+        _ = try notes.create(.init(id: "reverse", type: "verse", title: "Backlink",
+                                  content: "Jn 3:16–17 and Romans 5:8.",
+                                  verseRef: "ROM.8.28", textId: "kjva"))
+        _ = try notes.create(.init(id: "general", title: "Indirect", content: "John 3:17"))
+        _ = try notes.create(.init(id: "other", title: "Different verse", content: "John 3:18"))
+        _ = try notes.create(.init(id: "trash", title: "Deleted", content: "John 3:17"))
+        try notes.delete("trash")
+
+        let scoped = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17, 19])
+        #expect(scoped.byVerse.keys.sorted() == [17])
+        let links = scoped.byVerse[17] ?? []
+        #expect(links.filter { $0.bookId == "ISA" && $0.textId == "lxx" }.count == 1)
+        #expect(links.contains { $0.bookId == "ROM" && $0.chapter == 8 && $0.verse == 28 && $0.note.id == "reverse" })
+        #expect(links.contains { $0.bookId == "ROM" && $0.chapter == 5 && $0.verse == 8 })
+        #expect(scoped.indirect.map(\.id) == ["general"])
+        #expect(scoped.indirectByVerse.keys.sorted() == [17])
+        #expect(scoped.indirectByVerse[17]?.map(\.id) == ["general"])
+
+        let chapter = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva")
+        #expect(Set(chapter.indirect.map(\.id)) == ["general", "other"])
+        #expect(chapter.indirectByVerse.keys.sorted() == [17, 18])
+        #expect(chapter.indirectByVerse[18]?.map(\.id) == ["other"])
+        #expect(chapter.byVerse[16]?.contains { $0.bookId == "JHN" && $0.verse == 16 && $0.endVerse == nil } == false)
+    }
+
+    @Test func ordinaryNoteIndicatorsRespectRangesChapterScopeAndTrash() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        _ = try notes.create(.init(id: "range", title: "Study", content: "John 3:16–18; John 3:17."))
+        _ = try notes.create(.init(id: "chapter", title: "Chapter overview", content: "John 3"))
+        _ = try notes.create(.init(id: "title-only", title: "John 3", content: "A title is not a body citation"))
+        _ = try notes.create(.init(id: "attached", type: "verse", content: "John 3:17", verseRef: "ROM.8.1"))
+        _ = try notes.create(.init(id: "deleted", content: "John 3:17"))
+        try notes.delete("deleted")
+
+        let whole = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva")
+        #expect(whole.indirectByVerse.keys.sorted() == [0, 16, 17, 18])
+        #expect(whole.indirectByVerse[0]?.map(\.id) == ["chapter"])
+        #expect(whole.indirectByVerse[17]?.map(\.id) == ["range"])
+        #expect(whole.byVerse[17]?.contains { $0.note.id == "attached" } == true)
+
+        let selected = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17, 19])
+        #expect(selected.indirectByVerse.keys.sorted() == [17, 19])
+        #expect(Set(selected.indirectByVerse[17]?.map(\.id) ?? []) == ["chapter", "range"])
+        #expect(selected.indirectByVerse[19]?.map(\.id) == ["chapter"])
+        #expect(Set(selected.indirect.map(\.id)) == ["chapter", "range"])
+    }
+
+    @Test func ordinaryCitationsIncludeAliasesAndAreNotLimitedToSearchPageSize() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        _ = try notes.create(.init(id: "alias", content: "Jn 3:16–18."))
+        _ = try notes.create(.init(id: "chapter-alias", content: "Jn 3"))
+        _ = try notes.create(.init(id: "different-chapter", content: "John 30:17"))
+        for index in 0..<90 {
+            _ = try notes.create(.init(id: "ordinary-\(index)", content: "John 3:17"))
+        }
+        let all = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva")
+        #expect(all.indirect.count == 92)
+        #expect(all.indirectByVerse[17]?.count == 91)
+        #expect(all.indirectByVerse[16]?.map(\.id) == ["alias"])
+        #expect(all.indirectByVerse[18]?.map(\.id) == ["alias"])
+        #expect(all.indirectByVerse[0]?.map(\.id) == ["chapter-alias"])
+        #expect(!all.indirect.contains { $0.id == "different-chapter" })
+
+        _ = try notes.update("alias", .init(content: "Jn 4:1"))
+        try notes.delete("ordinary-0")
+        let edited = try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17])
+        #expect(edited.indirect.count == 90) // 89 verse notes + the whole-chapter mention.
+        #expect(!edited.indirect.contains { $0.id == "alias" || $0.id == "ordinary-0" })
+        #expect(try notes.crossReferences(bookId: "JHN", chapter: 4, textId: "kjva").indirect.map(\.id) == ["alias"])
+        _ = try notes.restore("ordinary-0")
+        #expect(try notes.crossReferences(bookId: "JHN", chapter: 3, textId: "kjva", selected: [17]).indirect.count == 91)
+    }
+
+    @Test func wholeChapterCitationsUseAliasesAndExcludeVerseOnlyAndTrashedNotes() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let notes = NotesService(db: db, now: { 1 })
+        for (id, content) in [("alias", "See Exod 20."), ("verse", "Exodus 20:11"),
+                              ("different", "Leviticus 20"), ("trash", "Exodus 20")] {
+            _ = try notes.create(.init(id: id, type: "verse", title: id, content: content,
+                                       verseRef: "JHN.3.16", textId: "kjva"))
+        }
+        _ = try notes.create(.init(id: "general", title: "General", content: "Exodus 20"))
+        try notes.delete("trash")
+        #expect(try notes.notesCitingChapter("EXO", 20, textId: "kjva").map(\.id) == ["alias"])
+    }
+
+    @Test func verseInspectorIncludesRangeAttachments() throws {
+        let range = try svc.create(.init(type: "verse", title: "Range", verseRef: "JHN.3.14-16", textId: "kjva")).note
+        let chapter = try svc.create(.init(type: "verse", title: "Chapter", verseRef: "JHN.3", textId: "kjva")).note
+        let first = try svc.coveringVerse("JHN", 3, 14, textId: "kjva").map(\.id)
+        let last = try svc.coveringVerse("JHN", 3, 16, textId: "kjva").map(\.id)
+        #expect(first.contains(range.id))
+        #expect(last.contains(range.id))
+        let counts = try svc.coveringVerseCounts("JHN", 3, verses: [14, 16, 17], textId: "kjva")
+        #expect(counts[14] == first.count)
+        #expect(counts[16] == last.count)
+        #expect(counts[15] == nil)
+        #expect(!last.contains(chapter.id))
+        #expect(!(try svc.coveringVerse("JHN", 3, 17, textId: "kjva")).contains { $0.id == range.id })
+    }
+
+    @Test func disjointAttachmentsMatchEachChapterAndCountOnce() throws {
+        let note = try svc.create(.init(type: "verse", title: "Disjoint",
+                                       verseRef: "JHN.3.14-15, JHN.3.15, JHN.3.17, JHN.4.2", textId: "kjva")).note
+        #expect(try svc.coveringVerse("JHN", 3, 17, textId: "kjva").contains { $0.id == note.id })
+        #expect(!(try svc.coveringVerse("JHN", 3, 16, textId: "kjva")).contains { $0.id == note.id })
+        #expect(try svc.coveringVerses("JHN", 3, [14, 17], textId: "kjva").filter { $0.id == note.id }.count == 1)
+        #expect(try svc.coveringVerses("JHN", 3, [13, 16], textId: "kjva").allSatisfy { $0.id != note.id })
+        #expect(try svc.coveringVerse("JHN", 4, 2, textId: "kjva").contains { $0.id == note.id })
+        let matching = try svc.coveringVerse("JHN", 3, 15, textId: "kjva")
+        #expect(matching.filter { $0.id == note.id }.count == 1)
+        #expect(try svc.coveringVerseCounts("JHN", 3, verses: [15], textId: "kjva")[15] == matching.count)
     }
 
     @Test func verseAndChapter() throws {
@@ -307,6 +486,15 @@ func noteJSON(_ n: Note) -> JSValue {
 }
 
 @Suite("markdown live preview spans") struct MarkdownLiveSpansTests {
+    @Test func inlineCodeWithBacktickRuns() {
+        let markdown = "```a``b```"
+        let spans = MarkdownLiveSpans.spans(markdown)
+        #expect(spans.contains { $0.kind == .code && $0.range == NSRange(location: 3, length: 4) })
+        #expect(!spans.contains { $0.kind == .codeBlock })
+        #expect(plain(markdown) == "a``b")
+        #expect(MarkdownLiveSpans.spans("```swift\ntext\n```").contains { $0.kind == .codeBlock })
+    }
+
     func plain(_ s: String) -> String { MarkdownLiveSpans.plainText(s) }
 
     @Test func inlineMarkupIsHidden() {
@@ -345,6 +533,44 @@ func noteJSON(_ n: Note) -> JSValue {
         let spans = MarkdownLiveSpans.spans("| a | b |\n| --- | :---: |\n| 1 | 2 |")
         #expect(spans.filter { $0.kind == .tableRow }.count == 2)
         #expect(spans.filter { $0.kind == .tableRule }.count == 1)
+    }
+
+    @Test func detectsIPhoneTableSeparatorsWithoutConsumingEmDashCells() {
+        let recovered = "| Topic | Verse |\n| — | — |\n| Prayer | Romans 8:1 |"
+        let canonical = "| Topic | Verse |\n| --- | --- |\n| — | — |\n| Prayer | Romans 8:1 |"
+        let standalone = "| Topic | Verse |\n| — | — |"
+        for markdown in [recovered, canonical] {
+            let spans = MarkdownLiveSpans.spans(markdown)
+            #expect(spans.filter { $0.kind == .tableHeader }.count == 1)
+            #expect(spans.filter { $0.kind == .tableRule }.count == 1)
+        }
+        #expect(!MarkdownLiveSpans.spans(standalone).contains { $0.kind == .tableHeader })
+        let canonicalRule = MarkdownLiveSpans.spans(canonical).first { $0.kind == .tableRule }
+        #expect(canonicalRule.map { (canonical as NSString).substring(with: $0.range) } == "| --- | --- |")
+    }
+
+    @Test func tableEscapeMarkersAreHiddenOnlyInRecognizedTables() {
+        let markdown = #"""
+        | Name | A\|B |
+        | --- | --- |
+        | 📝 | `C\|D` |
+
+        Outside \| remains unchanged.
+        """#
+        let plainText = plain(markdown)
+        #expect(plainText.contains("| Name | A|B |"))
+        #expect(plainText.contains("| 📝 | C|D |"))
+        #expect(plainText.contains(#"Outside \| remains unchanged."#))
+        let escaped = #"| X\\\|Y | Z |"# as NSString
+        let cells = MarkdownLiveSpans.tableCells(in: escaped, range: NSRange(location: 0, length: escaped.length))
+        #expect(cells.count == 2)
+    }
+
+    @Test func tableHeaderRequiresMatchingAdjacentSeparator() {
+        let markdown = "| 📝 | a\\|b |\r\n| :--- | ---: |\r\n| one | two |\r\n\r\n| malformed | row |\r\n| --- |"
+        let source = markdown as NSString
+        let headers = MarkdownLiveSpans.spans(markdown).filter { $0.kind == .tableHeader }
+        #expect(headers.map { source.substring(with: $0.range) } == ["| 📝 | a\\|b |"])
     }
 
     @Test func rangesStayInsideTheString() throws {
@@ -395,6 +621,19 @@ func noteJSON(_ n: Note) -> JSValue {
 }
 
 @Suite("navigation history") struct HistoryServiceTests {
+    @Test func distinctAdvancedSearchesCanShareALegacyQuery() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let history = HistoryService(db: db)
+        let first = HistoryEntry(id: "a", type: "search", title: "grace", timestamp: 1, query: "grace")
+        var second = first
+        second.id = "b"
+        second.timestamp = 2
+        #expect(try history.add(first))
+        #expect(try history.add(second, deduplicate: false))
+        #expect(try history.all().map(\.id) == ["b", "a"])
+    }
+
     @Test func addDedupPageDeleteClear() throws {
         let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
         try Migrator.migrate(db)
@@ -412,5 +651,35 @@ func noteJSON(_ n: Note) -> JSValue {
         #expect(try h.all().map(\.id) == ["d"])
         try h.clear()
         #expect(try h.all().isEmpty)
+    }
+}
+
+
+@Suite("note version restore safety") struct NoteVersionRestoreSafetyTests {
+    @Test func rejectsForeignVersionsAndRollsBackFailedRestore() throws {
+        let db = try SQLiteConnection(readWritePath: ":memory:", create: true)
+        try Migrator.migrate(db)
+        let service = NotesService(db: db)
+        let note = try service.create(.init(title: "First", content: "Original")).note
+        let other = try service.create(.init(title: "Second", content: "Unrelated")).note
+        try service.createVersion(noteId: note.id, title: note.title, content: "Older text")
+        let version = try #require(try service.versions(of: note.id).first)
+        #expect(try service.restoreVersion(noteId: other.id, versionId: version.id) == .versionNotFound)
+        #expect(try service.one(other.id)?.content == "Unrelated")
+        #expect(try service.versions(of: other.id).isEmpty)
+
+        try db.exec("""
+            CREATE TRIGGER reject_restore BEFORE UPDATE OF content ON notes
+            BEGIN SELECT RAISE(ABORT, 'test restore failure'); END;
+            """)
+        #expect(throws: (any Error).self) {
+            try service.restoreVersion(noteId: note.id, versionId: version.id)
+        }
+        #expect(try service.one(note.id)?.content == "Original")
+        #expect(try service.versions(of: note.id).map(\.id) == [version.id])
+
+        try db.exec("DROP TRIGGER reject_restore")
+        #expect(try service.restoreVersion(noteId: note.id, versionId: version.id) == .restored(content: "Older text"))
+        #expect(try service.versions(of: note.id).first(where: { $0.kind == "pre-restore" })?.content == "Original")
     }
 }

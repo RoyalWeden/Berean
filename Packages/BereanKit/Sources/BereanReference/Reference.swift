@@ -227,6 +227,15 @@ public enum Reference {
 
     static let dottedRefRegex = JSRegex(#"^([^.]+)\.(\d+)(?:\.(\d+)(?:-(\d+))?)?$"#)
 
+    /// Parses one stored note attachment, including its optional same-chapter range.
+    public static func parseNoteAttachment(_ ref: String) -> (bookId: String, chapter: Int, verse: Int?, endVerse: Int?)? {
+        guard let match = dottedRefRegex.match(JSText.trim(ref)),
+              let book = match[1], let rawChapter = match[2], let chapter = Int(rawChapter) else { return nil }
+        let verse = match[3].flatMap(Int.init).flatMap { $0 > 0 ? $0 : nil }
+        let end = match[4].flatMap(Int.init).flatMap { value in verse.flatMap { value > $0 ? value : nil } }
+        return (book, chapter, verse, end)
+    }
+
     /// `verseRefDisplay` — appends " LXX" only for the Septuagint.
     public static func verseRefDisplay(_ ref: String?, textId: String? = nil, hermas: HermasText = .robertsDonaldson) -> String {
         guard let ref, !ref.isEmpty else { return "" }

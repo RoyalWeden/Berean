@@ -1,7 +1,7 @@
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useCaretCommands, fromSheetActions } from '../commands/caretRegistry'
-import { MoreHorizontal, Undo2, Redo2, Check, Share, Pin, PinOff, Eye, EyeOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
+import { BookOpen, MoreHorizontal, Undo2, Redo2, Check, Share, Pin, PinOff, Eye, EyeOff, CircleDot, Smile, FolderInput, History, Clock, Copy, Printer, Share2, FileDown, Trash2 } from 'lucide-react'
 import type { Note, NoteVersion } from '@/types'
 import { useAppStore } from '@/store'
 import { finalizeLeftNote } from '@/lib/notes/finalizeNote'
@@ -28,13 +28,13 @@ import { StrongsSheet } from '../study/StrongsSheet'
 import PrintPreviewModal from '@/components/notes/PrintPreviewModal'
 import { EMOJI_CATEGORIES, ALL_EMOJI } from '@/lib/emojiList'
 import { noteToMarkdownFile, noteFileName } from '@/lib/noteMarkdownFile'
-import { verseRefDisplay } from '@/lib/parseRef'
+import { parseDottedAttachment, verseRefDisplay } from '@/lib/parseRef'
 import { useNoteAutosave } from './useNoteAutosave'
 import type { EditorView } from 'prosemirror-view'
 import { BarChart3 } from 'lucide-react'
 import { computeWordStats } from '@/lib/wordCount'
 import { NoteInsertButton } from './NoteInsertButton'
-import { renderPhoneSelectionToolbar, noteStatsLine, showVerseContextLine } from './phoneEditorChrome'
+import { renderPhoneSelectionToolbar, noteStatsLine } from './phoneEditorChrome'
 import { displayNoteTitle, storedNoteTitle } from '@/lib/noteTitle'
 
 /**
@@ -290,7 +290,20 @@ export function NoteEditorPage({ noteId, onBack }: { noteId: string; onBack: () 
           persist({ title: storedNoteTitle(v, latest.current?.title ?? note.title) })
         }}
       />
-      {note.verseRef && showVerseContextLine(note.title, verseRefDisplay(note.verseRef, note.textId)) && <div className="mobile-note-meta">{verseRefDisplay(note.verseRef, note.textId)}</div>}
+      {note.verseRef && (
+        <div className="mobile-note-meta m-note-attachments" aria-label="Scripture attachments">
+          {note.verseRef.split(',').map((part, index) => {
+            const attachment = parseDottedAttachment(part)
+            const label = verseRefDisplay(part, note.textId)
+            return attachment && label ? (
+              <button key={index} type="button" onClick={() => openVerse({ ...attachment, forcedTranslation: note.textId })}>
+                <BookOpen size={14} aria-hidden="true" />
+                {label}
+              </button>
+            ) : label ? <span key={index}>{label}</span> : null
+          })}
+        </div>
+      )}
     </div>
   )
   return (

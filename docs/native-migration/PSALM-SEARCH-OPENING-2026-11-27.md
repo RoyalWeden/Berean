@@ -1,0 +1,27 @@
+# Psalm opening Search results — November27 evening
+
+## Current source and ownership
+Resumed at about6:27pm PST after approval service recovered. Verified/published prior Search context+Full source in draft24 at documentation head5da8a373; clean owner checkout synchronized, hosted exact-head run46098092725 is in progress. No reset or approval bypass. Prior turn was substantive progress, not a no-progress continuation. Root owns pending new presentation source/tests; no source builds live yet. Regular owner Mac is now PID10461 (previous63913 is historical), left untouched. Claude PID54920 exists, but no dirty owner files or build/editor evidence indicates active concurrent code work; verify live state before mutation.
+
+## Problem and boundary
+Separately stored LXX Psalm titles and the opening body are one displayed reader verse. Raw title-only Search hits currently show only title text even in Full mode; canonical neighbor context correctly excludes the same displayed row, so the body can be missing from the preview. Compose the validated opening in presentation only. Keep resultID/counts/order, raw passage, action/note/highlight keys and service goldens unchanged. Reader passageSelection already maps raw title links onto the first displayed body; SharedScriptureVerse/VerseClipboard already copy/share title+body once. Do not redirect navigation or rewrite annotations to fix a display omission.
+
+## Candidate implementation
+`ScriptureSearchOpening` requests only separately stored title/opening-body records, validates a complete title+body projection and exact raw hit text, and returns separate raw segments. Only the original matched segment retains its Strong’s indices and set. Other segments render current plain-query matches using the live existing closure; no concatenated offset shift or rendered-color cache. New SearchResultVerse mounts a task only for eligible openings and shares the existing bounded chapter cache with context; other rows keep direct Text. Raw request/service identity and cancellation guard async results. Mode/rules/theme changes paint the same raw segments live.
+
+Tests cover Psalm3 one title, Psalm50 two title rows, incomplete/mismatched fallback, inline-prefix/no-other-edition behavior and every bundled separate-title Psalm. Actual Psalm50 Strong’s index4 selects Psalm in the heading and index1 selects mercy in the body, with Word Replacer OFF/ON. Initial24focused/5suites and refined12focused/2suites passed; app and helper parse/diff checks pass. No app build/UI acceptance yet.
+
+## Review correction before builds
+A matched heading must not shrink from the old four-line snippet to a two-line supplemental title. Psalm17’s248-character heading can match a late Saul phrase. Candidate now leaves the matched heading untruncated even in Compact, while nonmatching supplemental title rows may use two lines; Full/context modes show all. Verify the late-match case at real iPhone width. No all-layout/performance claim yet.
+
+## Next checks
+Freeze reviewed source, run full native tests and all three owner builds/signatures. Test actual Mac/iPhone Compact title+body, two-line title, late-title match, Full/±1 (following displayed2 once), Strong’s marks, raw Open and Back to the same Search hit. Capture fresh QA/data baselines before UI because hours elapsed; never restore the old12:23state over newer owner work. Use a distinct owned profile for new Mac mutations, preserve Simulator originals/activeIDs and close only owned tabs. Keep builds ready and update HANDOFF/CURRENT-STATE together before publication/handover.
+
+## Final source and terminal receipts,6:44pm PST
+Committed bab93109. Full Release87436 exited0:424tests/101suites PASS,44.527s after compilation. Owner builds2276 Mac/device/Simulator all0; strictsignatures all3/nativeDevIDs/no cloud/groups and unchanged signingconfiguration PASS. Ignored owner-psalm-opening-ready-artifacts.json and /private/tmp/berean-owner-psalm-opening-builds-20261127.json record paths/hashes/logs. No local build/test remains. Prior5da8a373 hosted46098092725 now native+legacySUCCESS; new source exact-head checks follow publication.
+
+Mac new profile codex-psalm-opening-20261127: actual title-onlyPsalm3 shows O Lord body; Open selects1 and Back returns samehit. Psalm50 bothheadingrows+Have mercy; G3481 Bersabee marks Nathan in secondheading and residualword, no shifted marks.±1 following2 once. QAquit, lastownqueryNathanprophetBersabee/context1, twoowntabs/nonotes. Ownerregular10461 untouched.
+
+iPhone D0CC updatedbab, launch38667/containerB1C8CD1A-D379-47CC-A846-279A564FCC06. ActualCompactPsalm3body; queryservantsongSaul verifiesfull248-characterPsalm17headinglateSaul+openingbody atphonewidth; two-rowPsalm50StrongNathan+body;±1Washverse2once. OpeninNewTabselectedPsalm50:1withactions. ClosedownSearchd6ea1ba7-ee08-416b-80b5-ead47b758a62 andBible62d890c9-4ad5-43ae-af05-01f8bd103af6 only. ResetCompact, originalMatthew5:12/nineTabs/StrongOFF/panelFindclosed restored, Homebackgrounded. Freshfinalaudit retained all28notes/18settings/highlights/chats/tags and47originalactiveIDs. psalm-opening-final-data.json records exact comparisons. No physical install or E8B interaction.
+
+Limits: no physical trackpad/phone/VoiceOver/large-type/IME or all imported-source assertion. The main Search result count remains raw records; duplicate readerverse labels from distinct matching source records are not deduplicated by this presentation slice. Existing annotation keys and data contracts remain raw.

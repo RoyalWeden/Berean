@@ -46,23 +46,43 @@ public enum VerseDisplay {
     }
 
     /// `buildVerseDisplayText`.
-    public static func text(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule]) -> String {
+    public static func text(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule], hideSuppliedWords: Bool = false) -> String {
         let replace = replacerEnabled && !rules.isEmpty
         let tokens = textId == "kjva" && !(tagged ?? "").isEmpty ? TaggedText.parse(tagged!) : []
-        if textId == "kjva", !(tagged ?? "").isEmpty, replace, !tokens.isEmpty {
-            return processed(tokens, replace: true, rules: rules).map(\.word).joined(separator: " ")
+        if !tokens.isEmpty, replace || hideSuppliedWords {
+            return kjvaTokens(tokens, replace: replace, rules: rules, hideSuppliedWords: hideSuppliedWords)
+                .map(\.word).joined(separator: " ")
         }
         return replace ? WordReplacer.apply(text, rules: rules) : text
     }
 
     /// The rendered tokens of a KJVA tagged verse — exactly the words `buildVerseDisplayTokens` shows (replacer,
     /// Strong's restorations, "the" suppression) but keeping each token's Strong's numbers, for renderers that
-    /// draw Strong's chips. Other texts: the parsed tokens unchanged.
-    public static func renderTokens(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule]) -> [TaggedToken] {
+    /// draw Strong's chips. Native KJVA rendering fills red-letter gaps in supplied words between
+    /// explicitly red ordinary words. Other texts keep their parsed visible tokens.
+    public static func renderTokens(_ text: String, tagged: String?, textId: String, replacerEnabled: Bool, rules: [WordReplacerRule], hideSuppliedWords: Bool = false) -> [TaggedToken] {
         guard let tagged, !tagged.isEmpty else { return [] }
         let tokens = TaggedText.parse(tagged)
-        if textId == "kjva" { return processed(tokens, replace: replacerEnabled && !rules.isEmpty, rules: rules) }
+        if textId == "kjva" {
+            var rendered = kjvaTokens(tokens, replace: replacerEnabled && !rules.isEmpty, rules: rules, hideSuppliedWords: hideSuppliedWords)
+            var previousOrdinary: Int?
+            // The visible tokens already exclude particles, alignment brackets and empty words.
+            // Only ordinary, explicitly red neighbors can color an intervening italic run.
+            for index in rendered.indices where !rendered[index].isItalic {
+                if let previousOrdinary, rendered[previousOrdinary].isRedLetter, rendered[index].isRedLetter {
+                    for supplied in (previousOrdinary + 1)..<index {
+                        rendered[supplied].isRedLetter = true
+                    }
+                }
+                previousOrdinary = index
+            }
+            return rendered
+        }
         return tokens.filter { !$0.hasNoPlainText }
+    }
+
+    private static func kjvaTokens(_ tokens: [TaggedToken], replace: Bool, rules: [WordReplacerRule], hideSuppliedWords: Bool) -> [TaggedToken] {
+        processed(hideSuppliedWords ? tokens.filter { !$0.isItalic } : tokens, replace: replace, rules: rules)
     }
 
     /// `buildVerseDisplayTokens` (red-letter / italic flags for renderers without Strong's chips).
@@ -127,6 +147,18 @@ public enum VerseDisplay {
         return s.split(separator: "\u{0}", omittingEmptySubsequences: false)
             .map { String($0.unicodeScalars.filter { ("a"..."z").contains($0) }.map(Character.init)) }
             .filter { $0.utf16.count >= 4 }
+    }
+
+    /// A bounded excerpt of display words around the first valid occurrence match.
+    /// When the verse ends near the match, use the remaining budget for earlier words.
+    /// The offsets stay in the full verse's coordinate space for styling visible matches.
+    public static func matchingWordWindow(wordCount: Int, matchIndices: Set<Int>, maximumWords: Int = 14) -> Range<Int> {
+        guard wordCount > 0 else { return 0..<0 }
+        let count = min(wordCount, max(1, maximumWords))
+        let first = matchIndices.lazy.filter { (0..<wordCount).contains($0) }.min() ?? 0
+        let leadingWords = min(4, count - 1)
+        let start = min(max(0, first - leadingWords), wordCount - count)
+        return start..<(start + count)
     }
 
     /// `getWordWindow` — a 14-word window around the first match for long verses (nil = show all).

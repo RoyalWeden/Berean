@@ -5754,6 +5754,6 @@
  "format": 1,
  "generator": "scripts/golden/corpus.ts",
  "sources": {
-  "scripts/golden/corpus.ts": "6b71a19bbe33ac473363e99f353d1989e41cdbee305f25b4c6ad16576c00d572"
+  "scripts/golden/corpus.ts": "c2a27963f9f9591825a4cfe00faf307ba207707eac934bda59934fe353768f83"
  }
 }

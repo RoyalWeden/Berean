@@ -1,0 +1,3 @@
+/* Localized visible name; the target, executable and Dev identity stay stable. */
+"CFBundleName" = "Berean Native Dev";
+"CFBundleDisplayName" = "Berean Native Dev";

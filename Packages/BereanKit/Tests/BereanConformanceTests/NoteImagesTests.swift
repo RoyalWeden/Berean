@@ -1,0 +1,103 @@
+import Foundation
+import Testing
+import BereanNotes
+
+@Suite("note images") struct NoteImagesTests {
+    let png1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+    @Test func parsesAltWidthAndSource() {
+        let text = "Intro\n![Dead Sea Scroll|w320](data:image/png;base64,\(png1x1))\n![plain](https://x/y.png)"
+        let images = NoteImages.find(in: text)
+        #expect(images.count == 2)
+        #expect(images[0].alt == "Dead Sea Scroll" && images[0].width == 320)
+        #expect((text as NSString).substring(with: images[0].captionRange) == "Dead Sea Scroll")
+        #expect(images[1].alt == "plain" && images[1].width == nil && images[1].source == "https://x/y.png")
+        #expect(NoteImages.find(in: "![a|wide](x.png)")[0].alt == "a|wide")
+    }
+
+    @Test func decodesOnlySupportedDataURIs() {
+        #expect(NoteImages.dataURIBytes("data:image/png;base64,\(png1x1)")?.count == 70)
+        #expect(NoteImages.dataURIBytes("data:image/svg+xml;base64,PHN2Zz4=") == nil)
+        #expect(NoteImages.dataURIBytes("https://example.com/a.png") == nil)
+    }
+
+    @Test func displaySizeClamps() {
+        #expect(NoteImages.displaySize(natural: CGSize(width: 1000, height: 500), savedWidth: nil, available: 600) == CGSize(width: 600, height: 300))
+        #expect(NoteImages.displaySize(natural: CGSize(width: 1000, height: 500), savedWidth: 320, available: 600) == CGSize(width: 320, height: 160))
+        #expect(NoteImages.displaySize(natural: CGSize(width: 100, height: 2000), savedWidth: nil, available: 600, maxHeight: 400) == CGSize(width: 20, height: 400))
+    }
+}
+
+@Suite("note images — large sources") struct NoteImagesLargeTests {
+    @Test func hugeBase64StillMatchesAsImage() {
+        let base64 = String(repeating: "QUJDRA==", count: 120_000)   // ~960 KB, like a pasted photo
+        let text = "a\n![Big|w300](data:image/png;base64,\(base64))\nb"
+        #expect(NoteImages.find(in: text).first?.width == 300)
+        let kinds = MarkdownLiveSpans.spans(text).map(\.kind)
+        #expect(kinds.contains(.image("Big")))
+        #expect(!kinds.contains { if case .link = $0 { true } else { false } })
+    }
+}
+
+@Suite("note images — masking") struct NoteImagesMaskTests {
+    @Test func masksOnlySourcesKeepingLength() {
+        let text = "See John 3:16 ![H1234 cap](data:image/png;base64,AAAAH3068G1234==) and H7225."
+        let masked = NoteImages.maskingSources(text)
+        #expect((masked as NSString).length == (text as NSString).length)
+        #expect(masked.contains("H1234 cap") && masked.contains("H7225") && masked.contains("John 3:16"))
+        #expect(!masked.contains("H3068") && !masked.contains("base64"))
+        #expect(NoteImages.maskingSources("no images here") == "no images here")
+    }
+}
+
+@Suite("note images — insert") struct NoteImagesInsertTests {
+    @Test func buildsOriginalMarkdown() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let md = try #require(NoteImages.markdown(for: png, alt: NoteImages.alt(forFileName: "Cave 4 [scan].png")))
+        #expect(md.hasPrefix("![Cave 4 scan](data:image/png;base64,iVBOR"))
+        #expect(NoteImages.find(in: md).first?.alt == "Cave 4 scan")
+        #expect(NoteImages.dataURIBytes(NoteImages.find(in: md)[0].source) == png)
+        #expect(NoteImages.mimeType(of: Data([0xFF, 0xD8, 0xFF, 0xE0])) == "image/jpeg")
+        #expect(NoteImages.markdown(for: Data("II*\u{0}".utf8), alt: "tiff") == nil)
+        #expect(NoteImages.alt(forFileName: "photo") == "photo")
+    }
+}
+
+@Suite("note images — resize") struct NoteImagesResizeTests {
+    @Test func widthEditsOnlyTheAlt() throws {
+        let text = "x ![Scroll|w360](data:image/png;base64,AAAA) y ![Plain](a.png)"
+        let first = try #require(NoteImages.image(at: 5, in: text))
+        let e = NoteImages.widthEdit(first, in: text, width: 200)
+        let out = (text as NSString).replacingCharacters(in: e.range, with: e.replacement)
+        #expect(out == "x ![Scroll|w200](data:image/png;base64,AAAA) y ![Plain](a.png)")
+        let second = try #require(NoteImages.image(at: (out as NSString).length - 3, in: out))
+        let e2 = NoteImages.widthEdit(second, in: out, width: 480)
+        let out2 = (out as NSString).replacingCharacters(in: e2.range, with: e2.replacement)
+        #expect(out2.hasSuffix("![Plain|w480](a.png)"))
+        let back = try #require(NoteImages.image(at: 3, in: out2))
+        let e3 = NoteImages.widthEdit(back, in: out2, width: nil)
+        #expect((out2 as NSString).replacingCharacters(in: e3.range, with: e3.replacement).hasPrefix("x ![Scroll](data:"))
+        #expect(NoteImages.image(at: 0, in: text) == nil)
+    }
+}
+
+
+@Suite("note images — preview content preservation") struct NoteImagesPreviewTests {
+    @Test func keepsFollowingUnicodeProseAndAnotherImage() throws {
+        let source = "![Scroll|w240](data:image/png;base64,AAAA) 😀 Read **John 3:16**. ![Second](https://example.com/image.png)"
+        let first = try #require(NoteImages.leadingImage(in: source))
+        #expect(first.image.alt == "Scroll")
+        #expect(first.image.width == 240)
+        #expect(first.remainder == " 😀 Read **John 3:16**. ![Second](https://example.com/image.png)")
+        #expect((source as NSString).substring(with: first.image.range) + first.remainder == source)
+    }
+    @Test func handlesImageSequencesAndLeavesInlineTextIntact() throws {
+        let source = "![First](https://example.com/1.png)![Second](https://example.com/2.png)"
+        let first = try #require(NoteImages.leadingImage(in: source))
+        let second = try #require(NoteImages.leadingImage(in: first.remainder))
+        #expect(second.image.alt == "Second")
+        #expect(second.remainder.isEmpty)
+        #expect(NoteImages.leadingImage(in: "Text before " + source) == nil)
+        #expect(NoteImages.leadingImage(in: "`" + source + "`") == nil)
+    }
+}

@@ -17,6 +17,16 @@ function verse(text: string, tagged: string): Verse {
 }
 
 describe('buildSpokenWords — divine-name Strong\'s replacement drops a preceding bare "the"', () => {
+  it('plain text returns prepared speech and preserves the spacing used by word offsets', () => {
+    const v = verse('  Jesus  said 40 words—then. ', '')
+    const rules: WordReplacerRule[] = [{ id: 'name', queries: ['Jesus'], replacement: 'Yeshua', wholeWord: true, enabled: true }]
+    const { words, spokenText } = buildSpokenWords(v, rules)
+    expect(spokenText).toBe('  Yeshuwa  said forty words,then. ')
+    expect(words.map(w => w.wordIndex)).toEqual([2, 4, 5, 6])
+    for (const word of words) {
+      expect(spokenText.slice(word.charStart, word.charStart + word.charLen)).toBe(word.text)
+    }
+  })
   it('"the LORD said" is spoken as "Yehovah said", not "the Yehovah said"', () => {
     const v = verse('the LORD said', 'the{} LORD{H3068} said{}')
     const { spokenText } = buildSpokenWords(v, [DIVINE_NAME_RULE])
