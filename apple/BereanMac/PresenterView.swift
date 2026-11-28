@@ -154,7 +154,6 @@ struct PresenterView: View {
             presenterControls.padding(16)
         }
         .environment(\.colorScheme, renderedAppearance.scheme ?? colorScheme)
-        .navigationTitle(paused ? "Presenter — Paused" : "Presenter")
         .onAppear {
             scale = scale.isFinite ? min(4, max(0.8, scale)) : 1.6
             followedVerse = readerAnchor ?? selected.min()
@@ -184,36 +183,35 @@ struct PresenterView: View {
 
     private var presenterControls: some View {
         HStack(spacing: 8) {
-            Image(systemName: paused ? "pause.fill" : "dot.radiowaves.left.and.right")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: Self.controlSize, height: Self.controlSize)
-                .modifier(PresenterCircularGlass(interactive: false))
-                .accessibilityLabel(paused ? "Paused" : "Following main window")
-                .help(paused ? "The audience view is frozen" : "Following the main window")
-
-            HStack(spacing: 6) {
-                Button("Smaller", systemImage: "textformat.size.smaller") { setScale(scale - 0.2) }
-                    .labelStyle(.iconOnly)
-                    .accessibilityLabel("Decrease text size")
-                    .disabled(scale <= PresenterZoom.range.lowerBound)
-                    .help("Smaller text (⌘−)")
+            HStack(spacing: 0) {
+                Button { setScale(scale - 0.2) } label: {
+                    Image(systemName: "textformat.size.smaller")
+                        .frame(width: 32, height: Self.controlSize)
+                        .contentShape(.rect)
+                }
+                .accessibilityLabel("Decrease text size")
+                .disabled(scale <= PresenterZoom.range.lowerBound)
+                .help("Smaller text (⌘−)")
                 Button { setScale(PresenterZoom.standard) } label: {
                     Text("\(Int((scale * 100).rounded()))%")
                         .font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-                        .frame(minWidth: 42)
+                        .frame(minWidth: 42, minHeight: Self.controlSize)
+                        .contentShape(.rect)
                 }
                 .accessibilityLabel("Reset text size")
                 .accessibilityValue("\(Int((scale * 100).rounded())) percent")
                 .help("Reset text size (⌘0)")
-                Button("Larger", systemImage: "textformat.size.larger") { setScale(scale + 0.2) }
-                    .labelStyle(.iconOnly)
-                    .accessibilityLabel("Increase text size")
-                    .disabled(scale >= PresenterZoom.range.upperBound)
-                    .help("Larger text (⌘+)")
+                Button { setScale(scale + 0.2) } label: {
+                    Image(systemName: "textformat.size.larger")
+                        .frame(width: 32, height: Self.controlSize)
+                        .contentShape(.rect)
+                }
+                .accessibilityLabel("Increase text size")
+                .disabled(scale >= PresenterZoom.range.upperBound)
+                .help("Larger text (⌘+)")
             }
             .buttonStyle(.borderless)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 4)
             .frame(height: Self.controlSize)
             .glassEffectCompat(interactive: true)
             .accessibilityElement(children: .contain)
@@ -231,6 +229,7 @@ struct PresenterView: View {
                     .modifier(PresenterCircularGlass(interactive: true))
             }
             .buttonStyle(.plain)
+            .accessibilityValue(paused ? "Paused" : "Following main window")
             .disabled(!paused && (loading || loadedSource != source))
             .help(paused ? "Follow the main window again" : "Keep this document and reading position on screen")
         }
