@@ -1165,8 +1165,9 @@ struct ScriptureSearchView: View {
                         if resultContext > 0 {
                             SearchResultContext(hit: h, span: resultContext, edge: .before, cache: contextChapterCache)
                         }
-                        Text(highlighted(h, matchingWords: matchingWords))
-                            .font(.callout).foregroundStyle(.secondary).lineLimit(resultContext != 0 ? nil : 4)
+                        SearchResultVerse(hit: h, fullVerse: resultContext != 0, cache: contextChapterCache) { segment in
+                            highlighted(segment, matchingWords: matchingWords)
+                        }
                         if resultContext > 0 {
                             SearchResultContext(hit: h, span: resultContext, edge: .after, cache: contextChapterCache)
                         }
@@ -1307,7 +1308,69 @@ struct ScriptureSearchView: View {
     static func clear() { UserLibrary.defaults.removeObject(forKey: key) }
 }
 
-/// Book filter: type to add books (any text); chosen books show as removable chips.
+/// A separately stored Psalm heading and its opening body are one reader verse.
+/// Keep each raw record separate while painting matches, so Strong's offsets stay valid.
+private struct SearchResultVerse: View {
+    private struct Request: Hashable {
+        let bibleIdentity: ObjectIdentifier
+        let hit: ScriptureHit
+    }
+
+    private struct Preview {
+        let request: Request
+        let segments: [ScriptureSearchOpening.Segment]?
+    }
+
+    @Environment(AppModel.self) private var app
+    let hit: ScriptureHit
+    let fullVerse: Bool
+    let cache: ScriptureSearchChapterCache
+    let highlighted: (ScriptureHit) -> AttributedString
+    @State private var preview: Preview?
+
+    var body: some View {
+        let bible = app.bible
+        let request = Request(bibleIdentity: ObjectIdentifier(bible), hit: hit)
+        let segments = preview?.request == request ? preview?.segments : nil
+        if ScriptureSearchOpening.requiresChapter(for: hit) {
+            Group {
+                if let segments {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(segments) { segment in
+                            if segment.isTitle {
+                                Text(highlighted(segment.hit))
+                                    .font(.footnote).italic().foregroundStyle(.secondary)
+                                    // A late match in a long heading must remain visible.
+                                    .lineLimit(fullVerse || segment.id == hit.verseNum ? nil : 2)
+                            } else {
+                                verseText(segment.hit)
+                            }
+                        }
+                    }
+                } else {
+                    verseText(hit)
+                }
+            }
+            .task(id: request) {
+                guard !Task.isCancelled else { return }
+                preview = nil
+                let chapter = await cache.rows(in: bible, textId: hit.textId, bookId: hit.bookId, chapter: hit.chapter)
+                guard !Task.isCancelled, app.bible === bible else { return }
+                // These are raw segments. The current closure paints query/settings/theme
+                // changes live; it never reuses a preformatted string from this task.
+                preview = Preview(request: request, segments: ScriptureSearchOpening.segments(in: chapter, around: hit))
+            }
+        } else {
+            verseText(hit)
+        }
+    }
+
+    private func verseText(_ segment: ScriptureHit) -> some View {
+        Text(highlighted(segment)).font(.callout).foregroundStyle(.secondary)
+            .lineLimit(fullVerse ? nil : 4)
+    }
+}
+
 /// Neighbouring verses shown dimmed around a search result.
 private struct SearchResultContext: View {
     private struct Request: Hashable {
