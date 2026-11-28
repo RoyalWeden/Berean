@@ -118,3 +118,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [All-visible Find](FIND-MATCHES-2026-11-26.md): additive drawing, final compiler/runtime verification and saved-highlight preservation.
 
 - [November27 integration and UI evidence](INTEGRATION-REVIEW-2026-11-27.md): reviewed Claude work, fixes, tests, actual Mac/iPhone interactions, cache-build limitation and fixture preservation. [Superseded current checkpoints](CHECKPOINT-HISTORY-2026-11-27.md) are historical only.
+
+- [Search context and Full verse](SEARCH-CONTEXT-2026-11-27.md): exact source, review corrections,418-test/build/signature receipts, actual Mac/iPhone UI, state preservation and approval-service publication interruption.

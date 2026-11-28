@@ -698,3 +698,7 @@ Sourcea6ea72ac adds a view-local256-entry FIFO cache of immutable transformed/wi
 
 
 November27 final Presenter verification:6a54ccef stops focused zoom payload layout churn; idle isolated CPU~100%→~4%, title-free bottom-right controls, menu zoom/keyboard decrease-reset afterreopen and Pause/Resume pass. Mac final ownerbuildPASS; unchangedmobilea6device/SimulatorbuildsPASS; strictsignaturesall3PASS. Hosted642c2992 native+legacySUCCESS; laterMac6a/finaldocsrequire new exact-head checks. Search smoothness staysOPEN. Canonical current source/evidence/nexttasks are in HANDOFF and CURRENT-STATE.
+
+
+### November27,12:23pm PST — Shared Search context and Full verse
+Source e23eac7a/aaa6c517 restores original Compact/Full/±1/±2 behavior, reader-aligned numeric neighbors, complete Strong’s matches and settings/cancellation-safe previews.16-entry shared raw chapter cache bounds pending reads.418 native tests/100 suites, all3 owner builds/strict signatures and actual Mac+iPhone Simulator UI passed. Original watched records and exact37/47 activeIDs retained; physical phone untouched. Main raw title-only hit composition and physical smoothness remain open. Publication/final docs synchronization await approval-service usage-limit recovery; do not bypass or reset. Prior64a3852f hosted native+legacy passed, new code not published. See SEARCH-CONTEXT-2026-11-27 and the current checkpoints.

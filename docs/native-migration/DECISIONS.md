@@ -825,3 +825,6 @@ Sourcea6ea72ac adds a view-local256-entry FIFO cache of immutable transformed/wi
 
 
 November27 Presenter focused-value stability: PresenterZoom equality tracks immutable scale, not the recreated setter closure for the single retained Presenter scene's scale binding. A/B idleCPU and live zoom afterreopen validate the binding. Do not remove keyboard routing or refactor note scrolling to fix root command/toolbar churn. Remeasure if scene ownership changes for DX05.
+
+
+November27 Search context decisions: preserve numeric± windows rather than skipping across missing verse numbers; use canonical reader projection for titles and combined ranges while raw stored hit IDs stay unchanged. Cache only immutable raw chapters, bounded to16 pending/retained reads per Search view, with service identity and cancellation admission checks. Full verse uses the existing local unsynced preference value-1;0/1/2 keep prior semantics. Snippet cache keys include windowing and never cache resolved colors. No schema/sync/annotation identity changes.

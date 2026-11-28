@@ -129,7 +129,7 @@ Mac QA, fixture note with a 320×240 image and a 12-row table above 30 sections:
 
 ## November27 resumed assignment board
 
-Codex explicitly resumed10:22am. CC05–09 and A13/A31/A32/A35/A37/A38/A39/A42 source from native/claude-audit-fixes-20261126@0e5a8dd4 reviewed and integrated302b2224..e6a39db9, with Codex correctionsdfaeae2a/c36feb36/f904d0ae. Scope of earlier Claude UI evidence remains historical, not proof of the new combined build. Earlier full fresh native402 tests/97 suites passed exit0. Finala6ea72ac owner Mac/device/Simulator builds passed; new full Release run is still live (see current checkpoint). Codex owns the new Search smoothness, visible Presenter and two-column desktop KJVA requests; DX05 per-window state stays open. Read INTEGRATION-REVIEW-2026-11-27.md and current checkpoint.
+Codex explicitly resumed10:22am. CC05–09 and A13/A31/A32/A35/A37/A38/A39/A42 source from native/claude-audit-fixes-20261126@0e5a8dd4 reviewed and integrated302b2224..e6a39db9, with Codex correctionsdfaeae2a/c36feb36/f904d0ae. Scope of earlier Claude UI evidence remains historical, not proof of the new combined build. Earlier full fresh native402 tests/97 suites passed exit0. Finala6ea72ac owner Mac/device/Simulator builds passed; final full Release406/98 passed (see current checkpoint). Codex owns the new Search smoothness, visible Presenter and two-column desktop KJVA requests; DX05 per-window state stays open. Read INTEGRATION-REVIEW-2026-11-27.md and current checkpoint.
 
 ### CC10 — native import acceptance, ready for Claude (not dispatched)
 
@@ -147,3 +147,11 @@ Earlier native full402 tests/97 suites terminal exit0. Finala6ea72ac install-rea
 Finala6 long-note following/reopen/Pause/Resume runtime passed. During these interactions QA app showed highCPU and slowAX; sample is dominated by SwiftUI flush/native toolbar layout, not a captured note-follow callback or remoteAX call. Before modifying code, compare idle main-thread samples with Presenter closed/open for Scripture and synthetic long note. Keep root focused-scene command routing under review. Child-owned note viewport/one changed-target scroll is a candidate, not a proved fix. Keep existing note/pause/reopen behavior and exact fixture cleanup evidence; see latest integration review.
 
 November27 follow-up supersedes the speculative note-child task: idleScripture A/B established Presenter focus-value churn;6a54ccef explicitscaleequality reducedCPU~100%→~4%, zoomafterreopenandPause/Resumeverified. Do not implement the speculative notechildrefactor as a required fix. Continue remaining note reflow/rapid-switch/multiwindow acceptance.
+
+
+### Current Codex Search context correction
+Shared context task identity lacks replacement settings and raw neighboring LXX Psalm labels disagree with the reader. Actual Mac reproduction and current QA ownership are in SEARCH-CONTEXT-2026-11-27. Implementation/tests/build/UI checks in progress; retain search hit and storage identities. No new match-range performance cache until measured benefit justifies it.
+
+
+### November27 Search continuation — verified, publication pending
+Codex source e23eac7a/aaa6c517: reader-aligned numeric context, shared bounded chapter reads and Full verse mode.418tests/100suites/all3builds/signatures/actualMac+iPhoneUI pass. Existing records/37+47activeIDs retained. Root docs are latest; owner binaries/source are ready but final owner docs/push need approval service, which rejected the last final-check request because of a usage limit. No bypass/reset. Next Codex: title-only match composition, measured scrolling/history, DX05. Claude CC10/11 remain ready/not dispatched, with original scope and independent ownership preserved. See SEARCH-CONTEXT-2026-11-27.

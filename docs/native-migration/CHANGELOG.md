@@ -2272,3 +2272,7 @@ Final app sourcea6ea72ac: full native Release406tests/98suites PASS, terminal0. 
 
 ### November27 — Presenter idle layout fix,6a54ccef
 Explicit scale equality prevents a newly captured focused-value setter from continually republishing and rebuilding native command/toolbar layout. Measured isolated Presenter-open idle CPU~100%→~4%; source-window baseline~4%. OwnerMac trialpassed; finalcommittedrebuildinprogress. Menu and keyboarddecrease/reset, controls afterreopen, Pause/Resume verified. No iPhone/source-data changes.
+
+
+### November27,12:23pm PST — Shared Search context and Full verse
+Source e23eac7a/aaa6c517 restores original Compact/Full/±1/±2 behavior, reader-aligned numeric neighbors, complete Strong’s matches and settings/cancellation-safe previews.16-entry shared raw chapter cache bounds pending reads.418 native tests/100 suites, all3 owner builds/strict signatures and actual Mac+iPhone Simulator UI passed. Original watched records and exact37/47 activeIDs retained; physical phone untouched. Main raw title-only hit composition and physical smoothness remain open. Publication/final docs synchronization await approval-service usage-limit recovery; do not bypass or reset. Prior64a3852f hosted native+legacy passed, new code not published. See SEARCH-CONTEXT-2026-11-27 and the current checkpoints.
