@@ -582,7 +582,16 @@ final class AppModel {
     func scheduleSave() {
         saveTask?.cancel()
         saveTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(400))
+            // A separate QA library can make the pending-save lifecycle race
+            // deterministic without changing a user setting or persisted data.
+            #if DEBUG && os(macOS)
+            let arguments = ProcessInfo.processInfo.arguments
+            let delay: Duration = arguments.contains("--qa-library") && arguments.contains("--qa-slow-workspace-save")
+                ? .seconds(10) : .milliseconds(400)
+            #else
+            let delay: Duration = .milliseconds(400)
+            #endif
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
             self?.saveNow()
         }
