@@ -2283,3 +2283,6 @@ Sourcebab93109 composes separately stored LXX headings+openingbody without conca
 
 ## November27 evening — Minimal Presenter
 Remove content navigation title and redundant passive status circle; retain named Window menu/AX identity. Two bottom-right glass groups: expanded zoom click targets and Pause/Resume with accessible Following/Paused value. Preserve stable focused zoom equality and follow/freeze logic. Source0928d530; actual Mac controls/close-reopen checked. [Evidence](PRESENTER-MINIMAL-CONTROLS-2026-11-27.md).
+
+## November27 — Workspace persistence and lifecycle
+Workspace changes and active-tab selection now save together; failed saves retain pending state for retry. Mac saves across tab types on Quit and stays open on a failed save. iPhone saves every workspace before scene suspension. [Tests and runtime evidence](WORKSPACE-WRITER-2026-11-27.md).

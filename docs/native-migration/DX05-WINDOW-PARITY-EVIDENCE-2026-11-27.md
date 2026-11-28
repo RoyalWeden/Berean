@@ -1,5 +1,7 @@
 # DX05 window parity evidence — November27 evening
 
+**Latest verified state:** [Workspace writer/lifecycle report](WORKSPACE-WRITER-2026-11-27.md) atd2f96dae supersedes provisional experiment interpretations below. Independent windows remain open.
+
 Codex explicitly claimed CC11's read-only inventory through a bounded helper; no source implementation. Owner then steered to Presenter minimal controls. CC10 remains available to Claude; CC11 inventory is complete, architecture/implementation remains Codex-owned and OPEN.
 
 Legacy contract: electron/main.ts591–608: CmdN shared peer from focused window; OptionCmdN standalone. src/App.tsx95–107 and src/store/index.ts3453–3469: standalone inherits settings but begins one empty default workspace, no live shared tab/session persistence or SQLite tab mirror. Content services/notes/highlights remain shared. src/lib/crossWindowSync.ts80–119,130–165,249–255,292–305: peers share membership/order/title/pin, but preserve existing same-ID tab state, routes/scroll/cursor independently; new IDs initially adopt sender state. Local active workspace/space/tab stays local except valid fallback after deletion. Handshake173–190,208–221 seeds opener workspace/space/activeIDs/live tab state, excludes panelLayout/scrollByTab. src/lib/perWindowViewState.ts32–35,54–119 restores primary slot only, not all extra windows. Legacy Presenter singleton follows opener, transfers only on explicit reopen, and closes with owner (electron/main.ts1607–1622,1706–1732,1757–1760,1262–1268).

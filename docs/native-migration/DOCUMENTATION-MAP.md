@@ -122,3 +122,6 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [Search context and Full verse](SEARCH-CONTEXT-2026-11-27.md): exact source, review corrections,418-test/build/signature receipts, actual Mac/iPhone UI, state preservation and approval-service publication interruption.
 
 - [Complete Psalm Search openings](PSALM-SEARCH-OPENING-2026-11-27.md): raw-segment design, long-heading review correction,424-test/build/signature results, actual Mac/iPhone acceptance and fresh preservation receipts.
+
+## November27 — Workspace persistence and lifecycle
+[Canonical workspace writer/lifecycle](WORKSPACE-WRITER-2026-11-27.md) is the verified current persistence checkpoint. [DX05 window evidence](DX05-WINDOW-PARITY-EVIDENCE-2026-11-27.md) contains the source inventory, acceptance matrix and dated experiments; final clarifications supersede earlier provisional root-cause claims.

@@ -834,3 +834,6 @@ November27 PsalmSearch: compose only validated separate heading/body openings in
 
 ## November27 evening — Minimal Presenter
 Remove content navigation title and redundant passive status circle; retain named Window menu/AX identity. Two bottom-right glass groups: expanded zoom click targets and Pause/Resume with accessible Following/Paused value. Preserve stable focused zoom equality and follow/freeze logic. Source0928d530; actual Mac controls/close-reopen checked. [Evidence](PRESENTER-MINIMAL-CONTROLS-2026-11-27.md).
+
+## November27 — Workspace persistence and lifecycle
+Use one observable canonical workspace writer, not one hydrated database/model snapshot per window. Preserve legacy serializers/allowlists/IDs. Advance order keys/current selection defaults only after atomic commit; install writer only after hydration succeeds. App lifetime owns Mac Quit flushing because window view lifetime is insufficient as an ownership contract. Cancel actual failed Quit, preserving pending state/error UI. Isolated DEBUG QA slow-save flag makes lifecycle tests deterministic without changing normal preferences. Independent window runtime/service ownership remains a separate required gate. [Evidence](WORKSPACE-WRITER-2026-11-27.md).

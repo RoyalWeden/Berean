@@ -706,3 +706,6 @@ Source e23eac7a/aaa6c517 restores original Compact/Full/±1/±2 behavior, reader
 
 ### November27 evening — Complete Psalm opening Search presentation
 Sourcebab93109 composes separately stored LXX headings+openingbody without concatenating Strong’s offsets or changing raw actions/anchors/counts. Validated fallback for incomplete/mismatched data; ordinary rows add no async task. Matched long headings remain visible in Compact.424tests/101suites, all3ownerbuilds/strictsignatures and actualMac+iPhone title/body/Strong/context/navigation checks PASS. FreshSimulator originals and47activeIDs retained; physicalphone untouchedbyCodex. Prior5da8a373 hostednative+legacyPASS; latestsource needs own publication/check. See PSALM-SEARCH-OPENING-2026-11-27 and current checkpoints.
+
+## November27 — Workspace persistence and lifecycle
+Workspace writer prerequisite is integrated/verified atd2f96dae, not an unused pure model. Continue DX05 canonical mutation/scheduling/shared content-services and window facade work; normal/standalone/Presenter ownership matrix remains open. CC10/CC12 ready for Claude. [Exact validation and next gates](WORKSPACE-WRITER-2026-11-27.md).
