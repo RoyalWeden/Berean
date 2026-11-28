@@ -5,6 +5,7 @@ import CoreSpotlight
 struct BereanIOSApp: App {
     init() { BereanTips.configure() }
     @State private var app = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     private struct IndexedWorkspace: Equatable {
         let id: String
@@ -18,6 +19,11 @@ struct BereanIOSApp: App {
     var body: some Scene {
         WindowGroup {
             IOSRootView().environment(app).preferredColorScheme(app.colorScheme)
+                .onChange(of: scenePhase) { _, phase in
+                    // Search, Lexicon, Notes and empty workspaces also need a
+                    // synchronous flush before iOS suspends the scene.
+                    if phase == .background { app.saveNow() }
+                }
                 .onOpenURL { url in
                     // Close whatever sheet is up first, so the destination isn't left behind it.
                     NotificationCenter.default.post(name: .bereanExternalRoute, object: nil)
