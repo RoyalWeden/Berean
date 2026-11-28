@@ -159,3 +159,6 @@ Codex source e23eac7a/aaa6c517: reader-aligned numeric context, shared bounded c
 
 ### November27 evening continuation
 Approval service recovered normally; prior context/Full source published5da8a373 with green native+legacy46098092725 and owner docs synchronized. Codex completed title-only Psalm opening composition inbab93109;424tests/all3builds/signatures/actualMac+iPhoneUI passed. New exact-head publication/check next. Raw records/counts/annotations remain unchanged. Currentcode work is committed and no assisting source tasks/builds remain. Continue measured scrolling/history and DX05/pane bridge; ClaudeCC10/11 packets stay ready/notdispatched rather than silently taking over their scope.
+
+## November27 evening ownership update
+CC11 read-only window inventory explicitly claimed/completed by Codex helper; [evidence and acceptance](DX05-WINDOW-PARITY-EVIDENCE-2026-11-27.md). DX05 implementation remains OPEN/Codex-owned; no window-state source changes. CC10 remains ready for Claude. Owner Presenter steering handled first: source0928d530, title-free two-group bottom-right controls and larger targets; actual Mac zoom/reset/Pause/Resume/close-reopen passed. iPhone/shared UI unchanged.

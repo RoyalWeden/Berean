@@ -831,3 +831,6 @@ November27 Search context decisions: preserve numeric± windows rather than skip
 
 
 November27 PsalmSearch: compose only validated separate heading/body openings in presentation; never concatenate raw Strong’s coordinates or redirect stored title IDs. Use live painting over independent segments. Keep matched long headings untruncated in Compact to preserve late-match visibility. Existing reader/clipboard canonicalization handles Open/Copy/Share; note/highlight/result IDs and counts remain raw.
+
+## November27 evening — Minimal Presenter
+Remove content navigation title and redundant passive status circle; retain named Window menu/AX identity. Two bottom-right glass groups: expanded zoom click targets and Pause/Resume with accessible Following/Paused value. Preserve stable focused zoom equality and follow/freeze logic. Source0928d530; actual Mac controls/close-reopen checked. [Evidence](PRESENTER-MINIMAL-CONTROLS-2026-11-27.md).

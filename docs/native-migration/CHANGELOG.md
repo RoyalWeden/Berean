@@ -2280,3 +2280,6 @@ Source e23eac7a/aaa6c517 restores original Compact/Full/±1/±2 behavior, reader
 
 ### November27 evening — Complete Psalm opening Search presentation
 Sourcebab93109 composes separately stored LXX headings+openingbody without concatenating Strong’s offsets or changing raw actions/anchors/counts. Validated fallback for incomplete/mismatched data; ordinary rows add no async task. Matched long headings remain visible in Compact.424tests/101suites, all3ownerbuilds/strictsignatures and actualMac+iPhone title/body/Strong/context/navigation checks PASS. FreshSimulator originals and47activeIDs retained; physicalphone untouchedbyCodex. Prior5da8a373 hostednative+legacyPASS; latestsource needs own publication/check. See PSALM-SEARCH-OPENING-2026-11-27 and current checkpoints.
+
+## November27 evening — Minimal Presenter
+Remove content navigation title and redundant passive status circle; retain named Window menu/AX identity. Two bottom-right glass groups: expanded zoom click targets and Pause/Resume with accessible Following/Paused value. Preserve stable focused zoom equality and follow/freeze logic. Source0928d530; actual Mac controls/close-reopen checked. [Evidence](PRESENTER-MINIMAL-CONTROLS-2026-11-27.md).
