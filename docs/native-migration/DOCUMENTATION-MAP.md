@@ -120,3 +120,5 @@ Source334eafbb: native LXX Psalm attachments use reader labels/ranges while raw 
 - [November27 integration and UI evidence](INTEGRATION-REVIEW-2026-11-27.md): reviewed Claude work, fixes, tests, actual Mac/iPhone interactions, cache-build limitation and fixture preservation. [Superseded current checkpoints](CHECKPOINT-HISTORY-2026-11-27.md) are historical only.
 
 - [Search context and Full verse](SEARCH-CONTEXT-2026-11-27.md): exact source, review corrections,418-test/build/signature receipts, actual Mac/iPhone UI, state preservation and approval-service publication interruption.
+
+- [Complete Psalm Search openings](PSALM-SEARCH-OPENING-2026-11-27.md): raw-segment design, long-heading review correction,424-test/build/signature results, actual Mac/iPhone acceptance and fresh preservation receipts.

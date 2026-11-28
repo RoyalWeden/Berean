@@ -155,3 +155,7 @@ Shared context task identity lacks replacement settings and raw neighboring LXX 
 
 ### November27 Search continuation — verified, publication pending
 Codex source e23eac7a/aaa6c517: reader-aligned numeric context, shared bounded chapter reads and Full verse mode.418tests/100suites/all3builds/signatures/actualMac+iPhoneUI pass. Existing records/37+47activeIDs retained. Root docs are latest; owner binaries/source are ready but final owner docs/push need approval service, which rejected the last final-check request because of a usage limit. No bypass/reset. Next Codex: title-only match composition, measured scrolling/history, DX05. Claude CC10/11 remain ready/not dispatched, with original scope and independent ownership preserved. See SEARCH-CONTEXT-2026-11-27.
+
+
+### November27 evening continuation
+Approval service recovered normally; prior context/Full source published5da8a373 with green native+legacy46098092725 and owner docs synchronized. Codex completed title-only Psalm opening composition inbab93109;424tests/all3builds/signatures/actualMac+iPhoneUI passed. New exact-head publication/check next. Raw records/counts/annotations remain unchanged. Currentcode work is committed and no assisting source tasks/builds remain. Continue measured scrolling/history and DX05/pane bridge; ClaudeCC10/11 packets stay ready/notdispatched rather than silently taking over their scope.

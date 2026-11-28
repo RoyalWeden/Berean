@@ -828,3 +828,6 @@ November27 Presenter focused-value stability: PresenterZoom equality tracks immu
 
 
 November27 Search context decisions: preserve numeric± windows rather than skipping across missing verse numbers; use canonical reader projection for titles and combined ranges while raw stored hit IDs stay unchanged. Cache only immutable raw chapters, bounded to16 pending/retained reads per Search view, with service identity and cancellation admission checks. Full verse uses the existing local unsynced preference value-1;0/1/2 keep prior semantics. Snippet cache keys include windowing and never cache resolved colors. No schema/sync/annotation identity changes.
+
+
+November27 PsalmSearch: compose only validated separate heading/body openings in presentation; never concatenate raw Strong’s coordinates or redirect stored title IDs. Use live painting over independent segments. Keep matched long headings untruncated in Compact to preserve late-match visibility. Existing reader/clipboard canonicalization handles Open/Copy/Share; note/highlight/result IDs and counts remain raw.

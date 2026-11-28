@@ -511,3 +511,7 @@ November27 final Presenter verification:6a54ccef stops focused zoom payload layo
 
 ### November27,12:23pm PST — Shared Search context and Full verse
 Source e23eac7a/aaa6c517 restores original Compact/Full/±1/±2 behavior, reader-aligned numeric neighbors, complete Strong’s matches and settings/cancellation-safe previews.16-entry shared raw chapter cache bounds pending reads.418 native tests/100 suites, all3 owner builds/strict signatures and actual Mac+iPhone Simulator UI passed. Original watched records and exact37/47 activeIDs retained; physical phone untouched. Main raw title-only hit composition and physical smoothness remain open. Publication/final docs synchronization await approval-service usage-limit recovery; do not bypass or reset. Prior64a3852f hosted native+legacy passed, new code not published. See SEARCH-CONTEXT-2026-11-27 and the current checkpoints.
+
+
+### November27 evening — Complete Psalm opening Search presentation
+Sourcebab93109 composes separately stored LXX headings+openingbody without concatenating Strong’s offsets or changing raw actions/anchors/counts. Validated fallback for incomplete/mismatched data; ordinary rows add no async task. Matched long headings remain visible in Compact.424tests/101suites, all3ownerbuilds/strictsignatures and actualMac+iPhone title/body/Strong/context/navigation checks PASS. FreshSimulator originals and47activeIDs retained; physicalphone untouchedbyCodex. Prior5da8a373 hostednative+legacyPASS; latestsource needs own publication/check. See PSALM-SEARCH-OPENING-2026-11-27 and current checkpoints.
