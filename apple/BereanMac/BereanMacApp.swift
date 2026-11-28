@@ -179,7 +179,7 @@ final class BereanApplicationLifecycle: NSObject, NSApplicationDelegate {
     weak var app: AppModel?
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        app?.saveNow()
+        if app?.saveNow() == false { return .terminateCancel }
         return .terminateNow
     }
 

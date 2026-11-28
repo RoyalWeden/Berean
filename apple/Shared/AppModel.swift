@@ -593,15 +593,17 @@ final class AppModel {
             #endif
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
-            self?.saveNow()
+            _ = self?.saveNow()
         }
     }
 
-    func saveNow() {
+    /// False means live workspace edits still need a successful retry. Mac Quit
+    /// must keep the process alive so the existing library alert can be shown.
+    @discardableResult func saveNow() -> Bool {
         // An explicit lifecycle flush covers the queued debounce as well.
         saveTask?.cancel()
         saveTask = nil
-        guard workspaceStore.canPersist else { return }
+        guard workspaceStore.canPersist else { return true }
         flushCompareBookmarks()
         flushSearchViewports()
         let started = ContinuousClock.now
@@ -617,7 +619,11 @@ final class AppModel {
             if try workspaceStore.save() {
                 UserLibrary.defaults.set(currentSessionId, forKey: "currentSessionId")
             }
-        } catch { libraryError = "Saving tabs failed: \(error)" }
+            return true
+        } catch {
+            libraryError = "Saving tabs failed: \(error)"
+            return false
+        }
     }
 
     // MARK: sessions
