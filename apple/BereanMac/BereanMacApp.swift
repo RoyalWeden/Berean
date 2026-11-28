@@ -5,6 +5,7 @@ import BereanWorkspace
 @main
 struct BereanMacApp: App {
     @State private var app = AppModel()
+    @NSApplicationDelegateAdaptor(BereanApplicationLifecycle.self) private var lifecycle
     @FocusedValue(\.bereanStudyWindow) private var isStudyWindow
     /// Set while the Presenter window is key: ⌘= / ⌘- / ⌘0 then size the audience text.
     @FocusedValue(\.presenterZoom) private var presenterZoom
@@ -23,6 +24,7 @@ struct BereanMacApp: App {
         WindowGroup {
             MacRootView()
                 .environment(app)
+                .onAppear { lifecycle.app = app }
                 .defaultAppStorage(UserLibrary.defaults)
                 .preferredColorScheme(app.colorScheme)
                 .frame(minWidth: MacLayoutLimits.windowMinimum, minHeight: 520)
@@ -167,6 +169,22 @@ struct BereanMacApp: App {
                 }.disabled(isStudyWindow != true)
             }
         }
+    }
+}
+
+/// Remains alive after SwiftUI tears down the windows during Quit. A view's
+/// willTerminate subscription can disappear before the notification arrives.
+@MainActor
+final class BereanApplicationLifecycle: NSObject, NSApplicationDelegate {
+    weak var app: AppModel?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        app?.saveNow()
+        return .terminateNow
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        app?.saveNow()
     }
 }
 

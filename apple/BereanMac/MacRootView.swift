@@ -95,12 +95,6 @@ struct MacRootView: View {
         }
         .onChange(of: app.sidebarToggleRequest) { withAnimation { columns = columns == .detailOnly ? .all : .detailOnly } }
         .onChange(of: app.chatWindowRequest) { openWindow(id: "chat") }
-        // Quit can end the process before the workspace debounce fires. This
-        // belongs to the window, including Search/Notes/empty content, rather
-        // than depending on a mounted Scripture reader's scene-phase callback.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-            app.saveNow()
-        }
         .sheet(isPresented: Binding(get: { app.gettingStartedShown }, set: { app.gettingStartedShown = $0 })) {
             GettingStartedChecklist().environment(app)
         }
